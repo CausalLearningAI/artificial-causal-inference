@@ -13,7 +13,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <th>Status</th>
   </tr>
   <tr>
-    <td rowspan="2">Experimental Ecology</td> 
+    <td rowspan="5">Experimental Ecology</td> 
     <td>Ants</td> 
     <td>1</td> 
     <td><img src="img/istant_lq.gif" alt="GIF 2" width="100" height="100"></td>
@@ -28,6 +28,27 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>Ready</td>
   </tr>
   <tr>
+    <td>Ants</td> 
+    <td>3</td> 
+    <td>...</td>
+    <td>...</td> 
+    <td>Ready (to be downloaded)</td>
+  </tr>
+  <tr>
+    <td>Ants</td> 
+    <td>4</td> 
+    <td>...</td>
+    <td>...</td> 
+    <td>Ready (to be downloaded)</td>
+  </tr>
+  <tr>
+    <td>Ants</td> 
+    <td>5</td> 
+    <td>...</td>
+    <td>...</td> 
+    <td>Coming soon</td>
+  </tr>
+  <tr>
     <td>Neuroscience</td> 
     <td>Mice</td> 
     <td>1</td> 
@@ -37,7 +58,7 @@ General framework for Artificial Causal Inference on real world scientific exper
   </tr>
   <tr>
     <td>Biology</td> 
-    <td>Frongs</td> 
+    <td>Frogs</td> 
     <td>1</td> 
     <td>...</td>
     <td>...</td> 
@@ -49,11 +70,11 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>...</td> 
     <td><img src="img/brain.png" alt="image 1" width="150" height="100"></td>
     <td>...</td>
-    <td>Ready but Private</td> 
+    <td>Ready but private</td> 
   </tr>
   <tr>
     <td>Chemistry</td> 
-    <td>...</td> 
+    <td>Cells locomotion</td> 
     <td>...</td> 
     <td>...</td>
     <td>...</td>
@@ -68,11 +89,10 @@ General framework for Artificial Causal Inference on real world scientific exper
 
 #### Reference
 ```bibtex
-@article{cadei2025causal,
-  title={Causal Lifting of Neural Representations: Zero-Shot Generalization for Causal Inferences},
+@inproceedings{cadei2025prediction,
+  title={Prediction-Powered Causal Inferences},
   author={Cadei, Riccardo and Demirel, Ilker and De Bartolomeis, Piersilvio and Lindorfer, Lukas and Cremer, Sylvia and Schmid, Cordelia and Locatello, Francesco},
-  journal={arXiv preprint arXiv:2502.06343},
-  year={2025}
+  booktitle={The Thirty-ninth Annual Conference on Neural Information Processing Systems}
 }
 ```
 
