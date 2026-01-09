@@ -9,8 +9,8 @@ General framework for Artificial Causal Inference on real world scientific exper
     <th>Research</th>
     <th>Subject</th>
     <th>Version</th>
-    <th>T</th>
-    <th>Sample Size<sup>1</sup></th>
+    <th>T<sup>1</sup></th>
+    <th>Sample Size<sup>2</sup></th>
     <th>Effect Modifiers<sup>2</sup></th>
     <th>Annotations</th>
     <th>Description</th>
@@ -24,7 +24,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td><code>v1</code></td> 
     <td>3</td> 
     <td>14, 15, 15 (x2)</td> 
-    <td>NA</td> 
+    <td>None</td> 
     <td>Grooming (30min/video)</td> 
     <td>Ants triplets interactions (90min/video)</td> 
     <td><img src="img/istant_lq.gif" alt="GIF 2" width="100" height="100"></td>
@@ -36,7 +36,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td><code>v2</code></td>
     <td>2</td> 
     <td>24, 20 (x2)</td> 
-    <td>NA</td> 
+    <td>None</td> 
     <td>Grooming (10min/video)</td> 
     <td>Ants triplets interactions (~20min/video)</td> 
     <td><img src="img/istant_hq.gif" alt="GIF 1" width="100" height="100"></td>
@@ -48,7 +48,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td><code>v3</code></td>
     <td>...</td> 
     <td>...</td> 
-    <td>NA</td> 
+    <td>None</td> 
     <td>Grooming (...min/video)</td> 
     <td>Ants triplets interactions (...min/video)</td> 
     <td>...</td>
@@ -60,7 +60,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td><code>v4</code></td>
     <td>...</td> 
     <td>...</td> 
-    <td>NA</td> 
+    <td>None</td> 
     <td>Grooming (...min/video)</td> 
     <td>Ants triplets interactions (...min/video)</td> 
     <td>...</td>
@@ -72,7 +72,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td><code>v5</code></td>
     <td>...</td> 
     <td>...</td> 
-    <td>NA</td> 
+    <td>None</td> 
     <td>Grooming (...min/video)</td> 
     <td>Ants triplets interactions (...min/video)</td> 
     <td>...</td>
@@ -132,7 +132,8 @@ General framework for Artificial Causal Inference on real world scientific exper
   </tr>
 </table>
 
-<sup>1</sup> sample size per treatment<br>
+<sup>1</sup> number of treatments including the control<br>
+<sup>2</sup> sample size per treatment (simmetry factor with multiple individuals per observation)<br>
 <sup>2</sup> effect modifiers of interest, e.g., for CATE estimation
 
 
