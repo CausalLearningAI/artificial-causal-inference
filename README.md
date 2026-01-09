@@ -6,81 +6,134 @@ General framework for Artificial Causal Inference on real world scientific exper
 <table align="center">
   <tr>
     <th>Field</th>
-    <th>Domain</th>
+    <th>Research</th>
+    <th>Subject</th>
     <th>Version</th>
+    <th>T</th>
+    <th>Sample Size<sup>1</sup></th>
+    <th>Effect Modifiers<sup>2</sup></th>
+    <th>Annotations</th>
+    <th>Description</th>
     <th>Preview</th>
     <th>Source</th>
-    <th>Status</th>
   </tr>
   <tr>
     <td rowspan="5">Experimental Ecology</td> 
-    <td>Ants</td> 
-    <td>1</td> 
+    <td>Social Immunity</td>
+    <td><code>ants</code></td> 
+    <td><code>v1</code></td> 
+    <td>3</td> 
+    <td>14, 15, 15 (x2)</td> 
+    <td>NA</td> 
+    <td>Grooming (30min/video)</td> 
+    <td>Ants triplets interactions (90min/video)</td> 
     <td><img src="img/istant_lq.gif" alt="GIF 2" width="100" height="100"></td>
     <td><a href="https://figshare.com/account/items/28319693/edit">figshare</a></td> 
-    <td>Ready</td>
   </tr>
   <tr>
-    <td>Ants</td> 
+    <td>Social Immunity</td>
+    <td><code>ants</code></td> 
+    <td><code>v2</code></td>
     <td>2</td> 
+    <td>24, 20 (x2)</td> 
+    <td>NA</td> 
+    <td>Grooming (10min/video)</td> 
+    <td>Ants triplets interactions (~20min/video)</td> 
     <td><img src="img/istant_hq.gif" alt="GIF 1" width="100" height="100"></td>
     <td><a href="https://figshare.com/articles/dataset/ISTAnt_zip/26484934">figshare</a></td> 
-    <td>Ready</td>
   </tr>
   <tr>
-    <td>Ants</td> 
-    <td>3</td> 
-    <td>...</td>
+    <td>Social Immunity</td>
+    <td><code>ants</code></td> 
+    <td><code>v3</code></td>
     <td>...</td> 
-    <td>Ready (to be downloaded)</td>
+    <td>...</td> 
+    <td>NA</td> 
+    <td>Grooming (...min/video)</td> 
+    <td>Ants triplets interactions (...min/video)</td> 
+    <td>...</td>
+    <td>To Download and Clean</td> 
   </tr>
   <tr>
-    <td>Ants</td> 
-    <td>4</td> 
-    <td>...</td>
+    <td>Social Immunity</td>
+    <td><code>ants</code></td> 
+    <td><code>v4</code></td>
     <td>...</td> 
-    <td>Ready (to be downloaded)</td>
+    <td>...</td> 
+    <td>NA</td> 
+    <td>Grooming (...min/video)</td> 
+    <td>Ants triplets interactions (...min/video)</td> 
+    <td>...</td>
+    <td>To Download and Clean</td> 
   </tr>
   <tr>
-    <td>Ants</td> 
-    <td>5</td> 
-    <td>...</td>
+    <td>Social Immunity</td>
+    <td><code>ants</code></td> 
+    <td><code>v5</code></td>
     <td>...</td> 
+    <td>...</td> 
+    <td>NA</td> 
+    <td>Grooming (...min/video)</td> 
+    <td>Ants triplets interactions (...min/video)</td> 
+    <td>...</td>
     <td>Coming soon</td>
   </tr>
   <tr>
     <td>Neuroscience</td> 
-    <td>Mice</td> 
-    <td>1</td> 
+    <td>Autism</td>
+    <td><code>mice</code></td> 
+    <td><code>v1</code></td>
+    <td>6</td> 
+    <td>... (x6, x12)</td> 
+    <td>Sex (2), Genotype (4)</td> 
+    <td>Sniffing NN, NT (.../... videos)</td> 
+    <td>Mice quadruplets interactions (...min/video)</td> 
     <td><img src="img/mice.gif" alt="GIF 3" width="100" height="100"></td>
-    <td>...</td> 
-    <td>Coming soon</td>
+    <td>Cleaning</td>
   </tr>
   <tr>
     <td>Biology</td> 
-    <td>Frogs</td> 
-    <td>1</td> 
     <td>...</td>
+    <td><code>frogs</code></td> 
+    <td><code>v1</code></td> 
     <td>...</td> 
+    <td>...</td> 
+    <td>...</td>
+    <td>...</td>
+    <td>...</td>
+    <td>...</td>
     <td>Coming soon</td>
   </tr>
   <tr>
     <td>Medicine</td> 
-    <td>Brain Cancer</td> 
+    <td>Cancer</td>
+    <td><code>brain</code></td>  
+    <td><code>v1</code></td>
     <td>...</td> 
-    <td><img src="img/brain.png" alt="image 1" width="150" height="100"></td>
+    <td>...</td> 
     <td>...</td>
+    <td>...</td>
+    <td>...</td>
+    <td><img src="img/brain.png" alt="image 1" width="150" height="100"></td>
     <td>Ready but private</td> 
   </tr>
   <tr>
     <td>Chemistry</td> 
-    <td>Cells locomotion</td> 
+    <td>...</td>
+    <td><code>cells</code></td> 
+    <td><code>v1</code></td> 
+    <td>...</td> 
     <td>...</td> 
     <td>...</td>
     <td>...</td>
-    <td>TBD</td> 
+    <td>...</td>
+    <td>...</td>
+    <td>...</td> 
   </tr>
 </table>
+
+<sup>1</sup> sample size per treatment<br>
+<sup>2</sup> effect modifiers of interest, e.g., for CATE estimation
 
 
 ## Prediction Powered Causal Inference
