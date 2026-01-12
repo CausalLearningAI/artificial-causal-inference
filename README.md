@@ -92,6 +92,19 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>Cleaning</td>
   </tr>
   <tr>
+    <td>Neuroscience</td> 
+    <td>Autism</td>
+    <td><code>mice</code></td> 
+    <td><code>v2</code></td>
+    <td>6</td> 
+    <td>... </td> 
+    <td>Sex (2), Genotype (4)</td> 
+    <td>Sniffing NN, NT (.../... videos)</td> 
+    <td>Mixed mice quadruplets interactions (...min/video)</td> 
+    <td>...</td>
+    <td>Coming soon</td>
+  </tr>
+  <tr>
     <td>Biology</td> 
     <td>...</td>
     <td><code>frogs</code></td> 
