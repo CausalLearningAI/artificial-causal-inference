@@ -27,7 +27,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>None</td> 
     <td>Grooming (30min/video)</td> 
     <td>Ants triplets interactions (90min/video)</td> 
-    <td><img src="img/istant_lq.gif" alt="GIF 2" width="100" height="100"></td>
+    <td><img src="img/ants_v1.gif" alt="GIF 1" width="100" height="100"></td>
     <td><a href="https://figshare.com/account/items/28319693/edit">figshare</a></td> 
   </tr>
   <tr>
@@ -39,7 +39,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>None</td> 
     <td>Grooming (10min/video)</td> 
     <td>Ants triplets interactions (~20min/video)</td> 
-    <td><img src="img/istant_hq.gif" alt="GIF 1" width="100" height="100"></td>
+    <td><img src="img/ants_v2.gif" alt="GIF 2" width="100" height="100"></td>
     <td><a href="https://figshare.com/articles/dataset/ISTAnt_zip/26484934">figshare</a></td> 
   </tr>
   <tr>
