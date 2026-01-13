@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 """
-Script to analyze video files in data/*/v*/original/video folders and create JSON metadata files.
+Analyze video files in data/{subject}/{version}/observations/* folders
+and create JSON metadata files for source, full, and povs subdirectories.
+
+Usage:
+    python get_metadata.py                  # defaults: ants/v1
+    python get_metadata.py experiment.subject=mice  # mice/v1
+    python get_metadata.py experiment.subject=ants experiment.version=v2
 """
 
-import os
 import json
-from pathlib import Path
+import os
 import subprocess
+from pathlib import Path
+
+import hydra
+from omegaconf import DictConfig, OmegaConf
 
 
 def get_video_info(video_path):
@@ -95,8 +104,8 @@ def analyze_video_folder(video_folder):
     video_folder = Path(video_folder)
     
     if not video_folder.exists():
-        print(f"Folder does not exist: {video_folder}")
-        return
+        print(f"  Folder does not exist: {video_folder}")
+        return None
     
     # Find all video files
     video_extensions = {'.mp4', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.webm'}
@@ -107,8 +116,8 @@ def analyze_video_folder(video_folder):
             video_files.append(file)
     
     if not video_files:
-        print(f"No video files found in {video_folder}")
-        return
+        print(f"  No video files found in {video_folder}")
+        return None
     
     # Get extension (assuming all videos have the same extension)
     extensions = set(f.suffix.lower() for f in video_files)
@@ -117,14 +126,13 @@ def analyze_video_folder(video_folder):
     # Analyze each video
     video_data = []
     for video_file in video_files:
-        print(f"Analyzing {video_file.name}...")
         info = get_video_info(video_file)
         if info:
             video_data.append(info)
     
     if not video_data:
-        print(f"Could not analyze any videos in {video_folder}")
-        return
+        print(f"  Could not analyze any videos in {video_folder}")
+        return None
     
     # Calculate statistics
     durations = [v['duration'] for v in video_data if v['duration'] is not None]
@@ -139,58 +147,110 @@ def analyze_video_folder(video_folder):
     width_consistent = len(set(widths)) <= 1 if widths else True
     height_consistent = len(set(heights)) <= 1 if heights else True
     
-    # Create metadata
+    # Create metadata (durations reported in minutes)
     metadata = {
         'extension': extension if isinstance(extension, str) else list(extension),
         'n': len(video_files),
         'fps': round(fps_values[0], 2) if fps_consistent and fps_values else "INCONSISTENT",
-        'resolution_h': widths[0] if width_consistent and widths else "INCONSISTENT",
-        'resolution_w': heights[0] if height_consistent and heights else "INCONSISTENT",
+        'resolution_w': widths[0] if width_consistent and widths else "INCONSISTENT",
+        'resolution_h': heights[0] if height_consistent and heights else "INCONSISTENT",
         'channels': channels_values[0] if channels_values else None,
-        'duration_s_min': round(min(durations), 2) if durations else None,
-        'duration_s_max': round(max(durations), 2) if durations else None,
+        'duration_min_min': round(min(durations) / 60.0, 2) if durations else None,
+        'duration_min_max': round(max(durations) / 60.0, 2) if durations else None,
+        'duration_min_total': round(sum(durations) / 60.0, 2) if durations else None,
         'size_MB_min': round(min(sizes), 2) if sizes else None,
         'size_MB_max': round(max(sizes), 2) if sizes else None,
-        'size_MB': round(sum(sizes), 2) if sizes else None
+        'size_MB_total': round(sum(sizes), 2) if sizes else None
     }
     
-    # Save JSON file
-    json_path = video_folder.parent / 'metadata.json'
-    with open(json_path, 'w') as f:
-        json.dump(metadata, f, indent=2)
-    
-    print(f"Created {json_path}")
-    print(f"  Videos: {metadata['n']}")
-    print(f"  Extension: {metadata['extension']}")
-    print(f"  FPS: {metadata['fps']}")
-    print(f"  Resolution: {metadata['resolution_h']}x{metadata['resolution_w']}")
-    print(f"  Channels: {metadata['channels']}")
-    print(f"  Duration: {metadata['duration_s_min']}s - {metadata['duration_s_max']}s")
-    print(f"  Size: {metadata['size_MB_min']}MB - {metadata['size_MB_max']}MB (Total: {metadata['size_MB']}MB)")
-    print()
+    return metadata
 
 
-def main():
-    """Main function to process all video folders."""
-    base_dir = Path(__file__).parent.parent / 'data'
+@hydra.main(version_base=None, config_path="../../configs", config_name="config")
+def main(cfg: DictConfig):
+    """Main function to process video folders for given experiment."""
+    # Setup paths
+    data_dir = Path(cfg.paths.data_dir)
+    exp_path = f"{cfg.experiment.subject}/{cfg.experiment.version}"
+    exp_dir = data_dir / exp_path
+    obs_dir = exp_dir / 'observations'
     
-    # Find all video folders matching pattern data/*/v*/original/video
-    video_folders = []
+    if not obs_dir.exists():
+        print(f"Error: observations directory not found at {obs_dir}")
+        return
     
-    for species_folder in base_dir.iterdir():
-        if species_folder.is_dir():
-            for version_folder in species_folder.iterdir():
-                if version_folder.is_dir():
-                    video_folder = version_folder / 'original' / 'video'
-                    if video_folder.exists():
-                        video_folders.append(video_folder)
-    
-    print(f"Found {len(video_folders)} video folders")
+    print(f"Processing: {exp_path}")
+    print(f"Observations directory: {obs_dir}")
     print()
     
-    for folder in video_folders:
-        print(f"Processing {folder.relative_to(base_dir.parent)}...")
-        analyze_video_folder(folder)
+    # Create overall metadata dict
+    all_metadata = {}
+    
+    # 1. Analyze 'source' folder
+    source_folder = obs_dir / 'source'
+    if source_folder.exists():
+        print("✓ Analyzing 'source' folder...")
+        metadata = analyze_video_folder(source_folder)
+        if metadata:
+            all_metadata['source'] = metadata
+            print(f"  Videos: {metadata['n']}")
+            print(f"  FPS: {metadata['fps']}, Resolution: {metadata['resolution_w']}x{metadata['resolution_h']}")
+            print(f"  Total duration: {metadata['duration_min_total']} min")
+            print()
+    else:
+        print("✗ 'source' folder not found")
+        print()
+    
+    # 2. Analyze 'full' folder
+    full_folder = obs_dir / 'full'
+    if full_folder.exists():
+        print("✓ Analyzing 'full' folder...")
+        metadata = analyze_video_folder(full_folder)
+        if metadata:
+            all_metadata['full'] = metadata
+            print(f"  Videos: {metadata['n']}")
+            print(f"  FPS: {metadata['fps']}, Resolution: {metadata['resolution_w']}x{metadata['resolution_h']}")
+            print(f"  Total duration: {metadata['duration_min_total']} min")
+            print()
+    else:
+        print("⊘ 'full' folder not found (will be created by standardize.py)")
+        print()
+    
+    # 3. Analyze 'povs' subfolder structure
+    povs_folder = obs_dir / 'povs'
+    if povs_folder.exists():
+        print("✓ Analyzing 'povs' subfolders...")
+        pov_metadata = {}
+        
+        for pov_subdir in sorted(povs_folder.iterdir()):
+            if pov_subdir.is_dir():
+                pov_name = pov_subdir.name
+                print(f"  {pov_name}...")
+                metadata = analyze_video_folder(pov_subdir)
+                if metadata:
+                    pov_metadata[pov_name] = metadata
+                    print(f"    Videos: {metadata['n']}")
+                    print(f"    FPS: {metadata['fps']}, Resolution: {metadata['resolution_w']}x{metadata['resolution_h']}")
+                    print(f"    Total duration: {metadata['duration_min_total']} min")
+        
+        if pov_metadata:
+            all_metadata['povs'] = pov_metadata
+        print()
+    else:
+        print("⊘ 'povs' folder not found")
+        print()
+    
+    # Save combined metadata to observations/metadata.json
+    if all_metadata:
+        metadata_path = obs_dir / 'metadata.json'
+        with open(metadata_path, 'w') as f:
+            json.dump(all_metadata, f, indent=2)
+        
+        print("="*60)
+        print(f"✓ Metadata saved to: {metadata_path}")
+        print("="*60)
+    else:
+        print("No metadata to save")
 
 
 if __name__ == '__main__':

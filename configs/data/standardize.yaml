@@ -1,0 +1,18 @@
+# Generic video processing configuration
+target_fps: 5
+target_resolution:
+  width: 512
+  height: 512
+
+# Video encoding settings
+video_codec: libopenh264
+bitrate: 2M
+remove_audio: true
+
+# Processing settings
+overwrite: false
+show_progress: true
+
+# Folders
+source_folder: source
+output_folder: full

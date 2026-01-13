@@ -1,0 +1,12 @@
+defaults:
+  - data: standardize
+  - _self_
+
+experiment:
+  subject: ants
+  version: v1
+
+paths:
+  data_dir: ./data
+  cache_dir: ./cache
+  results_dir: ./results
