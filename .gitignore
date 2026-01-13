@@ -3,6 +3,7 @@
 
 results/
 logs/
+outputs/
 
 # data
 *.mkv
