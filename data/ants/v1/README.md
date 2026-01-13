@@ -1,45 +1,53 @@
-# Dataset: Ant Triplet Grooming Experiment
+# `ants/v1`
+### Investigating Social Immunity in ant triplets experiment
 
-This dataset contains videos and expert annotations from a controlled behavioral experiment on triplets of worker ants: one focal ant (randomly assigned to a treatment) and two nestmate ants. The goal is to estimate the causal effect of treatment on nestmate ants behavior, e.g., grooming directed toward the focal ant.
+This dataset contains videos and expert annotations from a controlled behavioral experiment on triplets of worker ants: one focal ant (randomly assigned to a treatment) and two nestmate ants. The goal is to estimate the causal effect of treatment on nestmate ants behavior, e.g., grooming directed toward the focal ant.Each replicate consists of one focal ant and two nestmates that are distinguished by pen marking: one yellow and one blue. 
 
-Each replicate consists of one focal ant and two nestmates that are distinguished by pen marking: one yellow and one blue.
+---
+
+## Summary
+
+- **Randomized Controlled Trial** 
+- **Observations**: 44 videos total (30min each)
+  - 15 with treatment `T = 0`
+  - 14 with treatment `T = 1`
+  - 15 with treatment `T = 2`
+- **Annotations (per video):** one behavior (*grooming*) annotated per frame for both nestmates
+  - yellow-to-focal grooming (binary)
+  - blue-to-focal grooming (binary)
+- **Objective:** estimate treatment effect on nestmate ants behaviors, e.g., grooming
+- **Date of recording:** October 5th, 2023
 
 ---
 
 ## Experimental design
 
-### Treatments and target estimand
-- **Treatments:** `T ∈ {0, 1, 2}` (applied to the focal ant)
-- **Goal:** estimate treatment effects on nestmate ants behaviors, e.g., grooming
-
-### Replicates (videos)
+### Replicates 
 - **Batches:** 5 *(a–e)*
 - **Positions per batch:** 9 *(1–9)*
 - **Planned observations:** 45 *(5 × 9)*
-- **Excluded observations:** 1  
-  - Batch: c  
-  - Position: 9  
-  - Reason: ant escaped
+- **Excluded observations:** 1  (batch c, position 9; ant escaped)
 - **Analyzable observations:** 44
+- **Treatments**: 3 *(0, 1, 2)* (randomly assigned, balanced)
 
-### Recording duration
-- **Attempted recording per replicate:** 90 min  
-- **Valid recording used per replicate:** 30 min
-
----
-
-## Behavioral annotation
-
+### Behavioral annotation
 - **Annotated behavior:** grooming directed toward the focal ant:
-  - **yellow → focal** grooming (binary, per frame)
-  - **blue → focal** grooming (binary, per frame)
-- **Temporal granularity:** up to two behavior changes per second
+  - yellow → focal grooming (binary, per frame)
+  - blue → focal grooming (binary, per frame)
 
-> Notes: All annotations were produced by a single domain expert, tracking up to two behavior changes per second.
+> Notes: *All annotations were produced by a single domain expert, tracking up to two behavior changes per second.*
 
----
+### Recording 
+- **Attempted recording per replicate:** 90min  
+- **Valid recording used per replicate:** 30min
+- **Recording acquisition hardware:**
+    | Component | Specification |
+    |---|---|
+    | Camera | FLIR BFS-U3-120S4C-CS USB 3.1 Blackfly® S (Color) |
+    | Lens | Tamron M111FM25, 25mm fixed focal, f/1.8, C-mount |
+    | Bit depth | 8 |
 
-## Biological metadata
+### Biological metadata (ants)
 
 | Field | Value |
 |---|---|
@@ -52,22 +60,13 @@ Each replicate consists of one focal ant and two nestmates that are distinguishe
 
 ---
 
-## Recording acquisition hardware
+## Citation
 
-| Component | Specification |
-|---|---|
-| Camera | FLIR BFS-U3-120S4C-CS USB 3.1 Blackfly® S (Color) |
-| Lens | Tamron M111FM25, 25mm fixed focal, f/1.8, C-mount |
-| Bit depth | 8 |
-
----
-
-## Final dataset (what you get)
-
-- **44 videos total**
-- **Treatment counts:** 14 / 15 / 15 for treatments `T = 0 / 1 / 2`
-- **Duration:** 30 minutes per video
-- **Annotations per video:** one behavior (*grooming*) annotated for both nestmates
-  - yellow-to-focal grooming (binary, per frame)
-  - blue-to-focal grooming (binary, per frame)
+```bibtex
+@inproceedings{cadei2025prediction,
+  title={Prediction-Powered Causal Inferences},
+  author={Cadei, Riccardo and Demirel, Ilker and De Bartolomeis, Piersilvio and Lindorfer, Lukas and Cremer, Sylvia and Schmid, Cordelia and Locatello, Francesco},
+  booktitle={The Thirty-ninth Annual Conference on Neural Information Processing Systems}
+}
+```
 
