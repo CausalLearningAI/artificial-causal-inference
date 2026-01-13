@@ -55,3 +55,18 @@ This dataset contains videos and expert annotations from a controlled behavioral
 | Population | Jena |
 | Collection year | 2022 |
 | Colony | Unknown |
+
+---
+
+## Citation
+
+```bibtex
+@article{cadei2024smoke,
+  title={Smoke and mirrors in causal downstream tasks},
+  author={Cadei, Riccardo and Lindorfer, Lukas and Cremer, Sylvia and Schmid, Cordelia and Locatello, Francesco},
+  journal={Advances in Neural Information Processing Systems},
+  volume={37},
+  pages={26082--26112},
+  year={2024}
+}
+```
