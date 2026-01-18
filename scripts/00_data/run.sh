@@ -18,18 +18,27 @@ conda activate crl
 # Disable Python output buffering for real-time logs
 export PYTHONUNBUFFERED=1
 
-# Set subject and version to process
+# Function to process experiment and track time
+process_experiment() {
+    local SUBJECT=$1
+    local VERSION=$2
+    local START_TIME=$(date +%s)
+    
+    echo "Processing: ${SUBJECT}/${VERSION}"
+    python -u src/data/standardize.py experiment.subject="$SUBJECT" experiment.version="$VERSION"
+    python -u src/data/get_metadata.py experiment.subject="$SUBJECT" experiment.version="$VERSION"
+    
+    local END_TIME=$(date +%s)
+    local ELAPSED=$((END_TIME - START_TIME))
+    echo "Done! Time elapsed for ${SUBJECT}/${VERSION}: ${ELAPSED} seconds ($(printf '%02d:%02d:%02d\n' $((ELAPSED/3600)) $((ELAPSED%3600/60)) $((ELAPSED%60))))"
+}
+
+# Runs for different experiments
 SUBJECT="ants"
 
 VERSION="v1"
-echo "Processing: ${SUBJECT}/${VERSION}"
-python -u src/data/standardize.py experiment.subject="$SUBJECT" experiment.version="$VERSION"
-python -u src/data/get_metadata.py experiment.subject="$SUBJECT" experiment.version="$VERSION"
-echo "Done!"
+process_experiment "$SUBJECT" "$VERSION"
 
 VERSION="v2"
-echo "Processing: ${SUBJECT}/${VERSION}"
-python -u src/data/standardize.py experiment.subject="$SUBJECT" experiment.version="$VERSION"
-python -u src/data/get_metadata.py experiment.subject="$SUBJECT" experiment.version="$VERSION"
-echo "Done!"
+process_experiment "$SUBJECT" "$VERSION"
 
