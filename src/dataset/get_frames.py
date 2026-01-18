@@ -139,8 +139,18 @@ def main(cfg: DictConfig) -> None:
     version = cfg.experiment.version
     dataset_type = "full"
     
-    # Get overwrite setting from config
-    overwrite = cfg.dataset.frames.overwrite if "frames" in cfg.dataset else False
+    # Load subject/version-specific dataset config
+    dataset_config_path = Path(f"configs/datasets/{subject}/{version}.yaml")
+    if dataset_config_path.exists():
+        import yaml
+        with open(dataset_config_path, 'r') as f:
+            dataset_cfg = yaml.safe_load(f)
+        overwrite = dataset_cfg.get('overwrite_frames', False)
+        target_fps = dataset_cfg.get('target_fps', None)
+    else:
+        print(f"Warning: Config not found at {dataset_config_path}, using defaults")
+        overwrite = False
+        target_fps = None
     
     # Paths
     observations_dir = Path(f"data/{subject}/{version}/observations/{dataset_type}")
@@ -183,7 +193,7 @@ def main(cfg: DictConfig) -> None:
         
         print(f"Extracting frames from {video_path.name} -> {output_dir}")
         
-        result = extract_frames(video_path, output_dir, overwrite=overwrite)
+        result = extract_frames(video_path, output_dir, overwrite=overwrite, fps=target_fps)
         
         if result:
             # Check if it was actually extracted or skipped

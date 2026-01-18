@@ -1,6 +1,5 @@
 defaults:
   - data: standardize
-  - dataset: frames
   - _self_
 
 experiment:
