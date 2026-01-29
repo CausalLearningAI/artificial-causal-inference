@@ -64,9 +64,10 @@ def extract_frames(
     if filters:
         cmd.extend(['-vf', ','.join(filters)])
     
-    # Output pattern: frame_000001.jpg, frame_000002.jpg, etc.
+    # Output pattern: frame_000000.jpg, frame_000001.jpg, etc. (0-indexed)
     output_pattern = str(output_dir / 'frame_%06d.jpg')
     cmd.extend([
+        '-start_number', '0',  # Start frame numbering from 0
         '-q:v', '2',  # Quality 2 (best for JPG, lower is better)
         output_pattern
     ])
@@ -168,6 +169,31 @@ def main(cfg: DictConfig) -> None:
         return
     
     metadata = load_metadata(metadata_path)
+    
+    # Get all video files
+    video_files = sorted(observations_dir.glob("*.mkv"))
+    
+    if not video_files:
+        print(f"No video files found in {observations_dir}")
+        return
+    
+    # If overwrite is False, check if all frames already exist - skip entire process
+    if not overwrite:
+        all_exist = True
+        for video_path in video_files:
+            file_id = get_file_id(video_path)
+            output_dir = output_base_dir / file_id
+            existing_frames = list(output_dir.glob("frame_*.jpg")) if output_dir.exists() else []
+            if not existing_frames:
+                all_exist = False
+                break
+        
+        if all_exist:
+            print(f"⊙ Skipping frame extraction: all frames already exist (overwrite_frames=False)")
+            print(f"  Found frames for all {len(video_files)} observations in {output_base_dir}")
+            return
+    
+    # Print processing info and validate metadata only if not skipping
     if not validate_observations(observations_dir, metadata):
         print("Validation failed, continuing anyway...")
     
@@ -178,6 +204,24 @@ def main(cfg: DictConfig) -> None:
         print(f"No video files found in {observations_dir}")
         return
     
+    # If overwrite is False, check if all frames already exist - skip entire process
+    if not overwrite:
+        all_exist = True
+        for video_path in video_files:
+            file_id = get_file_id(video_path)
+            output_dir = output_base_dir / file_id
+            existing_frames = list(output_dir.glob("frame_*.jpg")) if output_dir.exists() else []
+            if not existing_frames:
+                all_exist = False
+                break
+        
+        if all_exist:
+            print(f"⊙ Skipping frame extraction: all frames already exist (overwrite_frames=False)")
+            print(f"  Found frames for all {len(video_files)} observations in {output_base_dir}")
+            print(f"\nCompleted: {len(video_files)} succeeded, 0 failed out of {len(video_files)} videos")
+            return
+    
+    # Print processing info only if not skipping
     print(f"Found {len(video_files)} video(s) to process")
     print(f"Output: RGB .jpg frames to {output_base_dir}")
     print(f"Overwrite mode: {overwrite}\n")

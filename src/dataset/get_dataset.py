@@ -19,13 +19,14 @@ Usage:
     #  'W_batch': 'a', 'W_position': 1, ..., 'Y_Y2F': 0, 'Y_B2F': 1}
     
     # Save to disk (optional)
-    dataset.save_to_disk("path/to/save")
+    dataset.save_to_disk("datasets/subject/version/hf")
     
-    # Push to HF Hub (optional)
-    dataset.push_to_hub("username/dataset-name")
+    # Load from disk
+    dataset = load_dataset(subject="ants", version="v1", from_disk=True)
 """
 
 import pandas as pd
+import yaml
 from pathlib import Path
 from typing import Optional, Dict, Any
 from PIL import Image
@@ -38,6 +39,8 @@ def load_dataset(
     version: str,
     split: Optional[str] = None,
     dataset_root: Optional[Path] = None,
+    config_root: Optional[Path] = None,
+    from_disk: bool = False,
     cache_dir: Optional[Path] = None
 ) -> Dataset | DatasetDict:
     """
@@ -49,6 +52,8 @@ def load_dataset(
         split: Optional split name. If None, returns all data as single Dataset.
                If provided (e.g., 'train', 'test'), returns DatasetDict with splits.
         dataset_root: Root directory for datasets (default: ./datasets)
+        config_root: Root directory for configs (default: ./configs)
+        from_disk: If True, load pre-generated HF dataset from disk
         cache_dir: Cache directory for HF datasets (default: None)
         
     Returns:
@@ -61,9 +66,34 @@ def load_dataset(
     else:
         dataset_root = Path(dataset_root)
     
+    if config_root is None:
+        workspace_root = Path(__file__).parent.parent.parent
+        config_root = workspace_root / "configs"
+    else:
+        config_root = Path(config_root)
+    
     subject_dir = dataset_root / subject / version
+    hf_dir = subject_dir / "hf"
     annotations_csv = subject_dir / "annotations.csv"
     frames_dir = subject_dir / "frames" / "full"
+    
+    # Try to load from disk first if requested
+    if from_disk:
+        if hf_dir.exists():
+            print(f"Loading pre-generated HF dataset from {hf_dir}")
+            return datasets.load_from_disk(str(hf_dir))
+        else:
+            print(f"HF dataset not found at {hf_dir}, generating from annotations...")
+    
+    # Load config
+    config_path = config_root / "datasets" / subject / f"{version}.yaml"
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config not found: {config_path}")
+    
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+    
+    print(f"Loaded config from {config_path}")
     
     # Check if annotations exist
     if not annotations_csv.exists():
@@ -93,22 +123,23 @@ def load_dataset(
         print(f"Warning: Some frames are missing (checked {sample_size} samples, found {len(missing)} missing)")
         print(f"Example missing: {missing[0]}")
     
-    # Define dataset features
-    features = _create_features(df)
+    # Define dataset features using config
+    features = _create_features(df, config)
     
-    # Convert to HF Dataset
-    print(f"Creating Hugging Face Dataset ({len(df)} samples)...")
+    # Keep only columns that are in features schema + image_path
+    feature_columns = list(features.keys())
+    feature_columns.remove('image')  # Will store path instead, decode on-the-fly
+    columns_to_keep = feature_columns + ['image_path']
+    df = df[columns_to_keep]
     
-    def load_image(example):
-        """Load image from path."""
-        example['image'] = Image.open(example['image_path']).convert('RGB')
-        return example
+    # Convert to HF Dataset - MUCH faster: store paths, decode images lazily on access
+    print(f"Creating Hugging Face Dataset ({len(df):,} samples)...")
     
-    # Create dataset from dataframe
-    dataset = Dataset.from_pandas(df, features=features)
+    # Rename image_path to image for HF Image feature (it will decode lazily)
+    df = df.rename(columns={'image_path': 'image'})
     
-    # Load images (lazy loading via map)
-    dataset = dataset.map(load_image, remove_columns=['image_path'])
+    # Create dataset with features - HF will handle lazy image decoding automatically
+    dataset = Dataset.from_pandas(df, features=features, preserve_index=False)
     
     # Apply split if requested
     if split:
@@ -118,18 +149,19 @@ def load_dataset(
         print(f"Created splits: train={len(dataset_dict['train'])}, test={len(dataset_dict['test'])}")
         return dataset_dict
     
-    print(f"Dataset created successfully!")
-    print(f"Columns: {dataset.column_names}")
+    print(f"✓ Dataset created successfully")
+    print(f"  Columns: {dataset.column_names}")
     
     return dataset
 
 
-def _create_features(df: pd.DataFrame) -> Features:
+def _create_features(df: pd.DataFrame, config: Dict[str, Any]) -> Features:
     """
-    Create HF Features schema from dataframe columns.
+    Create HF Features schema from dataframe columns using config specifications.
     
     Args:
         df: Annotations dataframe
+        config: Configuration dictionary with covariate/outcome type definitions
         
     Returns:
         Features object defining dataset schema
@@ -138,20 +170,40 @@ def _create_features(df: pd.DataFrame) -> Features:
         'image': HFImage(),
         'observation_id': Value('string'),
         'frame_idx': Value('int64'),
-        'T': ClassLabel(names=sorted([str(x) for x in df['T'].unique()])),  # Treatment as categorical
+        'T': Value('int64'),  # Treatment as integer (can have any discrete values)
     }
     
-    # Add covariates (W_*)
+    # Add covariates (W_*) using config datatypes
     w_cols = [c for c in df.columns if c.startswith('W_')]
+    covariate_config = config.get('covariates', {})
+    
     for col in w_cols:
-        dtype = df[col].dtype
-        if dtype == 'object':
-            feature_dict[col] = Value('string')
-        elif dtype in ['int64', 'int32']:
-            feature_dict[col] = Value('int64')
-        elif dtype in ['float64', 'float32']:
-            feature_dict[col] = Value('float32')
+        covariate_name = col.replace('W_', '')
+        
+        # Get type from config, fallback to inferring from data
+        if isinstance(covariate_config, dict) and covariate_name in covariate_config:
+            hf_type = covariate_config[covariate_name].get('type', 'string')
         else:
+            # Fallback: infer from data
+            dtype = df[col].dtype
+            if dtype == 'object':
+                hf_type = 'string'
+            elif dtype in ['int64', 'int32']:
+                hf_type = 'int64'
+            elif dtype in ['float64', 'float32']:
+                hf_type = 'float32'
+            else:
+                hf_type = 'string'
+        
+        # Convert config type string to HF type
+        if hf_type in ['int', 'int64']:
+            feature_dict[col] = Value('int64')
+        elif hf_type in ['float', 'float32', 'float64']:
+            feature_dict[col] = Value('float32')
+        elif hf_type == 'categorical':
+            unique_vals = sorted([str(x) for x in df[col].dropna().unique()])
+            feature_dict[col] = ClassLabel(names=unique_vals)
+        else:  # string or default
             feature_dict[col] = Value('string')
     
     # Add outcomes (Y_*)
@@ -169,71 +221,108 @@ def _create_features(df: pd.DataFrame) -> Features:
 
 def save_dataset(
     dataset: Dataset | DatasetDict,
-    output_dir: Path,
-    format: str = "parquet"
-) -> None:
+    subject: str,
+    version: str,
+    dataset_root: Optional[Path] = None,
+    format: str = "arrow"
+) -> Path:
     """
-    Save dataset to disk in specified format.
+    Save dataset to disk in datasets/{subject}/{version}/hf format.
     
     Args:
         dataset: HF Dataset or DatasetDict to save
-        output_dir: Directory to save dataset
-        format: Format to save in ('parquet', 'arrow', 'csv')
+        subject: Subject type
+        version: Version identifier
+        dataset_root: Root directory for datasets (default: ./datasets)
+        format: Format to save in ('arrow', 'parquet') - arrow is default for HF
+        
+    Returns:
+        Path to saved dataset
     """
-    output_dir = Path(output_dir)
+    if dataset_root is None:
+        workspace_root = Path(__file__).parent.parent.parent
+        dataset_root = workspace_root / "datasets"
+    else:
+        dataset_root = Path(dataset_root)
+    
+    output_dir = dataset_root / subject / version / "hf"
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    if format == "parquet":
-        dataset.save_to_disk(str(output_dir))
-        print(f"Dataset saved to {output_dir}")
-    elif format == "arrow":
-        dataset.save_to_disk(str(output_dir), max_shard_size="500MB")
-        print(f"Dataset saved to {output_dir}")
-    elif format == "csv":
-        if isinstance(dataset, DatasetDict):
-            for split_name, split_dataset in dataset.items():
-                split_dataset.to_csv(str(output_dir / f"{split_name}.csv"))
-        else:
-            dataset.to_csv(str(output_dir / "dataset.csv"))
-        print(f"Dataset saved as CSV to {output_dir}")
-    else:
-        raise ValueError(f"Unsupported format: {format}")
+    print(f"Saving HF dataset to {output_dir}...")
+    dataset.save_to_disk(str(output_dir))
+    print(f"✓ HF dataset saved to {output_dir}")
+    
+    return output_dir
+
+
+def generate_and_save_dataset(
+    subject: str,
+    version: str,
+    dataset_root: Optional[Path] = None,
+    config_root: Optional[Path] = None
+) -> Optional[Path]:
+    """
+    Generate and save HF dataset for a subject/version combination.
+    
+    Args:
+        subject: Subject type (ants, frogs, mice)
+        version: Version identifier (v1, v2, etc.)
+        dataset_root: Root directory for datasets
+        config_root: Root directory for configs
+        
+    Returns:
+        Path to saved dataset directory, or None if skipped
+    """
+    # Load dataset
+    dataset = load_dataset(
+        subject=subject,
+        version=version,
+        dataset_root=dataset_root,
+        config_root=config_root,
+        from_disk=False
+    )
+    
+    # Save to disk
+    output_dir = save_dataset(
+        dataset=dataset,
+        subject=subject,
+        version=version,
+        dataset_root=dataset_root
+    )
+    
+    return output_dir
 
 
 def main():
-    """Example usage"""
+    """Generate and save HF dataset"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Load Hugging Face Dataset')
+    parser = argparse.ArgumentParser(description='Generate Hugging Face Dataset')
     parser.add_argument('--subject', type=str, default='ants', help='Subject type')
     parser.add_argument('--version', type=str, default='v1', help='Version identifier')
-    parser.add_argument('--split', action='store_true', help='Create train/test split')
-    parser.add_argument('--save', type=str, help='Save dataset to directory')
-    parser.add_argument('--format', type=str, default='parquet', choices=['parquet', 'arrow', 'csv'])
+    parser.add_argument('--load-only', action='store_true', help='Only load, do not save')
     
     args = parser.parse_args()
     
-    # Load dataset
-    dataset = load_dataset(
-        subject=args.subject,
-        version=args.version,
-        split='train' if args.split else None
-    )
-    
-    # Print info
-    print("\nDataset Info:")
-    print(dataset)
-    
-    if isinstance(dataset, DatasetDict):
-        print("\nSample from train split:")
-        print(dataset['train'][0])
+    if args.load_only:
+        # Load and display info
+        dataset = load_dataset(subject=args.subject, version=args.version)
+        print("\nDataset Info:")
+        print(dataset)
+        if isinstance(dataset, DatasetDict):
+            print("\nSample from first split:")
+            first_split = list(dataset.keys())[0]
+            print(dataset[first_split][0])
+        else:
+            print("\nFirst sample:")
+            print(dataset[0])
     else:
-        print("\nFirst sample:")
-        print(dataset[0])
-    
-    # Save if requested
-    if args.save:
-        save_dataset(dataset, args.save, format=args.format)
+        # Generate and save
+        output_dir = generate_and_save_dataset(
+            subject=args.subject,
+            version=args.version
+        )
+        print(f"\n✓ Dataset ready at: {output_dir}")
 
 
 if __name__ == "__main__":

@@ -244,8 +244,11 @@ class AntsV1Extractor(AnnotationExtractor):
                     arr = outcome_arrays[f'Y_{outcome_name}']
                     arr[mask] = np.maximum(arr[mask], label_tuple[idx])
         
-        # Build result DataFrame (frame_idx 1-indexed for consistency with filesystem)
-        result_data = {'frame_idx': np.arange(1, n_frames + 1)}
+        # Build result DataFrame (frame_idx 0-indexed)
+        result_data = {
+            'frame_idx': np.arange(n_frames),
+            'fps': np.full(n_frames, target_fps, dtype=float)
+        }
         result_data.update(outcome_arrays)
         result = pd.DataFrame(result_data)
         result['observation_id'] = observation_id
@@ -389,8 +392,11 @@ class AntsV2Extractor(AnnotationExtractor):
                     arr = outcome_arrays[f'Y_{outcome_name}']
                     arr[mask] = np.maximum(arr[mask], label_tuple[idx])
         
-        # Build result DataFrame (frame_idx 1-indexed for consistency with filesystem)
-        result_data = {'frame_idx': np.arange(1, n_frames + 1)}
+        # Build result DataFrame (frame_idx 0-indexed)
+        result_data = {
+            'frame_idx': np.arange(n_frames),
+            'fps': np.full(n_frames, target_fps, dtype=float)
+        }
         result_data.update(outcome_arrays)
         result = pd.DataFrame(result_data)
         result['observation_id'] = observation_id
@@ -557,14 +563,12 @@ class DatasetGenerator:
                 for cov_name in self.config['covariates']:
                     if cov_name in exp:
                         labels_df[f'W_{cov_name}'] = exp[cov_name]
-            
-            # frame_dir and frame_files already resolved above
-            
+                        
             # Match frames with labels
             for _, row in labels_df.iterrows():
                 frame_idx = int(row['frame_idx'])
                 
-                # Construct frame path (frame_idx is 1-indexed)
+                # Construct frame path (both frame_idx and filenames are 0-indexed)
                 frame_name = f"frame_{frame_idx:06d}.jpg"
                 frame_abs_path = frame_dir / frame_name
                 
@@ -585,8 +589,8 @@ class DatasetGenerator:
             print(f"Warning: Generated empty dataset for {self.subject}/{self.version}")
             return dataset_df
         
-        # Reorder columns: observation_id, frame_idx, frame_path, T, W_*, Y_*
-        base_cols = ['observation_id', 'frame_idx', 'frame_path', 'T']
+        # Reorder columns: observation_id, frame_idx, fps, frame_path, T, W_*, Y_*
+        base_cols = ['observation_id', 'frame_idx', 'fps', 'frame_path', 'T']
         covariate_cols = sorted([c for c in dataset_df.columns if c.startswith('W_')])
         outcome_cols = sorted([c for c in dataset_df.columns if c.startswith('Y_')])
         
@@ -613,11 +617,11 @@ class DatasetGenerator:
         # Check if file exists and overwrite flag
         overwrite = self.config.get('overwrite_annotations', False)
         if output_path.exists() and not overwrite:
-            print(f"Dataset already exists at {output_path}")
-            print(f"Set 'overwrite_annotations: true' in config to regenerate")
+            print(f"⊙ Skipping annotation generation: dataset already exists (overwrite_annotations=False)")
+            print(f"  Existing dataset found at: {output_path}")
             # Load and return existing dataset
             df = pd.read_csv(output_path)
-            print(f"Loaded existing dataset: {len(df)} frames")
+            print(f"  Loaded: {len(df):,} frames")
             return output_path
         
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -628,13 +632,9 @@ class DatasetGenerator:
         # Save to CSV
         dataset_df.to_csv(output_path, index=False)
         
-        print(f"\nDataset saved to {output_path}")
-        print(f"Total frames: {len(dataset_df)}")
-        print(f"Columns: {list(dataset_df.columns)}")
-        
-        if len(dataset_df) > 0:
-            print(f"\nFirst few rows:")
-            print(dataset_df.head())
+        print(f"✓ Annotations saved to {output_path}")
+        print(f"  Total frames: {len(dataset_df):,}")
+        print(f"  Columns: {list(dataset_df.columns)}")
         
         return output_path
 
