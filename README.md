@@ -19,90 +19,84 @@ General framework for Artificial Causal Inference on real world scientific exper
   </tr>
   <tr>
     <td rowspan="5">Experimental Ecology</td> 
-    <td>Social Immunity</td>
+    <td rowspan="5">Social Immunity</td> 
     <td><code>ants</code></td> 
     <td><code>v1</code></td> 
     <td>3</td> 
     <td>14, 15, 15 (x2)</td> 
     <td>None</td> 
-    <td>Grooming (30min/video)</td> 
-    <td>Ants triplets interactions (90min/video)</td> 
+    <td>Grooming Y2F, B2F (full)</td> 
+    <td>Ants triplets interactions (30min/video)</td> 
     <td><img src="img/ants_v1.gif" alt="GIF 1" width="100" height="100"></td>
     <td><a href="https://figshare.com/account/items/28319693/edit">figshare</a></td> 
   </tr>
   <tr>
-    <td>Social Immunity</td>
     <td><code>ants</code></td> 
     <td><code>v2</code></td>
     <td>2</td> 
     <td>24, 20 (x2)</td> 
     <td>None</td> 
-    <td>Grooming (10min/video)</td> 
-    <td>Ants triplets interactions (~20min/video)</td> 
+    <td>Grooming Y2F, B2F (full)</td> 
+    <td>Ants triplets interactions (10min/video)</td> 
     <td><img src="img/ants_v2.gif" alt="GIF 2" width="100" height="100"></td>
     <td><a href="https://figshare.com/articles/dataset/ISTAnt_zip/26484934">figshare</a></td> 
   </tr>
   <tr>
-    <td>Social Immunity</td>
     <td><code>ants</code></td> 
     <td><code>v3</code></td>
     <td>...</td> 
     <td>...</td> 
     <td>None</td> 
-    <td>Grooming (...min/video)</td> 
-    <td>Ants triplets interactions (...min/video)</td> 
-    <td>...</td>
+    <td>Grooming Y2F, B2F (full)</td> 
+    <td>Ants triplets interactions (10min/video)</td> 
+    <td><img src="img/ants_v2.gif" alt="GIF 2" width="100" height="100"></td>
     <td>To Download and Clean</td> 
   </tr>
   <tr>
-    <td>Social Immunity</td>
     <td><code>ants</code></td> 
     <td><code>v4</code></td>
     <td>...</td> 
     <td>...</td> 
     <td>None</td> 
-    <td>Grooming (...min/video)</td> 
-    <td>Ants triplets interactions (...min/video)</td> 
-    <td>...</td>
+    <td>None</td> 
+    <td>Ants triplets interactions (10min/video)</td> 
+    <td><img src="img/ants_v2.gif" alt="GIF 2" width="100" height="100"></td>
     <td>To Download and Clean</td> 
   </tr>
   <tr>
-    <td>Social Immunity</td>
     <td><code>ants</code></td> 
     <td><code>v5</code></td>
     <td>...</td> 
     <td>...</td> 
     <td>None</td> 
-    <td>Grooming (...min/video)</td> 
-    <td>Ants triplets interactions (...min/video)</td> 
-    <td>...</td>
+    <td>None</td> 
+    <td>Ants triplets interactions (10min/video)</td> 
+    <td><img src="img/ants_v2.gif" alt="GIF 2" width="100" height="100"></td>
     <td>Coming soon</td>
   </tr>
   <tr>
-    <td>Neuroscience</td> 
-    <td>Autism</td>
+    <td rowspan="2">Neuroscience</td> 
+    <td rowspan="2">Autism</td>
     <td><code>mice</code></td> 
     <td><code>v1</code></td>
-    <td>6</td> 
+    <td>2 (6)</td> 
     <td>... (x6, x12)</td> 
     <td>Sex (2), Genotype (4)</td> 
-    <td>Sniffing NN, NT (.../... videos)</td> 
-    <td>Mice quadruplets interactions (...min/video)</td> 
+    <td>Sniffing NN, NT x subjects (half) </td> 
+    <td>Mice quadruplets interactions (15-30 min/video)</td> 
     <td><img src="img/mice.gif" alt="GIF 3" width="100" height="100"></td>
     <td>Cleaning</td>
   </tr>
   <tr>
-    <td>Neuroscience</td> 
-    <td>Autism</td>
     <td><code>mice</code></td> 
     <td><code>v2</code></td>
-    <td>6</td> 
+    <td>2 (6)</td> 
     <td>... </td> 
     <td>Sex (2), Genotype (4)</td> 
-    <td>Sniffing NN, NT (.../... videos)</td> 
-    <td>Mixed mice quadruplets interactions (...min/video)</td> 
-    <td>...</td>
-    <td>Coming soon</td>
+    <td>None</td> 
+    <td>Mixed mice quadruplets interactions (15-30 min/video)</td> 
+    <td><img src="img/mice.gif" alt="GIF 3" width="100" height="100"></td>
+    <td>Cleaning</td>
   </tr>
   <tr>
     <td>Biology</td> 
@@ -115,7 +109,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>...</td>
     <td>...</td>
     <td>...</td>
-    <td>Coming soon</td>
+    <td>...</td>
   </tr>
   <tr>
     <td>Medicine</td> 
