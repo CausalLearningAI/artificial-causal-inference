@@ -1,0 +1,8 @@
+# @package _global_
+defaults:
+  - /data: ants/v1
+  - /datasets: ants/v1
+
+subject: ants
+version: v1
+

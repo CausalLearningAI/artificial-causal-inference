@@ -1,10 +1,15 @@
-# Generic video processing configuration
+# Experiment configuration for mice/v2
+
+# Source path for raw videos (external path for mice)
+source_path: /fs3/group/novagrp/Coworkers/Sarah/Locatello/videos/
+
+# Video processing
 target_fps: 5
 target_resolution:
   width: 512
   height: 512
 
-# Video encoding settings
+# Video encoding
 video_codec: libopenh264
 bitrate: 2M
 remove_audio: true
@@ -12,7 +17,4 @@ remove_audio: true
 # Processing settings
 overwrite: false
 show_progress: true
-
-# Folders
-source_folder: source
 output_folder: full

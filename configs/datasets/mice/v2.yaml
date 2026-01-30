@@ -1,0 +1,50 @@
+# Configuration for ants/v2 dataset
+
+# Metadata
+description: "Ant grooming behavior with orange and blue markers"
+
+# Frames processing
+target_fps: 5  # Target frames per second for extraction
+output_format: rgb24
+overwrite_frames: false  # If true, re-extract frames even if already exist
+
+# Treatment
+treatment:
+  column: treatment  # Column name in experiment.csv
+  type: categorical  # categorical or continuous
+  values: [1, 2]     # Possible treatment values
+  
+# Covariates (features from experiment metadata)
+covariates:
+  batch:                 # Experimental batch (a-e)
+    type: string
+  position:              # Position in recording setup (1-9)
+    type: string
+  annotator:             # Who annotated the data
+    type: string
+  annotator_order:       # Order in which annotator processed the data
+    type: int
+  recording_date:        # Date of recording
+    type: string
+  recording_hour:        # Hour of recording
+    type: float
+
+# Labels
+overwrite_annotations: false  # If true, regenerate annotations even if already exist
+outcomes:
+  - Y2F  # Yellow-to-focal: binary (1 if grooming yellow/orange)
+  - B2F  # Blue-to-focal: binary (1 if grooming blue)
+
+behavior_mapping:
+  "groom-orange": [1, 0]
+  "groom-blue": [0, 1]
+  "groom-orangeandblue": [1, 1]
+
+annotation_format:
+  skiprows: 3           # Skip: Timestamp, Video file, -----
+  skipfooter: 1         # Skip final -----
+  engine: python
+  columns:
+    start_frame: "Beginning-frame"
+    end_frame: "End-frame"
+    behavior: "Behavior"

@@ -1,0 +1,8 @@
+# @package _global_
+defaults:
+  - /data: mice/v2
+  - /datasets: mice/v2
+
+subject: mice
+version: v2
+

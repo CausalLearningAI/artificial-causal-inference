@@ -1,12 +1,11 @@
 defaults:
-  - data: standardize
+  - experiment: ants/v1
   - _self_
 
-experiment:
-  subject: ants
-  version: v1
-
+# Global paths (shared across all experiments)
 paths:
   data_dir: ./data
+  datasets_dir: ./datasets
   cache_dir: ./cache
   results_dir: ./results
+
