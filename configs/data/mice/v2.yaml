@@ -1,7 +1,7 @@
 # Experiment configuration for mice/v2
 
 # Source path for raw videos (external path for mice)
-source_path: /fs3/group/novagrp/Coworkers/Sarah/Locatello/videos/
+source_path: ./data/mice/source #/fs3/group/novagrp/Coworkers/Sarah/Locatello/videos
 
 # Video processing
 target_fps: 5

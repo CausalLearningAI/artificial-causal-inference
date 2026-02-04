@@ -1,0 +1,6 @@
+# @package _global_
+defaults:
+  - /data: ants/v3
+
+subject: ants
+version: v3

@@ -1,7 +1,7 @@
-# Experiment configuration for mice/v1
+# Experiment configuration for ants/v3
 
-# Source path for raw videos (external path for mice)
-source_path: ./data/mice/source #/fs3/group/novagrp/Coworkers/Sarah/Locatello/videos
+# Source path for raw videos
+source_path: ./data/ants/v4/observations/source #/fs3/group/cremegrp/RICCARDO/20250906_datapackage/videos/
 
 # Video processing
 target_fps: 5

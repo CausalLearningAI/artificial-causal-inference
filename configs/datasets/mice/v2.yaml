@@ -35,7 +35,7 @@ outcomes:
   - Y2F  # Yellow-to-focal: binary (1 if grooming yellow/orange)
   - B2F  # Blue-to-focal: binary (1 if grooming blue)
 
-behavior_mapping:
+outcome_mapping:
   "groom-orange": [1, 0]
   "groom-blue": [0, 1]
   "groom-orangeandblue": [1, 1]
@@ -47,4 +47,4 @@ annotation_format:
   columns:
     start_frame: "Beginning-frame"
     end_frame: "End-frame"
-    behavior: "Behavior"
+    outcome: "Behavior"

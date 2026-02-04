@@ -1,4 +1,4 @@
-# Configuration for ants/v2 dataset
+# Configuration for ants/v4 dataset
 
 # Metadata
 description: "Ant grooming behavior with orange and blue markers"
@@ -12,7 +12,7 @@ overwrite_frames: false  # If true, re-extract frames even if already exist
 treatment:
   column: treatment  # Column name in experiment.csv
   type: categorical  # categorical or continuous
-  values: [1, 2]     # Possible treatment values
+  values: [1,2,3,4,5,6]     # Possible treatment values
   
 # Covariates (features from experiment metadata)
 covariates:
@@ -22,23 +22,34 @@ covariates:
     type: string
   annotator:             # Who annotated the data
     type: string
-  annotator_order:       # Order in which annotator processed the data
-    type: int
   recording_date:        # Date of recording
     type: string
   recording_hour:        # Hour of recording
     type: float
+  nestbox:               # Nestbox idx
+    type: string
+  weak_marking:          # Presence of weak marking
+    type: boolean
 
 # Labels
 overwrite_annotations: false  # If true, regenerate annotations even if already exist
 outcomes:
   - Y2F  # Yellow-to-focal: binary (1 if grooming yellow/orange)
   - B2F  # Blue-to-focal: binary (1 if grooming blue)
+  - FOL  # Focal on lid: binary (1 if focal ant on lid)
+  - YOL  # Yellow on lid: binary (1 if yellow/orange ant on lid)
+  - BOL  # Blue on lid: binary (1 if blue ant on lid)
+
 
 outcome_mapping:
-  "groom-orange": [1, 0]
-  "groom-blue": [0, 1]
-  "groom-orangeandblue": [1, 1]
+  "groom-orange": [1, 0, 0, 0, 0]
+  "groom-blue": [0, 1, 0, 0, 0]
+  "groom-orangeandblue": [1, 1, 0, 0, 0]
+  "onLid-focal": [0, 0, 1, 0, 0]
+  "onLid-orange": [0, 0, 0, 1, 0]
+  "onLid-blue": [0, 0, 0, 0, 1]
+  
+  
 
 annotation_format:
   skiprows: 3           # Skip: Timestamp, Video file, -----
