@@ -126,6 +126,9 @@ def main(cfg: DictConfig):
     Args:
         cfg: Hydra configuration
     """
+    subject = cfg.subject
+    version = cfg.version
+    
     # Print configuration
     if cfg.data.get('show_progress', True):
         print("Configuration:")
@@ -135,21 +138,25 @@ def main(cfg: DictConfig):
     # Setup paths
     data_dir = Path(cfg.paths.data_dir)
     # Build experiment path from subject + version
-    exp_path = f"{cfg.experiment.subject}/{cfg.experiment.version}"
+    exp_path = f"{subject}/{version}"
     exp_dir = data_dir / exp_path
     
     csv_path = exp_dir / 'experiment.csv'
-    source_dir = exp_dir / 'observations' / cfg.data.source_folder
     output_dir = exp_dir / 'observations' / cfg.data.output_folder
+    source_dir = Path(cfg.data.source_path)
     
     # Validate paths
     if not csv_path.exists():
         print(f"Error: experiment.csv not found at {csv_path}")
         return
     
-    if not source_dir.exists():
-        print(f"Error: source directory not found at {source_dir}")
-        return
+    import os
+    if not os.path.isdir(str(source_dir)):
+        raise FileNotFoundError(
+            f"Source directory not found at {source_dir}\n"
+            f"Config source_path: {cfg.data.source_path}\n"
+            f"(Check if external volumes are mounted)"
+        )
     
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)

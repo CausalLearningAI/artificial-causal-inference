@@ -297,32 +297,19 @@ def main():
     """Generate and save HF dataset"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Generate Hugging Face Dataset')
-    parser.add_argument('--subject', type=str, default='ants', help='Subject type')
-    parser.add_argument('--version', type=str, default='v1', help='Version identifier')
-    parser.add_argument('--load-only', action='store_true', help='Only load, do not save')
+    import hydra
+    from omegaconf import DictConfig
     
-    args = parser.parse_args()
-    
-    if args.load_only:
-        # Load and display info
-        dataset = load_dataset(subject=args.subject, version=args.version)
-        print("\nDataset Info:")
-        print(dataset)
-        if isinstance(dataset, DatasetDict):
-            print("\nSample from first split:")
-            first_split = list(dataset.keys())[0]
-            print(dataset[first_split][0])
-        else:
-            print("\nFirst sample:")
-            print(dataset[0])
-    else:
+    @hydra.main(version_base=None, config_path="../../configs", config_name="config")
+    def hydra_main(cfg: DictConfig):
         # Generate and save
         output_dir = generate_and_save_dataset(
-            subject=args.subject,
-            version=args.version
+            subject=cfg.subject,
+            version=cfg.version
         )
         print(f"\n✓ Dataset ready at: {output_dir}")
+    
+    hydra_main()
 
 
 if __name__ == "__main__":

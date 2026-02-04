@@ -68,9 +68,9 @@ class AnnotationExtractor(ABC):
 class AntsV1Extractor(AnnotationExtractor):
     """Annotation extractor for ants version 1."""
     
-    def __init__(self, behavior_mapping: Dict[str, List[int]]):
-        """Initialize with behavior mapping from config."""
-        self.behavior_mapping = behavior_mapping
+    def __init__(self, outcome_mapping: Dict[str, List[int]]):
+        """Initialize with outcome mapping from config."""
+        self.outcome_mapping = outcome_mapping
     
     def map_behaviour_to_label(self, behaviour: str) -> Tuple[int, ...]:
         """
@@ -84,11 +84,11 @@ class AntsV1Extractor(AnnotationExtractor):
         """
         behaviour = behaviour.strip()
         
-        if behaviour in self.behavior_mapping:
-            return tuple(self.behavior_mapping[behaviour])
+        if behaviour in self.outcome_mapping:
+            return tuple(self.outcome_mapping[behaviour])
         else:
             raise ValueError(f'Unknown behaviour: {behaviour}. '
-                           f'Known behaviors: {list(self.behavior_mapping.keys())}')
+                           f'Known behaviors: {list(self.outcome_mapping.keys())}')
     
     def label_frame(self, frame_id: int, behaviors: pd.DataFrame, 
                     col_map: Dict = None) -> Tuple[int, ...]:
@@ -132,8 +132,8 @@ class AntsV1Extractor(AnnotationExtractor):
         
         # Return zeros if no behavior found for this frame
         if label_values is None:
-            # Infer number of outcomes from first behavior mapping
-            n_outcomes = len(next(iter(self.behavior_mapping.values())))
+            # Infer number of outcomes from first outcome mapping
+            n_outcomes = len(next(iter(self.outcome_mapping.values())))
             return tuple([0] * n_outcomes)
         
         return tuple(label_values)
@@ -180,7 +180,7 @@ class AntsV1Extractor(AnnotationExtractor):
         col_map_cfg = ann_format.get('columns', {})
         start_col = find_column(behaviors, [col_map_cfg.get('start_frame', 'Beginning-frame'), 'Beginning-frame', 'Beginning frame', 'Start frame'])
         end_col = find_column(behaviors, [col_map_cfg.get('end_frame', 'End-frame'), 'End-frame', 'End frame', 'Stop frame'])
-        behavior_col = find_column(behaviors, [col_map_cfg.get('behavior', 'Behavior'), 'Behavior'])
+        behavior_col = find_column(behaviors, [col_map_cfg.get('outcome', 'Behavior'), 'Behavior'])
 
         # Store resolved columns
         col_map = {
@@ -189,14 +189,14 @@ class AntsV1Extractor(AnnotationExtractor):
             'behavior': behavior_col
         }
         
-        # Validate behaviors against behavior_mapping
+        # Validate behaviors against outcome_mapping
         if behaviors.shape[0] > 0:
             unique_behaviors = behaviors[behavior_col].unique()
-            unknown_behaviors = [b for b in unique_behaviors if b.strip() not in self.behavior_mapping]
+            unknown_behaviors = [b for b in unique_behaviors if b.strip() not in self.outcome_mapping]
             if unknown_behaviors:
                 raise ValueError(
                     f"Unknown behaviors in {annotation_file}: {unknown_behaviors}\n"
-                    f"Known behaviors from config: {list(self.behavior_mapping.keys())}"
+                    f"Known behaviors from config: {list(self.outcome_mapping.keys())}"
                 )
         
         # Get total number of frames in this observation
@@ -267,27 +267,27 @@ class AntsV1Extractor(AnnotationExtractor):
 class AntsV2Extractor(AnnotationExtractor):
     """Annotation extractor for ants version 2 (same structure as v1, different behaviors)."""
     
-    def __init__(self, behavior_mapping: Dict[str, List[int]]):
-        """Initialize with behavior mapping from config."""
-        self.behavior_mapping = behavior_mapping
+    def __init__(self, outcome_mapping: Dict[str, List[int]]):
+        """Initialize with outcome mapping from config."""
+        self.outcome_mapping = outcome_mapping
     
     def map_behaviour_to_label(self, behaviour: str) -> Tuple[int, ...]:
         """
-        Map behavior string to label tuple using config.
+        Map outcome string to label tuple using config.
         
         Args:
-            behaviour: Behavior string from annotation file
+            behaviour: Outcome string from annotation file
             
         Returns:
             Tuple of outcome values
         """
         behaviour = behaviour.strip()
         
-        if behaviour in self.behavior_mapping:
-            return tuple(self.behavior_mapping[behaviour])
+        if behaviour in self.outcome_mapping:
+            return tuple(self.outcome_mapping[behaviour])
         else:
             raise ValueError(f'Unknown behaviour: {behaviour}. '
-                           f'Known behaviors: {list(self.behavior_mapping.keys())}')
+                           f'Known behaviors: {list(self.outcome_mapping.keys())}')
     
     def extract_labels(
         self,
@@ -328,7 +328,7 @@ class AntsV2Extractor(AnnotationExtractor):
         col_map_cfg = ann_format.get('columns', {})
         start_col = find_column(behaviors, [col_map_cfg.get('start_frame', 'Beginning-frame'), 'Beginning-frame', 'Beginning frame', 'Start frame'])
         end_col = find_column(behaviors, [col_map_cfg.get('end_frame', 'End-frame'), 'End-frame', 'End frame', 'Stop frame'])
-        behavior_col = find_column(behaviors, [col_map_cfg.get('behavior', 'Behavior'), 'Behavior'])
+        behavior_col = find_column(behaviors, [col_map_cfg.get('outcome', 'Behavior'), 'Behavior'])
 
         # Store resolved columns
         col_map = {
@@ -337,14 +337,14 @@ class AntsV2Extractor(AnnotationExtractor):
             'behavior': behavior_col
         }
         
-        # Validate behaviors against behavior_mapping
+        # Validate behaviors against outcome_mapping
         if behaviors.shape[0] > 0:
             unique_behaviors = behaviors[behavior_col].unique()
-            unknown_behaviors = [b for b in unique_behaviors if b.strip() not in self.behavior_mapping]
+            unknown_behaviors = [b for b in unique_behaviors if b.strip() not in self.outcome_mapping]
             if unknown_behaviors:
                 raise ValueError(
                     f"Unknown behaviors in {annotation_file}: {unknown_behaviors}\n"
-                    f"Known behaviors from config: {list(self.behavior_mapping.keys())}"
+                    f"Known behaviors from config: {list(self.outcome_mapping.keys())}"
                 )
         
         # Get total number of frames in this observation
@@ -651,13 +651,13 @@ def get_extractor(subject: str, version: str, config: Dict) -> AnnotationExtract
     Returns:
         Appropriate AnnotationExtractor instance
     """
-    behavior_mapping = config.get('behavior_mapping', {})
+    outcome_mapping = config.get('outcome_mapping', {})
     
     if subject == "ants":
         if version == "v1":
-            return AntsV1Extractor(behavior_mapping)
+            return AntsV1Extractor(outcome_mapping)
         elif version == "v2":
-            return AntsV2Extractor(behavior_mapping)
+            return AntsV2Extractor(outcome_mapping)
     elif subject == "frogs":
         # Implement FrogsV1Extractor when ready
         raise NotImplementedError(f"Extractor for frogs {version} not yet implemented")
@@ -668,30 +668,26 @@ def get_extractor(subject: str, version: str, config: Dict) -> AnnotationExtract
     raise ValueError(f"Unknown subject/version combination: {subject}/{version}")
 
 
-def main():
-    """Example usage"""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description='Generate dataset annotations')
-    parser.add_argument('--subject', type=str, default='ants', help='Subject type (ants, frogs, mice)')
-    parser.add_argument('--version', type=str, default='v1', help='Version identifier (v1, v2, etc.)')
-    parser.add_argument('--data-root', type=str, default=None, help='Override data root path')
-    parser.add_argument('--dataset-root', type=str, default=None, help='Override dataset root path')
-    parser.add_argument('--config-dir', type=str, default=None, help='Override config directory')
-    
-    args = parser.parse_args()
+import hydra
+from omegaconf import DictConfig
+
+@hydra.main(version_base=None, config_path="../../configs", config_name="config")
+def main(cfg: DictConfig):
+    """Generate annotations using Hydra configuration"""
+    subject = cfg.subject
+    version = cfg.version
     
     workspace_root = Path(__file__).parent.parent.parent
-    data_root = Path(args.data_root) if args.data_root else workspace_root / "data"
-    dataset_root = Path(args.dataset_root) if args.dataset_root else workspace_root / "datasets"
-    config_dir = Path(args.config_dir) if args.config_dir else workspace_root / "configs" / "datasets"
+    data_root = workspace_root / "data"
+    dataset_root = workspace_root / "datasets"
+    config_dir = workspace_root / "configs" / "datasets"
     
     generator = DatasetGenerator(
         data_root=data_root,
         dataset_root=dataset_root,
         config_dir=config_dir,
-        subject=args.subject,
-        version=args.version
+        subject=subject,
+        version=version
     )
     
     output_path = generator.save_dataset()

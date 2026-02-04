@@ -2,11 +2,11 @@
 #
 # Standardize data for a given experiment
 #
-#SBATCH --job-name=standardize_data
-#SBATCH --output=logs/standardize_data_%j.out
-#SBATCH --error=logs/standardize_data_%j.err
-#SBATCH --time=02:00:00
-##SBATCH --partition=standard
+#SBATCH --job-name=get_data
+#SBATCH --output=logs/get_data_%j.out
+#SBATCH --error=logs/get_data_%j.err
+#SBATCH --time=24:00:00
+#SBATCH --partition=gpu
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
@@ -25,8 +25,8 @@ process_experiment() {
     local START_TIME=$(date +%s)
     
     echo "Processing: ${SUBJECT}/${VERSION}"
-    python -u src/data/standardize.py experiment.subject="$SUBJECT" experiment.version="$VERSION"
-    python -u src/data/get_metadata.py experiment.subject="$SUBJECT" experiment.version="$VERSION"
+    python -u src/data/standardize.py experiment="$SUBJECT/$VERSION"
+    python -u src/data/get_metadata.py experiment="$SUBJECT/$VERSION"
     
     local END_TIME=$(date +%s)
     local ELAPSED=$((END_TIME - START_TIME))
@@ -34,11 +34,11 @@ process_experiment() {
 }
 
 # Runs for different experiments
-SUBJECT="ants"
+# process_experiment "ants" "v1"
+# process_experiment "ants" "v2"
+process_experiment "ants" "v3"
+process_experiment "ants" "v4"
 
-VERSION="v1"
-process_experiment "$SUBJECT" "$VERSION"
-
-VERSION="v2"
-process_experiment "$SUBJECT" "$VERSION"
+# process_experiment "mice" "v1"
+# process_experiment "mice" "v2"
 

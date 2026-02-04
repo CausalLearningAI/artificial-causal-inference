@@ -2,9 +2,9 @@
 #
 # Extract frames and generate annotations for datasets
 #
-#SBATCH --job-name=datasets
-#SBATCH --output=logs/get_datasets_%j.out
-#SBATCH --error=logs/get_datasets_%j.err
+#SBATCH --job-name=get_dataset
+#SBATCH --output=logs/get_dataset_%j.out
+#SBATCH --error=logs/get_dataset_%j.err
 #SBATCH --time=04:00:00
 ##SBATCH --partition=visualization
 #SBATCH --ntasks=1
@@ -32,19 +32,39 @@ process_experiment() {
     echo "=================================================="
     
     # Step 1: Extract frames
-    echo "Step 1/2: Extracting frames..."
-    if ! python -u src/dataset/get_frames.py experiment.subject="$SUBJECT" experiment.version="$VERSION"; then
+    echo "Step 1/3: Extracting frames..."
+    STEP_START=$(date +%s)
+    if ! python -u src/dataset/get_frames.py experiment="$SUBJECT/$VERSION"; then
         echo "❌ Frames extraction failed for ${SUBJECT}/${VERSION}" >&2
         return 1
     fi
+    STEP_END=$(date +%s)
+    STEP_ELAPSED=$((STEP_END - STEP_START))
+    echo "  Time: ${STEP_ELAPSED}s"
     
     # Step 2: Generate annotations
     echo ""
-    echo "Step 2/2: Generating annotations..."
-    if ! python -u -m src.dataset.get_annotations --subject "$SUBJECT" --version "$VERSION"; then
+    echo "Step 2/3: Generating annotations..."
+    STEP_START=$(date +%s)
+    if ! python -u -m src.dataset.get_annotations experiment="$SUBJECT/$VERSION"; then
         echo "❌ Annotation generation failed for ${SUBJECT}/${VERSION}" >&2
         return 1
     fi
+    STEP_END=$(date +%s)
+    STEP_ELAPSED=$((STEP_END - STEP_START))
+    echo "  Time: ${STEP_ELAPSED}s"
+    
+    # Step 3: Generate HF dataset
+    echo ""
+    echo "Step 3/3: Generating Hugging Face dataset..."
+    STEP_START=$(date +%s)
+    if ! python -u src/dataset/get_dataset.py experiment="$SUBJECT/$VERSION"; then
+        echo "❌ HF dataset generation failed for ${SUBJECT}/${VERSION}" >&2
+        return 1
+    fi
+    STEP_END=$(date +%s)
+    STEP_ELAPSED=$((STEP_END - STEP_START))
+    echo "  Time: ${STEP_ELAPSED}s"
     
     local END_TIME=$(date +%s)
     local ELAPSED=$((END_TIME - START_TIME))
@@ -53,17 +73,9 @@ process_experiment() {
     echo ""
 }
 
-# Process ants
-SUBJECT="ants"
+# Process experiments
+process_experiment "ants" "v1"
+process_experiment "ants" "v2"
 
-VERSION="v1"
-process_experiment "$SUBJECT" "$VERSION"
-
-VERSION="v2"
-process_experiment "$SUBJECT" "$VERSION"
-
-# Process mice
-# SUBJECT="mice"
-
-# VERSION="v1"
-# process_experiment "$SUBJECT" "$VERSION"
+process_experiment "mice" "v1"
+process_experiment "mice" "v2"

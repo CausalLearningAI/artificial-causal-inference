@@ -136,8 +136,8 @@ def main(cfg: DictConfig) -> None:
     """
     Extract frames from all observation videos to RGB.
     """
-    subject = cfg.experiment.subject
-    version = cfg.experiment.version
+    subject = cfg.subject
+    version = cfg.version
     dataset_type = "full"
     
     # Load subject/version-specific dataset config

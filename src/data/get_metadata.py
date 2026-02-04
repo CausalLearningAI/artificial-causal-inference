@@ -169,25 +169,23 @@ def analyze_video_folder(video_folder):
 @hydra.main(version_base=None, config_path="../../configs", config_name="config")
 def main(cfg: DictConfig):
     """Main function to process video folders for given experiment."""
+    subject = cfg.subject
+    version = cfg.version
+    
     # Setup paths
     data_dir = Path(cfg.paths.data_dir)
-    exp_path = f"{cfg.experiment.subject}/{cfg.experiment.version}"
+    exp_path = f"{subject}/{version}"
     exp_dir = data_dir / exp_path
     obs_dir = exp_dir / 'observations'
-    
-    if not obs_dir.exists():
-        print(f"Error: observations directory not found at {obs_dir}")
-        return
+    source_folder = Path(cfg.data.source_path)
     
     print(f"Processing: {exp_path}")
-    print(f"Observations directory: {obs_dir}")
+    print(f"Source path: {source_folder}")
     print()
     
     # Create overall metadata dict
     all_metadata = {}
     
-    # 1. Analyze 'source' folder
-    source_folder = obs_dir / 'source'
     if source_folder.exists():
         print("✓ Analyzing 'source' folder...")
         metadata = analyze_video_folder(source_folder)
