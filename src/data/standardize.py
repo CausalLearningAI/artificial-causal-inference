@@ -13,11 +13,12 @@ Example:
 
 import csv
 import subprocess
+import time
 from pathlib import Path
 from typing import Dict, List
 
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 
 def read_experiment_csv(csv_path: Path) -> List[Dict]:
@@ -38,7 +39,9 @@ def process_video(
     output_path: Path,
     start_frame: int,
     end_frame: int,
-    cfg: DictConfig
+    cfg: DictConfig,
+    index: int = None,
+    total: int = None
 ) -> bool:
     """
     Process a single video: trim frames, reduce fps and resolution.
@@ -49,6 +52,8 @@ def process_video(
         start_frame: First frame to include
         end_frame: Last frame to include
         cfg: Hydra configuration
+        index: Current video index (for progress tracking)
+        total: Total videos to process (for progress tracking)
     
     Returns:
         True if successful, False otherwise
@@ -109,13 +114,17 @@ def process_video(
     
     try:
         subprocess.run(cmd, capture_output=True, check=True)
-        print(f"✓ Processed: {output_path.name}")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"✗ Error processing {input_path.name}: {e}")
-        if e.stderr:
-            print(f"  stderr: {e.stderr.decode()}")
         return False
+
+
+def _format_time(seconds: float) -> str:
+    """Format seconds as HH:MM:SS."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
 @hydra.main(version_base=None, config_path="../../configs", config_name="config")
@@ -126,28 +135,21 @@ def main(cfg: DictConfig):
     Args:
         cfg: Hydra configuration
     """
+    start_time = time.time()
     subject = cfg.subject
     version = cfg.version
-    
-    # Print configuration
-    if cfg.data.get('show_progress', True):
-        print("Configuration:")
-        print(OmegaConf.to_yaml(cfg))
-        print()
+    exp_path = f"{subject}/{version}"
     
     # Setup paths
     data_dir = Path(cfg.paths.data_dir)
-    # Build experiment path from subject + version
-    exp_path = f"{subject}/{version}"
     exp_dir = data_dir / exp_path
-    
     csv_path = exp_dir / 'experiment.csv'
     output_dir = exp_dir / 'observations' / cfg.data.output_folder
     source_dir = Path(cfg.data.source_path)
     
     # Validate paths
     if not csv_path.exists():
-        print(f"Error: experiment.csv not found at {csv_path}")
+        print(f"[ERROR] experiment.csv not found at {csv_path}")
         return
     
     import os
@@ -160,17 +162,24 @@ def main(cfg: DictConfig):
     
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)
-    print(f"Output directory: {output_dir}")
     
     # Read valid entries
     valid_entries = read_experiment_csv(csv_path)
-    print(f"Found {len(valid_entries)} valid entries to process")
+    total = len(valid_entries)
     
-    # Process each valid video
+    print(f"\n{'='*70}")
+    print(f"STANDARDIZE OBSERVATIONS: {exp_path}")
+    print(f"{'='*70}")
+    print(f"Videos to process: {total}")
+    print()
+    
+    # Process each valid video with progress tracking
     success_count = 0
     error_count = 0
+    missing_count = 0
+    loop_start = time.time()
     
-    for entry in valid_entries:
+    for idx, entry in enumerate(valid_entries, 1):
         observation_file = entry['observation_file']
         start_frame = int(entry['start_frame'])
         end_frame = int(entry['end_frame'])
@@ -179,23 +188,45 @@ def main(cfg: DictConfig):
         output_path = output_dir / observation_file
         
         if not input_path.exists():
-            print(f"✗ Warning: Source file not found: {input_path}")
             error_count += 1
+            missing_count += 1
             continue
         
-        if process_video(input_path, output_path, start_frame, end_frame, cfg):
+        # Calculate progress
+        elapsed = time.time() - loop_start
+        if idx > 1:  # Start timing after first video
+            avg_time = elapsed / (idx - 1)
+            remaining = avg_time * (total - idx)
+        else:
+            remaining = 0
+        
+        percent = (idx / total) * 100
+        progress_str = f"[{idx:3d}/{total}] {percent:5.1f}% | {_format_time(elapsed)} elapsed"
+        if idx > 1:
+            progress_str += f" | ~{_format_time(remaining)} remaining"
+        
+        if process_video(input_path, output_path, start_frame, end_frame, cfg, idx, total):
             success_count += 1
         else:
             error_count += 1
+        
+        # Print progress every N videos or at the end
+        if idx % 20 == 0 or idx == total:
+            print(progress_str)
     
     # Summary
-    print(f"\n{'='*60}")
-    print(f"Processing complete!")
-    print(f"  Experiment: {exp_path}")
+    total_elapsed = time.time() - start_time
+    print()
+    print(f"{'='*70}")
+    print(f"PROCESSING COMPLETE")
+    print(f"{'='*70}")
+    print(f"Experiment: {exp_path}")
     print(f"  Successful: {success_count}")
     print(f"  Errors: {error_count}")
-    print(f"  Total: {len(valid_entries)}")
-    print(f"{'='*60}")
+    print(f"  Missing source: {missing_count}")
+    print(f"  Total: {total}")
+    print(f"Total time: {_format_time(total_elapsed)}")
+    print(f"{'='*70}\n")
 
 
 if __name__ == '__main__':

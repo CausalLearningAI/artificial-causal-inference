@@ -23,14 +23,21 @@ process_experiment() {
     local SUBJECT=$1
     local VERSION=$2
     local START_TIME=$(date +%s)
+    local TOTAL_STEPS=2
+    local CURRENT_STEP=0
     
     echo "Processing: ${SUBJECT}/${VERSION}"
     python -u src/data/standardize.py experiment="$SUBJECT/$VERSION"
+    CURRENT_STEP=$((CURRENT_STEP + 1))
+    log_progress $CURRENT_STEP $TOTAL_STEPS
     python -u src/data/get_metadata.py experiment="$SUBJECT/$VERSION"
+    CURRENT_STEP=$((CURRENT_STEP + 1))
+    log_progress $CURRENT_STEP $TOTAL_STEPS
     
     local END_TIME=$(date +%s)
     local ELAPSED=$((END_TIME - START_TIME))
     echo "Done! Time elapsed for ${SUBJECT}/${VERSION}: ${ELAPSED} seconds ($(printf '%02d:%02d:%02d\n' $((ELAPSED/3600)) $((ELAPSED%3600/60)) $((ELAPSED%60))))"
+    echo -e "\n\n\n\n"
 }
 
 # Runs for different experiments
