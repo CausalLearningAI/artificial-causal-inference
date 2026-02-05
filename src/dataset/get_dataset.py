@@ -4,8 +4,8 @@ Hugging Face Dataset Generator
 
 Loads a Hugging Face Dataset from processed frames and annotations.
 Generates dataset on-the-fly from:
-- frames: datasets/{subject}/{version}/frames/full/{observation_id}/frame_*.jpg
-- annotations: datasets/{subject}/{version}/annotations.csv
+- frames: dataset/{subject}/{version}/frames/full/{observation_id}/frame_*.jpg
+- annotations: dataset/{subject}/{version}/annotations.csv
 
 Usage:
     from src.dataset.get_dataset import load_dataset
@@ -19,7 +19,7 @@ Usage:
     #  'W_batch': 'a', 'W_position': 1, ..., 'Y_Y2F': 0, 'Y_B2F': 1}
     
     # Save to disk (optional)
-    dataset.save_to_disk("datasets/subject/version/hf")
+    dataset.save_to_disk("dataset/subject/version/hf")
     
     # Load from disk
     dataset = load_dataset(subject="ants", version="v1", from_disk=True)
@@ -27,6 +27,7 @@ Usage:
 
 import pandas as pd
 import yaml
+import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 from PIL import Image
@@ -49,9 +50,8 @@ def load_dataset(
     Args:
         subject: Subject type (ants, frogs, mice)
         version: Version identifier (v1, v2, etc.)
-        split: Optional split name. If None, returns all data as single Dataset.
-               If provided (e.g., 'train', 'test'), returns DatasetDict with splits.
-        dataset_root: Root directory for datasets (default: ./datasets)
+        split: Optional split name (e.g., 'train', 'test') for DatasetDict
+        dataset_root: Root directory for datasets (default: ./dataset)
         config_root: Root directory for configs (default: ./configs)
         from_disk: If True, load pre-generated HF dataset from disk
         cache_dir: Cache directory for HF datasets (default: None)
@@ -62,7 +62,7 @@ def load_dataset(
     # Set default paths
     if dataset_root is None:
         workspace_root = Path(__file__).parent.parent.parent
-        dataset_root = workspace_root / "datasets"
+        dataset_root = workspace_root / "dataset"
     else:
         dataset_root = Path(dataset_root)
     
@@ -86,42 +86,32 @@ def load_dataset(
             print(f"HF dataset not found at {hf_dir}, generating from annotations...")
     
     # Load config
-    config_path = config_root / "datasets" / subject / f"{version}.yaml"
+    config_path = config_root / "dataset" / subject / f"{version}.yaml"
     if not config_path.exists():
-        raise FileNotFoundError(f"Config not found: {config_path}")
+        raise FileNotFoundError(f"[ERROR] Config not found: {config_path}")
     
     with open(config_path) as f:
         config = yaml.safe_load(f)
     
-    print(f"Loaded config from {config_path}")
-    
     # Check if annotations exist
     if not annotations_csv.exists():
         raise FileNotFoundError(
-            f"Annotations not found: {annotations_csv}\n"
-            f"Run: python -m src.dataset.get_annotations --subject {subject} --version {version}"
+            f"[ERROR] Annotations not found: {annotations_csv}\\n"
+            f"Run: python -m src.dataset.get_annotations experiment={subject}/{version}"
         )
     
     # Check if frames exist
     if not frames_dir.exists():
         raise FileNotFoundError(
-            f"Frames directory not found: {frames_dir}\n"
-            f"Run: python src/dataset/get_frames.py experiment.subject={subject} experiment.version={version}"
+            f"[ERROR] Frames directory not found: {frames_dir}\\n"
+            f"Run: python src/dataset/get_frames.py experiment={subject}/{version}"
         )
     
     # Load annotations
-    print(f"Loading annotations from {annotations_csv}")
     df = pd.read_csv(annotations_csv)
     
     # Add full image paths
     df['image_path'] = df['frame_path'].apply(lambda p: str(dataset_root / p))
-    
-    # Verify images exist (sample check)
-    sample_size = min(10, len(df))
-    missing = [p for p in df['image_path'].head(sample_size) if not Path(p).exists()]
-    if missing:
-        print(f"Warning: Some frames are missing (checked {sample_size} samples, found {len(missing)} missing)")
-        print(f"Example missing: {missing[0]}")
     
     # Define dataset features using config
     features = _create_features(df, config)
@@ -132,9 +122,6 @@ def load_dataset(
     columns_to_keep = feature_columns + ['image_path']
     df = df[columns_to_keep]
     
-    # Convert to HF Dataset - MUCH faster: store paths, decode images lazily on access
-    print(f"Creating Hugging Face Dataset ({len(df):,} samples)...")
-    
     # Rename image_path to image for HF Image feature (it will decode lazily)
     df = df.rename(columns={'image_path': 'image'})
     
@@ -143,14 +130,8 @@ def load_dataset(
     
     # Apply split if requested
     if split:
-        # Create train/test split (80/20 by default)
-        # You can customize split logic here
         dataset_dict = dataset.train_test_split(test_size=0.2, seed=42)
-        print(f"Created splits: train={len(dataset_dict['train'])}, test={len(dataset_dict['test'])}")
         return dataset_dict
-    
-    print(f"✓ Dataset created successfully")
-    print(f"  Columns: {dataset.column_names}")
     
     return dataset
 
@@ -221,76 +202,74 @@ def _create_features(df: pd.DataFrame, config: Dict[str, Any]) -> Features:
 
 def save_dataset(
     dataset: Dataset | DatasetDict,
-    subject: str,
-    version: str,
-    dataset_root: Optional[Path] = None,
-    format: str = "arrow"
+    output_dir: Path
 ) -> Path:
     """
-    Save dataset to disk in datasets/{subject}/{version}/hf format.
+    Save dataset to disk.
     
     Args:
         dataset: HF Dataset or DatasetDict to save
-        subject: Subject type
-        version: Version identifier
-        dataset_root: Root directory for datasets (default: ./datasets)
-        format: Format to save in ('arrow', 'parquet') - arrow is default for HF
+        output_dir: Directory to save to
         
     Returns:
         Path to saved dataset
     """
-    if dataset_root is None:
-        workspace_root = Path(__file__).parent.parent.parent
-        dataset_root = workspace_root / "datasets"
-    else:
-        dataset_root = Path(dataset_root)
-    
-    output_dir = dataset_root / subject / version / "hf"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    print(f"Saving HF dataset to {output_dir}...")
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
     dataset.save_to_disk(str(output_dir))
-    print(f"✓ HF dataset saved to {output_dir}")
-    
     return output_dir
 
 
 def generate_and_save_dataset(
     subject: str,
     version: str,
+    overwrite: bool = False,
     dataset_root: Optional[Path] = None,
-    config_root: Optional[Path] = None
 ) -> Optional[Path]:
     """
-    Generate and save HF dataset for a subject/version combination.
+    Load dataset, and save to disk in dataset/{subject}/{version}/hf format.
     
     Args:
-        subject: Subject type (ants, frogs, mice)
-        version: Version identifier (v1, v2, etc.)
-        dataset_root: Root directory for datasets
-        config_root: Root directory for configs
+        subject: Subject type
+        version: Version identifier
+        overwrite: If True, regenerate even if exists
+        dataset_root: Root directory for datasets (default: ./dataset)
         
     Returns:
-        Path to saved dataset directory, or None if skipped
+        Path to saved dataset, or None if skipped
     """
+    if dataset_root is None:
+        workspace_root = Path(__file__).parent.parent.parent
+        dataset_root = workspace_root / "dataset"
+    else:
+        dataset_root = Path(dataset_root)
+    
+    output_dir = dataset_root / subject / version / "hf"
+    
+    # Check if already exists and skip if not overwriting
+    if output_dir.exists() and not overwrite:
+        print(f"[SKIP] HF dataset already generated at {output_dir}")
+        return None
+    
     # Load dataset
     dataset = load_dataset(
         subject=subject,
         version=version,
         dataset_root=dataset_root,
-        config_root=config_root,
         from_disk=False
     )
     
     # Save to disk
-    output_dir = save_dataset(
-        dataset=dataset,
-        subject=subject,
-        version=version,
-        dataset_root=dataset_root
-    )
+    output_dir = save_dataset(dataset, output_dir)
     
     return output_dir
+
+
+def _format_time(seconds: float) -> str:
+    """Format seconds as HH:MM:SS."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
 def main():
@@ -302,12 +281,21 @@ def main():
     
     @hydra.main(version_base=None, config_path="../../configs", config_name="config")
     def hydra_main(cfg: DictConfig):
+        subject = cfg.subject
+        version = cfg.version
+        
+        # Get overwrite flag from config
+        overwrite = cfg.overwrite.hf
+        
         # Generate and save
         output_dir = generate_and_save_dataset(
-            subject=cfg.subject,
-            version=cfg.version
+            subject=subject,
+            version=version,
+            overwrite=overwrite
         )
-        print(f"\n✓ Dataset ready at: {output_dir}")
+        
+        if output_dir:
+            print(f"Saved to {output_dir}")
     
     hydra_main()
 
