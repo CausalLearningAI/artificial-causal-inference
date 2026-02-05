@@ -1,6 +1,14 @@
 # @package _global_
 defaults:
   - /data: ants/v3
+  - /dataset: ants/v3
 
 subject: ants
 version: v3
+
+# Processing overwrite flags
+overwrite:
+  videos: false
+  frames: false
+  annotations: false
+  hf: false

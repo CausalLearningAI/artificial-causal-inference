@@ -1,8 +1,15 @@
 # @package _global_
 defaults:
   - /data: mice/v2
-  - /datasets: mice/v2
+  - /dataset: mice/v2
 
 subject: mice
 version: v2
+
+# Processing overwrite flags
+overwrite:
+  videos: false
+  frames: false
+  annotations: false
+  hf: false
 

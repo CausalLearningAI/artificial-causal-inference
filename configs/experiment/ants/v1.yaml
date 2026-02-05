@@ -1,8 +1,15 @@
 # @package _global_
 defaults:
   - /data: ants/v1
-  - /datasets: ants/v1
+  - /dataset: ants/v1
 
 subject: ants
 version: v1
+
+# Processing overwrite flags
+overwrite:
+  videos: false        # If true, re-process videos even if already exist
+  frames: false        # If true, re-extract frames even if already exist
+  annotations: false   # If true, regenerate annotations even if already exist
+  hf: false            # If true, regenerate HF dataset even if already exists
 

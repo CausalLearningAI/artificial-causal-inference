@@ -1,20 +1,13 @@
-# Experiment configuration for mice/v1
+# Data configuration for mice/v1
 
-# Source path for raw videos (external path for mice)
-source_path: ./data/mice/source #/fs3/group/novagrp/Coworkers/Sarah/Locatello/videos
+source_path: ./data/mice/source
 
 # Video processing
+frame_format: rgb24
 target_fps: 5
 target_resolution:
   width: 512
   height: 512
-
-# Video encoding
 video_codec: libopenh264
 bitrate: 2M
 remove_audio: true
-
-# Processing settings
-overwrite: false
-show_progress: true
-output_folder: full
