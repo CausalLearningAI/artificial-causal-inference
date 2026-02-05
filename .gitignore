@@ -8,10 +8,11 @@ results/
 logs/
 outputs/
 old/
+dataset/
 
 # data
 *.mkv
 *.mp4
 *.csv
 *.json
-datasets/*
+
