@@ -107,7 +107,7 @@ def process_video(
         cmd.append('-an')
     
     # Add overwrite flag if configured
-    if cfg.data.overwrite:
+    if cfg.overwrite.videos:
         cmd.append('-y')
     
     cmd.append(str(output_path))
@@ -144,7 +144,7 @@ def main(cfg: DictConfig):
     data_dir = Path(cfg.paths.data_dir)
     exp_dir = data_dir / exp_path
     csv_path = exp_dir / 'experiment.csv'
-    output_dir = exp_dir / 'observations' / cfg.data.output_folder
+    output_dir = exp_dir / 'observations' / 'full'
     source_dir = Path(cfg.data.source_path)
     
     # Validate paths
