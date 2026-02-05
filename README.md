@@ -44,24 +44,24 @@ General framework for Artificial Causal Inference on real world scientific exper
   <tr>
     <td><code>ants</code></td> 
     <td><code>v3</code></td>
-    <td>...</td> 
-    <td>...</td> 
+    <td>6</td> 
+    <td>38,33,34,34,35,38 (x2)</td> 
     <td>None</td> 
-    <td>Grooming Y2F, B2F (full)</td> 
+    <td>Grooming Y2F, B2F (full), FOL, YOL, BOL</td> 
     <td>Ants triplets interactions (10min/video)</td> 
     <td><img src="img/ants_v2.gif" alt="GIF 2" width="100" height="100"></td>
-    <td>To Download and Clean</td> 
+    <td>To be released</td> 
   </tr>
   <tr>
     <td><code>ants</code></td> 
     <td><code>v4</code></td>
-    <td>...</td> 
-    <td>...</td> 
+    <td>6</td> 
+    <td>20, 20, 20, 19, 14, 20 (x2)</td> 
     <td>None</td> 
-    <td>None</td> 
+    <td>Grooming Y2F, B2F (full), FOL, YOL, BOL</td> 
     <td>Ants triplets interactions (10min/video)</td> 
     <td><img src="img/ants_v2.gif" alt="GIF 2" width="100" height="100"></td>
-    <td>To Download and Clean</td> 
+    <td>To be released</td> 
   </tr>
   <tr>
     <td><code>ants</code></td> 
@@ -72,7 +72,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>None</td> 
     <td>Ants triplets interactions (10min/video)</td> 
     <td><img src="img/ants_v2.gif" alt="GIF 2" width="100" height="100"></td>
-    <td>Coming soon</td>
+    <td>...</td>
   </tr>
   <tr>
     <td rowspan="2">Neuroscience</td> 
