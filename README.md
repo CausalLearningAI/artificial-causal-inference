@@ -66,8 +66,8 @@ General framework for Artificial Causal Inference on real world scientific exper
   <tr>
     <td><code>ants</code></td> 
     <td><code>v5</code></td>
-    <td>...</td> 
-    <td>...</td> 
+    <td></td> 
+    <td></td> 
     <td>None</td> 
     <td>None</td> 
     <td>Ants triplets interactions (10min/video)</td> 
@@ -79,9 +79,9 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td rowspan="2">Autism</td>
     <td><code>mice</code></td> 
     <td><code>v1</code></td>
-    <td>2 (6)</td> 
-    <td>... (x6, x12)</td> 
-    <td>Sex (2), Genotype (4)</td> 
+    <td>3+3</td> 
+    <td>12+12,12+12,12+12 (x6, x12)</td> 
+    <td>Sex</td> 
     <td>Sniffing NN, NT x subjects (half) </td> 
     <td>Mice quadruplets interactions (15-30 min/video)</td> 
     <td><img src="img/mice.gif" alt="GIF 3" width="100" height="100"></td>
@@ -90,11 +90,11 @@ General framework for Artificial Causal Inference on real world scientific exper
   <tr>
     <td><code>mice</code></td> 
     <td><code>v2</code></td>
-    <td>2 (6)</td> 
-    <td>... </td> 
-    <td>Sex (2), Genotype (4)</td> 
+    <td>3</td> 
+    <td>12, 12, 12</td> 
+    <td>Sex</td> 
     <td>None</td> 
-    <td>Mixed mice quadruplets interactions (15-30 min/video)</td> 
+    <td>Mixed (1-3) mice quadruplets interactions (15-30 min/video)</td> 
     <td><img src="img/mice.gif" alt="GIF 3" width="100" height="100"></td>
     <td>Cleaning</td>
   </tr>
