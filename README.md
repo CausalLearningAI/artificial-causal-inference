@@ -49,7 +49,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>None</td> 
     <td>Grooming Y2F, B2F (full), FOL, YOL, BOL</td> 
     <td>Ants triplets interactions (10min/video)</td> 
-    <td><img src="img/ants_v2.gif" alt="GIF 2" width="100" height="100"></td>
+    <td><img src="img/ants_v3.gif" alt="GIF 2" width="100" height="100"></td>
     <td>To be released</td> 
   </tr>
   <tr>
@@ -60,7 +60,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>None</td> 
     <td>Grooming Y2F, B2F (full), FOL, YOL, BOL</td> 
     <td>Ants triplets interactions (10min/video)</td> 
-    <td><img src="img/ants_v2.gif" alt="GIF 2" width="100" height="100"></td>
+    <td><img src="img/ants_v4.gif" alt="GIF 2" width="100" height="100"></td>
     <td>To be released</td> 
   </tr>
   <tr>
@@ -71,7 +71,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>None</td> 
     <td>None</td> 
     <td>Ants triplets interactions (10min/video)</td> 
-    <td><img src="img/ants_v2.gif" alt="GIF 2" width="100" height="100"></td>
+    <td>...</td>
     <td>...</td>
   </tr>
   <tr>
