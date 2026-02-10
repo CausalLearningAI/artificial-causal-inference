@@ -113,7 +113,7 @@ def validate_observations(observations_dir: Path, metadata: Dict) -> bool:
     Returns:
         True if validation passes, False otherwise
     """
-    video_files = sorted(observations_dir.glob("*.mkv"))
+    video_files = sorted(list(observations_dir.glob("*.mkv")) + list(observations_dir.glob("*.mp4")))
     
     # Check metadata exists
     if "full" not in metadata:
@@ -169,8 +169,8 @@ def main(cfg: DictConfig) -> None:
     
     metadata = load_metadata(metadata_path)
     
-    # Get all video files
-    video_files = sorted(observations_dir.glob("*.mkv"))
+    # Get all video files (.mkv or .mp4)
+    video_files = sorted(list(observations_dir.glob("*.mkv")) + list(observations_dir.glob("*.mp4")))
     
     if not video_files:
         print(f"[ERROR] No video files found in {observations_dir}")

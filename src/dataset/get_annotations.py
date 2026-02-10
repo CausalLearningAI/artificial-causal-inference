@@ -297,9 +297,10 @@ class DatasetGenerator:
             
             # Get annotation file
             annotation_file = self.annotations_dir / f"{observation_id}.csv"
-            if not annotation_file.exists():
-                print(f"Warning: Annotation file not found for {observation_id}, skipping")
-                continue
+            has_annotations = annotation_file.exists()
+            
+            if not has_annotations:
+                print(f"Warning: Annotation file not found for {observation_id}, will assign NA to outcomes")
 
             # Locate frames for this observation
             frame_dir = self.frames_dir / observation_id
@@ -323,16 +324,30 @@ class DatasetGenerator:
                 'frame_count': frame_count  # total frames in clipped video
             }
             
-            # Extract labels
-            try:
-                labels_df = self.extractor.extract_labels(
-                    annotation_file,
-                    observation_id,
-                    obs_config
-                )
-            except Exception as e:
-                print(f"Warning: Failed to extract labels for {observation_id}: {e}")
-                continue
+            # Extract labels or create NA labels if no annotation file
+            if has_annotations:
+                try:
+                    labels_df = self.extractor.extract_labels(
+                        annotation_file,
+                        observation_id,
+                        obs_config
+                    )
+                except Exception as e:
+                    print(f"Warning: Failed to extract labels for {observation_id}: {e}")
+                    continue
+            else:
+                # Create labels DataFrame with NA for outcomes
+                outcome_names = self.config.get('outcomes', ['Y2F', 'B2F'])
+                labels_data = {
+                    'frame_idx': np.arange(frame_count),
+                    'fps': np.full(frame_count, target_fps, dtype=float),
+                    'observation_id': observation_id,
+                    'T': None
+                }
+                # Add outcome columns with NA values
+                for outcome_name in outcome_names:
+                    labels_data[f'Y_{outcome_name}'] = np.nan
+                labels_df = pd.DataFrame(labels_data)
             
             # Get treatment
             metadata = exp.to_dict()
@@ -397,9 +412,18 @@ class DatasetGenerator:
         
         # Check if file exists and overwrite flag
         if output_path.exists() and not self.overwrite:
-            df = pd.read_csv(output_path)
-            print(f"[SKIP] Annotations already generated ({len(df):,} frames)")
-            return output_path
+            try:
+                # Check if file is not empty before trying to read
+                if output_path.stat().st_size > 0:
+                    df = pd.read_csv(output_path)
+                    print(f"[SKIP] Annotations already generated ({len(df):,} frames)")
+                    return output_path
+                else:
+                    print(f"[WARNING] Existing file is empty, regenerating: {output_path}")
+            except pd.errors.EmptyDataError:
+                print(f"[WARNING] Existing file has no data, regenerating: {output_path}")
+            except Exception as e:
+                print(f"[WARNING] Error reading existing file, regenerating: {e}")
         
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
