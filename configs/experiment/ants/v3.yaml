@@ -12,3 +12,4 @@ overwrite:
   frames: false
   annotations: false
   hf: false
+  embeddings: false

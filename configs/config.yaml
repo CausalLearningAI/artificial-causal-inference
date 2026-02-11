@@ -1,3 +1,4 @@
+# @package _global_
 defaults:
   - experiment: ants/v1
   - _self_

@@ -1,0 +1,11 @@
+# @package _global_
+defaults:
+  - /experiment: ants/v1  # Will be overridden via CLI
+  - _self_
+
+# Embedding extraction settings
+encoder: dinov2
+token: class
+batch_size: 32
+num_workers: 4
+device: cuda

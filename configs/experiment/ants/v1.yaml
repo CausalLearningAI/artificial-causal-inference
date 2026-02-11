@@ -11,5 +11,6 @@ overwrite:
   videos: false        # If true, re-process videos even if already exist
   frames: false        # If true, re-extract frames even if already exist
   annotations: false   # If true, regenerate annotations even if already exist
-  hf: false            # If true, regenerate HF dataset even if already exists
+  hf: false             # If true, regenerate HF dataset even if already exists
+  embeddings: false    # If true, re-extract embeddings even if already exist
 
