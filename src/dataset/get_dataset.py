@@ -81,7 +81,10 @@ def load_dataset(
     if from_disk:
         if hf_dir.exists():
             print(f"Loading pre-generated HF dataset from {hf_dir}")
-            return datasets.load_from_disk(str(hf_dir))
+            dataset = datasets.load_from_disk(str(hf_dir))
+            dataset.subject = subject
+            dataset.version = version
+            return dataset
         else:
             print(f"HF dataset not found at {hf_dir}, generating from annotations...")
     
@@ -127,6 +130,12 @@ def load_dataset(
     
     # Create dataset with features - HF will handle lazy image decoding automatically
     dataset = Dataset.from_pandas(df, features=features, preserve_index=False)
+    # Store metadata in dataset info (Dataset properties are read-only)
+    if dataset.info is not None:
+        dataset.info.metadata = {
+            "subject": subject,
+            "version": version,
+        }
     
     # Apply split if requested
     if split:

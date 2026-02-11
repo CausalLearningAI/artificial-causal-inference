@@ -295,15 +295,23 @@ class DatasetGenerator:
             if exp.get('valid', 1) == 0:
                 continue
             
-            # Get annotation file
-            annotation_file = self.annotations_dir / f"{observation_id}.csv"
+            # Get annotation file from experiment.csv
+            annotation_filename = exp.get('annotation_file', '')
+            annotation_file = self.annotations_dir / annotation_filename
             has_annotations = annotation_file.exists()
             
             if not has_annotations:
                 print(f"Warning: Annotation file not found for {observation_id}, will assign NA to outcomes")
 
+            # Get observation file (video filename) for frame directory lookup
+            observation_file = exp.get('observation_file', '')
+            if observation_file:
+                file_stem = Path(observation_file).stem
+            else:
+                file_stem = observation_id
+            
             # Locate frames for this observation
-            frame_dir = self.frames_dir / observation_id
+            frame_dir = self.frames_dir / file_stem
             if not frame_dir.exists():
                 print(f"Warning: Frame directory not found for {observation_id}, skipping")
                 continue
