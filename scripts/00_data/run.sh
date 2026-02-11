@@ -18,6 +18,13 @@ conda activate crl
 # Disable Python output buffering for real-time logs
 export PYTHONUNBUFFERED=1
 
+# Function to log progress
+log_progress() {
+    local CURRENT=$1
+    local TOTAL=$2
+    echo "Progress: Step $CURRENT of $TOTAL completed"
+}
+
 # Function to process experiment and track time
 process_experiment() {
     local SUBJECT=$1
@@ -43,9 +50,9 @@ process_experiment() {
 # Runs for different experiments
 # process_experiment "ants" "v1"
 # process_experiment "ants" "v2"
-process_experiment "ants" "v3"
-process_experiment "ants" "v4"
+# process_experiment "ants" "v3"
+# process_experiment "ants" "v4"
 
-# process_experiment "mice" "v1"
-# process_experiment "mice" "v2"
+process_experiment "mice" "v1"
+process_experiment "mice" "v2"
 

@@ -6,7 +6,7 @@
 #SBATCH --output=logs/get_dataset_%j.out
 #SBATCH --error=logs/get_dataset_%j.err
 #SBATCH --time=04:00:00
-##SBATCH --partition=visualization
+#SBATCH --partition=visualize
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
@@ -72,10 +72,10 @@ process_experiment() {
 }
 
 # Process experiments
-# process_experiment "ants" "v1"
-# process_experiment "ants" "v2"
+process_experiment "ants" "v1"
+process_experiment "ants" "v2"
 process_experiment "ants" "v3"
-# process_experiment "ants" "v4"
+process_experiment "ants" "v4"
 
 # process_experiment "mice" "v1"
 # process_experiment "mice" "v2"
