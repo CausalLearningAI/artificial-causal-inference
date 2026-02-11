@@ -24,7 +24,7 @@ imageio>=2.14.0
 torch>=2.0.0
 torchvision>=0.15.0
 transformers>=4.30.0
-datasets>=2.14.0
+datasets>=2.20.0
 
 # Machine Learning
 xgboost>=2.0.0
