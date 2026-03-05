@@ -4,8 +4,17 @@ defaults:
   - _self_
 
 # Embedding extraction settings
-encoder: dinov2
+encoder: siglip
 token: class
-batch_size: 32
-num_workers: 4
+batch_size: 96  # Optimized for RTX 2080 Ti (11GB VRAM) - base models
+num_workers: 12  # Increased for better I/O parallelism
 device: cuda
+
+# Model-specific batch size recommendations (override via CLI):
+# - dinov2 (base): 96-128
+# - dinov2_large: 32-48
+# - siglip: 64-96
+# - clip: 128
+# - clip_large: 48-64
+# - mae: 64
+# - resnet: 256

@@ -1,0 +1,16 @@
+# @package _global_
+defaults:
+  - /data: ants/v5
+  - /dataset: ants/v5
+
+subject: ants
+version: v5
+
+# Processing overwrite flags
+overwrite:
+  videos: false
+  frames: false
+  annotations: false
+  hf: false
+  embeddings: false
+
