@@ -198,6 +198,68 @@ class EmbeddingExtractor:
                 pbar.update(len(images))
         
         return torch.cat(all_embeddings, dim=0)
+    
+    def extract_batch_to_file(
+        self,
+        dataloader: DataLoader,
+        output_file: Path,
+        num_samples: int,
+        embedding_dim: Optional[int] = None
+    ) -> np.ndarray:
+        """
+        Extract embeddings from a DataLoader directly to disk using memory-mapped file.
+        Memory-efficient: only keeps current batch in memory.
+        
+        Args:
+            dataloader: DataLoader yielding batches with 'image' key
+            output_file: Path to save embeddings (.npy file)
+            num_samples: Total number of samples
+            embedding_dim: Embedding dimension (inferred from first batch if None)
+            
+        Returns:
+            Memory-mapped array of shape (num_samples, embedding_dim)
+        """
+        embeddings_mmap = None
+        current_idx = 0
+        
+        with tqdm(
+            total=num_samples,
+            desc=f"  Extracting {self.encoder_name} ({self.token})",
+            disable=not self.verbose,
+            unit="frame"
+        ) as pbar:
+            for batch in dataloader:
+                images = batch['image']
+                embeddings = self.extract(images)
+                
+                # Initialize memory-mapped file on first batch
+                if embeddings_mmap is None:
+                    if embedding_dim is None:
+                        embedding_dim = embeddings.shape[1]
+                    
+                    embeddings_mmap = np.memmap(
+                        output_file,
+                        dtype='float32',
+                        mode='w+',
+                        shape=(num_samples, embedding_dim)
+                    )
+                
+                # Write batch directly to memory-mapped file
+                batch_len = len(embeddings)
+                embeddings_mmap[current_idx:current_idx + batch_len] = embeddings.numpy()
+                current_idx += batch_len
+                
+                pbar.update(batch_len)
+                
+                # Flush periodically to ensure data is written
+                if current_idx % (self.batch_size * 10) == 0:
+                    embeddings_mmap.flush()
+        
+        # Final flush
+        if embeddings_mmap is not None:
+            embeddings_mmap.flush()
+        
+        return embeddings_mmap
 
 
 def _infer_subject_version(dataset: Dataset, subject: Optional[str], version: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
@@ -308,27 +370,48 @@ def extract_embeddings_to_disk(
         collate_fn=collate_pil_images,
     )
     
+    # Extract embeddings directly to disk (memory-efficient)
     extract_start = time.time()
-    embeddings = extractor.extract_batch(dataloader, num_samples=len(dataset))
+    npy_file = output_dir / "embeddings.npy"
+    embeddings_mmap = extractor.extract_batch_to_file(
+        dataloader, 
+        npy_file, 
+        num_samples=len(dataset)
+    )
     extract_time = time.time() - extract_start
     
-    # Create embedding dataset with metadata
     if verbose:
-        print(f"  Saving embeddings...")
+        print(f"  ✓ Embeddings extracted to disk")
+        print(f"  Dimensions: {embeddings_mmap.shape}")
+        print(f"  Extract time: {extract_time:.1f}s ({len(dataset)/extract_time:.1f} frames/s)")
+    
+    # Optionally create HuggingFace Dataset format (for compatibility)
+    # This loads the memmap, which is memory-efficient
+    if verbose:
+        print(f"  Creating HuggingFace Dataset format...")
     
     save_start = time.time()
     col_name = f'embedding_{encoder}_{token}'
-    emb_dataset = Dataset.from_dict({col_name: embeddings.tolist()})
+    
+    # Load from memmap in chunks to avoid memory spike
+    chunk_size = 10000
+    chunks = []
+    for i in range(0, len(embeddings_mmap), chunk_size):
+        chunk = embeddings_mmap[i:i+chunk_size].tolist()
+        chunks.extend(chunk)
+        
+    emb_dataset = Dataset.from_dict({col_name: chunks})
     emb_dataset.set_format(type='torch', columns=[col_name])
     
-    # Save
-    emb_dataset.save_to_disk(str(output_dir))
+    # Save HuggingFace format
+    emb_dataset.save_to_disk(str(output_dir / "dataset"))
     save_time = time.time() - save_start
     
+    # Clean up memmap reference
+    del embeddings_mmap
+    
     if verbose:
-        print(f"  ✓ Embeddings saved")
-        print(f"  Dimensions: {embeddings.shape}")
-        print(f"  Extract time: {extract_time:.1f}s ({len(dataset)/extract_time:.1f} frames/s)")
+        print(f"  ✓ HuggingFace Dataset saved")
         print(f"  Save time: {save_time:.1f}s")
     
     return str(output_dir)
@@ -343,6 +426,8 @@ def load_embeddings_from_disk(
 ) -> torch.Tensor:
     """
     Load embeddings from: dataset/{subject}/{version}/embeddings/full/{encoder}/{token}/
+    
+    Supports both new .npy format (memory-efficient) and legacy HuggingFace Dataset format.
     
     Args:
         subject: Dataset subject (e.g., 'ants', 'mice')
@@ -359,9 +444,22 @@ def load_embeddings_from_disk(
     if not path.exists():
         raise FileNotFoundError(f"Embeddings not found at {path}")
     
-    dataset = Dataset.load_from_disk(str(path))
-    col_name = f'embedding_{encoder}_{token}'
+    # Try new .npy format first (more efficient)
+    npy_file = path / "embeddings.npy"
+    if npy_file.exists():
+        # Load from memory-mapped file (efficient for large files)
+        embeddings_np = np.load(npy_file, mmap_mode='r')
+        return torch.from_numpy(embeddings_np[:])  # [:] loads into memory
     
+    # Fall back to HuggingFace Dataset format (legacy)
+    dataset_path = path / "dataset"
+    if dataset_path.exists():
+        dataset = Dataset.load_from_disk(str(dataset_path))
+    else:
+        # Very old format - dataset directly in path
+        dataset = Dataset.load_from_disk(str(path))
+    
+    col_name = f'embedding_{encoder}_{token}'
     return torch.stack([torch.tensor(emb) for emb in dataset[col_name]])
 
 

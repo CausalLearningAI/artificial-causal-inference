@@ -287,6 +287,18 @@ class DatasetGenerator:
         
         print(f"FPS conversion: source={source_fps} fps -> target={target_fps} fps")
         
+        # Check global annotation availability from config
+        annotations_config = self.config.get('annotations', 'yes')  # default to 'yes' for backwards compatibility
+        
+        if annotations_config == 'no':
+            print(f"Dataset config indicates no annotations available (annotations: {annotations_config})")
+            expect_annotations = False
+        elif annotations_config == 'partial':
+            print(f"Dataset config indicates partial annotations (annotations: {annotations_config})")
+            expect_annotations = True  # Will check per observation
+        else:  # 'yes' or any other value
+            expect_annotations = True
+        
         # Process each observation
         for _, exp in tqdm(experiments.iterrows(), total=len(experiments), desc="Processing observations"):
             observation_id = exp['observation_id']
@@ -295,13 +307,29 @@ class DatasetGenerator:
             if exp.get('valid', 1) == 0:
                 continue
             
-            # Get annotation file from experiment.csv
-            annotation_filename = exp.get('annotation_file', '')
-            annotation_file = self.annotations_dir / annotation_filename
-            has_annotations = annotation_file.exists()
-            
-            if not has_annotations:
-                print(f"Warning: Annotation file not found for {observation_id}, will assign NA to outcomes")
+            # Determine if this observation has annotations
+            if not expect_annotations:
+                # Config says no annotations for this dataset
+                has_annotations = False
+            else:
+                # Check annotation file from experiment.csv
+                annotation_filename = exp.get('annotation_file', '')
+                
+                # Check if annotation_filename is valid (not NaN, not empty)
+                if pd.isna(annotation_filename) or not annotation_filename:
+                    has_annotations = False
+                    if annotations_config != 'partial':
+                        print(f"Warning: No annotation file specified for {observation_id}, will assign NA to outcomes")
+                else:
+                    annotation_file = self.annotations_dir / annotation_filename
+                    if not annotation_file.exists():
+                        if annotations_config == 'partial':
+                            print(f"Warning: Annotation file {annotation_filename} not found for {observation_id}, will assign NA to outcomes")
+                            has_annotations = False
+                        else:
+                            raise FileNotFoundError(f"Annotation file {annotation_filename} not found for {observation_id}")
+                    else:
+                        has_annotations = True
 
             # Get observation file (video filename) for frame directory lookup
             observation_file = exp.get('observation_file', '')
@@ -345,14 +373,19 @@ class DatasetGenerator:
                     continue
             else:
                 # Create labels DataFrame with NA for outcomes
-                outcome_names = self.config.get('outcomes', ['Y2F', 'B2F'])
+                outcome_names = self.config.get('outcomes', [])
+                
+                # If outcomes is None or empty, don't create any outcome columns
+                if outcome_names is None or len(outcome_names) == 0:
+                    outcome_names = []
+                
                 labels_data = {
                     'frame_idx': np.arange(frame_count),
                     'fps': np.full(frame_count, target_fps, dtype=float),
                     'observation_id': observation_id,
                     'T': None
                 }
-                # Add outcome columns with NA values
+                # Add outcome columns with NA values (if outcomes are defined)
                 for outcome_name in outcome_names:
                     labels_data[f'Y_{outcome_name}'] = np.nan
                 labels_df = pd.DataFrame(labels_data)
