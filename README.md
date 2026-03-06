@@ -27,7 +27,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>None</td> 
     <td>Grooming Y2F, B2F (full)</td> 
     <td>Ants triplets interactions (30min/video)</td> 
-    <td><img src="img/ants_v1.gif" alt="GIF 1" width="100" height="100"></td>
+    <td><img src="preview/ants/v1/demo/clip.gif" alt="GIF 1" width="100" height="100"></td>
     <td><a href="https://figshare.com/account/items/28319693/edit">figshare</a></td> 
   </tr>
   <tr>
@@ -38,7 +38,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>None</td> 
     <td>Grooming Y2F, B2F (full)</td> 
     <td>Ants triplets interactions (10min/video)</td> 
-    <td><img src="img/ants_v2.gif" alt="GIF 2" width="100" height="100"></td>
+    <td><img src="preview/ants/v2/demo/clip.gif" alt="GIF 2" width="100" height="100"></td>
     <td><a href="https://figshare.com/articles/dataset/ISTAnt_zip/26484934">figshare</a></td> 
   </tr>
   <tr>
@@ -49,7 +49,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>None</td> 
     <td>Grooming Y2F, B2F (full), FOL, YOL, BOL</td> 
     <td>Ants triplets interactions (10min/video)</td> 
-    <td><img src="img/ants_v3.gif" alt="GIF 2" width="100" height="100"></td>
+    <td><img src="preview/ants/v3/demo/clip.gif" alt="GIF 2" width="100" height="100"></td>
     <td>To be released</td> 
   </tr>
   <tr>
@@ -60,7 +60,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>None</td> 
     <td>Grooming Y2F, B2F (full), FOL, YOL, BOL</td> 
     <td>Ants triplets interactions (10min/video)</td> 
-    <td><img src="img/ants_v4.gif" alt="GIF 2" width="100" height="100"></td>
+    <td><img src="preview/ants/v4/demo/clip.gif" alt="GIF 2" width="100" height="100"></td>
     <td>To be released</td> 
   </tr>
   <tr>
@@ -84,7 +84,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>Sex</td> 
     <td>Sniffing NN, NT x subjects (half) </td> 
     <td>Mice quadruplets interactions (15-30 min/video)</td> 
-    <td><img src="img/mice.gif" alt="GIF 3" width="100" height="100"></td>
+    <td><img src="preview/mice/v1/demo/clip.gif" alt="GIF 3" width="100" height="100"></td>
     <td>Cleaning</td>
   </tr>
   <tr>
@@ -95,7 +95,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>Sex</td> 
     <td>None</td> 
     <td>Mixed (1-3) mice quadruplets interactions (15-30 min/video)</td> 
-    <td><img src="img/mice.gif" alt="GIF 3" width="100" height="100"></td>
+    <td><img src="preview/mice/v1/demo/clip.gif" alt="GIF 3" width="100" height="100"></td>
     <td>Cleaning</td>
   </tr>
   <tr>
@@ -121,7 +121,7 @@ General framework for Artificial Causal Inference on real world scientific exper
     <td>...</td>
     <td>...</td>
     <td>...</td>
-    <td><img src="img/brain.png" alt="image 1" width="150" height="100"></td>
+    <td><img src="preview/brain/v1/demo/brain.png" alt="image 1" width="150" height="100"></td>
     <td>Ready but private</td> 
   </tr>
   <tr>
