@@ -96,35 +96,35 @@ def load_dataset(
     with open(config_path) as f:
         config = yaml.safe_load(f)
     
-    # Check if annotations exist
-    if not annotations_csv.exists():
-        raise FileNotFoundError(
-            f"[ERROR] Annotations not found: {annotations_csv}\\n"
-            f"Run: python -m src.dataset.get_annotations experiment={subject}/{version}"
-        )
-    
     # Check if frames exist
     if not frames_dir.exists():
         raise FileNotFoundError(
             f"[ERROR] Frames directory not found: {frames_dir}\\n"
             f"Run: python src/dataset/get_frames.py experiment={subject}/{version}"
         )
-    
+
+    # Check if annotations exist
+    if not annotations_csv.exists():
+        raise FileNotFoundError(
+            f"[ERROR] Annotations not found: {annotations_csv}\n"
+            f"Run: python -m src.dataset.get_annotations experiment={subject}/{version}"
+        )
+
     # Load annotations
     df = pd.read_csv(annotations_csv)
-    
+
     # Add full image paths
     df['image_path'] = df['frame_path'].apply(lambda p: str(dataset_root / p))
-    
+
     # Define dataset features using config
     features = _create_features(df, config)
-    
+
     # Keep only columns that are in features schema + image_path
     feature_columns = list(features.keys())
     feature_columns.remove('image')  # Will store path instead, decode on-the-fly
     columns_to_keep = feature_columns + ['image_path']
     df = df[columns_to_keep]
-    
+
     # Rename image_path to image for HF Image feature (it will decode lazily)
     df = df.rename(columns={'image_path': 'image'})
     
@@ -145,6 +145,7 @@ def load_dataset(
     return dataset
 
 
+
 def _create_features(df: pd.DataFrame, config: Dict[str, Any]) -> Features:
     """
     Create HF Features schema from dataframe columns using config specifications.
@@ -160,8 +161,18 @@ def _create_features(df: pd.DataFrame, config: Dict[str, Any]) -> Features:
         'image': HFImage(),
         'observation_id': Value('string'),
         'frame_idx': Value('int64'),
-        'T': Value('int64'),  # Treatment as integer (can have any discrete values)
     }
+
+    # Infer treatment type from config or data
+    if 'T' in df.columns:
+        treatment_type = config.get('treatment', {}).get('type', None)
+        if treatment_type == 'categorical':
+            unique_vals = sorted([str(x) for x in df['T'].dropna().unique()])
+            feature_dict['T'] = ClassLabel(names=unique_vals)
+        elif df['T'].dtype == 'object':
+            feature_dict['T'] = Value('string')
+        else:
+            feature_dict['T'] = Value('int64')
     
     # Add covariates (W_*) using config datatypes
     w_cols = [c for c in df.columns if c.startswith('W_')]
