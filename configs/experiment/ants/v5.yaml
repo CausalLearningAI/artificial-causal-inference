@@ -5,6 +5,7 @@ defaults:
 
 subject: ants
 version: v5
+annotations: no    # yes | no | partial
 
 # Processing overwrite flags
 overwrite:
