@@ -193,11 +193,12 @@ class DatasetGenerator:
         subject: str,
         version: str,
         extractor: Optional[AnnotationExtractor] = None,
-        overwrite: bool = False
+        overwrite: bool = False,
+        annotations: str = 'yes',
     ):
         """
         Initialize the dataset generator.
-        
+
         Args:
             data_root: Root directory containing raw data
             dataset_root: Root directory for processed datasets
@@ -206,18 +207,21 @@ class DatasetGenerator:
             version: Version of the dataset
             extractor: Annotation extractor (optional, will auto-create)
             overwrite: If True, regenerate annotations even if they exist
+            annotations: Annotation availability — 'yes' | 'no' | 'partial'.
+                         Comes from configs/experiment/{subject}/{version}.yaml.
         """
         self.data_root = Path(data_root)
         self.dataset_root = Path(dataset_root)
         self.subject = subject
         self.version = version
         self.overwrite = overwrite
-        
-        # Load subject/version-specific configuration
+        self.annotations = annotations
+
+        # Load subject/version-specific dataset configuration
         config_path = Path(config_dir) / subject / f"{version}.yaml"
         if not config_path.exists():
             raise ValueError(f"Config not found: {config_path}")
-        
+
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
         
@@ -287,14 +291,12 @@ class DatasetGenerator:
         
         print(f"FPS conversion: source={source_fps} fps -> target={target_fps} fps")
         
-        # Check global annotation availability from config
-        annotations_config = self.config.get('annotations', 'yes')  # default to 'yes' for backwards compatibility
-        
-        if annotations_config == 'no':
-            print(f"Dataset config indicates no annotations available (annotations: {annotations_config})")
+        # Check global annotation availability (from experiment config)
+        if self.annotations == 'no':
+            print(f"Experiment config indicates no annotations available (annotations: {self.annotations})")
             expect_annotations = False
-        elif annotations_config == 'partial':
-            print(f"Dataset config indicates partial annotations (annotations: {annotations_config})")
+        elif self.annotations == 'partial':
+            print(f"Experiment config indicates partial annotations (annotations: {self.annotations})")
             expect_annotations = True  # Will check per observation
         else:  # 'yes' or any other value
             expect_annotations = True
@@ -318,12 +320,12 @@ class DatasetGenerator:
                 # Check if annotation_filename is valid (not NaN, not empty)
                 if pd.isna(annotation_filename) or not annotation_filename:
                     has_annotations = False
-                    if annotations_config != 'partial':
+                    if self.annotations != 'partial':
                         print(f"Warning: No annotation file specified for {observation_id}, will assign NA to outcomes")
                 else:
                     annotation_file = self.annotations_dir / annotation_filename
                     if not annotation_file.exists():
-                        if annotations_config == 'partial':
+                        if self.annotations == 'partial':
                             print(f"Warning: Annotation file {annotation_filename} not found for {observation_id}, will assign NA to outcomes")
                             has_annotations = False
                         else:
@@ -504,7 +506,8 @@ def main(cfg: DictConfig):
         config_dir=config_dir,
         subject=subject,
         version=version,
-        overwrite=cfg.overwrite.annotations
+        overwrite=cfg.overwrite.annotations,
+        annotations=cfg.get('annotations', 'yes'),
     )
     
     output_path = generator.save_dataset()

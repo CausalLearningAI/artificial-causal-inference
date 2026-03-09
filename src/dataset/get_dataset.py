@@ -83,7 +83,7 @@ def load_dataset(
             print(f"Loading pre-generated HF dataset from {hf_dir}")
             dataset = datasets.load_from_disk(str(hf_dir))
             dataset.subject = subject
-            dataset.version = version
+            # Note: dataset.version is a read-only HF property; skip setting it
             return dataset
         else:
             print(f"HF dataset not found at {hf_dir}, generating from annotations...")

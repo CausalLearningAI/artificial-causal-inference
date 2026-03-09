@@ -444,13 +444,28 @@ def load_embeddings_from_disk(
     if not path.exists():
         raise FileNotFoundError(f"Embeddings not found at {path}")
     
+    # Fastest format: .pt torch tensor
+    pt_file = path / "embeddings.pt"
+    if pt_file.exists():
+        return torch.load(pt_file, weights_only=True)
+
     # Try new .npy format first (more efficient)
     npy_file = path / "embeddings.npy"
     if npy_file.exists():
-        # Load from memory-mapped file (efficient for large files)
-        embeddings_np = np.load(npy_file, mmap_mode='r')
-        return torch.from_numpy(embeddings_np[:])  # [:] loads into memory
-    
+        try:
+            # Standard npy (float32) — fast path
+            embeddings_np = np.load(npy_file, mmap_mode='r')
+            return torch.from_numpy(np.array(embeddings_np, dtype=np.float32))
+        except Exception:
+            pass
+        try:
+            # Pickled npy (object array saved with allow_pickle=True)
+            embeddings_np = np.load(npy_file, allow_pickle=True)
+            return torch.tensor(np.array(embeddings_np.tolist(), dtype=np.float32))
+        except Exception:
+            # Fall through to HuggingFace Dataset format
+            pass
+
     # Fall back to HuggingFace Dataset format (legacy)
     dataset_path = path / "dataset"
     if dataset_path.exists():
@@ -460,7 +475,10 @@ def load_embeddings_from_disk(
         dataset = Dataset.load_from_disk(str(path))
     
     col_name = f'embedding_{encoder}_{token}'
-    return torch.stack([torch.tensor(emb) for emb in dataset[col_name]])
+    col_data = dataset[col_name]
+    if isinstance(col_data, torch.Tensor):
+        return col_data.clone().detach().float()
+    return torch.from_numpy(np.array(col_data, dtype=np.float32))
 
 
 def add_embeddings_from_disk(
