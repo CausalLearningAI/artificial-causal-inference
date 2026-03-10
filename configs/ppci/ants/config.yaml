@@ -1,0 +1,98 @@
+# PPCI configuration for ants experiments
+# =========================================
+# Used by: src/ppci/{dataset,model,train}.py
+#
+# Treatment class indices (0-based, as stored in the HF dataset ClassLabel):
+#   ants/v3  treatment values [2,4,6,7,8,9] → sorted strings → indices 0..5
+#   ants/v4  treatment values [1,2,3,4,5,6] → sorted strings → indices 0..5
+# Set T_control / T_treatment accordingly.
+
+# ---------------------------------------------------------------------------
+# Outcome
+# ---------------------------------------------------------------------------
+outcome:
+  # Which Y_* columns from the HF dataset to use.
+  # All must exist in the chosen version; missing columns raise an error.
+  columns: [Y_Y2F, Y_B2F]   # yellow-to-focal, blue-to-focal
+
+  # Eval-time aggregation across outcome columns (does NOT affect the MLP):
+  #   multilabel  — report each column independently (no aggregation)
+  #   or          — also report P(any positive) = 1 − ∏(1−pₖ)
+  #   sum         — also report expected count = Σ pₖ
+  task: multilabel
+
+# ---------------------------------------------------------------------------
+# MLP hyperparameters
+# ---------------------------------------------------------------------------
+mlp:
+  hidden_dim: 512
+  hidden_layers: 1
+  dropout: 0.0
+
+# ---------------------------------------------------------------------------
+# Training hyperparameters
+# ---------------------------------------------------------------------------
+training:
+  # Method: ERM | DERM | vREx | IRM
+  method: ERM
+
+  batch_size: 256
+  num_epochs: 5
+  lr: 0.0001
+  seed: 0
+
+  # Invariance penalty weight (vREx / IRM only; ignored for ERM / DERM)
+  ic_weight: 1.0
+
+  # Device: "cuda" | "cpu" (falls back to cpu automatically if cuda unavailable)
+  device: cuda
+
+# ---------------------------------------------------------------------------
+# Environment definition
+# ---------------------------------------------------------------------------
+# Environments are all unique combinations of the listed covariate columns.
+# Column names must match the W_* columns in the HF dataset exactly.
+# Columns absent in a dataset version are warned about and silently skipped.
+#
+# If covariates is empty AND include_treatment is false → single environment
+# (equivalent to ERM; IRM/vREx degenerate to ERM with a warning).
+environments:
+  covariates: [W_batch]       # e.g. different ant colonies = different environments
+  include_treatment: false    # also split by treatment value
+
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
+validation:
+  # Number of full observation videos (observation_ids) to hold out for
+  # validation and model selection by best balanced accuracy.
+  # Set to 0 to disable validation (checkpoint = last epoch).
+  n_videos: 5
+
+# ---------------------------------------------------------------------------
+# Causal evaluation (W&B logging + compute_ppci_bias)
+# ---------------------------------------------------------------------------
+causal:
+  # Treatment class indices (0-based) to compare for ATE estimation.
+  # Example for ants/v3 (values 2,4,6,7,8,9 → indices 0..5):
+  #   T_control=0 → original value "2"
+  #   T_treatment=1 → original value "4"
+  T_control: 0
+  T_treatment: 1
+
+  # ATE estimators to run in notebook Section 4 (compute_ppci_bias).
+  # W&B logging always uses "ead" (fast). Add more for offline evaluation.
+  # Options: ead | aipw | slearner | tlearner | xlearner | drlearner | causalforest
+  eval_methods: [ead]
+
+# ---------------------------------------------------------------------------
+# Weights & Biases
+# ---------------------------------------------------------------------------
+wandb:
+  project: ppci-ants
+  entity: null            # use default W&B entity
+  group: null             # optional run group
+  tags: []
+  # mode: online | offline | disabled
+  mode: disabled          # set to "online" to enable W&B logging
+  run_name: null          # auto-set to method name if null
