@@ -4,17 +4,26 @@ defaults:
   - _self_
 
 # Embedding extraction settings
-encoder: siglip
+encoder: dinov2
 token: class
-batch_size: 96  # Optimized for RTX 2080 Ti (11GB VRAM) - base models
-num_workers: 12  # Increased for better I/O parallelism
+batch_size: 192   # fp16 inference — roughly 2x the fp32 limit per GPU class
+num_workers: 12   # preprocessing runs in workers in parallel with GPU
 device: cuda
 
-# Model-specific batch size recommendations (override via CLI):
-# - dinov2 (base): 96-128
-# - dinov2_large: 32-48
-# - siglip: 64-96
-# - clip: 128
-# - clip_large: 48-64
-# - mae: 64
-# - resnet: 256
+# Model-specific batch size recommendations (fp16, RTX 2080 Ti 11GB):
+# DINOv2 / DINOv3 family (base):
+#   dinov2, dinov2_reg, dinov3          → 192-256
+# DINOv2 / DINOv3 family (large):
+#   dinov2_large, dinov2_reg_large,
+#   dinov2_giant, dinov3_large          → 64-96
+# SigLIP family:
+#   siglip (512px)                       → 64-96
+#   siglip_large, siglip2 (384px)        → 96-128
+# CLIP family:
+#   clip                                 → 256
+#   clip_large                           → 96-128
+# Other:
+#   vit                                  → 256
+#   mae                                  → 128
+#   resnet                               → 512
+#   aimv2                                → 128-192

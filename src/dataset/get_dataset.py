@@ -79,12 +79,15 @@ def load_dataset(
     
     # Try to load from disk first if requested
     if from_disk:
-        if hf_dir.exists():
-            print(f"Loading pre-generated HF dataset from {hf_dir}")
-            dataset = datasets.load_from_disk(str(hf_dir))
-            dataset.subject = subject
-            # Note: dataset.version is a read-only HF property; skip setting it
-            return dataset
+        if (hf_dir / "dataset_info.json").exists():
+            try:
+                print(f"Loading pre-generated HF dataset from {hf_dir}")
+                dataset = datasets.load_from_disk(str(hf_dir))
+                dataset.subject = subject
+                # Note: dataset.version is a read-only HF property; skip setting it
+                return dataset
+            except Exception as e:
+                print(f"HF dataset at {hf_dir} is invalid ({type(e).__name__}: {e}), regenerating from annotations...")
         else:
             print(f"HF dataset not found at {hf_dir}, generating from annotations...")
     
@@ -130,18 +133,11 @@ def load_dataset(
     
     # Create dataset with features - HF will handle lazy image decoding automatically
     dataset = Dataset.from_pandas(df, features=features, preserve_index=False)
-    # Store metadata in dataset info (Dataset properties are read-only)
-    if dataset.info is not None:
-        dataset.info.metadata = {
-            "subject": subject,
-            "version": version,
-        }
-    
     # Apply split if requested
     if split:
         dataset_dict = dataset.train_test_split(test_size=0.2, seed=42)
         return dataset_dict
-    
+
     return dataset
 
 
@@ -167,8 +163,10 @@ def _create_features(df: pd.DataFrame, config: Dict[str, Any]) -> Features:
     if 'T' in df.columns:
         treatment_type = config.get('treatment', {}).get('type', None)
         if treatment_type == 'categorical':
-            unique_vals = sorted([str(x) for x in df['T'].dropna().unique()])
-            feature_dict['T'] = ClassLabel(names=unique_vals)
+            # Use Value('int64') for numeric codes, Value('string') for string labels.
+            # ClassLabel would use the value as a direct index, which breaks
+            # for non-0-indexed treatment codes (e.g. [1,2] or [2,4,6,7,8,9]).
+            feature_dict['T'] = Value('string') if df['T'].dtype == 'object' else Value('int64')
         elif df['T'].dtype == 'object':
             feature_dict['T'] = Value('string')
         else:
@@ -210,12 +208,14 @@ def _create_features(df: pd.DataFrame, config: Dict[str, Any]) -> Features:
     # Add outcomes (Y_*)
     y_cols = [c for c in df.columns if c.startswith('Y_')]
     for col in y_cols:
-        # Outcomes are typically binary or categorical
+        # Use Value('int64') for integer-valued outcomes.
+        # ClassLabel would treat values as direct indices, breaking for any
+        # non-0-indexed labels (same issue as treatment above).
         unique_vals = df[col].dropna().unique()
-        if len(unique_vals) <= 10:  # Categorical
-            feature_dict[col] = ClassLabel(names=sorted([str(x) for x in unique_vals]))
-        else:  # Continuous
+        if df[col].dtype in ['float64', 'float32'] and len(unique_vals) > 10:
             feature_dict[col] = Value('float32')
+        else:
+            feature_dict[col] = Value('int64')
     
     return Features(feature_dict)
 

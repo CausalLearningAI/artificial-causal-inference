@@ -5,14 +5,14 @@ Extract embeddings from frames and save to: dataset/{subject}/{version}/embeddin
 Usage:
     from src.embedding import extract_embeddings_to_disk
     from src.dataset.get_dataset import load_dataset
-    
+
     dataset = load_dataset(subject='ants', version='v1')
     embeddings_path = extract_embeddings_to_disk(
         dataset,
         encoder='dinov2',
         token='class'
     )
-    
+
     # Load later
     from src.embedding import load_embeddings_from_disk
     embeddings = load_embeddings_from_disk(
@@ -32,11 +32,11 @@ from tqdm import tqdm
 import logging
 
 from datasets import Dataset
-from torch.utils.data import DataLoader, IterableDataset
+from torch.utils.data import DataLoader
 from transformers import (
-    AutoImageProcessor, AutoModel, 
-    SiglipImageProcessor, SiglipVisionModel,
-    AutoProcessor, CLIPVisionModel,
+    AutoImageProcessor, AutoModel,
+    SiglipVisionModel,
+    CLIPVisionModel,
     ViTMAEModel, ResNetForImageClassification
 )
 
@@ -47,20 +47,54 @@ if str(PROJECT_ROOT) not in sys.path:
 logger = logging.getLogger(__name__)
 
 
+class _PreprocessedDataset(torch.utils.data.Dataset):
+    """Wraps a HF Dataset and applies the image processor in __getitem__.
+
+    This allows DataLoader workers to run preprocessing in parallel with
+    GPU inference, eliminating the main-thread preprocessing bottleneck.
+    """
+
+    def __init__(self, hf_dataset, processor):
+        self.dataset = hf_dataset
+        self.processor = processor
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        image = self.dataset[idx]['image']
+        processed = self.processor(images=image, return_tensors='pt')
+        # Remove the batch dim added by the processor (B=1 → drop it)
+        return {k: v.squeeze(0) for k, v in processed.items()}
+
+
 class EmbeddingExtractor:
     """Extract embeddings from images using pretrained ViT models."""
-    
+
     AVAILABLE_ENCODERS = {
-        'dinov2': ('facebook/dinov2-base', 'AutoModel'),
-        'dinov2_large': ('facebook/dinov2-large', 'AutoModel'),
-        'siglip': ('google/siglip-base-patch16-512', 'SiglipVisionModel'),
-        'vit': ('google/vit-base-patch16-224', 'ViTForImageClassification'),
-        'clip': ('openai/clip-vit-base-patch32', 'CLIPVisionModel'),
-        'clip_large': ('openai/clip-vit-large-patch14-336', 'CLIPVisionModel'),
-        'mae': ('facebook/vit-mae-large', 'ViTMAEModel'),
-        'resnet': ('microsoft/resnet-50', 'ResNetForImageClassification'),
+        # --- DINOv2 family (Meta, 2023) ---
+        'dinov2':            ('facebook/dinov2-base',                          'AutoModel'),
+        'dinov2_large':      ('facebook/dinov2-large',                         'AutoModel'),
+        'dinov2_giant':      ('facebook/dinov2-giant',                         'AutoModel'),
+        'dinov2_reg':        ('facebook/dinov2-with-registers-base',            'AutoModel'),
+        'dinov2_reg_large':  ('facebook/dinov2-with-registers-large',           'AutoModel'),
+        # --- DINOv3 family (Meta, Aug 2025) — trained on LVD-1689M (1.7B images) ---
+        'dinov3':            ('facebook/dinov3-vitb16-pretrain-lvd1689m',       'AutoModel'),
+        'dinov3_large':      ('facebook/dinov3-vitl16-pretrain-lvd1689m',       'AutoModel'),
+        # --- SigLIP family (Google) ---
+        'siglip':            ('google/siglip-base-patch16-512',                 'SiglipVisionModel'),
+        'siglip_large':      ('google/siglip-so400m-patch14-384',               'SiglipVisionModel'),
+        'siglip2':           ('google/siglip2-so400m-patch14-384',              'AutoModel'),  # Feb 2025
+        # --- CLIP family (OpenAI) ---
+        'clip':              ('openai/clip-vit-base-patch32',                   'CLIPVisionModel'),
+        'clip_large':        ('openai/clip-vit-large-patch14-336',              'CLIPVisionModel'),
+        # --- Other ---
+        'vit':               ('google/vit-base-patch16-224',                    'AutoModel'),
+        'mae':               ('facebook/vit-mae-large',                         'ViTMAEModel'),
+        'resnet':            ('microsoft/resnet-50',                             'ResNetForImageClassification'),
+        'aimv2':             ('apple/aimv2-large-patch14-224',                  'AutoModel'),  # Apple, 2025
     }
-    
+
     def __init__(
         self,
         encoder: str = 'dinov2',
@@ -70,51 +104,41 @@ class EmbeddingExtractor:
         token: str = 'class',
         verbose: bool = True
     ):
-        """
-        Initialize embedding extractor.
-        
-        Args:
-            encoder: Model identifier (see AVAILABLE_ENCODERS)
-            device: 'cuda', 'cpu', or specific GPU device
-            batch_size: Batch size for processing
-            num_workers: Number of workers for data loading
-            token: Token type ('class' or 'mean')
-            verbose: Print progress information
-        """
         if encoder not in self.AVAILABLE_ENCODERS:
             raise ValueError(
                 f"Encoder '{encoder}' not supported. "
                 f"Choose from: {list(self.AVAILABLE_ENCODERS.keys())}"
             )
-        
+
         self.encoder_name = encoder
         self.device = torch.device(device)
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.token = token
         self.verbose = verbose
-        
-        # Load model and processor
+
         self._load_model()
-    
+
     def _load_model(self):
         """Load pretrained model and processor."""
         model_id, model_class = self.AVAILABLE_ENCODERS[self.encoder_name]
-        
+
         if self.verbose:
             print(f"  Loading model: {model_id}")
-        
-        # Load processor
-        if 'siglip' in self.encoder_name:
-            self.processor = SiglipImageProcessor.from_pretrained(model_id)
-        elif 'clip' in self.encoder_name:
-            self.processor = AutoProcessor.from_pretrained(model_id)
-        else:
-            self.processor = AutoImageProcessor.from_pretrained(model_id)
-        
-        # Load model
+
+        # Processor: use AutoImageProcessor with fast=True for all models
+        # (fixes the "slow image processor" warning and is faster)
+        self.processor = AutoImageProcessor.from_pretrained(model_id, use_fast=True)
+
+        # Model
         if model_class == 'AutoModel':
-            self.model = AutoModel.from_pretrained(model_id).to(self.device)
+            full_model = AutoModel.from_pretrained(model_id)
+            # SigLIP2 (and other vision-language models) load as a full V+L model;
+            # extract the vision tower to avoid "input_ids required" errors.
+            if hasattr(full_model, 'vision_model'):
+                self.model = full_model.vision_model.to(self.device)
+            else:
+                self.model = full_model.to(self.device)
         elif model_class == 'SiglipVisionModel':
             self.model = SiglipVisionModel.from_pretrained(model_id).to(self.device)
         elif model_class == 'CLIPVisionModel':
@@ -123,66 +147,81 @@ class EmbeddingExtractor:
             self.model = ViTMAEModel.from_pretrained(model_id).to(self.device)
         else:
             self.model = ResNetForImageClassification.from_pretrained(model_id).to(self.device)
-        
+
         self.model.eval()
         self.model.requires_grad_(False)
-        
+
         if self.verbose:
             print(f"  Device: {self.device}")
             print(f"  Batch size: {self.batch_size}, Workers: {self.num_workers}")
-    
+
+    def _forward_tensors(self, pixel_values: torch.Tensor) -> torch.Tensor:
+        """
+        Run model forward pass on already-preprocessed tensors.
+
+        Uses fp16 autocast (GPU only) and inference_mode for maximum speed.
+        Output is always float32.
+        """
+        pixel_values = pixel_values.to(self.device)
+
+        use_fp16 = self.device.type == 'cuda'
+        autocast_ctx = torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=use_fp16)
+
+        with torch.inference_mode(), autocast_ctx:
+            outputs = self.model(pixel_values=pixel_values, output_hidden_states=True)
+
+        # Extract token representation from last hidden layer
+        if 'resnet' in self.encoder_name:
+            hidden = outputs.hidden_states[-1]          # (B, C, H, W)
+            embeddings = hidden.float().mean(dim=[2, 3])
+        else:
+            # hidden_states is a tuple; last entry is (B, seq_len, dim)
+            # Fall back to last_hidden_state if hidden_states unavailable
+            if outputs.hidden_states is not None:
+                hidden = outputs.hidden_states[-1].float()
+            else:
+                hidden = outputs.last_hidden_state.float()
+
+            if self.token == 'class':
+                embeddings = hidden[:, 0]           # CLS token
+            elif self.token == 'mean':
+                embeddings = hidden[:, 1:].mean(dim=1)  # mean over patch tokens
+            else:
+                raise ValueError(f"Token '{self.token}' not supported. Use 'class' or 'mean'.")
+
+        return embeddings.cpu()
+
     def extract(self, images: List) -> torch.Tensor:
         """
-        Extract embeddings from PIL images.
-        
+        Extract embeddings from PIL images (convenience method).
+
         Args:
             images: List of PIL Image objects
-            
+
         Returns:
             Tensor of shape (batch_size, embedding_dim)
         """
-        # Preprocess
-        inputs = self.processor(images=images, return_tensors="pt").to(self.device)
-        
-        # Forward pass
-        with torch.no_grad():
-            outputs = self.model(**inputs, output_hidden_states=True)
-        
-        # Extract token
-        hidden_states = outputs.hidden_states[-1]  # Last layer
-        
-        if self.token == 'class':
-            # CLS token (first token)
-            embeddings = hidden_states[:, 0]
-        elif self.token == 'mean':
-            # Mean pooling over all tokens except CLS
-            embeddings = hidden_states[:, 1:].mean(dim=1)
-        else:
-            raise ValueError(f"Token '{self.token}' not supported. Use 'class' or 'mean'.")
-        
-        # Handle ResNet special case (no transformer tokens)
-        if 'resnet' in self.encoder_name:
-            embeddings = hidden_states.mean(dim=[2, 3])
-        
-        return embeddings.cpu()
-    
+        inputs = self.processor(images=images, return_tensors='pt')
+        pixel_values = inputs['pixel_values']
+        return self._forward_tensors(pixel_values)
+
     def extract_batch(
         self,
         dataloader: DataLoader,
         num_samples: Optional[int] = None
     ) -> torch.Tensor:
         """
-        Extract embeddings from a DataLoader.
-        
+        Extract embeddings from a DataLoader yielding PIL image batches.
+
         Args:
-            dataloader: DataLoader yielding batches with 'image' key
+            dataloader: DataLoader yielding batches with 'image' key (PIL images)
             num_samples: Total samples (for tqdm, optional)
-            
+
         Returns:
             Tensor of shape (num_samples, embedding_dim)
         """
         all_embeddings = []
-        
+
         with tqdm(
             total=num_samples,
             desc=f"  Extracting {self.encoder_name} ({self.token})",
@@ -191,37 +230,50 @@ class EmbeddingExtractor:
         ) as pbar:
             for batch in dataloader:
                 images = batch['image']
-                
                 embeddings = self.extract(images)
                 all_embeddings.append(embeddings)
-                
                 pbar.update(len(images))
-        
+
         return torch.cat(all_embeddings, dim=0)
-    
+
     def extract_batch_to_file(
         self,
-        dataloader: DataLoader,
+        hf_dataset,
         output_file: Path,
         num_samples: int,
         embedding_dim: Optional[int] = None
     ) -> np.ndarray:
         """
-        Extract embeddings from a DataLoader directly to disk using memory-mapped file.
-        Memory-efficient: only keeps current batch in memory.
-        
+        Extract embeddings directly to a memory-mapped .npy file.
+
+        Preprocessing runs in DataLoader workers (parallel to GPU inference)
+        for maximum throughput. Only the current batch is kept in memory.
+
         Args:
-            dataloader: DataLoader yielding batches with 'image' key
+            hf_dataset: HuggingFace Dataset with 'image' column
             output_file: Path to save embeddings (.npy file)
             num_samples: Total number of samples
             embedding_dim: Embedding dimension (inferred from first batch if None)
-            
+
         Returns:
             Memory-mapped array of shape (num_samples, embedding_dim)
         """
+        # Wrap dataset so workers preprocess images in parallel with GPU compute
+        pre_ds = _PreprocessedDataset(hf_dataset, self.processor)
+
+        dataloader = DataLoader(
+            pre_ds,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            pin_memory=(self.device.type == 'cuda'),
+            shuffle=False,
+            prefetch_factor=4 if self.num_workers > 0 else None,
+            persistent_workers=self.num_workers > 0,
+        )
+
         embeddings_mmap = None
         current_idx = 0
-        
+
         with tqdm(
             total=num_samples,
             desc=f"  Extracting {self.encoder_name} ({self.token})",
@@ -229,36 +281,30 @@ class EmbeddingExtractor:
             unit="frame"
         ) as pbar:
             for batch in dataloader:
-                images = batch['image']
-                embeddings = self.extract(images)
-                
-                # Initialize memory-mapped file on first batch
+                pixel_values = batch['pixel_values']
+                embeddings = self._forward_tensors(pixel_values)
+
                 if embeddings_mmap is None:
                     if embedding_dim is None:
                         embedding_dim = embeddings.shape[1]
-                    
                     embeddings_mmap = np.memmap(
                         output_file,
                         dtype='float32',
                         mode='w+',
                         shape=(num_samples, embedding_dim)
                     )
-                
-                # Write batch directly to memory-mapped file
+
                 batch_len = len(embeddings)
                 embeddings_mmap[current_idx:current_idx + batch_len] = embeddings.numpy()
                 current_idx += batch_len
-                
                 pbar.update(batch_len)
-                
-                # Flush periodically to ensure data is written
+
                 if current_idx % (self.batch_size * 10) == 0:
                     embeddings_mmap.flush()
-        
-        # Final flush
+
         if embeddings_mmap is not None:
             embeddings_mmap.flush()
-        
+
         return embeddings_mmap
 
 
@@ -266,13 +312,11 @@ def _infer_subject_version(dataset: Dataset, subject: Optional[str], version: Op
     inferred_subject = subject
     inferred_version = version
 
-    # Try to get from attributes (for backwards compatibility)
     if inferred_subject is None and hasattr(dataset, "subject"):
         inferred_subject = getattr(dataset, "subject")
     if inferred_version is None and hasattr(dataset, "version"):
         inferred_version = getattr(dataset, "version")
-    
-    # Try to get from metadata (preferred method)
+
     if hasattr(dataset, "info") and dataset.info is not None and hasattr(dataset.info, "metadata"):
         metadata = dataset.info.metadata
         if metadata is not None:
@@ -297,46 +341,63 @@ def extract_embeddings_to_disk(
 ) -> str:
     """
     Extract embeddings and save to dataset/{subject}/{version}/embeddings/full/{encoder}/{token}/
-    
+
     Args:
         dataset: HF Dataset with 'image' column
-        encoder: Model to use (dinov2, siglip, clip, etc.)
+        encoder: Model to use (see EmbeddingExtractor.AVAILABLE_ENCODERS)
         token: 'class' or 'mean'
         batch_size: Batch size
-        num_workers: Number of workers
+        num_workers: Number of DataLoader workers (preprocessing runs in these)
         device: Device to use
         output_dir: Root dataset directory (default: './dataset')
         force: Recompute if exists
         verbose: Print progress
-        
+
     Returns:
-        Path to saved embeddings dataset
-        
-    Example:
-        >>> path = extract_embeddings_to_disk(
-        ...     dataset, encoder='dinov2'
-        ... )
+        Path to saved embeddings directory
     """
     subject, version = _infer_subject_version(dataset, None, None)
     if subject is None or version is None:
         raise ValueError("subject and version are required (or must be present in dataset metadata).")
 
-    # Build output path: dataset/{subject}/{version}/embeddings/full/{encoder}/{token}/
     output_dir = Path(output_dir) / subject / version / 'embeddings' / 'full' / encoder / token
     output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Check if exists
+
+    npy_file_check = output_dir / "embeddings.npy"
+    pt_file_check  = output_dir / "embeddings.pt"
     if output_dir.exists() and list(output_dir.glob('*')) and not force:
+        # Fast-path: .npy exists but .pt is missing — convert without re-extracting
+        if npy_file_check.exists() and not pt_file_check.exists():
+            if verbose:
+                print(f"[CONVERT] embeddings.npy found but embeddings.pt missing — converting...")
+            try:
+                raw = np.load(npy_file_check, allow_pickle=True)
+                if raw.dtype == object:
+                    arr = np.array(raw.tolist(), dtype=np.float32)
+                else:
+                    arr = raw.astype(np.float32)
+            except Exception:
+                file_size = npy_file_check.stat().st_size
+                num_samples = len(dataset)
+                embedding_dim = file_size // 4 // num_samples
+                arr = np.array(
+                    np.memmap(npy_file_check, dtype='float32', mode='r', shape=(num_samples, embedding_dim)),
+                    dtype=np.float32
+                )
+            emb = torch.from_numpy(arr)
+            torch.save(emb, pt_file_check)
+            if verbose:
+                print(f"  ✓ embeddings.pt saved ({pt_file_check})")
+            return str(output_dir)
         if verbose:
             print(f"[SKIP] Embeddings already exist at {output_dir}")
             print(f"       Use overwrite.embeddings=true to recompute")
         return str(output_dir)
-    
+
     if verbose:
         print(f"\nExtracting embeddings:")
         print(f"  Output: {output_dir}")
-    
-    # Extract embeddings
+
     extractor = EmbeddingExtractor(
         encoder=encoder,
         device=device,
@@ -345,75 +406,57 @@ def extract_embeddings_to_disk(
         token=token,
         verbose=verbose
     )
-    
-    # Custom collate function to handle PIL images
-    def collate_pil_images(batch):
-        """Collate function that keeps PIL images as a list."""
-        # batch is a list of dicts, each with keys like 'image', etc.
-        # We need to keep images as a list of PIL images
-        result = {}
-        for key in batch[0].keys():
-            if key == 'image':
-                # Keep images as list of PIL images
-                result[key] = [item[key] for item in batch]
-            else:
-                # For other keys, try default collation
-                result[key] = [item[key] for item in batch]
-        return result
-    
-    dataloader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        pin_memory=True,
-        shuffle=False,
-        collate_fn=collate_pil_images,
-    )
-    
-    # Extract embeddings directly to disk (memory-efficient)
+
+    # Extract embeddings directly to disk
     extract_start = time.time()
     npy_file = output_dir / "embeddings.npy"
     embeddings_mmap = extractor.extract_batch_to_file(
-        dataloader, 
-        npy_file, 
+        dataset,
+        npy_file,
         num_samples=len(dataset)
     )
     extract_time = time.time() - extract_start
-    
+
     if verbose:
         print(f"  ✓ Embeddings extracted to disk")
         print(f"  Dimensions: {embeddings_mmap.shape}")
         print(f"  Extract time: {extract_time:.1f}s ({len(dataset)/extract_time:.1f} frames/s)")
-    
-    # Optionally create HuggingFace Dataset format (for compatibility)
-    # This loads the memmap, which is memory-efficient
+
+    # Save .pt first — embeddings.npy is raw memmap binary (no numpy header)
+    n_samples, emb_dim = embeddings_mmap.shape
+    pt_file = output_dir / "embeddings.pt"
     if verbose:
+        print(f"  Saving embeddings.pt...")
+    arr = np.array(
+        np.memmap(npy_file, dtype='float32', mode='r', shape=(n_samples, emb_dim)),
+        dtype=np.float32,
+    )
+    torch.save(torch.from_numpy(arr), pt_file)
+    del arr
+
+    if verbose:
+        print(f"  ✓ embeddings.pt saved")
         print(f"  Creating HuggingFace Dataset format...")
-    
+
     save_start = time.time()
     col_name = f'embedding_{encoder}_{token}'
-    
-    # Load from memmap in chunks to avoid memory spike
-    chunk_size = 10000
-    chunks = []
-    for i in range(0, len(embeddings_mmap), chunk_size):
-        chunk = embeddings_mmap[i:i+chunk_size].tolist()
-        chunks.extend(chunk)
-        
-    emb_dataset = Dataset.from_dict({col_name: chunks})
+
+    # Read via memmap to avoid materialising Python lists (avoids ~14 GB RAM spike)
+    emb_np = np.array(
+        np.memmap(npy_file, dtype='float32', mode='r', shape=(n_samples, emb_dim)),
+        dtype=np.float32,
+    )
+    emb_dataset = Dataset.from_dict({col_name: emb_np})
     emb_dataset.set_format(type='torch', columns=[col_name])
-    
-    # Save HuggingFace format
     emb_dataset.save_to_disk(str(output_dir / "dataset"))
-    save_time = time.time() - save_start
-    
-    # Clean up memmap reference
+    del emb_np
     del embeddings_mmap
-    
+    save_time = time.time() - save_start
+
     if verbose:
         print(f"  ✓ HuggingFace Dataset saved")
         print(f"  Save time: {save_time:.1f}s")
-    
+
     return str(output_dir)
 
 
@@ -426,54 +469,45 @@ def load_embeddings_from_disk(
 ) -> torch.Tensor:
     """
     Load embeddings from: dataset/{subject}/{version}/embeddings/full/{encoder}/{token}/
-    
-    Supports both new .npy format (memory-efficient) and legacy HuggingFace Dataset format.
-    
+
     Args:
         subject: Dataset subject (e.g., 'ants', 'mice')
         version: Dataset version (e.g., 'v1')
         encoder: Model used
         token: Token type used
         dataset_root: Root dataset directory (default 'dataset')
-        
+
     Returns:
         torch.Tensor of shape (num_samples, embedding_dim)
     """
     path = Path(dataset_root) / subject / version / 'embeddings' / 'full' / encoder / token
-    
+
     if not path.exists():
         raise FileNotFoundError(f"Embeddings not found at {path}")
-    
-    # Fastest format: .pt torch tensor
+
     pt_file = path / "embeddings.pt"
     if pt_file.exists():
         return torch.load(pt_file, weights_only=True)
 
-    # Try new .npy format first (more efficient)
     npy_file = path / "embeddings.npy"
     if npy_file.exists():
         try:
-            # Standard npy (float32) — fast path
             embeddings_np = np.load(npy_file, mmap_mode='r')
             return torch.from_numpy(np.array(embeddings_np, dtype=np.float32))
         except Exception:
             pass
         try:
-            # Pickled npy (object array saved with allow_pickle=True)
             embeddings_np = np.load(npy_file, allow_pickle=True)
             return torch.tensor(np.array(embeddings_np.tolist(), dtype=np.float32))
         except Exception:
-            # Fall through to HuggingFace Dataset format
             pass
 
-    # Fall back to HuggingFace Dataset format (legacy)
     dataset_path = path / "dataset"
     if dataset_path.exists():
         dataset = Dataset.load_from_disk(str(dataset_path))
     else:
-        # Very old format - dataset directly in path
         dataset = Dataset.load_from_disk(str(path))
-    
+
     col_name = f'embedding_{encoder}_{token}'
     col_data = dataset[col_name]
     if isinstance(col_data, torch.Tensor):
@@ -541,7 +575,6 @@ def load_dataset_with_embeddings(
 
 
 def _format_time(seconds: float) -> str:
-    """Format seconds as HH:MM:SS."""
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     secs = int(seconds % 60)
@@ -561,7 +594,7 @@ def _get_cfg_value(cfg: "DictConfig", name: str, default):
 def _run_from_hydra(cfg: "DictConfig") -> int:
     """Main entry point when called via Hydra."""
     start_time = time.time()
-    
+
     try:
         from src.dataset.get_dataset import load_dataset
     except ImportError as exc:
@@ -580,12 +613,10 @@ def _run_from_hydra(cfg: "DictConfig") -> int:
         overwrite = getattr(cfg.overwrite, "embeddings", False)
     dataset_root = _load_dataset_root(cfg)
 
-    # Print header
     print(f"\n{'='*70}")
     print(f"GET EMBEDDINGS: {subject}/{version}")
     print(f"{'='*70}\n")
-    
-    # Load dataset
+
     print(f"Loading dataset {subject}/{version}...")
     load_start = time.time()
     try:
@@ -596,7 +627,6 @@ def _run_from_hydra(cfg: "DictConfig") -> int:
         print(f"[ERROR] Failed to load dataset: {exc}")
         return 1
 
-    # Extract embeddings
     try:
         path = extract_embeddings_to_disk(
             dataset=dataset,
@@ -613,13 +643,12 @@ def _run_from_hydra(cfg: "DictConfig") -> int:
         print(f"\n[ERROR] Failed to extract embeddings: {exc}")
         return 1
 
-    # Print summary
     total_time = time.time() - start_time
     print(f"\n{'='*70}")
     print(f"✓ Embeddings saved to: {path}")
     print(f"Total time: {_format_time(total_time)}")
     print(f"{'='*70}\n")
-    
+
     return 0
 
 
