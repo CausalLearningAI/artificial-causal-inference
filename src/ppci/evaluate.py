@@ -1,29 +1,27 @@
 """Observation-level causal evaluation for PPCI.
 
 The PPCI workflow:
-  1. Frame-level predictions (N_frames, n_outcomes) from the MLP
-  2. Aggregate to observation level by averaging frames within each video
+  1. Attach frame-level predictions: dataset.add_predictions(model, device)
+  2. Aggregate to observation level:  dataset.obs_level(eval_task="or")
   3. Estimate ATE using classical / doubly-robust / tree-based estimators
   4. Bias = ATE(Y_hat) - ATE(Y_true)
 
 Usage
 -----
-    from src.ppci.evaluate import aggregate_to_observations, compute_teb
-
-    obs_df = aggregate_to_observations(model, dataset, device)
+    obs_df = dataset.add_predictions(model, device).obs_level(eval_task="or")
 
     # Full evaluation: multiple outcomes × methods
     bias = compute_teb(
         model, dataset, device,
         T_control=0, T_treatment=1,
         methods=["ead", "aipw"],
-        eval_task="or",      # also compute for the 'or' aggregation
+        eval_task="or",
     )
 
 Available ATE methods
 ---------------------
     ead         — naive difference in means  E[Y|T=1] - E[Y|T=0]
-    aipw        — AIPW (XGBoost outcome + Logistic propensity)
+    aipw        — AIPW (Ridge outcome + Logistic propensity)
     slearner    — S-Learner          (econml)
     tlearner    — T-Learner          (econml)
     xlearner    — X-Learner          (econml)
@@ -72,92 +70,7 @@ def aggregate_probs(probs: torch.Tensor, task) -> torch.Tensor:
 
 
 # ---------------------------------------------------------------------------
-# Step 1: aggregate frame-level data to observation level
-# ---------------------------------------------------------------------------
-
-def aggregate_to_observations(
-    model: MLP,
-    dataset: PPCIDataset,
-    device: torch.device,
-    agg: str = "mean",
-    eval_task: Optional[str] = None,
-) -> pd.DataFrame:
-    """Average frame-level predictions and ground truth to one row per video.
-
-    Args:
-        model:     Trained MLP.
-        dataset:   PPCIDataset (uses ALL frames, not just train/val split).
-        device:    Torch device.
-        agg:       How to aggregate frames within each observation: "mean" | "sum".
-        eval_task: Optional cross-outcome aggregation for an extra pair of columns:
-                   "or"  → P(any positive)   / any(Y>0)
-                   "sum" → expected count     / total count
-
-    Returns:
-        DataFrame with one row per observation_id and columns:
-          T             — treatment class index (constant within observation)
-          Y_{label}     — true outcome, aggregated over frames
-          Yhat_{label}  — predicted outcome, aggregated over frames
-          (+ Y_{task}/Yhat_{task} when eval_task is set)
-          W_*           — covariates (first value within each observation)
-    """
-    model.eval()
-    with torch.no_grad():
-        probs = model.probs(dataset.X.to(device)).cpu()   # (N, k) or (N,)
-
-    Y = dataset.Y.float()
-
-    # Build per-frame dict
-    rows: dict = {
-        "observation_id": dataset.obs_ids,
-        "T": dataset.T,
-    }
-
-    # Per-column true Y and Y_hat
-    if probs.dim() == 1:
-        labels = [dataset.outcome_cols[0].replace("Y_", "")]
-        rows[f"Y_{labels[0]}"]    = Y.numpy()
-        rows[f"Yhat_{labels[0]}"] = probs.numpy()
-    else:
-        labels = [col.replace("Y_", "") for col in dataset.outcome_cols]
-        for k, lbl in enumerate(labels):
-            rows[f"Y_{lbl}"]    = Y[:, k].numpy()
-            rows[f"Yhat_{lbl}"] = probs[:, k].numpy()
-
-    # Auto-add mean across all outcome columns for multilabel (frame-level, before groupby)
-    if probs.dim() == 2 and probs.shape[1] > 1:
-        rows["Y_avg"]    = Y.mean(dim=-1).numpy()
-        rows["Yhat_avg"] = probs.mean(dim=-1).numpy()
-
-    # Optional cross-outcome aggregation
-    if eval_task in ("or", "sum") and probs.dim() == 2:
-        agg_probs_col = aggregate_probs(probs, eval_task).numpy()
-        agg_Y_col     = aggregate_probs(Y, eval_task).numpy()
-        rows[f"Y_{eval_task}"]    = agg_Y_col
-        rows[f"Yhat_{eval_task}"] = agg_probs_col
-
-    # Covariates
-    if dataset.W.shape[1] > 0:
-        for i, col in enumerate(dataset.W_cols):
-            rows[col] = dataset.W[:, i].numpy()
-
-    df_frames = pd.DataFrame(rows)
-
-    # Aggregate Y/Yhat columns over frames
-    agg_fn   = "mean" if agg == "mean" else "sum"
-    y_cols   = [c for c in df_frames.columns if c.startswith("Y_") or c.startswith("Yhat_")]
-    w_cols   = [c for c in df_frames.columns if c.startswith("W_")]
-
-    obs_y    = df_frames.groupby("observation_id")[y_cols].agg(agg_fn).reset_index()
-    obs_meta = df_frames.groupby("observation_id")[["T"] + w_cols].first().reset_index()
-
-    result = obs_y.merge(obs_meta, on="observation_id")
-    result["_has_annotations"] = dataset.has_annotations
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Step 2: ATE estimation at observation level
+# Step 1: ATE estimation at observation level
 # ---------------------------------------------------------------------------
 
 def compute_ate(
@@ -222,62 +135,57 @@ def compute_teb(
     device: torch.device,
     T_control: int = 0,
     T_treatment: int = 1,
-    methods: List[str] = ["ead"],
-    agg: str = "mean",
+    method: str = "ead",
     eval_task: Optional[str] = None,
 ) -> Dict[str, float]:
-    """Observation-level TEB for all outcome columns and all estimators.
+    """Observation-level TEB for all outcome columns.
 
-    For each (outcome, method) pair, computes ATE on both true Y and predicted
-    Yhat, reporting:
-      {label}/{method}/ate_true   — ATE estimated from ground-truth labels
-      {label}/{method}/ate_pred   — ATE estimated from model predictions
-      {label}/{method}/bias       — ate_pred − ate_true
-      {label}/{method}/ate_true_std
-      {label}/{method}/ate_pred_std
+    For each outcome, computes ATE on both true Y and predicted Yhat, reporting:
+      {label}/ate_true   — ATE estimated from ground-truth labels
+      {label}/ate_pred   — ATE estimated from model predictions
+      {label}/bias       — ate_pred − ate_true
+      {label}/ate_true_std
+      {label}/ate_pred_std
 
     Args:
         model, dataset, device: standard arguments
         T_control / T_treatment: treatment class indices to compare
-        methods:    list of estimator names (see compute_ate for options)
-        agg:        frame aggregation: "mean" | "sum"
+        method:     estimator name (see compute_ate for options)
         eval_task:  optional cross-outcome aggregation: "or" | "sum" | None
 
     Returns:
         Flat dict of all metrics.
     """
-    obs_df = aggregate_to_observations(model, dataset, device, agg=agg, eval_task=eval_task)
+    obs_df = dataset.add_predictions(model, device).obs_level(eval_task=eval_task)
 
-    # Build pairs (label, Y_col, Yhat_col)
     y_true_cols = [c for c in obs_df.columns
                    if c.startswith("Y_") and not c.startswith("Yhat_")]
     w_cols = [c for c in obs_df.columns if c.startswith("W_")]
 
     result: Dict[str, float] = {}
     for y_col in y_true_cols:
-        label    = y_col[len("Y_"):]          # "Y2F", "B2F", "or", etc.
+        label    = y_col[len("Y_"):]
         yhat_col = f"Yhat_{label}"
         if yhat_col not in obs_df.columns:
             continue
 
-        for method in methods:
-            try:
-                ate_t, std_t, _ = compute_ate(
-                    obs_df, y_col, T_control, T_treatment, w_cols or None, method
-                )
-                ate_p, std_p, _ = compute_ate(
-                    obs_df, yhat_col, T_control, T_treatment, w_cols or None, method
-                )
-            except Exception as exc:
-                warnings.warn(f"[compute_teb] {label}/{method} failed: {exc}")
-                continue
+        try:
+            ate_t, std_t, _ = compute_ate(
+                obs_df, y_col, T_control, T_treatment, w_cols or None, method
+            )
+            ate_p, std_p, _ = compute_ate(
+                obs_df, yhat_col, T_control, T_treatment, w_cols or None, method
+            )
+        except Exception as exc:
+            warnings.warn(f"[compute_teb] {label}/{method} failed: {exc}")
+            continue
 
-            pfx = f"{label}/{method}"
-            result[f"{pfx}/ate_true"]     = ate_t
-            result[f"{pfx}/ate_true_std"] = std_t
-            result[f"{pfx}/ate_pred"]     = ate_p
-            result[f"{pfx}/ate_pred_std"] = std_p
-            result[f"{pfx}/bias"]         = ate_p - ate_t
+        pfx = f"{label}/{method}"
+        result[f"{pfx}/ate_true"]     = ate_t
+        result[f"{pfx}/ate_true_std"] = std_t
+        result[f"{pfx}/ate_pred"]     = ate_p
+        result[f"{pfx}/ate_pred_std"] = std_p
+        result[f"{pfx}/bias"]         = ate_p - ate_t
 
     return result
 
@@ -290,16 +198,14 @@ def compute_teb_all_pairs(
     model: MLP,
     dataset: PPCIDataset,
     device: torch.device,
-    methods: List[str] = ["ead"],
-    agg: str = "mean",
+    method: str = "ead",
     eval_task: Optional[str] = None,
 ) -> Tuple[Dict[str, Dict], pd.DataFrame]:
     """Compute TEB for every unique treatment pair and report per-pair + average.
 
     Args:
         model, dataset, device: standard arguments.
-        methods:   list of estimator names.
-        agg:       frame aggregation: "mean" | "sum".
+        method:    estimator name (see compute_ate for options).
         eval_task: optional cross-outcome aggregation: "or" | "sum" | None.
 
     Returns:
@@ -309,7 +215,7 @@ def compute_teb_all_pairs(
           summary_df  — tidy DataFrame with columns:
                         pair | outcome | method | ate_true | ate_pred | bias
     """
-    obs_df = aggregate_to_observations(model, dataset, device, agg=agg, eval_task=eval_task)
+    obs_df = dataset.add_predictions(model, device).obs_level(eval_task=eval_task)
 
     t_vals = sorted(obs_df["T"].unique().tolist())
     pairs = list(combinations(t_vals, 2))
@@ -333,29 +239,28 @@ def compute_teb_all_pairs(
             if yhat_col not in obs_df.columns:
                 continue
 
-            for method in methods:
-                try:
-                    ate_t, std_t, _ = compute_ate(obs_df, y_col,   t0, t1, w_cols or None, method)
-                    ate_p, std_p, _ = compute_ate(obs_df, yhat_col, t0, t1, w_cols or None, method)
-                except Exception as exc:
-                    warnings.warn(f"[compute_teb_all_pairs] {pair_key}/{label}/{method}: {exc}")
-                    continue
+            try:
+                ate_t, std_t, _ = compute_ate(obs_df, y_col,   t0, t1, w_cols or None, method)
+                ate_p, std_p, _ = compute_ate(obs_df, yhat_col, t0, t1, w_cols or None, method)
+            except Exception as exc:
+                warnings.warn(f"[compute_teb_all_pairs] {pair_key}/{label}/{method}: {exc}")
+                continue
 
-                pfx = f"{label}/{method}"
-                pair_metrics[f"{pfx}/ate_true"]     = ate_t
-                pair_metrics[f"{pfx}/ate_true_std"] = std_t
-                pair_metrics[f"{pfx}/ate_pred"]     = ate_p
-                pair_metrics[f"{pfx}/ate_pred_std"] = std_p
-                pair_metrics[f"{pfx}/bias"]         = ate_p - ate_t
+            pfx = f"{label}/{method}"
+            pair_metrics[f"{pfx}/ate_true"]     = ate_t
+            pair_metrics[f"{pfx}/ate_true_std"] = std_t
+            pair_metrics[f"{pfx}/ate_pred"]     = ate_p
+            pair_metrics[f"{pfx}/ate_pred_std"] = std_p
+            pair_metrics[f"{pfx}/bias"]         = ate_p - ate_t
 
-                rows.append({
-                    "pair":     pair_key,
-                    "outcome":  label,
-                    "method":   method,
-                    "ate_true": ate_t,
-                    "ate_pred": ate_p,
-                    "bias":     ate_p - ate_t,
-                })
+            rows.append({
+                "pair":     pair_key,
+                "outcome":  label,
+                "method":   method,
+                "ate_true": ate_t,
+                "ate_pred": ate_p,
+                "bias":     ate_p - ate_t,
+            })
 
         results[pair_key] = pair_metrics
 
@@ -393,35 +298,44 @@ def _ate_ead(Y: np.ndarray, T: np.ndarray, W: np.ndarray) -> Tuple[float, float,
 
 
 def _ate_aipw(Y: np.ndarray, T: np.ndarray, W: np.ndarray) -> Tuple[float, float, float]:
-    """AIPW with XGBoost outcome model and Logistic propensity.
+    """AIPW with Ridge outcome model and Logistic propensity.
 
-    Doubly robust: consistent if either the outcome or propensity model is correct.
+    Outcome model: Ridge regression on (W, T), predictions clipped to [0, 1].
+    Y is a frame-level mean so it lives in [0, 1] continuously — a classifier
+    trained on binarised targets would be mis-specified.
+    Propensity model: logistic regression on W.
+    Doubly robust: consistent if either model is correct.
     """
     try:
-        from xgboost import XGBRegressor
-        from sklearn.linear_model import LogisticRegression
+        from sklearn.linear_model import Ridge, LogisticRegression
     except ImportError:
-        warnings.warn("[AIPW] xgboost or scikit-learn not installed. Falling back to EAD.")
+        warnings.warn("[AIPW] scikit-learn not installed. Falling back to EAD.")
         return _ate_ead(Y, T, W)
 
     N = len(Y)
 
-    # Propensity score P(T=1 | W)
     if len(np.unique(T)) < 2:
         return float("nan"), float("nan"), float("nan")
-    try:
-        prop_model = LogisticRegression(max_iter=200, C=1.0)
-        prop_model.fit(W, T)
-        ps = prop_model.predict_proba(W)[:, 1].clip(0.05, 0.95)  # clip for stability
-    except Exception:
-        ps = np.full(N, T.mean())
 
-    # Outcome model E[Y | W, T]
+    # Propensity score P(T=1 | W) via logistic regression
+    try:
+        prop_model = LogisticRegression(max_iter=500, C=1.0, random_state=0)
+        prop_model.fit(W, T)
+        ps = prop_model.predict_proba(W)[:, 1].clip(0.05, 0.95)
+    except Exception:
+        ps = np.full(N, T.mean()).clip(0.05, 0.95)
+
+    # Outcome model E[Y | W, T] via Ridge regression; clip predictions to [0, 1]
+    # (Y is a frame-average probability, not binary)
     WT = np.column_stack([W, T])
-    out_model = XGBRegressor(n_estimators=50, max_depth=3, verbosity=0, random_state=0)
-    out_model.fit(WT, Y)
-    mu0 = out_model.predict(np.column_stack([W, np.zeros(N)]))
-    mu1 = out_model.predict(np.column_stack([W, np.ones(N)]))
+    try:
+        out_model = Ridge(alpha=1.0)
+        out_model.fit(WT, Y)
+        mu0 = out_model.predict(np.column_stack([W, np.zeros(N)])).clip(0, 1)
+        mu1 = out_model.predict(np.column_stack([W, np.ones(N)])).clip(0, 1)
+    except Exception:
+        mu0 = np.full(N, Y[T == 0].mean() if (T == 0).any() else Y.mean())
+        mu1 = np.full(N, Y[T == 1].mean() if (T == 1).any() else Y.mean())
 
     # AIPW pseudo-outcomes
     ite = (mu1 - mu0

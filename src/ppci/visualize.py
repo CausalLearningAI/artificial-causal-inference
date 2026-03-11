@@ -441,7 +441,7 @@ def plot_outcome_distribution(ds, treatment_labels=None, save=False, results_dir
         Y = Y.unsqueeze(1)
 
     Y = Y.float().numpy()
-    T = T.numpy()
+    T = T.numpy() if hasattr(T, "numpy") else T
 
     t_vals = sorted(np.unique(T).tolist())
     xlbls = [str(treatment_labels.get(t, t)) if treatment_labels else str(t) for t in t_vals]
@@ -500,7 +500,7 @@ def plot_outcome_distribution_ants(ds, treatment_labels=None, title=None, save=F
         Y = Y.unsqueeze(1)
 
     Y = Y.float().numpy()
-    T = T.numpy()
+    T = T.numpy() if hasattr(T, "numpy") else T
 
     y2f_idx = next((i for i, c in enumerate(outcome_cols) if "Y2F" in c), None)
     b2f_idx = next((i for i, c in enumerate(outcome_cols) if "B2F" in c), None)

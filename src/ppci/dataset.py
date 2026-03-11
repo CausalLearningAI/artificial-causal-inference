@@ -12,9 +12,13 @@ Responsibilities:
 from __future__ import annotations
 
 import warnings
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from .model import MLP
 
 import numpy as np
+import pandas as pd
 import torch
 from datasets import Dataset as HFDataset
 from torch.utils.data import DataLoader, TensorDataset
@@ -129,6 +133,7 @@ class PPCIDataset:
         else:
             self.Y = compute_Y(df, outcome_cols)  # always per-column binary
             self.has_annotations = True
+        self.Yhat: Optional[torch.Tensor] = None   # set by add_predictions()
         self.T = np.array([str(v) for v in df[treatment_col].to_numpy()])
         self.obs_ids = df["observation_id"].to_numpy()
         self.frame_idx = torch.from_numpy(df["frame_idx"].to_numpy(dtype=np.int64))
@@ -256,41 +261,142 @@ class PPCIDataset:
         return self.T[self.val_mask.numpy()]
 
     # ------------------------------------------------------------------
+    # Temporal context
+    # ------------------------------------------------------------------
+
+    def apply_context_window(self, context_window: int, mode: str = "concat") -> "PPCIDataset":
+        """Replace each frame embedding with a window of temporally-adjacent embeddings.
+
+        For frame at temporal rank *r* within its observation, gathers
+        embeddings at ranks ``r-k … r+k`` (clamped to observation boundaries)
+        and either concatenates or mean-pools them.
+
+        Args:
+            context_window: Number of frames to include on each side (k).
+                            0 → no-op (returns self unchanged).
+            mode:           "concat" → output dim = (2k+1) × D  (default)
+                            "mean"   → output dim = D (original)
+
+        Returns:
+            self, for method chaining.  Mutates ``self.X`` in-place.
+        """
+        if context_window <= 0:
+            return self
+        if getattr(self, "_context_window_applied", 0) > 0:
+            return self
+
+        k = context_window
+        N, D = self.X.shape
+        obs_ids = self.obs_ids
+        frame_idx_np = self.frame_idx.numpy()
+
+        # Build (N, 2k+1) matrix of flat-position neighbours for each frame.
+        neighbor_matrix = np.empty((N, 2 * k + 1), dtype=np.int64)
+
+        for obs in np.unique(obs_ids):
+            local_pos = np.where(obs_ids == obs)[0]          # flat positions in this obs
+            local_fi  = frame_idx_np[local_pos]              # their frame indices
+            sort_ord  = np.argsort(local_fi)                 # sort by frame_idx
+            sorted_flat = local_pos[sort_ord]                # flat positions in temporal order
+            n_obs = len(sorted_flat)
+
+            # inv_sort[i] = temporal rank of local_pos[i]
+            inv_sort = np.empty(n_obs, dtype=np.int64)
+            inv_sort[sort_ord] = np.arange(n_obs)
+
+            for j, offset in enumerate(range(-k, k + 1)):
+                nb_ranks = np.clip(inv_sort + offset, 0, n_obs - 1)
+                neighbor_matrix[local_pos, j] = sorted_flat[nb_ranks]
+
+        # Process in row-chunks so the per-step temporary is tiny.
+        # Without chunking, mean mode peaks at 3×(N,D) ≈ 5.4 GB for N=636k,
+        # D=768; chunked, peak ≈ 2×(N,D) + chunk_size×D ≈ 3.6 GB + ~150 MB.
+        _CHUNK = 50_000
+        self._embed_dim: int = D
+        if mode == "concat":
+            self._context_size: int = 2 * k + 1
+            out = torch.empty(N, (2 * k + 1) * D, dtype=self.X.dtype)
+            for start in range(0, N, _CHUNK):
+                rows = slice(start, min(start + _CHUNK, N))
+                parts = [self.X[neighbor_matrix[rows, j]] for j in range(2 * k + 1)]
+                out[rows] = torch.cat(parts, dim=1)
+        else:  # mean
+            self._context_size = 1
+            out = torch.zeros(N, D, dtype=self.X.dtype)
+            for start in range(0, N, _CHUNK):
+                rows = slice(start, min(start + _CHUNK, N))
+                chunk = torch.zeros(rows.stop - rows.start, D, dtype=self.X.dtype)
+                for j in range(2 * k + 1):
+                    chunk.add_(self.X[neighbor_matrix[rows, j]])
+                out[rows] = chunk.div_(2 * k + 1)
+
+        del neighbor_matrix
+        self.X = out
+
+        self._context_window_applied: int = k
+        return self
+
+    # ------------------------------------------------------------------
     # DataLoaders
     # ------------------------------------------------------------------
+
+    def _train_stride_indices(self, frame_stride: int = 1) -> torch.Tensor:
+        """Indices into X_train / Y_train / E_train for temporal subsampling.
+
+        Keeps frames where frame_idx % frame_stride == 0, i.e. one frame per
+        ``frame_stride`` consecutive frames.  With frame_stride=1 (default)
+        all training frames are kept.
+        """
+        if frame_stride <= 1:
+            return torch.arange(int(self.train_mask.sum()))
+        fi = self.frame_idx[self.train_mask]
+        return (fi % frame_stride == 0).nonzero(as_tuple=True)[0]
 
     def get_train_loader(
         self,
         batch_size: int,
         weights: Optional[torch.Tensor] = None,
         shuffle: bool = True,
+        frame_stride: int = 1,
     ) -> DataLoader:
         """Flat DataLoader over training samples.
 
         Args:
-            weights: Optional sample weights (N_train,) for DERM.
-                     When provided, each batch yields (X, Y, T, E, w).
+            weights:      Optional sample weights (N_train,) for DERM.
+                          When provided, each batch yields (X, Y, E, w).
+            frame_stride: Keep 1 frame per ``frame_stride`` frames
+                          (reduces temporal correlation; default 1 = all frames).
         """
-        tensors: list = [self.X_train, self.Y_train, self.E_train]
+        idx = self._train_stride_indices(frame_stride)
+        tensors: list = [self.X_train[idx], self.Y_train[idx], self.E_train[idx]]
         if weights is not None:
-            tensors.append(weights)
+            tensors.append(weights[idx])
         ds = TensorDataset(*tensors)
         return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, drop_last=False)
 
-    def get_env_train_loaders(self, batch_size: int) -> List[DataLoader]:
+    def get_env_train_loaders(self, batch_size: int, frame_stride: int = 1) -> List[DataLoader]:
         """Per-environment DataLoaders for vREx / IRM.
+
+        Args:
+            frame_stride: Keep 1 frame per ``frame_stride`` frames
+                          (reduces temporal correlation; default 1 = all frames).
 
         Returns one DataLoader per training environment.
         """
-        train_envs = self.E_train.unique().tolist()
+        idx = self._train_stride_indices(frame_stride)
+        X = self.X_train[idx]
+        Y = self.Y_train[idx]
+        E = self.E_train[idx]
+
         loaders = []
-        for e in train_envs:
-            mask = self.E_train == e
-            ds = TensorDataset(
-                self.X_train[mask],
-                self.Y_train[mask],
+        for e in E.unique().tolist():
+            mask = E == e
+            loaders.append(
+                DataLoader(
+                    TensorDataset(X[mask], Y[mask]),
+                    batch_size=batch_size, shuffle=True, drop_last=False,
+                )
             )
-            loaders.append(DataLoader(ds, batch_size=batch_size, shuffle=True, drop_last=False))
         return loaders
 
     # ------------------------------------------------------------------
@@ -494,6 +600,105 @@ class PPCIDataset:
             f"  val videos      : {self.val_videos}",
         ]
         return "\n".join(lines)
+
+    def add_predictions(self, model: MLP, device: torch.device, batch_size: int = 4096) -> PPCIDataset:
+        """Run model inference and attach frame-level predictions to the dataset.
+
+        Stores predictions as ``self.Yhat`` (shape matching ``self.Y``).
+        Subsequent calls to ``obs_level()`` will include ``Yhat_*`` columns.
+        Returns ``self`` for method chaining::
+
+            obs_df = dataset.add_predictions(model, device).obs_level()
+
+        Args:
+            batch_size: Number of frames per forward pass.  Reduce if OOM
+                        (relevant when context_window > 0 inflates embedding dim).
+        """
+        import torch as _torch
+        model.eval()
+        chunks = []
+        with _torch.no_grad():
+            for start in range(0, len(self.X), batch_size):
+                x_batch = self.X[start : start + batch_size].to(device)
+                chunks.append(model.probs(x_batch).cpu())
+        self.Yhat = _torch.cat(chunks, dim=0)
+        return self
+
+    def obs_level(self, eval_task: Optional[str] = None) -> pd.DataFrame:
+        """Aggregate frame-level data to observation level (one row per video).
+
+        Frames are averaged (mean) within each observation.
+        Includes ground-truth Y columns always, and Yhat columns if
+        ``add_predictions()`` has been called first.
+
+        Args:
+            eval_task: Optional cross-outcome aggregation applied to both Y and
+                       Yhat (when predictions are present):
+                       "or"  → P(any positive) = 1 − ∏(1 − p_k)
+                       "sum" → expected count  = Σ p_k
+
+        Returns:
+            DataFrame with one row per observation_id and columns:
+              observation_id   — unique video identifier
+              T                — treatment (constant within observation)
+              Y_{label}        — true outcome, aggregated over frames
+              Y_avg            — mean across outcomes (multilabel only)
+              Yhat_{label}     — predicted outcome (if add_predictions() called)
+              Yhat_avg         — mean across predicted outcomes (multilabel only)
+              Y_{task}         — cross-outcome true outcome  (if eval_task set)
+              Yhat_{task}      — cross-outcome prediction    (if eval_task set)
+              W_*              — covariates (first value within each observation)
+              _has_annotations — whether ground-truth Y is real (not zero-filled)
+        """
+        Y = self.Y.float()
+        rows: dict = {
+            "observation_id": self.obs_ids,
+            "T": self.T,
+        }
+
+        # Ground-truth Y columns
+        if Y.dim() == 1:
+            rows[f"Y_{self.outcome_cols[0].replace('Y_', '')}"] = Y.numpy()
+        else:
+            for k, col in enumerate(self.outcome_cols):
+                rows[f"Y_{col.replace('Y_', '')}"] = Y[:, k].numpy()
+            if Y.shape[1] > 1:
+                rows["Y_avg"] = Y.mean(dim=-1).numpy()
+
+        # Predicted Yhat columns (only if add_predictions() was called)
+        if self.Yhat is not None:
+            Yhat = self.Yhat
+            if Yhat.dim() == 1:
+                rows[f"Yhat_{self.outcome_cols[0].replace('Y_', '')}"] = Yhat.numpy()
+            else:
+                for k, col in enumerate(self.outcome_cols):
+                    rows[f"Yhat_{col.replace('Y_', '')}"] = Yhat[:, k].numpy()
+                if Yhat.shape[1] > 1:
+                    rows["Yhat_avg"] = Yhat.mean(dim=-1).numpy()
+
+            # Optional cross-outcome aggregation
+            if eval_task in ("or", "sum") and Yhat.dim() == 2:
+                if eval_task == "or":
+                    rows["Yhat_or"] = (1.0 - (1.0 - Yhat).prod(dim=-1)).numpy()
+                    rows["Y_or"]    = (1.0 - (1.0 - Y).prod(dim=-1)).numpy()
+                else:  # sum
+                    rows["Yhat_sum"] = Yhat.sum(dim=-1).numpy()
+                    rows["Y_sum"]    = Y.sum(dim=-1).numpy()
+
+        # Covariates
+        if self.W.shape[1] > 0:
+            for i, col in enumerate(self.W_cols):
+                rows[col] = self.W[:, i].numpy()
+
+        df_frames = pd.DataFrame(rows)
+        y_cols = [c for c in df_frames.columns if c.startswith(("Y_", "Yhat_"))]
+        w_cols = [c for c in df_frames.columns if c.startswith("W_")]
+
+        obs_y    = df_frames.groupby("observation_id")[y_cols].mean().reset_index()
+        obs_meta = df_frames.groupby("observation_id")[["T"] + w_cols].first().reset_index()
+        result   = obs_y.merge(obs_meta, on="observation_id")
+        result["_has_annotations"] = self.has_annotations
+        return result
 
     def __repr__(self) -> str:
         return self.summary()

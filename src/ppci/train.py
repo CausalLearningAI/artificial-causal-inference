@@ -40,6 +40,49 @@ from .evaluate import compute_teb
 
 
 # ---------------------------------------------------------------------------
+# Post-hoc temperature calibration
+# ---------------------------------------------------------------------------
+
+def _calibrate_temperature(
+    model: MLP,
+    X_val: torch.Tensor,
+    Y_val: torch.Tensor,
+    device: torch.device,
+) -> float:
+    """Find scalar temperature T minimising BCE(sigmoid(logit/T), Y) on the val set.
+
+    Corrects systematic probability bias (over/under-estimation of APO) without
+    retraining.  Sets model.temperature in-place and returns the value.
+
+    T > 1 → softer predictions (down-scales logits, pushes probabilities toward
+             0.5); fixes models that are overconfident.
+    T < 1 → sharper predictions; fixes models that are underconfident, which is
+             the typical cause of APO overestimation under class imbalance.
+    """
+    from scipy.optimize import minimize_scalar
+
+    model.eval()
+    batch_size = 4096
+    logit_chunks = []
+    with torch.no_grad():
+        for start in range(0, len(X_val), batch_size):
+            logit_chunks.append(model(X_val[start : start + batch_size].to(device)).cpu().float())
+    logits = torch.cat(logit_chunks, dim=0)
+
+    Y = Y_val.float()
+    bce = nn.BCEWithLogitsLoss()
+
+    def nll(log_T: float) -> float:
+        return float(bce(logits / np.exp(log_T), Y))
+
+    # Search in [exp(-3), exp(3)] ≈ [0.05, 20]
+    res = minimize_scalar(nll, bounds=(-3.0, 3.0), method="bounded")
+    T = float(np.exp(res.x))
+    model.temperature = T
+    return T
+
+
+# ---------------------------------------------------------------------------
 # Loss helpers
 # ---------------------------------------------------------------------------
 
@@ -47,16 +90,22 @@ def _make_loss_fn(
     Y_train: torch.Tensor,
     device: torch.device,
     reduction: str = "mean",
+    use_pos_weight: bool = False,
 ) -> nn.Module:
-    """BCEWithLogitsLoss with class-frequency pos_weight.
+    """BCEWithLogitsLoss, optionally with class-frequency pos_weight.
 
     Y_train shape: (N,) for single outcome or (N, k) for multiple outcomes.
+    use_pos_weight=True weights the positive class by neg/pos to counter
+    class imbalance, but tends to inflate predicted probabilities (high recall,
+    low precision) and cause APO overestimation.  Disabled by default.
     """
-    Y = Y_train.float()
-    pos = Y.sum(0).clamp(min=1.0)
-    neg = (1 - Y).sum(0).clamp(min=1.0)
-    pos_weight = (neg / pos).to(device)
-    return nn.BCEWithLogitsLoss(pos_weight=pos_weight, reduction=reduction)
+    if use_pos_weight:
+        Y = Y_train.float()
+        pos = Y.sum(0).clamp(min=1.0)
+        neg = (1 - Y).sum(0).clamp(min=1.0)
+        pos_weight = (neg / pos).to(device)
+        return nn.BCEWithLogitsLoss(pos_weight=pos_weight, reduction=reduction)
+    return nn.BCEWithLogitsLoss(reduction=reduction)
 
 
 # ---------------------------------------------------------------------------
@@ -92,18 +141,21 @@ def compute_metrics(
     X: torch.Tensor,
     Y: torch.Tensor,
     device: torch.device,
+    batch_size: int = 4096,
 ) -> Dict[str, float]:
     """Compute metrics per outcome column, then average.
 
     Binary columns  → acc, bacc, recall, precision.
     Continuous cols → mse, mae.
-    X may already be on device (pre-moved for speed).
+    Uses batched GPU inference to avoid OOM with large embeddings.
     """
     model.eval()
+    chunks = []
     with torch.no_grad():
-        x = X if X.device == device else X.to(device)
-        yh_prob = model.probs(x).cpu()
-        yh_bin  = yh_prob.round()
+        for start in range(0, len(X), batch_size):
+            chunks.append(model.probs(X[start : start + batch_size].to(device)).cpu())
+    yh_prob = torch.cat(chunks, dim=0)
+    yh_bin  = yh_prob.round()
 
     Y = Y.float()
     if Y.dim() == 1:
@@ -172,8 +224,6 @@ def compute_teb_average(
             model, dataset, device,
             T_control=t0,
             T_treatment=t1,
-            methods=["ead"],
-            agg="mean",
             eval_task=eval_task,
         )
         for k, v in pair.items():
@@ -183,6 +233,38 @@ def compute_teb_average(
         k: float(np.mean(np.abs(vs)) if k.endswith("/bias") else np.mean(vs))
         for k, vs in accumulated.items()
     }
+
+
+# ---------------------------------------------------------------------------
+# Embedding augmentation
+# ---------------------------------------------------------------------------
+
+def _augment_batch(
+    X: torch.Tensor,
+    Y: torch.Tensor,
+    noise_std: float = 0.0,
+    mixup_alpha: float = 0.0,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Apply embedding-space augmentations to a batch.
+
+    Since embeddings are pre-extracted (not raw images), geometric transforms
+    like rotation/mirroring are approximated in feature space:
+
+    - noise_std > 0: isotropic Gaussian noise on each embedding.
+    - mixup_alpha > 0: Mixup (Zhang et al. 2018) — convex interpolation of two
+      randomly-paired samples using a Beta(α, α) mixing coefficient.
+      alpha=0.2 is a common starting point.
+    """
+    if noise_std > 0.0:
+        X = X + torch.randn_like(X) * noise_std
+
+    if mixup_alpha > 0.0:
+        lam = float(np.random.beta(mixup_alpha, mixup_alpha))
+        perm = torch.randperm(X.size(0), device=X.device)
+        X = lam * X + (1.0 - lam) * X[perm]
+        Y = lam * Y + (1.0 - lam) * Y[perm]
+
+    return X, Y
 
 
 # ---------------------------------------------------------------------------
@@ -211,14 +293,29 @@ def _irm_penalty(
 def build_model(dataset: PPCIDataset, cfg: DictConfig) -> MLP:
     """Instantiate an MLP from a PPCIDataset and config.
 
+    Applies temporal context window to the dataset (mutates dataset.X in-place)
+    before reading the input dimension.  When ``context_mode='concat'`` the MLP
+    receives a :class:`TemporalAttention` front-end that learns to aggregate the
+    window rather than relying on a large first layer.
+
     One output neuron per outcome column; aggregation (or/sum) is eval-only.
     """
+    context_window   = int(cfg.training.get("context_window", 0))
+    context_mode     = str(cfg.training.get("context_mode", "concat"))
+    if getattr(dataset, "_context_window_applied", 0) == 0:
+        dataset.apply_context_window(context_window, mode=context_mode)
+
+    context_size     = getattr(dataset, "_context_size", 1)
+    context_head_dim = int(cfg.mlp.get("context_head_dim", 64))
+
     return MLP(
         input_dim=dataset.X.shape[1],
         hidden_dim=cfg.mlp.hidden_dim,
         hidden_layers=cfg.mlp.hidden_layers,
         n_outcomes=len(dataset.outcome_cols),
         dropout=cfg.mlp.get("dropout", 0.0),
+        context_size=context_size,
+        context_head_dim=context_head_dim,
     )
 
 
@@ -289,16 +386,21 @@ def _train_flat(
     lr = cfg.training.lr
     has_val = int(dataset.val_mask.sum()) > 0
 
-    loss_fn = _make_loss_fn(dataset.Y_train, device)
-    loss_fn_nored = _make_loss_fn(dataset.Y_train, device, reduction="none")
+    use_pos_weight = bool(cfg.training.get("pos_weight", False))
+    frame_stride = int(cfg.training.get("frame_stride", 1))
+    noise_std = float(cfg.training.get("augment_noise_std", 0.0))
+    mixup_alpha = float(cfg.training.get("augment_mixup_alpha", 0.0))
+    loss_fn = _make_loss_fn(dataset.Y_train, device, use_pos_weight=use_pos_weight)
+    loss_fn_nored = _make_loss_fn(dataset.Y_train, device, reduction="none", use_pos_weight=use_pos_weight)
 
     weights = dataset.compute_derm_weights() if method == "DERM" else None
-    loader = dataset.get_train_loader(batch_size, weights=weights)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    loader = dataset.get_train_loader(batch_size, weights=weights, frame_stride=frame_stride)
+    weight_decay = float(cfg.training.get("weight_decay", 0.0))
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-    # Pre-move eval tensors to device once (avoids 1.8 GB copy every epoch)
-    X_train_dev = dataset.X_train.to(device)
-    X_val_dev = dataset.X_val.to(device) if has_val else None
+    # Keep eval tensors on CPU; compute_metrics uses batched GPU inference
+    X_train_dev = dataset.X_train
+    X_val_dev = dataset.X_val if has_val else None
     # Subsample up to 10k frames for cheap per-epoch train metrics
     _n_tr = len(dataset.X_train)
     _rng = np.random.default_rng(0)
@@ -322,6 +424,7 @@ def _train_flat(
                 w_b = None
 
             Y_b = Y_b.float()
+            X_b, Y_b = _augment_batch(X_b, Y_b, noise_std=noise_std, mixup_alpha=mixup_alpha)
             optimizer.zero_grad()
 
             logits = model(X_b)   # (N, k) or (N,) — matches Y_b shape
@@ -352,6 +455,10 @@ def _train_flat(
             best_model = deepcopy(model)
             best_model.best_epoch = epoch
 
+    if has_val and X_val_dev is not None and cfg.training.get("calibrate_temperature", True):
+        T = _calibrate_temperature(best_model, X_val_dev, dataset.Y_val, device)
+        print(f"  temperature calibration → T={T:.4f}")
+
     return best_model
 
 
@@ -373,7 +480,11 @@ def _train_env_aware(
     ic_weight = cfg.training.get("ic_weight", 1.0)
     has_val = int(dataset.val_mask.sum()) > 0
 
-    env_loaders = dataset.get_env_train_loaders(batch_size)
+    use_pos_weight = bool(cfg.training.get("pos_weight", False))
+    frame_stride = int(cfg.training.get("frame_stride", 1))
+    noise_std = float(cfg.training.get("augment_noise_std", 0.0))
+    mixup_alpha = float(cfg.training.get("augment_mixup_alpha", 0.0))
+    env_loaders = dataset.get_env_train_loaders(batch_size, frame_stride=frame_stride)
     n_envs = len(env_loaders)
 
     if n_envs < 2:
@@ -383,13 +494,14 @@ def _train_env_aware(
             stacklevel=2,
         )
 
-    loss_fn = _make_loss_fn(dataset.Y_train, device)
-    loss_fn_nored = _make_loss_fn(dataset.Y_train, device, reduction="none")
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_fn = _make_loss_fn(dataset.Y_train, device, use_pos_weight=use_pos_weight)
+    loss_fn_nored = _make_loss_fn(dataset.Y_train, device, reduction="none", use_pos_weight=use_pos_weight)
+    weight_decay = float(cfg.training.get("weight_decay", 0.0))
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-    # Pre-move eval tensors to device once
-    X_train_dev = dataset.X_train.to(device)
-    X_val_dev = dataset.X_val.to(device) if has_val else None
+    # Keep eval tensors on CPU; compute_metrics uses batched GPU inference
+    X_train_dev = dataset.X_train
+    X_val_dev = dataset.X_val if has_val else None
     _n_tr = len(dataset.X_train)
     _rng = np.random.default_rng(0)
     train_idx = torch.from_numpy(
@@ -414,7 +526,8 @@ def _train_env_aware(
             env_batches: List[Tuple[torch.Tensor, torch.Tensor]] = []
             for env_iter in env_iters:
                 X_b, Y_b = [t.to(device) for t in next(env_iter)]
-                env_batches.append((X_b, Y_b.float()))
+                X_b, Y_b = _augment_batch(X_b, Y_b.float(), noise_std=noise_std, mixup_alpha=mixup_alpha)
+                env_batches.append((X_b, Y_b))
 
             # --- compute per-environment losses (and IRM penalties if needed) ---
             env_losses: List[torch.Tensor] = []
@@ -457,6 +570,10 @@ def _train_env_aware(
             best_val_bacc = val_bacc
             best_model = deepcopy(model)
             best_model.best_epoch = epoch
+
+    if has_val and X_val_dev is not None and cfg.training.get("calibrate_temperature", True):
+        T = _calibrate_temperature(best_model, X_val_dev, dataset.Y_val, device)
+        print(f"  temperature calibration → T={T:.4f}")
 
     return best_model
 
