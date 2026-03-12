@@ -133,6 +133,9 @@ def load_dataset(
     
     # Create dataset with features - HF will handle lazy image decoding automatically
     dataset = Dataset.from_pandas(df, features=features, preserve_index=False)
+    # Store subject/version in metadata so _infer_subject_version can find them
+    if dataset.info is not None:
+        dataset.info.metadata = {"subject": subject, "version": version}
     # Apply split if requested
     if split:
         dataset_dict = dataset.train_test_split(test_size=0.2, seed=42)

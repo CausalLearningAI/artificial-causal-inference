@@ -420,6 +420,83 @@ def plot_comparison(results: dict) -> matplotlib.figure.Figure:
     return fig
 
 
+def plot_comparison_versions(
+    version_metrics: dict,
+    save: bool = False,
+    save_path: Optional[str] = None,
+) -> matplotlib.figure.Figure:
+    """Classification metrics across experiment versions.
+
+    x-axis: experiment version (e.g. v1, v2, v3, v4, v5)
+    y-axis: acc / bacc / recall / precision per version
+
+    Versions without annotations (unannotated v5) are greyed out — bars show
+    NaN so they appear blank, with a "no labels" annotation on the bar.
+
+    Args:
+        version_metrics: dict mapping version_name → {acc, bacc, recall, precision}
+                         or None/empty dict for versions without annotations.
+        save:            If True, save the figure to save_path.
+        save_path:       Required when save=True.
+
+    Returns:
+        matplotlib Figure.
+    """
+    versions = list(version_metrics.keys())
+    n = len(versions)
+    x = np.arange(n)
+
+    metric_keys   = ["bacc", "acc", "recall", "precision"]
+    metric_labels = ["Balanced Acc", "Accuracy", "Recall", "Precision"]
+    metric_colors = ["#222266", "#4477aa", "#44aa77", "#cc5533"]
+
+    n_m   = len(metric_keys)
+    bar_w = 0.8 / n_m
+    offs  = (np.arange(n_m) - (n_m - 1) / 2) * bar_w
+
+    fig, ax = plt.subplots(figsize=(max(8, 1.8 * n), 5))
+
+    for i, (key, label, clr) in enumerate(zip(metric_keys, metric_labels, metric_colors)):
+        vals = []
+        for v in versions:
+            m = version_metrics[v]
+            vals.append(float(m[key]) if m and key in m else float("nan"))
+        bars = ax.bar(x + offs[i], vals, bar_w, color=clr, alpha=0.85, label=label)
+
+        # annotate bars that are NaN (no annotations available)
+        for bar, val in zip(bars, vals):
+            if np.isnan(val):
+                ax.text(bar.get_x() + bar.get_width() / 2, 0.02,
+                        "–", ha="center", va="bottom", fontsize=8, color="#888888")
+
+    # Shade versions without annotations
+    for xi, v in enumerate(versions):
+        if not version_metrics[v]:
+            ax.axvspan(xi - 0.45, xi + 0.45, color="#eeeeee", alpha=0.6, zorder=0)
+            ax.text(xi, -0.07, "no labels", ha="center", va="top",
+                    fontsize=7, color="#888888", style="italic",
+                    transform=ax.get_xaxis_transform())
+
+    ax.axhline(0.5, color="gray", linestyle="--", linewidth=0.8, label="chance (bacc=0.5)")
+    ax.set_xticks(x)
+    ax.set_xticklabels(versions, fontsize=11)
+    ax.set_xlabel("Experiment version", fontsize=12)
+    ax.set_ylabel("Metric", fontsize=12)
+    ax.set_ylim(0, 1.05)
+    ax.set_title("Model performance across experiment versions", fontsize=13)
+    ax.legend(fontsize=9, loc="upper left")
+    plt.tight_layout()
+
+    if save:
+        if save_path is None:
+            raise ValueError("save_path must be provided when save=True.")
+        os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+
+    plt.close(fig)
+    return fig
+
+
 def plot_outcome_distribution(ds, treatment_labels=None, save=False, results_dir="./results"):
     """Bar plot of mean outcome per treatment, one subplot per outcome column.
 

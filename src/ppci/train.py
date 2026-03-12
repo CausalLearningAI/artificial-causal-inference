@@ -32,7 +32,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from .dataset import PPCIDataset
 from .model import MLP
@@ -331,16 +331,17 @@ def train(
 ) -> MLP:
     """Train an MLP on a PPCIDataset.
 
-    Args:
-        dataset:      Training dataset (with internal train/val split).
-        model:        MLP to train (modified in-place; best copy returned).
-        cfg:          PPCI config (see configs/ppci/{subject}/config.yaml).
-        test_dataset: Optional separate test dataset for final evaluation log.
+    When ``cfg.training.auto_fix`` is True (default), automatically:
+    - Retries with LR ÷ 3 (or × 3) if training diverges or barely learns (up to 2 retries).
+    - Extends training by 50 % more epochs from the best checkpoint if not yet converged.
+
+    This ensures every config gets a fair best-effort comparison in the hparam search.
 
     Returns:
         Best model (by val balanced accuracy, or last epoch if no val set).
     """
-    method = cfg.training.method
+    auto_fix = bool(cfg.training.get("auto_fix", True))
+    method   = cfg.training.method
     valid_methods = {"ERM", "DERM", "vREx", "IRM"}
     if method not in valid_methods:
         raise ValueError(f"method must be one of {valid_methods}, got '{method}'")
@@ -349,24 +350,124 @@ def train(
         cfg.training.get("device", "cuda") if torch.cuda.is_available() else "cpu"
     )
     model = model.to(device)
+    run   = _init_wandb(cfg, method)
 
-    # --- W&B setup ---
-    run = _init_wandb(cfg, method)
+    # Save initial weights for LR-retry resets
+    initial_weights = deepcopy(model.state_dict()) if auto_fix else None
+    working_cfg     = cfg
+    best: Optional[MLP] = None
 
-    # --- dispatch ---
-    if method in ("ERM", "DERM"):
-        best_model = _train_flat(dataset, model, cfg, method, device, run)
-    else:
-        best_model = _train_env_aware(dataset, model, cfg, method, device, run)
+    # ── LR retry loop (original + up to 2 retries) ────────────────────────────
+    for attempt in range(3):
+        if attempt > 0 and initial_weights is not None:
+            model.load_state_dict(deepcopy(initial_weights))
+            model = model.to(device)
 
-    # --- final test evaluation ---
+        _fn = _train_flat if method in ("ERM", "DERM") else _train_env_aware
+        best = _fn(dataset, model, working_cfg, method, device, run)
+        diag = getattr(best, "training_diagnostics", {})
+
+        if not auto_fix or attempt == 2:
+            break
+
+        orig_lr = float(working_cfg.training.lr)
+        if not diag.get("loss_ok", True) or diag.get("lr_too_high", False):
+            new_lr = orig_lr / 3.0
+            print(f"  [auto-fix] LR too high ({orig_lr:.1e}) → retry with lr={new_lr:.1e}")
+        elif diag.get("lr_too_low", False):
+            new_lr = orig_lr * 3.0
+            print(f"  [auto-fix] LR too low ({orig_lr:.1e}) → retry with lr={new_lr:.1e}")
+        else:
+            break  # training is healthy — no retry needed
+
+        # Make a fresh mutable copy so the caller's cfg is never mutated
+        working_cfg = OmegaConf.create(OmegaConf.to_container(working_cfg, resolve=True))
+        working_cfg.training.lr = new_lr
+
+    # ── Epoch extension if not converged ──────────────────────────────────────
+    diag = getattr(best, "training_diagnostics", {})
+    if auto_fix and not diag.get("converged", True):
+        orig_n = int(working_cfg.training.num_epochs)
+        extra  = orig_n // 2
+        print(f"  [auto-fix] not converged (best_epoch={diag.get('best_epoch')}/{orig_n})"
+              f" → +{extra} epochs (warm start from best model)")
+        ext_cfg = OmegaConf.create(OmegaConf.to_container(working_cfg, resolve=True))
+        ext_cfg.training.num_epochs = extra
+        _fn = _train_flat if method in ("ERM", "DERM") else _train_env_aware
+        extended = _fn(dataset, best, ext_cfg, method, device, run=None)
+        ext_val  = getattr(extended, "training_diagnostics", {}).get("val_bacc_at_best") or 0.0
+        orig_val = diag.get("val_bacc_at_best") or 0.0
+        if ext_val >= orig_val:
+            best = extended
+            print(f"  [auto-fix] extended model kept: val_bacc {orig_val:.4f} → {ext_val:.4f}")
+        else:
+            print(f"  [auto-fix] original kept: val_bacc {orig_val:.4f} (extended {ext_val:.4f})")
+
+    # ── Finalize ──────────────────────────────────────────────────────────────
     if test_dataset is not None and run is not None:
-        _log_test_metrics(best_model, test_dataset, cfg, device, run)
-
+        _log_test_metrics(best, test_dataset, working_cfg, device, run)
     if run is not None:
         run.finish()
 
-    return best_model
+    return best
+
+
+# ---------------------------------------------------------------------------
+# Training diagnostics
+# ---------------------------------------------------------------------------
+
+def _compute_train_diagnostics(
+    history: List[Dict[str, float]],
+    best_epoch: int,
+    num_epochs: int,
+) -> Dict:
+    """Summarise training health from the per-epoch history.
+
+    Checks
+    ------
+    converged      best_epoch < 90% of num_epochs (still improving at end = needs more epochs)
+    loss_ok        no NaN / Inf in loss
+    lr_too_high    loss at epoch 5 > 1.5× loss at epoch 1  (diverging early)
+    lr_too_low     relative loss drop over all epochs < 5%
+    overfit_gap    train_bacc - val_bacc at best epoch  (>0.15 = overfitting)
+    """
+    if not history:
+        return {}
+
+    losses   = [h.get("train/loss", float("nan")) for h in history]
+    tr_baccs = [h.get("train/bacc", float("nan")) for h in history]
+    va_baccs = [h.get("val/bacc",   float("nan")) for h in history]
+    has_val  = any(np.isfinite(v) for v in va_baccs)
+
+    loss_ok    = all(np.isfinite(l) for l in losses)
+    finite_losses = [l for l in losses if np.isfinite(l)]
+
+    lr_too_high = False
+    if len(finite_losses) >= 5:
+        lr_too_high = finite_losses[4] > finite_losses[0] * 1.5
+
+    loss_improvement = 0.0
+    if finite_losses and finite_losses[0] > 0:
+        loss_improvement = (finite_losses[0] - finite_losses[-1]) / finite_losses[0]
+    lr_too_low = loss_improvement < 0.05
+
+    best_idx          = best_epoch - 1
+    train_at_best     = tr_baccs[best_idx] if 0 <= best_idx < len(tr_baccs) else float("nan")
+    val_at_best       = va_baccs[best_idx] if (has_val and 0 <= best_idx < len(va_baccs)) else float("nan")
+    overfit_gap       = (train_at_best - val_at_best) if (np.isfinite(train_at_best) and np.isfinite(val_at_best)) else float("nan")
+
+    return {
+        "n_epochs":           num_epochs,
+        "best_epoch":         best_epoch,
+        "converged":          best_epoch < 0.9 * num_epochs,
+        "loss_ok":            loss_ok,
+        "lr_too_high":        lr_too_high,
+        "lr_too_low":         lr_too_low,
+        "loss_improvement":   round(loss_improvement, 4),
+        "train_bacc_at_best": round(train_at_best, 4) if np.isfinite(train_at_best) else None,
+        "val_bacc_at_best":   round(val_at_best,   4) if np.isfinite(val_at_best)   else None,
+        "overfit_gap":        round(overfit_gap,   4) if np.isfinite(overfit_gap)   else None,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -410,6 +511,7 @@ def _train_flat(
 
     best_val_bacc = -1.0
     best_model = deepcopy(model)
+    history: List[Dict[str, float]] = []
 
     for epoch in range(1, num_epochs + 1):
         model.train()
@@ -445,6 +547,7 @@ def _train_flat(
 
         metrics = _epoch_metrics(model, dataset, device, epoch_loss / n_batches, has_val,
                                  X_train_dev, X_val_dev, train_idx, cfg)
+        history.append(metrics)
         if run is not None:
             _log_metrics(run, metrics, cfg, dataset, model, device, epoch)
         _print_epoch(epoch, metrics)
@@ -459,6 +562,9 @@ def _train_flat(
         T = _calibrate_temperature(best_model, X_val_dev, dataset.Y_val, device)
         print(f"  temperature calibration → T={T:.4f}")
 
+    best_model.training_diagnostics = _compute_train_diagnostics(
+        history, getattr(best_model, "best_epoch", num_epochs), num_epochs
+    )
     return best_model
 
 
@@ -510,6 +616,7 @@ def _train_env_aware(
 
     best_val_bacc = -1.0
     best_model = deepcopy(model)
+    history: List[Dict[str, float]] = []
 
     for epoch in range(1, num_epochs + 1):
         model.train()
@@ -561,6 +668,7 @@ def _train_env_aware(
         n_steps = max(n_steps, 1)
         metrics = _epoch_metrics(model, dataset, device, epoch_loss / n_steps, has_val,
                                  X_train_dev, X_val_dev, train_idx, cfg)
+        history.append(metrics)
         if run is not None:
             _log_metrics(run, metrics, cfg, dataset, model, device, epoch)
         _print_epoch(epoch, metrics)
@@ -575,6 +683,9 @@ def _train_env_aware(
         T = _calibrate_temperature(best_model, X_val_dev, dataset.Y_val, device)
         print(f"  temperature calibration → T={T:.4f}")
 
+    best_model.training_diagnostics = _compute_train_diagnostics(
+        history, getattr(best_model, "best_epoch", num_epochs), num_epochs
+    )
     return best_model
 
 
