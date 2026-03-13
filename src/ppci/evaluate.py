@@ -298,16 +298,17 @@ def _ate_ead(Y: np.ndarray, T: np.ndarray, W: np.ndarray) -> Tuple[float, float,
 
 
 def _ate_aipw(Y: np.ndarray, T: np.ndarray, W: np.ndarray) -> Tuple[float, float, float]:
-    """AIPW with Ridge outcome model and Logistic propensity.
+    """AIPW with RandomForest outcome model and RandomForest propensity.
 
-    Outcome model: Ridge regression on (W, T), predictions clipped to [0, 1].
-    Y is a frame-level mean so it lives in [0, 1] continuously — a classifier
-    trained on binarised targets would be mis-specified.
-    Propensity model: logistic regression on W.
+    Outcome model: RandomForestRegressor on (W, T), predictions clipped to [0, 1].
+    Y is a frame-level mean so it lives in [0, 1] continuously.
+    Propensity model: RandomForestClassifier on W, returning P(T=1 | W).
+    Using tree-based models handles categorical/ordinal covariates (batch, position,
+    recording_hour, …) correctly without manual encoding.
     Doubly robust: consistent if either model is correct.
     """
     try:
-        from sklearn.linear_model import Ridge, LogisticRegression
+        from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
     except ImportError:
         warnings.warn("[AIPW] scikit-learn not installed. Falling back to EAD.")
         return _ate_ead(Y, T, W)
@@ -317,19 +318,23 @@ def _ate_aipw(Y: np.ndarray, T: np.ndarray, W: np.ndarray) -> Tuple[float, float
     if len(np.unique(T)) < 2:
         return float("nan"), float("nan"), float("nan")
 
-    # Propensity score P(T=1 | W) via logistic regression
+    # Propensity score P(T=1 | W) via random forest classifier
     try:
-        prop_model = LogisticRegression(max_iter=500, C=1.0, random_state=0)
+        prop_model = RandomForestClassifier(
+            n_estimators=100, max_depth=4, min_samples_leaf=5, random_state=0
+        )
         prop_model.fit(W, T)
         ps = prop_model.predict_proba(W)[:, 1].clip(0.05, 0.95)
     except Exception:
         ps = np.full(N, T.mean()).clip(0.05, 0.95)
 
-    # Outcome model E[Y | W, T] via Ridge regression; clip predictions to [0, 1]
-    # (Y is a frame-average probability, not binary)
+    # Outcome model E[Y | W, T] via random forest regressor; clip to [0, 1]
+    # (Y is a frame-average probability, not binary — regressor is well-specified)
     WT = np.column_stack([W, T])
     try:
-        out_model = Ridge(alpha=1.0)
+        out_model = RandomForestRegressor(
+            n_estimators=100, max_depth=4, min_samples_leaf=5, random_state=0
+        )
         out_model.fit(WT, Y)
         mu0 = out_model.predict(np.column_stack([W, np.zeros(N)])).clip(0, 1)
         mu1 = out_model.predict(np.column_stack([W, np.ones(N)])).clip(0, 1)

@@ -216,13 +216,22 @@ def plot_po_barplot(
         gt_means = np.array([obs_df.loc[obs_df["T"] == t, y_col].mean() for t in t_vals])
         gt_sems  = np.array([_sem(obs_df.loc[obs_df["T"] == t, y_col].values) for t in t_vals])
         width = 0.38
-        ax.bar(x - width / 2, gt_means, width, yerr=gt_sems, capsize=3,
-               color="#44aa77", alpha=0.85, label="Ground truth")
-        ax.bar(x + width / 2, pred_means, width, yerr=pred_sems, capsize=3,
-               color="#9944bb", alpha=0.85, label="Predicted")
+        gt_bars   = ax.bar(x - width / 2, gt_means, width, yerr=gt_sems, capsize=3,
+                           color="#44aa77", alpha=0.85, label="Ground truth")
+        pred_bars = ax.bar(x + width / 2, pred_means, width, yerr=pred_sems, capsize=3,
+                           color="#9944bb", alpha=0.85, label="Predicted")
+        for bar, val in zip(gt_bars, gt_means):
+            ax.text(bar.get_x() + bar.get_width() / 2, val + 0.005,
+                    f"{val:.2f}", ha="center", va="bottom", fontsize=7, color="#333333")
+        for bar, val in zip(pred_bars, pred_means):
+            ax.text(bar.get_x() + bar.get_width() / 2, val + 0.005,
+                    f"{val:.2f}", ha="center", va="bottom", fontsize=7, color="#333333")
     else:
-        ax.bar(x, pred_means, yerr=pred_sems, capsize=3,
-               color="#9944bb", alpha=0.85, label="Predicted")
+        pred_bars = ax.bar(x, pred_means, yerr=pred_sems, capsize=3,
+                           color="#9944bb", alpha=0.85, label="Predicted")
+        for bar, val in zip(pred_bars, pred_means):
+            ax.text(bar.get_x() + bar.get_width() / 2, val + 0.005,
+                    f"{val:.2f}", ha="center", va="bottom", fontsize=7, color="#333333")
 
     ax.set_xticks(x)
     ax.set_xticklabels(xlbls, fontsize=11)
@@ -422,6 +431,9 @@ def plot_comparison(results: dict) -> matplotlib.figure.Figure:
 
 def plot_comparison_versions(
     version_metrics: dict,
+    train_versions: Optional[list] = None,
+    pretrain_versions: Optional[list] = None,
+    test_versions: Optional[list] = None,
     save: bool = False,
     save_path: Optional[str] = None,
 ) -> matplotlib.figure.Figure:
@@ -432,16 +444,29 @@ def plot_comparison_versions(
 
     Versions without annotations (unannotated v5) are greyed out — bars show
     NaN so they appear blank, with a "no labels" annotation on the bar.
+    Versions in train_versions get a suffix and a light yellow background to
+    signal that metrics are in-sample; pretrain_versions (a subset of
+    train_versions) are labelled "(pretrain)" while the remaining training
+    versions are labelled "(finetune)".
 
     Args:
-        version_metrics: dict mapping version_name → {acc, bacc, recall, precision}
-                         or None/empty dict for versions without annotations.
-        save:            If True, save the figure to save_path.
-        save_path:       Required when save=True.
+        version_metrics:   dict mapping version_name → {acc, bacc, recall, precision}
+                           or None/empty dict for versions without annotations.
+        train_versions:    List of version names that were part of training data
+                           (their metrics are in-sample and shown with a warning
+                           tint). Pass None to skip this annotation.
+        pretrain_versions: Subset of train_versions used for pretraining; shown
+                           with "(pretrain)" suffix vs "(finetune)" for the rest.
+        test_versions:     Held-out test versions; shown with "(test)" suffix.
+        save:              If True, save the figure to save_path.
+        save_path:         Required when save=True.
 
     Returns:
         matplotlib Figure.
     """
+    train_versions    = set(train_versions or [])
+    pretrain_versions = set(pretrain_versions or [])
+    test_versions     = set(test_versions or [])
     versions = list(version_metrics.keys())
     n = len(versions)
     x = np.arange(n)
@@ -456,6 +481,11 @@ def plot_comparison_versions(
 
     fig, ax = plt.subplots(figsize=(max(8, 1.8 * n), 5))
 
+    # Shade training versions before drawing bars (zorder=0)
+    for xi, v in enumerate(versions):
+        if v in train_versions:
+            ax.axvspan(xi - 0.45, xi + 0.45, color="#fff8e1", alpha=0.8, zorder=0)
+
     for i, (key, label, clr) in enumerate(zip(metric_keys, metric_labels, metric_colors)):
         vals = []
         for v in versions:
@@ -463,11 +493,13 @@ def plot_comparison_versions(
             vals.append(float(m[key]) if m and key in m else float("nan"))
         bars = ax.bar(x + offs[i], vals, bar_w, color=clr, alpha=0.85, label=label)
 
-        # annotate bars that are NaN (no annotations available)
         for bar, val in zip(bars, vals):
             if np.isnan(val):
                 ax.text(bar.get_x() + bar.get_width() / 2, 0.02,
                         "–", ha="center", va="bottom", fontsize=8, color="#888888")
+            else:
+                ax.text(bar.get_x() + bar.get_width() / 2, val + 0.01,
+                        f"{val:.2f}", ha="center", va="bottom", fontsize=7, color="#333333")
 
     # Shade versions without annotations
     for xi, v in enumerate(versions):
@@ -477,14 +509,115 @@ def plot_comparison_versions(
                     fontsize=7, color="#888888", style="italic",
                     transform=ax.get_xaxis_transform())
 
-    ax.axhline(0.5, color="gray", linestyle="--", linewidth=0.8, label="chance (bacc=0.5)")
     ax.set_xticks(x)
-    ax.set_xticklabels(versions, fontsize=11)
+    # Differentiate pretrain / finetune / test on x-tick labels
+    def _xtick(v: str) -> str:
+        if v in pretrain_versions:
+            return f"{v}\n(pretrain)"
+        if v in train_versions:
+            return f"{v}\n(finetune)"
+        if v in test_versions:
+            return f"{v}\n(test)"
+        return v
+    ax.set_xticklabels([_xtick(v) for v in versions], fontsize=11)
     ax.set_xlabel("Experiment version", fontsize=12)
     ax.set_ylabel("Metric", fontsize=12)
-    ax.set_ylim(0, 1.05)
+    ax.set_ylim(0, 1.15)
     ax.set_title("Model performance across experiment versions", fontsize=13)
-    ax.legend(fontsize=9, loc="upper left")
+    # Legend: metric colors only, placed in upper-right corner away from bars
+    handles, _ = ax.get_legend_handles_labels()
+    ax.legend(handles=handles, fontsize=9, loc="upper right",
+              framealpha=0.9, handlelength=1.2)
+    plt.tight_layout()
+
+    if save:
+        if save_path is None:
+            raise ValueError("save_path must be provided when save=True.")
+        os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+
+    plt.close(fig)
+    return fig
+
+
+def plot_comparison_versions_by_metric(
+    version_metrics: dict,
+    train_versions: Optional[list] = None,
+    pretrain_versions: Optional[list] = None,
+    test_versions: Optional[list] = None,
+    save: bool = False,
+    save_path: Optional[str] = None,
+) -> matplotlib.figure.Figure:
+    """Same data as plot_comparison_versions but transposed layout.
+
+    x-axis: metric (Balanced Acc, Accuracy, Recall, Precision)
+    legend: experiment version
+
+    This layout makes it easy to compare versions head-to-head on each metric.
+
+    Args:
+        version_metrics:   dict mapping version_name → {acc, bacc, recall, precision}
+                           or None/empty dict for versions without annotations.
+        train_versions:    List of training versions (labelled in legend).
+        pretrain_versions: Subset of train_versions used for pretraining.
+        test_versions:     Held-out test versions (labelled in legend).
+        save:              If True, save to save_path.
+        save_path:         Required when save=True.
+
+    Returns:
+        matplotlib Figure.
+    """
+    train_versions    = set(train_versions or [])
+    pretrain_versions = set(pretrain_versions or [])
+    test_versions     = set(test_versions or [])
+
+    # Only versions that have metric dicts (skip None / {})
+    versions = [v for v, m in version_metrics.items() if m]
+    n_v = len(versions)
+
+    metric_keys   = ["bacc", "acc", "recall", "precision"]
+    metric_labels = ["Balanced Acc", "Accuracy", "Recall", "Precision"]
+    n_m = len(metric_keys)
+
+    x = np.arange(n_m)
+    bar_w = 0.8 / max(n_v, 1)
+    offs  = (np.arange(n_v) - (n_v - 1) / 2) * bar_w
+
+    # Per-version colors: use tab10
+    _tab10 = plt.cm.tab10
+    version_colors = {v: _tab10(i / 10) for i, v in enumerate(versions)}
+
+    fig, ax = plt.subplots(figsize=(max(7, 1.8 * n_m), 5))
+
+    for i, version in enumerate(versions):
+        m = version_metrics[version]
+        vals = [float(m[k]) if m and k in m else float("nan") for k in metric_keys]
+
+        if version in pretrain_versions:
+            vlabel = f"{version} (pretrain)"
+        elif version in train_versions:
+            vlabel = f"{version} (finetune)"
+        elif version in test_versions:
+            vlabel = f"{version} (test)"
+        else:
+            vlabel = version
+
+        alpha = 0.65 if version in train_versions else 0.90
+        bars = ax.bar(x + offs[i], vals, bar_w,
+                      color=version_colors[version], alpha=alpha, label=vlabel)
+
+        for bar, val in zip(bars, vals):
+            if not np.isnan(val):
+                ax.text(bar.get_x() + bar.get_width() / 2, val + 0.01,
+                        f"{val:.2f}", ha="center", va="bottom",
+                        fontsize=7, color="#333333")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(metric_labels, fontsize=11)
+    ax.set_ylim(0, 1.15)
+    ax.set_ylabel("Metric value", fontsize=12)
+    ax.set_title("Model performance across experiment versions", fontsize=13)
+    ax.legend(fontsize=9, loc="upper right", framealpha=0.9, handlelength=1.2)
     plt.tight_layout()
 
     if save:

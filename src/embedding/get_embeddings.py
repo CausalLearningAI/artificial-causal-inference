@@ -249,6 +249,11 @@ class EmbeddingExtractor:
         Preprocessing runs in DataLoader workers (parallel to GPU inference)
         for maximum throughput. Only the current batch is kept in memory.
 
+        Uses an atomic write pattern: data is written to ``output_file.tmp``
+        and only renamed to ``output_file`` after the full extraction succeeds.
+        A killed job therefore leaves a ``.tmp`` file (which is cleaned up on
+        the next run) rather than a silently-corrupt final file.
+
         Args:
             hf_dataset: HuggingFace Dataset with 'image' column
             output_file: Path to save embeddings (.npy file)
@@ -258,7 +263,11 @@ class EmbeddingExtractor:
         Returns:
             Memory-mapped array of shape (num_samples, embedding_dim)
         """
-        # Wrap dataset so workers preprocess images in parallel with GPU compute
+        # Write to a temp file so a killed job never leaves a silently-corrupt
+        # final file.  The .tmp is cleaned up at the start of the next run.
+        tmp_file = Path(str(output_file) + ".tmp")
+        tmp_file.unlink(missing_ok=True)  # remove any leftover from a prior killed job
+
         pre_ds = _PreprocessedDataset(hf_dataset, self.processor)
 
         dataloader = DataLoader(
@@ -288,7 +297,7 @@ class EmbeddingExtractor:
                     if embedding_dim is None:
                         embedding_dim = embeddings.shape[1]
                     embeddings_mmap = np.memmap(
-                        output_file,
+                        tmp_file,           # <-- write to .tmp, not final path
                         dtype='float32',
                         mode='w+',
                         shape=(num_samples, embedding_dim)
@@ -305,7 +314,13 @@ class EmbeddingExtractor:
         if embeddings_mmap is not None:
             embeddings_mmap.flush()
 
-        return embeddings_mmap
+        # Atomically promote the temp file to the final path now that extraction
+        # is complete.  On POSIX this rename is atomic.
+        tmp_file.rename(output_file)
+
+        # Re-open final file as read-only memmap and return it.
+        return np.memmap(output_file, dtype='float32', mode='r',
+                         shape=(num_samples, embedding_dim))
 
 
 def _infer_subject_version(dataset: Dataset, subject: Optional[str], version: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
@@ -365,6 +380,16 @@ def extract_embeddings_to_disk(
 
     npy_file_check = output_dir / "embeddings.npy"
     pt_file_check  = output_dir / "embeddings.pt"
+    tmp_file_check = output_dir / "embeddings.npy.tmp"
+
+    # Remove any leftover temp file from a previously killed job.
+    # Its presence means extraction never completed, so we re-extract.
+    if tmp_file_check.exists():
+        tmp_file_check.unlink()
+        if verbose:
+            print(f"[CLEANUP] Removed leftover embeddings.npy.tmp at {output_dir} "
+                  f"(previous job was killed) — re-extracting.")
+
     if output_dir.exists() and list(output_dir.glob('*')) and not force:
         # Fast-path: .npy exists but .pt is missing — convert without re-extracting
         if npy_file_check.exists() and not pt_file_check.exists():
@@ -385,10 +410,33 @@ def extract_embeddings_to_disk(
                     dtype=np.float32
                 )
             emb = torch.from_numpy(arr)
+            n_zero = int((emb.abs().sum(dim=1) == 0).sum())
+            if n_zero > 0:
+                zero_pct = 100.0 * n_zero / len(emb)
+                npy_file_check.unlink(missing_ok=True)
+                raise RuntimeError(
+                    f"Conversion aborted: {n_zero:,}/{len(emb):,} rows ({zero_pct:.1f}%) "
+                    f"are all-zeros in {npy_file_check} — the original extraction was "
+                    f"incomplete. Corrupt .npy deleted; re-run with overwrite.embeddings=true."
+                )
             torch.save(emb, pt_file_check)
             if verbose:
                 print(f"  ✓ embeddings.pt saved ({pt_file_check})")
             return str(output_dir)
+        # Validate existing .pt for corruption (zero rows from a previous incomplete run).
+        if pt_file_check.exists():
+            emb_check = torch.load(pt_file_check, weights_only=True)
+            n_zero = int((emb_check.float().abs().sum(dim=1) == 0).sum())
+            if n_zero > 0:
+                zero_pct = 100.0 * n_zero / len(emb_check)
+                pt_file_check.unlink(missing_ok=True)
+                npy_file_check.unlink(missing_ok=True)
+                raise RuntimeError(
+                    f"Existing embeddings are corrupt: {n_zero:,}/{len(emb_check):,} rows "
+                    f"({zero_pct:.1f}%) are all-zeros — a previous extraction job was "
+                    f"killed before completion. Corrupt files deleted; re-run to extract."
+                )
+            del emb_check
         if verbose:
             print(f"[SKIP] Embeddings already exist at {output_dir}")
             print(f"       Use overwrite.embeddings=true to recompute")
@@ -431,8 +479,22 @@ def extract_embeddings_to_disk(
         np.memmap(npy_file, dtype='float32', mode='r', shape=(n_samples, emb_dim)),
         dtype=np.float32,
     )
-    torch.save(torch.from_numpy(arr), pt_file)
-    del arr
+    emb_tensor = torch.from_numpy(arr)
+    torch.save(emb_tensor, pt_file)
+
+    # Validate: any all-zero rows indicate the job was killed before completion.
+    n_zero = int((emb_tensor.abs().sum(dim=1) == 0).sum())
+    if n_zero > 0:
+        zero_pct = 100.0 * n_zero / n_samples
+        # Delete the corrupt files so a re-run will redo extraction (not skip).
+        pt_file.unlink(missing_ok=True)
+        npy_file.unlink(missing_ok=True)
+        raise RuntimeError(
+            f"Embedding extraction incomplete: {n_zero:,}/{n_samples:,} rows "
+            f"({zero_pct:.1f}%) are all-zeros — the job was likely killed before "
+            f"completion. Corrupt files deleted; re-run to extract again."
+        )
+    del arr, emb_tensor
 
     if verbose:
         print(f"  ✓ embeddings.pt saved")
