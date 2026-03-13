@@ -141,6 +141,59 @@ def plot_iaba_heatmap(pairs_df, outcomes, save_path=None):
 _BAR_OUTCOMES = ["Y2F", "B2F"]
 
 
+def _classify_error(df1, df2, fi, outcome_col, bar_cols, context):
+    """Classify disagreement type at frame fi from the context strip.
+
+    Returns a list (possibly multi-tagged) from:
+      'start'    – both annotators see the event in the window; positives skewed
+                   after fi (disagreement is about when the event begins)
+      'end'      – both see the event; positives skewed before fi (event ending)
+      'boundary' – both see the event; positives centred on fi (ambiguous edge)
+      'event'    – one annotator sees no positive in the window at all
+      'identity' – at the focal frame Y2F/B2F labels are swapped between
+                   annotators (each thinks the other ant is the active one)
+    """
+    tags = []
+    window = list(range(fi - context, fi + context + 1))
+
+    def col_vals(df, c):
+        return [int(df.at[f, c]) if (f in df.index and c in df.columns) else -1
+                for f in window]
+
+    l1 = col_vals(df1, outcome_col)
+    l2 = col_vals(df2, outcome_col)
+
+    a1_has = any(v == 1 for v in l1)
+    a2_has = any(v == 1 for v in l2)
+
+    if not (a1_has and a2_has):
+        tags.append("event")
+    else:
+        # Determine start vs end from where positives fall relative to fi
+        pos_frames = ([window[i] for i, v in enumerate(l1) if v == 1] +
+                      [window[i] for i, v in enumerate(l2) if v == 1])
+        mean_rel = sum(f - fi for f in pos_frames) / len(pos_frames)
+        if mean_rel > 0.4:
+            tags.append("start")
+        elif mean_rel < -0.4:
+            tags.append("end")
+        else:
+            tags.append("boundary")
+
+    # identity confusion: outcomes swap at the focal frame
+    if len(bar_cols) >= 2:
+        bc0, bc1 = bar_cols[0], bar_cols[1]
+        v00 = int(df1.at[fi, bc0]) if (fi in df1.index and bc0 in df1.columns) else -1
+        v01 = int(df2.at[fi, bc0]) if (fi in df2.index and bc0 in df2.columns) else -1
+        v10 = int(df1.at[fi, bc1]) if (fi in df1.index and bc1 in df1.columns) else -1
+        v11 = int(df2.at[fi, bc1]) if (fi in df2.index and bc1 in df2.columns) else -1
+        if (v00 == 1 and v01 == 0 and v10 == 0 and v11 == 1) or \
+           (v00 == 0 and v01 == 1 and v10 == 1 and v11 == 0):
+            tags.append("identity")
+
+    return tags
+
+
 def plot_disagreement_temporal(
     labels, pairs_df, frame_root, outcome,
     k=10, context=2, min_gap=5, seed=0,
@@ -292,8 +345,11 @@ def plot_disagreement_temporal(
         total_s = int(fi / target_fps)
         mins, secs = divmod(total_s, 60)
 
+        error_tags = _classify_error(df1, df2, fi, col, bar_cols, context)
+        tag_str    = ", ".join(error_tags)
+
         axes[row, 0].set_ylabel(
-            f"Experiment: v{parts[0]}, Nestbox: {nestbox}\nBatch: {batch}, Position: {pos}\n{mins}min {secs:02d}s",
+            f"Experiment: v{parts[0]}, Nestbox: {nestbox}\nBatch: {batch}, Position: {pos}\n{mins}min {secs:02d}s\n\nMisalignment: [{tag_str}]",
             fontsize=6.5, rotation=0, labelpad=70, va="center",
         )
 
