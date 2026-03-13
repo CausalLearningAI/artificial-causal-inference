@@ -1,6 +1,6 @@
-# Data configuration for ants/v5
+# Data configuration for mice (all versions)
 
-source_path: ./data/ants/v5/observations/source
+source_path: ./data/mice/source
 
 # Video processing
 frame_format: rgb24

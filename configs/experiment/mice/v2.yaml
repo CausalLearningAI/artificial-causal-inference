@@ -1,6 +1,6 @@
 # @package _global_
 defaults:
-  - /data: mice/v2
+  - /data: mice
   - /dataset: mice/v2
 
 subject: mice

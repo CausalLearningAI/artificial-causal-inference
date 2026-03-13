@@ -1,6 +1,6 @@
 # @package _global_
 defaults:
-  - /data: ants/v5
+  - /data: ants
   - /dataset: ants/v5
 
 subject: ants
