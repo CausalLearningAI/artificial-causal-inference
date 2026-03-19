@@ -1,6 +1,5 @@
 """Ant-specific experiment handler"""
 import pandas as pd
-import numpy as np
 from pathlib import Path
 from typing import Dict, Any
 from .base import DomainHandler
@@ -41,17 +40,16 @@ class AntsHandler(DomainHandler):
     
     def get_tracking_params(self) -> Dict[str, Any]:
         """
-        Return HSV color ranges for ant tracking
-        Ants are marked with blue and yellow dots
+        Return tracking method descriptor for ant experiments.
+
+        HSV color bounds and algorithm hyperparameters live in
+        configs/tracking/params/ants/{version}.yaml and are consumed by
+        src/tracking/get_tracking.py.  Call estimate_color_bounds() from
+        src/tracking/tracker.py to auto-derive bounds from a video sample.
         """
         return {
             'method': 'color_hsv',
             'colors': ['blue', 'yellow'],
-            'blue_lower': np.array([90, 80, 80]),
-            'blue_upper': np.array([125, 255, 255]),
-            'yellow_lower': np.array([0, 80, 80]),
-            'yellow_upper': np.array([30, 255, 255]),
-            'radius': 70,  # Approximate radius of colored dot
         }
     
     def get_grid_layout(self) -> Dict[str, Any]:

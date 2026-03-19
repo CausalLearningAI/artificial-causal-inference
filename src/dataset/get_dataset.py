@@ -42,7 +42,9 @@ def load_dataset(
     dataset_root: Optional[Path] = None,
     config_root: Optional[Path] = None,
     from_disk: bool = False,
-    cache_dir: Optional[Path] = None
+    cache_dir: Optional[Path] = None,
+    frame_type: str = "full",
+    pov_identity: str = "blue",
 ) -> Dataset | DatasetDict:
     """
     Load a Hugging Face Dataset for a subject/version combination.
@@ -73,16 +75,24 @@ def load_dataset(
         config_root = Path(config_root)
     
     subject_dir = dataset_root / subject / version
-    hf_dir = subject_dir / "hf"
+    if frame_type == "pov":
+        if pov_identity not in {"blue", "yellow"}:
+            raise ValueError(f"Invalid pov_identity='{pov_identity}'. Use 'blue' or 'yellow'.")
+        hf_dir = subject_dir / "hf" / frame_type / pov_identity
+    else:
+        hf_dir = subject_dir / "hf" / frame_type
     annotations_csv = subject_dir / "annotations.csv"
-    frames_dir = subject_dir / "frames" / "full"
-    
+    frames_dir = subject_dir / "frames" / frame_type
+
     # Try to load from disk first if requested
     if from_disk:
         if (hf_dir / "dataset_info.json").exists():
             try:
                 print(f"Loading pre-generated HF dataset from {hf_dir}")
                 dataset = datasets.load_from_disk(str(hf_dir))
+                # Validate image decoding path early to avoid worker-time crashes.
+                if len(dataset) > 0:
+                    _ = dataset[0]["image"]
                 dataset.subject = subject
                 # Note: dataset.version is a read-only HF property; skip setting it
                 return dataset
@@ -116,7 +126,17 @@ def load_dataset(
     # Load annotations
     df = pd.read_csv(annotations_csv)
 
-    # Add full image paths
+    # Remap frame_path to the requested frame_type (annotations always store "full" paths)
+    if frame_type == "pov":
+        # New POV layout is color-first: frames/pov/{blue|yellow}/{obs_id}/frame_*.jpg
+        # Start from annotations full path and inject both frame_type and identity.
+        df['frame_path'] = df['frame_path'].str.replace(
+            "frames/full/", f"frames/pov/{pov_identity}/", regex=False
+        )
+    elif frame_type != "full":
+        df['frame_path'] = df['frame_path'].str.replace(
+            "frames/full/", f"frames/{frame_type}/", regex=False
+        )
     df['image_path'] = df['frame_path'].apply(lambda p: str(dataset_root / p))
 
     # Define dataset features using config
@@ -135,7 +155,10 @@ def load_dataset(
     dataset = Dataset.from_pandas(df, features=features, preserve_index=False)
     # Store subject/version in metadata so _infer_subject_version can find them
     if dataset.info is not None:
-        dataset.info.metadata = {"subject": subject, "version": version}
+        metadata = {"subject": subject, "version": version}
+        if frame_type == "pov":
+            metadata["pov_identity"] = pov_identity
+        dataset.info.metadata = metadata
     # Apply split if requested
     if split:
         dataset_dict = dataset.train_test_split(test_size=0.2, seed=42)

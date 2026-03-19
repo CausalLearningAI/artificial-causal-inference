@@ -353,6 +353,8 @@ def extract_embeddings_to_disk(
     output_dir: str = './dataset',
     force: bool = False,
     verbose: bool = True,
+    frame_type: str = 'full',
+    pov_identity: str = 'blue',
 ) -> str:
     """
     Extract embeddings and save to dataset/{subject}/{version}/embeddings/full/{encoder}/{token}/
@@ -375,7 +377,12 @@ def extract_embeddings_to_disk(
     if subject is None or version is None:
         raise ValueError("subject and version are required (or must be present in dataset metadata).")
 
-    output_dir = Path(output_dir) / subject / version / 'embeddings' / 'full' / encoder / token
+    output_dir = Path(output_dir) / subject / version / 'embeddings' / frame_type
+    if frame_type == 'pov':
+        if pov_identity not in {'blue', 'yellow'}:
+            raise ValueError(f"Invalid pov_identity='{pov_identity}'. Use 'blue' or 'yellow'.")
+        output_dir = output_dir / pov_identity
+    output_dir = output_dir / encoder / token
     output_dir.mkdir(parents=True, exist_ok=True)
 
     npy_file_check = output_dir / "embeddings.npy"
@@ -527,10 +534,12 @@ def load_embeddings_from_disk(
     version: str,
     encoder: str = 'dinov2',
     token: str = 'class',
-    dataset_root: str = './dataset'
+    dataset_root: str = './dataset',
+    frame_type: str = 'full',
+    pov_identity: str = 'blue',
 ) -> torch.Tensor:
     """
-    Load embeddings from: dataset/{subject}/{version}/embeddings/full/{encoder}/{token}/
+    Load embeddings from: dataset/{subject}/{version}/embeddings/{frame_type}/{encoder}/{token}/
 
     Args:
         subject: Dataset subject (e.g., 'ants', 'mice')
@@ -538,11 +547,15 @@ def load_embeddings_from_disk(
         encoder: Model used
         token: Token type used
         dataset_root: Root dataset directory (default 'dataset')
+        frame_type: 'full' or 'pov' (default 'full')
 
     Returns:
         torch.Tensor of shape (num_samples, embedding_dim)
     """
-    path = Path(dataset_root) / subject / version / 'embeddings' / 'full' / encoder / token
+    path = Path(dataset_root) / subject / version / 'embeddings' / frame_type
+    if frame_type == 'pov':
+        path = path / pov_identity
+    path = path / encoder / token
 
     if not path.exists():
         raise FileNotFoundError(f"Embeddings not found at {path}")
@@ -665,24 +678,32 @@ def _run_from_hydra(cfg: "DictConfig") -> int:
 
     subject = cfg.subject
     version = cfg.version
-    encoder = _get_cfg_value(cfg, "encoder", "dinov2")
-    token = _get_cfg_value(cfg, "token", "class")
-    batch_size = _get_cfg_value(cfg, "batch_size", 32)
+    encoder     = _get_cfg_value(cfg, "encoder",     "dinov2")
+    token       = _get_cfg_value(cfg, "token",       "class")
+    batch_size  = _get_cfg_value(cfg, "batch_size",  32)
     num_workers = _get_cfg_value(cfg, "num_workers", 4)
-    device = _get_cfg_value(cfg, "device", "cuda")
+    device      = _get_cfg_value(cfg, "device",      "cuda")
+    frame_type  = _get_cfg_value(cfg, "frame_type",  "full")
+    pov_identity = _get_cfg_value(cfg, "pov_identity", "blue")
     overwrite = False
     if hasattr(cfg, "overwrite"):
         overwrite = getattr(cfg.overwrite, "embeddings", False)
     dataset_root = _load_dataset_root(cfg)
 
     print(f"\n{'='*70}")
-    print(f"GET EMBEDDINGS: {subject}/{version}")
+    if frame_type == 'pov':
+        print(f"GET EMBEDDINGS: {subject}/{version}  frame_type={frame_type} ({pov_identity})")
+    else:
+        print(f"GET EMBEDDINGS: {subject}/{version}  frame_type={frame_type}")
     print(f"{'='*70}\n")
 
-    print(f"Loading dataset {subject}/{version}...")
+    print(f"Loading dataset {subject}/{version} (frame_type={frame_type})...")
     load_start = time.time()
     try:
-        dataset = load_dataset(subject=subject, version=version, dataset_root=dataset_root)
+        dataset = load_dataset(
+            subject=subject, version=version,
+            dataset_root=dataset_root, frame_type=frame_type, pov_identity=pov_identity,
+        )
         load_time = time.time() - load_start
         print(f"  ✓ Loaded {len(dataset):,} frames in {load_time:.1f}s")
     except Exception as exc:
@@ -700,6 +721,8 @@ def _run_from_hydra(cfg: "DictConfig") -> int:
             output_dir=dataset_root,
             force=overwrite,
             verbose=True,
+            frame_type=frame_type,
+            pov_identity=pov_identity,
         )
     except Exception as exc:
         print(f"\n[ERROR] Failed to extract embeddings: {exc}")
@@ -722,6 +745,9 @@ if __name__ == "__main__":
 
     @hydra.main(version_base=None, config_path="../../configs", config_name="embedding/config")
     def _main(cfg: DictConfig) -> int:
-        return _run_from_hydra(cfg)
+        code = _run_from_hydra(cfg)
+        if code != 0:
+            raise SystemExit(code)
+        return code
 
-    raise SystemExit(_main())
+    _main()
