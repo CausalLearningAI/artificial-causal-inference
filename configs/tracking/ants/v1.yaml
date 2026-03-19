@@ -1,0 +1,22 @@
+# @package _global_
+# Tracking config for ants/v1 — different camera than v2-v5
+
+subject: ants
+version: v1
+
+
+quantile: 0.85
+n_background_frames: 40
+pov_radius: 80
+
+max_dist_activity: 80
+max_step: 100
+min_area_color: 10
+max_area_color: 400
+min_area_body: 100
+max_area_body: 2000
+
+yellow_marking_lb: [0, 20, 40]
+yellow_marking_ub: [26, 255, 255]
+blue_marking_lb: [100, 60, 30]
+blue_marking_ub: [115, 255, 255]

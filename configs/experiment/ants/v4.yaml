@@ -14,4 +14,6 @@ overwrite:
   annotations: false
   hf: false
   embeddings: false
+  tracking: false
+  color_bounds: false 
 

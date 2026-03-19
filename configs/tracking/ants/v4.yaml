@@ -1,0 +1,22 @@
+# @package _global_
+# Tracking config for ants/v4
+
+subject: ants
+version: v4
+
+
+quantile: 0.85
+n_background_frames: 40
+pov_radius: 80
+
+max_dist_activity: 80
+max_step: 100
+min_area_color: 10
+max_area_color: 400
+min_area_body: 100
+max_area_body: 2000
+
+yellow_marking_lb: [0, 60, 60]
+yellow_marking_ub: [8, 255, 255]
+blue_marking_lb: [80, 50, 70]
+blue_marking_ub: [135, 255, 255]

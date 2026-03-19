@@ -14,4 +14,6 @@ overwrite:
   annotations: false   # If true, regenerate annotations even if already exist
   hf: false             # If true, regenerate HF dataset even if already exists
   embeddings: false    # If true, re-extract embeddings even if already exist
+  tracking: false
+  color_bounds: false  # If true, re-optimize HSV color bounds for tracking      # If true, re-run tracking even if CSVs already exist
 
