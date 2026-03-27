@@ -181,11 +181,10 @@ class AntTracker:
         blue_bi, blue_pos = find_mark_blob(blue_mask, blobs)
         yellow_bi, yellow_pos = find_mark_blob(yellow_mask, blobs)
 
-        # Resolve conflict: both marks on same blob when other blobs exist
-        if (blue_bi is not None and yellow_bi is not None
-                and blue_bi == yellow_bi and len(blobs) > 1):
-            yellow_bi, yellow_pos = None, None
-
+        # If both marks land on the same blob, yellow_bi == blue_bi.
+        # _assign_identities handles this naturally via slots:
+        #   - capacity >= 2: blue claims slot 0, yellow claims slot 1 of same blob
+        #   - capacity == 1: blue claims the slot, yellow falls to temporal matching
         return blobs, blue_bi, blue_pos, yellow_bi, yellow_pos
 
     # ------------------------------------------------------------------

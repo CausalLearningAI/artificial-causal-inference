@@ -77,6 +77,8 @@ def find_body_blobs(
         area = cv2.contourArea(cnt)
         if area > absurd_area:
             return []  # detection too messy, treat as no ants found
+        if area < min_area:
+            continue  # noise blob
         M = cv2.moments(cnt)
         if M["m00"] == 0:
             continue
@@ -271,27 +273,47 @@ def match_identities(
     blue_pos: Optional[Tuple[int, int]] = None
     yellow_pos: Optional[Tuple[int, int]] = None
 
-    # ── Find blue (most reliable) ────────────────────────────────────────
-    best_blue_bi, blue_pos = find_mark_blob(blue_mask, body_blobs)
-    if best_blue_bi is not None:
-        labels[best_blue_bi] = "blue"
+    # ── Detect mark positions ────────────────────────────────────────────
+    blue_bi, blue_pos   = find_mark_blob(blue_mask,   body_blobs)
+    yellow_bi, yellow_pos = find_mark_blob(yellow_mask, body_blobs)
 
-    # ── Find yellow ──────────────────────────────────────────────────────
-    best_yellow_bi, yellow_pos = find_mark_blob(yellow_mask, body_blobs)
+    # ── Joint assignment (min total distance, capacity-aware) ────────────
+    if blue_bi is not None and yellow_bi is not None:
+        if blue_bi != yellow_bi:
+            # Different blobs: trivially optimal
+            labels[blue_bi]   = "blue"
+            labels[yellow_bi] = "yellow"
+        elif body_blobs[blue_bi]["n_agents_in_blob"] >= 2:
+            # Same merged blob with room for both — valid, blue gets the label
+            labels[blue_bi] = "blue"
+        else:
+            # Conflict: both marks nearest to a single-capacity blob.
+            # Find the (bi, bj) pair minimising total squared distance that
+            # is valid (bi != bj, OR the blob has capacity >= 2).
+            bx, by = blue_pos
+            yx, yy = yellow_pos
+            best_cost = float("inf")
+            best_bi, best_yj = blue_bi, yellow_bi  # fallback: same blob
+            for i in range(n):
+                for j in range(n):
+                    if i == j and body_blobs[i]["n_agents_in_blob"] < 2:
+                        continue
+                    cx_i, cy_i = body_blobs[i]["centroid"]
+                    cx_j, cy_j = body_blobs[j]["centroid"]
+                    cost = (bx-cx_i)**2 + (by-cy_i)**2 + (yx-cx_j)**2 + (yy-cy_j)**2
+                    if cost < best_cost:
+                        best_cost = cost
+                        best_bi, best_yj = i, j
+            labels[best_bi] = "blue"
+            if best_yj != best_bi:
+                labels[best_yj] = "yellow"
+    elif blue_bi is not None:
+        labels[blue_bi] = "blue"
+    elif yellow_bi is not None:
+        labels[yellow_bi] = "yellow"
 
-    if best_yellow_bi is not None:
-        if best_yellow_bi == best_blue_bi and n > 1:
-            # Both marks on same blob but other blobs exist — ambiguous
-            best_yellow_bi = None
-            yellow_pos = None
-        elif best_yellow_bi != best_blue_bi:
-            labels[best_yellow_bi] = "yellow"
-        # else: n==1, both marks on single merged blob — keep yellow_pos
-        # but don't overwrite the "blue" label
-
-    # ── Focal by exclusion (only when BOTH marks found) ──────────────────
-    n_found = sum(1 for l in labels if l in ("blue", "yellow"))
-    if n_found >= 2:
+    # ── Focal by exclusion (only when both marks detected) ───────────────
+    if blue_pos is not None and yellow_pos is not None:
         labels = ["focal" if l == "unknown" else l for l in labels]
 
     return labels, blue_pos, yellow_pos
