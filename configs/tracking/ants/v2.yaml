@@ -11,7 +11,7 @@ pov_radius: 80
 
 max_dist_activity: 80
 max_step: 100
-min_area_color: 10
+min_area_color: 5
 max_area_color: 400
 min_area_body: 100
 max_area_body: 2000
