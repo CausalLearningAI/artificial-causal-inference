@@ -76,8 +76,9 @@ from ppci.dataset import PPCIDataset  # noqa: E402
 from ppci.model import MLP            # noqa: E402
 from ppci.train import build_model, compute_metrics, train  # noqa: E402
 
-RESULTS_DIR  = ROOT / "results" / "ppci" / "ants" / "hparam"
-DATASET_ROOT = ROOT / "dataset" / "ants"
+RESULTS_DIR     = ROOT / "results" / "ppci" / "ants" / "hparam"
+RESULTS_DIR_POV = ROOT / "results" / "ppci" / "ants" / "hparam_pov"
+DATASET_ROOT    = ROOT / "dataset" / "ants"
 
 # ── shared dataset kwargs ─────────────────────────────────────────────────────
 DS_KWARGS = dict(
@@ -87,6 +88,9 @@ DS_KWARGS = dict(
     env_include_treatment=False,
     seed=0,
 )
+
+# POV uses the same outcome_cols and task as full — the from_disk POV branch
+# does horizontal concatenation of blue/yellow embeddings, same 2-output target.
 
 V3_N_VAL        = 10   # fixed val videos for v3 (same across ALL runs via seed=0)
 PRETRAIN_EPOCHS = 30   # v1 and v2; model saved = best by val/bacc (or train/bacc if no val)
@@ -134,6 +138,15 @@ def _embeddings_available(encoder: str, token: str, versions: list[str]) -> bool
     return True
 
 
+def _pov_embeddings_available(encoder: str, token: str, versions: list[str]) -> bool:
+    for v in versions:
+        for identity in ("blue", "yellow"):
+            path = DATASET_ROOT / v / "embeddings" / "pov" / identity / encoder / token
+            if not (path / "embeddings.npy").exists() and not (path / "embeddings.pt").exists():
+                return False
+    return True
+
+
 # ── run-id ────────────────────────────────────────────────────────────────────
 def _fmt(v: Any) -> str:
     if isinstance(v, float):
@@ -148,7 +161,8 @@ def _fmt(v: Any) -> str:
 _ID_KEYS = [
     "encoder", "token",
     "context_window", "context_mode",
-    "hidden_dim", "hidden_layers", "dropout",
+    "hidden_dim", "hidden_layers", "dropout", "siamese",
+    "dist_mode",
     "method", "finetune_lr", "weight_decay",
     "augment_noise_std", "augment_mixup_alpha",
 ]
@@ -257,6 +271,18 @@ def _best_pretrained_path(results_dir: Path) -> Path:
     return path
 
 
+def _best_pretrained_path_pov(results_dir: Path) -> Path:
+    """Return path to pretrained_v2.pt from the best POV arch run."""
+    best = _load_best(results_dir / "arch")
+    path = results_dir / "arch" / best["run_id"] / "pretrained_v2.pt"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Pretrained POV model not found: {path}\n"
+            "Run stage 'arch' with --frame-type pov first."
+        )
+    return path
+
+
 # ── stage config generators ───────────────────────────────────────────────────
 
 _ENCODERS = [
@@ -264,10 +290,6 @@ _ENCODERS = [
     ("dinov2",  "mean"),
     ("dinov3",  "class"),
     ("dinov3",  "mean"),
-    ("siglip",  "class"),
-    ("siglip",  "mean"),
-    ("siglip2", "class"),
-    ("siglip2", "mean"),
 ]
 
 # Context options: k=0 (no context), k=2/4 mean-pool, k=2/4 concat+attention.
@@ -278,12 +300,10 @@ _CONTEXT_OPTIONS = (
 
 
 def _backbone_context_configs(results_dir: Path) -> list[dict]:
-    """Joint encoder × context search.
+    """Joint encoder × context × dist_mode search.
 
-    All (encoder, context_window, context_mode) combos are run together so
-    that encoder ranking is not biased by a fixed context setting.
-    With k=0 the encoder is compared on its bare embeddings; k>0 tests
-    temporal enrichment for each encoder independently.
+    All (encoder, context_window, context_mode, dist_mode) combos are run
+    together so that encoder ranking is not biased by a fixed context setting.
     """
     configs = []
     for encoder, token in _ENCODERS:
@@ -291,12 +311,33 @@ def _backbone_context_configs(results_dir: Path) -> list[dict]:
             print(f"[SKIP] {encoder}/{token}: embeddings missing for v1–v4")
             continue
         for k, mode in _CONTEXT_OPTIONS:
-            configs.append({
-                "encoder":        encoder,
-                "token":          token,
-                "context_window": k,
-                "context_mode":   mode,
-            })
+            for dist_mode in ["none", "late"]:
+                configs.append({
+                    "encoder":        encoder,
+                    "token":          token,
+                    "context_window": k,
+                    "context_mode":   mode,
+                    "dist_mode":      dist_mode,
+                })
+    return configs
+
+
+def _pov_backbone_context_configs(results_dir: Path) -> list[dict]:
+    """POV variant: only encoders with pov embeddings on v2/v3/v4 (no v1)."""
+    configs = []
+    for encoder, token in _ENCODERS:
+        if not _pov_embeddings_available(encoder, token, ["v2", "v3", "v4"]):
+            print(f"[SKIP] {encoder}/{token}: pov embeddings missing for v2–v4")
+            continue
+        for k, mode in _CONTEXT_OPTIONS:
+            for dist_mode in ["none", "late"]:
+                configs.append({
+                    "encoder":        encoder,
+                    "token":          token,
+                    "context_window": k,
+                    "context_mode":   mode,
+                    "dist_mode":      dist_mode,
+                })
     return configs
 
 
@@ -307,6 +348,7 @@ def _arch_configs(results_dir: Path) -> list[dict]:
         "token":          best["token"],
         "context_window": int(best["context_window"]),
         "context_mode":   best["context_mode"],
+        "dist_mode":      best.get("dist_mode", "none"),
     }
     configs = []
     for hidden_dim in [256, 512, 1024]:
@@ -320,6 +362,31 @@ def _arch_configs(results_dir: Path) -> list[dict]:
                                  "hidden_dim":    hidden_dim,
                                  "hidden_layers": hidden_layers,
                                  "dropout":       dropout})
+    return configs
+
+
+def _pov_arch_configs(results_dir: Path) -> list[dict]:
+    """POV variant of arch search: adds siamese={True, False} to the grid."""
+    best = _load_best(results_dir / "backbone_context")
+    base = {
+        "encoder":        best["encoder"],
+        "token":          best["token"],
+        "context_window": int(best["context_window"]),
+        "context_mode":   best["context_mode"],
+        "dist_mode":      best.get("dist_mode", "none"),
+    }
+    configs = []
+    for hidden_dim in [256, 512, 1024]:
+        for hidden_layers in [0, 1, 2]:
+            for dropout in [0.0, 0.2, 0.4]:
+                for siamese in [True, False]:
+                    if hidden_layers == 0 and (hidden_dim != 512 or dropout != 0.0):
+                        continue
+                    configs.append({**base,
+                                     "hidden_dim":    hidden_dim,
+                                     "hidden_layers": hidden_layers,
+                                     "dropout":       dropout,
+                                     "siamese":       siamese})
     return configs
 
 
@@ -337,9 +404,11 @@ def _finetune_configs(results_dir: Path) -> list[dict]:
         "token":          best_bk["token"],
         "context_window": int(best_bk["context_window"]),
         "context_mode":   best_bk["context_mode"],
+        "dist_mode":      best_bk.get("dist_mode", "none"),
         "hidden_dim":     int(best_arch["hidden_dim"]),
         "hidden_layers":  int(best_arch["hidden_layers"]),
         "dropout":        float(best_arch["dropout"]),
+        "siamese":        str(best_arch.get("siamese", "True")).lower() in ("true", "1"),
     }
     configs = []
     for method in ["ERM", "DERM"]:
@@ -362,9 +431,11 @@ def _augmentation_configs(results_dir: Path) -> list[dict]:
         "token":          best_bk["token"],
         "context_window": int(best_bk["context_window"]),
         "context_mode":   best_bk["context_mode"],
+        "dist_mode":      best_bk.get("dist_mode", "none"),
         "hidden_dim":     int(best_arch["hidden_dim"]),
         "hidden_layers":  int(best_arch["hidden_layers"]),
         "dropout":        float(best_arch["dropout"]),
+        "siamese":        str(best_arch.get("siamese", "True")).lower() in ("true", "1"),
         "method":         best_ft["method"],
         "finetune_lr":    float(best_ft["finetune_lr"]),
         "weight_decay":   float(best_ft["weight_decay"]),
@@ -394,6 +465,7 @@ def _build_finetune_cfg(cfg_dict: dict) -> DictConfig:
             "hidden_dim":    int(cfg_dict.get("hidden_dim",    BASE_CFG.mlp.hidden_dim)),
             "hidden_layers": int(cfg_dict.get("hidden_layers", BASE_CFG.mlp.hidden_layers)),
             "dropout":       float(cfg_dict.get("dropout",     BASE_CFG.mlp.dropout)),
+            "siamese":       bool(cfg_dict.get("siamese",      True)),
         },
         "training": {
             "method":              cfg_dict.get("method",             BASE_CFG.training.method),
@@ -415,6 +487,7 @@ def _build_pretrain_cfg(cfg_dict: dict) -> DictConfig:
             "hidden_dim":    int(cfg_dict.get("hidden_dim",    BASE_CFG.mlp.hidden_dim)),
             "hidden_layers": int(cfg_dict.get("hidden_layers", BASE_CFG.mlp.hidden_layers)),
             "dropout":       float(cfg_dict.get("dropout",     BASE_CFG.mlp.dropout)),
+            "siamese":       bool(cfg_dict.get("siamese",      True)),
         },
         "training": {
             "method":         "ERM",   # always ERM for pretraining
@@ -428,11 +501,24 @@ def _build_pretrain_cfg(cfg_dict: dict) -> DictConfig:
 
 
 # ── main runner ───────────────────────────────────────────────────────────────
-def run_one(cfg_dict: dict, stage: str, results_dir: Path, dry_run: bool = False) -> dict:
+def run_one(
+    cfg_dict: dict,
+    stage: str,
+    results_dir: Path,
+    dry_run: bool = False,
+    frame_type: str = "full",
+) -> dict:
     """Run the pipeline for one hyperparameter config.
 
-    Early stages (backbone, context, arch): full pretrain(v1→v2) + finetune(v3) + eval(v4).
-    Late stages (finetune, augmentation): load saved pretrained_v1v2.pt, finetune(v3) + eval(v4).
+    frame_type="full":
+      Early stages: pretrain v1 → v2 → finetune v3 → eval v4.
+      Late stages:  load saved pretrained_v1v2.pt → finetune v3 → eval v4.
+
+    frame_type="pov":
+      Early stages: pretrain v2 only → finetune v3 → eval v4  (v1 has no POV).
+      Late stages:  load saved pretrained_v2.pt → finetune v3 → eval v4.
+      Embeddings are POV crops augmented with [dist_to_focal, dist_to_other].
+      Blue→B2F and yellow→Y2F are merged into a single "grooming" outcome.
     """
     run_id    = _run_id(cfg_dict)
     stage_dir = results_dir / stage
@@ -443,7 +529,14 @@ def run_one(cfg_dict: dict, stage: str, results_dir: Path, dry_run: bool = False
     if metrics_path.exists():
         print(f"[SKIP] {run_id}  (already done)")
         with open(metrics_path) as f:
-            return json.load(f)
+            metrics = json.load(f)
+        # Ensure this run appears in the summary (may be missing after cleanup)
+        summary_path = stage_dir / "summary.csv"
+        if not summary_path.exists() or run_id not in summary_path.read_text():
+            summary_row = {"run_id": run_id, **cfg_dict, **metrics}
+            summary_row.pop("train_diagnostics", None)
+            _append_to_summary(stage_dir, summary_row)
+        return metrics
 
     encoder = cfg_dict["encoder"]
     token   = cfg_dict.get("token", "class")
@@ -451,20 +544,28 @@ def run_one(cfg_dict: dict, stage: str, results_dir: Path, dry_run: bool = False
     mode    = cfg_dict.get("context_mode", BASE_CFG.training.context_mode)
 
     # ── check embedding availability ──────────────────────────────────────────
-    if not _embeddings_available(encoder, token, ["v1", "v2", "v3", "v4"]):
-        print(f"[SKIP] {encoder}/{token}  (embeddings not ready for all v1–v4)")
-        return {}
+    if frame_type == "pov":
+        if not _pov_embeddings_available(encoder, token, ["v2", "v3", "v4"]):
+            print(f"[SKIP] {encoder}/{token}  (pov embeddings not ready for v2–v4)")
+            return {}
+    else:
+        if not _embeddings_available(encoder, token, ["v1", "v2", "v3", "v4"]):
+            print(f"[SKIP] {encoder}/{token}  (embeddings not ready for all v1–v4)")
+            return {}
 
     # ── print header ──────────────────────────────────────────────────────────
     finetune_only = stage in FINETUNE_ONLY_STAGES
     finetune_diag: dict | None = None
+    dist_mode = cfg_dict.get("dist_mode", "none")
     print(f"\n{'='*72}")
-    print(f"[RUN]  stage={stage}  {'(finetune-only — loads saved pretrain)' if finetune_only else '(full pretrain+finetune)'}")
+    print(f"[RUN]  stage={stage}  frame_type={frame_type}  "
+          f"{'(finetune-only — loads saved pretrain)' if finetune_only else '(full pretrain+finetune)'}")
     print(f"       id={run_id}")
-    print(f"       encoder={encoder}/{token}  k={k}  mode={mode}")
+    print(f"       encoder={encoder}/{token}  k={k}  mode={mode}  dist_mode={dist_mode}")
     print(f"       arch: dim={cfg_dict.get('hidden_dim', 512)}"
           f"  layers={cfg_dict.get('hidden_layers', 1)}"
-          f"  dropout={cfg_dict.get('dropout', 0.3)}")
+          f"  dropout={cfg_dict.get('dropout', 0.3)}"
+          f"  siamese={cfg_dict.get('siamese', True)}")
     print(f"       finetune: method={cfg_dict.get('method', 'ERM')}"
           f"  lr={cfg_dict.get('finetune_lr', 1e-4):.0e}"
           f"  wd={cfg_dict.get('weight_decay', 0.001)}"
@@ -479,46 +580,65 @@ def run_one(cfg_dict: dict, stage: str, results_dir: Path, dry_run: bool = False
     device       = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    ds_kwargs = DS_KWARGS
+
     def _load_and_apply(version: str, n_val: int) -> PPCIDataset:
         """Load one dataset version and immediately apply context window."""
         ds = PPCIDataset.from_disk("ants", version, encoder, token,
-                                   n_val_videos=n_val, **DS_KWARGS)
+                                   frame_type=frame_type,
+                                   dist_mode=dist_mode,
+                                   n_val_videos=n_val, **ds_kwargs)
         if k > 0:
             ds.apply_context_window(k, mode=mode)
         return ds
 
     # ══════════════════════════════════════════════════════════════════════════
-    # BRANCH A — early stages: pretrain v1 → v2 (load/free one at a time)
+    # BRANCH A — early stages: pretrain then finetune
     # ══════════════════════════════════════════════════════════════════════════
     if not finetune_only:
         pretrain_cfg = _build_pretrain_cfg(cfg_dict)
 
-        print("\n[1] Loading v1 ...")
-        ds_v1 = _load_and_apply("v1", n_val=5)
+        if frame_type == "pov":
+            # v1 has no POV embeddings — pretrain on v2 only
+            print("\n[1] Loading v2 (POV, pretrain) ...")
+            ds_v2 = _load_and_apply("v2", n_val=5)
+            print("\n[2] Pretraining on v2 ...")
+            model = build_model(ds_v2, pretrain_cfg)
+            model = train(ds_v2, model, pretrain_cfg)
+            print(f"  → best_epoch={getattr(model, 'best_epoch', '?')}")
+            _warn_training_health(getattr(model, "training_diagnostics", None), "pretrain v2")
+            torch.save(model.state_dict(), out_dir / "pretrained_v2.pt")
+            print(f"  → saved: pretrained_v2.pt")
+            del ds_v2
+        else:
+            print("\n[1] Loading v1 ...")
+            ds_v1 = _load_and_apply("v1", n_val=5)
 
-        print("\n[2] Pretraining on v1 ...")
-        model = build_model(ds_v1, pretrain_cfg)
-        model = train(ds_v1, model, pretrain_cfg)
-        print(f"  → best_epoch={getattr(model, 'best_epoch', '?')}")
-        _warn_training_health(getattr(model, "training_diagnostics", None), "pretrain v1")
-        del ds_v1
+            print("\n[2] Pretraining on v1 ...")
+            model = build_model(ds_v1, pretrain_cfg)
+            model = train(ds_v1, model, pretrain_cfg)
+            print(f"  → best_epoch={getattr(model, 'best_epoch', '?')}")
+            _warn_training_health(getattr(model, "training_diagnostics", None), "pretrain v1")
+            del ds_v1
 
-        print("\n[2 cont] Loading v2, continuing pretrain (warm-start from v1) ...")
-        ds_v2 = _load_and_apply("v2", n_val=5)
-        model = train(ds_v2, model, pretrain_cfg)
-        print(f"  → best_epoch={getattr(model, 'best_epoch', '?')}")
-        _warn_training_health(getattr(model, "training_diagnostics", None), "pretrain v2")
-        torch.save(model.state_dict(), out_dir / "pretrained_v1v2.pt")
-        print(f"  → saved: pretrained_v1v2.pt")
-        del ds_v2
+            print("\n[2 cont] Loading v2, continuing pretrain (warm-start from v1) ...")
+            ds_v2 = _load_and_apply("v2", n_val=5)
+            model = train(ds_v2, model, pretrain_cfg)
+            print(f"  → best_epoch={getattr(model, 'best_epoch', '?')}")
+            _warn_training_health(getattr(model, "training_diagnostics", None), "pretrain v2")
+            torch.save(model.state_dict(), out_dir / "pretrained_v1v2.pt")
+            print(f"  → saved: pretrained_v1v2.pt")
+            del ds_v2
 
     # ══════════════════════════════════════════════════════════════════════════
     # BRANCH B — late stages: load saved pretrained model weights
     # ══════════════════════════════════════════════════════════════════════════
     else:
-        pretrained_path = _best_pretrained_path(results_dir)
+        if frame_type == "pov":
+            pretrained_path = _best_pretrained_path_pov(results_dir)
+        else:
+            pretrained_path = _best_pretrained_path(results_dir)
         print(f"\n[2] Loading pretrained model from:\n    {pretrained_path}")
-        # Temporarily load v3 just to build the model structure, then will reload below
         ds_tmp = _load_and_apply("v3", n_val=0)
         model  = build_model(ds_tmp, finetune_cfg)
         del ds_tmp
@@ -565,7 +685,9 @@ def run_one(cfg_dict: dict, stage: str, results_dir: Path, dry_run: bool = False
     with open(out_dir / "config.json", "w") as f:
         json.dump(cfg_dict, f, indent=2)
 
-    _append_to_summary(stage_dir, {"run_id": run_id, **cfg_dict, **metrics})
+    summary_row = {"run_id": run_id, **cfg_dict, **metrics}
+    summary_row.pop("train_diagnostics", None)  # dict breaks CSV parsing
+    _append_to_summary(stage_dir, summary_row)
 
     print(f"\n  ✓ Done  val_bacc_v3={val_bacc:.4f}  test_bacc_v4={test_bacc:.4f}")
     print(f"  Results: {out_dir}")
@@ -575,8 +697,8 @@ def run_one(cfg_dict: dict, stage: str, results_dir: Path, dry_run: bool = False
 # ── results printer ───────────────────────────────────────────────────────────
 _METRIC_COLS = ["val_bacc_v3", "test_bacc_v4", "val_acc_v3", "test_acc_v4"]
 _CFG_COLS_PER_STAGE = {
-    "backbone_context": ["encoder", "token", "context_window", "context_mode"],
-    "arch":             ["hidden_dim", "hidden_layers", "dropout"],
+    "backbone_context": ["encoder", "token", "context_window", "context_mode", "dist_mode"],
+    "arch":             ["hidden_dim", "hidden_layers", "dropout", "siamese"],
     "finetune":         ["method", "finetune_lr", "weight_decay"],
     "augmentation":     ["augment_noise_std", "augment_mixup_alpha"],
 }
@@ -591,7 +713,9 @@ def _find_failed_configs(stage: str, results_dir: Path) -> list[dict]:
     if stage != "backbone_context":
         return []
     try:
-        expected = _backbone_context_configs(results_dir)
+        is_pov = "pov" in results_dir.name
+        gen = _pov_backbone_context_configs if is_pov else _backbone_context_configs
+        expected = gen(results_dir)
     except Exception:
         return []
     failed = []
@@ -619,8 +743,14 @@ def print_results(results_dir: Path, stage: str | None = None) -> None:
             print(f"\n=== {s} — empty summary ===")
             continue
 
+        def _safe_float(v, default=0.0):
+            try:
+                return float(v)
+            except (ValueError, TypeError):
+                return default
+
         # Sort by test_bacc_v4 descending
-        rows.sort(key=lambda r: float(r.get("test_bacc_v4", 0)), reverse=True)
+        rows.sort(key=lambda r: _safe_float(r.get("test_bacc_v4")), reverse=True)
 
         cfg_cols = _CFG_COLS_PER_STAGE.get(s, [])
         display_cols = cfg_cols + _METRIC_COLS
@@ -636,19 +766,24 @@ def print_results(results_dir: Path, stage: str | None = None) -> None:
         divider = "-" * len(hdr)
 
         # Find best val and test rows
-        best_val_idx  = max(range(len(rows)), key=lambda i: float(rows[i].get("val_bacc_v3",  0)))
+        best_val_idx  = max(range(len(rows)), key=lambda i: _safe_float(rows[i].get("val_bacc_v3")))
         best_test_idx = 0  # already sorted by test_bacc_v4
 
-        # Check for missing/failed configs
-        failed = _find_failed_configs(s, results_dir)
+        # Check for missing configs (pending or failed)
+        missing = _find_failed_configs(s, results_dir)
+        stage_dir = results_dir / s
+        n_failed = sum(1 for cfg in missing
+                       if (stage_dir / _run_id(cfg)).exists())
+        n_pending = len(missing) - n_failed
 
         print(f"\n{'='*len(hdr)}")
         n_complete = len(rows)
-        n_failed   = len(failed)
-        status_str = f"{n_complete} completed"
+        status_parts = [f"{n_complete} completed"]
+        if n_pending:
+            status_parts.append(f"{n_pending} pending")
         if n_failed:
-            status_str += f", {n_failed} FAILED"
-        print(f"  {s.upper()} ({status_str})")
+            status_parts.append(f"{n_failed} FAILED")
+        print(f"  {s.upper()} ({', '.join(status_parts)})")
         print(f"{'='*len(hdr)}")
         print(hdr)
         print(divider)
@@ -657,10 +792,13 @@ def print_results(results_dir: Path, stage: str | None = None) -> None:
             rank_str = f"{i+1:>{widths['rank']}}"
             parts = []
             for c in display_cols:
-                if c in _METRIC_COLS and row.get(c):
-                    parts.append(f"{float(row[c]):.4f}".rjust(widths[c]))
-                else:
-                    parts.append(str(row.get(c, "")).rjust(widths[c]))
+                val = row.get(c, "")
+                if c in _METRIC_COLS:
+                    f = _safe_float(val, None)
+                    if f is not None:
+                        parts.append(f"{f:.4f}".rjust(widths[c]))
+                        continue
+                parts.append(str(val).rjust(widths[c]))
             line = rank_str + sep + sep.join(parts)
             marker = ""
             if i == best_test_idx:
@@ -681,21 +819,20 @@ def print_results(results_dir: Path, stage: str | None = None) -> None:
                 f"{c}={best_val.get(c, '?')}" for c in cfg_cols
             ))
 
-        # Report failed configs
-        if failed:
-            print(f"\n  !! {n_failed} config(s) failed (no metrics.json — likely OOM or timeout):")
-            for cfg in failed:
-                desc = f"encoder={cfg['encoder']}/{cfg['token']}"
-                desc += f"  k={cfg['context_window']}  mode={cfg['context_mode']}"
-                print(f"       - {desc}")
-            print(f"  → Re-run with: bash scripts/03_train/hparam_full.sh"
-                  f"  (skip-if-exists will skip completed configs)")
+        # Report failed configs (started but no metrics.json — crashed)
+        if n_failed:
+            print(f"\n  !! {n_failed} config(s) failed (started but no metrics.json):")
+            for cfg in missing:
+                if (stage_dir / _run_id(cfg)).exists():
+                    desc = f"encoder={cfg['encoder']}/{cfg['token']}"
+                    desc += f"  k={cfg['context_window']}  mode={cfg['context_mode']}"
+                    print(f"       - {desc}")
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="PPCI ants hyperparameter search: pretrain(v1→v2) → finetune(v3) → eval(v4)"
+        description="PPCI ants hyperparameter search"
     )
     parser.add_argument("--stage", choices=list(STAGE_FNS),
                         help="Stage to run or filter (required except with --print-results)")
@@ -707,9 +844,21 @@ def main() -> None:
                         help="Print config but skip training")
     parser.add_argument("--print-results", action="store_true",
                         help="Print leaderboard table(s) and exit")
-    parser.add_argument("--results-dir", type=Path, default=RESULTS_DIR,
-                        help=f"Root results directory (default: {RESULTS_DIR})")
+    parser.add_argument("--frame-type", choices=["full", "pov"], default="full",
+                        help="'full' (default) or 'pov' — selects embedding view and pipeline")
+    parser.add_argument("--results-dir", type=Path, default=None,
+                        help="Root results directory (default: hparam/ or hparam_pov/)")
     args = parser.parse_args()
+
+    # Default results dir depends on frame_type
+    if args.results_dir is None:
+        args.results_dir = RESULTS_DIR_POV if args.frame_type == "pov" else RESULTS_DIR
+
+    # For POV, use POV-specific config generators
+    stage_fns = dict(STAGE_FNS)
+    if args.frame_type == "pov":
+        stage_fns["backbone_context"] = _pov_backbone_context_configs
+        stage_fns["arch"] = _pov_arch_configs
 
     if args.print_results:
         print_results(args.results_dir, args.stage)
@@ -719,7 +868,7 @@ def main() -> None:
         parser.error("--stage is required (or use --print-results without --stage)")
 
     try:
-        configs = STAGE_FNS[args.stage](args.results_dir)
+        configs = stage_fns[args.stage](args.results_dir)
     except FileNotFoundError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         sys.exit(1)
@@ -730,7 +879,7 @@ def main() -> None:
         sys.exit(0)
 
     if args.list:
-        print(f"Stage '{args.stage}': {len(configs)} configs  "
+        print(f"Stage '{args.stage}' (frame_type={args.frame_type}): {len(configs)} configs  "
               f"→ use --array=0-{len(configs)-1} in sbatch")
         for i, c in enumerate(configs):
             print(f"  [{i:3d}] {c}")
@@ -743,7 +892,8 @@ def main() -> None:
         print(f"[NOOP] job-idx={args.job_idx} >= n_configs={len(configs)}")
         sys.exit(0)
 
-    run_one(configs[args.job_idx], args.stage, args.results_dir, dry_run=args.dry_run)
+    run_one(configs[args.job_idx], args.stage, args.results_dir,
+            dry_run=args.dry_run, frame_type=args.frame_type)
 
 
 if __name__ == "__main__":

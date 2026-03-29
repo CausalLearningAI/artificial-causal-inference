@@ -28,6 +28,70 @@ from torch.utils.data import DataLoader, TensorDataset
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _load_tracking_distances(
+    subject: str,
+    version: str,
+    obs_ids: np.ndarray,
+    frame_idxs: np.ndarray,
+    dataset_root: str = "./dataset",
+    scale: float = 512.0,
+) -> dict[str, np.ndarray]:
+    """Load tracking CSVs and return per-pair normalised Euclidean distances.
+
+    Returns a dict with keys ``"B2F"``, ``"Y2F"``, ``"B2Y"`` — each an
+    ``(N,)`` float32 array of distances / *scale*.  Rows with missing tracking
+    data (merge mismatches) are filled with 0.
+    """
+    import pandas as pd
+    from pathlib import Path
+
+    N = len(obs_ids)
+    tracking_dir = Path(dataset_root) / subject / version / "tracking"
+    parts = []
+    for obs_id in np.unique(obs_ids):
+        csv_path = tracking_dir / f"{obs_id}.csv"
+        if not csv_path.exists():
+            continue
+        df = pd.read_csv(
+            csv_path,
+            usecols=["frame_idx", "blue_x", "blue_y", "yellow_x", "yellow_y",
+                      "focal_x", "focal_y"],
+        )
+        df["observation_id"] = obs_id
+        parts.append(df)
+
+    if not parts:
+        return {"B2F": np.zeros(N, dtype=np.float32),
+                "Y2F": np.zeros(N, dtype=np.float32),
+                "B2Y": np.zeros(N, dtype=np.float32)}
+
+    tracking = pd.concat(parts, ignore_index=True)
+    lookup = pd.DataFrame({
+        "observation_id": obs_ids,
+        "frame_idx":      frame_idxs,
+        "_order":         np.arange(N),
+    })
+    merged = lookup.merge(tracking, on=["observation_id", "frame_idx"], how="left")
+    merged = merged.sort_values("_order")
+
+    bx = merged["blue_x"].to_numpy(dtype=np.float64)
+    by = merged["blue_y"].to_numpy(dtype=np.float64)
+    yx = merged["yellow_x"].to_numpy(dtype=np.float64)
+    yy = merged["yellow_y"].to_numpy(dtype=np.float64)
+    fx = merged["focal_x"].to_numpy(dtype=np.float64)
+    fy = merged["focal_y"].to_numpy(dtype=np.float64)
+
+    def _dist(ax, ay, bx_, by_):
+        d = np.sqrt((ax - bx_) ** 2 + (ay - by_) ** 2) / scale
+        return np.nan_to_num(d, nan=0.0).astype(np.float32)
+
+    return {
+        "B2F": _dist(bx, by, fx, fy),
+        "Y2F": _dist(yx, yy, fx, fy),
+        "B2Y": _dist(bx, by, yx, yy),
+    }
+
+
 def _label_encode(values: list) -> torch.Tensor:
     """Map arbitrary values (strings, ints, bools) to consecutive ints."""
     unique = sorted(set(str(v) for v in values))
@@ -452,32 +516,113 @@ class PPCIDataset:
         version: str,
         encoder: str,
         token: str,
+        frame_type: str = "full",
+        dist_mode: str = "none",
+        dataset_root: str = "./dataset",
         **kwargs,
     ) -> "PPCIDataset":
         """Load HF dataset + embeddings from disk and construct a PPCIDataset.
 
-        Equivalent to:
-            hf  = load_dataset(subject, version, from_disk=True)
-            emb = load_embeddings_from_disk(subject, version, encoder, token)
-            ds  = PPCIDataset(hf, emb, **kwargs)
-
         Args:
-            subject: Domain name, e.g. "ants".
-            version: Dataset version, e.g. "v3".
-            encoder: Embedding encoder name, e.g. "dinov2".
-            token:   Token type, e.g. "class".
-            **kwargs: Forwarded verbatim to PPCIDataset.__init__
-                      (outcome_cols, task, env_cols, n_val_videos, …).
+            subject:      Domain name, e.g. "ants".
+            version:      Dataset version, e.g. "v3".
+            encoder:      Embedding encoder name, e.g. "dinov2".
+            token:        Token type, e.g. "class".
+            frame_type:   "full" (default) or "pov".
+            dist_mode:    How to handle tracking distances:
+                          "none"  — no distances (default).
+                          "early" — distances concatenated with embeddings
+                                    (model treats them as part of the embedding).
+                          "late"  — distances concatenated with embeddings but
+                                    the model separates them for late fusion.
+                          For "full": appends [dist_B2F, dist_Y2F] (2 features).
+                          For "pov":  each half gets [dist_to_focal, dist_to_other]
+                                      from that ant's perspective (2 features per half).
+            dataset_root: Root of the dataset directory (default "./dataset").
+            **kwargs:     Forwarded to PPCIDataset.__init__ (env_cols, n_val_videos, …).
 
         Returns:
             A fully initialised PPCIDataset.
         """
         from src.dataset.get_dataset import load_dataset
         from src.embedding.get_embeddings import load_embeddings_from_disk
-        hf  = load_dataset(subject, version, from_disk=True)
-        emb = load_embeddings_from_disk(subject, version, encoder, token)
-        kwargs.setdefault("name", f"{subject} {version}")
-        return cls(hf, emb, **kwargs)
+
+        hf = load_dataset(subject, version, from_disk=True)
+        use_dist = dist_mode in ("early", "late")
+
+        if frame_type == "full":
+            emb = load_embeddings_from_disk(subject, version, encoder, token,
+                                            dataset_root=dataset_root)
+            if use_dist:
+                meta = hf.select_columns(["observation_id", "frame_idx"]).to_pandas()
+                dists = _load_tracking_distances(
+                    subject, version,
+                    meta["observation_id"].to_numpy(),
+                    meta["frame_idx"].to_numpy(dtype=np.int64),
+                    dataset_root=dataset_root,
+                )
+                # [dist_B2F, dist_Y2F] — both pairwise distances to focal
+                dist_tensor = torch.from_numpy(
+                    np.stack([dists["B2F"], dists["Y2F"]], axis=1)
+                )
+                emb = torch.cat([emb, dist_tensor], dim=1)  # (N, D+2)
+
+            kwargs.setdefault("name", f"{subject} {version}")
+            ds = cls(hf, emb, **kwargs)
+            ds.frame_type = "full"
+            ds.n_dist = 2 if dist_mode == "late" else 0
+            return ds
+
+        # ── POV branch ────────────────────────────────────────────────────────
+        meta = hf.select_columns(["observation_id", "frame_idx"]).to_pandas()
+        obs_ids_arr   = meta["observation_id"].to_numpy()
+        frame_idx_arr = meta["frame_idx"].to_numpy(dtype=np.int64)
+
+        emb_blue = load_embeddings_from_disk(subject, version, encoder, token,
+                                             dataset_root=dataset_root,
+                                             frame_type="pov", pov_identity="blue")
+        emb_yellow = load_embeddings_from_disk(subject, version, encoder, token,
+                                               dataset_root=dataset_root,
+                                               frame_type="pov", pov_identity="yellow")
+
+        # Replace NaN embeddings with zeros (some POV crops fail extraction)
+        for name, emb_t in [("blue", emb_blue), ("yellow", emb_yellow)]:
+            nan_mask = torch.isnan(emb_t).any(dim=1)
+            n_nan = int(nan_mask.sum())
+            if n_nan > 0:
+                import warnings
+                warnings.warn(
+                    f"[PPCIDataset] {n_nan}/{len(emb_t)} NaN rows in {name} "
+                    f"POV embeddings ({subject}/{version}/{encoder}/{token}) "
+                    f"— replaced with zeros"
+                )
+                emb_t[nan_mask] = 0.0
+
+        if use_dist:
+            dists = _load_tracking_distances(
+                subject, version, obs_ids_arr, frame_idx_arr,
+                dataset_root=dataset_root,
+            )
+            # Blue half: [emb_blue | dist_B2F | dist_B2Y]
+            # Yellow half: [emb_yellow | dist_Y2F | dist_Y2B]
+            blue_dists = torch.from_numpy(
+                np.stack([dists["B2F"], dists["B2Y"]], axis=1)
+            )
+            yellow_dists = torch.from_numpy(
+                np.stack([dists["Y2F"], dists["B2Y"]], axis=1)
+            )
+            parts = [emb_blue, blue_dists, emb_yellow, yellow_dists]
+            n_dist = 2
+        else:
+            parts = [emb_blue, emb_yellow]
+            n_dist = 0
+
+        emb_pov = torch.cat(parts, dim=1)
+        kwargs.setdefault("name", f"{subject} {version} pov")
+        ds = cls(hf, emb_pov, **kwargs)
+        ds.frame_type = "pov"
+        ds.n_dist = n_dist if dist_mode == "late" else 0
+        return ds
 
     # ------------------------------------------------------------------
     # Multi-dataset concatenation

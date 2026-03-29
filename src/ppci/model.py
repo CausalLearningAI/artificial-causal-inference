@@ -72,10 +72,12 @@ class MLP(nn.Module):
     prepended that collapses the ``(2k+1) × embed_dim`` context window back
     to ``embed_dim`` before the standard MLP layers.
 
+    When ``n_dist > 0`` the last *n_dist* features of the (post-temporal-agg)
+    input are treated as distance scalars.  They bypass the featurizer and are
+    concatenated with the featurizer output before the head (**late fusion**).
+
     Args:
-        input_dim:     Total input dimension.  For a context window with
-                       ``concat`` mode this is ``context_size × embed_dim``;
-                       otherwise it equals ``embed_dim``.
+        input_dim:     Total input dimension (including distances if any).
         hidden_dim:    Width of each hidden layer.
         hidden_layers: Number of hidden layers (0 → linear probe).
         n_outcomes:    Number of binary output neurons.
@@ -84,6 +86,8 @@ class MLP(nn.Module):
                        no context).  When > 1 a TemporalAttention module is
                        added before the featurizer.
         context_head_dim: Key/query projection size for TemporalAttention.
+        n_dist:        Number of trailing distance features for late fusion
+                       (default 0 = no late fusion, all features go to featurizer).
     """
 
     def __init__(
@@ -95,10 +99,12 @@ class MLP(nn.Module):
         dropout: float = 0.0,
         context_size: int = 1,
         context_head_dim: int = 64,
+        n_dist: int = 0,
     ):
         super().__init__()
         self.n_outcomes = n_outcomes
         self.temperature: float = 1.0
+        self.n_dist = n_dist
 
         # --- optional temporal aggregation front-end ---
         if context_size > 1:
@@ -106,10 +112,10 @@ class MLP(nn.Module):
             self.temporal_agg: nn.Module = TemporalAttention(
                 embed_dim, context_size, head_dim=context_head_dim
             )
-            mlp_in = embed_dim
+            mlp_in = embed_dim - n_dist
         else:
             self.temporal_agg = nn.Identity()
-            mlp_in = input_dim
+            mlp_in = input_dim - n_dist
 
         # --- featurizer ---
         layers: list[nn.Module] = []
@@ -123,8 +129,8 @@ class MLP(nn.Module):
         self.featurizer = nn.Sequential(*layers) if layers else nn.Identity()
         feat_dim = hidden_dim if hidden_layers > 0 else mlp_in
 
-        # --- output head ---
-        self.head = nn.Linear(feat_dim, n_outcomes)
+        # --- output head (with late-fused distances if any) ---
+        self.head = nn.Linear(feat_dim + n_dist, n_outcomes)
 
         self._init_weights()
 
@@ -136,12 +142,21 @@ class MLP(nn.Module):
                     nn.init.constant_(m.bias, 0.0)
 
     def features(self, X: torch.Tensor) -> torch.Tensor:
-        """Return featurizer representation (before head)."""
-        return self.featurizer(self.temporal_agg(X))
+        """Return featurizer representation (before head, without distances)."""
+        x = self.temporal_agg(X)
+        x_emb = x[:, : x.shape[1] - self.n_dist] if self.n_dist > 0 else x
+        return self.featurizer(x_emb)
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
         """Raw logits.  Shape: (N, n_outcomes) or (N,) when n_outcomes=1."""
-        logits = self.head(self.features(X))
+        x = self.temporal_agg(X)
+        if self.n_dist > 0:
+            x_emb = x[:, :-self.n_dist]
+            x_dist = x[:, -self.n_dist:]
+            feat = self.featurizer(x_emb)
+            logits = self.head(torch.cat([feat, x_dist], dim=1))
+        else:
+            logits = self.head(self.featurizer(x))
         return logits.squeeze(-1) if self.n_outcomes == 1 else logits
 
     def probs(self, X: torch.Tensor) -> torch.Tensor:
@@ -150,4 +165,130 @@ class MLP(nn.Module):
 
     def pred(self, X: torch.Tensor) -> torch.Tensor:
         """Hard binary predictions (rounded probabilities)."""
+        return self.probs(X).round()
+
+
+class SiameseMLP(nn.Module):
+    """MLP for POV mode with optional Siamese architecture and late-fusion distances.
+
+    Input layout per half: ``[embedding(D) | distances(n_dist)]``.
+    Full input: ``[half_blue | half_yellow]`` = ``(N, 2 * (D + n_dist))``.
+
+    **Late fusion**: distances are separated from embeddings before the trunk
+    and concatenated with the trunk output before the head.  This prevents
+    the small distance signal (2 dims) from being drowned by the embedding
+    (768 dims) in the first layer.
+
+    ``siamese=True``  (default): shared trunk processes each half's embedding
+        independently (colour-invariant features).  Two separate output heads
+        predict P(B2F) and P(Y2F) from ``[trunk_out | distances]``.
+    ``siamese=False``: single trunk processes ``[emb_blue | emb_yellow]``
+        jointly (can learn cross-ant interactions).  Single head predicts
+        both outcomes from ``[trunk_out | all_distances]``.
+
+    Interface is identical to :class:`MLP`: ``forward → (N, 2)``,
+    ``probs → (N, 2)``, so the training loop needs no changes.
+    """
+
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int = 512,
+        hidden_layers: int = 1,
+        dropout: float = 0.0,
+        context_size: int = 1,
+        context_head_dim: int = 64,
+        siamese: bool = True,
+        n_dist: int = 2,
+    ):
+        super().__init__()
+        self.n_outcomes = 2
+        self.temperature: float = 1.0
+        self.siamese = siamese
+
+        # --- optional temporal aggregation (operates on full input) ---
+        if context_size > 1:
+            embed_dim = input_dim // context_size
+            self.temporal_agg: nn.Module = TemporalAttention(
+                embed_dim, context_size, head_dim=context_head_dim
+            )
+            full_dim = embed_dim
+        else:
+            self.temporal_agg = nn.Identity()
+            full_dim = input_dim
+
+        assert full_dim % 2 == 0, (
+            f"POV input dim after temporal agg must be even, got {full_dim}"
+        )
+        self.half_dim = full_dim // 2
+        self.n_dist = n_dist
+        self.emb_dim = self.half_dim - n_dist
+
+        # --- trunk ---
+        trunk_in = self.emb_dim if siamese else 2 * self.emb_dim
+        layers: list[nn.Module] = []
+        in_dim = trunk_in
+        for _ in range(hidden_layers):
+            layers.append(nn.Linear(in_dim, hidden_dim))
+            layers.append(nn.ReLU())
+            if dropout > 0.0:
+                layers.append(nn.Dropout(dropout))
+            in_dim = hidden_dim
+        self.trunk = nn.Sequential(*layers) if layers else nn.Identity()
+        feat_dim = hidden_dim if hidden_layers > 0 else trunk_in
+
+        # --- output heads (late fusion: distances concatenated after trunk) ---
+        if siamese:
+            head_in = feat_dim + n_dist
+            self.head_b2f = nn.Linear(head_in, 1)
+            self.head_y2f = nn.Linear(head_in, 1)
+        else:
+            head_in = feat_dim + 2 * n_dist
+            self.head = nn.Linear(head_in, 2)
+
+        self._init_weights()
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0.0)
+
+    def _split(self, X: torch.Tensor):
+        """Split input into per-half embeddings and distances."""
+        x = self.temporal_agg(X)
+        blue_half = x[:, : self.half_dim]
+        yellow_half = x[:, self.half_dim :]
+        blue_emb = blue_half[:, : self.emb_dim]
+        blue_dist = blue_half[:, self.emb_dim :]
+        yellow_emb = yellow_half[:, : self.emb_dim]
+        yellow_dist = yellow_half[:, self.emb_dim :]
+        return blue_emb, blue_dist, yellow_emb, yellow_dist
+
+    def features(self, X: torch.Tensor) -> torch.Tensor:
+        """Return trunk output (without late-fused distances)."""
+        blue_emb, _, yellow_emb, _ = self._split(X)
+        if self.siamese:
+            return torch.cat([self.trunk(blue_emb), self.trunk(yellow_emb)], dim=1)
+        return self.trunk(torch.cat([blue_emb, yellow_emb], dim=1))
+
+    def forward(self, X: torch.Tensor) -> torch.Tensor:
+        """Raw logits ``(N, 2)`` — columns are ``[B2F, Y2F]``."""
+        blue_emb, blue_dist, yellow_emb, yellow_dist = self._split(X)
+        if self.siamese:
+            h_blue = self.trunk(blue_emb)
+            h_yellow = self.trunk(yellow_emb)
+            logit_b2f = self.head_b2f(torch.cat([h_blue, blue_dist], dim=1))
+            logit_y2f = self.head_y2f(torch.cat([h_yellow, yellow_dist], dim=1))
+            return torch.cat([logit_b2f, logit_y2f], dim=1)
+        h = self.trunk(torch.cat([blue_emb, yellow_emb], dim=1))
+        return self.head(torch.cat([h, blue_dist, yellow_dist], dim=1))
+
+    def probs(self, X: torch.Tensor) -> torch.Tensor:
+        """Calibrated sigmoid probabilities ``(N, 2)``."""
+        return (self.forward(X) / self.temperature).sigmoid()
+
+    def pred(self, X: torch.Tensor) -> torch.Tensor:
+        """Hard binary predictions ``(N, 2)``."""
         return self.probs(X).round()

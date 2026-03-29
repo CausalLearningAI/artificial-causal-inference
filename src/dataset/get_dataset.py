@@ -75,12 +75,14 @@ def load_dataset(
         config_root = Path(config_root)
     
     subject_dir = dataset_root / subject / version
-    if frame_type == "pov":
-        if pov_identity not in {"blue", "yellow"}:
-            raise ValueError(f"Invalid pov_identity='{pov_identity}'. Use 'blue' or 'yellow'.")
-        hf_dir = subject_dir / "hf" / frame_type / pov_identity
-    else:
-        hf_dir = subject_dir / "hf" / frame_type
+
+    # HF metadata is view-independent — prefer hf/, fall back to hf/full/ (legacy).
+    hf_dir = subject_dir / "hf"
+    if not (hf_dir / "dataset_info.json").exists():
+        hf_dir_legacy = hf_dir / "full"
+        if (hf_dir_legacy / "dataset_info.json").exists():
+            hf_dir = hf_dir_legacy
+
     annotations_csv = subject_dir / "annotations.csv"
     frames_dir = subject_dir / "frames" / frame_type
 

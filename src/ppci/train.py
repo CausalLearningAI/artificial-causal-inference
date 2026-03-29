@@ -35,7 +35,7 @@ import torch.nn as nn
 from omegaconf import DictConfig, OmegaConf
 
 from .dataset import PPCIDataset
-from .model import MLP
+from .model import MLP, SiameseMLP
 from .evaluate import compute_teb
 
 
@@ -308,14 +308,26 @@ def build_model(dataset: PPCIDataset, cfg: DictConfig) -> MLP:
     context_size     = getattr(dataset, "_context_size", 1)
     context_head_dim = int(cfg.mlp.get("context_head_dim", 64))
 
-    return MLP(
+    shared_kwargs = dict(
         input_dim=dataset.X.shape[1],
         hidden_dim=cfg.mlp.hidden_dim,
         hidden_layers=cfg.mlp.hidden_layers,
-        n_outcomes=len(dataset.outcome_cols),
         dropout=cfg.mlp.get("dropout", 0.0),
         context_size=context_size,
         context_head_dim=context_head_dim,
+    )
+
+    if getattr(dataset, "frame_type", "full") == "pov":
+        return SiameseMLP(
+            **shared_kwargs,
+            siamese=bool(cfg.mlp.get("siamese", True)),
+            n_dist=getattr(dataset, "n_dist", 0),
+        )
+
+    return MLP(
+        n_outcomes=len(dataset.outcome_cols),
+        n_dist=getattr(dataset, "n_dist", 0),
+        **shared_kwargs,
     )
 
 
