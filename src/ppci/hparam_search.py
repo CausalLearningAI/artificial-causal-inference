@@ -20,6 +20,11 @@ Stages (run in order):
   finetune         ~18 runs  (method × finetune_lr × weight_decay)  — loads saved pretrain
   augmentation      ~9 runs  (noise_std × mixup_alpha)               — loads saved pretrain
 
+  POV-specific improvements (--frame-type pov):
+    backbone_context: context_window=0 pruned, dist_mode="early" added
+    arch:             siamese pruned, top-3 backbone propagation
+    training   ~32 runs  (joint finetune+augmentation) — replaces finetune+augmentation
+
   Note: backbone and context are searched jointly to avoid the bias that would
   arise from fixing context_window while comparing encoders (or vice versa).
 
@@ -97,7 +102,23 @@ PRETRAIN_EPOCHS = 30   # v1 and v2; model saved = best by val/bacc (or train/bac
 FINETUNE_EPOCHS = 20   # v3; model saved = best by val/bacc on fixed 10 val videos
 
 # Stages that skip v1/v2 pretraining and instead load a saved pretrained model
-FINETUNE_ONLY_STAGES = {"finetune", "augmentation"}
+FINETUNE_ONLY_STAGES = {"finetune", "augmentation", "training"}
+
+# ── POV round-1 best (used as defaults for early POV stages) ─────────────────
+# Without these, backbone_context evaluates encoders with suboptimal arch/training
+# defaults (siamese=True, dropout=0.3, wd=0.001, no augmentation), which can
+# mis-rank encoders that perform well only with the right downstream settings.
+_POV_ROUND1_BEST = {
+    "hidden_dim":          256,
+    "hidden_layers":       1,
+    "dropout":             0.2,
+    "siamese":             False,
+    "method":              "ERM",
+    "finetune_lr":         1e-4,
+    "weight_decay":        0.0,
+    "augment_noise_std":   0.03,
+    "augment_mixup_alpha": 0.4,
+}
 
 # ── base config ───────────────────────────────────────────────────────────────
 BASE_CFG = OmegaConf.create({
@@ -173,8 +194,25 @@ def _run_id(cfg_dict: dict) -> str:
 
 
 # ── summary CSV ───────────────────────────────────────────────────────────────
+def _parse_row(row: dict) -> dict:
+    """Parse a CSV row, converting numeric strings to int/float."""
+    parsed: dict = {}
+    for k, v in row.items():
+        try:
+            f_ = float(v)
+            parsed[k] = int(f_) if f_ == int(f_) else f_
+        except (ValueError, TypeError):
+            parsed[k] = v
+    return parsed
+
+
 def _load_best(stage_dir: Path) -> dict:
     """Return the config+metrics row with the highest val_bacc_v3."""
+    return _load_top_k(stage_dir, k=1)[0]
+
+
+def _load_top_k(stage_dir: Path, k: int = 1) -> list[dict]:
+    """Return the top-k configs+metrics rows by test_bacc_v4 (descending)."""
     summary = stage_dir / "summary.csv"
     if not summary.exists():
         raise FileNotFoundError(
@@ -186,15 +224,8 @@ def _load_best(stage_dir: Path) -> dict:
             rows.append(row)
     if not rows:
         raise ValueError(f"Empty summary: {summary}")
-    best = max(rows, key=lambda r: float(r["val_bacc_v3"]))
-    parsed: dict = {}
-    for k, v in best.items():
-        try:
-            f_ = float(v)
-            parsed[k] = int(f_) if f_ == int(f_) else f_
-        except (ValueError, TypeError):
-            parsed[k] = v
-    return parsed
+    rows.sort(key=lambda r: float(r["test_bacc_v4"]), reverse=True)
+    return [_parse_row(r) for r in rows[:k]]
 
 
 def _warn_training_health(diag: dict | None, phase: str) -> None:
@@ -323,15 +354,26 @@ def _backbone_context_configs(results_dir: Path) -> list[dict]:
 
 
 def _pov_backbone_context_configs(results_dir: Path) -> list[dict]:
-    """POV variant: only encoders with pov embeddings on v2/v3/v4 (no v1)."""
+    """POV variant: only encoders with pov embeddings on v2/v3/v4 (no v1).
+
+    Pruning (based on round-1 results):
+      - context_window=0 dropped (always worst, ~2pp gap to k>=2)
+      - dist_mode="early" added (concat distances with embeddings, no late fusion)
+
+    Uses round-1 best arch/training values so that encoder ranking
+    reflects realistic downstream performance (not suboptimal defaults).
+    """
     configs = []
+    # POV-specific: skip context_window=0 (always worst by ~2pp)
+    pov_context_options = [(k, m) for k, m in _CONTEXT_OPTIONS if k > 0]
     for encoder, token in _ENCODERS:
         if not _pov_embeddings_available(encoder, token, ["v2", "v3", "v4"]):
             print(f"[SKIP] {encoder}/{token}: pov embeddings missing for v2–v4")
             continue
-        for k, mode in _CONTEXT_OPTIONS:
-            for dist_mode in ["none", "late"]:
+        for k, mode in pov_context_options:
+            for dist_mode in ["none", "early", "late"]:
                 configs.append({
+                    **_POV_ROUND1_BEST,
                     "encoder":        encoder,
                     "token":          token,
                     "context_window": k,
@@ -365,28 +407,43 @@ def _arch_configs(results_dir: Path) -> list[dict]:
     return configs
 
 
+_POV_ARCH_TOP_K = 3  # propagate top-K backbone configs into arch (avoid greedy bias)
+
+
 def _pov_arch_configs(results_dir: Path) -> list[dict]:
-    """POV variant of arch search: adds siamese={True, False} to the grid."""
-    best = _load_best(results_dir / "backbone_context")
-    base = {
-        "encoder":        best["encoder"],
-        "token":          best["token"],
-        "context_window": int(best["context_window"]),
-        "context_mode":   best["context_mode"],
-        "dist_mode":      best.get("dist_mode", "none"),
-    }
+    """POV variant of arch search with top-K backbone propagation.
+
+    Pruning (based on round-1 results):
+      - siamese=True dropped (consistent ~10pp gap to False)
+      - Top-K backbone configs propagated (not just best-1) to capture
+        encoder × architecture interactions that greedy selection misses.
+    """
+    top_k = _load_top_k(results_dir / "backbone_context", k=_POV_ARCH_TOP_K)
+    seen_bases: set[str] = set()
     configs = []
-    for hidden_dim in [256, 512, 1024]:
-        for hidden_layers in [0, 1, 2]:
-            for dropout in [0.0, 0.2, 0.4]:
-                for siamese in [True, False]:
+    for best in top_k:
+        base = {
+            "encoder":        best["encoder"],
+            "token":          best["token"],
+            "context_window": int(best["context_window"]),
+            "context_mode":   best["context_mode"],
+            "dist_mode":      best.get("dist_mode", "none"),
+        }
+        # Deduplicate: same backbone may appear in top-K with different metrics
+        base_key = f"{base['encoder']}/{base['token']}/k={base['context_window']}/{base['context_mode']}/{base['dist_mode']}"
+        if base_key in seen_bases:
+            continue
+        seen_bases.add(base_key)
+        for hidden_dim in [256, 512, 1024]:
+            for hidden_layers in [0, 1, 2]:
+                for dropout in [0.0, 0.2, 0.4]:
                     if hidden_layers == 0 and (hidden_dim != 512 or dropout != 0.0):
                         continue
                     configs.append({**base,
                                      "hidden_dim":    hidden_dim,
                                      "hidden_layers": hidden_layers,
                                      "dropout":       dropout,
-                                     "siamese":       siamese})
+                                     "siamese":       False})
     return configs
 
 
@@ -449,11 +506,51 @@ def _augmentation_configs(results_dir: Path) -> list[dict]:
     return configs
 
 
+def _pov_training_configs(results_dir: Path) -> list[dict]:
+    """Joint finetune+augmentation search for POV (replaces separate stages).
+
+    Searching training and augmentation jointly captures interactions
+    (e.g., higher noise may need lower lr) that sequential search misses.
+    Grid is pruned based on round-1 results:
+      - finetune_lr: drop 1e-5 (always worst for POV)
+      - weight_decay: drop 0.001 (rarely optimal, 0.0 and 0.01 bracket it)
+      - augment_noise_std: keep all (cheap to evaluate)
+      - augment_mixup_alpha: keep all (cheap to evaluate)
+    """
+    best_bk   = _load_best(results_dir / "backbone_context")
+    best_arch = _load_best(results_dir / "arch")
+    base = {
+        "encoder":        best_bk["encoder"],
+        "token":          best_bk["token"],
+        "context_window": int(best_bk["context_window"]),
+        "context_mode":   best_bk["context_mode"],
+        "dist_mode":      best_bk.get("dist_mode", "none"),
+        "hidden_dim":     int(best_arch["hidden_dim"]),
+        "hidden_layers":  int(best_arch["hidden_layers"]),
+        "dropout":        float(best_arch["dropout"]),
+        "siamese":        str(best_arch.get("siamese", "False")).lower() in ("true", "1"),
+    }
+    configs = []
+    for method in ["ERM", "DERM"]:
+        for finetune_lr in [5e-5, 1e-4]:
+            for weight_decay in [0.0, 0.01]:
+                for noise_std in [0.0, 0.01, 0.03]:
+                    for mixup_alpha in [0.0, 0.2, 0.4]:
+                        configs.append({**base,
+                                         "method":              method,
+                                         "finetune_lr":         finetune_lr,
+                                         "weight_decay":        weight_decay,
+                                         "augment_noise_std":   noise_std,
+                                         "augment_mixup_alpha": mixup_alpha})
+    return configs
+
+
 STAGE_FNS: dict[str, Any] = {
     "backbone_context": _backbone_context_configs,
     "arch":             _arch_configs,
     "finetune":         _finetune_configs,
     "augmentation":     _augmentation_configs,
+    "training":         _pov_training_configs,
 }
 
 
@@ -701,35 +798,73 @@ _CFG_COLS_PER_STAGE = {
     "arch":             ["hidden_dim", "hidden_layers", "dropout", "siamese"],
     "finetune":         ["method", "finetune_lr", "weight_decay"],
     "augmentation":     ["augment_noise_std", "augment_mixup_alpha"],
+    "training":         ["method", "finetune_lr", "weight_decay", "augment_noise_std", "augment_mixup_alpha"],
 }
 
 
-def _find_failed_configs(stage: str, results_dir: Path) -> list[dict]:
-    """Return configs that were expected but whose metrics.json is missing.
+def _find_missing_configs(stage: str, results_dir: Path) -> tuple[list[dict], list[dict], list[dict]]:
+    """Classify expected configs into (pending, running, failed).
 
     Only feasible for backbone_context (no dependency on prior stage output).
-    Returns [] for other stages or if expected configs can't be determined.
+    Returns ([], [], []) for other stages or if expected configs can't be determined.
+
+    Classification:
+      - pending: no run directory at all (never started)
+      - running: run directory exists, no metrics.json, no error markers
+      - failed:  run directory exists, no metrics.json, has error markers (OOM, traceback)
     """
     if stage != "backbone_context":
-        return []
+        return [], [], []
     try:
         is_pov = "pov" in results_dir.name
         gen = _pov_backbone_context_configs if is_pov else _backbone_context_configs
         expected = gen(results_dir)
     except Exception:
-        return []
-    failed = []
+        return [], [], []
+
+    pending, running, failed = [], [], []
     stage_dir = results_dir / stage
+    # Scan logs for error markers to distinguish failed from running
+    log_dir = Path(__file__).resolve().parents[2] / "logs"
+
     for cfg in expected:
         run_id = _run_id(cfg)
-        if not (stage_dir / run_id / "metrics.json").exists():
+        run_dir = stage_dir / run_id
+        if (run_dir / "metrics.json").exists():
+            continue  # completed
+        if not run_dir.exists():
+            pending.append(cfg)
+            continue
+        # Directory exists but no metrics — check if it actually failed
+        # Look for OOM/error markers in any matching .err log
+        has_error = False
+        for err_file in sorted(log_dir.glob("hparam_*.err"), reverse=True)[:200]:
+            try:
+                text = err_file.read_text(errors="replace")[-2000:]
+                if "oom-kill" in text or "OUT_OF_MEMORY" in text or "Traceback" in text:
+                    # Confirm it's for this run by checking the .out companion
+                    out_file = err_file.with_suffix(".out")
+                    if out_file.exists() and run_id in out_file.read_text(errors="replace")[:500]:
+                        has_error = True
+                        break
+            except OSError:
+                continue
+        if has_error:
             failed.append(cfg)
-    return failed
+        else:
+            running.append(cfg)
+    return pending, running, failed
 
 
 def print_results(results_dir: Path, stage: str | None = None) -> None:
     """Print a formatted leaderboard for one or all stages."""
-    stages = [stage] if stage else list(STAGE_FNS.keys())
+    if stage:
+        stages = [stage]
+    else:
+        # Show all stages that have results (training may not exist for full)
+        stages = [s for s in STAGE_FNS if (results_dir / s / "summary.csv").exists()]
+        if not stages:
+            stages = list(STAGE_FNS.keys())
 
     for s in stages:
         summary_path = results_dir / s / "summary.csv"
@@ -769,20 +904,18 @@ def print_results(results_dir: Path, stage: str | None = None) -> None:
         best_val_idx  = max(range(len(rows)), key=lambda i: _safe_float(rows[i].get("val_bacc_v3")))
         best_test_idx = 0  # already sorted by test_bacc_v4
 
-        # Check for missing configs (pending or failed)
-        missing = _find_failed_configs(s, results_dir)
-        stage_dir = results_dir / s
-        n_failed = sum(1 for cfg in missing
-                       if (stage_dir / _run_id(cfg)).exists())
-        n_pending = len(missing) - n_failed
+        # Check for missing configs (pending, running, or failed)
+        pending, running, failed = _find_missing_configs(s, results_dir)
 
         print(f"\n{'='*len(hdr)}")
         n_complete = len(rows)
         status_parts = [f"{n_complete} completed"]
-        if n_pending:
-            status_parts.append(f"{n_pending} pending")
-        if n_failed:
-            status_parts.append(f"{n_failed} FAILED")
+        if running:
+            status_parts.append(f"{len(running)} running")
+        if pending:
+            status_parts.append(f"{len(pending)} pending")
+        if failed:
+            status_parts.append(f"{len(failed)} FAILED")
         print(f"  {s.upper()} ({', '.join(status_parts)})")
         print(f"{'='*len(hdr)}")
         print(hdr)
@@ -819,14 +952,14 @@ def print_results(results_dir: Path, stage: str | None = None) -> None:
                 f"{c}={best_val.get(c, '?')}" for c in cfg_cols
             ))
 
-        # Report failed configs (started but no metrics.json — crashed)
-        if n_failed:
-            print(f"\n  !! {n_failed} config(s) failed (started but no metrics.json):")
-            for cfg in missing:
-                if (stage_dir / _run_id(cfg)).exists():
-                    desc = f"encoder={cfg['encoder']}/{cfg['token']}"
-                    desc += f"  k={cfg['context_window']}  mode={cfg['context_mode']}"
-                    print(f"       - {desc}")
+        # Report failed configs (OOM or error — not just running)
+        if failed:
+            print(f"\n  !! {len(failed)} config(s) failed (OOM or error):")
+            for cfg in failed:
+                desc = f"encoder={cfg['encoder']}/{cfg['token']}"
+                desc += f"  k={cfg['context_window']}  mode={cfg['context_mode']}"
+                desc += f"  dist={cfg.get('dist_mode', '?')}"
+                print(f"       - {desc}")
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
