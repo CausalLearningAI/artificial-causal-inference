@@ -162,7 +162,20 @@ def compute_teb(
                    if c.startswith("Y_") and not c.startswith("Yhat_")]
     w_cols = [c for c in obs_df.columns if c.startswith("W_")]
 
+    # For partially-annotated datasets: ATE on Y_true uses only annotated
+    # observations; ATE on Yhat uses ALL observations (the PPCI estimand).
+    has_ann_col = "_has_annotations" in obs_df.columns
+    obs_annotated = (
+        obs_df[obs_df["_has_annotations"]] if has_ann_col else obs_df
+    )
+
     result: Dict[str, float] = {}
+    if has_ann_col:
+        n_ann = int(obs_annotated.shape[0])
+        n_tot = int(obs_df.shape[0])
+        result["n_obs_annotated"] = n_ann
+        result["n_obs_total"] = n_tot
+
     for y_col in y_true_cols:
         label    = y_col[len("Y_"):]
         yhat_col = f"Yhat_{label}"
@@ -170,9 +183,11 @@ def compute_teb(
             continue
 
         try:
+            # ATE on true Y: annotated observations only (NaN-free)
             ate_t, std_t, _ = compute_ate(
-                obs_df, y_col, T_control, T_treatment, w_cols or None, method
+                obs_annotated, y_col, T_control, T_treatment, w_cols or None, method
             )
+            # ATE on predicted Yhat: all observations
             ate_p, std_p, _ = compute_ate(
                 obs_df, yhat_col, T_control, T_treatment, w_cols or None, method
             )
@@ -217,6 +232,12 @@ def compute_teb_all_pairs(
     """
     obs_df = dataset.add_predictions(model, device).obs_level(eval_task=eval_task)
 
+    # Partial annotations: Y_true on annotated only, Yhat on all
+    has_ann_col = "_has_annotations" in obs_df.columns
+    obs_annotated = (
+        obs_df[obs_df["_has_annotations"]] if has_ann_col else obs_df
+    )
+
     t_vals = sorted(obs_df["T"].unique().tolist())
     pairs = list(combinations(t_vals, 2))
     if not pairs:
@@ -240,7 +261,7 @@ def compute_teb_all_pairs(
                 continue
 
             try:
-                ate_t, std_t, _ = compute_ate(obs_df, y_col,   t0, t1, w_cols or None, method)
+                ate_t, std_t, _ = compute_ate(obs_annotated, y_col,   t0, t1, w_cols or None, method)
                 ate_p, std_p, _ = compute_ate(obs_df, yhat_col, t0, t1, w_cols or None, method)
             except Exception as exc:
                 warnings.warn(f"[compute_teb_all_pairs] {pair_key}/{label}/{method}: {exc}")

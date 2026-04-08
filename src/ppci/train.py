@@ -148,7 +148,20 @@ def compute_metrics(
     Binary columns  → acc, bacc, recall, precision.
     Continuous cols → mse, mae.
     Uses batched GPU inference to avoid OOM with large embeddings.
+    Frames with NaN in Y (unannotated) are excluded automatically.
     """
+    # Filter out unannotated frames (NaN in Y)
+    Y = Y.float()
+    if Y.dim() == 1:
+        ann = ~torch.isnan(Y)
+    else:
+        ann = ~torch.isnan(Y).any(dim=1)
+    if not ann.all():
+        X = X[ann]
+        Y = Y[ann]
+    if len(X) == 0:
+        return {}
+
     model.eval()
     chunks = []
     with torch.no_grad():
@@ -157,7 +170,6 @@ def compute_metrics(
     yh_prob = torch.cat(chunks, dim=0)
     yh_bin  = yh_prob.round()
 
-    Y = Y.float()
     if Y.dim() == 1:
         return _col_metrics(Y, yh_bin, yh_prob)
 

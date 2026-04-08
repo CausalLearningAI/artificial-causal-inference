@@ -187,16 +187,37 @@ class PPCIDataset:
         self.X = embeddings.float()
         missing_cols = [c for c in outcome_cols if c not in df.columns]
         if missing_cols:
+            # No outcome columns at all → all-NaN Y, nothing is annotated
             n = len(embeddings)
             self.Y = (
-                torch.zeros(n, len(outcome_cols), dtype=torch.float32)
+                torch.full((n, len(outcome_cols)), float("nan"))
                 if len(outcome_cols) > 1
-                else torch.zeros(n, dtype=torch.float32)
+                else torch.full((n,), float("nan"))
             )
+            self.annotated_mask = torch.zeros(n, dtype=torch.bool)
             self.has_annotations = False
         else:
             self.Y = compute_Y(df, outcome_cols)  # always per-column binary
-            self.has_annotations = True
+            # Detect per-frame NaN (partial annotations: some obs annotated, others NaN)
+            nan_mask = torch.isnan(self.Y)
+            if nan_mask.any():
+                # Per-frame: annotated iff no NaN across all outcome columns
+                if self.Y.dim() == 1:
+                    self.annotated_mask = ~nan_mask
+                else:
+                    self.annotated_mask = ~nan_mask.any(dim=1)
+                n_ann = int(self.annotated_mask.sum())
+                n_tot = len(self.Y)
+                self.has_annotations = "partial"
+                warnings.warn(
+                    f"[PPCIDataset] Partial annotations: {n_ann}/{n_tot} frames "
+                    f"({n_ann * 100 / n_tot:.1f}%) have ground-truth labels. "
+                    f"Unannotated frames have NaN in Y.",
+                    stacklevel=2,
+                )
+            else:
+                self.annotated_mask = torch.ones(len(self.Y), dtype=torch.bool)
+                self.has_annotations = True
         self.Yhat: Optional[torch.Tensor] = None   # set by add_predictions()
         self.T = np.array([str(v) for v in df[treatment_col].to_numpy()])
         self.obs_ids = df["observation_id"].to_numpy()
@@ -410,11 +431,15 @@ class PPCIDataset:
         Keeps frames where frame_idx % frame_stride == 0, i.e. one frame per
         ``frame_stride`` consecutive frames.  With frame_stride=1 (default)
         all training frames are kept.
+
+        Unannotated frames (NaN in Y) are always excluded so that NaN never
+        enters loss computation.
         """
+        ann = self.annotated_mask[self.train_mask]
         if frame_stride <= 1:
-            return torch.arange(int(self.train_mask.sum()))
+            return ann.nonzero(as_tuple=True)[0]
         fi = self.frame_idx[self.train_mask]
-        return (fi % frame_stride == 0).nonzero(as_tuple=True)[0]
+        return (ann & (fi % frame_stride == 0)).nonzero(as_tuple=True)[0]
 
     def get_train_loader(
         self,
@@ -430,6 +455,8 @@ class PPCIDataset:
                           When provided, each batch yields (X, Y, E, w).
             frame_stride: Keep 1 frame per ``frame_stride`` frames
                           (reduces temporal correlation; default 1 = all frames).
+
+        Unannotated frames (NaN in Y) are automatically excluded.
         """
         idx = self._train_stride_indices(frame_stride)
         tensors: list = [self.X_train[idx], self.Y_train[idx], self.E_train[idx]]
@@ -446,6 +473,7 @@ class PPCIDataset:
                           (reduces temporal correlation; default 1 = all frames).
 
         Returns one DataLoader per training environment.
+        Unannotated frames (NaN in Y) are automatically excluded.
         """
         idx = self._train_stride_indices(frame_stride)
         X = self.X_train[idx]
@@ -718,6 +746,15 @@ class PPCIDataset:
         obj.frame_idx = frame_idx
         obj.train_mask = train_mask
         obj.val_mask = val_mask
+        obj.annotated_mask = torch.cat([d.annotated_mask for d in datasets], dim=0)
+        # has_annotations: True if all fully annotated, "partial" if any partial/missing
+        ann_states = [d.has_annotations for d in datasets]
+        if all(a is True for a in ann_states):
+            obj.has_annotations = True
+        elif all(a is False for a in ann_states):
+            obj.has_annotations = False
+        else:
+            obj.has_annotations = "partial"
         obj.n_envs = int(E.max().item()) + 1
         obj.val_videos = [vid for d in datasets for vid in d.val_videos]
         return obj
@@ -733,8 +770,12 @@ class PPCIDataset:
         lines = ["PPCIDataset summary:"]
         if self.name:
             lines.append(f"  name            : {self.name}")
+        n_annotated = int(self.annotated_mask.sum())
+        n_ann_obs = len(np.unique(self.obs_ids[self.annotated_mask.numpy()]))
+        n_tot_obs = len(np.unique(self.obs_ids))
         lines += [
             f"  total frames    : {len(self.X):,}  (train={n_train:,}, val={n_val:,})",
+            f"  annotated frames: {n_annotated:,}/{len(self.X):,}  ({n_ann_obs} / {n_tot_obs} observations)",
             f"  embedding dim   : {self.X.shape[1]}",
             f"  task            : {self.task}",
             f"  outcome columns : {self.outcome_cols}",
@@ -793,7 +834,8 @@ class PPCIDataset:
               Y_{task}         — cross-outcome true outcome  (if eval_task set)
               Yhat_{task}      — cross-outcome prediction    (if eval_task set)
               W_*              — covariates (first value within each observation)
-              _has_annotations — whether ground-truth Y is real (not zero-filled)
+              _has_annotations — per-observation bool: True if ground-truth Y is
+                                 real (not NaN), False for unannotated observations
         """
         Y = self.Y.float()
         rows: dict = {
@@ -835,14 +877,23 @@ class PPCIDataset:
             for i, col in enumerate(self.W_cols):
                 rows[col] = self.W[:, i].numpy()
 
+        # Per-frame annotation flag (for per-observation aggregation)
+        rows["_annotated"] = self.annotated_mask.numpy().astype(float)
+
         df_frames = pd.DataFrame(rows)
         y_cols = [c for c in df_frames.columns if c.startswith(("Y_", "Yhat_"))]
         w_cols = [c for c in df_frames.columns if c.startswith("W_")]
 
+        # pandas .mean() skips NaN by default: annotated obs get real Y values,
+        # unannotated obs get NaN — exactly the right behaviour.
         obs_y    = df_frames.groupby("observation_id")[y_cols].mean().reset_index()
         obs_meta = df_frames.groupby("observation_id")[["T"] + w_cols].first().reset_index()
-        result   = obs_y.merge(obs_meta, on="observation_id")
-        result["_has_annotations"] = self.has_annotations
+        # Per-observation: annotated if ALL frames in that observation are annotated
+        obs_ann  = df_frames.groupby("observation_id")["_annotated"].min().reset_index()
+        obs_ann["_has_annotations"] = obs_ann["_annotated"] > 0.5
+        obs_ann = obs_ann.drop(columns=["_annotated"])
+
+        result = obs_y.merge(obs_meta, on="observation_id").merge(obs_ann, on="observation_id")
         return result
 
     def __repr__(self) -> str:
