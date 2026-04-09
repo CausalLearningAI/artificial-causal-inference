@@ -25,6 +25,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
 import torch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -44,6 +45,7 @@ from ppci.visualize import (                # noqa: E402
     plot_summary,
     plot_comparison_versions,
     plot_comparison_versions_by_metric,
+    plot_error_examples,
 )
 
 
@@ -168,6 +170,8 @@ def _eval_version(
     out_dir: Path,
     outcomes: list[str],
     treatment_labels: dict | None = None,
+    plot_errors: bool = False,
+    n_error_examples: int = 20,
 ) -> dict | None:
     """Evaluate one version. Returns metrics dict, None (no annotations), or {} (no embeddings)."""
     if not _check_embeddings(encoder, token, [version], frame_type):
@@ -191,27 +195,49 @@ def _eval_version(
     ds.add_predictions(model, device)
     obs_df = ds.obs_level()
 
-    has_annotations = bool(ds.has_annotations)
-    n_annotated = int((ds.Y.abs().sum(dim=-1) > 0).sum()) if has_annotations else 0
+    # has_annotations is True, False, or "partial"
+    has_annotations = ds.has_annotations  # True | False | "partial"
+    any_annotated   = has_annotations is not False
+    n_annotated     = int(ds.annotated_mask.sum())
 
     plot_path = str(out_dir / f"plot_summary_{version}.png")
     plot_summary(
         obs_df,
         outcomes=outcomes,
-        annotations=has_annotations,
+        annotations=any_annotated,
         treatment_labels=treatment_labels,
         save=True,
         save_path=plot_path,
     )
     print(f"  ✓ plot_summary saved: {plot_path}")
 
-    if not has_annotations or n_annotated == 0:
+    if not any_annotated or n_annotated == 0:
         print(f"  [no annotations] Classification metrics skipped.")
         return None
 
+    outcome_cols = [f"Y_{o}" for o in outcomes]
     m = compute_metrics(model, ds.X, ds.Y, device)
     print(f"  → bacc={m.get('bacc', 0):.4f}  acc={m.get('acc', 0):.4f}"
           f"  recall={m.get('recall', 0):.4f}  precision={m.get('precision', 0):.4f}")
+    if has_annotations == "partial":
+        print(f"  [partial] {n_annotated:,} annotated frames "
+              f"({len(np.unique(ds.obs_ids[ds.annotated_mask.numpy()])):,} observations)")
+
+    if plot_errors:
+        err_path = str(out_dir / f"plot_errors_{version}.png")
+        try:
+            plot_error_examples(
+                ds,
+                outcome_cols=outcome_cols,
+                n=n_error_examples,
+                dataset_root=str(ROOT / "dataset"),
+                save=True,
+                save_path=err_path,
+            )
+            print(f"  ✓ plot_errors saved: {err_path}")
+        except Exception as exc:
+            print(f"  [WARNING] plot_error_examples failed: {exc}")
+
     del ds
     return {k: float(m.get(k, 0.0)) for k in ("acc", "bacc", "recall", "precision")}
 
@@ -233,6 +259,8 @@ def _run_evaluation(
         m = _eval_version(
             version, model, encoder, token, k, mode,
             frame_type, dist_mode, device, out_dir, outcomes,
+            plot_errors=(version in cfg.test_versions),
+            n_error_examples=20,
         )
         version_metrics[version] = m
 

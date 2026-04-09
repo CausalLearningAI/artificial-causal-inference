@@ -15,6 +15,9 @@ plot_po_barplot   — Average potential outcomes per treatment with ±SE error b
 plot_summary      — Convenience wrapper: one row per outcome.
                     annotations=True  → ATE | PP-ATE | PO barplot (3 cols)
                     annotations=False → PP-ATE | PO barplot pred-only (2 cols)
+
+plot_error_examples — Grid of N worst prediction errors with frame images.
+                      One row per error: frame image, true Y, predicted Yhat, obs context.
 """
 
 from __future__ import annotations
@@ -760,5 +763,162 @@ def plot_outcome_distribution_ants(ds, treatment_labels=None, title=None, save=F
     if save:
         os.makedirs(results_dir, exist_ok=True)
         fig.savefig(os.path.join(results_dir, "outcome_distribution_ants.png"))
+    else:
+        plt.show()
+
+
+# ---------------------------------------------------------------------------
+# Error examples
+# ---------------------------------------------------------------------------
+
+def plot_error_examples(
+    dataset,
+    outcome_cols: list[str],
+    n: int = 20,
+    dataset_root: str = "./dataset",
+    seed: int = 0,
+    save: bool = False,
+    save_path: Optional[str] = None,
+) -> None:
+    """Plot a grid of N prediction error examples with frame images.
+
+    Rows are sampled from annotated frames where the rounded prediction
+    disagrees with the true label on at least one outcome.  Each row shows:
+      - The frame image
+      - True Y and predicted Yhat per outcome column (colour-coded)
+      - Contextual info: observation_id, frame_idx, treatment
+
+    Args:
+        dataset:      PPCIDataset with add_predictions() already called.
+        outcome_cols: List of outcome column names used (e.g. ["Y_Y2F", "Y_B2F"]).
+        n:            Number of error examples to show (default 20).
+        dataset_root: Root of the dataset directory (default "./dataset").
+        seed:         RNG seed for sampling when errors > n (default 0).
+        save:         If True, save to save_path instead of showing.
+        save_path:    File path for the saved figure.
+    """
+    from pathlib import Path
+    try:
+        from PIL import Image
+    except ImportError:
+        raise ImportError("Pillow is required for plot_error_examples: pip install Pillow")
+
+    if dataset.Yhat is None:
+        raise ValueError("Call dataset.add_predictions(model, device) before plot_error_examples().")
+
+    Y    = dataset.Y.float()       # (N,) or (N, k)
+    Yhat = dataset.Yhat.float()    # same shape
+    ann  = dataset.annotated_mask  # (N,) bool
+
+    # Identify error frames among annotated ones
+    if Y.dim() == 1:
+        wrong = (Yhat.round() != Y) & ann
+    else:
+        wrong = ((Yhat.round() != Y).any(dim=1)) & ann
+
+    error_indices = wrong.nonzero(as_tuple=True)[0]
+    if len(error_indices) == 0:
+        print("[plot_error_examples] No prediction errors found in annotated frames.")
+        return
+
+    # Sample up to n
+    rng = np.random.default_rng(seed)
+    if len(error_indices) > n:
+        chosen = rng.choice(len(error_indices), size=n, replace=False)
+        error_indices = error_indices[chosen]
+    n_show = len(error_indices)
+
+    labels = [c.replace("Y_", "") for c in outcome_cols]
+    n_outcomes = len(labels)
+
+    # Layout: one row per error, cols = [image, label_col_0, …, label_col_k-1]
+    n_cols = 1 + n_outcomes
+    col_w  = [2.5] + [1.2] * n_outcomes
+    fig, axes = plt.subplots(
+        n_show, n_cols,
+        figsize=(sum(col_w), n_show * 2.2),
+        gridspec_kw={"width_ratios": col_w},
+    )
+    if n_show == 1:
+        axes = axes[np.newaxis, :]   # keep 2-D
+
+    fig.suptitle(
+        f"Prediction errors  ({n_show} of {int(wrong.sum())} annotated errors shown)",
+        fontsize=13, y=1.002,
+    )
+
+    obs_ids    = dataset.obs_ids
+    frame_idxs = dataset.frame_idx.numpy()
+    T_vals     = dataset.T
+
+    for row, idx in enumerate(error_indices.tolist()):
+        obs_id    = obs_ids[idx]
+        frame_idx = int(frame_idxs[idx])
+        treatment = T_vals[idx]
+
+        # ── frame image ────────────────────────────────────────────────────
+        # frame_path stored in annotations.csv: "ants/v5/frames/full/…/frame_000000.jpg"
+        # Reconstruct it from obs_id and frame_idx
+        obs_file_stem = obs_id  # e.g. "5_1_5"
+        # Walk known frame locations: dataset_root/subject/version/frames/full/obs_id/
+        # We look in dataset_root using the stored obs_id as the folder name
+        frame_candidates = list(
+            Path(dataset_root).glob(f"*/*/frames/full/{obs_file_stem}/frame_{frame_idx:06d}.jpg")
+        ) + list(
+            Path(dataset_root).glob(f"*/*/frames/full/{obs_file_stem}/frame_{frame_idx:06d}.jpg")
+        )
+        ax_img = axes[row, 0]
+        if frame_candidates:
+            try:
+                img = np.array(Image.open(frame_candidates[0]).convert("RGB"))
+                ax_img.imshow(img)
+            except Exception:
+                ax_img.set_facecolor("#dddddd")
+                ax_img.text(0.5, 0.5, "no image", ha="center", va="center",
+                            transform=ax_img.transAxes, fontsize=7)
+        else:
+            ax_img.set_facecolor("#dddddd")
+            ax_img.text(0.5, 0.5, "no image", ha="center", va="center",
+                        transform=ax_img.transAxes, fontsize=7)
+
+        ax_img.axis("off")
+        ax_img.set_title(
+            f"{obs_id}  f={frame_idx}  T={treatment}",
+            fontsize=7, pad=2,
+        )
+
+        # ── per-outcome label panels ────────────────────────────────────────
+        y_row    = Y[idx]    if Y.dim() == 1    else Y[idx]
+        yhat_row = Yhat[idx] if Yhat.dim() == 1 else Yhat[idx]
+
+        if Y.dim() == 1:
+            y_vals    = [float(y_row)]
+            yhat_vals = [float(yhat_row)]
+        else:
+            y_vals    = y_row.tolist()
+            yhat_vals = yhat_row.tolist()
+
+        for col, (label, y_true, y_pred) in enumerate(zip(labels, y_vals, yhat_vals)):
+            ax = axes[row, 1 + col]
+            correct = round(y_pred) == round(y_true)
+            bg = "#d4edda" if correct else "#f8d7da"   # green / red
+            ax.set_facecolor(bg)
+            ax.text(0.5, 0.65,
+                    f"Y={int(y_true)}",
+                    ha="center", va="center", fontsize=10, fontweight="bold",
+                    transform=ax.transAxes)
+            ax.text(0.5, 0.30,
+                    f"Ŷ={y_pred:.2f}",
+                    ha="center", va="center", fontsize=9,
+                    color="#555555", transform=ax.transAxes)
+            ax.axis("off")
+            if row == 0:
+                ax.set_title(label, fontsize=9, pad=3)
+
+    plt.tight_layout()
+    if save and save_path:
+        os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
     else:
         plt.show()

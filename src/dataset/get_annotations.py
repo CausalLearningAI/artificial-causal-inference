@@ -403,23 +403,18 @@ class DatasetGenerator:
                     if cov_name in exp:
                         labels_df[f'W_{cov_name}'] = exp[cov_name]
                         
-            # Match frames with labels
-            for _, row in labels_df.iterrows():
-                frame_idx = int(row['frame_idx'])
-                
-                # Construct frame path (both frame_idx and filenames are 0-indexed)
-                frame_name = f"frame_{frame_idx:06d}.jpg"
-                frame_abs_path = frame_dir / frame_name
-                
-                # Only include if frame exists
-                if frame_abs_path.exists():
-                    frame_rel_path = str(frame_abs_path.relative_to(self.dataset_root))
-                    
-                    row_dict = {
-                        'frame_path': frame_rel_path,
-                        **row.to_dict()
-                    }
-                    all_rows.append(row_dict)
+            # Build set of existing frame indices with a single glob (avoids per-frame NFS stat)
+            existing_indices = {
+                int(p.stem.split("_")[1])
+                for p in frame_files
+            }
+
+            # Match frames with labels — vectorized path construction, no per-frame stat
+            labels_df = labels_df[labels_df['frame_idx'].isin(existing_indices)].copy()
+            labels_df['frame_path'] = labels_df['frame_idx'].apply(
+                lambda i: str((frame_dir / f"frame_{i:06d}.jpg").relative_to(self.dataset_root))
+            )
+            all_rows.extend(labels_df.to_dict('records'))
         
         # Create final dataframe
         dataset_df = pd.DataFrame(all_rows)

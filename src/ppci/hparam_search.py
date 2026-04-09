@@ -89,7 +89,7 @@ DATASET_ROOT    = ROOT / "dataset" / "ants"
 DS_KWARGS = dict(
     outcome_cols=["Y_Y2F", "Y_B2F"],
     task="multilabel",
-    env_cols=["W_batch", "W_nestbox"],
+    env_cols=["W_batch", "W_position"],
     env_include_treatment=False,
     seed=0,
 )

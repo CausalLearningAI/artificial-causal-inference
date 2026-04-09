@@ -76,12 +76,8 @@ def load_dataset(
     
     subject_dir = dataset_root / subject / version
 
-    # HF metadata is view-independent — prefer hf/, fall back to hf/full/ (legacy).
-    hf_dir = subject_dir / "hf"
-    if not (hf_dir / "dataset_info.json").exists():
-        hf_dir_legacy = hf_dir / "full"
-        if (hf_dir_legacy / "dataset_info.json").exists():
-            hf_dir = hf_dir_legacy
+    # HF metadata is view-independent — canonical path is hf/full/.
+    hf_dir = subject_dir / "hf" / "full"
 
     annotations_csv = subject_dir / "annotations.csv"
     frames_dir = subject_dir / "frames" / frame_type
@@ -263,7 +259,10 @@ def save_dataset(
         Path to saved dataset
     """
     output_dir.parent.mkdir(parents=True, exist_ok=True)
-    dataset.save_to_disk(str(output_dir))
+    # Strip metadata field to avoid DatasetInfo compatibility issues with older datasets versions
+    if hasattr(dataset, "info") and hasattr(dataset.info, "__dict__"):
+        dataset.info.__dict__.pop("metadata", None)
+    dataset.save_to_disk(str(output_dir), num_proc=4)
     return output_dir
 
 
@@ -291,7 +290,7 @@ def generate_and_save_dataset(
     else:
         dataset_root = Path(dataset_root)
     
-    output_dir = dataset_root / subject / version / "hf"
+    output_dir = dataset_root / subject / version / "hf" / "full"
     
     # Check if already exists and skip if not overwriting
     if output_dir.exists() and not overwrite:
