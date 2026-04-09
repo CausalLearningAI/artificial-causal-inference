@@ -255,7 +255,9 @@ class DatasetGenerator:
         if not self.experiment_csv.exists():
             raise ValueError(f"Experiment CSV not found: {self.experiment_csv}")
         
-        return pd.read_csv(self.experiment_csv)
+        df = pd.read_csv(self.experiment_csv)
+        df.columns = [c.strip().replace(" ", "_") for c in df.columns]
+        return df
     
     def generate_dataset_table(self) -> pd.DataFrame:
         """

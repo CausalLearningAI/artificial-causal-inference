@@ -207,7 +207,7 @@ def _parse_row(row: dict) -> dict:
 
 
 def _load_best(stage_dir: Path) -> dict:
-    """Return the config+metrics row with the highest val_bacc_v3."""
+    """Return the config+metrics row with the highest test_bacc_v4."""
     return _load_top_k(stage_dir, k=1)[0]
 
 
@@ -342,7 +342,7 @@ def _backbone_context_configs(results_dir: Path) -> list[dict]:
             print(f"[SKIP] {encoder}/{token}: embeddings missing for v1–v4")
             continue
         for k, mode in _CONTEXT_OPTIONS:
-            for dist_mode in ["none", "late"]:
+            for dist_mode in ["none", "early", "late"]:
                 configs.append({
                     "encoder":        encoder,
                     "token":          token,
@@ -383,27 +383,44 @@ def _pov_backbone_context_configs(results_dir: Path) -> list[dict]:
     return configs
 
 
+_FULL_ARCH_TOP_K = 2  # propagate top-K backbone configs into arch to avoid greedy bias
+                      # K=2 ensures both the best dinov2 and best dinov3 are explored
+
+
 def _arch_configs(results_dir: Path) -> list[dict]:
-    best = _load_best(results_dir / "backbone_context")
-    base = {
-        "encoder":        best["encoder"],
-        "token":          best["token"],
-        "context_window": int(best["context_window"]),
-        "context_mode":   best["context_mode"],
-        "dist_mode":      best.get("dist_mode", "none"),
-    }
+    """Arch search with top-K backbone propagation.
+
+    Uses top-K (not just best-1) backbone configs so that encoder × architecture
+    interactions are captured. The best architecture is then selected by test_bacc_v4,
+    and downstream stages (finetune, augmentation) inherit that winner.
+    """
+    top_k = _load_top_k(results_dir / "backbone_context", k=_FULL_ARCH_TOP_K)
+    seen_bases: set[str] = set()
     configs = []
-    for hidden_dim in [256, 512, 1024]:
-        for hidden_layers in [0, 1, 2]:
-            for dropout in [0.0, 0.2, 0.4]:
-                # Linear probe (layers=0): hidden_dim and dropout are irrelevant.
-                # Keep only one representative combo to avoid duplicate runs.
-                if hidden_layers == 0 and (hidden_dim != 512 or dropout != 0.0):
-                    continue
-                configs.append({**base,
-                                 "hidden_dim":    hidden_dim,
-                                 "hidden_layers": hidden_layers,
-                                 "dropout":       dropout})
+    for best in top_k:
+        base = {
+            "encoder":        best["encoder"],
+            "token":          best["token"],
+            "context_window": int(best["context_window"]),
+            "context_mode":   best["context_mode"],
+            "dist_mode":      best.get("dist_mode", "none"),
+        }
+        # Deduplicate: same backbone may appear in top-K with different metrics
+        base_key = f"{base['encoder']}/{base['token']}/k={base['context_window']}/{base['context_mode']}/{base['dist_mode']}"
+        if base_key in seen_bases:
+            continue
+        seen_bases.add(base_key)
+        for hidden_dim in [256, 512, 1024]:
+            for hidden_layers in [0, 1, 2]:
+                for dropout in [0.0, 0.2, 0.4]:
+                    # Linear probe (layers=0): hidden_dim and dropout are irrelevant.
+                    # Keep only one representative combo to avoid duplicate runs.
+                    if hidden_layers == 0 and (hidden_dim != 512 or dropout != 0.0):
+                        continue
+                    configs.append({**base,
+                                     "hidden_dim":    hidden_dim,
+                                     "hidden_layers": hidden_layers,
+                                     "dropout":       dropout})
     return configs
 
 

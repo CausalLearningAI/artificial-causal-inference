@@ -98,7 +98,7 @@ def plot_ate_matrix(
     n      = len(t_vals)
     xlbls  = [str(treatment_labels.get(t, t)) if treatment_labels else str(t) for t in t_vals]
 
-    grp_vals = {t: obs_df.loc[obs_df["T"] == t, col].values for t in t_vals}
+    grp_vals = {t: obs_df.loc[obs_df["T"] == t, col].dropna().values for t in t_vals}
     grp_mean = {t: float(grp_vals[t].mean()) for t in t_vals}
     grp_sem  = {t: float(_sem(grp_vals[t]))  for t in t_vals}
 
@@ -216,8 +216,11 @@ def plot_po_barplot(
     x = np.arange(n)
 
     if has_gt:
-        gt_means = np.array([obs_df.loc[obs_df["T"] == t, y_col].mean() for t in t_vals])
-        gt_sems  = np.array([_sem(obs_df.loc[obs_df["T"] == t, y_col].values) for t in t_vals])
+        def _gt_vals(t):
+            v = obs_df.loc[obs_df["T"] == t, y_col].values
+            return v[~np.isnan(v)]
+        gt_means = np.array([_gt_vals(t).mean() for t in t_vals])
+        gt_sems  = np.array([_sem(_gt_vals(t)) for t in t_vals])
         width = 0.38
         gt_bars   = ax.bar(x - width / 2, gt_means, width, yerr=gt_sems, capsize=3,
                            color="#44aa77", alpha=0.85, label="Ground truth")
@@ -779,23 +782,32 @@ def plot_error_examples(
     seed: int = 0,
     save: bool = False,
     save_path: Optional[str] = None,
+    frame_type: str = "full",
+    treatment_filter=None,
+    outcome_error_filter: Optional[str] = None,
 ) -> None:
     """Plot a grid of N prediction error examples with frame images.
 
     Rows are sampled from annotated frames where the rounded prediction
     disagrees with the true label on at least one outcome.  Each row shows:
-      - The frame image
+      - The frame image (full view, and for pov: yellow + blue POV crops)
       - True Y and predicted Yhat per outcome column (colour-coded)
       - Contextual info: observation_id, frame_idx, treatment
 
     Args:
-        dataset:      PPCIDataset with add_predictions() already called.
-        outcome_cols: List of outcome column names used (e.g. ["Y_Y2F", "Y_B2F"]).
-        n:            Number of error examples to show (default 20).
-        dataset_root: Root of the dataset directory (default "./dataset").
-        seed:         RNG seed for sampling when errors > n (default 0).
-        save:         If True, save to save_path instead of showing.
-        save_path:    File path for the saved figure.
+        dataset:              PPCIDataset with add_predictions() already called.
+        outcome_cols:         List of outcome column names used (e.g. ["Y_Y2F", "Y_B2F"]).
+        n:                    Number of error examples to show (default 20).
+        dataset_root:         Root of the dataset directory (default "./dataset").
+        seed:                 RNG seed for sampling when errors > n (default 0).
+        save:                 If True, save to save_path instead of showing.
+        save_path:            File path for the saved figure.
+        frame_type:           "full" (default) or "pov". When "pov", also shows yellow and
+                              blue POV crop images alongside the full frame.
+        treatment_filter:     Optional treatment value (or list of values) to restrict
+                              errors to frames with that treatment (e.g. "B" or 2).
+        outcome_error_filter: Optional outcome column name (e.g. "Y_Y2F") to restrict
+                              errors to frames where that specific outcome is wrong.
     """
     from pathlib import Path
     try:
@@ -814,7 +826,25 @@ def plot_error_examples(
     if Y.dim() == 1:
         wrong = (Yhat.round() != Y) & ann
     else:
-        wrong = ((Yhat.round() != Y).any(dim=1)) & ann
+        if outcome_error_filter is not None and outcome_error_filter in outcome_cols:
+            oc_idx = outcome_cols.index(outcome_error_filter)
+            wrong = (Yhat[:, oc_idx].round() != Y[:, oc_idx]) & ann
+        else:
+            wrong = ((Yhat.round() != Y).any(dim=1)) & ann
+
+    # Apply treatment filter
+    if treatment_filter is not None:
+        import torch as _torch
+        T_tensor = dataset.T
+        if not isinstance(treatment_filter, (list, tuple)):
+            treatment_filter = [treatment_filter]
+        t_mask = _torch.zeros(len(T_tensor), dtype=_torch.bool)
+        for tv in treatment_filter:
+            if isinstance(T_tensor[0], str):
+                t_mask |= _torch.tensor([t == tv for t in T_tensor], dtype=_torch.bool)
+            else:
+                t_mask |= (T_tensor == tv)
+        wrong = wrong & t_mask
 
     error_indices = wrong.nonzero(as_tuple=True)[0]
     if len(error_indices) == 0:
@@ -830,10 +860,12 @@ def plot_error_examples(
 
     labels = [c.replace("Y_", "") for c in outcome_cols]
     n_outcomes = len(labels)
+    pov_colors = ["yellow", "blue"] if frame_type == "pov" else []
 
-    # Layout: one row per error, cols = [image, label_col_0, …, label_col_k-1]
-    n_cols = 1 + n_outcomes
-    col_w  = [2.5] + [1.2] * n_outcomes
+    # Layout: one row per error, cols = [full_image, (pov_yellow, pov_blue,) label_col_0, …]
+    n_img_cols = 1 + len(pov_colors)
+    n_cols = n_img_cols + n_outcomes
+    col_w  = [2.5] * n_img_cols + [1.2] * n_outcomes
     fig, axes = plt.subplots(
         n_show, n_cols,
         figsize=(sum(col_w), n_show * 2.2),
@@ -842,8 +874,14 @@ def plot_error_examples(
     if n_show == 1:
         axes = axes[np.newaxis, :]   # keep 2-D
 
+    filter_desc = ""
+    if treatment_filter is not None:
+        tv = treatment_filter if isinstance(treatment_filter, (list, tuple)) else [treatment_filter]
+        filter_desc += f"  T∈{{{','.join(str(x) for x in tv)}}}"
+    if outcome_error_filter is not None:
+        filter_desc += f"  err on {outcome_error_filter.replace('Y_', '')}"
     fig.suptitle(
-        f"Prediction errors  ({n_show} of {int(wrong.sum())} annotated errors shown)",
+        f"Prediction errors  ({n_show} of {int(wrong.sum())} annotated errors shown){filter_desc}",
         fontsize=13, y=1.002,
     )
 
@@ -857,35 +895,42 @@ def plot_error_examples(
         treatment = T_vals[idx]
 
         # ── frame image ────────────────────────────────────────────────────
-        # frame_path stored in annotations.csv: "ants/v5/frames/full/…/frame_000000.jpg"
-        # Reconstruct it from obs_id and frame_idx
+        # Reconstruct path from obs_id and frame_idx
         obs_file_stem = obs_id  # e.g. "5_1_5"
-        # Walk known frame locations: dataset_root/subject/version/frames/full/obs_id/
-        # We look in dataset_root using the stored obs_id as the folder name
-        frame_candidates = list(
-            Path(dataset_root).glob(f"*/*/frames/full/{obs_file_stem}/frame_{frame_idx:06d}.jpg")
-        ) + list(
-            Path(dataset_root).glob(f"*/*/frames/full/{obs_file_stem}/frame_{frame_idx:06d}.jpg")
-        )
-        ax_img = axes[row, 0]
-        if frame_candidates:
-            try:
-                img = np.array(Image.open(frame_candidates[0]).convert("RGB"))
-                ax_img.imshow(img)
-            except Exception:
-                ax_img.set_facecolor("#dddddd")
-                ax_img.text(0.5, 0.5, "no image", ha="center", va="center",
-                            transform=ax_img.transAxes, fontsize=7)
-        else:
-            ax_img.set_facecolor("#dddddd")
-            ax_img.text(0.5, 0.5, "no image", ha="center", va="center",
-                        transform=ax_img.transAxes, fontsize=7)
 
-        ax_img.axis("off")
-        ax_img.set_title(
-            f"{obs_id}  f={frame_idx}  T={treatment}",
-            fontsize=7, pad=2,
+        def _load_frame_image(glob_pattern: str):
+            candidates = list(Path(dataset_root).glob(glob_pattern))
+            if candidates:
+                try:
+                    return np.array(Image.open(candidates[0]).convert("RGB"))
+                except Exception:
+                    pass
+            return None
+
+        def _show_image(ax, img, title):
+            if img is not None:
+                ax.imshow(img)
+            else:
+                ax.set_facecolor("#dddddd")
+                ax.text(0.5, 0.5, "no image", ha="center", va="center",
+                        transform=ax.transAxes, fontsize=7)
+            ax.axis("off")
+            if title:
+                ax.set_title(title, fontsize=7, pad=2)
+
+        full_img = _load_frame_image(
+            f"*/*/frames/full/{obs_file_stem}/frame_{frame_idx:06d}.jpg"
         )
+        _show_image(axes[row, 0], full_img,
+                    f"{obs_id}  f={frame_idx}  T={treatment}")
+
+        # ── POV images (yellow, blue) ───────────────────────────────────────
+        for pov_col_offset, color in enumerate(pov_colors, start=1):
+            pov_img = _load_frame_image(
+                f"*/*/frames/pov/{color}/{obs_file_stem}/frame_{frame_idx:06d}.jpg"
+            )
+            title = color if row == 0 else None
+            _show_image(axes[row, pov_col_offset], pov_img, title)
 
         # ── per-outcome label panels ────────────────────────────────────────
         y_row    = Y[idx]    if Y.dim() == 1    else Y[idx]
@@ -899,7 +944,7 @@ def plot_error_examples(
             yhat_vals = yhat_row.tolist()
 
         for col, (label, y_true, y_pred) in enumerate(zip(labels, y_vals, yhat_vals)):
-            ax = axes[row, 1 + col]
+            ax = axes[row, n_img_cols + col]
             correct = round(y_pred) == round(y_true)
             bg = "#d4edda" if correct else "#f8d7da"   # green / red
             ax.set_facecolor(bg)

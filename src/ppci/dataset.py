@@ -34,13 +34,17 @@ def _load_tracking_distances(
     obs_ids: np.ndarray,
     frame_idxs: np.ndarray,
     dataset_root: str = "./dataset",
-    scale: float = 512.0,
+    pov_radius: float = 80.0,
 ) -> dict[str, np.ndarray]:
-    """Load tracking CSVs and return per-pair normalised Euclidean distances.
+    """Load tracking CSVs and return binary proximity indicators.
+
+    Each distance is divided by *pov_radius* (the crop radius used to build POV
+    frames) and then binarized: 0 = the pair is within the crop (close), 1 = the
+    pair is outside the crop (far).  Rows with missing tracking data are filled
+    with 0 (i.e. treated as "close / unknown").
 
     Returns a dict with keys ``"B2F"``, ``"Y2F"``, ``"B2Y"`` — each an
-    ``(N,)`` float32 array of distances / *scale*.  Rows with missing tracking
-    data (merge mismatches) are filled with 0.
+    ``(N,)`` float32 array of 0/1 values.
     """
     import pandas as pd
     from pathlib import Path
@@ -81,14 +85,15 @@ def _load_tracking_distances(
     fx = merged["focal_x"].to_numpy(dtype=np.float64)
     fy = merged["focal_y"].to_numpy(dtype=np.float64)
 
-    def _dist(ax, ay, bx_, by_):
-        d = np.sqrt((ax - bx_) ** 2 + (ay - by_) ** 2) / scale
-        return np.nan_to_num(d, nan=0.0).astype(np.float32)
+    def _dist_bin(ax, ay, bx_, by_):
+        d = np.sqrt((ax - bx_) ** 2 + (ay - by_) ** 2) / pov_radius
+        d = np.nan_to_num(d, nan=0.0)
+        return (d < 1.0).astype(np.float32)  # 1 = close (inside crop), 0 = far
 
     return {
-        "B2F": _dist(bx, by, fx, fy),
-        "Y2F": _dist(yx, yy, fx, fy),
-        "B2Y": _dist(bx, by, yx, yy),
+        "B2F": _dist_bin(bx, by, fx, fy),
+        "Y2F": _dist_bin(yx, yy, fx, fy),
+        "B2Y": _dist_bin(bx, by, yx, yy),
     }
 
 

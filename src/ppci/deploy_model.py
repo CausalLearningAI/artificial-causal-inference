@@ -172,6 +172,8 @@ def _eval_version(
     treatment_labels: dict | None = None,
     plot_errors: bool = False,
     n_error_examples: int = 20,
+    error_treatment_filter=None,
+    error_outcome_filter: str | None = None,
 ) -> dict | None:
     """Evaluate one version. Returns metrics dict, None (no annotations), or {} (no embeddings)."""
     if not _check_embeddings(encoder, token, [version], frame_type):
@@ -224,7 +226,13 @@ def _eval_version(
               f"({len(np.unique(ds.obs_ids[ds.annotated_mask.numpy()])):,} observations)")
 
     if plot_errors:
-        err_path = str(out_dir / f"plot_errors_{version}.png")
+        filter_suffix = ""
+        if error_treatment_filter is not None:
+            tv = error_treatment_filter if isinstance(error_treatment_filter, (list, tuple)) else [error_treatment_filter]
+            filter_suffix += "_T-" + "-".join(str(x) for x in tv)
+        if error_outcome_filter is not None:
+            filter_suffix += "_" + error_outcome_filter.replace("Y_", "")
+        err_path = str(out_dir / f"plot_errors_{version}{filter_suffix}.png")
         try:
             plot_error_examples(
                 ds,
@@ -233,6 +241,9 @@ def _eval_version(
                 dataset_root=str(ROOT / "dataset"),
                 save=True,
                 save_path=err_path,
+                frame_type=frame_type,
+                treatment_filter=error_treatment_filter,
+                outcome_error_filter=error_outcome_filter,
             )
             print(f"  ✓ plot_errors saved: {err_path}")
         except Exception as exc:
@@ -250,6 +261,8 @@ def _run_evaluation(
     frame_type: str, dist_mode: str,
     device: torch.device,
     out_dir: Path,
+    error_treatment_filter=None,
+    error_outcome_filter: str | None = None,
 ) -> None:
     """Evaluate all versions, save metrics and comparison plots."""
     outcomes = [c.replace("Y_", "") for c in DS_KWARGS.get("outcome_cols", ["Y_Y2F", "Y_B2F"])]
@@ -261,6 +274,8 @@ def _run_evaluation(
             frame_type, dist_mode, device, out_dir, outcomes,
             plot_errors=(version in cfg.test_versions),
             n_error_examples=20,
+            error_treatment_filter=error_treatment_filter,
+            error_outcome_filter=error_outcome_filter,
         )
         version_metrics[version] = m
 
@@ -300,6 +315,8 @@ def deploy_one(
     dry_run: bool = False,
     skip_if_exists: bool = False,
     eval_only: bool = False,
+    error_treatment_filter=None,
+    error_outcome_filter: str | None = None,
 ) -> None:
     """Train (or load) and evaluate one DeployConfig."""
     out_dir    = results_dir / "deploy" / cfg.name
@@ -344,15 +361,34 @@ def deploy_one(
         if not model_path.exists():
             print(f"[ERROR] --eval-only requires {model_path}", file=sys.stderr)
             sys.exit(1)
+        # Reload cfg_dict from the saved config.json so the model architecture
+        # matches exactly what was used during training (not the current hparam search).
+        saved_cfg_path = out_dir / "config.json"
+        if saved_cfg_path.exists():
+            with open(saved_cfg_path) as f:
+                cfg_dict = json.load(f)
+            encoder   = cfg_dict["encoder"]
+            token     = cfg_dict.get("token", "class")
+            k         = int(cfg_dict.get("context_window", BASE_CFG.training.context_window))
+            mode      = cfg_dict.get("context_mode", BASE_CFG.training.context_mode)
+            dist_mode = cfg_dict.get("dist_mode", "none")
+            finetune_cfg = _build_finetune_cfg(cfg_dict)
+            load_kw = dict(
+                encoder=encoder, token=token, k=k, mode=mode,
+                frame_type=frame_type, dist_mode=dist_mode,
+            )
+            print(f"\n[eval-only] Using saved config from {saved_cfg_path}")
         print(f"\n[eval-only] Loading model from {model_path}")
         ref_version = cfg.finetune_versions[-1]
         ds_tmp = _load_dataset(ref_version, **load_kw)
         model = build_model(ds_tmp, finetune_cfg)
         del ds_tmp
-        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
         model = model.to(device)
         out_dir.mkdir(parents=True, exist_ok=True)
-        _run_evaluation(model, cfg, **load_kw, device=device, out_dir=out_dir)
+        _run_evaluation(model, cfg, **load_kw, device=device, out_dir=out_dir,
+                        error_treatment_filter=error_treatment_filter,
+                        error_outcome_filter=error_outcome_filter)
         return
 
     # ── skip-if-exists ────────────────────────────────────────────────────────
@@ -374,10 +410,11 @@ def deploy_one(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # ── pretrain: sequential warm-start chain ─────────────────────────────────
+    # Use n_val=5 for pretrain to match hparam search (best epoch via val_bacc).
     model = None
     for version in cfg.pretrain_versions:
         print(f"\n[pretrain] Loading {version} ...")
-        ds = _load_dataset(version, **load_kw)
+        ds = _load_dataset(version, n_val=5, **load_kw)
         if model is None:
             model = build_model(ds, pretrain_cfg)
         model = train(ds, model, pretrain_cfg)
@@ -387,9 +424,10 @@ def deploy_one(
         del ds
 
     # ── finetune: joint training on all finetune versions ─────────────────────
+    # Use n_val=10 for finetune to match hparam search (best epoch via val_bacc).
     ft_label = " + ".join(cfg.finetune_versions)
     print(f"\n[finetune] Loading {ft_label} (combined) ...")
-    ds_ft = PPCIDataset.concat([_load_dataset(v, **load_kw) for v in cfg.finetune_versions])
+    ds_ft = PPCIDataset.concat([_load_dataset(v, n_val=10, **load_kw) for v in cfg.finetune_versions])
     model = train(ds_ft, model, finetune_cfg)
     print(f"  → best_epoch={getattr(model, 'best_epoch', '?')}")
     _warn_training_health(getattr(model, "training_diagnostics", None),
@@ -411,7 +449,9 @@ def deploy_one(
     print(f"\n  ✓ Model saved: {model_path}")
 
     # ── evaluate and plot all versions ────────────────────────────────────────
-    _run_evaluation(model, cfg, **load_kw, device=device, out_dir=out_dir)
+    _run_evaluation(model, cfg, **load_kw, device=device, out_dir=out_dir,
+                    error_treatment_filter=error_treatment_filter,
+                    error_outcome_filter=error_outcome_filter)
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -429,6 +469,10 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--skip-if-exists", action="store_true")
     parser.add_argument("--eval-only", action="store_true")
+    parser.add_argument("--error-treatment", default=None, metavar="T",
+                        help="Filter error plot to this treatment value (e.g. 'B').")
+    parser.add_argument("--error-outcome", default=None, metavar="COL",
+                        help="Filter error plot to errors on this outcome (e.g. 'Y_Y2F').")
     args = parser.parse_args()
 
     if args.eval_only and args.skip_if_exists:
@@ -455,6 +499,8 @@ def main() -> None:
             dry_run=args.dry_run,
             skip_if_exists=args.skip_if_exists,
             eval_only=args.eval_only,
+            error_treatment_filter=args.error_treatment,
+            error_outcome_filter=args.error_outcome,
         )
 
 
