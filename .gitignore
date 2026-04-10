@@ -16,9 +16,6 @@ dataset/
 *.csv
 *.json
 
-# may be removed later
-scripts/
-
 # should be delated later
 */old/
 CLAUDE.md
