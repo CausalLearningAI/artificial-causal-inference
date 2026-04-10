@@ -11,8 +11,7 @@ Each configuration defines:
   test_versions     — held-out evaluation (skipped if embeddings absent)
 
 Usage:
-  python src/ppci/deploy_model.py                                # full, all configs
-  python src/ppci/deploy_model.py --frame-type pov               # pov, all configs
+  python src/ppci/deploy_model.py                                # auto-detect best (pov > full)
   python src/ppci/deploy_model.py --config validate              # one config only
   python src/ppci/deploy_model.py --eval-only                    # re-eval + plots
   python src/ppci/deploy_model.py --dry-run                      # preview, no training
@@ -27,6 +26,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from omegaconf import OmegaConf
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -34,11 +34,11 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from ppci.dataset import PPCIDataset        # noqa: E402
 from ppci.hparam_search import (            # noqa: E402
-    RESULTS_DIR, RESULTS_DIR_POV, DS_KWARGS,
+    RESULTS_DIR, DS_KWARGS,
     BASE_CFG,
     _embeddings_available, _pov_embeddings_available, _load_best,
     _build_pretrain_cfg, _build_finetune_cfg,
-    _warn_training_health,
+    _warn_training_health, _val_videos_by_treatment,
 )
 from ppci.train import build_model, compute_metrics, train  # noqa: E402
 from ppci.visualize import (                # noqa: E402
@@ -117,14 +117,52 @@ DEPLOY_CONFIGS: dict[str, list[DeployConfig]] = {
 
 # ── load best hparams from the latest completed stage ────────────────────────
 
-def load_best_config(results_dir: Path) -> tuple[dict, str]:
-    """Return (cfg_dict, stage_name) from the most complete search stage."""
+def _load_best_from_dir(results_dir: Path) -> tuple[dict, str, float] | None:
+    """Return (cfg_dict, stage_name, test_bacc_v4) from the most complete stage, or None."""
     for stage in ["training", "augmentation", "finetune", "arch", "backbone_context"]:
         try:
             cfg = _load_best(results_dir / stage)
-            return cfg, stage
+            return cfg, stage, float(cfg.get("test_bacc_v4", 0.0))
         except (FileNotFoundError, ValueError):
             continue
+    return None
+
+
+def load_best_config(results_dir: Path) -> tuple[dict, str]:
+    """Return (cfg_dict, stage_name) from the best completed search stage.
+
+    Searches both results_dir/full/ and results_dir/pov/ subfolders and
+    returns the config with the highest test_bacc_v4 (pov wins on tie).
+    Falls back to searching results_dir directly if no subfolders exist.
+    """
+    candidates: list[tuple[dict, str, float, str]] = []  # (cfg, stage, bacc, label)
+
+    for sub in ("pov", "full"):
+        sub_dir = results_dir / sub
+        if sub_dir.is_dir():
+            result = _load_best_from_dir(sub_dir)
+            if result is not None:
+                cfg, stage, bacc = result
+                candidates.append((cfg, stage, bacc, sub))
+
+    if candidates:
+        # Pick highest test_bacc_v4; pov is listed first so it wins on tie
+        best = max(candidates, key=lambda x: x[2])
+        cfg, stage, bacc, label = best
+        print(f"  [load_best_config] Selected '{label}' search  "
+              f"stage={stage}  test_bacc_v4={bacc:.4f}")
+        for cfg2, stage2, bacc2, label2 in candidates:
+            if label2 != label:
+                print(f"  [load_best_config] Skipped  '{label2}' search  "
+                      f"stage={stage2}  test_bacc_v4={bacc2:.4f}")
+        return cfg, f"{label}/{stage}"
+
+    # Fallback: results_dir itself contains stage directories (legacy layout)
+    result = _load_best_from_dir(results_dir)
+    if result is not None:
+        cfg, stage, _ = result
+        return cfg, stage
+
     raise RuntimeError(
         f"No hparam search results found under {results_dir}.\n"
         "Run the hparam search first."
@@ -147,11 +185,12 @@ def _load_dataset(
     k: int, mode: str,
     frame_type: str, dist_mode: str,
     n_val: int = 0,
+    val_videos: list[str] | None = None,
 ) -> PPCIDataset:
     ds = PPCIDataset.from_disk(
         "ants", version, encoder, token,
         frame_type=frame_type, dist_mode=dist_mode,
-        n_val_videos=n_val, **DS_KWARGS,
+        n_val_videos=n_val, val_videos=val_videos, **DS_KWARGS,
     )
     if k > 0:
         ds.apply_context_window(k, mode=mode)
@@ -311,7 +350,6 @@ def _run_evaluation(
 def deploy_one(
     cfg: DeployConfig,
     results_dir: Path,
-    frame_type: str = "full",
     dry_run: bool = False,
     skip_if_exists: bool = False,
     eval_only: bool = False,
@@ -323,6 +361,8 @@ def deploy_one(
     model_path = out_dir / "model.pt"
 
     cfg_dict, from_stage = load_best_config(results_dir)
+    # from_stage is "pov/stage" or "full/stage" (or bare "stage" for legacy dirs)
+    frame_type = from_stage.split("/")[0] if "/" in from_stage else "full"
     encoder   = cfg_dict["encoder"]
     token     = cfg_dict.get("token", "class")
     k         = int(cfg_dict.get("context_window", BASE_CFG.training.context_window))
@@ -410,29 +450,66 @@ def deploy_one(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # ── pretrain: sequential warm-start chain ─────────────────────────────────
-    # Use n_val=5 for pretrain to match hparam search (best epoch via val_bacc).
+    # Pass a small val split to determine best_epoch, then retrain on full data
+    # for exactly that many epochs so no observations are wasted.
+    pretrain_n_val = {"v1": 5}
     model = None
     for version in cfg.pretrain_versions:
-        print(f"\n[pretrain] Loading {version} ...")
-        ds = _load_dataset(version, n_val=5, **load_kw)
+        n_val = pretrain_n_val.get(version, 10)
+        print(f"\n[pretrain] Loading {version} — pass 1/2 (n_val={n_val}, find best_epoch) ...")
+        ds_val = _load_dataset(version, n_val=n_val, **load_kw)
         if model is None:
-            model = build_model(ds, pretrain_cfg)
-        model = train(ds, model, pretrain_cfg)
-        print(f"  → best_epoch={getattr(model, 'best_epoch', '?')}")
-        _warn_training_health(getattr(model, "training_diagnostics", None),
-                              f"pretrain {version}")
-        del ds
+            model = build_model(ds_val, pretrain_cfg)
+        model_val = train(ds_val, model, pretrain_cfg)
+        best_ep = getattr(model_val, "best_epoch", pretrain_cfg.training.num_epochs)
+        print(f"  → best_epoch={best_ep}")
+        _warn_training_health(getattr(model_val, "training_diagnostics", None),
+                              f"pretrain {version} pass1")
+        del ds_val
+
+        print(f"\n[pretrain] Loading {version} — pass 2/2 (full data, {best_ep} epochs) ...")
+        ds_full = _load_dataset(version, n_val=0, **load_kw)
+        full_cfg = OmegaConf.create(OmegaConf.to_container(pretrain_cfg, resolve=True))
+        full_cfg.training.num_epochs = best_ep
+        full_cfg.training.auto_fix = False
+        model = build_model(ds_full, full_cfg)
+        model = train(ds_full, model, full_cfg)
+        del ds_full
 
     # ── finetune: joint training on all finetune versions ─────────────────────
-    # Use n_val=10 for finetune to match hparam search (best epoch via val_bacc).
+    # Pass 1: use val split to determine best_epoch (v3 T=9, v4 T=1 as in hparam).
+    # Pass 2: retrain on full combined data for exactly best_epoch epochs.
     ft_label = " + ".join(cfg.finetune_versions)
-    print(f"\n[finetune] Loading {ft_label} (combined) ...")
-    ds_ft = PPCIDataset.concat([_load_dataset(v, n_val=10, **load_kw) for v in cfg.finetune_versions])
-    model = train(ds_ft, model, finetune_cfg)
-    print(f"  → best_epoch={getattr(model, 'best_epoch', '?')}")
-    _warn_training_health(getattr(model, "training_diagnostics", None),
-                          f"finetune {ft_label}")
-    del ds_ft
+    ft_val_by_version = {
+        "v3": _val_videos_by_treatment("v3", "9"),
+        "v4": _val_videos_by_treatment("v4", "1"),
+    }
+
+    print(f"\n[finetune] Loading {ft_label} — pass 1/2 (with val, find best_epoch) ...")
+    ft_datasets_val = []
+    for v in cfg.finetune_versions:
+        vv = ft_val_by_version.get(v)
+        label = "T=9 obs" if v == "v3" else "T=1 obs" if v == "v4" else "random"
+        print(f"  {v}: val = {label} ({len(vv) if vv else 0} obs)")
+        ft_datasets_val.append(_load_dataset(v, val_videos=vv, **load_kw))
+    ds_ft_val = PPCIDataset.concat(ft_datasets_val)
+    model_ft_val = train(ds_ft_val, model, finetune_cfg)
+    best_ep_ft = getattr(model_ft_val, "best_epoch", finetune_cfg.training.num_epochs)
+    print(f"  → best_epoch={best_ep_ft}")
+    _warn_training_health(getattr(model_ft_val, "training_diagnostics", None),
+                          f"finetune {ft_label} pass1")
+    del ds_ft_val
+
+    print(f"\n[finetune] Loading {ft_label} — pass 2/2 (full data, {best_ep_ft} epochs) ...")
+    ft_datasets_full = []
+    for v in cfg.finetune_versions:
+        ft_datasets_full.append(_load_dataset(v, n_val=0, **load_kw))
+    ds_ft_full = PPCIDataset.concat(ft_datasets_full)
+    full_ft_cfg = OmegaConf.create(OmegaConf.to_container(finetune_cfg, resolve=True))
+    full_ft_cfg.training.num_epochs = best_ep_ft
+    full_ft_cfg.training.auto_fix = False
+    model = train(ds_ft_full, model, full_ft_cfg)
+    del ds_ft_full
 
     # ── save model + config ───────────────────────────────────────────────────
     torch.save(model.state_dict(), model_path)
@@ -460,12 +537,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Deploy best PPCI model for one or all named configurations.",
     )
-    parser.add_argument("--frame-type", choices=["full", "pov"], default="full",
-                        help="Embedding view: 'full' (default) or 'pov'")
     parser.add_argument("--config", default=None, metavar="NAME",
                         help="Run only this config (validate / final). Default: all.")
     parser.add_argument("--results-dir", type=Path, default=None,
-                        help="Hparam search results root (default: auto from frame-type)")
+                        help="Hparam search results root (default: results/ppci/ants/hparam/)")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--skip-if-exists", action="store_true")
     parser.add_argument("--eval-only", action="store_true")
@@ -478,11 +553,13 @@ def main() -> None:
     if args.eval_only and args.skip_if_exists:
         parser.error("--eval-only and --skip-if-exists are mutually exclusive")
 
-    results_dir = args.results_dir or (
-        RESULTS_DIR_POV if args.frame_type == "pov" else RESULTS_DIR
-    )
+    results_dir = args.results_dir or RESULTS_DIR
 
-    configs = DEPLOY_CONFIGS[args.frame_type]
+    # Auto-detect frame_type from the best hparam search across full/ and pov/ subfolders
+    cfg_dict, from_stage = load_best_config(results_dir)
+    frame_type = from_stage.split("/")[0] if "/" in from_stage else "full"
+
+    configs = DEPLOY_CONFIGS[frame_type]
     configs_by_name = {c.name: c for c in configs}
 
     if args.config:
@@ -495,7 +572,6 @@ def main() -> None:
         deploy_one(
             cfg,
             results_dir,
-            frame_type=args.frame_type,
             dry_run=args.dry_run,
             skip_if_exists=args.skip_if_exists,
             eval_only=args.eval_only,

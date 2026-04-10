@@ -47,17 +47,21 @@ Usage:
 
 Saving structure:
   results/ppci/ants/hparam/
-  ├── backbone/
-  │   ├── summary.csv                  # one row per completed run
-  │   └── {run_id}/
-  │       ├── config.json
-  │       ├── pretrained_v1v2.pt       # MLP state dict after v1+v2 pretrain
-  │       ├── finetuned_v3.pt          # MLP state dict after v3 finetune
-  │       └── metrics.json             # val_bacc_v3, test_bacc_v4, …
-  ├── context/  (same layout)
-  ├── arch/     (same layout)  ← best run's pretrained_v1v2.pt reused by finetune stage
-  ├── finetune/ (no pretrained_v1v2.pt — loads from arch/best/)
-  └── augmentation/
+  ├── full/                            # full-frame search
+  │   ├── backbone_context/
+  │   │   ├── summary.csv             # one row per completed run
+  │   │   └── {run_id}/
+  │   │       ├── config.json
+  │   │       ├── pretrained_v1v2.pt  # MLP state dict after v1+v2 pretrain
+  │   │       ├── finetuned_v3.pt     # MLP state dict after v3 finetune
+  │   │       └── metrics.json        # val_bacc_v3, test_bacc_v4, …
+  │   ├── arch/     (same layout)  ← best run's pretrained_v1v2.pt reused by finetune stage
+  │   ├── finetune/ (no pretrained_v1v2.pt — loads from arch/best/)
+  │   └── augmentation/
+  └── pov/                            # POV search (replaces finetune+augmentation with training)
+      ├── backbone_context/
+      ├── arch/
+      └── training/
 """
 from __future__ import annotations
 
@@ -82,24 +86,22 @@ from ppci.model import MLP            # noqa: E402
 from ppci.train import build_model, compute_metrics, train  # noqa: E402
 
 RESULTS_DIR     = ROOT / "results" / "ppci" / "ants" / "hparam"
-RESULTS_DIR_POV = ROOT / "results" / "ppci" / "ants" / "hparam_pov"
 DATASET_ROOT    = ROOT / "dataset" / "ants"
 
 # ── shared dataset kwargs ─────────────────────────────────────────────────────
 DS_KWARGS = dict(
     outcome_cols=["Y_Y2F", "Y_B2F"],
     task="multilabel",
-    env_cols=["W_batch", "W_position"],
-    env_include_treatment=False,
+    env_cols=[],
+    env_include_treatment=True,   # one environment per treatment value
     seed=0,
 )
 
 # POV uses the same outcome_cols and task as full — the from_disk POV branch
 # does horizontal concatenation of blue/yellow embeddings, same 2-output target.
 
-V3_N_VAL        = 10   # fixed val videos for v3 (same across ALL runs via seed=0)
 PRETRAIN_EPOCHS = 30   # v1 and v2; model saved = best by val/bacc (or train/bacc if no val)
-FINETUNE_EPOCHS = 20   # v3; model saved = best by val/bacc on fixed 10 val videos
+FINETUNE_EPOCHS = 20   # v3; model saved = best by val/bacc on v3 T=9 obs
 
 # Stages that skip v1/v2 pretraining and instead load a saved pretrained model
 FINETUNE_ONLY_STAGES = {"finetune", "augmentation", "training"}
@@ -166,6 +168,21 @@ def _pov_embeddings_available(encoder: str, token: str, versions: list[str]) -> 
             if not (path / "embeddings.npy").exists() and not (path / "embeddings.pt").exists():
                 return False
     return True
+
+
+def _val_videos_by_treatment(version: str, treatment: str) -> list[str]:
+    """Return all observation_ids for a given treatment value in a dataset version.
+
+    Used to define deterministic validation sets tied to a specific treatment arm:
+      - v3 T=9 → model-selection validation during hparam search
+      - v4 T=1 → stopping-criterion validation at deployment time
+    """
+    from src.dataset.get_dataset import load_dataset
+    hf = load_dataset("ants", version, from_disk=True)
+    df = hf.select_columns(["observation_id", "T"]).to_pandas()
+    mask = df["T"].astype(str) == str(treatment)
+    obs_ids = df.loc[mask, "observation_id"].unique().tolist()
+    return [str(o) for o in obs_ids]
 
 
 # ── run-id ────────────────────────────────────────────────────────────────────
@@ -471,14 +488,15 @@ def _finetune_configs(results_dir: Path) -> list[dict]:
     No pretrain_lr sweep — that would require retraining on v1+v2 for each combo,
     defeating the purpose of caching the pretrained model.
     """
-    best_bk   = _load_best(results_dir / "backbone_context")
     best_arch = _load_best(results_dir / "arch")
+    # Backbone settings come from best_arch (not best_bk) to ensure dist_mode matches
+    # the saved pretrained_v1v2.pt, which was trained with the arch-best backbone config.
     base = {
-        "encoder":        best_bk["encoder"],
-        "token":          best_bk["token"],
-        "context_window": int(best_bk["context_window"]),
-        "context_mode":   best_bk["context_mode"],
-        "dist_mode":      best_bk.get("dist_mode", "none"),
+        "encoder":        best_arch["encoder"],
+        "token":          best_arch["token"],
+        "context_window": int(best_arch["context_window"]),
+        "context_mode":   best_arch["context_mode"],
+        "dist_mode":      best_arch.get("dist_mode", "none"),
         "hidden_dim":     int(best_arch["hidden_dim"]),
         "hidden_layers":  int(best_arch["hidden_layers"]),
         "dropout":        float(best_arch["dropout"]),
@@ -497,15 +515,15 @@ def _finetune_configs(results_dir: Path) -> list[dict]:
 
 def _augmentation_configs(results_dir: Path) -> list[dict]:
     """augment_noise_std × augment_mixup_alpha; inherits all previous best settings."""
-    best_bk   = _load_best(results_dir / "backbone_context")
     best_arch = _load_best(results_dir / "arch")
     best_ft   = _load_best(results_dir / "finetune")
+    # Backbone settings come from best_arch (not best_bk) — same reason as _finetune_configs.
     base = {
-        "encoder":        best_bk["encoder"],
-        "token":          best_bk["token"],
-        "context_window": int(best_bk["context_window"]),
-        "context_mode":   best_bk["context_mode"],
-        "dist_mode":      best_bk.get("dist_mode", "none"),
+        "encoder":        best_arch["encoder"],
+        "token":          best_arch["token"],
+        "context_window": int(best_arch["context_window"]),
+        "context_mode":   best_arch["context_mode"],
+        "dist_mode":      best_arch.get("dist_mode", "none"),
         "hidden_dim":     int(best_arch["hidden_dim"]),
         "hidden_layers":  int(best_arch["hidden_layers"]),
         "dropout":        float(best_arch["dropout"]),
@@ -534,14 +552,17 @@ def _pov_training_configs(results_dir: Path) -> list[dict]:
       - augment_noise_std: keep all (cheap to evaluate)
       - augment_mixup_alpha: keep all (cheap to evaluate)
     """
-    best_bk   = _load_best(results_dir / "backbone_context")
     best_arch = _load_best(results_dir / "arch")
+    # All backbone settings (encoder, context, dist_mode) come from best_arch, NOT best_bk.
+    # This is critical: the pretrained model loaded in FINETUNE_ONLY_STAGES was saved by the
+    # arch stage using its own backbone config. Loading it into a model built with a different
+    # dist_mode would cause an input-dim mismatch (dist_mode changes embedding size).
     base = {
-        "encoder":        best_bk["encoder"],
-        "token":          best_bk["token"],
-        "context_window": int(best_bk["context_window"]),
-        "context_mode":   best_bk["context_mode"],
-        "dist_mode":      best_bk.get("dist_mode", "none"),
+        "encoder":        best_arch["encoder"],
+        "token":          best_arch["token"],
+        "context_window": int(best_arch["context_window"]),
+        "context_mode":   best_arch["context_mode"],
+        "dist_mode":      best_arch.get("dist_mode", "none"),
         "hidden_dim":     int(best_arch["hidden_dim"]),
         "hidden_layers":  int(best_arch["hidden_layers"]),
         "dropout":        float(best_arch["dropout"]),
@@ -572,6 +593,15 @@ STAGE_FNS: dict[str, Any] = {
 
 
 # ── config builder ────────────────────────────────────────────────────────────
+def _parse_bool(v, default: bool) -> bool:
+    """Parse a bool that may have been serialised as the string 'True'/'False'."""
+    if isinstance(v, bool):
+        return v
+    if v is None:
+        return default
+    return str(v).strip().lower() not in ("false", "0", "no", "")
+
+
 def _build_finetune_cfg(cfg_dict: dict) -> DictConfig:
     """Build the OmegaConf config for the v3 finetune step."""
     return OmegaConf.merge(BASE_CFG, OmegaConf.create({
@@ -579,7 +609,7 @@ def _build_finetune_cfg(cfg_dict: dict) -> DictConfig:
             "hidden_dim":    int(cfg_dict.get("hidden_dim",    BASE_CFG.mlp.hidden_dim)),
             "hidden_layers": int(cfg_dict.get("hidden_layers", BASE_CFG.mlp.hidden_layers)),
             "dropout":       float(cfg_dict.get("dropout",     BASE_CFG.mlp.dropout)),
-            "siamese":       bool(cfg_dict.get("siamese",      True)),
+            "siamese":       _parse_bool(cfg_dict.get("siamese"), True),
         },
         "training": {
             "method":              cfg_dict.get("method",             BASE_CFG.training.method),
@@ -601,7 +631,7 @@ def _build_pretrain_cfg(cfg_dict: dict) -> DictConfig:
             "hidden_dim":    int(cfg_dict.get("hidden_dim",    BASE_CFG.mlp.hidden_dim)),
             "hidden_layers": int(cfg_dict.get("hidden_layers", BASE_CFG.mlp.hidden_layers)),
             "dropout":       float(cfg_dict.get("dropout",     BASE_CFG.mlp.dropout)),
-            "siamese":       bool(cfg_dict.get("siamese",      True)),
+            "siamese":       _parse_bool(cfg_dict.get("siamese"), True),
         },
         "training": {
             "method":         "ERM",   # always ERM for pretraining
@@ -696,12 +726,15 @@ def run_one(
 
     ds_kwargs = DS_KWARGS
 
-    def _load_and_apply(version: str, n_val: int) -> PPCIDataset:
+    def _load_and_apply(version: str, n_val: int = 0,
+                        val_videos: list[str] | None = None) -> PPCIDataset:
         """Load one dataset version and immediately apply context window."""
         ds = PPCIDataset.from_disk("ants", version, encoder, token,
                                    frame_type=frame_type,
                                    dist_mode=dist_mode,
-                                   n_val_videos=n_val, **ds_kwargs)
+                                   n_val_videos=n_val,
+                                   val_videos=val_videos,
+                                   **ds_kwargs)
         if k > 0:
             ds.apply_context_window(k, mode=mode)
         return ds
@@ -715,7 +748,7 @@ def run_one(
         if frame_type == "pov":
             # v1 has no POV embeddings — pretrain on v2 only
             print("\n[1] Loading v2 (POV, pretrain) ...")
-            ds_v2 = _load_and_apply("v2", n_val=5)
+            ds_v2 = _load_and_apply("v2", n_val=10)
             print("\n[2] Pretraining on v2 ...")
             model = build_model(ds_v2, pretrain_cfg)
             model = train(ds_v2, model, pretrain_cfg)
@@ -736,7 +769,7 @@ def run_one(
             del ds_v1
 
             print("\n[2 cont] Loading v2, continuing pretrain (warm-start from v1) ...")
-            ds_v2 = _load_and_apply("v2", n_val=5)
+            ds_v2 = _load_and_apply("v2", n_val=10)
             model = train(ds_v2, model, pretrain_cfg)
             print(f"  → best_epoch={getattr(model, 'best_epoch', '?')}")
             _warn_training_health(getattr(model, "training_diagnostics", None), "pretrain v2")
@@ -760,8 +793,10 @@ def run_one(
         model = model.to(device)
 
     # ── finetune on v3 (both branches) ───────────────────────────────────────
-    print("\n[3] Loading v3, finetuning ...")
-    ds_v3 = _load_and_apply("v3", n_val=V3_N_VAL)
+    # Val set = all obs with T=9 (deterministic; used for model selection in hparam)
+    v3_val_videos = _val_videos_by_treatment("v3", "9")
+    print(f"\n[3] Loading v3, finetuning (val = T=9, {len(v3_val_videos)} obs) ...")
+    ds_v3 = _load_and_apply("v3", val_videos=v3_val_videos)
     model = train(ds_v3, model, finetune_cfg)
     finetune_diag = getattr(model, "training_diagnostics", None)
     torch.save(model.state_dict(), out_dir / "finetuned_v3.pt")
@@ -833,7 +868,7 @@ def _find_missing_configs(stage: str, results_dir: Path) -> tuple[list[dict], li
     if stage != "backbone_context":
         return [], [], []
     try:
-        is_pov = "pov" in results_dir.name
+        is_pov = results_dir.name == "pov" or "pov" in results_dir.name
         gen = _pov_backbone_context_configs if is_pov else _backbone_context_configs
         expected = gen(results_dir)
     except Exception:
@@ -997,12 +1032,12 @@ def main() -> None:
     parser.add_argument("--frame-type", choices=["full", "pov"], default="full",
                         help="'full' (default) or 'pov' — selects embedding view and pipeline")
     parser.add_argument("--results-dir", type=Path, default=None,
-                        help="Root results directory (default: hparam/ or hparam_pov/)")
+                        help="Root results directory (default: hparam/{full,pov}/)")
     args = parser.parse_args()
 
-    # Default results dir depends on frame_type
+    # Default results dir is hparam/{frame_type}/
     if args.results_dir is None:
-        args.results_dir = RESULTS_DIR_POV if args.frame_type == "pov" else RESULTS_DIR
+        args.results_dir = RESULTS_DIR / args.frame_type
 
     # For POV, use POV-specific config generators
     stage_fns = dict(STAGE_FNS)

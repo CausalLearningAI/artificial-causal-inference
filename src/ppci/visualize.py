@@ -31,8 +31,16 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
-from scipy.stats import sem as _sem
+from scipy.stats import sem as _sem, t as _t
 from scipy.stats import ttest_ind as _ttest
+
+
+def _ci95(values: np.ndarray) -> float:
+    """95% CI half-width via t-distribution: t_{n-1, 0.025} * SEM."""
+    n = len(values)
+    if n < 2:
+        return float("nan")
+    return float(_t.ppf(0.975, df=n - 1) * _sem(values))
 
 
 # ---------------------------------------------------------------------------
@@ -179,11 +187,11 @@ def plot_po_barplot(
     fmt: str = ".3f",
     pred_only: bool = False,
 ) -> matplotlib.axes.Axes:
-    """Bar plot of average potential outcomes per treatment with ±1 SE error bars.
+    """Bar plot of average potential outcomes per treatment with 95% CI error bars.
 
     Shows E[Y | T=t] (green, ground truth) and E[Ŷ | T=t] (violet, predicted)
-    side-by-side for each treatment.  When ground-truth columns are absent only
-    the predicted bars are drawn.
+    side-by-side for each treatment.  Error bars are 95% CIs via t_{n-1} distribution.
+    When ground-truth columns are absent only the predicted bars are drawn.
 
     Args:
         obs_df:           Observation-level DataFrame (from aggregate_to_observations).
@@ -208,7 +216,7 @@ def plot_po_barplot(
     xlbls  = [str(treatment_labels.get(t, t)) if treatment_labels else str(t) for t in t_vals]
 
     pred_means = np.array([obs_df.loc[obs_df["T"] == t, yhat_col].mean() for t in t_vals])
-    pred_sems  = np.array([_sem(obs_df.loc[obs_df["T"] == t, yhat_col].values) for t in t_vals])
+    pred_sems  = np.array([_ci95(obs_df.loc[obs_df["T"] == t, yhat_col].values) for t in t_vals])
 
     if ax is None:
         _, ax = plt.subplots(figsize=(max(5, n * 0.7), 4))
@@ -220,7 +228,7 @@ def plot_po_barplot(
             v = obs_df.loc[obs_df["T"] == t, y_col].values
             return v[~np.isnan(v)]
         gt_means = np.array([_gt_vals(t).mean() for t in t_vals])
-        gt_sems  = np.array([_sem(_gt_vals(t)) for t in t_vals])
+        gt_sems  = np.array([_ci95(_gt_vals(t)) for t in t_vals])
         width = 0.38
         gt_bars   = ax.bar(x - width / 2, gt_means, width, yerr=gt_sems, capsize=3,
                            color="#44aa77", alpha=0.85, label="Ground truth")
