@@ -22,7 +22,7 @@ mkdir -p logs
 echo "obs=${OBS}  node=$(hostname)  started=$(date)"
 START=$(date +%s)
 
-python -u scripts/05_deploy/generate_video.py --obs "${OBS}"
+python -u src/ppci/generate_video.py --obs "${OBS}"
 
 ELAPSED=$(( $(date +%s) - START ))
 printf "Done in %02d:%02d:%02d\n" $((ELAPSED/3600)) $((ELAPSED%3600/60)) $((ELAPSED%60))

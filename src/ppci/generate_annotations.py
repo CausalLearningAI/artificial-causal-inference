@@ -15,11 +15,11 @@ original FPS by repeating the prediction for each original-fps frame that
 falls within the corresponding ML-fps interval.
 
 Usage:
-  python scripts/05_deploy/generate_annotations.py               # v5, all obs
-  python scripts/05_deploy/generate_annotations.py --version v4
-  python scripts/05_deploy/generate_annotations.py --obs 5_17_7
-  python scripts/05_deploy/generate_annotations.py --threshold 0.4
-  python scripts/05_deploy/generate_annotations.py --out-dir /custom/output
+  python src/ppci/generate_annotations.py               # v5, all obs
+  python src/ppci/generate_annotations.py --version v4
+  python src/ppci/generate_annotations.py --obs 5_17_7
+  python src/ppci/generate_annotations.py --threshold 0.4
+  python src/ppci/generate_annotations.py --out-dir /custom/output
 """
 from __future__ import annotations
 

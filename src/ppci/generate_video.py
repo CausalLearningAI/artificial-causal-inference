@@ -14,10 +14,10 @@ Uses ffmpeg with a drawbox filter expression — one pass, no audio.
 Requires: ffmpeg (available as CLI command).
 
 Usage:
-  python scripts/05_deploy/generate_video.py --obs 5_17_7
-  python scripts/05_deploy/generate_video.py --obs 5_17_7 --version v5
-  python scripts/05_deploy/generate_video.py --obs 5_17_7 --border-width 20
-  python scripts/05_deploy/generate_video.py --obs 5_17_7 --out /custom/output/5_17_7.mp4
+  python src/ppci/generate_video.py --obs 5_17_7
+  python src/ppci/generate_video.py --obs 5_17_7 --version v5
+  python src/ppci/generate_video.py --obs 5_17_7 --border-width 20
+  python src/ppci/generate_video.py --obs 5_17_7 --out /custom/output/5_17_7.mp4
 """
 from __future__ import annotations
 

@@ -423,7 +423,11 @@ def deploy_one(
         ds_tmp = _load_dataset(ref_version, **load_kw)
         model = build_model(ds_tmp, finetune_cfg)
         del ds_tmp
-        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+        state = torch.load(model_path, map_location=device, weights_only=True)
+        # Remap legacy key prefix: "trunk." → "featurizer." (old AntsMLP checkpoints)
+        state = {k.replace("trunk.", "featurizer.", 1) if k.startswith("trunk.") else k: v
+                 for k, v in state.items()}
+        model.load_state_dict(state)
         model = model.to(device)
         out_dir.mkdir(parents=True, exist_ok=True)
         _run_evaluation(model, cfg, **load_kw, device=device, out_dir=out_dir,
