@@ -176,7 +176,7 @@ def main(cfg: DictConfig) -> None:
               f"({n_obs_with_pos} obs with positives)")
 
     # --- Save results ---
-    output_path = PROJECT_ROOT / f"results/{subject}/{version}/tracking_eval.csv"
+    output_path = PROJECT_ROOT / f"results/tracking/{subject}/{version}/tracking_eval.csv"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_path, index=False)
     print(f"\nSaved per-observation results to {output_path}")

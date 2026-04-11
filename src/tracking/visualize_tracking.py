@@ -3,10 +3,10 @@
 Generate tracking demo videos (and optional PNG snapshots) for quality inspection.
 
 PRIMARY OUTPUT  — annotated .mp4 for each sampled observation:
-    results/{subject}/{version}/tracking_viz/{obs_id}.mp4
+    results/tracking/{subject}/{version}/tracking_viz/{obs_id}.mp4
 
 SECONDARY OUTPUT — side-by-side PNG grid of evenly-spaced snapshots:
-    results/{subject}/{version}/tracking_viz/{obs_id}_grid.png
+    results/tracking/{subject}/{version}/tracking_viz/{obs_id}_grid.png
 
 The MP4 video is the main diagnostic tool:
   - Watch it frame by frame to spot identity swaps, missed ants, drift.
@@ -32,7 +32,7 @@ Usage:
 
 Viewing the videos:
     # From terminal (requires ffplay):
-    ffplay results/ants/v3/tracking_viz/a4.mp4
+    ffplay results/tracking/ants/v3/tracking_viz/a4.mp4
 
     # Or open in any video player (VLC, mpv, QuickTime, etc.)
     # In VSCode: install "Video Player" extension, or just open a terminal.
@@ -236,7 +236,7 @@ def main(cfg: DictConfig) -> None:
 
     frames_base  = PROJECT_ROOT / f"dataset/{subject}/{version}/frames/full"
     tracking_dir = PROJECT_ROOT / f"dataset/{subject}/{version}/tracking"
-    output_dir   = PROJECT_ROOT / f"results/{subject}/{version}/tracking_viz"
+    output_dir   = PROJECT_ROOT / f"results/tracking/{subject}/{version}/tracking_viz"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Extra CLI params with defaults

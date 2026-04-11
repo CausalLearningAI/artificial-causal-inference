@@ -170,7 +170,7 @@ for VERSION in "${VERSIONS[@]}"; do
     echo "── ${SUBJECT}/${VERSION} ──────────────────────────────────"
 
     TRACK_DIR="${BASE}/dataset/${SUBJECT}/${VERSION}/tracking"
-    VIZ_DIR="${BASE}/results/${SUBJECT}/${VERSION}/tracking_viz"
+    VIZ_DIR="${BASE}/results/tracking/${SUBJECT}/${VERSION}/tracking_viz"
     POV_DIR="${BASE}/dataset/${SUBJECT}/${VERSION}/frames/pov"
     EMB_DIR="${BASE}/dataset/${SUBJECT}/${VERSION}/embeddings/pov"
     CFG="${BASE}/configs/tracking/${SUBJECT}/${VERSION}.yaml"

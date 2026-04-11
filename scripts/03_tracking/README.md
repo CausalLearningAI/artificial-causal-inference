@@ -85,6 +85,6 @@ Encoder selection:
 ## Outputs
 
 - Tracking CSVs: `dataset/ants/{version}/tracking/*.csv`
-- Demo videos: `results/ants/{version}/tracking_viz/*.mp4`
+- Demo videos: `results/tracking/ants/{version}/tracking_viz/*.mp4`
 - POV frames: `dataset/ants/{version}/frames/pov/`
 - POV embeddings: `dataset/ants/{version}/embeddings/pov/{encoder}/{token}/`
