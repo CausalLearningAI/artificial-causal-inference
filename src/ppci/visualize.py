@@ -538,9 +538,9 @@ def plot_comparison_versions(
     ax.set_ylabel("Metric", fontsize=12)
     ax.set_ylim(0, 1.15)
     ax.set_title("Model performance across experiment versions", fontsize=13)
-    # Legend: metric colors only, placed in upper-right corner away from bars
+    # Legend: metric colors only, placed in lower-right corner
     handles, _ = ax.get_legend_handles_labels()
-    ax.legend(handles=handles, fontsize=9, loc="upper right",
+    ax.legend(handles=handles, fontsize=9, loc="lower right",
               framealpha=0.9, handlelength=1.2)
     plt.tight_layout()
 
@@ -631,7 +631,7 @@ def plot_comparison_versions_by_metric(
     ax.set_ylim(0, 1.15)
     ax.set_ylabel("Metric value", fontsize=12)
     ax.set_title("Model performance across experiment versions", fontsize=13)
-    ax.legend(fontsize=9, loc="upper right", framealpha=0.9, handlelength=1.2)
+    ax.legend(fontsize=9, loc="lower right", framealpha=0.9, handlelength=1.2)
     plt.tight_layout()
 
     if save:

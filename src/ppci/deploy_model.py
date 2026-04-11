@@ -34,7 +34,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from ppci.dataset import PPCIDataset        # noqa: E402
 from ppci.hparam_search import (            # noqa: E402
-    RESULTS_DIR, DS_KWARGS,
+    RESULTS_DIR as HPARAM_RESULTS_DIR, DS_KWARGS,
     BASE_CFG,
     _embeddings_available, _pov_embeddings_available, _load_best,
     _build_pretrain_cfg, _build_finetune_cfg,
@@ -48,6 +48,8 @@ from ppci.visualize import (                # noqa: E402
     plot_error_examples,
 )
 
+
+DEPLOY_RESULTS_DIR = ROOT / "results" / "ppci" / "ants" / "performances"
 
 # ── deployment configurations ─────────────────────────────────────────────────
 
@@ -357,21 +359,35 @@ def deploy_one(
     error_outcome_filter: str | None = None,
 ) -> None:
     """Train (or load) and evaluate one DeployConfig."""
-    out_dir    = results_dir / "deploy" / cfg.name
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    out_dir = results_dir / cfg.name
+
+    if not eval_only:
+        cfg_dict, from_stage = load_best_config(HPARAM_RESULTS_DIR)
+        # from_stage is "pov/stage" or "full/stage" (or bare "stage" for legacy dirs)
+        frame_type = from_stage.split("/")[0] if "/" in from_stage else "full"
+        encoder   = cfg_dict["encoder"]
+        token     = cfg_dict.get("token", "class")
+        k         = int(cfg_dict.get("context_window", BASE_CFG.training.context_window))
+        mode      = cfg_dict.get("context_mode", BASE_CFG.training.context_mode)
+        dist_mode = cfg_dict.get("dist_mode", "none")
+        pretrain_cfg = _build_pretrain_cfg(cfg_dict)
+        finetune_cfg = _build_finetune_cfg(cfg_dict)
+    else:
+        # In eval-only mode, read frame_type from saved config.json
+        cfg_dict = {}; from_stage = "saved config"
+        _saved = out_dir / "config.json"
+        if _saved.exists():
+            with open(_saved) as _f:
+                _sc = json.load(_f)
+            frame_type = _sc.get("frame_type", "full")
+        else:
+            frame_type = "full"
+        encoder = ""; token = "class"; k = 0; mode = "concat"; dist_mode = "none"
+        pretrain_cfg = finetune_cfg = BASE_CFG
+
     model_path = out_dir / "model.pt"
-
-    cfg_dict, from_stage = load_best_config(results_dir)
-    # from_stage is "pov/stage" or "full/stage" (or bare "stage" for legacy dirs)
-    frame_type = from_stage.split("/")[0] if "/" in from_stage else "full"
-    encoder   = cfg_dict["encoder"]
-    token     = cfg_dict.get("token", "class")
-    k         = int(cfg_dict.get("context_window", BASE_CFG.training.context_window))
-    mode      = cfg_dict.get("context_mode", BASE_CFG.training.context_mode)
-    dist_mode = cfg_dict.get("dist_mode", "none")
-    device    = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    pretrain_cfg = _build_pretrain_cfg(cfg_dict)
-    finetune_cfg = _build_finetune_cfg(cfg_dict)
 
     print("=" * 72)
     print(f"[DEPLOY] {cfg.name} — {cfg.description}")
@@ -401,32 +417,42 @@ def deploy_one(
         if not model_path.exists():
             print(f"[ERROR] --eval-only requires {model_path}", file=sys.stderr)
             sys.exit(1)
-        # Reload cfg_dict from the saved config.json so the model architecture
-        # matches exactly what was used during training (not the current hparam search).
+        # Reload cfg_dict from the saved config.json — it records the exact
+        # hyperparameters used when the model was trained and saved.
         saved_cfg_path = out_dir / "config.json"
         if saved_cfg_path.exists():
             with open(saved_cfg_path) as f:
                 cfg_dict = json.load(f)
-            encoder   = cfg_dict["encoder"]
-            token     = cfg_dict.get("token", "class")
-            k         = int(cfg_dict.get("context_window", BASE_CFG.training.context_window))
-            mode      = cfg_dict.get("context_mode", BASE_CFG.training.context_mode)
-            dist_mode = cfg_dict.get("dist_mode", "none")
-            finetune_cfg = _build_finetune_cfg(cfg_dict)
-            load_kw = dict(
-                encoder=encoder, token=token, k=k, mode=mode,
-                frame_type=frame_type, dist_mode=dist_mode,
-            )
             print(f"\n[eval-only] Using saved config from {saved_cfg_path}")
+
+        encoder   = cfg_dict.get("encoder", "dinov2")
+        token     = cfg_dict.get("token", "class")
+        k         = int(cfg_dict.get("context_window", 0))
+        mode      = cfg_dict.get("context_mode", "mean")
+        dist_mode  = cfg_dict.get("dist_mode", "none")
+        finetune_cfg = _build_finetune_cfg(cfg_dict)
+        load_kw = dict(
+            encoder=encoder, token=token, k=k, mode=mode,
+            frame_type=frame_type, dist_mode=dist_mode,
+        )
         print(f"\n[eval-only] Loading model from {model_path}")
         ref_version = cfg.finetune_versions[-1]
         ds_tmp = _load_dataset(ref_version, **load_kw)
         model = build_model(ds_tmp, finetune_cfg)
         del ds_tmp
         state = torch.load(model_path, map_location=device, weights_only=True)
-        # Remap legacy key prefix: "trunk." → "featurizer." (old AntsMLP checkpoints)
-        state = {k.replace("trunk.", "featurizer.", 1) if k.startswith("trunk.") else k: v
-                 for k, v in state.items()}
+        # Remap mismatched key prefixes between checkpoint and current model.
+        # Check only the first-level prefix that differs and remap accordingly.
+        model_top = set(k.split(".")[0] for k in model.state_dict())
+        ckpt_top  = set(k.split(".")[0] for k in state)
+        if "featurizer" in model_top and "featurizer" not in ckpt_top and "trunk" in ckpt_top:
+            # Checkpoint uses old "trunk" prefix; model expects "featurizer"
+            state = {("featurizer" + k[len("trunk"):] if k.startswith("trunk.") else k): v
+                     for k, v in state.items()}
+        elif "trunk" in model_top and "trunk" not in ckpt_top and "featurizer" in ckpt_top:
+            # Checkpoint uses old "featurizer" prefix; model expects "trunk"
+            state = {("trunk" + k[len("featurizer"):] if k.startswith("featurizer.") else k): v
+                     for k, v in state.items()}
         model.load_state_dict(state)
         model = model.to(device)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -544,7 +570,7 @@ def main() -> None:
     parser.add_argument("--config", default=None, metavar="NAME",
                         help="Run only this config (validate / final). Default: all.")
     parser.add_argument("--results-dir", type=Path, default=None,
-                        help="Hparam search results root (default: results/ppci/ants/hparam/)")
+                        help="Deploy output root (default: results/ppci/ants/performances/)")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--skip-if-exists", action="store_true")
     parser.add_argument("--eval-only", action="store_true")
@@ -557,20 +583,29 @@ def main() -> None:
     if args.eval_only and args.skip_if_exists:
         parser.error("--eval-only and --skip-if-exists are mutually exclusive")
 
-    results_dir = args.results_dir or RESULTS_DIR
+    results_dir = args.results_dir or DEPLOY_RESULTS_DIR
 
-    # Auto-detect frame_type from the best hparam search across full/ and pov/ subfolders
-    cfg_dict, from_stage = load_best_config(results_dir)
-    frame_type = from_stage.split("/")[0] if "/" in from_stage else "full"
-
-    configs = DEPLOY_CONFIGS[frame_type]
-    configs_by_name = {c.name: c for c in configs}
-
-    if args.config:
-        if args.config not in configs_by_name:
-            parser.error(f"Unknown config '{args.config}'. "
-                         f"Choices: {', '.join(configs_by_name)}")
-        configs = [configs_by_name[args.config]]
+    if args.eval_only:
+        # In eval-only mode, deploy_one auto-detects out_dir and frame_type from config.json.
+        # Collect all named configs across both frame types; deploy_one skips missing models.
+        all_configs = {c.name: c for ft in DEPLOY_CONFIGS.values() for c in ft}
+        if args.config:
+            if args.config not in all_configs:
+                parser.error(f"Unknown config '{args.config}'. Choices: {', '.join(all_configs)}")
+            configs = [all_configs[args.config]]
+        else:
+            configs = list(all_configs.values())
+    else:
+        # Auto-detect frame_type from the hparam search results
+        cfg_dict, from_stage = load_best_config(HPARAM_RESULTS_DIR)
+        frame_type = from_stage.split("/")[0] if "/" in from_stage else "full"
+        configs = DEPLOY_CONFIGS[frame_type]
+        configs_by_name = {c.name: c for c in configs}
+        if args.config:
+            if args.config not in configs_by_name:
+                parser.error(f"Unknown config '{args.config}'. "
+                             f"Choices: {', '.join(configs_by_name)}")
+            configs = [configs_by_name[args.config]]
 
     for cfg in configs:
         deploy_one(

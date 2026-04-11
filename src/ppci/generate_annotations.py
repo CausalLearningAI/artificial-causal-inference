@@ -38,10 +38,11 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from ppci.dataset import PPCIDataset          # noqa: E402
 from ppci.hparam_search import (              # noqa: E402
-    RESULTS_DIR, DS_KWARGS,
+    RESULTS_DIR as HPARAM_RESULTS_DIR, DS_KWARGS,
     BASE_CFG,
     _build_finetune_cfg,
 )
+from ppci.deploy_model import load_best_config, DEPLOY_RESULTS_DIR  # noqa: E402
 from ppci.train import build_model            # noqa: E402
 
 
@@ -62,17 +63,18 @@ def load_model(deploy_dir: Path, device: torch.device):
     with open(config_path) as f:
         cfg_dict = json.load(f)
 
-    encoder   = cfg_dict["encoder"]
-    token     = cfg_dict.get("token", "class")
-    k         = int(cfg_dict.get("context_window", BASE_CFG.training.context_window))
-    mode      = cfg_dict.get("context_mode", BASE_CFG.training.context_mode)
-    dist_mode = cfg_dict.get("dist_mode", "none")
+    encoder    = cfg_dict["encoder"]
+    token      = cfg_dict.get("token", "class")
+    k          = int(cfg_dict.get("context_window", BASE_CFG.training.context_window))
+    mode       = cfg_dict.get("context_mode", BASE_CFG.training.context_mode)
+    dist_mode  = cfg_dict.get("dist_mode", "none")
+    frame_type = cfg_dict.get("frame_type", "full")
 
     # Build dataset just to get input shape for model init
     ref_version = cfg_dict["finetune_versions"][-1]
     ds_ref = PPCIDataset.from_disk(
         "ants", ref_version, encoder, token,
-        frame_type="pov", dist_mode=dist_mode,
+        frame_type=frame_type, dist_mode=dist_mode,
         n_val_videos=0, **DS_KWARGS,
     )
     if k > 0:
@@ -145,16 +147,17 @@ def generate_annotations_for_version(
     print(f"Loading model from {deploy_dir} ...")
     model, cfg_dict = load_model(deploy_dir, device)
 
-    encoder   = cfg_dict["encoder"]
-    token     = cfg_dict.get("token", "class")
-    k         = int(cfg_dict.get("context_window", BASE_CFG.training.context_window))
-    mode      = cfg_dict.get("context_mode", BASE_CFG.training.context_mode)
-    dist_mode = cfg_dict.get("dist_mode", "none")
+    encoder    = cfg_dict["encoder"]
+    token      = cfg_dict.get("token", "class")
+    k          = int(cfg_dict.get("context_window", BASE_CFG.training.context_window))
+    mode       = cfg_dict.get("context_mode", BASE_CFG.training.context_mode)
+    dist_mode  = cfg_dict.get("dist_mode", "none")
+    frame_type = cfg_dict.get("frame_type", "full")
 
-    print(f"Loading dataset ants/{version} (pov, dist_mode={dist_mode}) ...")
+    print(f"Loading dataset ants/{version} ({frame_type}, dist_mode={dist_mode}) ...")
     ds = PPCIDataset.from_disk(
         "ants", version, encoder, token,
-        frame_type="pov", dist_mode=dist_mode,
+        frame_type=frame_type, dist_mode=dist_mode,
         n_val_videos=0, **DS_KWARGS,
     )
     if k > 0:
@@ -211,7 +214,9 @@ def main() -> None:
     parser.add_argument("--version", default="v5",
                         help="Dataset version to annotate (default: v5)")
     parser.add_argument("--deploy-dir", type=Path, default=None,
-                        help="Path to deployed model dir (default: results/ppci/ants/hparam/deploy/final)")
+                        help="Path to deployed model dir "
+                             "(default: auto-detected from best hparam search, "
+                             "e.g. results/ppci/ants/hparam/{pov,full}/deploy/final)")
     parser.add_argument("--out-dir", type=Path, default=None,
                         help="Output directory for CSVs (default: results/ppci/ants/annotations/{version}/)")
     parser.add_argument("--threshold", type=float, default=0.5,
@@ -224,7 +229,11 @@ def main() -> None:
                         help=f"ML pipeline FPS (default: {ML_FPS})")
     args = parser.parse_args()
 
-    deploy_dir = args.deploy_dir or (RESULTS_DIR / "deploy" / "final")
+    if args.deploy_dir is not None:
+        deploy_dir = args.deploy_dir
+    else:
+        deploy_dir = DEPLOY_RESULTS_DIR / "final"
+        print(f"[auto] deploy_dir={deploy_dir}")
     out_dir    = args.out_dir    or (ROOT / "results" / "ppci" / "ants" / "annotations" / args.version)
 
     generate_annotations_for_version(
