@@ -36,4 +36,5 @@ python -u scripts/mice_behavior/run_train.py \
     --lr 1e-3 \
     --val-frac 0.2 \
     --device cuda \
-    --seed 42
+    --seed 42 \
+    --overwrite-labels
