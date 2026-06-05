@@ -57,9 +57,13 @@ def train(
 
     model = MouseBehaviorClassifier(emb_dim=emb_dim, n_heads=n_heads, hidden_dim=hidden_dim).to(dev)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    criterion = nn.CrossEntropyLoss()
 
-    best_val_acc = -1.0
+    # class weights from training set to counteract imbalance in loss
+    counts = np.bincount(train_ds.samples[:, 3], minlength=3).astype(np.float32)
+    class_weights = torch.tensor(counts.sum() / (3 * counts), dtype=torch.float32).to(dev)
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
+
+    best_bal_acc = -1.0
     for epoch in range(1, n_epochs + 1):
         model.train()
         total_loss, correct, n = 0.0, 0, 0
@@ -78,10 +82,10 @@ def train(
         msg = f'epoch {epoch:3d}/{n_epochs}  loss={total_loss/n:.4f}  train_acc={correct/n:.4f}  ({time.time()-t0:.1f}s)'
 
         if val_loader is not None:
-            val_acc, per_class = _evaluate(model, val_loader, dev)
-            msg += f'  val_acc={val_acc:.4f}  ' + '  '.join(f'{k}={v:.3f}' for k, v in per_class.items())
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
+            val_acc, bal_acc, per_class = _evaluate(model, val_loader, dev)
+            msg += f'  val_acc={val_acc:.4f}  bal_acc={bal_acc:.4f}  ' + '  '.join(f'{k}={v}' for k, v in per_class.items())
+            if bal_acc > best_bal_acc:
+                best_bal_acc = bal_acc
                 torch.save(model.state_dict(), output_dir / 'best_model.pt')
 
         print(msg)
@@ -103,11 +107,13 @@ def _evaluate(model, loader, dev):
     preds = torch.cat(all_preds)
     labels = torch.cat(all_labels)
     acc = (preds == labels).float().mean().item()
-    per_class = {
-        LABEL_NAMES[c]: (
-            ((preds == c) & (labels == c)).sum().item()
-            / max((labels == c).sum().item(), 1)
-        )
-        for c in range(3)
-    }
-    return acc, per_class
+    per_class = {}
+    recalls = []
+    for c in range(3):
+        tp = ((preds == c) & (labels == c)).sum().item()
+        recall = tp / max((labels == c).sum().item(), 1)
+        precision = tp / max((preds == c).sum().item(), 1)
+        per_class[LABEL_NAMES[c]] = f'R={recall:.3f}/P={precision:.3f}'
+        recalls.append(recall)
+    bal_acc = float(np.mean(recalls))
+    return acc, bal_acc, per_class
