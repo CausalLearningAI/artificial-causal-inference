@@ -76,7 +76,8 @@ process_experiment() {
 # process_experiment "ants" "v2"
 # process_experiment "ants" "v3"
 # process_experiment "ants" "v4"
-process_experiment "ants" "v5"
 
-# process_experiment "mice" "v1"
+# process_experiment "ants" "v5"
+
+process_experiment "mice" "v1"
 # process_experiment "mice" "v2"

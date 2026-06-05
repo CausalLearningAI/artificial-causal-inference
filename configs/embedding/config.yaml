@@ -6,6 +6,7 @@ defaults:
 # Embedding extraction settings
 encoder: dinov2
 token: class
+layer: -1         # hidden layer index (-1 = last, -2 = penultimate, etc.)
 batch_size: 192   # fp16 inference — roughly 2x the fp32 limit per GPU class
 num_workers: 12   # preprocessing runs in workers in parallel with GPU
 device: cuda

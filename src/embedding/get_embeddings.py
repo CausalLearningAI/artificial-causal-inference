@@ -102,6 +102,7 @@ class EmbeddingExtractor:
         batch_size: int = 32,
         num_workers: int = 4,
         token: str = 'class',
+        layer: int = -1,
         verbose: bool = True
     ):
         if encoder not in self.AVAILABLE_ENCODERS:
@@ -115,6 +116,7 @@ class EmbeddingExtractor:
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.token = token
+        self.layer = layer
         self.verbose = verbose
 
         self._load_model()
@@ -170,15 +172,15 @@ class EmbeddingExtractor:
         with torch.inference_mode(), autocast_ctx:
             outputs = self.model(pixel_values=pixel_values, output_hidden_states=True)
 
-        # Extract token representation from last hidden layer
+        # Extract token representation from the selected hidden layer
         if 'resnet' in self.encoder_name:
-            hidden = outputs.hidden_states[-1]          # (B, C, H, W)
+            hidden = outputs.hidden_states[self.layer]  # (B, C, H, W)
             embeddings = hidden.float().mean(dim=[2, 3])
         else:
-            # hidden_states is a tuple; last entry is (B, seq_len, dim)
+            # hidden_states is a tuple of (B, seq_len, dim) tensors
             # Fall back to last_hidden_state if hidden_states unavailable
             if outputs.hidden_states is not None:
-                hidden = outputs.hidden_states[-1].float()
+                hidden = outputs.hidden_states[self.layer].float()
             else:
                 hidden = outputs.last_hidden_state.float()
 
@@ -347,6 +349,7 @@ def extract_embeddings_to_disk(
     dataset: Dataset,
     encoder: str = 'dinov2',
     token: str = 'class',
+    layer: int = -1,
     batch_size: int = 32,
     num_workers: int = 4,
     device: str = 'cuda',
@@ -377,12 +380,13 @@ def extract_embeddings_to_disk(
     if subject is None or version is None:
         raise ValueError("subject and version are required (or must be present in dataset metadata).")
 
+    token_dir = token if layer == -1 else f"{token}_l{layer}"
     output_dir = Path(output_dir) / subject / version / 'embeddings' / frame_type
     if frame_type == 'pov':
         if pov_identity not in {'blue', 'yellow'}:
             raise ValueError(f"Invalid pov_identity='{pov_identity}'. Use 'blue' or 'yellow'.")
         output_dir = output_dir / pov_identity
-    output_dir = output_dir / encoder / token
+    output_dir = output_dir / encoder / token_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
     npy_file_check = output_dir / "embeddings.npy"
@@ -459,6 +463,7 @@ def extract_embeddings_to_disk(
         batch_size=batch_size,
         num_workers=num_workers,
         token=token,
+        layer=layer,
         verbose=verbose
     )
 
@@ -534,6 +539,7 @@ def load_embeddings_from_disk(
     version: str,
     encoder: str = 'dinov2',
     token: str = 'class',
+    layer: int = -1,
     dataset_root: str = './dataset',
     frame_type: str = 'full',
     pov_identity: str = 'blue',
@@ -552,10 +558,11 @@ def load_embeddings_from_disk(
     Returns:
         torch.Tensor of shape (num_samples, embedding_dim)
     """
+    token_dir = token if layer == -1 else f"{token}_l{layer}"
     path = Path(dataset_root) / subject / version / 'embeddings' / frame_type
     if frame_type == 'pov':
         path = path / pov_identity
-    path = path / encoder / token
+    path = path / encoder / token_dir
 
     if not path.exists():
         raise FileNotFoundError(f"Embeddings not found at {path}")
@@ -596,6 +603,7 @@ def add_embeddings_from_disk(
     version: Optional[str] = None,
     encoder: str = 'dinov2',
     token: str = 'class',
+    layer: int = -1,
     dataset_root: str = './dataset',
     column_name: Optional[str] = None,
     overwrite: bool = False
@@ -612,7 +620,7 @@ def add_embeddings_from_disk(
     if col_name in dataset.column_names:
         dataset = dataset.remove_columns(col_name)
 
-    embeddings = load_embeddings_from_disk(subject, version, encoder, token, dataset_root)
+    embeddings = load_embeddings_from_disk(subject, version, encoder, token, layer, dataset_root)
     dataset = dataset.add_column(col_name, embeddings.tolist())
     dataset.set_format(type='torch', columns=[col_name])
     return dataset
@@ -680,6 +688,7 @@ def _run_from_hydra(cfg: "DictConfig") -> int:
     version = cfg.version
     encoder     = _get_cfg_value(cfg, "encoder",     "dinov2")
     token       = _get_cfg_value(cfg, "token",       "class")
+    layer       = _get_cfg_value(cfg, "layer",       -1)
     batch_size  = _get_cfg_value(cfg, "batch_size",  32)
     num_workers = _get_cfg_value(cfg, "num_workers", 4)
     device      = _get_cfg_value(cfg, "device",      "cuda")
@@ -715,6 +724,7 @@ def _run_from_hydra(cfg: "DictConfig") -> int:
             dataset=dataset,
             encoder=encoder,
             token=token,
+            layer=layer,
             batch_size=batch_size,
             num_workers=num_workers,
             device=device,

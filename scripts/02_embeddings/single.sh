@@ -56,9 +56,10 @@ set -euo pipefail
 #   ENCODER=resnet             BATCH_SIZE=512
 #   ENCODER=aimv2              BATCH_SIZE=160   # Apple AIMv2, 2025
 # ---------------------------------------------------------------------------
-ENCODER=${ENCODER:-siglip2}
+ENCODER=${ENCODER:-dinov2}
 TOKEN=${TOKEN:-class}
-BATCH_SIZE=${BATCH_SIZE:-112}
+LAYER=${LAYER:--2}
+BATCH_SIZE=${BATCH_SIZE:-192}
 NUM_WORKERS=${NUM_WORKERS:-8}
 DEVICE=${DEVICE:-cuda}
 
@@ -72,6 +73,7 @@ process_experiment() {
         experiment="${SUBJECT}/${VERSION}" \
         encoder="${ENCODER}" \
         token="${TOKEN}" \
+        layer="${LAYER}" \
         batch_size="${BATCH_SIZE}" \
         num_workers="${NUM_WORKERS}" \
         device="${DEVICE}"; then
@@ -91,11 +93,11 @@ process_experiment() {
 }
 
 # Process experiments
-process_experiment "ants" "v1"
-process_experiment "ants" "v2"
-process_experiment "ants" "v3"
-process_experiment "ants" "v4"
-process_experiment "ants" "v5"
+# process_experiment "ants" "v1"
+# process_experiment "ants" "v2"
+# process_experiment "ants" "v3"
+# process_experiment "ants" "v4"
+# process_experiment "ants" "v5"
 
 process_experiment "mice" "v1"
-process_experiment "mice" "v2"
+# process_experiment "mice" "v2"
