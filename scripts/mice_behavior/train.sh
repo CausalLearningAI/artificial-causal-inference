@@ -9,11 +9,11 @@
 #SBATCH --output=logs/mice_behavior_%j.out
 #SBATCH --error=logs/mice_behavior_%j.err
 #SBATCH --time=02:00:00
-#SBATCH --partition=gpu
+#SBATCH --partition=gpu100
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=16G
-#SBATCH --gres=gpu:A40:1
+#SBATCH --mem=32G
+#SBATCH --gres=gpu:H100:1
 
 module load conda
 conda activate crl
