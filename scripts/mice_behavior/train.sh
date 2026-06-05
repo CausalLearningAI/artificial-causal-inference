@@ -27,7 +27,7 @@ mkdir -p logs
 
 python -u scripts/mice_behavior/run_train.py \
     --encoder dinov2 \
-    --token class \
+    --token class_l-2 \
     --context-k 2 \
     --n-heads 8 \
     --hidden-dim 256 \
