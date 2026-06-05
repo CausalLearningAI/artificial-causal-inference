@@ -78,9 +78,13 @@ def train(
     model = MouseBehaviorClassifier(emb_dim=emb_dim, n_heads=n_heads, hidden_dim=hidden_dim).to(dev)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    # weight loss by remaining pos/pos imbalance (nt vs nn) after neg subsampling
-    counts = np.bincount(labels, minlength=3).clip(1).astype(np.float32)
-    class_weights = torch.tensor(counts.sum() / (3 * counts), dtype=torch.float32).to(dev)
+    # class weights from the sampled distribution (not the full dataset)
+    # neg_ratio negatives are drawn per positive, so none count ≈ n_pos * neg_ratio
+    n_pos_total = int((labels > 0).sum())
+    sampled_counts = np.bincount(labels, minlength=3).clip(1).astype(np.float32)
+    sampled_counts[0] = n_pos_total * neg_ratio
+    class_weights = torch.tensor(sampled_counts.sum() / (3 * sampled_counts), dtype=torch.float32).to(dev)
+    print(f'  class weights: none={class_weights[0]:.2f}  nt={class_weights[1]:.2f}  nn={class_weights[2]:.2f}')
     criterion = nn.CrossEntropyLoss(weight=class_weights)
 
     best_bal_acc = -1.0

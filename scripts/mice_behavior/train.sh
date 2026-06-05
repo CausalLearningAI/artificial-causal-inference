@@ -32,7 +32,7 @@ python -u scripts/mice_behavior/run_train.py \
     --n-heads 8 \
     --hidden-dim 256 \
     --epochs 100 \
-    --neg-ratio 1 \
+    --neg-ratio 10 \
     --batch-size 512 \
     --lr 1e-3 \
     --val-frac 0.2 \
