@@ -24,7 +24,7 @@ def main():
     p.add_argument('--dataset-dir', default='./dataset')
     p.add_argument('--results-dir', default='./results/mice_behavior')
     p.add_argument('--encoder', default='dinov2', choices=['dinov2', 'dinov3', 'siglip', 'siglip2'])
-    p.add_argument('--token', default='class', choices=['class', 'mean'])
+    p.add_argument('--token', default='class')
     p.add_argument('--context-k', type=int, default=2)
     p.add_argument('--n-heads', type=int, default=8)
     p.add_argument('--hidden-dim', type=int, default=256)
