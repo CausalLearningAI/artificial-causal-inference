@@ -31,7 +31,8 @@ python -u scripts/mice_behavior/run_train.py \
     --context-k 2 \
     --n-heads 8 \
     --hidden-dim 256 \
-    --epochs 30 \
+    --epochs 100 \
+    --neg-ratio 1 \
     --batch-size 512 \
     --lr 1e-3 \
     --val-frac 0.2 \

@@ -4,12 +4,32 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, WeightedRandomSampler
+from torch.utils.data import DataLoader, Sampler
 
 from .dataset import MousePairDataset, collate_fn
 from .model import MouseBehaviorClassifier
 
 LABEL_NAMES = ['none', 'nt', 'nn']
+
+
+class DynamicNegativeSampler(Sampler):
+    """Each epoch: all positive samples + a fresh random draw of neg_ratio×n_pos negatives."""
+
+    def __init__(self, labels: np.ndarray, neg_ratio: int = 1, seed: int = 42):
+        self.pos_idx = np.where(labels > 0)[0]
+        self.neg_idx = np.where(labels == 0)[0]
+        self.neg_ratio = neg_ratio
+        self.rng = np.random.default_rng(seed)
+
+    def __iter__(self):
+        n_neg = min(len(self.neg_idx), self.neg_ratio * len(self.pos_idx))
+        neg_sample = self.rng.choice(self.neg_idx, size=n_neg, replace=False)
+        idx = np.concatenate([self.pos_idx, neg_sample])
+        self.rng.shuffle(idx)
+        return iter(idx.tolist())
+
+    def __len__(self):
+        return len(self.pos_idx) * (1 + self.neg_ratio)
 
 
 def train(
@@ -23,9 +43,10 @@ def train(
     emb_dim: int = 768,
     n_heads: int = 8,
     hidden_dim: int = 256,
-    n_epochs: int = 30,
+    n_epochs: int = 100,
     batch_size: int = 512,
     lr: float = 1e-3,
+    neg_ratio: int = 1,
     device: str = 'cuda',
     seed: int = 42,
 ):
@@ -39,11 +60,10 @@ def train(
         annotations_csv, pair_labels_parquet, embeddings_path,
         obs_ids=train_obs_ids, context_k=context_k, emb_dim=emb_dim,
     )
-    sampler = WeightedRandomSampler(
-        weights=train_ds.sample_weights,
-        num_samples=len(train_ds),
-        replacement=True,
-    )
+    labels = train_ds.samples[:, 3]
+    sampler = DynamicNegativeSampler(labels, neg_ratio=neg_ratio, seed=seed)
+    n_pos = (labels > 0).sum()
+    print(f'  DynamicNegativeSampler: {n_pos:,} pos + {neg_ratio}×{n_pos:,} neg per epoch ({len(sampler):,} samples/epoch)')
     train_loader = DataLoader(train_ds, batch_size=batch_size, sampler=sampler, num_workers=4, pin_memory=True, collate_fn=collate_fn)
 
     val_loader = None
@@ -58,8 +78,8 @@ def train(
     model = MouseBehaviorClassifier(emb_dim=emb_dim, n_heads=n_heads, hidden_dim=hidden_dim).to(dev)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    # class weights from training set to counteract imbalance in loss
-    counts = np.bincount(train_ds.samples[:, 3], minlength=3).astype(np.float32)
+    # weight loss by remaining pos/pos imbalance (nt vs nn) after neg subsampling
+    counts = np.bincount(labels, minlength=3).clip(1).astype(np.float32)
     class_weights = torch.tensor(counts.sum() / (3 * counts), dtype=torch.float32).to(dev)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
 
@@ -68,16 +88,16 @@ def train(
         model.train()
         total_loss, correct, n = 0.0, 0, 0
         t0 = time.time()
-        for ctx, a1, a2, labels, mask in train_loader:
-            ctx, a1, a2, labels, mask = ctx.to(dev), a1.to(dev), a2.to(dev), labels.to(dev), mask.to(dev)
+        for ctx, a1, a2, labels_b, mask in train_loader:
+            ctx, a1, a2, labels_b, mask = ctx.to(dev), a1.to(dev), a2.to(dev), labels_b.to(dev), mask.to(dev)
             optimizer.zero_grad()
             logits = model(ctx, a1, a2, key_padding_mask=mask)
-            loss = criterion(logits, labels)
+            loss = criterion(logits, labels_b)
             loss.backward()
             optimizer.step()
-            total_loss += loss.item() * len(labels)
-            correct += (logits.argmax(1) == labels).sum().item()
-            n += len(labels)
+            total_loss += loss.item() * len(labels_b)
+            correct += (logits.argmax(1) == labels_b).sum().item()
+            n += len(labels_b)
 
         msg = f'epoch {epoch:3d}/{n_epochs}  loss={total_loss/n:.4f}  train_acc={correct/n:.4f}  ({time.time()-t0:.1f}s)'
 

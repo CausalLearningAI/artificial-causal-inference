@@ -28,7 +28,8 @@ def main():
     p.add_argument('--context-k', type=int, default=2)
     p.add_argument('--n-heads', type=int, default=8)
     p.add_argument('--hidden-dim', type=int, default=256)
-    p.add_argument('--epochs', type=int, default=30)
+    p.add_argument('--epochs', type=int, default=100)
+    p.add_argument('--neg-ratio', type=int, default=1, help='negatives per positive in each epoch')
     p.add_argument('--batch-size', type=int, default=512)
     p.add_argument('--lr', type=float, default=1e-3)
     p.add_argument('--val-frac', type=float, default=0.2, help='Fraction of pools held out for validation')
@@ -79,6 +80,7 @@ def main():
         context_k=args.context_k,
         emb_dim=emb_dim,
         n_heads=args.n_heads,
+        neg_ratio=args.neg_ratio,
         hidden_dim=args.hidden_dim,
         n_epochs=args.epochs,
         batch_size=args.batch_size,
