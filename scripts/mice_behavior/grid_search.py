@@ -60,7 +60,7 @@ def kfold_pools(pools, k, seed=SEED):
 
 
 def run_config(cfg, annotations_csv, pair_labels_path, embeddings_path, emb_dim,
-                train_obs, val_obs, n_epochs, tag):
+                train_obs, val_obs, n_epochs, tag, eval_every=1):
     out_dir = RESULTS_DIR / 'tmp' / tag
     result = train(
         annotations_csv=str(annotations_csv),
@@ -80,6 +80,7 @@ def run_config(cfg, annotations_csv, pair_labels_path, embeddings_path, emb_dim,
         device='cuda',
         seed=SEED,
         verbose=False,
+        eval_every=eval_every,
     )
     return result['best_pr_auc'], result['best_per_class']
 
@@ -139,7 +140,7 @@ def main():
         try:
             pr_auc, per_class = run_config(
                 cfg, annotations_csv, pair_labels_path, embeddings_path, emb_dim,
-                train_obs, val_obs, n_epochs=20, tag=tag,
+                train_obs, val_obs, n_epochs=20, tag=tag, eval_every=5,
             )
         except Exception as e:
             log_result({'stage': 'A', 'tag': tag, 'cfg': cfg, 'error': str(e)})
@@ -169,7 +170,7 @@ def main():
             try:
                 pr_auc, per_class = run_config(
                     cfg, annotations_csv, pair_labels_path, embeddings_path, emb_dim,
-                    train_obs_f, val_obs_f, n_epochs=40, tag=tag,
+                    train_obs_f, val_obs_f, n_epochs=40, tag=tag, eval_every=5,
                 )
             except Exception as e:
                 log_result({'stage': 'B', 'tag': tag, 'cfg': cfg, 'fold': f, 'error': str(e)})

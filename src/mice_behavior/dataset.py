@@ -158,6 +158,67 @@ class MousePairDataset(Dataset):
         )
 
 
+class MousePairDatasetPatchGrid(MousePairDataset):
+    """Like MousePairDataset, but context frames are (P, emb_dim) coarse
+    patch-grid tokens instead of a single CLS vector — used with
+    MouseBehaviorClassifier(use_patch_grid=True).
+
+    embeddings_path: patch_grid{G}/embeddings.npy (fp16, shape (n_pg, P, emb_dim))
+    global_idx_path: patch_grid{G}/global_idx.npy — row i's global frame index
+        in the same indexing scheme as annotations.csv / the CLS embeddings.
+        Only preload=True is supported (random NFS reads into a 19GB+ fp16
+        file per-sample would be prohibitively slow).
+    """
+
+    def __init__(
+        self, annotations_csv, pair_labels_parquet, cls_embeddings_path,
+        embeddings_path, global_idx_path,
+        obs_ids=None, context_k=2, emb_dim=768, n_patches=16,
+    ):
+        # Reuses the parent's sample-index/obs_boundary construction (frame-boundary
+        # logic is embedding-agnostic); preload=False so the CLS embeddings file is
+        # never actually read, just used to size the (unused) placeholder mmap.
+        super().__init__(
+            annotations_csv, pair_labels_parquet, cls_embeddings_path,
+            obs_ids=obs_ids, context_k=context_k, emb_dim=emb_dim, preload=False,
+        )
+        del self.embeddings
+        self.n_patches = n_patches
+
+        global_idx = np.load(global_idx_path)
+        pg_row_of_global = {int(g): i for i, g in enumerate(global_idx)}
+        pg_mmap = np.memmap(embeddings_path, dtype='float16', mode='r',
+                             shape=(len(global_idx), n_patches, emb_dim))
+
+        print('  preloading patch-grid embeddings into RAM (sequential NFS read)...')
+        self._pg_arrays = {}  # keyed by obs_s (CLS indexing, matches self.samples)
+        seen_obs_s = set(self.samples[:, 4].tolist())
+        for obs_s in seen_obs_s:
+            obs_e = int(self.samples[self.samples[:, 4] == obs_s, 5][0])
+            pg_start = pg_row_of_global[obs_s]
+            pg_end = pg_row_of_global[obs_e - 1] + 1
+            self._pg_arrays[obs_s] = np.array(pg_mmap[pg_start:pg_end])
+        total_mb = sum(a.nbytes for a in self._pg_arrays.values()) / 1e6
+        print(f'  preloaded {total_mb:.0f} MB (patch grid)')
+
+    def __getitem__(self, idx):
+        gi, a1, a2, label, obs_s, obs_e = self.samples[idx]
+        k = self.k
+        local = int(gi) - int(obs_s)
+        obs_len = int(obs_e) - int(obs_s)
+        lo = max(0, local - k)
+        hi = min(obs_len - 1, local + k)
+        context = self._pg_arrays[int(obs_s)][lo:hi + 1]  # (T, P, emb_dim) float16
+        offsets = np.arange(lo, hi + 1) - local
+        return (
+            torch.from_numpy(context.copy()).float(),  # (T, P, emb_dim)
+            torch.from_numpy(offsets.copy()).long(),
+            torch.tensor(int(a1), dtype=torch.long),
+            torch.tensor(int(a2), dtype=torch.long),
+            torch.tensor(int(label), dtype=torch.long),
+        )
+
+
 def collate_fn(batch):
     """Pad variable-length sequences and build key_padding_mask for cross-attention."""
     seqs, offsets, a1s, a2s, labels = zip(*batch)

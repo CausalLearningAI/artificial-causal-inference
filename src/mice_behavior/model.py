@@ -4,6 +4,24 @@ import torch
 import torch.nn as nn
 
 
+class PatchAttnPool(nn.Module):
+    """Single learned query attends over a frame's spatial patch-grid tokens,
+    producing one smart-weighted-average vector per frame (replaces static
+    average pooling / CLS-token summarization)."""
+
+    def __init__(self, emb_dim: int = 768, n_heads: int = 1):
+        super().__init__()
+        self.query = nn.Parameter(torch.randn(1, 1, emb_dim) * 0.02)
+        self.attn = nn.MultiheadAttention(emb_dim, n_heads, batch_first=True)
+
+    def forward(self, patch_seq: torch.Tensor) -> torch.Tensor:
+        # patch_seq: (N, P, emb_dim) -> (N, emb_dim)
+        N = patch_seq.size(0)
+        q = self.query.expand(N, -1, -1)
+        out, _ = self.attn(q, patch_seq, patch_seq)
+        return out.squeeze(1)
+
+
 class MouseBehaviorClassifier(nn.Module):
     """
     Pairwise behavior classifier using cross-attention over frame embeddings.
@@ -12,7 +30,9 @@ class MouseBehaviorClassifier(nn.Module):
     The two attended representations are concatenated and classified.
 
     Input:
-        context_seq: (B, T, emb_dim) — frame embedding sequence (not mean-pooled)
+        context_seq: (B, T, emb_dim) frame embedding sequence (CLS-token mode), or
+            (B, T, P, emb_dim) coarse patch-grid tokens per frame (use_patch_grid=True) —
+            pooled per-frame via PatchAttnPool before the temporal cross-attention.
         a1, a2: (B,) — mouse indices in {0, 1, 2, 3}
         offsets: (B, T) — integer frame offset of each context position relative to the
             target frame (e.g. -2..+2 for context_k=2), clamped to [-max_offset, max_offset]
@@ -22,12 +42,15 @@ class MouseBehaviorClassifier(nn.Module):
 
     def __init__(
         self, emb_dim: int = 768, n_heads: int = 1, hidden_dim: int = 256, n_classes: int = 3,
-        max_offset: int = 8,
+        max_offset: int = 8, use_patch_grid: bool = False,
     ):
         super().__init__()
         self.max_offset = max_offset
+        self.use_patch_grid = use_patch_grid
         self.mouse_queries = nn.Embedding(4, emb_dim)
         self.pos_emb = nn.Embedding(2 * max_offset + 1, emb_dim)
+        if use_patch_grid:
+            self.patch_pool = PatchAttnPool(emb_dim=emb_dim, n_heads=n_heads)
         self.cross_attn = nn.MultiheadAttention(emb_dim, n_heads, batch_first=True)
         self.head = nn.Sequential(
             nn.Linear(2 * emb_dim, hidden_dim),
@@ -43,6 +66,9 @@ class MouseBehaviorClassifier(nn.Module):
         offsets: Optional[torch.Tensor] = None,
         key_padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        if self.use_patch_grid:
+            B, T, P, D = context_seq.shape
+            context_seq = self.patch_pool(context_seq.reshape(B * T, P, D)).reshape(B, T, D)
         B = context_seq.size(0)
         if offsets is not None:
             idx = offsets.clamp(-self.max_offset, self.max_offset) + self.max_offset
