@@ -21,10 +21,10 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.mice_behavior.build_pair_labels import build_pair_labels
-from src.mice_behavior.dataset import MousePairDatasetPatchGrid, collate_fn
+from src.mice_behavior.fast_data import FastBatchData, load_patchgrid_embeddings
 from src.mice_behavior.model import MouseBehaviorClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
-from src.mice_behavior.report import collect_val_predictions, generate_report
+from src.mice_behavior.report import collect_val_predictions_fast, generate_report
 from src.mice_behavior.train import train_fast
 
 DATA_DIR = Path('./data')
@@ -117,14 +117,13 @@ def main():
     model.load_state_dict(torch.load(out_dir / 'best_model.pt', map_location=dev, weights_only=True))
     model.eval()
 
-    val_ds = MousePairDatasetPatchGrid(
-        str(annotations_csv), str(pair_labels_path), cls_embeddings_path=str(cls_embeddings_path),
-        embeddings_path=str(PATCH_GRID_DIR / 'embeddings.npy'), global_idx_path=str(PATCH_GRID_DIR / 'global_idx.npy'),
-        obs_ids=val_obs, context_k=CFG['context_k'], emb_dim=emb_dim, n_patches=16,
+    val_data = FastBatchData(
+        str(annotations_csv), str(pair_labels_path), val_obs, CFG['context_k'], emb_dim,
+        load_patchgrid_embeddings(str(PATCH_GRID_DIR / 'embeddings.npy'), str(PATCH_GRID_DIR / 'global_idx.npy'), 16, emb_dim),
+        n_patches=16,
     )
-    val_loader = torch.utils.data.DataLoader(val_ds, batch_size=512, shuffle=False, num_workers=0, collate_fn=collate_fn)
-    probs, labels = collect_val_predictions(model, val_loader, dev)
-    generate_report(probs, labels, history, f'Patch-grid (attention-pooled) mouse behavior classifier — {CFG}', out_dir)
+    probs, labels = collect_val_predictions_fast(model, val_data, dev)
+    generate_report(probs, labels, history, 'Patch-grid (attention-pooled) mouse behavior classifier', CFG, out_dir)
     print(f'Saved {out_dir / "report.png"}')
 
 

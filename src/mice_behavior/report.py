@@ -30,7 +30,37 @@ def collect_val_predictions(model, val_loader, dev):
     return np.concatenate(all_probs), np.concatenate(all_labels)
 
 
-def generate_report(probs, labels, history, title, out_dir: Path):
+def collect_val_predictions_fast(model, val_data, dev, batch_size=1024):
+    """Same output as collect_val_predictions, but gathers batches from a
+    FastBatchData instance (vectorized numpy fancy-indexing) instead of a
+    per-sample Dataset/DataLoader — the per-sample path is the same
+    __getitem__-per-call bottleneck already eliminated from training; this
+    closes the same gap for the final report's full-val-set evaluation.
+    Indices are walked in order (0..N-1) so the (frame, 12 pairs) grouping
+    generate_report relies on for the collapsed-per-frame view is preserved."""
+    model.eval()
+    all_probs, all_labels = [], []
+    idx_all = np.arange(len(val_data))
+    with torch.no_grad():
+        for b0 in range(0, len(idx_all), batch_size):
+            batch_idx = idx_all[b0:b0 + batch_size]
+            ctx, offs, a1, a2, lbl, mask = val_data.get_batch(batch_idx)
+            ctx, offs, a1, a2, mask = (
+                ctx.to(dev, non_blocking=True).float(), offs.to(dev, non_blocking=True),
+                a1.to(dev, non_blocking=True), a2.to(dev, non_blocking=True), mask.to(dev, non_blocking=True),
+            )
+            logits = model(ctx, a1, a2, offsets=offs, key_padding_mask=mask)
+            all_probs.append(torch.softmax(logits, dim=1).cpu().numpy())
+            all_labels.append(lbl.numpy())
+    return np.concatenate(all_probs), np.concatenate(all_labels)
+
+
+def cfg_str(cfg: dict) -> str:
+    return (f"heads={cfg['n_heads']}, context_k={cfg['context_k']}, hidden={cfg['hidden_dim']}, "
+            f"neg_ratio={cfg['neg_ratio']}, loss={cfg['loss_type']}")
+
+
+def generate_report(probs, labels, history, variant_name: str, cfg: dict, out_dir: Path):
     out_dir = Path(out_dir)
     n_pairs = 12
     n_frames_val = len(labels) // n_pairs
@@ -47,14 +77,23 @@ def generate_report(probs, labels, history, title, out_dir: Path):
     axes[0, 0].plot(history['eval_epoch'], history['val_loss'], label='val loss')
     axes[0, 0].axvline(best_epoch, color='tab:green', ls='--', alpha=0.6, label=f'best epoch ({best_epoch})')
     axes[0, 0].set_xlabel('epoch'); axes[0, 0].set_ylabel('loss')
-    axes[0, 0].set_title('Train / val loss'); axes[0, 0].legend()
+    axes[0, 0].set_title('Loss'); axes[0, 0].legend()
 
-    axes[0, 1].plot(history['eval_epoch'], history['macro_pr_auc'], color='tab:green')
+    # Per-behavior (nt/nn) PR-AUC, computed both ways, for a direct read on the training curve:
+    # "couples" = per-ordered-pair (row 1 below), "per frame" = collapsed-per-frame (row 2 below).
+    pair_pr_auc = {name: average_precision_score((labels == c).astype(int), probs[:, c])
+                   for c, name in [(1, 'nt'), (2, 'nn')]}
+    frame_pr_auc = {name: average_precision_score((labels_r == c).any(axis=1).astype(int), probs_r[:, :, c].max(axis=1))
+                    for c, name in [(1, 'nt'), (2, 'nn')]}
+    pair_macro = np.mean(list(pair_pr_auc.values()))
+    frame_macro = np.mean(list(frame_pr_auc.values()))
+
+    axes[0, 1].plot(history['eval_epoch'], history['macro_pr_auc'], color='tab:green', label='val macro PR-AUC (per epoch)')
     axes[0, 1].axvline(best_epoch, color='tab:green', ls='--', alpha=0.6)
-    axes[0, 1].scatter([best_epoch], [history['macro_pr_auc'][best_idx]], color='tab:red', zorder=5,
-                        label=f"best={history['macro_pr_auc'][best_idx]:.3f} @ epoch {best_epoch}")
+    axes[0, 1].axhline(pair_macro, color='tab:blue', ls=':', alpha=0.7, label=f'best ckpt, per couple (nt/nn): {pair_macro:.3f}')
+    axes[0, 1].axhline(frame_macro, color='tab:orange', ls=':', alpha=0.7, label=f'best ckpt, per frame (nt/nn): {frame_macro:.3f}')
     axes[0, 1].set_xlabel('epoch'); axes[0, 1].set_ylabel('macro PR-AUC')
-    axes[0, 1].set_title('Val macro PR-AUC over training'); axes[0, 1].legend()
+    axes[0, 1].set_title('PR-AUC'); axes[0, 1].legend(fontsize=8)
 
     for c, name in enumerate(LABEL_NAMES):
         y_true = (labels == c).astype(int)
@@ -72,12 +111,23 @@ def generate_report(probs, labels, history, title, out_dir: Path):
         save_data[f'pair_{name}_roc_auc'] = roc_auc
         save_data[f'pair_{name}_pr_auc'] = pr_auc
     axes[1, 0].plot([0, 1], [0, 1], 'k--', alpha=0.3)
-    axes[1, 0].set_xlabel('FPR'); axes[1, 0].set_ylabel('TPR'); axes[1, 0].set_title('Per-pair ROC'); axes[1, 0].legend()
-    axes[1, 1].set_xlabel('Recall'); axes[1, 1].set_ylabel('Precision'); axes[1, 1].set_title('Per-pair PR'); axes[1, 1].legend()
+    axes[1, 0].set_xlabel('FPR'); axes[1, 0].set_ylabel('TPR')
+    axes[1, 0].set_title('Behaviors per mice couples (ROC)'); axes[1, 0].legend()
+    axes[1, 1].set_xlabel('Recall'); axes[1, 1].set_ylabel('Precision')
+    axes[1, 1].set_title('Behaviors per mice couples (PR)'); axes[1, 1].legend()
 
-    for c, name in [(1, 'nt'), (2, 'nn')]:
-        frame_true = (labels_r == c).any(axis=1).astype(int)
-        frame_score = probs_r[:, :, c].max(axis=1)
+    # 'none' is aggregated the opposite way from nt/nn: a frame only counts as a true
+    # "no interaction" frame if ALL 12 pairs are none (any single interacting pair means
+    # something happened in that frame), so we take the min confidence across pairs rather
+    # than the max. Using .any()/.max() for 'none' too would be trivially ~100% positive
+    # (almost every individual pair already is 'none'), which is what row 1 already covers.
+    for c, name in [(0, 'none'), (1, 'nt'), (2, 'nn')]:
+        if c == 0:
+            frame_true = (labels_r == c).all(axis=1).astype(int)
+            frame_score = probs_r[:, :, c].min(axis=1)
+        else:
+            frame_true = (labels_r == c).any(axis=1).astype(int)
+            frame_score = probs_r[:, :, c].max(axis=1)
         fpr, tpr, _ = roc_curve(frame_true, frame_score)
         prec, rec, _ = precision_recall_curve(frame_true, frame_score)
         roc_auc = roc_auc_score(frame_true, frame_score)
@@ -91,10 +141,12 @@ def generate_report(probs, labels, history, title, out_dir: Path):
         save_data[f'frame_{name}_roc_auc'] = roc_auc
         save_data[f'frame_{name}_pr_auc'] = pr_auc
     axes[2, 0].plot([0, 1], [0, 1], 'k--', alpha=0.3)
-    axes[2, 0].set_xlabel('FPR'); axes[2, 0].set_ylabel('TPR'); axes[2, 0].set_title('Collapsed per-frame ROC'); axes[2, 0].legend()
-    axes[2, 1].set_xlabel('Recall'); axes[2, 1].set_ylabel('Precision'); axes[2, 1].set_title('Collapsed per-frame PR'); axes[2, 1].legend()
+    axes[2, 0].set_xlabel('FPR'); axes[2, 0].set_ylabel('TPR')
+    axes[2, 0].set_title('Aggregated behaviors per frame (ROC)'); axes[2, 0].legend()
+    axes[2, 1].set_xlabel('Recall'); axes[2, 1].set_ylabel('Precision')
+    axes[2, 1].set_title('Aggregated behaviors per frame (PR)'); axes[2, 1].legend()
 
-    fig.suptitle(title)
+    fig.suptitle(f'{variant_name} — {cfg_str(cfg)}')
     fig.tight_layout()
     fig.savefig(out_dir / 'report.png', dpi=150)
     np.savez(out_dir / 'roc_pr_data.npz', **save_data)
