@@ -81,6 +81,9 @@ def main():
         n_epochs=N_EPOCHS,
         neg_ratio=CFG['neg_ratio'],
         loss_type=CFG['loss_type'],
+        lr=3e-4,  # CLS is stable at the 1e-3 default; the extra PatchAttnPool stage in this
+                  # variant repeatedly collapsed into a dead (ln(3)-loss) state at 1e-3 even
+                  # with grad clipping down to max_norm=0.5 — lower lr specifically here.
         device='cuda',
         seed=SEED,
         verbose=True,
