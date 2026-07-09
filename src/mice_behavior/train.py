@@ -97,9 +97,14 @@ def train(
     sampler = DynamicNegativeSampler(labels, neg_ratio=neg_ratio, seed=seed)
     n_pos = (labels > 0).sum()
     print(f'  DynamicNegativeSampler: {n_pos:,} pos + {neg_ratio}×{n_pos:,} neg per epoch ({len(sampler):,} samples/epoch)')
+    # num_workers=0: __getitem__ only slices already-RAM-preloaded numpy arrays (no disk I/O
+    # to overlap with GPU compute), so multi-process workers add nothing — and each worker's
+    # copy-on-write fork of the preloaded dataset (up to ~19GB for the patch-grid variant) risks
+    # ballooning past the job's memory allocation as pages get touched, which is what caused
+    # multi-minute inter-epoch stalls even with persistent_workers=True.
     train_loader = DataLoader(
-        train_ds, batch_size=batch_size, sampler=sampler, num_workers=4, pin_memory=True,
-        collate_fn=collate_fn, persistent_workers=True,
+        train_ds, batch_size=batch_size, sampler=sampler, num_workers=0, pin_memory=True,
+        collate_fn=collate_fn,
     )
 
     val_loader = None
@@ -117,8 +122,8 @@ def train(
                 obs_ids=val_obs_ids, context_k=context_k, emb_dim=emb_dim,
             )
         val_loader = DataLoader(
-            val_ds, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True,
-            collate_fn=collate_fn, persistent_workers=True,
+            val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=True,
+            collate_fn=collate_fn,
         )
 
     model = MouseBehaviorClassifier(

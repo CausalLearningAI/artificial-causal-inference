@@ -113,7 +113,7 @@ def main():
         embeddings_path=str(PATCH_GRID_DIR / 'embeddings.npy'), global_idx_path=str(PATCH_GRID_DIR / 'global_idx.npy'),
         obs_ids=val_obs, context_k=CFG['context_k'], emb_dim=emb_dim, n_patches=16,
     )
-    loader = torch.utils.data.DataLoader(val_ds, batch_size=512, shuffle=False, num_workers=4, collate_fn=collate_fn)
+    loader = torch.utils.data.DataLoader(val_ds, batch_size=512, shuffle=False, num_workers=0, collate_fn=collate_fn)
 
     all_probs, all_labels = [], []
     with torch.no_grad():

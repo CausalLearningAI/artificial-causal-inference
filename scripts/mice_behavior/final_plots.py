@@ -63,7 +63,7 @@ def main():
     model.eval()
 
     loader = torch.utils.data.DataLoader(
-        val_ds, batch_size=512, shuffle=False, num_workers=4, collate_fn=collate_fn
+        val_ds, batch_size=512, shuffle=False, num_workers=0, collate_fn=collate_fn
     )
 
     all_probs, all_labels = [], []

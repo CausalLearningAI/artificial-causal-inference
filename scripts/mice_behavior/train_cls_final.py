@@ -110,7 +110,7 @@ def main():
         str(annotations_csv), str(pair_labels_path), str(cls_embeddings_path),
         obs_ids=val_obs, context_k=CFG['context_k'], emb_dim=emb_dim,
     )
-    loader = torch.utils.data.DataLoader(val_ds, batch_size=512, shuffle=False, num_workers=4, collate_fn=collate_fn)
+    loader = torch.utils.data.DataLoader(val_ds, batch_size=512, shuffle=False, num_workers=0, collate_fn=collate_fn)
 
     all_probs, all_labels = [], []
     with torch.no_grad():
