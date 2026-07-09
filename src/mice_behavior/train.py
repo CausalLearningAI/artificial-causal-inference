@@ -80,7 +80,7 @@ def train(
     n_heads: int = 1,
     hidden_dim: int = 256,
     n_epochs: int = 100,
-    batch_size: int = 512,
+    batch_size: int = 4096,
     lr: float = 1e-3,
     neg_ratio: int = 1,
     device: str = 'cuda',
