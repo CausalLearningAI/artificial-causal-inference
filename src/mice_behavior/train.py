@@ -4,12 +4,30 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
+from sklearn.metrics import average_precision_score
 from torch.utils.data import DataLoader, Sampler
 
 from .dataset import MousePairDataset, collate_fn
 from .model import MouseBehaviorClassifier
 
 LABEL_NAMES = ['none', 'nt', 'nn']
+
+
+class FocalLoss(nn.Module):
+    """CE with a (1-p_t)^gamma modulating factor that downweights easy examples,
+    on top of the same static class weights used for plain CrossEntropyLoss."""
+
+    def __init__(self, weight: torch.Tensor, gamma: float = 2.0):
+        super().__init__()
+        self.weight = weight
+        self.gamma = gamma
+
+    def forward(self, logits, target):
+        logp = torch.log_softmax(logits, dim=1)
+        logp_t = logp.gather(1, target.unsqueeze(1)).squeeze(1)
+        p_t = logp_t.exp()
+        w_t = self.weight[target]
+        return (-w_t * (1 - p_t).pow(self.gamma) * logp_t).mean()
 
 
 class DynamicNegativeSampler(Sampler):
@@ -41,7 +59,7 @@ def train(
     val_obs_ids=None,
     context_k: int = 2,
     emb_dim: int = 768,
-    n_heads: int = 8,
+    n_heads: int = 1,
     hidden_dim: int = 256,
     n_epochs: int = 100,
     batch_size: int = 512,
@@ -49,6 +67,9 @@ def train(
     neg_ratio: int = 1,
     device: str = 'cuda',
     seed: int = 42,
+    loss_type: str = 'ce',
+    focal_gamma: float = 2.0,
+    verbose: bool = True,
 ):
     torch.manual_seed(seed)
     dev = torch.device(device if torch.cuda.is_available() else 'cpu')
@@ -84,18 +105,25 @@ def train(
     sampled_counts = np.bincount(labels, minlength=3).clip(1).astype(np.float32)
     sampled_counts[0] = n_pos_total * neg_ratio
     class_weights = torch.tensor(sampled_counts.sum() / (3 * sampled_counts), dtype=torch.float32).to(dev)
-    print(f'  class weights: none={class_weights[0]:.2f}  nt={class_weights[1]:.2f}  nn={class_weights[2]:.2f}')
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    if verbose:
+        print(f'  class weights: none={class_weights[0]:.2f}  nt={class_weights[1]:.2f}  nn={class_weights[2]:.2f}')
+    if loss_type == 'focal':
+        criterion = FocalLoss(class_weights, gamma=focal_gamma)
+    else:
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
 
-    best_bal_acc = -1.0
+    best_pr_auc = -1.0
+    best_per_class = {}
     for epoch in range(1, n_epochs + 1):
         model.train()
         total_loss, correct, n = 0.0, 0, 0
         t0 = time.time()
-        for ctx, a1, a2, labels_b, mask in train_loader:
-            ctx, a1, a2, labels_b, mask = ctx.to(dev), a1.to(dev), a2.to(dev), labels_b.to(dev), mask.to(dev)
+        for ctx, offsets, a1, a2, labels_b, mask in train_loader:
+            ctx, offsets, a1, a2, labels_b, mask = (
+                ctx.to(dev), offsets.to(dev), a1.to(dev), a2.to(dev), labels_b.to(dev), mask.to(dev)
+            )
             optimizer.zero_grad()
-            logits = model(ctx, a1, a2, key_padding_mask=mask)
+            logits = model(ctx, a1, a2, offsets=offsets, key_padding_mask=mask)
             loss = criterion(logits, labels_b)
             loss.backward()
             optimizer.step()
@@ -106,38 +134,41 @@ def train(
         msg = f'epoch {epoch:3d}/{n_epochs}  loss={total_loss/n:.4f}  train_acc={correct/n:.4f}  ({time.time()-t0:.1f}s)'
 
         if val_loader is not None:
-            val_acc, bal_acc, per_class = _evaluate(model, val_loader, dev)
-            msg += f'  val_acc={val_acc:.4f}  bal_acc={bal_acc:.4f}  ' + '  '.join(f'{k}={v}' for k, v in per_class.items())
-            if bal_acc > best_bal_acc:
-                best_bal_acc = bal_acc
+            val_acc, pr_auc, per_class = _evaluate(model, val_loader, dev)
+            msg += f'  val_acc={val_acc:.4f}  macro_pr_auc={pr_auc:.4f}  ' + '  '.join(f'{k}={v}' for k, v in per_class.items())
+            if pr_auc > best_pr_auc:
+                best_pr_auc = pr_auc
+                best_per_class = per_class
                 torch.save(model.state_dict(), output_dir / 'best_model.pt')
 
-        print(msg)
+        if verbose:
+            print(msg)
 
     if val_loader is None:
         torch.save(model.state_dict(), output_dir / 'model.pt')
 
-    return model
+    return {'model': model, 'best_pr_auc': best_pr_auc, 'best_per_class': best_per_class}
 
 
 def _evaluate(model, loader, dev):
+    """Threshold-free model selection: macro PR-AUC (average precision) per class,
+    since argmax-based accuracy depends on the arbitrary decision boundary induced
+    by the reweighted loss rather than the model's actual ranking quality."""
     model.eval()
-    all_preds, all_labels = [], []
+    all_probs, all_labels = [], []
     with torch.no_grad():
-        for ctx, a1, a2, labels, mask in loader:
-            logits = model(ctx.to(dev), a1.to(dev), a2.to(dev), key_padding_mask=mask.to(dev))
-            all_preds.append(logits.argmax(1).cpu())
+        for ctx, offsets, a1, a2, labels, mask in loader:
+            logits = model(ctx.to(dev), a1.to(dev), a2.to(dev), offsets=offsets.to(dev), key_padding_mask=mask.to(dev))
+            all_probs.append(torch.softmax(logits, dim=1).cpu())
             all_labels.append(labels)
-    preds = torch.cat(all_preds)
-    labels = torch.cat(all_labels)
-    acc = (preds == labels).float().mean().item()
-    per_class = {}
-    recalls = []
+    probs = torch.cat(all_probs).numpy()
+    labels = torch.cat(all_labels).numpy()
+    acc = (probs.argmax(1) == labels).mean()
+    per_class, pr_aucs = {}, []
     for c in range(3):
-        tp = ((preds == c) & (labels == c)).sum().item()
-        recall = tp / max((labels == c).sum().item(), 1)
-        precision = tp / max((preds == c).sum().item(), 1)
-        per_class[LABEL_NAMES[c]] = f'R={recall:.3f}/P={precision:.3f}'
-        recalls.append(recall)
-    bal_acc = float(np.mean(recalls))
-    return acc, bal_acc, per_class
+        y_true = (labels == c).astype(int)
+        pr = average_precision_score(y_true, probs[:, c])
+        per_class[LABEL_NAMES[c]] = f'PR-AUC={pr:.3f}'
+        pr_aucs.append(pr)
+    macro_pr_auc = float(np.mean(pr_aucs))
+    return acc, macro_pr_auc, per_class

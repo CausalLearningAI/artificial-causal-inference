@@ -143,11 +143,15 @@ class MousePairDataset(Dataset):
             hi = min(obs_len - 1, local + k)
             context = self._obs_arrays[int(obs_s)][lo : hi + 1]  # (T, d)
         else:
-            lo = max(int(obs_s), int(gi) - k)
-            hi = min(int(obs_e) - 1, int(gi) + k)
-            context = self.embeddings[lo : hi + 1]  # (T, d)
+            local = int(gi) - int(obs_s)
+            lo_abs = max(int(obs_s), int(gi) - k)
+            hi_abs = min(int(obs_e) - 1, int(gi) + k)
+            context = self.embeddings[lo_abs : hi_abs + 1]  # (T, d)
+            lo, hi = lo_abs - int(obs_s), hi_abs - int(obs_s)
+        offsets = np.arange(lo, hi + 1) - local  # relative frame offset from target, e.g. -2..+2
         return (
             torch.from_numpy(context.copy()),  # (T, d)
+            torch.from_numpy(offsets.copy()).long(),  # (T,)
             torch.tensor(int(a1), dtype=torch.long),
             torch.tensor(int(a2), dtype=torch.long),
             torch.tensor(int(label), dtype=torch.long),
@@ -156,15 +160,17 @@ class MousePairDataset(Dataset):
 
 def collate_fn(batch):
     """Pad variable-length sequences and build key_padding_mask for cross-attention."""
-    seqs, a1s, a2s, labels = zip(*batch)
+    seqs, offsets, a1s, a2s, labels = zip(*batch)
     lengths = torch.tensor([s.size(0) for s in seqs])
     # pad_sequence: list of (T_i, d) → (B, T_max, d)
     padded = torch.nn.utils.rnn.pad_sequence(seqs, batch_first=True)
+    padded_offsets = torch.nn.utils.rnn.pad_sequence(offsets, batch_first=True)  # pad value 0, ignored via mask
     T_max = padded.size(1)
     # True = padding position (ignored by MultiheadAttention)
     key_padding_mask = torch.arange(T_max).unsqueeze(0) >= lengths.unsqueeze(1)
     return (
         padded,
+        padded_offsets,
         torch.stack(a1s),
         torch.stack(a2s),
         torch.stack(labels),

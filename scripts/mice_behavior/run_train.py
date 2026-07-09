@@ -8,14 +8,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.mice_behavior.build_pair_labels import build_pair_labels
+from src.mice_behavior.pools import load_obs_to_pool_map
 from src.mice_behavior.train import train
-
-
-def obs_to_pool(obs_id: str) -> str:
-    # observation_id format: {genotype}_{line}_{sex}_{seed}_{odor}_{phase}
-    # Pool key = line_sex_seed (same group of 4 mice across sessions)
-    parts = obs_id.split('_')
-    return '_'.join(parts[1:4])
 
 
 def main():
@@ -26,7 +20,7 @@ def main():
     p.add_argument('--encoder', default='dinov2', choices=['dinov2', 'dinov3', 'siglip', 'siglip2'])
     p.add_argument('--token', default='class')
     p.add_argument('--context-k', type=int, default=2)
-    p.add_argument('--n-heads', type=int, default=8)
+    p.add_argument('--n-heads', type=int, default=1)
     p.add_argument('--hidden-dim', type=int, default=256)
     p.add_argument('--epochs', type=int, default=100)
     p.add_argument('--neg-ratio', type=int, default=1, help='negatives per positive in each epoch')
@@ -45,15 +39,16 @@ def main():
     pair_labels_path = build_pair_labels(data_dir, dataset_dir, overwrite=args.overwrite_labels)
 
     # Step 2: pool-level train/val split (split by pool, not by observation)
+    obs_to_pool = load_obs_to_pool_map(data_dir)
     all_obs = pd.read_parquet(pair_labels_path)['observation_id'].unique().tolist()
-    pools = list({obs_to_pool(o) for o in all_obs})
+    pools = sorted({obs_to_pool[o] for o in all_obs})
     rng = random.Random(args.seed)
     rng.shuffle(pools)
     n_val = max(1, int(len(pools) * args.val_frac))
     val_pool_set = set(pools[:n_val])
 
-    train_obs = [o for o in all_obs if obs_to_pool(o) not in val_pool_set]
-    val_obs = [o for o in all_obs if obs_to_pool(o) in val_pool_set]
+    train_obs = [o for o in all_obs if obs_to_pool[o] not in val_pool_set]
+    val_obs = [o for o in all_obs if obs_to_pool[o] in val_pool_set]
     print(
         f'Split: {len(train_obs)} train obs / {len(val_obs)} val obs  '
         f'({len(pools) - n_val}/{n_val} pools)'
