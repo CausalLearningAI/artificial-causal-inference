@@ -50,6 +50,24 @@ class DynamicNegativeSampler(Sampler):
         return len(self.pos_idx) * (1 + self.neg_ratio)
 
 
+def _subsample_val(val_ds, neg_ratio, seed=42):
+    """Fixed (seeded, one-time) downsample of the validation set's 'none' negatives.
+    Unlike DynamicNegativeSampler this is NOT redrawn every epoch — the same subsample
+    is reused across all epochs so the val metric stays comparable epoch-to-epoch. Val
+    doesn't need the full unbalanced population to give a representative macro PR-AUC,
+    and with eval_every=1 the full val set (6x more batches than the sampled train set)
+    was the dominant cost of every epoch."""
+    labels = val_ds.samples[:, 3]
+    pos_idx = np.where(labels > 0)[0]
+    neg_idx = np.where(labels == 0)[0]
+    rng = np.random.default_rng(seed)
+    n_neg = min(len(neg_idx), neg_ratio * max(len(pos_idx), 1))
+    neg_sample = rng.choice(neg_idx, size=n_neg, replace=False)
+    keep = np.sort(np.concatenate([pos_idx, neg_sample]))
+    val_ds.samples = val_ds.samples[keep]
+    return val_ds
+
+
 def train(
     annotations_csv: str,
     pair_labels_parquet: str,
@@ -75,6 +93,7 @@ def train(
     patch_global_idx_path: str = None,
     n_patches: int = 16,
     eval_every: int = 1,
+    val_neg_ratio: int = 20,
 ):
     torch.manual_seed(seed)
     dev = torch.device(device if torch.cuda.is_available() else 'cpu')
@@ -122,6 +141,11 @@ def train(
                 annotations_csv, pair_labels_parquet, embeddings_path,
                 obs_ids=val_obs_ids, context_k=context_k, emb_dim=emb_dim,
             )
+        if val_neg_ratio is not None:
+            n_before = len(val_ds)
+            val_ds = _subsample_val(val_ds, neg_ratio=val_neg_ratio, seed=seed)
+            print(f'  fixed val subsample: {n_before:,} -> {len(val_ds):,} samples '
+                  f'(all positives + {val_neg_ratio}x negatives, seeded — same subset every epoch)')
         val_loader = DataLoader(
             val_ds, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True,
             collate_fn=collate_fn, persistent_workers=True, prefetch_factor=2,
@@ -150,24 +174,34 @@ def train(
     history = {'epoch': [], 'train_loss': [], 'eval_epoch': [], 'val_loss': [], 'val_acc': [], 'macro_pr_auc': []}
     for epoch in range(1, n_epochs + 1):
         model.train()
-        total_loss, correct, n = 0.0, 0, 0
+        # Accumulate on-GPU and sync (.item()) only once per epoch, not once per batch —
+        # per-batch .item()/.cpu() calls force a GPU<->CPU sync that serializes what should
+        # be async, pipelined GPU work (this was the dominant cost, not GPU compute itself:
+        # a ~5M-param model shouldn't take 50s/epoch on any modern GPU).
+        total_loss = torch.zeros((), device=dev)
+        correct = torch.zeros((), device=dev)
+        n = 0
         t0 = time.time()
         for ctx, offsets, a1, a2, labels_b, mask in train_loader:
             ctx, offsets, a1, a2, labels_b, mask = (
-                ctx.to(dev), offsets.to(dev), a1.to(dev), a2.to(dev), labels_b.to(dev), mask.to(dev)
+                ctx.to(dev, non_blocking=True), offsets.to(dev, non_blocking=True),
+                a1.to(dev, non_blocking=True), a2.to(dev, non_blocking=True),
+                labels_b.to(dev, non_blocking=True), mask.to(dev, non_blocking=True),
             )
             optimizer.zero_grad()
             logits = model(ctx, a1, a2, offsets=offsets, key_padding_mask=mask)
             loss = criterion(logits, labels_b)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
             optimizer.step()
-            total_loss += loss.item() * len(labels_b)
-            correct += (logits.argmax(1) == labels_b).sum().item()
-            n += len(labels_b)
+            with torch.no_grad():
+                total_loss += loss.detach() * labels_b.size(0)
+                correct += (logits.argmax(1) == labels_b).sum()
+            n += labels_b.size(0)
 
-        train_loss = total_loss / n
-        msg = f'epoch {epoch:3d}/{n_epochs}  loss={train_loss:.4f}  train_acc={correct/n:.4f}  ({time.time()-t0:.1f}s)'
+        train_loss = (total_loss / n).item()
+        train_acc = (correct / n).item()
+        msg = f'epoch {epoch:3d}/{n_epochs}  loss={train_loss:.4f}  train_acc={train_acc:.4f}  ({time.time()-t0:.1f}s)'
 
         history['epoch'].append(epoch)
         history['train_loss'].append(train_loss)
@@ -203,17 +237,26 @@ def _evaluate(model, loader, dev, criterion=None):
     since argmax-based accuracy depends on the arbitrary decision boundary induced
     by the reweighted loss rather than the model's actual ranking quality."""
     model.eval()
-    all_probs, all_labels, all_logits = [], [], []
+    # Keep everything on-GPU through the loop — one .cpu() transfer at the end instead of
+    # one per batch (the val set alone is ~3k batches for the patch-grid variant, so a
+    # per-batch sync here was the single largest source of the earlier slowdown).
+    all_probs, all_labels = [], []
+    loss_sum = torch.zeros((), device=dev)
+    n_total = 0
     with torch.no_grad():
         for ctx, offsets, a1, a2, labels, mask in loader:
-            labels_dev = labels.to(dev)
-            logits = model(ctx.to(dev), a1.to(dev), a2.to(dev), offsets=offsets.to(dev), key_padding_mask=mask.to(dev))
-            all_probs.append(torch.softmax(logits, dim=1).cpu())
-            all_labels.append(labels)
+            labels_dev = labels.to(dev, non_blocking=True)
+            logits = model(
+                ctx.to(dev, non_blocking=True), a1.to(dev, non_blocking=True), a2.to(dev, non_blocking=True),
+                offsets=offsets.to(dev, non_blocking=True), key_padding_mask=mask.to(dev, non_blocking=True),
+            )
+            all_probs.append(torch.softmax(logits, dim=1))
+            all_labels.append(labels_dev)
             if criterion is not None:
-                all_logits.append((logits, labels_dev))
-    probs = torch.cat(all_probs).numpy()
-    labels = torch.cat(all_labels).numpy()
+                loss_sum += criterion(logits, labels_dev) * logits.size(0)
+            n_total += logits.size(0)
+    probs = torch.cat(all_probs).cpu().numpy()
+    labels = torch.cat(all_labels).cpu().numpy()
     acc = (probs.argmax(1) == labels).mean()
     per_class, pr_aucs = {}, []
     for c in range(3):
@@ -223,7 +266,6 @@ def _evaluate(model, loader, dev, criterion=None):
         pr_aucs.append(pr)
     macro_pr_auc = float(np.mean(pr_aucs))
     if criterion is not None:
-        n_total = sum(l.size(0) for _, l in all_logits)
-        val_loss = sum(criterion(lg, lb).item() * lg.size(0) for lg, lb in all_logits) / n_total
+        val_loss = (loss_sum / n_total).item()
         return acc, macro_pr_auc, per_class, val_loss
     return acc, macro_pr_auc, per_class
