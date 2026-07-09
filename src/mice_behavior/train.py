@@ -159,6 +159,7 @@ def train(
             logits = model(ctx, a1, a2, offsets=offsets, key_padding_mask=mask)
             loss = criterion(logits, labels_b)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             total_loss += loss.item() * len(labels_b)
             correct += (logits.argmax(1) == labels_b).sum().item()
