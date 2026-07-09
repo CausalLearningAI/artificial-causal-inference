@@ -92,6 +92,11 @@ def main():
         patch_global_idx_path=str(PATCH_GRID_DIR / 'global_idx.npy'),
         n_patches=16,
         eval_every=1,
+        batch_size=1024,  # the visualize partition's 2080ti has only 11GB VRAM; the default
+                          # 4096 batch (patch-grid: ~1GB/batch just for context, fp32, plus the
+                          # 3.1GB GPU-resident val array) OOM'd during backward(). 1024 leaves
+                          # comfortable headroom while still cutting per-batch fixed overhead
+                          # 2x versus the original 512.
     )
     history = result['history']
     print(f"Best macro PR-AUC: {result['best_pr_auc']:.4f}  {result['best_per_class']}")
