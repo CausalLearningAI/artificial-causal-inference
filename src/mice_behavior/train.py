@@ -97,7 +97,10 @@ def train(
     sampler = DynamicNegativeSampler(labels, neg_ratio=neg_ratio, seed=seed)
     n_pos = (labels > 0).sum()
     print(f'  DynamicNegativeSampler: {n_pos:,} pos + {neg_ratio}×{n_pos:,} neg per epoch ({len(sampler):,} samples/epoch)')
-    train_loader = DataLoader(train_ds, batch_size=batch_size, sampler=sampler, num_workers=4, pin_memory=True, collate_fn=collate_fn)
+    train_loader = DataLoader(
+        train_ds, batch_size=batch_size, sampler=sampler, num_workers=4, pin_memory=True,
+        collate_fn=collate_fn, persistent_workers=True,
+    )
 
     val_loader = None
     if val_obs_ids:
@@ -113,7 +116,10 @@ def train(
                 annotations_csv, pair_labels_parquet, embeddings_path,
                 obs_ids=val_obs_ids, context_k=context_k, emb_dim=emb_dim,
             )
-        val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True, collate_fn=collate_fn)
+        val_loader = DataLoader(
+            val_ds, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True,
+            collate_fn=collate_fn, persistent_workers=True,
+        )
 
     model = MouseBehaviorClassifier(
         emb_dim=emb_dim, n_heads=n_heads, hidden_dim=hidden_dim, use_patch_grid=use_patch_grid,
