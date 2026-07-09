@@ -32,7 +32,7 @@ from src.mice_behavior.build_pair_labels import build_pair_labels
 from src.mice_behavior.dataset import MousePairDataset, collate_fn
 from src.mice_behavior.model import MouseBehaviorClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
-from src.mice_behavior.train import train
+from src.mice_behavior.train import train_fast
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
@@ -67,8 +67,8 @@ def main():
     print(f'Split: {len(train_obs)} train obs / {len(val_obs)} val obs ({len(pools)-n_val}/{n_val} pools)')
 
     out_dir = RESULTS_DIR / 'cls_final'
-    print(f'Training CLS-only model: {CFG}, {N_EPOCHS} epochs, eval every epoch...')
-    result = train(
+    print(f'Training CLS-only model (fast vectorized path): {CFG}, {N_EPOCHS} epochs, eval every epoch...')
+    result = train_fast(
         annotations_csv=str(annotations_csv),
         pair_labels_parquet=str(pair_labels_path),
         embeddings_path=str(cls_embeddings_path),
