@@ -284,10 +284,29 @@ def train_fast(
     neg_idx = np.where(labels == 0)[0]
     rng = np.random.default_rng(seed)
 
+    # Move the whole flat embedding array onto GPU once — for patch-grid (~19GB) this fits
+    # an 80GB A100 comfortably and eliminates repeated host->device PCIe transfers, which
+    # dominate when the per-sample data volume is large (16x more than CLS). Falls back to
+    # CPU/numpy gather (still correct, just slower) if it doesn't fit.
+    if dev.type == 'cuda':
+        try:
+            train_data.to_device(dev)
+            print(f'  train data resident on GPU ({train_data.flat.nbytes/1e9:.1f} GB)')
+        except torch.cuda.OutOfMemoryError:
+            torch.cuda.empty_cache()
+            print('  train data too large for GPU memory, falling back to CPU gather')
+
     val_data, val_keep = None, None
     if val_obs_ids:
         print('Building val dataset (vectorized)...')
         val_data = FastBatchData(annotations_csv, pair_labels_parquet, val_obs_ids, context_k, emb_dim, load_fn, n_patches)
+        if dev.type == 'cuda':
+            try:
+                val_data.to_device(dev)
+                print(f'  val data resident on GPU ({val_data.flat.nbytes/1e9:.1f} GB)')
+            except torch.cuda.OutOfMemoryError:
+                torch.cuda.empty_cache()
+                print('  val data too large for GPU memory, falling back to CPU gather')
         if val_neg_ratio is not None:
             v_labels = val_data.labels
             v_pos = np.where(v_labels > 0)[0]

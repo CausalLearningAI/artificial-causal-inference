@@ -146,8 +146,34 @@ class FastBatchData:
     def __len__(self):
         return len(self.labels)
 
-    def get_batch(self, idx: np.ndarray):
-        """Vectorized fetch — one gather for the whole batch, no Python per-sample loop."""
+    def to_device(self, dev):
+        """Move the entire flat embedding array (+ small index arrays) onto GPU once.
+        For the patch-grid variant this is ~19GB, comfortably fits an 80GB A100 with a
+        model this tiny — after this, get_batch's gather happens via intra-GPU memory
+        bandwidth instead of repeated host->device PCIe transfers every batch."""
+        self.device = dev
+        self.flat_t = torch.from_numpy(self.flat).to(dev)  # keep original dtype (fp16 for patch-grid)
+        self.centers_t = torch.from_numpy(self.centers).to(dev)
+        self.pad_mask_t = torch.from_numpy(self.pad_mask).to(dev)
+        self.a1_t = torch.from_numpy(self.a1).to(dev)
+        self.a2_t = torch.from_numpy(self.a2).to(dev)
+        self.labels_t = torch.from_numpy(self.labels).to(dev)
+        self.offsets_grid_t = torch.from_numpy(self.offsets_grid).to(dev)
+        return self
+
+    def get_batch(self, idx):
+        """Vectorized fetch — one gather for the whole batch, no Python per-sample loop.
+        If to_device() was called, idx may be a numpy array or GPU long tensor; the gather
+        and all outputs stay resident on GPU (no per-batch host->device transfer needed)."""
+        if getattr(self, 'device', None) is not None:
+            idx_t = idx if torch.is_tensor(idx) else torch.from_numpy(idx).to(self.device)
+            T = len(self.offsets_grid_t)
+            window_idx = self.centers_t[idx_t].unsqueeze(1) + torch.arange(T, device=self.device).unsqueeze(0)
+            context = self.flat_t[window_idx].float()
+            mask = self.pad_mask_t[idx_t]
+            offs = self.offsets_grid_t.unsqueeze(0).expand(len(idx_t), T)
+            return context, offs, self.a1_t[idx_t], self.a2_t[idx_t], self.labels_t[idx_t], mask
+
         T = len(self.offsets_grid)
         window_idx = self.centers[idx][:, None] + np.arange(T)[None, :]  # (B, T)
         context = self.flat[window_idx]  # (B, T, ...) — single fancy-index gather
