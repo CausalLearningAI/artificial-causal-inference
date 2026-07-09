@@ -97,14 +97,15 @@ def train(
     sampler = DynamicNegativeSampler(labels, neg_ratio=neg_ratio, seed=seed)
     n_pos = (labels > 0).sum()
     print(f'  DynamicNegativeSampler: {n_pos:,} pos + {neg_ratio}×{n_pos:,} neg per epoch ({len(sampler):,} samples/epoch)')
-    # num_workers=0: __getitem__ only slices already-RAM-preloaded numpy arrays (no disk I/O
-    # to overlap with GPU compute), so multi-process workers add nothing — and each worker's
-    # copy-on-write fork of the preloaded dataset (up to ~19GB for the patch-grid variant) risks
-    # ballooning past the job's memory allocation as pages get touched, which is what caused
-    # multi-minute inter-epoch stalls even with persistent_workers=True.
+    # 2 persistent workers: __getitem__ is pure Python (dict lookup + numpy slice + tensor
+    # build), so a couple of separate worker *processes* genuinely parallelize across Python
+    # interpreters (not just I/O overlap) and let data prep overlap with GPU compute. Each
+    # worker forks a copy-on-write view of the preloaded dataset (up to ~19GB for the
+    # patch-grid variant) — keep worker count low and the SLURM job's --mem generous so
+    # touched-page duplication doesn't balloon past the allocation and stall the job.
     train_loader = DataLoader(
-        train_ds, batch_size=batch_size, sampler=sampler, num_workers=0, pin_memory=True,
-        collate_fn=collate_fn,
+        train_ds, batch_size=batch_size, sampler=sampler, num_workers=2, pin_memory=True,
+        collate_fn=collate_fn, persistent_workers=True, prefetch_factor=2,
     )
 
     val_loader = None
@@ -122,8 +123,8 @@ def train(
                 obs_ids=val_obs_ids, context_k=context_k, emb_dim=emb_dim,
             )
         val_loader = DataLoader(
-            val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=True,
-            collate_fn=collate_fn,
+            val_ds, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True,
+            collate_fn=collate_fn, persistent_workers=True, prefetch_factor=2,
         )
 
     model = MouseBehaviorClassifier(
