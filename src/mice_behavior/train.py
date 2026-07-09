@@ -116,12 +116,9 @@ def train(
     sampler = DynamicNegativeSampler(labels, neg_ratio=neg_ratio, seed=seed)
     n_pos = (labels > 0).sum()
     print(f'  DynamicNegativeSampler: {n_pos:,} pos + {neg_ratio}×{n_pos:,} neg per epoch ({len(sampler):,} samples/epoch)')
-    # 2 persistent workers: __getitem__ is pure Python (dict lookup + numpy slice + tensor
-    # build), so a couple of separate worker *processes* genuinely parallelize across Python
-    # interpreters (not just I/O overlap) and let data prep overlap with GPU compute. Each
-    # worker forks a copy-on-write view of the preloaded dataset (up to ~19GB for the
-    # patch-grid variant) — keep worker count low and the SLURM job's --mem generous so
-    # touched-page duplication doesn't balloon past the allocation and stall the job.
+    # Worker processes parallelize __getitem__'s Python-level work across separate
+    # interpreters. Each worker forks a copy-on-write view of the preloaded dataset, so
+    # keep the count modest and the job's --mem generous relative to dataset size.
     train_loader = DataLoader(
         train_ds, batch_size=batch_size, sampler=sampler, num_workers=6, pin_memory=True,
         collate_fn=collate_fn, persistent_workers=True, prefetch_factor=2,
@@ -174,10 +171,8 @@ def train(
     history = {'epoch': [], 'train_loss': [], 'eval_epoch': [], 'val_loss': [], 'val_acc': [], 'macro_pr_auc': []}
     for epoch in range(1, n_epochs + 1):
         model.train()
-        # Accumulate on-GPU and sync (.item()) only once per epoch, not once per batch —
-        # per-batch .item()/.cpu() calls force a GPU<->CPU sync that serializes what should
-        # be async, pipelined GPU work (this was the dominant cost, not GPU compute itself:
-        # a ~5M-param model shouldn't take 50s/epoch on any modern GPU).
+        # Accumulate on-GPU, sync via .item() once per epoch — a per-batch .item()/.cpu()
+        # call forces a GPU<->CPU sync, serializing otherwise-async GPU work.
         total_loss = torch.zeros((), device=dev)
         correct = torch.zeros((), device=dev)
         n = 0
@@ -260,10 +255,8 @@ def train_fast(
     val_neg_ratio: int = 20,
     grad_clip: float = 0.5,
 ):
-    """Same training logic as train(), but bypasses Dataset/DataLoader/workers entirely —
-    uses FastBatchData's single-vectorized-gather batch construction instead. See
-    fast_data.py for why: __getitem__-per-sample cost didn't shrink with bigger batches
-    or more workers, since PyTorch always calls it once per sample either way."""
+    """Same training logic as train(), but uses FastBatchData's vectorized batch
+    construction instead of Dataset/DataLoader — see fast_data.py."""
     import json
     from .fast_data import FastBatchData, load_cls_embeddings, load_patchgrid_embeddings
 
@@ -284,10 +277,8 @@ def train_fast(
     neg_idx = np.where(labels == 0)[0]
     rng = np.random.default_rng(seed)
 
-    # Move the whole flat embedding array onto GPU once — for patch-grid (~19GB) this fits
-    # an 80GB A100 comfortably and eliminates repeated host->device PCIe transfers, which
-    # dominate when the per-sample data volume is large (16x more than CLS). Falls back to
-    # CPU/numpy gather (still correct, just slower) if it doesn't fit.
+    # Move the whole flat embedding array onto GPU once, eliminating repeated host->device
+    # transfers during training. Falls back to CPU/numpy gather if it doesn't fit in VRAM.
     if dev.type == 'cuda':
         try:
             train_data.to_device(dev)
@@ -353,9 +344,9 @@ def train_fast(
         for b0 in range(0, len(epoch_idx), batch_size):
             batch_idx = epoch_idx[b0:b0 + batch_size]
             ctx, offs, a1, a2, lbl, mask = train_data.get_batch(batch_idx)
-            # .float() after the device transfer, not before — upcasting fp16->fp32 pre-transfer
-            # would double the host->device PCIe payload for no benefit (GPU-resident path already
-            # returns fp32; this is then a harmless no-op there).
+            # .float() after the transfer, not before — upcasting pre-transfer would double
+            # the host->device payload (GPU-resident path already returns fp32, so this is
+            # then a no-op there).
             ctx, offs, a1, a2, lbl, mask = (
                 ctx.to(dev, non_blocking=True).float(), offs.to(dev, non_blocking=True),
                 a1.to(dev, non_blocking=True), a2.to(dev, non_blocking=True),
@@ -437,8 +428,7 @@ def _evaluate(model, loader, dev, criterion=None):
     by the reweighted loss rather than the model's actual ranking quality."""
     model.eval()
     # Keep everything on-GPU through the loop — one .cpu() transfer at the end instead of
-    # one per batch (the val set alone is ~3k batches for the patch-grid variant, so a
-    # per-batch sync here was the single largest source of the earlier slowdown).
+    # one per batch, avoiding a per-batch GPU<->CPU sync.
     all_probs, all_labels = [], []
     loss_sum = torch.zeros((), device=dev)
     n_total = 0

@@ -1,19 +1,16 @@
 """
-Fully vectorized batch construction for the mouse pairwise behavior classifier,
-bypassing PyTorch's Dataset/DataLoader per-sample __getitem__ mechanism entirely.
+Fully vectorized batch construction for the mouse pairwise behavior classifier.
 
-Why: with the standard Dataset+DataLoader pattern, __getitem__ is called once per
-individual sample regardless of batch_size or worker count (~260K-400K times/epoch
-for the patch-grid variant), and each call does its own dict lookup + numpy slice +
-tensor construction in Python. Neither increasing batch_size nor adding workers
-reduced this cost meaningfully — the fixed per-call Python overhead dominates.
+PyTorch's Dataset/DataLoader calls __getitem__ once per individual sample
+regardless of batch_size or worker count, with each call doing its own dict
+lookup + numpy slice + tensor construction in Python — a per-call cost that
+scales with total sample count, not batch count.
 
-Fix: pad each observation's preloaded embedding block with `context_k` zero-rows
-on both ends and concatenate ALL observations into one flat array. This makes
-every sample's context window exactly the same fixed length (2*context_k+1) at a
-precomputed flat-array offset, so an entire batch's worth of windows can be
-fetched with a single vectorized numpy fancy-index gather — no per-sample Python
-loop, no DataLoader, no worker processes.
+This module avoids that entirely: pad each observation's preloaded embedding
+block with `context_k` zero-rows on both ends and concatenate all observations
+into one flat array. Every sample's context window is then a fixed length
+(2*context_k+1) at a precomputed flat-array offset, so an entire batch's worth
+of windows can be fetched with a single vectorized numpy fancy-index gather.
 """
 from pathlib import Path
 
@@ -147,16 +144,11 @@ class FastBatchData:
         return len(self.labels)
 
     def to_device(self, dev):
-        """Move the entire flat embedding array (+ small index arrays) onto GPU once.
-        For the patch-grid variant this is ~19GB, comfortably fits an 80GB A100 with a
-        model this tiny — after this, get_batch's gather happens via intra-GPU memory
-        bandwidth instead of repeated host->device PCIe transfers every batch.
-
-        self.device is only set once ALL tensors are successfully moved — if a later
-        allocation OOMs after an earlier one succeeded, we'd otherwise leave this object
-        half-initialized (device set, but not all *_t attributes present), which get_batch
-        would then crash on. On any failure, free whatever partial GPU tensors were made
-        and cleanly stay in CPU/numpy mode."""
+        """Move the flat embedding array + small index arrays onto GPU once, so
+        get_batch's gather runs via intra-GPU memory bandwidth instead of repeated
+        host->device transfers. self.device is only set after every tensor is moved
+        successfully — on OOM, local variables are discarded and the object is
+        left in its original CPU/numpy state rather than half-initialized."""
         flat_t = torch.from_numpy(self.flat).to(dev)
         centers_t = torch.from_numpy(self.centers).to(dev)
         pad_mask_t = torch.from_numpy(self.pad_mask).to(dev)
