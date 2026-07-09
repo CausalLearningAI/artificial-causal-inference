@@ -150,15 +150,24 @@ class FastBatchData:
         """Move the entire flat embedding array (+ small index arrays) onto GPU once.
         For the patch-grid variant this is ~19GB, comfortably fits an 80GB A100 with a
         model this tiny — after this, get_batch's gather happens via intra-GPU memory
-        bandwidth instead of repeated host->device PCIe transfers every batch."""
+        bandwidth instead of repeated host->device PCIe transfers every batch.
+
+        self.device is only set once ALL tensors are successfully moved — if a later
+        allocation OOMs after an earlier one succeeded, we'd otherwise leave this object
+        half-initialized (device set, but not all *_t attributes present), which get_batch
+        would then crash on. On any failure, free whatever partial GPU tensors were made
+        and cleanly stay in CPU/numpy mode."""
+        flat_t = torch.from_numpy(self.flat).to(dev)
+        centers_t = torch.from_numpy(self.centers).to(dev)
+        pad_mask_t = torch.from_numpy(self.pad_mask).to(dev)
+        a1_t = torch.from_numpy(self.a1).to(dev)
+        a2_t = torch.from_numpy(self.a2).to(dev)
+        labels_t = torch.from_numpy(self.labels).to(dev)
+        offsets_grid_t = torch.from_numpy(self.offsets_grid).to(dev)
+        self.flat_t, self.centers_t, self.pad_mask_t = flat_t, centers_t, pad_mask_t
+        self.a1_t, self.a2_t, self.labels_t = a1_t, a2_t, labels_t
+        self.offsets_grid_t = offsets_grid_t
         self.device = dev
-        self.flat_t = torch.from_numpy(self.flat).to(dev)  # keep original dtype (fp16 for patch-grid)
-        self.centers_t = torch.from_numpy(self.centers).to(dev)
-        self.pad_mask_t = torch.from_numpy(self.pad_mask).to(dev)
-        self.a1_t = torch.from_numpy(self.a1).to(dev)
-        self.a2_t = torch.from_numpy(self.a2).to(dev)
-        self.labels_t = torch.from_numpy(self.labels).to(dev)
-        self.offsets_grid_t = torch.from_numpy(self.offsets_grid).to(dev)
         return self
 
     def get_batch(self, idx):
@@ -176,11 +185,15 @@ class FastBatchData:
 
         T = len(self.offsets_grid)
         window_idx = self.centers[idx][:, None] + np.arange(T)[None, :]  # (B, T)
-        context = self.flat[window_idx]  # (B, T, ...) — single fancy-index gather
+        context = self.flat[window_idx]  # (B, T, ...) — single fancy-index gather, native dtype
         mask = self.pad_mask[idx]  # (B, T)
         offs = np.broadcast_to(self.offsets_grid, (len(idx), T))
+        # Keep native dtype (fp16 for patch-grid) instead of upcasting to fp32 here — that
+        # would double the CPU gather/copy volume AND the host->device PCIe transfer size
+        # for no benefit; the caller upcasts after .to(dev), where fp16->fp32 is nearly free
+        # (GPU memory bandwidth, not the much slower PCIe bus).
         return (
-            torch.from_numpy(np.ascontiguousarray(context)).float(),
+            torch.from_numpy(np.ascontiguousarray(context)),
             torch.from_numpy(np.ascontiguousarray(offs)).long(),
             torch.from_numpy(self.a1[idx]),
             torch.from_numpy(self.a2[idx]),

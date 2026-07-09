@@ -353,8 +353,11 @@ def train_fast(
         for b0 in range(0, len(epoch_idx), batch_size):
             batch_idx = epoch_idx[b0:b0 + batch_size]
             ctx, offs, a1, a2, lbl, mask = train_data.get_batch(batch_idx)
+            # .float() after the device transfer, not before — upcasting fp16->fp32 pre-transfer
+            # would double the host->device PCIe payload for no benefit (GPU-resident path already
+            # returns fp32; this is then a harmless no-op there).
             ctx, offs, a1, a2, lbl, mask = (
-                ctx.to(dev, non_blocking=True), offs.to(dev, non_blocking=True),
+                ctx.to(dev, non_blocking=True).float(), offs.to(dev, non_blocking=True),
                 a1.to(dev, non_blocking=True), a2.to(dev, non_blocking=True),
                 lbl.to(dev, non_blocking=True), mask.to(dev, non_blocking=True),
             )
@@ -386,7 +389,7 @@ def train_fast(
                     batch_idx = val_keep[b0:b0 + batch_size]
                     ctx, offs, a1, a2, lbl, mask = val_data.get_batch(batch_idx)
                     ctx, offs, a1, a2, lbl, mask = (
-                        ctx.to(dev, non_blocking=True), offs.to(dev, non_blocking=True),
+                        ctx.to(dev, non_blocking=True).float(), offs.to(dev, non_blocking=True),
                         a1.to(dev, non_blocking=True), a2.to(dev, non_blocking=True),
                         lbl.to(dev, non_blocking=True), mask.to(dev, non_blocking=True),
                     )
