@@ -448,9 +448,6 @@ def train_fast(
     if val_data is None:
         torch.save(model.state_dict(), output_dir / 'model.pt')
 
-    with open(output_dir / 'loss_history.json', 'w') as f:
-        json.dump(history, f)
-
     return {'model': model, 'best_pr_auc': best_pr_auc, 'best_per_class': best_per_class, 'history': history}
 
 
