@@ -42,7 +42,7 @@ class MouseBehaviorClassifier(nn.Module):
 
     def __init__(
         self, emb_dim: int = 768, n_heads: int = 1, hidden_dim: int = 256, n_classes: int = 3,
-        max_offset: int = 8, use_patch_grid: bool = False,
+        max_offset: int = 8, use_patch_grid: bool = False, dropout: float = 0.0,
     ):
         super().__init__()
         self.max_offset = max_offset
@@ -51,10 +51,11 @@ class MouseBehaviorClassifier(nn.Module):
         self.pos_emb = nn.Embedding(2 * max_offset + 1, emb_dim)
         if use_patch_grid:
             self.patch_pool = PatchAttnPool(emb_dim=emb_dim, n_heads=n_heads)
-        self.cross_attn = nn.MultiheadAttention(emb_dim, n_heads, batch_first=True)
+        self.cross_attn = nn.MultiheadAttention(emb_dim, n_heads, dropout=dropout, batch_first=True)
         self.head = nn.Sequential(
             nn.Linear(2 * emb_dim, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(dropout),
             nn.Linear(hidden_dim, n_classes),
         )
 

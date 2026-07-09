@@ -34,7 +34,10 @@ SEED = 42
 ENCODER, TOKEN = 'dinov2', 'class_l-2'
 
 # Must match train_patchgrid_final.py's CFG exactly for a fair comparison.
-CFG = dict(n_heads=1, context_k=2, hidden_dim=256, neg_ratio=10, loss_type='ce')
+# n_heads raised 1->8 (more attention subspaces, same total width) after the first full runs
+# showed severe overfitting (best macro PR-AUC hit within ~15 epochs, then val_loss climbed
+# for the remaining 85). Dropout/weight_decay/early_stop_patience are train_fast() defaults now.
+CFG = dict(n_heads=8, context_k=2, hidden_dim=256, neg_ratio=10, loss_type='ce')
 N_EPOCHS = 100
 
 

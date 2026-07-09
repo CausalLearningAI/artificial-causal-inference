@@ -254,6 +254,10 @@ def train_fast(
     eval_every: int = 1,
     val_neg_ratio: int = 20,
     grad_clip: float = 0.5,
+    use_amp: bool = True,
+    dropout: float = 0.1,
+    weight_decay: float = 1e-4,
+    early_stop_patience: int = 15,
 ):
     """Same training logic as train(), but uses FastBatchData's vectorized batch
     construction instead of Dataset/DataLoader — see fast_data.py."""
@@ -311,9 +315,9 @@ def train_fast(
             val_keep = np.arange(len(val_data))
 
     model = MouseBehaviorClassifier(
-        emb_dim=emb_dim, n_heads=n_heads, hidden_dim=hidden_dim, use_patch_grid=use_patch_grid,
+        emb_dim=emb_dim, n_heads=n_heads, hidden_dim=hidden_dim, use_patch_grid=use_patch_grid, dropout=dropout,
     ).to(dev)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     n_pos_total = max(len(pos_idx), 1)
     pos_labels = labels[pos_idx]
@@ -328,7 +332,16 @@ def train_fast(
 
     best_pr_auc = -1.0
     best_per_class = {}
+    best_epoch = 0
+    epochs_since_best = 0
     history = {'epoch': [], 'train_loss': [], 'eval_epoch': [], 'val_loss': [], 'val_acc': [], 'macro_pr_auc': []}
+
+    # Mixed precision: this workload was confirmed GPU-compute-bound (83% utilization on a
+    # 2080ti), so using tensor cores via autocast is the next lever, not more data-pipeline
+    # changes. GradScaler keeps backward numerically stable under fp16; gradients are
+    # unscaled before clipping so max_norm means the same thing as without AMP.
+    amp_enabled = use_amp and dev.type == 'cuda'
+    scaler = torch.amp.GradScaler('cuda', enabled=amp_enabled)
 
     for epoch in range(1, n_epochs + 1):
         model.train()
@@ -353,11 +366,14 @@ def train_fast(
                 lbl.to(dev, non_blocking=True), mask.to(dev, non_blocking=True),
             )
             optimizer.zero_grad()
-            logits = model(ctx, a1, a2, offsets=offs, key_padding_mask=mask)
-            loss = criterion(logits, lbl)
-            loss.backward()
+            with torch.amp.autocast('cuda', enabled=amp_enabled):
+                logits = model(ctx, a1, a2, offsets=offs, key_padding_mask=mask)
+                loss = criterion(logits, lbl)
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
             with torch.no_grad():
                 total_loss += loss.detach() * lbl.size(0)
                 correct += (logits.argmax(1) == lbl).sum()
@@ -384,10 +400,12 @@ def train_fast(
                         a1.to(dev, non_blocking=True), a2.to(dev, non_blocking=True),
                         lbl.to(dev, non_blocking=True), mask.to(dev, non_blocking=True),
                     )
-                    logits = model(ctx, a1, a2, offsets=offs, key_padding_mask=mask)
-                    all_probs.append(torch.softmax(logits, dim=1))
+                    with torch.amp.autocast('cuda', enabled=amp_enabled):
+                        logits = model(ctx, a1, a2, offsets=offs, key_padding_mask=mask)
+                        batch_loss = criterion(logits, lbl)
+                    all_probs.append(torch.softmax(logits, dim=1).float())
                     all_labels.append(lbl)
-                    loss_sum += criterion(logits, lbl) * logits.size(0)
+                    loss_sum += batch_loss.float() * logits.size(0)
                     n_total += logits.size(0)
             probs = torch.cat(all_probs).cpu().numpy()
             labels_np = torch.cat(all_labels).cpu().numpy()
@@ -408,10 +426,24 @@ def train_fast(
             if macro_pr_auc > best_pr_auc:
                 best_pr_auc = macro_pr_auc
                 best_per_class = per_class
+                best_epoch = epoch
+                epochs_since_best = 0
                 torch.save(model.state_dict(), output_dir / 'best_model.pt')
+            else:
+                epochs_since_best += eval_every
 
         if verbose:
             print(msg)
+
+        # This model overfits fast (best macro PR-AUC is typically reached within the first
+        # ~15-20 epochs, then val_loss climbs monotonically while train_loss keeps dropping —
+        # confirmed on both CLS and patch-grid full 100-epoch runs). Stopping once the best
+        # checkpoint hasn't improved for early_stop_patience epochs avoids wasting the rest of
+        # the budget purely overfitting, and is a straightforward speed win on top of it.
+        if early_stop_patience is not None and do_eval and epochs_since_best >= early_stop_patience:
+            if verbose:
+                print(f'  early stopping: no improvement for {epochs_since_best} epochs (best was epoch {best_epoch})')
+            break
 
     if val_data is None:
         torch.save(model.state_dict(), output_dir / 'model.pt')

@@ -35,7 +35,10 @@ ENCODER, TOKEN = 'dinov2', 'class_l-2'
 PATCH_GRID_DIR = DATASET_DIR / 'mice' / 'v1' / 'embeddings' / 'full' / 'dinov2' / 'patch_grid4'
 
 # Must match train_cls_final.py's CFG exactly for a fair comparison.
-CFG = dict(n_heads=1, context_k=2, hidden_dim=256, neg_ratio=10, loss_type='ce')
+# n_heads raised 1->8 (more attention subspaces, same total width) after the first full runs
+# showed severe overfitting (best macro PR-AUC hit within ~15 epochs, then val_loss climbed
+# for the remaining 85). Dropout/weight_decay/early_stop_patience are train_fast() defaults now.
+CFG = dict(n_heads=8, context_k=2, hidden_dim=256, neg_ratio=10, loss_type='ce')
 N_EPOCHS = 100
 
 # CLS is stable at train_fast()'s 1e-3 default; this variant's extra PatchAttnPool

@@ -40,14 +40,21 @@ def generate_report(probs, labels, history, title, out_dir: Path):
     fig, axes = plt.subplots(3, 2, figsize=(12, 15))
     save_data = {}
 
+    best_idx = int(np.argmax(history['macro_pr_auc']))
+    best_epoch = history['eval_epoch'][best_idx]
+
     axes[0, 0].plot(history['epoch'], history['train_loss'], label='train loss')
     axes[0, 0].plot(history['eval_epoch'], history['val_loss'], label='val loss')
+    axes[0, 0].axvline(best_epoch, color='tab:green', ls='--', alpha=0.6, label=f'best epoch ({best_epoch})')
     axes[0, 0].set_xlabel('epoch'); axes[0, 0].set_ylabel('loss')
     axes[0, 0].set_title('Train / val loss'); axes[0, 0].legend()
 
     axes[0, 1].plot(history['eval_epoch'], history['macro_pr_auc'], color='tab:green')
+    axes[0, 1].axvline(best_epoch, color='tab:green', ls='--', alpha=0.6)
+    axes[0, 1].scatter([best_epoch], [history['macro_pr_auc'][best_idx]], color='tab:red', zorder=5,
+                        label=f"best={history['macro_pr_auc'][best_idx]:.3f} @ epoch {best_epoch}")
     axes[0, 1].set_xlabel('epoch'); axes[0, 1].set_ylabel('macro PR-AUC')
-    axes[0, 1].set_title('Val macro PR-AUC over training')
+    axes[0, 1].set_title('Val macro PR-AUC over training'); axes[0, 1].legend()
 
     for c, name in enumerate(LABEL_NAMES):
         y_true = (labels == c).astype(int)
