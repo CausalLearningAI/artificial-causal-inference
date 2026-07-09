@@ -123,7 +123,7 @@ def train(
     # patch-grid variant) — keep worker count low and the SLURM job's --mem generous so
     # touched-page duplication doesn't balloon past the allocation and stall the job.
     train_loader = DataLoader(
-        train_ds, batch_size=batch_size, sampler=sampler, num_workers=2, pin_memory=True,
+        train_ds, batch_size=batch_size, sampler=sampler, num_workers=6, pin_memory=True,
         collate_fn=collate_fn, persistent_workers=True, prefetch_factor=2,
     )
 
@@ -147,7 +147,7 @@ def train(
             print(f'  fixed val subsample: {n_before:,} -> {len(val_ds):,} samples '
                   f'(all positives + {val_neg_ratio}x negatives, seeded — same subset every epoch)')
         val_loader = DataLoader(
-            val_ds, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True,
+            val_ds, batch_size=batch_size, shuffle=False, num_workers=6, pin_memory=True,
             collate_fn=collate_fn, persistent_workers=True, prefetch_factor=2,
         )
 
