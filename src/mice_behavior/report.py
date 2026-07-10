@@ -1,9 +1,11 @@
 """Shared report generation for mouse behavior classifier variants (CLS, patch-grid).
 
 Produces a 3-row figure:
-    Row 0: train/val loss curve, val macro PR-AUC over epochs
-    Row 1: per-ordered-pair ROC / PR
-    Row 2: collapsed per-frame ROC / PR (did behavior X happen anywhere in this frame)
+    Row 0: train/val loss curve; val macro PR-AUC (nt/nn only) over epochs, per couple and
+        per frame
+    Row 1: behaviors per mice couples — ROC / PR per ordered pair
+    Row 2: aggregated behaviors per frame — ROC / PR (did behavior X happen anywhere in this
+        frame, for nt/nn; did NO pair interact anywhere in this frame, for none)
 """
 from pathlib import Path
 
@@ -70,7 +72,7 @@ def generate_report(probs, labels, history, variant_name: str, cfg: dict, out_di
     fig, axes = plt.subplots(3, 2, figsize=(12, 15))
     save_data = {}
 
-    best_idx = int(np.argmax(history['macro_pr_auc']))
+    best_idx = int(np.argmax(history['pair_macro_pr_auc']))
     best_epoch = history['eval_epoch'][best_idx]
 
     axes[0, 0].plot(history['epoch'], history['train_loss'], label='train loss')
@@ -79,19 +81,12 @@ def generate_report(probs, labels, history, variant_name: str, cfg: dict, out_di
     axes[0, 0].set_xlabel('epoch'); axes[0, 0].set_ylabel('loss')
     axes[0, 0].set_title('Loss'); axes[0, 0].legend()
 
-    # Per-behavior (nt/nn) PR-AUC, computed both ways, for a direct read on the training curve:
-    # "couples" = per-ordered-pair (row 1 below), "per frame" = collapsed-per-frame (row 2 below).
-    pair_pr_auc = {name: average_precision_score((labels == c).astype(int), probs[:, c])
-                   for c, name in [(1, 'nt'), (2, 'nn')]}
-    frame_pr_auc = {name: average_precision_score((labels_r == c).any(axis=1).astype(int), probs_r[:, :, c].max(axis=1))
-                    for c, name in [(1, 'nt'), (2, 'nn')]}
-    pair_macro = np.mean(list(pair_pr_auc.values()))
-    frame_macro = np.mean(list(frame_pr_auc.values()))
-
-    axes[0, 1].plot(history['eval_epoch'], history['macro_pr_auc'], color='tab:green', label='val macro PR-AUC (per epoch)')
-    axes[0, 1].axvline(best_epoch, color='tab:green', ls='--', alpha=0.6)
-    axes[0, 1].axhline(pair_macro, color='tab:blue', ls=':', alpha=0.7, label=f'best ckpt, per couple (nt/nn): {pair_macro:.3f}')
-    axes[0, 1].axhline(frame_macro, color='tab:orange', ls=':', alpha=0.7, label=f'best ckpt, per frame (nt/nn): {frame_macro:.3f}')
+    # macro PR-AUC (nt/nn only, 'none' excluded — see row 1/2 note below) over training, both
+    # ways: "couples" = per-ordered-pair (row 1), "per frame" = collapsed-per-frame (row 2).
+    # These are the exact same quantities train_fast() computes and logs each eval epoch.
+    axes[0, 1].plot(history['eval_epoch'], history['pair_macro_pr_auc'], color='tab:blue', label='per couple (nt/nn)')
+    axes[0, 1].plot(history['eval_epoch'], history['frame_macro_pr_auc'], color='tab:orange', label='per frame (nt/nn)')
+    axes[0, 1].axvline(best_epoch, color='tab:green', ls='--', alpha=0.6, label=f'best epoch ({best_epoch})')
     axes[0, 1].set_xlabel('epoch'); axes[0, 1].set_ylabel('macro PR-AUC')
     axes[0, 1].set_title('PR-AUC'); axes[0, 1].legend(fontsize=8)
 

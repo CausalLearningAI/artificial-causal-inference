@@ -252,7 +252,12 @@ def train_fast(
     patch_global_idx_path: str = None,
     n_patches: int = 16,
     eval_every: int = 1,
-    val_neg_ratio: int = 20,
+    # Applies per FRAME now (all 12 pairs kept together), not per individual pair-sample as
+    # before — the same numeric ratio would now pull in ~93% of the full val set every epoch
+    # (most val frames have no positive pair, so 20x-the-positive-frame-count exceeds the
+    # negative-frame pool almost entirely). 2 keeps per-epoch eval fast while still giving a
+    # frame-complete sample for the aggregated-per-frame metric.
+    val_neg_ratio: int = 2,
     grad_clip: float = 0.5,
     use_amp: bool = True,
     dropout: float = 0.1,
@@ -302,17 +307,28 @@ def train_fast(
             except torch.cuda.OutOfMemoryError:
                 torch.cuda.empty_cache()
                 print('  val data too large for GPU memory, falling back to CPU gather')
+        n_kept_frames = None
         if val_neg_ratio is not None:
+            # Subsample whole frames (all 12 ordered pairs kept together), not individual
+            # pair-samples — this keeps every kept frame's 12-pair block complete, which the
+            # per-epoch "aggregated per frame" PR-AUC below needs (it reshapes into
+            # (n_frames, 12, 3), same as report.py's final evaluation).
             v_labels = val_data.labels
-            v_pos = np.where(v_labels > 0)[0]
-            v_neg = np.where(v_labels == 0)[0]
+            n_frames_total = len(v_labels) // 12
+            frame_labels = v_labels[:n_frames_total * 12].reshape(n_frames_total, 12)
+            frame_has_pos = (frame_labels > 0).any(axis=1)
+            pos_frames = np.where(frame_has_pos)[0]
+            neg_frames = np.where(~frame_has_pos)[0]
             v_rng = np.random.default_rng(seed)
-            n_neg = min(len(v_neg), val_neg_ratio * max(len(v_pos), 1))
-            v_neg_sample = v_rng.choice(v_neg, size=n_neg, replace=False)
-            val_keep = np.sort(np.concatenate([v_pos, v_neg_sample]))
-            print(f'  fixed val subsample: {len(val_data):,} -> {len(val_keep):,} samples')
+            n_neg_frames = min(len(neg_frames), val_neg_ratio * max(len(pos_frames), 1))
+            neg_frame_sample = v_rng.choice(neg_frames, size=n_neg_frames, replace=False)
+            keep_frames = np.sort(np.concatenate([pos_frames, neg_frame_sample]))
+            val_keep = (keep_frames[:, None] * 12 + np.arange(12)[None, :]).reshape(-1)
+            n_kept_frames = len(keep_frames)
+            print(f'  fixed val subsample: {n_frames_total:,} -> {n_kept_frames:,} frames ({len(val_keep):,} samples)')
         else:
             val_keep = np.arange(len(val_data))
+            n_kept_frames = len(val_data) // 12
 
     model = MouseBehaviorClassifier(
         emb_dim=emb_dim, n_heads=n_heads, hidden_dim=hidden_dim, use_patch_grid=use_patch_grid, dropout=dropout,
@@ -334,7 +350,8 @@ def train_fast(
     best_per_class = {}
     best_epoch = 0
     epochs_since_best = 0
-    history = {'epoch': [], 'train_loss': [], 'eval_epoch': [], 'val_loss': [], 'val_acc': [], 'macro_pr_auc': []}
+    history = {'epoch': [], 'train_loss': [], 'eval_epoch': [], 'val_loss': [], 'val_acc': [],
+               'pair_macro_pr_auc': [], 'frame_macro_pr_auc': []}
 
     # Mixed precision: this workload was confirmed GPU-compute-bound (83% utilization on a
     # 2080ti), so using tensor cores via autocast is the next lever, not more data-pipeline
@@ -410,21 +427,37 @@ def train_fast(
             probs = torch.cat(all_probs).cpu().numpy()
             labels_np = torch.cat(all_labels).cpu().numpy()
             acc = float((probs.argmax(1) == labels_np).mean())
-            per_class, pr_aucs = {}, []
+
+            # 'none' isn't a behavior — it's the negative default for a pair, and its own
+            # per-pair AP is trivially near-1.0 given it's ~99.7% of samples. Macro PR-AUC
+            # (the model-selection / early-stopping criterion) is the mean over the two real
+            # behaviors, nt and nn, only.
+            per_class = {}
             for c in range(3):
                 y_true = (labels_np == c).astype(int)
                 pr = average_precision_score(y_true, probs[:, c])
                 per_class[LABEL_NAMES[c]] = f'PR-AUC={pr:.3f}'
-                pr_aucs.append(pr)
-            macro_pr_auc = float(np.mean(pr_aucs))
+            pair_pr_auc = {c: average_precision_score((labels_np == c).astype(int), probs[:, c]) for c in (1, 2)}
+            pair_macro_pr_auc = float(np.mean(list(pair_pr_auc.values())))
+
+            probs_r = probs.reshape(n_kept_frames, 12, 3)
+            labels_r = labels_np.reshape(n_kept_frames, 12)
+            frame_pr_auc = {
+                c: average_precision_score((labels_r == c).any(axis=1).astype(int), probs_r[:, :, c].max(axis=1))
+                for c in (1, 2)
+            }
+            frame_macro_pr_auc = float(np.mean(list(frame_pr_auc.values())))
+
             val_loss = (loss_sum / n_total).item()
-            msg += f'  val_loss={val_loss:.4f}  val_acc={acc:.4f}  macro_pr_auc={macro_pr_auc:.4f}  ' + '  '.join(f'{k}={v}' for k, v in per_class.items())
+            msg += (f'  val_loss={val_loss:.4f}  val_acc={acc:.4f}  pair_macro_pr_auc={pair_macro_pr_auc:.4f}'
+                    f'  frame_macro_pr_auc={frame_macro_pr_auc:.4f}  ' + '  '.join(f'{k}={v}' for k, v in per_class.items()))
             history['eval_epoch'].append(epoch)
             history['val_loss'].append(val_loss)
             history['val_acc'].append(acc)
-            history['macro_pr_auc'].append(macro_pr_auc)
-            if macro_pr_auc > best_pr_auc:
-                best_pr_auc = macro_pr_auc
+            history['pair_macro_pr_auc'].append(pair_macro_pr_auc)
+            history['frame_macro_pr_auc'].append(frame_macro_pr_auc)
+            if pair_macro_pr_auc > best_pr_auc:
+                best_pr_auc = pair_macro_pr_auc
                 best_per_class = per_class
                 best_epoch = epoch
                 epochs_since_best = 0
