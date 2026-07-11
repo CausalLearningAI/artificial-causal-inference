@@ -235,6 +235,7 @@ def train_fast(
     train_obs_ids=None,
     val_obs_ids=None,
     context_k: int = 2,
+    stride: int = 1,
     emb_dim: int = 768,
     n_heads: int = 1,
     hidden_dim: int = 256,
@@ -263,6 +264,17 @@ def train_fast(
     dropout: float = 0.1,
     weight_decay: float = 1e-4,
     early_stop_patience: int = 15,
+    # Checkpoint selection / early stopping compare a trailing moving average of
+    # pair_macro_pr_auc, not the raw per-eval value — with only ~2.5-4k positive pair-samples,
+    # the subsampled per-epoch metric is noisy enough that the single highest of ~80 evals is
+    # usually just a lucky fluctuation (confirmed: a promoted model's "best epoch" turned out
+    # to be an isolated spike in an otherwise-flat/noisy trajectory, not a real improvement).
+    smooth_window: int = 5,
+    # Bounds how many distinct observations' frames ever get loaded/GPU-resident for training
+    # — patch-grid's full train split is ~15GB (16x CLS's per-frame footprint), which never
+    # fits on a GPU with limited VRAM, and every epoch only samples a small fraction of frames
+    # anyway via neg_ratio subsampling. None = unrestricted (CLS's default; it already fits in full).
+    max_train_frames: int = None,
 ):
     """Same training logic as train(), but uses FastBatchData's vectorized batch
     construction instead of Dataset/DataLoader — see fast_data.py."""
@@ -280,7 +292,10 @@ def train_fast(
     )
 
     print('Building train dataset (vectorized)...')
-    train_data = FastBatchData(annotations_csv, pair_labels_parquet, train_obs_ids, context_k, emb_dim, load_fn, n_patches)
+    train_data = FastBatchData(
+        annotations_csv, pair_labels_parquet, train_obs_ids, context_k, emb_dim, load_fn, n_patches,
+        stride=stride, max_frames=max_train_frames, seed=seed,
+    )
     labels = train_data.labels
     pos_idx = np.where(labels > 0)[0]
     neg_idx = np.where(labels == 0)[0]
@@ -299,7 +314,7 @@ def train_fast(
     val_data, val_keep = None, None
     if val_obs_ids:
         print('Building val dataset (vectorized)...')
-        val_data = FastBatchData(annotations_csv, pair_labels_parquet, val_obs_ids, context_k, emb_dim, load_fn, n_patches)
+        val_data = FastBatchData(annotations_csv, pair_labels_parquet, val_obs_ids, context_k, emb_dim, load_fn, n_patches, stride=stride)
         if dev.type == 'cuda':
             try:
                 val_data.to_device(dev)
@@ -354,7 +369,7 @@ def train_fast(
                'pair_macro_pr_auc': [], 'frame_macro_pr_auc': []}
 
     # Mixed precision: this workload was confirmed GPU-compute-bound (83% utilization on a
-    # 2080ti), so using tensor cores via autocast is the next lever, not more data-pipeline
+    # that GPU), so using tensor cores via autocast is the next lever, not more data-pipeline
     # changes. GradScaler keeps backward numerically stable under fp16; gradients are
     # unscaled before clipping so max_norm means the same thing as without AMP.
     amp_enabled = use_amp and dev.type == 'cuda'
@@ -456,8 +471,16 @@ def train_fast(
             history['val_acc'].append(acc)
             history['pair_macro_pr_auc'].append(pair_macro_pr_auc)
             history['frame_macro_pr_auc'].append(frame_macro_pr_auc)
-            if pair_macro_pr_auc > best_pr_auc:
-                best_pr_auc = pair_macro_pr_auc
+
+            # Trailing moving average over the last `smooth_window` evals, not the raw value —
+            # see smooth_window's docstring above for why (noisy single-epoch spikes otherwise
+            # win "best checkpoint" purely by chance).
+            recent = history['pair_macro_pr_auc'][-smooth_window:]
+            smoothed_pr_auc = float(np.mean(recent))
+            msg += f'  smoothed_pr_auc={smoothed_pr_auc:.4f}'
+
+            if smoothed_pr_auc > best_pr_auc:
+                best_pr_auc = smoothed_pr_auc
                 best_per_class = per_class
                 best_epoch = epoch
                 epochs_since_best = 0

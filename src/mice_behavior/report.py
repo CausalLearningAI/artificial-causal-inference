@@ -75,9 +75,24 @@ def generate_report(probs, labels, history, variant_name: str, cfg: dict, out_di
     best_idx = int(np.argmax(history['pair_macro_pr_auc']))
     best_epoch = history['eval_epoch'][best_idx]
 
+    # Dummy/random baselines — what a classifier with zero discriminative power would score,
+    # respecting only the true class proportions (no covariate information at all). Loss: the
+    # entropy of the label distribution (cross-entropy of always predicting the true prior).
+    # PR-AUC: for an uninformative/random-score classifier, AP converges to the positive
+    # class's prevalence — so the random baseline is just the (macro) base rate, computed the
+    # same two ways as the real metrics (per couple / per frame).
+    label_counts = np.bincount(labels, minlength=3)
+    p = label_counts / label_counts.sum()
+    random_loss = float(-np.sum(p[p > 0] * np.log(p[p > 0])))
+    pair_random = float(np.mean([(labels == c).mean() for c in (1, 2)]))
+    frame_random = float(np.mean([(labels_r == c).any(axis=1).mean() for c in (1, 2)]))
+
     axes[0, 0].plot(history['epoch'], history['train_loss'], label='train loss')
     axes[0, 0].plot(history['eval_epoch'], history['val_loss'], label='val loss')
-    axes[0, 0].axvline(best_epoch, color='tab:green', ls='--', alpha=0.6, label=f'best epoch ({best_epoch})')
+    axes[0, 0].axhline(random_loss, color='gray', ls=':', alpha=0.7, label='random (class-prior) baseline')
+    axes[0, 0].axvline(best_epoch, color='tab:green', ls='--', alpha=0.6)
+    axes[0, 0].text(best_epoch, axes[0, 0].get_ylim()[1], f'best epoch ({best_epoch})',
+                     color='tab:green', rotation=90, va='top', ha='right', fontsize=8)
     axes[0, 0].set_xlabel('epoch'); axes[0, 0].set_ylabel('loss')
     axes[0, 0].set_title('Loss'); axes[0, 0].legend()
 
@@ -86,7 +101,11 @@ def generate_report(probs, labels, history, variant_name: str, cfg: dict, out_di
     # These are the exact same quantities train_fast() computes and logs each eval epoch.
     axes[0, 1].plot(history['eval_epoch'], history['pair_macro_pr_auc'], color='tab:blue', label='per couple (nt/nn)')
     axes[0, 1].plot(history['eval_epoch'], history['frame_macro_pr_auc'], color='tab:orange', label='per frame (nt/nn)')
-    axes[0, 1].axvline(best_epoch, color='tab:green', ls='--', alpha=0.6, label=f'best epoch ({best_epoch})')
+    axes[0, 1].axhline(pair_random, color='tab:blue', ls=':', alpha=0.7, label='per couple, random baseline')
+    axes[0, 1].axhline(frame_random, color='tab:orange', ls=':', alpha=0.7, label='per frame, random baseline')
+    axes[0, 1].axvline(best_epoch, color='tab:green', ls='--', alpha=0.6)
+    axes[0, 1].text(best_epoch, axes[0, 1].get_ylim()[1], f'best epoch ({best_epoch})',
+                     color='tab:green', rotation=90, va='top', ha='right', fontsize=8)
     axes[0, 1].set_xlabel('epoch'); axes[0, 1].set_ylabel('macro PR-AUC')
     axes[0, 1].set_title('PR-AUC'); axes[0, 1].legend(fontsize=8)
 

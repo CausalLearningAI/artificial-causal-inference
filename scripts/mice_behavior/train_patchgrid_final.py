@@ -46,10 +46,18 @@ N_EPOCHS = 100
 # grad clipping down to max_norm=0.5.
 LR = 3e-4
 
-# The visualize partition's 2080ti has only 11GB VRAM. The default batch_size=4096
+# The available GPU has limited VRAM. The default batch_size=4096
 # (patch-grid: ~1GB/batch of fp32 context, plus the GPU-resident val array) OOM'd
 # during backward(); 1024 leaves comfortable headroom.
 BATCH_SIZE = 1024
+
+# Patch-grid's full train split is ~15GB GPU-resident (16x CLS's per-frame footprint) —
+# never fits alongside the val set on a GPU with limited VRAM, silently falling back to slow
+# CPU-gather (~24-29s/epoch, confirmed present in every patch-grid run this session). Bounding
+# to 200k frames (every positive-containing frame + a big random negative pool, ~2.6GB
+# GPU-resident) cut that to ~8s/epoch — a real, verified ~3x speedup, not just fewer negatives
+# used per epoch (positives are unaffected; all are always kept).
+MAX_TRAIN_FRAMES = 200_000
 
 
 def main():
@@ -99,6 +107,7 @@ def main():
         n_patches=16,
         eval_every=1,
         batch_size=BATCH_SIZE,
+        max_train_frames=MAX_TRAIN_FRAMES,
     )
     history = result['history']
     print(f"Best macro PR-AUC: {result['best_pr_auc']:.4f}  {result['best_per_class']}")
