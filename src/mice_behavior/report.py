@@ -76,14 +76,24 @@ def generate_report(probs, labels, history, variant_name: str, cfg: dict, out_di
     best_epoch = history['eval_epoch'][best_idx]
 
     # Dummy/random baselines — what a classifier with zero discriminative power would score,
-    # respecting only the true class proportions (no covariate information at all). Loss: the
-    # entropy of the label distribution (cross-entropy of always predicting the true prior).
+    # respecting only the true class proportions (no covariate information at all).
+    # Loss: the plotted val_loss is train_fast()'s CLASS-WEIGHTED cross-entropy (rare classes
+    # get ~10-20x weight), not plain unweighted CE — so the baseline must apply the same
+    # weighting (reconstructed the same way train_fast() computes it, from neg_ratio and this
+    # eval set's label counts) or the two aren't on a comparable scale. This is the loss of a
+    # model that always outputs the true class-prior probabilities.
     # PR-AUC: for an uninformative/random-score classifier, AP converges to the positive
     # class's prevalence — so the random baseline is just the (macro) base rate, computed the
     # same two ways as the real metrics (per couple / per frame).
     label_counts = np.bincount(labels, minlength=3)
     p = label_counts / label_counts.sum()
-    random_loss = float(-np.sum(p[p > 0] * np.log(p[p > 0])))
+    n_pos_total = max(int((labels > 0).sum()), 1)
+    n1, n2 = max(int(label_counts[1]), 1), max(int(label_counts[2]), 1)
+    n0 = max(cfg['neg_ratio'] * n_pos_total, 1)
+    sampled_counts = np.array([n0, n1, n2], dtype=np.float64)
+    class_weights = sampled_counts.sum() / (3 * sampled_counts)
+    per_class_loss = -np.log(np.clip(p, 1e-12, None))
+    random_loss = float(np.sum(label_counts * class_weights * per_class_loss) / np.sum(label_counts * class_weights))
     pair_random = float(np.mean([(labels == c).mean() for c in (1, 2)]))
     frame_random = float(np.mean([(labels_r == c).any(axis=1).mean() for c in (1, 2)]))
 
