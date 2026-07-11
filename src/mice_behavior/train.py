@@ -361,12 +361,40 @@ def train_fast(
         print(f'  class weights: none={class_weights[0]:.2f}  nt={class_weights[1]:.2f}  nn={class_weights[2]:.2f}')
     criterion = FocalLoss(class_weights, gamma=focal_gamma) if loss_type == 'focal' else nn.CrossEntropyLoss(weight=class_weights)
 
+    # Random (class-prior) baselines for train_loss/val_loss, computed on the SAME populations
+    # and weights the criterion actually sees each epoch — NOT the true full-dataset
+    # proportions, since both train and val are evaluated on reweighted subsamples (train:
+    # neg_ratio, val: val_neg_ratio, a different ratio), and class_weights is calibrated only
+    # once from train's own composition then reused as-is for val. Train's population exactly
+    # matches the calibration population, so weighted-mean reduces to a clean mean-of-logs;
+    # val's doesn't (different ratio), so it needs the general weighted formula.
+    train_prior = sampled_counts / sampled_counts.sum()
+    random_train_loss = float(-np.mean(np.log(np.clip(train_prior, 1e-12, None))))
+    random_val_loss = pair_random_val = frame_random_val = None
+    if val_data is not None:
+        val_labels_kept = val_data.labels[val_keep]
+        n_val_counts = np.array([(val_labels_kept == c).sum() for c in range(3)], dtype=np.float64)
+        p_val = n_val_counts / n_val_counts.sum()
+        w = class_weights.detach().cpu().numpy().astype(np.float64)
+        random_val_loss = float(
+            np.sum(n_val_counts * w * -np.log(np.clip(p_val, 1e-12, None))) / np.sum(n_val_counts * w)
+        )
+        # Random PR-AUC baselines for the SAME val_keep subsample the per-epoch curve below is
+        # computed on (AP of an uninformative classifier converges to the positive prevalence
+        # of whatever set it's evaluated on — val_keep's prevalence is much higher than the
+        # true full-val prevalence report.py uses for its own, separately-computed baselines).
+        pair_random_val = float(np.mean([(val_labels_kept == c).mean() for c in (1, 2)]))
+        labels_r_kept = val_labels_kept.reshape(n_kept_frames, 12)
+        frame_random_val = float(np.mean([(labels_r_kept == c).any(axis=1).mean() for c in (1, 2)]))
+
     best_pr_auc = -1.0
     best_per_class = {}
     best_epoch = 0
     epochs_since_best = 0
     history = {'epoch': [], 'train_loss': [], 'eval_epoch': [], 'val_loss': [], 'val_acc': [],
-               'pair_macro_pr_auc': [], 'frame_macro_pr_auc': []}
+               'pair_macro_pr_auc': [], 'frame_macro_pr_auc': [],
+               'random_train_loss': random_train_loss, 'random_val_loss': random_val_loss,
+               'pair_random_val': pair_random_val, 'frame_random_val': frame_random_val}
 
     # Mixed precision: this workload was confirmed GPU-compute-bound (83% utilization on a
     # that GPU), so using tensor cores via autocast is the next lever, not more data-pipeline
