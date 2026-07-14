@@ -40,7 +40,7 @@ from sklearn.metrics import average_precision_score
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.mice_behavior.build_pair_labels import build_pair_labels
-from src.mice_behavior.batch_data import FrameBatchData, load_cls_embeddings
+from src.mice_behavior.batch_data import FrameBatchData, load_cls_embeddings, cached_loader
 from src.mice_behavior.model import MouseFrameClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
 from src.mice_behavior.report import collect_frame_val_predictions, generate_frame_report
@@ -89,9 +89,11 @@ def sample_cfg(rng: random.Random) -> dict:
 
 
 def full_val_frame_macro_ap(model, dev, annotations_csv, pair_labels_path, val_obs,
-                             context_k, stride, emb_dim, cls_embeddings_path):
-    """The one true metric — always the full, non-subsampled validation set."""
-    load_fn = load_cls_embeddings(str(cls_embeddings_path), emb_dim)
+                             context_k, stride, emb_dim, load_fn):
+    """The one true metric — always the full, non-subsampled validation set.
+    load_fn: a load_embeddings_fn (typically a shared cached_loader(...) instance — see
+    run_trial/main — so repeated calls across trials reuse the same in-RAM embeddings
+    instead of re-reading them from NFS every time)."""
     val_data = FrameBatchData(
         str(annotations_csv), str(pair_labels_path), val_obs, context_k, emb_dim, load_fn, stride=stride,
     )
@@ -102,7 +104,7 @@ def full_val_frame_macro_ap(model, dev, annotations_csv, pair_labels_path, val_o
 
 
 def run_trial(cfg, annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim,
-              train_obs, val_obs, n_epochs, tag):
+              train_obs, val_obs, n_epochs, tag, load_fn):
     out_dir = TMP_DIR / tag
     kwargs = dict(
         annotations_csv=str(annotations_csv), pair_labels_parquet=str(pair_labels_path),
@@ -110,14 +112,14 @@ def run_trial(cfg, annotations_csv, pair_labels_path, cls_embeddings_path, emb_d
         train_obs_ids=train_obs, val_obs_ids=val_obs, context_k=cfg['context_k'], stride=cfg['stride'],
         emb_dim=emb_dim, n_heads=cfg['n_heads'], hidden_dim=cfg['hidden_dim'], n_epochs=n_epochs,
         neg_ratio=cfg['neg_ratio'], lr=cfg['lr'], dropout=cfg['dropout'], weight_decay=cfg['weight_decay'],
-        device='cuda', seed=SEED, verbose=False, eval_every=1,
+        device='cuda', seed=SEED, verbose=False, eval_every=1, embeddings_loader=load_fn,
     )
     result = train_frame(**kwargs)
     model = result['model']
     dev = next(model.parameters()).device
     full_ap, full_per_label = full_val_frame_macro_ap(
         model, dev, annotations_csv, pair_labels_path, val_obs, cfg['context_k'], cfg['stride'],
-        emb_dim, cls_embeddings_path,
+        emb_dim, load_fn,
     )
     del result['model']
     torch.cuda.empty_cache()
@@ -125,7 +127,7 @@ def run_trial(cfg, annotations_csv, pair_labels_path, cls_embeddings_path, emb_d
     return full_ap, full_per_label, result['best_ap']
 
 
-def search(annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim, train_obs, val_obs, budget_sec):
+def search(annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim, train_obs, val_obs, budget_sec, load_fn):
     print(f'=== Searching frame classifier (budget {budget_sec/3600:.1f}h) ===', flush=True)
     sample_rng = random.Random(SEED)
     results = []
@@ -138,7 +140,7 @@ def search(annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim, trai
         try:
             full_ap, full_per_label, internal_ap = run_trial(
                 cfg, annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim, train_obs, val_obs,
-                SEARCH_EPOCHS, tag,
+                SEARCH_EPOCHS, tag, load_fn,
             )
         except Exception as e:
             log_result({'tag': tag, 'cfg': cfg, 'error': str(e), 'traceback': traceback.format_exc()})
@@ -187,7 +189,13 @@ def main():
         '(nt/nn), computed identically for the search, the baseline, and the final report.\n\n',
     ]
 
-    results, n_trials = search(annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim, train_obs, val_obs, BUDGET_SEC)
+    # Shared across every trial + the baseline/final-retrain checks below: the underlying
+    # embeddings file and train_obs/val_obs are fixed for this whole script run, so caching
+    # avoids re-reading ~2GB from NFS on every single one of ~hundreds of calls — see
+    # cached_loader's docstring for the ~25-30%-of-wall-time idle gap this closes.
+    load_fn = cached_loader(load_cls_embeddings(str(cls_embeddings_path), emb_dim))
+
+    results, n_trials = search(annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim, train_obs, val_obs, BUDGET_SEC, load_fn)
     out_dir = FRAME_DIR
     summary_lines.append(f'## frame ({n_trials} trials)\n')
 
@@ -205,7 +213,7 @@ def main():
         base_model.eval()
         baseline_ap, _ = full_val_frame_macro_ap(
             base_model, dev, annotations_csv, pair_labels_path, val_obs,
-            base_cfg['context_k'], base_cfg.get('stride', 1), emb_dim, cls_embeddings_path,
+            base_cfg['context_k'], base_cfg.get('stride', 1), emb_dim, load_fn,
         )
         del base_model
         torch.cuda.empty_cache()
@@ -230,6 +238,7 @@ def main():
                 emb_dim=emb_dim, n_heads=best_cfg['n_heads'], hidden_dim=best_cfg['hidden_dim'], n_epochs=FINAL_EPOCHS,
                 neg_ratio=best_cfg['neg_ratio'], lr=best_cfg['lr'], dropout=best_cfg['dropout'],
                 weight_decay=best_cfg['weight_decay'], device='cuda', seed=SEED, verbose=True, eval_every=1,
+                embeddings_loader=load_fn,
             )
             try:
                 result = train_frame(**kwargs)
@@ -243,7 +252,7 @@ def main():
                 dev = next(model.parameters()).device
                 final_score, final_per_label = full_val_frame_macro_ap(
                     model, dev, annotations_csv, pair_labels_path, val_obs,
-                    best_cfg['context_k'], best_cfg['stride'], emb_dim, cls_embeddings_path,
+                    best_cfg['context_k'], best_cfg['stride'], emb_dim, load_fn,
                 )
                 log_result({'stage': 'final_retrain', 'cfg': best_cfg, 'full_val_frame_macro_ap': final_score})
 
@@ -260,7 +269,6 @@ def main():
                                    'best_ap': final_score, 'best_per_label': final_per_label,
                                    'emb_dim': emb_dim, 'promoted_by_search': True}, f, indent=2)
 
-                    load_fn = load_cls_embeddings(str(cls_embeddings_path), emb_dim)
                     val_data = FrameBatchData(
                         str(annotations_csv), str(pair_labels_path), val_obs, best_cfg['context_k'], emb_dim, load_fn,
                         stride=best_cfg['stride'],

@@ -469,3 +469,23 @@ def load_patchgrid_embeddings(embeddings_path: str, global_idx_path: str, n_patc
             out[obs_s] = np.array(mmap[pg_start:pg_end])
         return out
     return _load
+
+
+def cached_loader(load_embeddings_fn):
+    """Wraps a load_embeddings_fn (load_cls_embeddings / load_patchgrid_embeddings) with
+    an in-process memo cache keyed on obs_boundary. A hyperparameter search calls
+    PairBatchData/FrameBatchData dozens-to-hundreds of times over the SAME train/val
+    obs_ids (only context_k/stride/etc. vary per trial), and without this each of those
+    calls re-reads the full embeddings file from NFS and re-copies it into RAM from
+    scratch — confirmed as a real GPU-idle gap between trials (~25-30% of each trial's
+    wall time went to this, not training). Keyed on obs_boundary's own contents, so one
+    instance can safely be reused for both train_obs and val_obs (or any other obs_ids)
+    within the same script — each distinct obs_boundary just gets its own cache entry."""
+    cache = {}
+
+    def _load(obs_boundary):
+        key = tuple(sorted(obs_boundary.items()))
+        if key not in cache:
+            cache[key] = load_embeddings_fn(obs_boundary)
+        return cache[key]
+    return _load

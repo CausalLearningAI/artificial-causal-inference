@@ -370,12 +370,19 @@ def train_frame(
     weight_decay: float = 1e-4,
     early_stop_patience: int = 15,
     smooth_window: int = 5,
+    embeddings_loader=None,
 ):
     """Per-frame behavior detector — no mouse-identity conditioning, no pairwise
     ×12 sample expansion (one sample per annotated frame). See MouseFrameClassifier
     and FrameBatchData. Multi-label BCE over [has_nt, has_nn]; model selection is
     macro AP over the same two labels, smoothed the same way as train()'s
-    pair_macro_pr_auc — see that function's smooth_window comment for why."""
+    pair_macro_pr_auc — see that function's smooth_window comment for why.
+
+    embeddings_loader: optional pre-built load_embeddings_fn (e.g. batch_data.cached_loader(...))
+    to reuse across many calls instead of building (and re-reading from NFS) a fresh one
+    every time — a hyperparameter search calls this dozens-to-hundreds of times over the
+    same embeddings file, so the caller can pass one shared cached loader across all of them.
+    """
     from .batch_data import FrameBatchData, load_cls_embeddings, load_patchgrid_embeddings
     from .model import MouseFrameClassifier
 
@@ -384,7 +391,7 @@ def train_frame(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    load_fn = (
+    load_fn = embeddings_loader if embeddings_loader is not None else (
         load_patchgrid_embeddings(patch_embeddings_path, patch_global_idx_path, n_patches, emb_dim)
         if use_patch_grid else load_cls_embeddings(embeddings_path, emb_dim)
     )
