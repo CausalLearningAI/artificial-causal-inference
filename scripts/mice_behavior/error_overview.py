@@ -33,7 +33,7 @@ from src.mice_behavior.report import collect_val_predictions_fast
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
-RESULTS_DIR = Path('./results/mice_behavior')
+RESULTS_DIR = Path('./results/mice_behavior/pair')
 SEED = 42
 ENCODER, TOKEN = 'dinov2', 'class_l-2'
 PATCH_GRID_DIR = DATASET_DIR / 'mice' / 'v1' / 'embeddings' / 'full' / 'dinov2' / 'patch_grid4'
