@@ -8,8 +8,8 @@ Row 2: collapsed "did behavior X happen anywhere in this frame" task — ROC
        curve (left) / PR curve (right), one curve per behavior (nt, nn),
        using max score over the 12 ordered pairs vs frame-level ground truth.
 
-Saves: results/mice_behavior/final_roc_pr.png
-       results/mice_behavior/final_roc_pr_data.npz (raw arrays for re-plotting)
+Saves: results/vision/mice/final_roc_pr.png
+       results/vision/mice/final_roc_pr_data.npz (raw arrays for re-plotting)
 
 Usage:
     python scripts/mice_behavior/final_plots.py
@@ -31,7 +31,7 @@ from src.mice_behavior.dataset import MouseOPairDataset, collate_fn
 from src.mice_behavior.model import MouseOPairClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
 
-RESULTS_DIR = Path('./results/mice_behavior')
+RESULTS_DIR = Path('./results/vision/mice')
 DATASET_DIR = Path('./dataset')
 LABEL_NAMES = ['none', 'nt', 'nn']
 

@@ -22,14 +22,14 @@ of this search (patch-grid's per-frame tensor is 16x CLS's; a 13-frame dense
 window exceeded available GPU memory). context_k*stride is capped at 8 (the
 model's max_offset) so the position-embedding table stays well-defined.
 
-Only PROMOTED to results/mice_behavior/opair/{cls,patchgrid}/ if the winning
+Only PROMOTED to results/vision/mice/opair/{cls,patchgrid}/ if the winning
 config's full-val score beats a freshly-recomputed full-val score for the
 CURRENT best_model.pt (not whatever number happens to be sitting in
 config.json, which may have been computed differently) — a worse search
 result never silently clobbers a better already-committed one.
 
-Every trial is logged to results/mice_behavior/opair/search/log.jsonl as it
-completes. A human-readable results/mice_behavior/opair/search/SUMMARY.md is
+Every trial is logged to results/vision/mice/opair/search/log.jsonl as it
+completes. A human-readable results/vision/mice/opair/search/SUMMARY.md is
 written at the end.
 
 Usage:
@@ -58,7 +58,7 @@ from src.mice_behavior.train import train
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
-RESULTS_DIR = Path('./results/mice_behavior/opair')
+RESULTS_DIR = Path('./results/vision/mice/opair')
 SEARCH_DIR = RESULTS_DIR / 'search'
 LOG_PATH = SEARCH_DIR / 'log.jsonl'
 TMP_DIR = SEARCH_DIR / 'tmp'
@@ -351,7 +351,7 @@ def main():
         )
         probs, labels = collect_val_predictions_fast(model, val_data, dev)
         generate_report(probs, labels, result['history'], name, cfg_final, out_dir)
-        summary_lines.append(f'- **PROMOTED** to results/mice_behavior/{variant}/ (full-val score {final_score:.4f}, report.png regenerated)\n\n')
+        summary_lines.append(f'- **PROMOTED** to results/vision/mice/{variant}/ (full-val score {final_score:.4f}, report.png regenerated)\n\n')
         del result['model']
         torch.cuda.empty_cache()
 

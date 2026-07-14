@@ -4,7 +4,7 @@ conditioning, one sample per annotated frame (not per ordered pair), multi-label
 target [has_nt, has_nn]. Same 80/20 pool split and encoder as train_cls_final.py,
 for a direct comparison against the pairwise model.
 
-Writes results/mice_behavior/frame/{best_model.pt, history.json, config.json}.
+Writes results/vision/mice/frame/{best_model.pt, history.json, config.json}.
 
 Usage:
     python scripts/mice_behavior/train_frame_final.py
@@ -27,7 +27,7 @@ from src.mice_behavior.train import train_frame
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
-RESULTS_DIR = Path('./results/mice_behavior')
+RESULTS_DIR = Path('./results/vision/mice')
 SEED = 42
 ENCODER, TOKEN = 'dinov2', 'class_l-2'
 

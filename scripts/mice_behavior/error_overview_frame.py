@@ -33,7 +33,7 @@ from src.mice_behavior.report import collect_frame_val_predictions
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
-RESULTS_DIR = Path('./results/mice_behavior')
+RESULTS_DIR = Path('./results/vision/mice')
 SEED = 42
 ENCODER, TOKEN = 'dinov2', 'class_l-2'
 K = 10

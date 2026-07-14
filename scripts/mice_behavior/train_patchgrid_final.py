@@ -5,7 +5,7 @@ with per-epoch validation (eval_every=1) so a full loss curve is available.
 Mirrors train_cls_final.py (same CFG, same seed/split) for a direct
 comparison against the CLS-token baseline.
 
-Writes results/mice_behavior/opair/patchgrid/{best_model.pt, history.json,
+Writes results/vision/mice/opair/patchgrid/{best_model.pt, history.json,
 config.json, report.png, roc_pr_data.npz}.
 
 Usage:
@@ -29,7 +29,7 @@ from src.mice_behavior.train import train
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
-RESULTS_DIR = Path('./results/mice_behavior/opair')
+RESULTS_DIR = Path('./results/vision/mice/opair')
 SEED = 42
 ENCODER, TOKEN = 'dinov2', 'class_l-2'
 PATCH_GRID_DIR = DATASET_DIR / 'mice' / 'v1' / 'embeddings' / 'full' / 'dinov2' / 'patch_grid4'

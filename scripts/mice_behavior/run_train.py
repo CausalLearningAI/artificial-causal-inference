@@ -16,7 +16,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--data-dir', default='./data')
     p.add_argument('--dataset-dir', default='./dataset')
-    p.add_argument('--results-dir', default='./results/mice_behavior')
+    p.add_argument('--results-dir', default='./results/vision/mice')
     p.add_argument('--encoder', default='dinov2', choices=['dinov2', 'dinov3', 'siglip', 'siglip2'])
     p.add_argument('--token', default='class')
     p.add_argument('--context-k', type=int, default=2)

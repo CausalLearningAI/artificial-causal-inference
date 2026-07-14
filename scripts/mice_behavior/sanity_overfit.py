@@ -31,7 +31,7 @@ all_obs = pd.read_parquet(pair_labels_path)['observation_id'].unique().tolist()
 
 result = train(
     annotations_csv=str(annotations_csv), pair_labels_parquet=str(pair_labels_path),
-    embeddings_path=str(cls_embeddings_path), output_dir='./results/mice_behavior/search/tmp/sanity_overfit',
+    embeddings_path=str(cls_embeddings_path), output_dir='./results/vision/mice/search/tmp/sanity_overfit',
     train_obs_ids=all_obs, val_obs_ids=all_obs, context_k=2, emb_dim=emb_dim,
     n_heads=8, hidden_dim=256, n_epochs=60, neg_ratio=10, loss_type='ce',
     device='cuda', seed=42, verbose=True, eval_every=5, early_stop_patience=None,

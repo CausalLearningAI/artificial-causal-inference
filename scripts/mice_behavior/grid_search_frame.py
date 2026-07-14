@@ -11,13 +11,13 @@ trials with different subsample sizes) — see grid_search.py's docstring for
 the pairwise model, which follows the exact same discipline for the same reason.
 
 Direct random search on the standard 80/20 pool split (same split as
-train_frame_final.py). Only PROMOTED to results/mice_behavior/frame/ if the
+train_frame_final.py). Only PROMOTED to results/vision/mice/frame/ if the
 winning config's full-val score beats a freshly-recomputed full-val score for
 the CURRENT best_model.pt.
 
-Every trial is logged to results/mice_behavior/frame/search/log.jsonl. A
-human-readable results/mice_behavior/frame/search/SUMMARY.md is written at the
-end. Nested under frame/ (not the shared results/mice_behavior/search/ the
+Every trial is logged to results/vision/mice/frame/search/log.jsonl. A
+human-readable results/vision/mice/frame/search/SUMMARY.md is written at the
+end. Nested under frame/ (not the shared results/vision/mice/search/ the
 pairwise cls+patchgrid search uses) since this search only ever concerns the
 one frame variant — unlike grid_search.py, which searches two variants
 sharing one script/log.
@@ -48,7 +48,7 @@ from src.mice_behavior.train import train_frame
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
-RESULTS_DIR = Path('./results/mice_behavior')
+RESULTS_DIR = Path('./results/vision/mice')
 FRAME_DIR = RESULTS_DIR / 'frame'
 SEARCH_DIR = FRAME_DIR / 'search'
 LOG_PATH = SEARCH_DIR / 'log.jsonl'
@@ -275,7 +275,7 @@ def main():
                     )
                     probs, labels = collect_frame_val_predictions(model, val_data, dev)
                     generate_frame_report(probs, labels, result['history'], 'Per-frame (no identity) mouse behavior classifier', best_cfg, out_dir)
-                    summary_lines.append(f'- **PROMOTED** to results/mice_behavior/frame/ (full-val score {final_score:.4f}, report.png regenerated)\n\n')
+                    summary_lines.append(f'- **PROMOTED** to results/vision/mice/frame/ (full-val score {final_score:.4f}, report.png regenerated)\n\n')
                 del result['model']
                 torch.cuda.empty_cache()
 
