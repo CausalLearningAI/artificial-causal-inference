@@ -178,3 +178,85 @@ def generate_report(probs, labels, history, variant_name: str, cfg: dict, out_di
     fig.tight_layout()
     fig.savefig(out_dir / 'report.png', dpi=150)
     np.savez(out_dir / 'roc_pr_data.npz', **save_data)
+
+
+FRAME_LABEL_NAMES = ['nt', 'nn']
+
+
+def collect_frame_val_predictions(model, val_data, dev, batch_size=1024):
+    """Same pattern as collect_val_predictions_fast, but for the per-frame
+    classifier (FrameBatchData / MouseFrameClassifier, no a1/a2, sigmoid not
+    softmax) — full non-subsampled val set, walked in order."""
+    model.eval()
+    all_probs, all_labels = [], []
+    idx_all = np.arange(len(val_data))
+    with torch.no_grad():
+        for b0 in range(0, len(idx_all), batch_size):
+            batch_idx = idx_all[b0:b0 + batch_size]
+            ctx, offs, lbl, mask = val_data.get_batch(batch_idx)
+            ctx, offs, mask = (
+                ctx.to(dev, non_blocking=True).float(), offs.to(dev, non_blocking=True), mask.to(dev, non_blocking=True),
+            )
+            logits = model(ctx, offsets=offs, key_padding_mask=mask)
+            all_probs.append(torch.sigmoid(logits).cpu().numpy())
+            all_labels.append(lbl.numpy())
+    return np.concatenate(all_probs), np.concatenate(all_labels)
+
+
+def frame_cfg_str(cfg: dict) -> str:
+    return f"heads={cfg['n_heads']}, context_k={cfg['context_k']}, hidden={cfg['hidden_dim']}, neg_ratio={cfg['neg_ratio']}"
+
+
+def generate_frame_report(probs, labels, history, variant_name: str, cfg: dict, out_dir: Path):
+    """Per-frame classifier's report — no couple/frame split needed (the model already
+    operates at frame level), so this is a 2-row figure instead of report.py's 3-row one:
+        Row 0: train/val loss curve; val macro AP (nt/nn) over epochs
+        Row 1: ROC / PR per label (nt, nn), full non-subsampled val set
+    """
+    out_dir = Path(out_dir)
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    save_data = {}
+
+    best_idx = int(np.argmax(history['macro_ap']))
+    best_epoch = history['eval_epoch'][best_idx]
+
+    axes[0, 0].plot(history['epoch'], history['train_loss'], label='train loss')
+    axes[0, 0].plot(history['eval_epoch'], history['val_loss'], label='val loss')
+    axes[0, 0].axvline(best_epoch, color='tab:green', ls='--', alpha=0.6)
+    axes[0, 0].text(best_epoch, axes[0, 0].get_ylim()[1], f'best epoch ({best_epoch})',
+                     color='tab:green', rotation=90, va='top', ha='right', fontsize=8)
+    axes[0, 0].set_xlabel('epoch'); axes[0, 0].set_ylabel('loss')
+    axes[0, 0].set_title('Loss'); axes[0, 0].legend()
+
+    axes[0, 1].plot(history['eval_epoch'], history['macro_ap'], color='tab:blue', label='macro AP (nt/nn)')
+    axes[0, 1].axvline(best_epoch, color='tab:green', ls='--', alpha=0.6)
+    axes[0, 1].text(best_epoch, axes[0, 1].get_ylim()[1], f'best epoch ({best_epoch})',
+                     color='tab:green', rotation=90, va='top', ha='right', fontsize=8)
+    axes[0, 1].set_xlabel('epoch'); axes[0, 1].set_ylabel('macro AP')
+    axes[0, 1].set_title('AP'); axes[0, 1].legend()
+
+    for i, name in enumerate(FRAME_LABEL_NAMES):
+        y_true = labels[:, i]
+        y_score = probs[:, i]
+        fpr, tpr, _ = roc_curve(y_true, y_score)
+        prec, rec, _ = precision_recall_curve(y_true, y_score)
+        roc_auc = roc_auc_score(y_true, y_score)
+        pr_auc = average_precision_score(y_true, y_score)
+        axes[1, 0].plot(fpr, tpr, label=f'{name} (AUC={roc_auc:.3f})')
+        axes[1, 1].plot(rec, prec, label=f'{name} (AP={pr_auc:.3f})')
+        save_data[f'{name}_fpr'] = fpr
+        save_data[f'{name}_tpr'] = tpr
+        save_data[f'{name}_prec'] = prec
+        save_data[f'{name}_rec'] = rec
+        save_data[f'{name}_roc_auc'] = roc_auc
+        save_data[f'{name}_pr_auc'] = pr_auc
+    axes[1, 0].plot([0, 1], [0, 1], 'k--', alpha=0.3)
+    axes[1, 0].set_xlabel('FPR'); axes[1, 0].set_ylabel('TPR')
+    axes[1, 0].set_title('Behaviors per frame (ROC)'); axes[1, 0].legend()
+    axes[1, 1].set_xlabel('Recall'); axes[1, 1].set_ylabel('Precision')
+    axes[1, 1].set_title('Behaviors per frame (PR)'); axes[1, 1].legend()
+
+    fig.suptitle(f'{variant_name} — {frame_cfg_str(cfg)}')
+    fig.tight_layout()
+    fig.savefig(out_dir / 'report.png', dpi=150)
+    np.savez(out_dir / 'roc_pr_data.npz', **save_data)

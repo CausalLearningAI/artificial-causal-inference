@@ -15,10 +15,14 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import torch
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.mice_behavior.build_pair_labels import build_pair_labels
+from src.mice_behavior.batch_data import FrameBatchData, load_cls_embeddings
+from src.mice_behavior.model import MouseFrameClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
+from src.mice_behavior.report import collect_frame_val_predictions, generate_frame_report
 from src.mice_behavior.train import train_frame
 
 DATA_DIR = Path('./data')
@@ -83,6 +87,21 @@ def main():
         json.dump({'cfg': CFG, 'val_pools': sorted(val_pool_set), 'n_epochs': N_EPOCHS,
                    'best_ap': result['best_ap'], 'best_per_label': result['best_per_label'],
                    'emb_dim': emb_dim}, f, indent=2)
+
+    dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = MouseFrameClassifier(
+        emb_dim=emb_dim, n_heads=CFG['n_heads'], hidden_dim=CFG['hidden_dim'],
+    ).to(dev)
+    model.load_state_dict(torch.load(out_dir / 'best_model.pt', map_location=dev, weights_only=True))
+    model.eval()
+
+    val_data = FrameBatchData(
+        str(annotations_csv), str(pair_labels_path), val_obs, CFG['context_k'], emb_dim,
+        load_cls_embeddings(str(cls_embeddings_path), emb_dim),
+    )
+    probs, labels = collect_frame_val_predictions(model, val_data, dev)
+    generate_frame_report(probs, labels, history, 'Per-frame (no identity) mouse behavior classifier', CFG, out_dir)
+    print(f'Saved {out_dir / "report.png"}')
 
 
 if __name__ == '__main__':
