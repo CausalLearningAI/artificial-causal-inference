@@ -1,5 +1,6 @@
 """
-Fully vectorized batch construction for the mouse pairwise behavior classifier.
+Fully vectorized batch construction for the mouse behavior classifiers
+(FastBatchData for the pairwise task, FastFrameData for the per-frame task).
 
 PyTorch's Dataset/DataLoader calls __getitem__ once per individual sample
 regardless of batch_size or worker count, with each call doing its own dict
@@ -287,6 +288,160 @@ class FastBatchData:
             torch.from_numpy(np.ascontiguousarray(offs)).long(),
             torch.from_numpy(self.a1[idx]),
             torch.from_numpy(self.a2[idx]),
+            torch.from_numpy(self.labels[idx]),
+            torch.from_numpy(np.ascontiguousarray(mask)),
+        )
+
+
+class FastFrameData:
+    """Like FastBatchData, but one sample per annotated FRAME (not one per ordered
+    pair) — for the per-frame classifier, which has no mouse-identity conditioning.
+
+    Label is frame-level and multi-hot: [has_nt, has_nn], the OR over that frame's
+    12 ordered-pair labels (a frame can contain both behaviors via different pairs
+    at once, so this is multi-label, not 3-way single-label like the pairwise task).
+    """
+
+    def __init__(
+        self,
+        annotations_csv: str,
+        pair_labels_parquet: str,
+        obs_ids,
+        context_k: int,
+        emb_dim: int,
+        load_embeddings_fn,
+        n_patches: int = None,
+        stride: int = 1,
+    ):
+        self.k = context_k
+        self.stride = stride
+        self.emb_dim = emb_dim
+        self.n_patches = n_patches
+
+        ann = pd.read_csv(annotations_csv, usecols=['observation_id', 'frame_idx'])
+        obs_set = set(obs_ids) if obs_ids is not None else None
+        if obs_set is not None:
+            ann = ann[ann['observation_id'].isin(obs_set)]
+        ann_reset = ann.reset_index()
+        obs_boundary = {}
+        for oid, grp in ann_reset.groupby('observation_id', sort=False):
+            idx = grp['index'].values
+            obs_boundary[oid] = (int(idx[0]), int(idx[-1]) + 1)
+
+        pair_labels = pd.read_parquet(pair_labels_parquet)
+        if obs_set is not None:
+            pair_labels = pair_labels[pair_labels['observation_id'].isin(obs_set)]
+        frame_to_global = ann_reset[['observation_id', 'frame_idx', 'index']].rename(
+            columns={'index': 'global_idx'}
+        )
+        pair_labels = pair_labels.merge(
+            frame_to_global, on=['observation_id', 'frame_idx'], how='inner'
+        ).astype({'global_idx': np.int32})
+
+        annotated_obs = set(pair_labels['observation_id'].unique())
+        ann_annotated = ann_reset[ann_reset['observation_id'].isin(annotated_obs)]
+
+        # frame-level multi-hot label: OR over that frame's positive ordered-pair rows
+        # (pair_labels only stores positives, so a frame absent here is all-'none')
+        frame_label = pair_labels.groupby('global_idx').agg(
+            has_nt=('label', lambda s: bool((s == 1).any())),
+            has_nn=('label', lambda s: bool((s == 2).any())),
+        ).reset_index()
+
+        all_global, all_obs_s, all_obs_e = [], [], []
+        for oid, grp in ann_annotated.groupby('observation_id', sort=False):
+            global_idxs = grp['index'].values.astype(np.int32)
+            obs_s, obs_e = obs_boundary[oid]
+            all_global.append(global_idxs)
+            all_obs_s.append(np.full(len(global_idxs), obs_s, dtype=np.int32))
+            all_obs_e.append(np.full(len(global_idxs), obs_e, dtype=np.int32))
+
+        gi = np.concatenate(all_global)
+        obs_s_arr = np.concatenate(all_obs_s)
+        obs_e_arr = np.concatenate(all_obs_e)
+
+        labels_df = pd.DataFrame({'global_idx': gi.astype(np.int32)}).merge(
+            frame_label, on='global_idx', how='left'
+        ).fillna(False)
+        labels = labels_df[['has_nt', 'has_nn']].to_numpy(dtype=np.float32)  # (N, 2) multi-hot
+
+        k = context_k
+        reach = k * stride
+        local = gi - obs_s_arr
+        obs_len_arr = obs_e_arr - obs_s_arr
+
+        print('  loading embeddings for vectorized batching...')
+        obs_arrays = load_embeddings_fn(obs_boundary)  # {obs_s: (obs_len, ...) array}
+        blocks = []
+        cursor = 0
+        pad_start_by_obs = {}
+        for obs_s in sorted(obs_arrays.keys()):
+            arr = obs_arrays[obs_s]
+            pad_shape = (reach,) + arr.shape[1:]
+            padded = np.concatenate(
+                [np.zeros(pad_shape, dtype=arr.dtype), arr, np.zeros(pad_shape, dtype=arr.dtype)], axis=0
+            )
+            blocks.append(padded)
+            pad_start_by_obs[obs_s] = cursor
+            cursor += padded.shape[0]
+        self.flat = (
+            np.concatenate(blocks, axis=0) if blocks
+            else np.zeros((0, emb_dim) if n_patches is None else (0, n_patches, emb_dim), dtype=np.float32)
+        )
+        del blocks
+
+        center_adjust = np.array([pad_start_by_obs[s] for s in obs_s_arr], dtype=np.int64)
+        self.centers = local + center_adjust  # position of this sample's offset=-reach frame
+        self.offsets_grid_local = np.arange(0, 2 * reach + 1, stride, dtype=np.int64)
+        offsets_grid = self.offsets_grid_local - reach
+        self.offsets_grid = offsets_grid
+        T = len(offsets_grid)
+        abs_pos = local[:, None] + offsets_grid[None, :]
+        self.pad_mask = (abs_pos < 0) | (abs_pos >= obs_len_arr[:, None])
+
+        self.labels = labels  # (N, 2) float32 multi-hot: [has_nt, has_nn]
+        self.gi = gi.astype(np.int64)
+
+        n_pos = int((labels.sum(axis=1) > 0).sum())
+        print(f'  {len(labels):,} frames | nt={int(labels[:, 0].sum()):,} nn={int(labels[:, 1].sum()):,} '
+              f'(any-behavior={n_pos:,})')
+
+    def __len__(self):
+        return len(self.labels)
+
+    def to_device(self, dev):
+        """Same GPU-residency pattern as FastBatchData.to_device — see there for why."""
+        flat_t = torch.from_numpy(self.flat).to(dev)
+        centers_t = torch.from_numpy(self.centers).to(dev)
+        pad_mask_t = torch.from_numpy(self.pad_mask).to(dev)
+        labels_t = torch.from_numpy(self.labels).to(dev)
+        offsets_grid_t = torch.from_numpy(self.offsets_grid).to(dev)
+        offsets_grid_local_t = torch.from_numpy(self.offsets_grid_local).to(dev)
+        self.flat_t, self.centers_t, self.pad_mask_t = flat_t, centers_t, pad_mask_t
+        self.labels_t = labels_t
+        self.offsets_grid_t = offsets_grid_t
+        self.offsets_grid_local_t = offsets_grid_local_t
+        self.device = dev
+        return self
+
+    def get_batch(self, idx):
+        """Vectorized fetch — see FastBatchData.get_batch."""
+        if getattr(self, 'device', None) is not None:
+            idx_t = idx if torch.is_tensor(idx) else torch.from_numpy(idx).to(self.device)
+            window_idx = self.centers_t[idx_t].unsqueeze(1) + self.offsets_grid_local_t.unsqueeze(0)
+            context = self.flat_t[window_idx].float()
+            mask = self.pad_mask_t[idx_t]
+            offs = self.offsets_grid_t.unsqueeze(0).expand(len(idx_t), len(self.offsets_grid_t))
+            return context, offs, self.labels_t[idx_t], mask
+
+        T = len(self.offsets_grid)
+        window_idx = self.centers[idx][:, None] + self.offsets_grid_local[None, :]  # (B, T)
+        context = self.flat[window_idx]
+        mask = self.pad_mask[idx]
+        offs = np.broadcast_to(self.offsets_grid, (len(idx), T))
+        return (
+            torch.from_numpy(np.ascontiguousarray(context)),
+            torch.from_numpy(np.ascontiguousarray(offs)).long(),
             torch.from_numpy(self.labels[idx]),
             torch.from_numpy(np.ascontiguousarray(mask)),
         )

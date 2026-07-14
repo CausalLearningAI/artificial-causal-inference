@@ -78,9 +78,9 @@ def train(
     max_train_frames: int = None,
 ):
     """Vectorized training loop — builds batches directly from FastBatchData
-    instead of going through Dataset/DataLoader — see fast_data.py."""
+    instead of going through Dataset/DataLoader — see batch_data.py."""
     import json
-    from .fast_data import FastBatchData, load_cls_embeddings, load_patchgrid_embeddings
+    from .batch_data import FastBatchData, load_cls_embeddings, load_patchgrid_embeddings
 
     torch.manual_seed(seed)
     dev = torch.device(device if torch.cuda.is_available() else 'cpu')

@@ -50,7 +50,7 @@ from sklearn.metrics import average_precision_score
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.mice_behavior.build_pair_labels import build_pair_labels
-from src.mice_behavior.fast_data import FastBatchData, load_cls_embeddings, load_patchgrid_embeddings
+from src.mice_behavior.batch_data import FastBatchData, load_cls_embeddings, load_patchgrid_embeddings
 from src.mice_behavior.model import MouseBehaviorClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
 from src.mice_behavior.report import collect_val_predictions_fast, generate_report
