@@ -1,12 +1,12 @@
 """
 Autonomous hyperparameter search for the mouse pairwise behavior classifier,
-run entirely in-process (one long SLURM allocation) via train_fast().
+run entirely in-process (one long SLURM allocation) via train().
 
 Every candidate is ranked and promoted using the SAME full, non-subsampled
 validation-set pair-level macro PR-AUC (nt/nn only, 'none' excluded) —
 computed once, right after each trial's training finishes, via
 collect_val_predictions_fast(). This is deliberately NOT the fast internal
-per-epoch metric train_fast() tracks for early stopping (that one runs on a
+per-epoch metric train() tracks for early stopping (that one runs on a
 small rebalanced subsample for speed and is NOT comparable across runs with
 different subsample sizes — a previous version of this script compared the
 two inconsistently and reported a false improvement).
@@ -54,7 +54,7 @@ from src.mice_behavior.fast_data import FastBatchData, load_cls_embeddings, load
 from src.mice_behavior.model import MouseBehaviorClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
 from src.mice_behavior.report import collect_val_predictions_fast, generate_report
-from src.mice_behavior.train import train_fast
+from src.mice_behavior.train import train
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
@@ -157,7 +157,7 @@ def run_trial(cfg, annotations_csv, pair_labels_path, cls_embeddings_path, emb_d
             # the ~3.1GB GPU-resident val set.
             max_train_frames=MAX_TRAIN_FRAMES_PATCHGRID,
         )
-    result = train_fast(**kwargs)
+    result = train(**kwargs)
     model = result['model']
     dev = next(model.parameters()).device
     full_pr_auc, full_per_class = full_val_pair_macro_pr_auc(
@@ -310,7 +310,7 @@ def main():
                 n_patches=16, batch_size=1024, max_train_frames=MAX_TRAIN_FRAMES_PATCHGRID,
             )
         try:
-            result = train_fast(**kwargs)
+            result = train(**kwargs)
         except Exception as e:
             log_result({'variant': variant, 'stage': 'final_retrain', 'cfg': best_cfg, 'error': str(e), 'traceback': traceback.format_exc()})
             summary_lines.append(f'- Final retrain FAILED: {e}\n\n')

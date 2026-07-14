@@ -17,7 +17,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.mice_behavior.build_pair_labels import build_pair_labels
 from src.mice_behavior.pools import load_obs_to_pool_map
-from src.mice_behavior.train import train_fast
+from src.mice_behavior.train import train
 
 DATA_DIR, DATASET_DIR = Path('./data'), Path('./dataset')
 pair_labels_path = build_pair_labels(DATA_DIR, DATASET_DIR, overwrite=False)
@@ -29,7 +29,7 @@ emb_dim = cls_embeddings_path.stat().st_size // (4 * n_frames)
 obs_to_pool = load_obs_to_pool_map(DATA_DIR)
 all_obs = pd.read_parquet(pair_labels_path)['observation_id'].unique().tolist()
 
-result = train_fast(
+result = train(
     annotations_csv=str(annotations_csv), pair_labels_parquet=str(pair_labels_path),
     embeddings_path=str(cls_embeddings_path), output_dir='./results/mice_behavior/search/tmp/sanity_overfit',
     train_obs_ids=all_obs, val_obs_ids=all_obs, context_k=2, emb_dim=emb_dim,

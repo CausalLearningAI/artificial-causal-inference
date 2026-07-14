@@ -25,7 +25,7 @@ from src.mice_behavior.fast_data import FastBatchData, load_cls_embeddings
 from src.mice_behavior.model import MouseBehaviorClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
 from src.mice_behavior.report import collect_val_predictions_fast, generate_report
-from src.mice_behavior.train import train_fast
+from src.mice_behavior.train import train
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
@@ -36,7 +36,7 @@ ENCODER, TOKEN = 'dinov2', 'class_l-2'
 # Must match train_patchgrid_final.py's CFG exactly for a fair comparison.
 # n_heads raised 1->8 (more attention subspaces, same total width) after the first full runs
 # showed severe overfitting (best macro PR-AUC hit within ~15 epochs, then val_loss climbed
-# for the remaining 85). Dropout/weight_decay/early_stop_patience are train_fast() defaults now.
+# for the remaining 85). Dropout/weight_decay/early_stop_patience are train() defaults now.
 CFG = dict(n_heads=8, context_k=2, hidden_dim=256, neg_ratio=10, loss_type='ce')
 N_EPOCHS = 100
 
@@ -64,7 +64,7 @@ def main():
     out_dir = RESULTS_DIR / 'cls'
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f'Training CLS-only model: {CFG}, {N_EPOCHS} epochs, eval every epoch...')
-    result = train_fast(
+    result = train(
         annotations_csv=str(annotations_csv),
         pair_labels_parquet=str(pair_labels_path),
         embeddings_path=str(cls_embeddings_path),

@@ -78,11 +78,11 @@ def generate_report(probs, labels, history, variant_name: str, cfg: dict, out_di
     # Dummy/random baselines — what a classifier with zero discriminative power would score,
     # respecting only the true class proportions (no covariate information at all).
     #
-    # Both train_loss and val_loss are computed by train_fast() on REWEIGHTED SUBSAMPLES, not
+    # Both train_loss and val_loss are computed by train() on REWEIGHTED SUBSAMPLES, not
     # the true full population (train: neg_ratio-based; val: a different val_neg_ratio-based
     # one) — and class_weights is calibrated once from train's own composition then reused
     # as-is for val, so the two curves don't even share the same effective weighting. Their
-    # random baselines are computed in train_fast() (where the actual sampled populations and
+    # random baselines are computed in train() (where the actual sampled populations and
     # weights are known) and stored in history — NOT recomputed here from the full val set,
     # which would silently be a different, incompatible population/scale for both curves.
     random_train_loss = history.get('random_train_loss')
@@ -103,14 +103,14 @@ def generate_report(probs, labels, history, variant_name: str, cfg: dict, out_di
     # PR-AUC baselines: for an uninformative/random-score classifier, AP converges to the
     # positive class's prevalence. The per-epoch curve below is computed on the SAME val_keep
     # subsample as val_loss (not the full val set), so its baseline must use that subsample's
-    # prevalence too (stored in history, from train_fast()) — the full-val-based numbers
+    # prevalence too (stored in history, from train()) — the full-val-based numbers
     # computed from `labels`/`labels_r` further down are for row 1/2's separate full-val curves.
     pair_random = history.get('pair_random_val')
     frame_random = history.get('frame_random_val')
 
     # macro PR-AUC (nt/nn only, 'none' excluded — see row 1/2 note below) over training, both
     # ways: "couples" = per-ordered-pair (row 1), "per frame" = collapsed-per-frame (row 2).
-    # These are the exact same quantities train_fast() computes and logs each eval epoch.
+    # These are the exact same quantities train() computes and logs each eval epoch.
     axes[0, 1].plot(history['eval_epoch'], history['pair_macro_pr_auc'], color='tab:blue', label='per couple (nt/nn)')
     axes[0, 1].plot(history['eval_epoch'], history['frame_macro_pr_auc'], color='tab:orange', label='per frame (nt/nn)')
     if pair_random is not None:
