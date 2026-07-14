@@ -77,10 +77,10 @@ def train(
     # anyway via neg_ratio subsampling. None = unrestricted (CLS's default; it already fits in full).
     max_train_frames: int = None,
 ):
-    """Vectorized training loop — builds batches directly from FastBatchData
+    """Vectorized training loop — builds batches directly from PairBatchData
     instead of going through Dataset/DataLoader — see batch_data.py."""
     import json
-    from .batch_data import FastBatchData, load_cls_embeddings, load_patchgrid_embeddings
+    from .batch_data import PairBatchData, load_cls_embeddings, load_patchgrid_embeddings
 
     torch.manual_seed(seed)
     dev = torch.device(device if torch.cuda.is_available() else 'cpu')
@@ -93,7 +93,7 @@ def train(
     )
 
     print('Building train dataset (vectorized)...')
-    train_data = FastBatchData(
+    train_data = PairBatchData(
         annotations_csv, pair_labels_parquet, train_obs_ids, context_k, emb_dim, load_fn, n_patches,
         stride=stride, max_frames=max_train_frames, seed=seed,
     )
@@ -115,7 +115,7 @@ def train(
     val_data, val_keep = None, None
     if val_obs_ids:
         print('Building val dataset (vectorized)...')
-        val_data = FastBatchData(annotations_csv, pair_labels_parquet, val_obs_ids, context_k, emb_dim, load_fn, n_patches, stride=stride)
+        val_data = PairBatchData(annotations_csv, pair_labels_parquet, val_obs_ids, context_k, emb_dim, load_fn, n_patches, stride=stride)
         if dev.type == 'cuda':
             try:
                 val_data.to_device(dev)
@@ -373,10 +373,10 @@ def train_frame(
 ):
     """Per-frame behavior detector — no mouse-identity conditioning, no pairwise
     ×12 sample expansion (one sample per annotated frame). See MouseFrameClassifier
-    and FastFrameData. Multi-label BCE over [has_nt, has_nn]; model selection is
+    and FrameBatchData. Multi-label BCE over [has_nt, has_nn]; model selection is
     macro AP over the same two labels, smoothed the same way as train()'s
     pair_macro_pr_auc — see that function's smooth_window comment for why."""
-    from .batch_data import FastFrameData, load_cls_embeddings, load_patchgrid_embeddings
+    from .batch_data import FrameBatchData, load_cls_embeddings, load_patchgrid_embeddings
     from .model import MouseFrameClassifier
 
     torch.manual_seed(seed)
@@ -390,7 +390,7 @@ def train_frame(
     )
 
     print('Building train dataset (per-frame, vectorized)...')
-    train_data = FastFrameData(
+    train_data = FrameBatchData(
         annotations_csv, pair_labels_parquet, train_obs_ids, context_k, emb_dim, load_fn, n_patches, stride=stride,
     )
     labels = train_data.labels  # (N, 2) multi-hot
@@ -410,7 +410,7 @@ def train_frame(
     val_data = None
     if val_obs_ids:
         print('Building val dataset (per-frame, vectorized)...')
-        val_data = FastFrameData(annotations_csv, pair_labels_parquet, val_obs_ids, context_k, emb_dim, load_fn, n_patches, stride=stride)
+        val_data = FrameBatchData(annotations_csv, pair_labels_parquet, val_obs_ids, context_k, emb_dim, load_fn, n_patches, stride=stride)
         if dev.type == 'cuda':
             try:
                 val_data.to_device(dev)

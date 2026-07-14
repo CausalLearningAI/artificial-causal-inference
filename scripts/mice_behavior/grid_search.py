@@ -50,7 +50,7 @@ from sklearn.metrics import average_precision_score
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.mice_behavior.build_pair_labels import build_pair_labels
-from src.mice_behavior.batch_data import FastBatchData, load_cls_embeddings, load_patchgrid_embeddings
+from src.mice_behavior.batch_data import PairBatchData, load_cls_embeddings, load_patchgrid_embeddings
 from src.mice_behavior.model import MouseBehaviorClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
 from src.mice_behavior.report import collect_val_predictions_fast, generate_report
@@ -115,7 +115,7 @@ def full_val_pair_macro_pr_auc(model, dev, annotations_csv, pair_labels_path, va
         load_patchgrid_embeddings(str(PATCH_GRID_DIR / 'embeddings.npy'), str(PATCH_GRID_DIR / 'global_idx.npy'), 16, emb_dim)
         if use_patch_grid else load_cls_embeddings(str(cls_embeddings_path), emb_dim)
     )
-    val_data = FastBatchData(
+    val_data = PairBatchData(
         str(annotations_csv), str(pair_labels_path), val_obs, context_k, emb_dim, load_fn,
         n_patches=16 if use_patch_grid else None, stride=stride,
     )
@@ -345,7 +345,7 @@ def main():
             load_patchgrid_embeddings(str(PATCH_GRID_DIR / 'embeddings.npy'), str(PATCH_GRID_DIR / 'global_idx.npy'), 16, emb_dim)
             if use_patch_grid else load_cls_embeddings(str(cls_embeddings_path), emb_dim)
         )
-        val_data = FastBatchData(
+        val_data = PairBatchData(
             str(annotations_csv), str(pair_labels_path), val_obs, best_cfg['context_k'], emb_dim, load_fn,
             n_patches=16 if use_patch_grid else None, stride=best_cfg['stride'],
         )

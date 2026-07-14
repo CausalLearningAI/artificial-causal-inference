@@ -21,7 +21,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.mice_behavior.build_pair_labels import build_pair_labels
-from src.mice_behavior.batch_data import FastBatchData, load_patchgrid_embeddings
+from src.mice_behavior.batch_data import PairBatchData, load_patchgrid_embeddings
 from src.mice_behavior.model import MouseBehaviorClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
 from src.mice_behavior.report import collect_val_predictions_fast, generate_report
@@ -126,7 +126,7 @@ def main():
     model.load_state_dict(torch.load(out_dir / 'best_model.pt', map_location=dev, weights_only=True))
     model.eval()
 
-    val_data = FastBatchData(
+    val_data = PairBatchData(
         str(annotations_csv), str(pair_labels_path), val_obs, CFG['context_k'], emb_dim,
         load_patchgrid_embeddings(str(PATCH_GRID_DIR / 'embeddings.npy'), str(PATCH_GRID_DIR / 'global_idx.npy'), 16, emb_dim),
         n_patches=16,

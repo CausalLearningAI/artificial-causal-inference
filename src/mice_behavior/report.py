@@ -34,7 +34,7 @@ def collect_val_predictions(model, val_loader, dev):
 
 def collect_val_predictions_fast(model, val_data, dev, batch_size=1024):
     """Same output as collect_val_predictions, but gathers batches from a
-    FastBatchData instance (vectorized numpy fancy-indexing) instead of a
+    PairBatchData instance (vectorized numpy fancy-indexing) instead of a
     per-sample Dataset/DataLoader — the per-sample path is the same
     __getitem__-per-call bottleneck already eliminated from training; this
     closes the same gap for the final report's full-val-set evaluation.

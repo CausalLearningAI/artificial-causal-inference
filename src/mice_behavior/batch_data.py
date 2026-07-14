@@ -1,6 +1,6 @@
 """
 Fully vectorized batch construction for the mouse behavior classifiers
-(FastBatchData for the pairwise task, FastFrameData for the per-frame task).
+(PairBatchData for the pairwise task, FrameBatchData for the per-frame task).
 
 PyTorch's Dataset/DataLoader calls __getitem__ once per individual sample
 regardless of batch_size or worker count, with each call doing its own dict
@@ -20,7 +20,7 @@ import pandas as pd
 import torch
 
 
-class FastBatchData:
+class PairBatchData:
     """Precomputes a flat, padded embedding array + vectorized index/mask arrays
     for O(1)-Python-overhead batch construction.
 
@@ -293,8 +293,8 @@ class FastBatchData:
         )
 
 
-class FastFrameData:
-    """Like FastBatchData, but one sample per annotated FRAME (not one per ordered
+class FrameBatchData:
+    """Like PairBatchData, but one sample per annotated FRAME (not one per ordered
     pair) — for the per-frame classifier, which has no mouse-identity conditioning.
 
     Label is frame-level and multi-hot: [has_nt, has_nn], the OR over that frame's
@@ -411,7 +411,7 @@ class FastFrameData:
         return len(self.labels)
 
     def to_device(self, dev):
-        """Same GPU-residency pattern as FastBatchData.to_device — see there for why."""
+        """Same GPU-residency pattern as PairBatchData.to_device — see there for why."""
         flat_t = torch.from_numpy(self.flat).to(dev)
         centers_t = torch.from_numpy(self.centers).to(dev)
         pad_mask_t = torch.from_numpy(self.pad_mask).to(dev)
@@ -426,7 +426,7 @@ class FastFrameData:
         return self
 
     def get_batch(self, idx):
-        """Vectorized fetch — see FastBatchData.get_batch."""
+        """Vectorized fetch — see PairBatchData.get_batch."""
         if getattr(self, 'device', None) is not None:
             idx_t = idx if torch.is_tensor(idx) else torch.from_numpy(idx).to(self.device)
             window_idx = self.centers_t[idx_t].unsqueeze(1) + self.offsets_grid_local_t.unsqueeze(0)
