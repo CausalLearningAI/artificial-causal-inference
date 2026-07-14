@@ -362,8 +362,9 @@ class FastFrameData:
 
         labels_df = pd.DataFrame({'global_idx': gi.astype(np.int32)}).merge(
             frame_label, on='global_idx', how='left'
-        ).fillna(False)
-        labels = labels_df[['has_nt', 'has_nn']].to_numpy(dtype=np.float32)  # (N, 2) multi-hot
+        )
+        labels = labels_df[['has_nt', 'has_nn']].to_numpy(dtype=np.float32)
+        labels = np.nan_to_num(labels, nan=0.0)  # unmatched (all-'none') frames -> [0, 0]
 
         k = context_k
         reach = k * stride

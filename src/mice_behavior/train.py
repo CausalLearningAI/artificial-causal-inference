@@ -334,3 +334,223 @@ def train(
         torch.save(model.state_dict(), output_dir / 'model.pt')
 
     return {'model': model, 'best_pr_auc': best_pr_auc, 'best_per_class': best_per_class, 'history': history}
+
+
+FRAME_LABEL_NAMES = ['nt', 'nn']
+
+
+def train_frame(
+    annotations_csv: str,
+    pair_labels_parquet: str,
+    embeddings_path: str,
+    output_dir: str = './results/mice_behavior',
+    train_obs_ids=None,
+    val_obs_ids=None,
+    context_k: int = 2,
+    stride: int = 1,
+    emb_dim: int = 768,
+    n_heads: int = 1,
+    hidden_dim: int = 256,
+    n_epochs: int = 100,
+    batch_size: int = 4096,
+    lr: float = 1e-3,
+    neg_ratio: int = 10,
+    device: str = 'cuda',
+    seed: int = 42,
+    verbose: bool = True,
+    use_patch_grid: bool = False,
+    patch_embeddings_path: str = None,
+    patch_global_idx_path: str = None,
+    n_patches: int = 16,
+    eval_every: int = 1,
+    val_neg_ratio: int = 2,
+    grad_clip: float = 0.5,
+    use_amp: bool = True,
+    dropout: float = 0.1,
+    weight_decay: float = 1e-4,
+    early_stop_patience: int = 15,
+    smooth_window: int = 5,
+):
+    """Per-frame behavior detector — no mouse-identity conditioning, no pairwise
+    ×12 sample expansion (one sample per annotated frame). See MouseFrameClassifier
+    and FastFrameData. Multi-label BCE over [has_nt, has_nn]; model selection is
+    macro AP over the same two labels, smoothed the same way as train()'s
+    pair_macro_pr_auc — see that function's smooth_window comment for why."""
+    from .batch_data import FastFrameData, load_cls_embeddings, load_patchgrid_embeddings
+    from .model import MouseFrameClassifier
+
+    torch.manual_seed(seed)
+    dev = torch.device(device if torch.cuda.is_available() else 'cpu')
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    load_fn = (
+        load_patchgrid_embeddings(patch_embeddings_path, patch_global_idx_path, n_patches, emb_dim)
+        if use_patch_grid else load_cls_embeddings(embeddings_path, emb_dim)
+    )
+
+    print('Building train dataset (per-frame, vectorized)...')
+    train_data = FastFrameData(
+        annotations_csv, pair_labels_parquet, train_obs_ids, context_k, emb_dim, load_fn, n_patches, stride=stride,
+    )
+    labels = train_data.labels  # (N, 2) multi-hot
+    has_behavior = labels.sum(axis=1) > 0
+    pos_idx = np.where(has_behavior)[0]
+    neg_idx = np.where(~has_behavior)[0]
+    rng = np.random.default_rng(seed)
+
+    if dev.type == 'cuda':
+        try:
+            train_data.to_device(dev)
+            print(f'  train data resident on GPU ({train_data.flat.nbytes/1e9:.1f} GB)')
+        except torch.cuda.OutOfMemoryError:
+            torch.cuda.empty_cache()
+            print('  train data too large for GPU memory, falling back to CPU gather')
+
+    val_data = None
+    if val_obs_ids:
+        print('Building val dataset (per-frame, vectorized)...')
+        val_data = FastFrameData(annotations_csv, pair_labels_parquet, val_obs_ids, context_k, emb_dim, load_fn, n_patches, stride=stride)
+        if dev.type == 'cuda':
+            try:
+                val_data.to_device(dev)
+                print(f'  val data resident on GPU ({val_data.flat.nbytes/1e9:.1f} GB)')
+            except torch.cuda.OutOfMemoryError:
+                torch.cuda.empty_cache()
+                print('  val data too large for GPU memory, falling back to CPU gather')
+        v_has_behavior = val_data.labels.sum(axis=1) > 0
+        if val_neg_ratio is not None:
+            v_pos_idx = np.where(v_has_behavior)[0]
+            v_neg_idx = np.where(~v_has_behavior)[0]
+            v_rng = np.random.default_rng(seed)
+            n_neg = min(len(v_neg_idx), val_neg_ratio * max(len(v_pos_idx), 1))
+            neg_sample = v_rng.choice(v_neg_idx, size=n_neg, replace=False)
+            val_keep = np.sort(np.concatenate([v_pos_idx, neg_sample]))
+            print(f'  fixed val subsample: {len(val_data):,} -> {len(val_keep):,} frames '
+                  f'(all positives + {val_neg_ratio}x negatives, seeded — same subset every epoch)')
+        else:
+            val_keep = np.arange(len(val_data))
+
+    model = MouseFrameClassifier(
+        emb_dim=emb_dim, n_heads=n_heads, hidden_dim=hidden_dim, use_patch_grid=use_patch_grid, dropout=dropout,
+    ).to(dev)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    # pos_weight per label, calibrated on the sampled (not full-dataset) population — same
+    # rationale as train()'s class_weights: neg_ratio negative frames are drawn per positive
+    # frame each epoch, so the criterion should see weights matching what it's actually trained on.
+    n_pos_frames = max(len(pos_idx), 1)
+    n_neg_frames = max(neg_ratio * n_pos_frames, 1)
+    pos_counts = labels[pos_idx].sum(axis=0).clip(min=1)  # per-label positive frame count
+    pos_weight = torch.tensor(n_neg_frames / pos_counts, dtype=torch.float32).to(dev)
+    if verbose:
+        print(f'  pos_weight: nt={pos_weight[0]:.2f}  nn={pos_weight[1]:.2f}')
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+
+    best_ap = -1.0
+    best_per_label = {}
+    best_epoch = 0
+    epochs_since_best = 0
+    history = {'epoch': [], 'train_loss': [], 'eval_epoch': [], 'val_loss': [], 'macro_ap': []}
+
+    amp_enabled = use_amp and dev.type == 'cuda'
+    scaler = torch.amp.GradScaler('cuda', enabled=amp_enabled)
+
+    for epoch in range(1, n_epochs + 1):
+        model.train()
+        n_neg_draw = min(len(neg_idx), neg_ratio * len(pos_idx))
+        neg_sample = rng.choice(neg_idx, size=n_neg_draw, replace=False)
+        epoch_idx = np.concatenate([pos_idx, neg_sample])
+        rng.shuffle(epoch_idx)
+
+        total_loss = torch.zeros((), device=dev)
+        n = 0
+        t0 = time.time()
+        for b0 in range(0, len(epoch_idx), batch_size):
+            batch_idx = epoch_idx[b0:b0 + batch_size]
+            ctx, offs, lbl, mask = train_data.get_batch(batch_idx)
+            ctx, offs, lbl, mask = (
+                ctx.to(dev, non_blocking=True).float(), offs.to(dev, non_blocking=True),
+                lbl.to(dev, non_blocking=True), mask.to(dev, non_blocking=True),
+            )
+            optimizer.zero_grad()
+            with torch.amp.autocast('cuda', enabled=amp_enabled):
+                logits = model(ctx, offsets=offs, key_padding_mask=mask)
+                loss = criterion(logits, lbl)
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
+            scaler.step(optimizer)
+            scaler.update()
+            with torch.no_grad():
+                total_loss += loss.detach() * lbl.size(0)
+            n += lbl.size(0)
+
+        train_loss = (total_loss / n).item()
+        msg = f'epoch {epoch:3d}/{n_epochs}  loss={train_loss:.4f}  ({time.time()-t0:.1f}s)'
+        history['epoch'].append(epoch)
+        history['train_loss'].append(train_loss)
+
+        do_eval = val_data is not None and (epoch % eval_every == 0 or epoch == n_epochs)
+        if do_eval:
+            model.eval()
+            all_probs, all_labels = [], []
+            loss_sum = torch.zeros((), device=dev)
+            n_total = 0
+            with torch.no_grad():
+                for b0 in range(0, len(val_keep), batch_size):
+                    batch_idx = val_keep[b0:b0 + batch_size]
+                    ctx, offs, lbl, mask = val_data.get_batch(batch_idx)
+                    ctx, offs, lbl, mask = (
+                        ctx.to(dev, non_blocking=True).float(), offs.to(dev, non_blocking=True),
+                        lbl.to(dev, non_blocking=True), mask.to(dev, non_blocking=True),
+                    )
+                    with torch.amp.autocast('cuda', enabled=amp_enabled):
+                        logits = model(ctx, offsets=offs, key_padding_mask=mask)
+                        batch_loss = criterion(logits, lbl)
+                    all_probs.append(torch.sigmoid(logits).float())
+                    all_labels.append(lbl)
+                    loss_sum += batch_loss.float() * logits.size(0)
+                    n_total += logits.size(0)
+            probs = torch.cat(all_probs).cpu().numpy()
+            labels_np = torch.cat(all_labels).cpu().numpy()
+
+            per_label = {}
+            aps = []
+            for i, name in enumerate(FRAME_LABEL_NAMES):
+                ap = average_precision_score(labels_np[:, i], probs[:, i])
+                per_label[name] = f'AP={ap:.3f}'
+                aps.append(ap)
+            macro_ap = float(np.mean(aps))
+
+            val_loss = (loss_sum / n_total).item()
+            msg += f'  val_loss={val_loss:.4f}  macro_ap={macro_ap:.4f}  ' + '  '.join(f'{k}={v}' for k, v in per_label.items())
+            history['eval_epoch'].append(epoch)
+            history['val_loss'].append(val_loss)
+            history['macro_ap'].append(macro_ap)
+
+            recent = history['macro_ap'][-smooth_window:]
+            smoothed_ap = float(np.mean(recent))
+            msg += f'  smoothed_ap={smoothed_ap:.4f}'
+
+            if smoothed_ap > best_ap:
+                best_ap = smoothed_ap
+                best_per_label = per_label
+                best_epoch = epoch
+                epochs_since_best = 0
+                torch.save(model.state_dict(), output_dir / 'best_model.pt')
+            else:
+                epochs_since_best += eval_every
+
+        if verbose:
+            print(msg)
+
+        if early_stop_patience is not None and do_eval and epochs_since_best >= early_stop_patience:
+            if verbose:
+                print(f'  early stopping: no improvement for {epochs_since_best} epochs (best was epoch {best_epoch})')
+            break
+
+    if val_data is None:
+        torch.save(model.state_dict(), output_dir / 'model.pt')
+
+    return {'model': model, 'best_ap': best_ap, 'best_per_label': best_per_label, 'history': history}

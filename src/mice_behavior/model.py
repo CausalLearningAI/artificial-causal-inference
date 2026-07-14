@@ -81,3 +81,58 @@ class MouseBehaviorClassifier(nn.Module):
         q1 = attn_out[torch.arange(B), a1]  # (B, emb_dim)
         q2 = attn_out[torch.arange(B), a2]  # (B, emb_dim)
         return self.head(torch.cat([q1, q2], dim=-1))
+
+
+class MouseFrameClassifier(nn.Module):
+    """
+    Per-frame behavior detector — no mouse-identity conditioning (unlike
+    MouseBehaviorClassifier, this doesn't take a1/a2). A single learned query
+    attends over the temporal sequence of frame embeddings; the pooled
+    representation is classified.
+
+    Multi-label, not 3-way softmax: a frame can contain both nt and nn at once
+    (via different mouse pairs), so the two behaviors are independent sigmoid
+    outputs rather than mutually-exclusive classes.
+
+    Input:
+        context_seq: (B, T, emb_dim) or (B, T, P, emb_dim) — see MouseBehaviorClassifier.
+        offsets: (B, T) — see MouseBehaviorClassifier.
+        key_padding_mask: (B, T) bool, True = padding position.
+    Output: logits (B, n_labels) for [has_nt, has_nn] — apply sigmoid, not softmax.
+    """
+
+    def __init__(
+        self, emb_dim: int = 768, n_heads: int = 1, hidden_dim: int = 256, n_labels: int = 2,
+        max_offset: int = 8, use_patch_grid: bool = False, dropout: float = 0.0,
+    ):
+        super().__init__()
+        self.max_offset = max_offset
+        self.use_patch_grid = use_patch_grid
+        self.query = nn.Parameter(torch.randn(1, 1, emb_dim) * 0.02)
+        self.pos_emb = nn.Embedding(2 * max_offset + 1, emb_dim)
+        if use_patch_grid:
+            self.patch_pool = PatchAttnPool(emb_dim=emb_dim, n_heads=n_heads)
+        self.cross_attn = nn.MultiheadAttention(emb_dim, n_heads, dropout=dropout, batch_first=True)
+        self.head = nn.Sequential(
+            nn.Linear(emb_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, n_labels),
+        )
+
+    def forward(
+        self,
+        context_seq: torch.Tensor,
+        offsets: Optional[torch.Tensor] = None,
+        key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        if self.use_patch_grid:
+            B, T, P, D = context_seq.shape
+            context_seq = self.patch_pool(context_seq.reshape(B * T, P, D)).reshape(B, T, D)
+        B = context_seq.size(0)
+        if offsets is not None:
+            idx = offsets.clamp(-self.max_offset, self.max_offset) + self.max_offset
+            context_seq = context_seq + self.pos_emb(idx)  # (B, T, emb_dim)
+        query = self.query.expand(B, -1, -1)  # (B, 1, emb_dim)
+        attn_out, _ = self.cross_attn(query, context_seq, context_seq, key_padding_mask=key_padding_mask)  # (B, 1, emb_dim)
+        return self.head(attn_out.squeeze(1))
