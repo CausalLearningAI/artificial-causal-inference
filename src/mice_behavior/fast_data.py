@@ -231,6 +231,8 @@ class FastBatchData:
         self.a1 = a1.astype(np.int64)
         self.a2 = a2.astype(np.int64)
         self.labels = labels.astype(np.int64)
+        self.gi = gi.astype(np.int64)  # global frame index (row into annotations.csv) per sample —
+        # traceability back to the source frame/observation, e.g. for error-analysis visualizations.
 
         unique, counts = np.unique(labels, return_counts=True)
         print(f'  {len(labels):,} samples | ' + ' '.join(f'label{c}={cnt:,}' for c, cnt in zip(unique, counts)))
