@@ -27,7 +27,7 @@ import random
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
-RESULTS_DIR = Path('./results/mice_behavior')
+RESULTS_DIR = Path('./results/vision/mice')
 ENCODER, TOKEN = 'dinov2', 'class_l-2'
 SEED = 42
 VAL_FRAC = 0.2

@@ -5,7 +5,7 @@ classifier, on the standard 80/20 pool split, with per-epoch validation
 train_patchgrid_final.py exactly (same CFG, same seed/split) for a direct
 comparison against the patch-grid attention-pooling variant.
 
-Writes results/mice_behavior/cls/{best_model.pt, history.json, config.json,
+Writes results/vision/mice/opair/cls/{best_model.pt, history.json, config.json,
 report.png, roc_pr_data.npz}.
 
 Usage:
@@ -29,7 +29,7 @@ from src.mice_behavior.train import train
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
-RESULTS_DIR = Path('./results/mice_behavior')
+RESULTS_DIR = Path('./results/vision/mice/opair')
 SEED = 42
 ENCODER, TOKEN = 'dinov2', 'class_l-2'
 
