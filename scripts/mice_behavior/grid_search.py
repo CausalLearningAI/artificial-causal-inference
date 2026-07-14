@@ -22,14 +22,14 @@ of this search (patch-grid's per-frame tensor is 16x CLS's; a 13-frame dense
 window exceeded available GPU memory). context_k*stride is capped at 8 (the
 model's max_offset) so the position-embedding table stays well-defined.
 
-Only PROMOTED to results/mice_behavior/{cls,patchgrid}/ if the winning
+Only PROMOTED to results/mice_behavior/pair/{cls,patchgrid}/ if the winning
 config's full-val score beats a freshly-recomputed full-val score for the
 CURRENT best_model.pt (not whatever number happens to be sitting in
 config.json, which may have been computed differently) — a worse search
 result never silently clobbers a better already-committed one.
 
-Every trial is logged to results/mice_behavior/search/log.jsonl as it
-completes. A human-readable results/mice_behavior/search/SUMMARY.md is
+Every trial is logged to results/mice_behavior/pair/search/log.jsonl as it
+completes. A human-readable results/mice_behavior/pair/search/SUMMARY.md is
 written at the end.
 
 Usage:
@@ -58,7 +58,7 @@ from src.mice_behavior.train import train
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
-RESULTS_DIR = Path('./results/mice_behavior')
+RESULTS_DIR = Path('./results/mice_behavior/pair')
 SEARCH_DIR = RESULTS_DIR / 'search'
 LOG_PATH = SEARCH_DIR / 'log.jsonl'
 TMP_DIR = SEARCH_DIR / 'tmp'
