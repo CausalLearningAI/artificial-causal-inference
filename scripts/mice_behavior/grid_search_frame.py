@@ -15,8 +15,12 @@ train_frame_final.py). Only PROMOTED to results/mice_behavior/frame/ if the
 winning config's full-val score beats a freshly-recomputed full-val score for
 the CURRENT best_model.pt.
 
-Every trial is logged to results/mice_behavior/search/frame_log.jsonl. A
-human-readable results/mice_behavior/search/FRAME_SUMMARY.md is written at the end.
+Every trial is logged to results/mice_behavior/frame/search/log.jsonl. A
+human-readable results/mice_behavior/frame/search/SUMMARY.md is written at the
+end. Nested under frame/ (not the shared results/mice_behavior/search/ the
+pairwise cls+patchgrid search uses) since this search only ever concerns the
+one frame variant — unlike grid_search.py, which searches two variants
+sharing one script/log.
 
 Usage:
     python scripts/mice_behavior/grid_search_frame.py
@@ -45,9 +49,10 @@ from src.mice_behavior.train import train_frame
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
 RESULTS_DIR = Path('./results/mice_behavior')
-SEARCH_DIR = RESULTS_DIR / 'search'
-LOG_PATH = SEARCH_DIR / 'frame_log.jsonl'
-TMP_DIR = SEARCH_DIR / 'tmp_frame'
+FRAME_DIR = RESULTS_DIR / 'frame'
+SEARCH_DIR = FRAME_DIR / 'search'
+LOG_PATH = SEARCH_DIR / 'log.jsonl'
+TMP_DIR = SEARCH_DIR / 'tmp'
 SEED = 42
 ENCODER, TOKEN = 'dinov2', 'class_l-2'
 
@@ -183,7 +188,7 @@ def main():
     ]
 
     results, n_trials = search(annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim, train_obs, val_obs, BUDGET_SEC)
-    out_dir = RESULTS_DIR / 'frame'
+    out_dir = FRAME_DIR
     summary_lines.append(f'## frame ({n_trials} trials)\n')
 
     # Recompute the CURRENT champion's full-val score fresh — never trust whatever
@@ -267,9 +272,9 @@ def main():
                 torch.cuda.empty_cache()
 
     shutil.rmtree(TMP_DIR, ignore_errors=True)
-    with open(SEARCH_DIR / 'FRAME_SUMMARY.md', 'w') as f:
+    with open(SEARCH_DIR / 'SUMMARY.md', 'w') as f:
         f.writelines(summary_lines)
-    print(f'Search complete in {(time.time()-t_start)/3600:.2f}h. See {SEARCH_DIR / "FRAME_SUMMARY.md"}', flush=True)
+    print(f'Search complete in {(time.time()-t_start)/3600:.2f}h. See {SEARCH_DIR / "SUMMARY.md"}', flush=True)
 
 
 if __name__ == '__main__':
