@@ -1,6 +1,6 @@
 """
 Fully vectorized batch construction for the mouse behavior classifiers
-(PairBatchData for the pairwise task, FrameBatchData for the per-frame task).
+(OPairBatchData for the pairwise task, FrameBatchData for the per-frame task).
 
 PyTorch's Dataset/DataLoader calls __getitem__ once per individual sample
 regardless of batch_size or worker count, with each call doing its own dict
@@ -20,7 +20,7 @@ import pandas as pd
 import torch
 
 
-class PairBatchData:
+class OPairBatchData:
     """Precomputes a flat, padded embedding array + vectorized index/mask arrays
     for O(1)-Python-overhead batch construction.
 
@@ -294,7 +294,7 @@ class PairBatchData:
 
 
 class FrameBatchData:
-    """Like PairBatchData, but one sample per annotated FRAME (not one per ordered
+    """Like OPairBatchData, but one sample per annotated FRAME (not one per ordered
     pair) — for the per-frame classifier, which has no mouse-identity conditioning.
 
     Label is frame-level and multi-hot: [has_nt, has_nn], the OR over that frame's
@@ -411,7 +411,7 @@ class FrameBatchData:
         return len(self.labels)
 
     def to_device(self, dev):
-        """Same GPU-residency pattern as PairBatchData.to_device — see there for why."""
+        """Same GPU-residency pattern as OPairBatchData.to_device — see there for why."""
         flat_t = torch.from_numpy(self.flat).to(dev)
         centers_t = torch.from_numpy(self.centers).to(dev)
         pad_mask_t = torch.from_numpy(self.pad_mask).to(dev)
@@ -426,7 +426,7 @@ class FrameBatchData:
         return self
 
     def get_batch(self, idx):
-        """Vectorized fetch — see PairBatchData.get_batch."""
+        """Vectorized fetch — see OPairBatchData.get_batch."""
         if getattr(self, 'device', None) is not None:
             idx_t = idx if torch.is_tensor(idx) else torch.from_numpy(idx).to(self.device)
             window_idx = self.centers_t[idx_t].unsqueeze(1) + self.offsets_grid_local_t.unsqueeze(0)
@@ -474,7 +474,7 @@ def load_patchgrid_embeddings(embeddings_path: str, global_idx_path: str, n_patc
 def cached_loader(load_embeddings_fn):
     """Wraps a load_embeddings_fn (load_cls_embeddings / load_patchgrid_embeddings) with
     an in-process memo cache keyed on obs_boundary. A hyperparameter search calls
-    PairBatchData/FrameBatchData dozens-to-hundreds of times over the SAME train/val
+    OPairBatchData/FrameBatchData dozens-to-hundreds of times over the SAME train/val
     obs_ids (only context_k/stride/etc. vary per trial), and without this each of those
     calls re-reads the full embeddings file from NFS and re-copies it into RAM from
     scratch — confirmed as a real GPU-idle gap between trials (~25-30% of each trial's

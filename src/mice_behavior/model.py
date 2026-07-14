@@ -22,7 +22,7 @@ class PatchAttnPool(nn.Module):
         return out.squeeze(1)
 
 
-class MouseBehaviorClassifier(nn.Module):
+class MouseOPairClassifier(nn.Module):
     """
     Pairwise behavior classifier using cross-attention over frame embeddings.
 
@@ -86,7 +86,7 @@ class MouseBehaviorClassifier(nn.Module):
 class MouseFrameClassifier(nn.Module):
     """
     Per-frame behavior detector — no mouse-identity conditioning (unlike
-    MouseBehaviorClassifier, this doesn't take a1/a2). A single learned query
+    MouseOPairClassifier, this doesn't take a1/a2). A single learned query
     attends over the temporal sequence of frame embeddings; the pooled
     representation is classified.
 
@@ -95,8 +95,8 @@ class MouseFrameClassifier(nn.Module):
     outputs rather than mutually-exclusive classes.
 
     Input:
-        context_seq: (B, T, emb_dim) or (B, T, P, emb_dim) — see MouseBehaviorClassifier.
-        offsets: (B, T) — see MouseBehaviorClassifier.
+        context_seq: (B, T, emb_dim) or (B, T, P, emb_dim) — see MouseOPairClassifier.
+        offsets: (B, T) — see MouseOPairClassifier.
         key_padding_mask: (B, T) bool, True = padding position.
     Output: logits (B, n_labels) for [has_nt, has_nn] — apply sigmoid, not softmax.
     """

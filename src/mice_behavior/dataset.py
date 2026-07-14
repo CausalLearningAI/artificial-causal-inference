@@ -14,7 +14,7 @@ import torch
 from torch.utils.data import Dataset
 
 
-class MousePairDataset(Dataset):
+class MouseOPairDataset(Dataset):
     def __init__(
         self,
         annotations_csv: str,
@@ -158,10 +158,10 @@ class MousePairDataset(Dataset):
         )
 
 
-class MousePairDatasetPatchGrid(MousePairDataset):
-    """Like MousePairDataset, but context frames are (P, emb_dim) coarse
+class MouseOPairDatasetPatchGrid(MouseOPairDataset):
+    """Like MouseOPairDataset, but context frames are (P, emb_dim) coarse
     patch-grid tokens instead of a single CLS vector — used with
-    MouseBehaviorClassifier(use_patch_grid=True).
+    MouseOPairClassifier(use_patch_grid=True).
 
     embeddings_path: patch_grid{G}/embeddings.npy (fp16, shape (n_pg, P, emb_dim))
     global_idx_path: patch_grid{G}/global_idx.npy — row i's global frame index

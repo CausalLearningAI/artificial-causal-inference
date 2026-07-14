@@ -19,8 +19,8 @@ import torch
 from sklearn.metrics import roc_auc_score, average_precision_score
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from src.mice_behavior.dataset import MousePairDataset, collate_fn
-from src.mice_behavior.model import MouseBehaviorClassifier
+from src.mice_behavior.dataset import MouseOPairDataset, collate_fn
+from src.mice_behavior.model import MouseOPairClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
 
 import random
@@ -59,13 +59,13 @@ def main():
     emb_dim = embeddings_path.stat().st_size // (4 * n_frames)
 
     print('Building val dataset (same split as training)...')
-    val_ds = MousePairDataset(
+    val_ds = MouseOPairDataset(
         str(annotations_csv), str(pair_labels_path), str(embeddings_path),
         obs_ids=val_obs, context_k=CONTEXT_K, emb_dim=emb_dim,
     )
 
     dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = MouseBehaviorClassifier(emb_dim=emb_dim, n_heads=N_HEADS, hidden_dim=HIDDEN_DIM).to(dev)
+    model = MouseOPairClassifier(emb_dim=emb_dim, n_heads=N_HEADS, hidden_dim=HIDDEN_DIM).to(dev)
     model.load_state_dict(torch.load(RESULTS_DIR / 'best_model.pt', map_location=dev))
     model.eval()
 
@@ -94,11 +94,11 @@ def main():
 
     # --- Per-frame pair-prediction variance check ---
     # samples are ordered: for each annotated frame, 12 consecutive rows (one per ordered pair)
-    n_pairs = 12
-    n_frames_val = len(labels) // n_pairs
-    assert len(labels) % n_pairs == 0, 'unexpected ordering, cannot reshape'
-    probs_r = probs.reshape(n_frames_val, n_pairs, 3)
-    labels_r = labels.reshape(n_frames_val, n_pairs)
+    n_opairs = 12
+    n_frames_val = len(labels) // n_opairs
+    assert len(labels) % n_opairs == 0, 'unexpected ordering, cannot reshape'
+    probs_r = probs.reshape(n_frames_val, n_opairs, 3)
+    labels_r = labels.reshape(n_frames_val, n_opairs)
 
     # std across the 12 pairs of P(nt)+P(nn) score, per frame, averaged over frames
     pos_score = probs_r[:, :, 1] + probs_r[:, :, 2]  # (n_frames, 12)

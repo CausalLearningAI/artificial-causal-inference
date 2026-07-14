@@ -69,7 +69,7 @@ def main():
     annotated_obs = set(pair_labels['observation_id'].unique())
 
     ann = pd.read_csv(dataset_dir / 'mice' / 'v1' / 'annotations.csv', usecols=['observation_id'])
-    ann_reset = ann.reset_index()  # 'index' column == global row == embedding row (same convention as MousePairDataset)
+    ann_reset = ann.reset_index()  # 'index' column == global row == embedding row (same convention as MouseOPairDataset)
     sub = ann_reset[ann_reset['observation_id'].isin(annotated_obs)]
     global_idx = sub['index'].values.astype(np.int32)
     n_frames = len(global_idx)

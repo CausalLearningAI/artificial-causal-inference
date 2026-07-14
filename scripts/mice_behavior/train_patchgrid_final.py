@@ -5,7 +5,7 @@ with per-epoch validation (eval_every=1) so a full loss curve is available.
 Mirrors train_cls_final.py (same CFG, same seed/split) for a direct
 comparison against the CLS-token baseline.
 
-Writes results/mice_behavior/pair/patchgrid/{best_model.pt, history.json,
+Writes results/mice_behavior/opair/patchgrid/{best_model.pt, history.json,
 config.json, report.png, roc_pr_data.npz}.
 
 Usage:
@@ -21,15 +21,15 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.mice_behavior.build_pair_labels import build_pair_labels
-from src.mice_behavior.batch_data import PairBatchData, load_patchgrid_embeddings
-from src.mice_behavior.model import MouseBehaviorClassifier
+from src.mice_behavior.batch_data import OPairBatchData, load_patchgrid_embeddings
+from src.mice_behavior.model import MouseOPairClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
 from src.mice_behavior.report import collect_val_predictions_fast, generate_report
 from src.mice_behavior.train import train
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
-RESULTS_DIR = Path('./results/mice_behavior/pair')
+RESULTS_DIR = Path('./results/mice_behavior/opair')
 SEED = 42
 ENCODER, TOKEN = 'dinov2', 'class_l-2'
 PATCH_GRID_DIR = DATASET_DIR / 'mice' / 'v1' / 'embeddings' / 'full' / 'dinov2' / 'patch_grid4'
@@ -120,13 +120,13 @@ def main():
                    'emb_dim': emb_dim}, f, indent=2)
 
     dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = MouseBehaviorClassifier(
+    model = MouseOPairClassifier(
         emb_dim=emb_dim, n_heads=CFG['n_heads'], hidden_dim=CFG['hidden_dim'], use_patch_grid=True,
     ).to(dev)
     model.load_state_dict(torch.load(out_dir / 'best_model.pt', map_location=dev, weights_only=True))
     model.eval()
 
-    val_data = PairBatchData(
+    val_data = OPairBatchData(
         str(annotations_csv), str(pair_labels_path), val_obs, CFG['context_k'], emb_dim,
         load_patchgrid_embeddings(str(PATCH_GRID_DIR / 'embeddings.npy'), str(PATCH_GRID_DIR / 'global_idx.npy'), 16, emb_dim),
         n_patches=16,

@@ -3,7 +3,7 @@ Autonomous hyperparameter search for the mouse pairwise behavior classifier,
 run entirely in-process (one long SLURM allocation) via train().
 
 Every candidate is ranked and promoted using the SAME full, non-subsampled
-validation-set pair-level macro PR-AUC (nt/nn only, 'none' excluded) —
+validation-set opair-level (ordered-pair) macro PR-AUC (nt/nn only, 'none' excluded) —
 computed once, right after each trial's training finishes, via
 collect_val_predictions_fast(). This is deliberately NOT the fast internal
 per-epoch metric train() tracks for early stopping (that one runs on a
@@ -22,14 +22,14 @@ of this search (patch-grid's per-frame tensor is 16x CLS's; a 13-frame dense
 window exceeded available GPU memory). context_k*stride is capped at 8 (the
 model's max_offset) so the position-embedding table stays well-defined.
 
-Only PROMOTED to results/mice_behavior/pair/{cls,patchgrid}/ if the winning
+Only PROMOTED to results/mice_behavior/opair/{cls,patchgrid}/ if the winning
 config's full-val score beats a freshly-recomputed full-val score for the
 CURRENT best_model.pt (not whatever number happens to be sitting in
 config.json, which may have been computed differently) — a worse search
 result never silently clobbers a better already-committed one.
 
-Every trial is logged to results/mice_behavior/pair/search/log.jsonl as it
-completes. A human-readable results/mice_behavior/pair/search/SUMMARY.md is
+Every trial is logged to results/mice_behavior/opair/search/log.jsonl as it
+completes. A human-readable results/mice_behavior/opair/search/SUMMARY.md is
 written at the end.
 
 Usage:
@@ -50,15 +50,15 @@ from sklearn.metrics import average_precision_score
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.mice_behavior.build_pair_labels import build_pair_labels
-from src.mice_behavior.batch_data import PairBatchData, load_cls_embeddings, load_patchgrid_embeddings
-from src.mice_behavior.model import MouseBehaviorClassifier
+from src.mice_behavior.batch_data import OPairBatchData, load_cls_embeddings, load_patchgrid_embeddings
+from src.mice_behavior.model import MouseOPairClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
 from src.mice_behavior.report import collect_val_predictions_fast, generate_report
 from src.mice_behavior.train import train
 
 DATA_DIR = Path('./data')
 DATASET_DIR = Path('./dataset')
-RESULTS_DIR = Path('./results/mice_behavior/pair')
+RESULTS_DIR = Path('./results/mice_behavior/opair')
 SEARCH_DIR = RESULTS_DIR / 'search'
 LOG_PATH = SEARCH_DIR / 'log.jsonl'
 TMP_DIR = SEARCH_DIR / 'tmp'
@@ -72,7 +72,7 @@ CLS_BUDGET_SEC = 3.5 * 3600
 PATCHGRID_BUDGET_SEC = 3.5 * 3600
 SEARCH_EPOCHS = 80
 FINAL_EPOCHS = 100
-MAX_OFFSET = 8  # must match MouseBehaviorClassifier's max_offset
+MAX_OFFSET = 8  # must match MouseOPairClassifier's max_offset
 MAX_TRAIN_FRAMES_PATCHGRID = 200_000  # ~4.9GB GPU-resident at 16 patches x 768dim x fp16
 
 
@@ -107,7 +107,7 @@ def sample_cfg(rng: random.Random) -> dict:
     )
 
 
-def full_val_pair_macro_pr_auc(model, dev, annotations_csv, pair_labels_path, val_obs,
+def full_val_opair_macro_pr_auc(model, dev, annotations_csv, pair_labels_path, val_obs,
                                 context_k, stride, emb_dim, use_patch_grid, cls_embeddings_path):
     """The one true metric — always the full, non-subsampled validation set, so every
     comparison in this script (trial vs trial, trial vs existing baseline) is apples-to-apples."""
@@ -115,7 +115,7 @@ def full_val_pair_macro_pr_auc(model, dev, annotations_csv, pair_labels_path, va
         load_patchgrid_embeddings(str(PATCH_GRID_DIR / 'embeddings.npy'), str(PATCH_GRID_DIR / 'global_idx.npy'), 16, emb_dim)
         if use_patch_grid else load_cls_embeddings(str(cls_embeddings_path), emb_dim)
     )
-    val_data = PairBatchData(
+    val_data = OPairBatchData(
         str(annotations_csv), str(pair_labels_path), val_obs, context_k, emb_dim, load_fn,
         n_patches=16 if use_patch_grid else None, stride=stride,
     )
@@ -160,7 +160,7 @@ def run_trial(cfg, annotations_csv, pair_labels_path, cls_embeddings_path, emb_d
     result = train(**kwargs)
     model = result['model']
     dev = next(model.parameters()).device
-    full_pr_auc, full_per_class = full_val_pair_macro_pr_auc(
+    full_pr_auc, full_per_class = full_val_opair_macro_pr_auc(
         model, dev, annotations_csv, pair_labels_path, val_obs, cfg['context_k'], cfg['stride'],
         emb_dim, use_patch_grid, cls_embeddings_path,
     )
@@ -191,7 +191,7 @@ def search_variant(variant_name, use_patch_grid, annotations_csv, pair_labels_pa
             trial_i += 1
             continue
         dt = time.time() - t0
-        log_result({'variant': variant_name, 'tag': tag, 'cfg': cfg, 'full_val_pair_macro_pr_auc': full_pr_auc,
+        log_result({'variant': variant_name, 'tag': tag, 'cfg': cfg, 'full_val_opair_macro_pr_auc': full_pr_auc,
                     'full_val_per_class': full_per_class, 'internal_subsampled_pr_auc': internal_pr_auc, 'seconds': dt})
         results.append((full_pr_auc, cfg))
         trial_i += 1
@@ -264,19 +264,19 @@ def main():
         if (out_dir / 'best_model.pt').exists() and (out_dir / 'config.json').exists():
             base_cfg = json.load(open(out_dir / 'config.json'))['cfg']
             dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            base_model = MouseBehaviorClassifier(
+            base_model = MouseOPairClassifier(
                 emb_dim=emb_dim, n_heads=base_cfg['n_heads'], hidden_dim=base_cfg['hidden_dim'],
                 use_patch_grid=use_patch_grid, dropout=base_cfg.get('dropout', 0.1),
             ).to(dev)
             base_model.load_state_dict(torch.load(out_dir / 'best_model.pt', map_location=dev, weights_only=True))
             base_model.eval()
-            baseline_pr_auc, _ = full_val_pair_macro_pr_auc(
+            baseline_pr_auc, _ = full_val_opair_macro_pr_auc(
                 base_model, dev, annotations_csv, pair_labels_path, val_obs,
                 base_cfg['context_k'], base_cfg.get('stride', 1), emb_dim, use_patch_grid, cls_embeddings_path,
             )
             del base_model
             torch.cuda.empty_cache()
-        log_result({'variant': variant, 'stage': 'baseline_recomputed', 'full_val_pair_macro_pr_auc': baseline_pr_auc})
+        log_result({'variant': variant, 'stage': 'baseline_recomputed', 'full_val_opair_macro_pr_auc': baseline_pr_auc})
         summary_lines.append(f'- Current baseline (recomputed, full val): {baseline_pr_auc:.4f}\n')
 
         if not results:
@@ -318,11 +318,11 @@ def main():
 
         model = result['model']
         dev = next(model.parameters()).device
-        final_score, final_per_class = full_val_pair_macro_pr_auc(
+        final_score, final_per_class = full_val_opair_macro_pr_auc(
             model, dev, annotations_csv, pair_labels_path, val_obs,
             best_cfg['context_k'], best_cfg['stride'], emb_dim, use_patch_grid, cls_embeddings_path,
         )
-        log_result({'variant': variant, 'stage': 'final_retrain', 'cfg': best_cfg, 'full_val_pair_macro_pr_auc': final_score})
+        log_result({'variant': variant, 'stage': 'final_retrain', 'cfg': best_cfg, 'full_val_opair_macro_pr_auc': final_score})
 
         if final_score <= baseline_pr_auc:
             # Rare (search trial ran fewer epochs and got lucky, or run-to-run noise) but
@@ -345,7 +345,7 @@ def main():
             load_patchgrid_embeddings(str(PATCH_GRID_DIR / 'embeddings.npy'), str(PATCH_GRID_DIR / 'global_idx.npy'), 16, emb_dim)
             if use_patch_grid else load_cls_embeddings(str(cls_embeddings_path), emb_dim)
         )
-        val_data = PairBatchData(
+        val_data = OPairBatchData(
             str(annotations_csv), str(pair_labels_path), val_obs, best_cfg['context_k'], emb_dim, load_fn,
             n_patches=16 if use_patch_grid else None, stride=best_cfg['stride'],
         )

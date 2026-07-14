@@ -27,8 +27,8 @@ import torch
 from sklearn.metrics import roc_curve, precision_recall_curve, roc_auc_score, average_precision_score
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from src.mice_behavior.dataset import MousePairDataset, collate_fn
-from src.mice_behavior.model import MouseBehaviorClassifier
+from src.mice_behavior.dataset import MouseOPairDataset, collate_fn
+from src.mice_behavior.model import MouseOPairClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
 
 RESULTS_DIR = Path('./results/mice_behavior')
@@ -50,13 +50,13 @@ def main():
     all_obs = pd.read_parquet(pair_labels_path)['observation_id'].unique().tolist()
     val_obs = [o for o in all_obs if obs_to_pool[o] in val_pools]
 
-    val_ds = MousePairDataset(
+    val_ds = MouseOPairDataset(
         str(annotations_csv), str(pair_labels_path), str(embeddings_path),
         obs_ids=val_obs, context_k=cfg['context_k'], emb_dim=emb_dim,
     )
 
     dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = MouseBehaviorClassifier(
+    model = MouseOPairClassifier(
         emb_dim=emb_dim, n_heads=cfg['n_heads'], hidden_dim=cfg['hidden_dim'],
     ).to(dev)
     model.load_state_dict(torch.load(RESULTS_DIR / 'best_model.pt', map_location=dev))
@@ -75,11 +75,11 @@ def main():
     probs = np.concatenate(all_probs)
     labels = np.concatenate(all_labels)
 
-    n_pairs = 12
-    n_frames_val = len(labels) // n_pairs
-    assert len(labels) % n_pairs == 0
-    probs_r = probs.reshape(n_frames_val, n_pairs, 3)
-    labels_r = labels.reshape(n_frames_val, n_pairs)
+    n_opairs = 12
+    n_frames_val = len(labels) // n_opairs
+    assert len(labels) % n_opairs == 0
+    probs_r = probs.reshape(n_frames_val, n_opairs, 3)
+    labels_r = labels.reshape(n_frames_val, n_opairs)
 
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     save_data = {}

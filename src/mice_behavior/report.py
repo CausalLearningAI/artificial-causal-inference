@@ -34,7 +34,7 @@ def collect_val_predictions(model, val_loader, dev):
 
 def collect_val_predictions_fast(model, val_data, dev, batch_size=1024):
     """Same output as collect_val_predictions, but gathers batches from a
-    PairBatchData instance (vectorized numpy fancy-indexing) instead of a
+    OPairBatchData instance (vectorized numpy fancy-indexing) instead of a
     per-sample Dataset/DataLoader — the per-sample path is the same
     __getitem__-per-call bottleneck already eliminated from training; this
     closes the same gap for the final report's full-val-set evaluation.
@@ -64,15 +64,15 @@ def cfg_str(cfg: dict) -> str:
 
 def generate_report(probs, labels, history, variant_name: str, cfg: dict, out_dir: Path):
     out_dir = Path(out_dir)
-    n_pairs = 12
-    n_frames_val = len(labels) // n_pairs
-    probs_r = probs.reshape(n_frames_val, n_pairs, 3)
-    labels_r = labels.reshape(n_frames_val, n_pairs)
+    n_opairs = 12
+    n_frames_val = len(labels) // n_opairs
+    probs_r = probs.reshape(n_frames_val, n_opairs, 3)
+    labels_r = labels.reshape(n_frames_val, n_opairs)
 
     fig, axes = plt.subplots(3, 2, figsize=(12, 15))
     save_data = {}
 
-    best_idx = int(np.argmax(history['pair_macro_pr_auc']))
+    best_idx = int(np.argmax(history['opair_macro_pr_auc']))
     best_epoch = history['eval_epoch'][best_idx]
 
     # Dummy/random baselines — what a classifier with zero discriminative power would score,
@@ -105,16 +105,16 @@ def generate_report(probs, labels, history, variant_name: str, cfg: dict, out_di
     # subsample as val_loss (not the full val set), so its baseline must use that subsample's
     # prevalence too (stored in history, from train()) — the full-val-based numbers
     # computed from `labels`/`labels_r` further down are for row 1/2's separate full-val curves.
-    pair_random = history.get('pair_random_val')
+    opair_random = history.get('opair_random_val')
     frame_random = history.get('frame_random_val')
 
     # macro PR-AUC (nt/nn only, 'none' excluded — see row 1/2 note below) over training, both
     # ways: "couples" = per-ordered-pair (row 1), "per frame" = collapsed-per-frame (row 2).
     # These are the exact same quantities train() computes and logs each eval epoch.
-    axes[0, 1].plot(history['eval_epoch'], history['pair_macro_pr_auc'], color='tab:blue', label='per couple (nt/nn)')
+    axes[0, 1].plot(history['eval_epoch'], history['opair_macro_pr_auc'], color='tab:blue', label='per couple (nt/nn)')
     axes[0, 1].plot(history['eval_epoch'], history['frame_macro_pr_auc'], color='tab:orange', label='per frame (nt/nn)')
-    if pair_random is not None:
-        axes[0, 1].axhline(pair_random, color='tab:blue', ls=':', alpha=0.7, label='per couple, random baseline')
+    if opair_random is not None:
+        axes[0, 1].axhline(opair_random, color='tab:blue', ls=':', alpha=0.7, label='per couple, random baseline')
     if frame_random is not None:
         axes[0, 1].axhline(frame_random, color='tab:orange', ls=':', alpha=0.7, label='per frame, random baseline')
     axes[0, 1].axvline(best_epoch, color='tab:green', ls='--', alpha=0.6)
@@ -132,12 +132,12 @@ def generate_report(probs, labels, history, variant_name: str, cfg: dict, out_di
         pr_auc = average_precision_score(y_true, y_score)
         axes[1, 0].plot(fpr, tpr, label=f'{name} (AUC={roc_auc:.3f})')
         axes[1, 1].plot(rec, prec, label=f'{name} (AP={pr_auc:.3f})')
-        save_data[f'pair_{name}_fpr'] = fpr
-        save_data[f'pair_{name}_tpr'] = tpr
-        save_data[f'pair_{name}_prec'] = prec
-        save_data[f'pair_{name}_rec'] = rec
-        save_data[f'pair_{name}_roc_auc'] = roc_auc
-        save_data[f'pair_{name}_pr_auc'] = pr_auc
+        save_data[f'opair_{name}_fpr'] = fpr
+        save_data[f'opair_{name}_tpr'] = tpr
+        save_data[f'opair_{name}_prec'] = prec
+        save_data[f'opair_{name}_rec'] = rec
+        save_data[f'opair_{name}_roc_auc'] = roc_auc
+        save_data[f'opair_{name}_pr_auc'] = pr_auc
     axes[1, 0].plot([0, 1], [0, 1], 'k--', alpha=0.3)
     axes[1, 0].set_xlabel('FPR'); axes[1, 0].set_ylabel('TPR')
     axes[1, 0].set_title('Behaviors per mice couples (ROC)'); axes[1, 0].legend()

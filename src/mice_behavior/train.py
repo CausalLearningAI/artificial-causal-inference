@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from sklearn.metrics import average_precision_score
 
-from .model import MouseBehaviorClassifier
+from .model import MouseOPairClassifier
 
 LABEL_NAMES = ['none', 'nt', 'nn']
 
@@ -66,7 +66,7 @@ def train(
     weight_decay: float = 1e-4,
     early_stop_patience: int = 15,
     # Checkpoint selection / early stopping compare a trailing moving average of
-    # pair_macro_pr_auc, not the raw per-eval value — with only ~2.5-4k positive pair-samples,
+    # opair_macro_pr_auc, not the raw per-eval value — with only ~2.5-4k positive pair-samples,
     # the subsampled per-epoch metric is noisy enough that the single highest of ~80 evals is
     # usually just a lucky fluctuation (confirmed: a promoted model's "best epoch" turned out
     # to be an isolated spike in an otherwise-flat/noisy trajectory, not a real improvement).
@@ -77,10 +77,10 @@ def train(
     # anyway via neg_ratio subsampling. None = unrestricted (CLS's default; it already fits in full).
     max_train_frames: int = None,
 ):
-    """Vectorized training loop — builds batches directly from PairBatchData
+    """Vectorized training loop — builds batches directly from OPairBatchData
     instead of going through Dataset/DataLoader — see batch_data.py."""
     import json
-    from .batch_data import PairBatchData, load_cls_embeddings, load_patchgrid_embeddings
+    from .batch_data import OPairBatchData, load_cls_embeddings, load_patchgrid_embeddings
 
     torch.manual_seed(seed)
     dev = torch.device(device if torch.cuda.is_available() else 'cpu')
@@ -93,7 +93,7 @@ def train(
     )
 
     print('Building train dataset (vectorized)...')
-    train_data = PairBatchData(
+    train_data = OPairBatchData(
         annotations_csv, pair_labels_parquet, train_obs_ids, context_k, emb_dim, load_fn, n_patches,
         stride=stride, max_frames=max_train_frames, seed=seed,
     )
@@ -115,7 +115,7 @@ def train(
     val_data, val_keep = None, None
     if val_obs_ids:
         print('Building val dataset (vectorized)...')
-        val_data = PairBatchData(annotations_csv, pair_labels_parquet, val_obs_ids, context_k, emb_dim, load_fn, n_patches, stride=stride)
+        val_data = OPairBatchData(annotations_csv, pair_labels_parquet, val_obs_ids, context_k, emb_dim, load_fn, n_patches, stride=stride)
         if dev.type == 'cuda':
             try:
                 val_data.to_device(dev)
@@ -146,7 +146,7 @@ def train(
             val_keep = np.arange(len(val_data))
             n_kept_frames = len(val_data) // 12
 
-    model = MouseBehaviorClassifier(
+    model = MouseOPairClassifier(
         emb_dim=emb_dim, n_heads=n_heads, hidden_dim=hidden_dim, use_patch_grid=use_patch_grid, dropout=dropout,
     ).to(dev)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -171,7 +171,7 @@ def train(
     # val's doesn't (different ratio), so it needs the general weighted formula.
     train_prior = sampled_counts / sampled_counts.sum()
     random_train_loss = float(-np.mean(np.log(np.clip(train_prior, 1e-12, None))))
-    random_val_loss = pair_random_val = frame_random_val = None
+    random_val_loss = opair_random_val = frame_random_val = None
     if val_data is not None:
         val_labels_kept = val_data.labels[val_keep]
         n_val_counts = np.array([(val_labels_kept == c).sum() for c in range(3)], dtype=np.float64)
@@ -184,7 +184,7 @@ def train(
         # computed on (AP of an uninformative classifier converges to the positive prevalence
         # of whatever set it's evaluated on — val_keep's prevalence is much higher than the
         # true full-val prevalence report.py uses for its own, separately-computed baselines).
-        pair_random_val = float(np.mean([(val_labels_kept == c).mean() for c in (1, 2)]))
+        opair_random_val = float(np.mean([(val_labels_kept == c).mean() for c in (1, 2)]))
         labels_r_kept = val_labels_kept.reshape(n_kept_frames, 12)
         frame_random_val = float(np.mean([(labels_r_kept == c).any(axis=1).mean() for c in (1, 2)]))
 
@@ -193,9 +193,9 @@ def train(
     best_epoch = 0
     epochs_since_best = 0
     history = {'epoch': [], 'train_loss': [], 'eval_epoch': [], 'val_loss': [], 'val_acc': [],
-               'pair_macro_pr_auc': [], 'frame_macro_pr_auc': [],
+               'opair_macro_pr_auc': [], 'frame_macro_pr_auc': [],
                'random_train_loss': random_train_loss, 'random_val_loss': random_val_loss,
-               'pair_random_val': pair_random_val, 'frame_random_val': frame_random_val}
+               'opair_random_val': opair_random_val, 'frame_random_val': frame_random_val}
 
     # Mixed precision: this workload was confirmed GPU-compute-bound (83% utilization on a
     # that GPU), so using tensor cores via autocast is the next lever, not more data-pipeline
@@ -281,8 +281,8 @@ def train(
                 y_true = (labels_np == c).astype(int)
                 pr = average_precision_score(y_true, probs[:, c])
                 per_class[LABEL_NAMES[c]] = f'PR-AUC={pr:.3f}'
-            pair_pr_auc = {c: average_precision_score((labels_np == c).astype(int), probs[:, c]) for c in (1, 2)}
-            pair_macro_pr_auc = float(np.mean(list(pair_pr_auc.values())))
+            opair_pr_auc = {c: average_precision_score((labels_np == c).astype(int), probs[:, c]) for c in (1, 2)}
+            opair_macro_pr_auc = float(np.mean(list(opair_pr_auc.values())))
 
             probs_r = probs.reshape(n_kept_frames, 12, 3)
             labels_r = labels_np.reshape(n_kept_frames, 12)
@@ -293,18 +293,18 @@ def train(
             frame_macro_pr_auc = float(np.mean(list(frame_pr_auc.values())))
 
             val_loss = (loss_sum / n_total).item()
-            msg += (f'  val_loss={val_loss:.4f}  val_acc={acc:.4f}  pair_macro_pr_auc={pair_macro_pr_auc:.4f}'
+            msg += (f'  val_loss={val_loss:.4f}  val_acc={acc:.4f}  opair_macro_pr_auc={opair_macro_pr_auc:.4f}'
                     f'  frame_macro_pr_auc={frame_macro_pr_auc:.4f}  ' + '  '.join(f'{k}={v}' for k, v in per_class.items()))
             history['eval_epoch'].append(epoch)
             history['val_loss'].append(val_loss)
             history['val_acc'].append(acc)
-            history['pair_macro_pr_auc'].append(pair_macro_pr_auc)
+            history['opair_macro_pr_auc'].append(opair_macro_pr_auc)
             history['frame_macro_pr_auc'].append(frame_macro_pr_auc)
 
             # Trailing moving average over the last `smooth_window` evals, not the raw value —
             # see smooth_window's docstring above for why (noisy single-epoch spikes otherwise
             # win "best checkpoint" purely by chance).
-            recent = history['pair_macro_pr_auc'][-smooth_window:]
+            recent = history['opair_macro_pr_auc'][-smooth_window:]
             smoothed_pr_auc = float(np.mean(recent))
             msg += f'  smoothed_pr_auc={smoothed_pr_auc:.4f}'
 
@@ -376,7 +376,7 @@ def train_frame(
     ×12 sample expansion (one sample per annotated frame). See MouseFrameClassifier
     and FrameBatchData. Multi-label BCE over [has_nt, has_nn]; model selection is
     macro AP over the same two labels, smoothed the same way as train()'s
-    pair_macro_pr_auc — see that function's smooth_window comment for why.
+    opair_macro_pr_auc — see that function's smooth_window comment for why.
 
     embeddings_loader: optional pre-built load_embeddings_fn (e.g. batch_data.cached_loader(...))
     to reuse across many calls instead of building (and re-reading from NFS) a fresh one
