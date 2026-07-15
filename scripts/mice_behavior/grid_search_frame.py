@@ -94,12 +94,16 @@ def sample_cfg(rng: random.Random, use_patch_grid: bool) -> dict:
     max_stride = max(1, MAX_OFFSET // context_k)
     stride = rng.choice(list(range(1, max_stride + 1)))
     if use_patch_grid:
-        # Wider than CLS's range — the patch-grid diagnostic run overfit much harder
-        # (val_loss 2->11 across training) at dropout=0.2/weight_decay=1e-4, the same
-        # settings that were sufficient for CLS. Also lr is capped separately below
-        # (PatchAttnPool collapse precedent from the pairwise search).
+        # dropout kept wider than CLS's range — the patch-grid diagnostic run overfit much
+        # harder (val_loss 2->11 across training) at dropout=0.2, the setting sufficient for
+        # CLS, and this range showed no clear good/bad split across an initial 32-trial run.
+        # weight_decay, by contrast, was ALSO widened initially but a first 32-trial run
+        # showed a stark, monotonic collapse as it increases (mean AP 0.151 @ 1e-4 -> 0.037 @
+        # 1e-1) — every value beyond CLS's own range actively hurt, so reverted to match.
+        # Also lr is capped separately below (PatchAttnPool collapse precedent from the
+        # pairwise search).
         dropout = rng.choice([0.1, 0.2, 0.3, 0.4, 0.5])
-        weight_decay = rng.choice([1e-4, 1e-3, 1e-2, 1e-1])
+        weight_decay = rng.choice([0.0, 1e-5, 1e-4, 1e-3])
     else:
         dropout = rng.choice([0.0, 0.05, 0.1, 0.2, 0.3])
         weight_decay = rng.choice([0.0, 1e-5, 1e-4, 1e-3])
