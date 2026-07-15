@@ -312,7 +312,21 @@ class FrameBatchData:
         load_embeddings_fn,
         n_patches: int = None,
         stride: int = 1,
+        max_frames: int = None,
+        seed: int = 42,
     ):
+        """
+        max_frames: bounds the total number of frames whose embeddings get loaded/padded
+            into self.flat (None = unrestricted). Every frame with >=1 behavior present is
+            always kept in full (plus its +-reach context); on top of that, a random sample
+            of negative (no-behavior) frames is added up to max_frames. Frames beyond the
+            budget are dropped as samples entirely (reduces N, not just memory) — same
+            rationale as OPairBatchData's max_frames (see there), needed because patch-grid's
+            per-frame footprint is 16x CLS's and doesn't fit GPU-resident otherwise. Simpler
+            here than OPairBatchData's version: FrameBatchData already has one row per frame
+            (not 12 per frame), so no groupby aggregation is needed to check "does this frame
+            have a positive" — labels already IS per-frame.
+        """
         self.k = context_k
         self.stride = stride
         self.emb_dim = emb_dim
@@ -371,27 +385,85 @@ class FrameBatchData:
         local = gi - obs_s_arr
         obs_len_arr = obs_e_arr - obs_s_arr
 
+        if max_frames is not None:
+            n_total = int(gi.max()) + 1
+            kept = np.zeros(n_total, dtype=bool)
+            is_anchor = np.zeros(n_total, dtype=bool)
+
+            has_pos = labels.sum(axis=1) > 0
+            for i in np.where(has_pos)[0]:
+                f_gi, obs_s, obs_e = int(gi[i]), int(obs_s_arr[i]), int(obs_e_arr[i])
+                lo, hi = max(obs_s, f_gi - reach), min(obs_e - 1, f_gi + reach)
+                kept[lo:hi + 1] = True
+                is_anchor[f_gi] = True
+            total_kept = int(kept.sum())
+
+            if total_kept < max_frames:
+                neg_positions = np.where(~has_pos)[0]
+                rng = np.random.default_rng(seed)
+                rng.shuffle(neg_positions)
+                for i in neg_positions:
+                    if total_kept >= max_frames:
+                        break
+                    f_gi, obs_s, obs_e = int(gi[i]), int(obs_s_arr[i]), int(obs_e_arr[i])
+                    if kept[f_gi]:
+                        continue  # already covered as some anchor's context
+                    lo, hi = max(obs_s, f_gi - reach), min(obs_e - 1, f_gi + reach)
+                    added = int((~kept[lo:hi + 1]).sum())
+                    if added:
+                        kept[lo:hi + 1] = True
+                        is_anchor[f_gi] = True
+                        total_kept += added
+            print(f'  bounded train frames: kept {total_kept:,} of {n_total:,} annotated frames '
+                  f'({int(is_anchor.sum()):,} anchor frames -> samples)')
+
+            sample_keep = is_anchor[gi]
+            gi, obs_s_arr, obs_e_arr, labels, local, obs_len_arr = (
+                gi[sample_keep], obs_s_arr[sample_keep], obs_e_arr[sample_keep],
+                labels[sample_keep], local[sample_keep], obs_len_arr[sample_keep],
+            )
+
         print('  loading embeddings for vectorized batching...')
         obs_arrays = load_embeddings_fn(obs_boundary)  # {obs_s: (obs_len, ...) array}
         blocks = []
         cursor = 0
-        pad_start_by_obs = {}
+        center_base_by_obs = {}
         for obs_s in sorted(obs_arrays.keys()):
             arr = obs_arrays[obs_s]
-            pad_shape = (reach,) + arr.shape[1:]
-            padded = np.concatenate(
-                [np.zeros(pad_shape, dtype=arr.dtype), arr, np.zeros(pad_shape, dtype=arr.dtype)], axis=0
-            )
-            blocks.append(padded)
-            pad_start_by_obs[obs_s] = cursor
-            cursor += padded.shape[0]
+            obs_len = arr.shape[0]
+            obs_e = obs_s + obs_len
+            if max_frames is None:
+                runs = [(0, obs_len - 1)]
+            else:
+                kept_local = np.where(kept[obs_s:obs_e])[0]
+                if len(kept_local) == 0:
+                    continue
+                split_at = np.where(np.diff(kept_local) != 1)[0] + 1
+                runs = [(int(r[0]), int(r[-1])) for r in np.split(kept_local, split_at)]
+
+            center_base = np.zeros(obs_len, dtype=np.int64)
+            for run_lo, run_hi in runs:
+                sub = arr[run_lo:run_hi + 1]
+                pad_shape = (reach,) + arr.shape[1:]
+                padded = np.concatenate(
+                    [np.zeros(pad_shape, dtype=arr.dtype), sub, np.zeros(pad_shape, dtype=arr.dtype)], axis=0
+                )
+                blocks.append(padded)
+                run_pad_start = cursor
+                cursor += padded.shape[0]
+                center_base[run_lo:run_hi + 1] = run_pad_start - run_lo
+            center_base_by_obs[obs_s] = center_base
         self.flat = (
             np.concatenate(blocks, axis=0) if blocks
             else np.zeros((0, emb_dim) if n_patches is None else (0, n_patches, emb_dim), dtype=np.float32)
         )
         del blocks
 
-        center_adjust = np.array([pad_start_by_obs[s] for s in obs_s_arr], dtype=np.int64)
+        center_adjust = np.empty(len(local), dtype=np.int64)
+        for obs_s, center_base in center_base_by_obs.items():
+            rows = np.where(obs_s_arr == obs_s)[0]
+            if len(rows):
+                center_adjust[rows] = center_base[local[rows]]
         self.centers = local + center_adjust  # position of this sample's offset=-reach frame
         self.offsets_grid_local = np.arange(0, 2 * reach + 1, stride, dtype=np.int64)
         offsets_grid = self.offsets_grid_local - reach

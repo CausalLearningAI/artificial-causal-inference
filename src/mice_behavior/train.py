@@ -371,6 +371,7 @@ def train_frame(
     early_stop_patience: int = 15,
     smooth_window: int = 5,
     embeddings_loader=None,
+    max_train_frames: int = None,
 ):
     """Per-frame behavior detector — no mouse-identity conditioning, no pairwise
     ×12 sample expansion (one sample per annotated frame). See MouseFrameClassifier
@@ -382,6 +383,11 @@ def train_frame(
     to reuse across many calls instead of building (and re-reading from NFS) a fresh one
     every time — a hyperparameter search calls this dozens-to-hundreds of times over the
     same embeddings file, so the caller can pass one shared cached loader across all of them.
+
+    max_train_frames: bounds how many distinct frames' embeddings ever get loaded/GPU-resident
+    for training — patch-grid's per-frame footprint is 16x CLS's, which doesn't fit GPU-resident
+    at this dataset's full size. None = unrestricted (CLS's default; it already fits in full).
+    See FrameBatchData's max_frames docstring.
     """
     from .batch_data import FrameBatchData, load_cls_embeddings, load_patchgrid_embeddings
     from .model import MouseFrameClassifier
@@ -399,6 +405,7 @@ def train_frame(
     print('Building train dataset (per-frame, vectorized)...')
     train_data = FrameBatchData(
         annotations_csv, pair_labels_parquet, train_obs_ids, context_k, emb_dim, load_fn, n_patches, stride=stride,
+        max_frames=max_train_frames, seed=seed,
     )
     labels = train_data.labels  # (N, 2) multi-hot
     has_behavior = labels.sum(axis=1) > 0
