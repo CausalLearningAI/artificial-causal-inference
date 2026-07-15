@@ -4,7 +4,7 @@ conditioning, one sample per annotated frame (not per ordered pair), multi-label
 target [has_nt, has_nn]. Same 80/20 pool split and encoder as train_cls_final.py,
 for a direct comparison against the pairwise model.
 
-Writes results/vision/mice/frame/{best_model.pt, history.json, config.json}.
+Writes results/vision/mice/frame/cls/{best_model.pt, history.json, config.json}.
 
 Usage:
     python scripts/mice_behavior/train_frame_final.py
@@ -56,7 +56,7 @@ def main():
     val_obs = [o for o in all_obs if obs_to_pool[o] in val_pool_set]
     print(f'Split: {len(train_obs)} train obs / {len(val_obs)} val obs ({len(pools)-n_val}/{n_val} pools)')
 
-    out_dir = RESULTS_DIR / 'frame'
+    out_dir = RESULTS_DIR / 'frame' / 'cls'
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f'Training per-frame model: {CFG}, {N_EPOCHS} epochs, eval every epoch...')
     result = train_frame(

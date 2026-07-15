@@ -10,21 +10,35 @@ rebalanced val subsample for per-epoch speed and isn't comparable across
 trials with different subsample sizes) — see grid_search.py's docstring for
 the pairwise model, which follows the exact same discipline for the same reason.
 
-Direct random search on the standard 80/20 pool split (same split as
-train_frame_final.py). Only PROMOTED to results/vision/mice/frame/ if the
-winning config's full-val score beats a freshly-recomputed full-val score for
-the CURRENT best_model.pt.
+Two variants (CLS, patch-grid), same idea as grid_search.py:
+  - CLS: pooled DINOv2 CLS-token embedding. A prior full search (260 trials)
+    plateaued at full-val macro AP 0.158, config n_heads=8/hidden=512/dropout=0.2.
+  - patch-grid: 4x4 coarse spatial tokens instead of one pooled vector. A single
+    diagnostic run (same hyperparams as the CLS winner) already beat it by +34%
+    (0.211) but showed much worse loss-curve overfitting (val_loss 2->11 across
+    training) than CLS ever did at the SAME dropout/weight_decay — so patch-grid's
+    regularization search range is deliberately wider (this diagnostic run's
+    settings clearly weren't enough), and it uses max_train_frames bounding +
+    smaller batch_size + capped lr, mirroring grid_search.py's patch-grid handling
+    (its per-frame footprint is 16x CLS's, doesn't fit GPU-resident otherwise).
 
-Every trial is logged to results/vision/mice/frame/search/log.jsonl. A
-human-readable results/vision/mice/frame/search/SUMMARY.md is written at the
-end. Nested under frame/ (not the shared results/vision/mice/search/ the
-pairwise cls+patchgrid search uses) since this search only ever concerns the
-one frame variant — unlike grid_search.py, which searches two variants
-sharing one script/log.
+Only PROMOTED to results/vision/mice/frame/{cls,patchgrid}/ if the winning
+config's full-val score beats a freshly-recomputed full-val score for the
+CURRENT best_model.pt.
+
+Every trial is logged to results/vision/mice/frame/search/log.jsonl (shared
+across both variants, distinguished by a 'variant' field — same convention as
+grid_search.py's pairwise search). A human-readable
+results/vision/mice/frame/search/SUMMARY.md is written at the end (appended
+to when only one variant is run, so separate SLURM jobs for cls/patchgrid
+accumulate into one summary rather than overwriting each other).
 
 Usage:
-    python scripts/mice_behavior/grid_search_frame.py
+    python scripts/mice_behavior/grid_search_frame.py --variant patchgrid
+    python scripts/mice_behavior/grid_search_frame.py --variant cls
+    python scripts/mice_behavior/grid_search_frame.py --variant both
 """
+import argparse
 import json
 import random
 import shutil
@@ -40,7 +54,7 @@ from sklearn.metrics import average_precision_score
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.mice_behavior.build_pair_labels import build_pair_labels
-from src.mice_behavior.batch_data import FrameBatchData, load_cls_embeddings, cached_loader
+from src.mice_behavior.batch_data import FrameBatchData, load_cls_embeddings, load_patchgrid_embeddings, cached_loader
 from src.mice_behavior.model import MouseFrameClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
 from src.mice_behavior.report import collect_frame_val_predictions, generate_frame_report
@@ -55,11 +69,14 @@ LOG_PATH = SEARCH_DIR / 'log.jsonl'
 TMP_DIR = SEARCH_DIR / 'tmp'
 SEED = 42
 ENCODER, TOKEN = 'dinov2', 'class_l-2'
+PATCH_GRID_DIR = DATASET_DIR / 'mice' / 'v1' / 'embeddings' / 'full' / 'dinov2' / 'patch_grid4'
 
-BUDGET_SEC = 3.5 * 3600
+CLS_BUDGET_SEC = 3.5 * 3600
+PATCHGRID_BUDGET_SEC = 3.5 * 3600
 SEARCH_EPOCHS = 80
 FINAL_EPOCHS = 100
 MAX_OFFSET = 8  # must match MouseFrameClassifier's max_offset
+MAX_TRAIN_FRAMES_PATCHGRID = 200_000  # ~4.9GB GPU-resident at 16 patches x 768dim x fp16 — same budget as grid_search.py's pairwise patch-grid (same per-frame footprint; frame-level doesn't multiply by 12 pairs, but the underlying frame count is unchanged, so the same bound applies)
 
 
 def log_result(record: dict):
@@ -70,32 +87,43 @@ def log_result(record: dict):
     print(f'[LOG] {record}', flush=True)
 
 
-def sample_cfg(rng: random.Random) -> dict:
+def sample_cfg(rng: random.Random, use_patch_grid: bool) -> dict:
     # context_k fixed at 2 (T=5 dense positions), reach further via stride instead —
     # same rationale as grid_search.py's sample_cfg (attention cost stays fixed).
     context_k = 2
     max_stride = max(1, MAX_OFFSET // context_k)
     stride = rng.choice(list(range(1, max_stride + 1)))
+    if use_patch_grid:
+        # Wider than CLS's range — the patch-grid diagnostic run overfit much harder
+        # (val_loss 2->11 across training) at dropout=0.2/weight_decay=1e-4, the same
+        # settings that were sufficient for CLS. Also lr is capped separately below
+        # (PatchAttnPool collapse precedent from the pairwise search).
+        dropout = rng.choice([0.1, 0.2, 0.3, 0.4, 0.5])
+        weight_decay = rng.choice([1e-4, 1e-3, 1e-2, 1e-1])
+    else:
+        dropout = rng.choice([0.0, 0.05, 0.1, 0.2, 0.3])
+        weight_decay = rng.choice([0.0, 1e-5, 1e-4, 1e-3])
     return dict(
         n_heads=rng.choice([1, 2, 4, 8]),
         context_k=context_k,
         stride=stride,
         hidden_dim=rng.choice([128, 256, 384, 512]),
         neg_ratio=rng.choice([5, 10, 15, 20]),
-        dropout=rng.choice([0.0, 0.05, 0.1, 0.2, 0.3]),
-        weight_decay=rng.choice([0.0, 1e-5, 1e-4, 1e-3]),
+        dropout=dropout,
+        weight_decay=weight_decay,
         lr=rng.choice([3e-4, 1e-3, 3e-3]),
     )
 
 
 def full_val_frame_macro_ap(model, dev, annotations_csv, pair_labels_path, val_obs,
-                             context_k, stride, emb_dim, load_fn):
+                             context_k, stride, emb_dim, load_fn, n_patches=None):
     """The one true metric — always the full, non-subsampled validation set.
     load_fn: a load_embeddings_fn (typically a shared cached_loader(...) instance — see
     run_trial/main — so repeated calls across trials reuse the same in-RAM embeddings
     instead of re-reading them from NFS every time)."""
     val_data = FrameBatchData(
-        str(annotations_csv), str(pair_labels_path), val_obs, context_k, emb_dim, load_fn, stride=stride,
+        str(annotations_csv), str(pair_labels_path), val_obs, context_k, emb_dim, load_fn,
+        n_patches=n_patches, stride=stride,
     )
     probs, labels = collect_frame_val_predictions(model, val_data, dev)
     per_label = {name: average_precision_score(labels[:, i], probs[:, i]) for i, name in enumerate(['nt', 'nn'])}
@@ -104,22 +132,39 @@ def full_val_frame_macro_ap(model, dev, annotations_csv, pair_labels_path, val_o
 
 
 def run_trial(cfg, annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim,
-              train_obs, val_obs, n_epochs, tag, load_fn):
+              train_obs, val_obs, n_epochs, tag, load_fn, use_patch_grid=False):
     out_dir = TMP_DIR / tag
+    # Patch-grid's extra PatchAttnPool stage was found (pairwise search, earlier session) to
+    # collapse into a dead uniform-softmax state at lr>=1e-3 even with grad clipping — clamp
+    # lr for patch-grid trials specifically rather than let the search rediscover this.
+    lr = min(cfg['lr'], 3e-4) if use_patch_grid else cfg['lr']
     kwargs = dict(
         annotations_csv=str(annotations_csv), pair_labels_parquet=str(pair_labels_path),
         embeddings_path=str(cls_embeddings_path), output_dir=str(out_dir),
         train_obs_ids=train_obs, val_obs_ids=val_obs, context_k=cfg['context_k'], stride=cfg['stride'],
         emb_dim=emb_dim, n_heads=cfg['n_heads'], hidden_dim=cfg['hidden_dim'], n_epochs=n_epochs,
-        neg_ratio=cfg['neg_ratio'], lr=cfg['lr'], dropout=cfg['dropout'], weight_decay=cfg['weight_decay'],
-        device='cuda', seed=SEED, verbose=False, eval_every=1, embeddings_loader=load_fn,
+        neg_ratio=cfg['neg_ratio'], lr=lr, dropout=cfg['dropout'], weight_decay=cfg['weight_decay'],
+        device='cuda', seed=SEED, verbose=False, use_patch_grid=use_patch_grid, eval_every=1,
+        embeddings_loader=load_fn,
     )
+    n_patches = None
+    if use_patch_grid:
+        n_patches = 16
+        kwargs.update(
+            patch_embeddings_path=str(PATCH_GRID_DIR / 'embeddings.npy'),
+            patch_global_idx_path=str(PATCH_GRID_DIR / 'global_idx.npy'),
+            n_patches=n_patches,
+            # The available GPU has limited VRAM; patch-grid's per-batch context (16x more
+            # tokens than CLS) needs a smaller batch — same precedent as grid_search.py.
+            batch_size=1024,
+            max_train_frames=MAX_TRAIN_FRAMES_PATCHGRID,
+        )
     result = train_frame(**kwargs)
     model = result['model']
     dev = next(model.parameters()).device
     full_ap, full_per_label = full_val_frame_macro_ap(
         model, dev, annotations_csv, pair_labels_path, val_obs, cfg['context_k'], cfg['stride'],
-        emb_dim, load_fn,
+        emb_dim, load_fn, n_patches=n_patches,
     )
     del result['model']
     torch.cuda.empty_cache()
@@ -127,37 +172,44 @@ def run_trial(cfg, annotations_csv, pair_labels_path, cls_embeddings_path, emb_d
     return full_ap, full_per_label, result['best_ap']
 
 
-def search(annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim, train_obs, val_obs, budget_sec, load_fn):
-    print(f'=== Searching frame classifier (budget {budget_sec/3600:.1f}h) ===', flush=True)
-    sample_rng = random.Random(SEED)
+def search_variant(variant_name, use_patch_grid, annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim,
+                    train_obs, val_obs, budget_sec, load_fn):
+    print(f'=== Searching {variant_name} (budget {budget_sec/3600:.1f}h) ===', flush=True)
+    sample_rng = random.Random(SEED + (2 if use_patch_grid else 1))
     results = []
     trial_i = 0
     t_stage = time.time()
     while time.time() - t_stage < budget_sec:
-        cfg = sample_cfg(sample_rng)
-        tag = f'frame_{trial_i}'
+        cfg = sample_cfg(sample_rng, use_patch_grid)
+        tag = f'{variant_name}_{trial_i}'
         t0 = time.time()
         try:
             full_ap, full_per_label, internal_ap = run_trial(
                 cfg, annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim, train_obs, val_obs,
-                SEARCH_EPOCHS, tag, load_fn,
+                SEARCH_EPOCHS, tag, load_fn, use_patch_grid=use_patch_grid,
             )
         except Exception as e:
-            log_result({'tag': tag, 'cfg': cfg, 'error': str(e), 'traceback': traceback.format_exc()})
+            log_result({'variant': variant_name, 'tag': tag, 'cfg': cfg, 'error': str(e), 'traceback': traceback.format_exc()})
             trial_i += 1
             continue
         dt = time.time() - t0
-        log_result({'tag': tag, 'cfg': cfg, 'full_val_frame_macro_ap': full_ap,
+        log_result({'variant': variant_name, 'tag': tag, 'cfg': cfg, 'full_val_frame_macro_ap': full_ap,
                     'full_val_per_label': full_per_label, 'internal_subsampled_ap': internal_ap, 'seconds': dt})
         results.append((full_ap, cfg))
         trial_i += 1
 
     results.sort(key=lambda x: -x[0])
-    print(f'frame search done: {trial_i} trials in {(time.time()-t_stage)/60:.1f} min', flush=True)
+    print(f'{variant_name} search done: {trial_i} trials in {(time.time()-t_stage)/60:.1f} min', flush=True)
     return results, trial_i
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--variant', choices=['cls', 'patchgrid', 'both'], default='both',
+                         help="Run only one variant's search. Submit 'cls' and 'patchgrid' as two "
+                              "separate SLURM jobs (recommended) — same rationale as grid_search.py.")
+    args = parser.parse_args()
+
     SEARCH_DIR.mkdir(parents=True, exist_ok=True)
     TMP_DIR.mkdir(parents=True, exist_ok=True)
     t_start = time.time()
@@ -189,98 +241,123 @@ def main():
         '(nt/nn), computed identically for the search, the baseline, and the final report.\n\n',
     ]
 
-    # Shared across every trial + the baseline/final-retrain checks below: the underlying
-    # embeddings file and train_obs/val_obs are fixed for this whole script run, so caching
-    # avoids re-reading ~2GB from NFS on every single one of ~hundreds of calls — see
-    # cached_loader's docstring for the ~25-30%-of-wall-time idle gap this closes.
-    load_fn = cached_loader(load_cls_embeddings(str(cls_embeddings_path), emb_dim))
+    all_variants = [
+        ('cls', False, CLS_BUDGET_SEC, 'CLS-token per-frame mouse behavior classifier'),
+        ('patchgrid', True, PATCHGRID_BUDGET_SEC, 'Patch-grid (attention-pooled) per-frame mouse behavior classifier'),
+    ]
+    variants = [v for v in all_variants if args.variant == 'both' or v[0] == args.variant]
 
-    results, n_trials = search(annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim, train_obs, val_obs, BUDGET_SEC, load_fn)
-    out_dir = FRAME_DIR
-    summary_lines.append(f'## frame ({n_trials} trials)\n')
-
-    # Recompute the CURRENT champion's full-val score fresh — never trust whatever
-    # number happens to be sitting in config.json.
-    baseline_ap = -1.0
-    if (out_dir / 'best_model.pt').exists() and (out_dir / 'config.json').exists():
-        base_cfg = json.load(open(out_dir / 'config.json'))['cfg']
-        dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        base_model = MouseFrameClassifier(
-            emb_dim=emb_dim, n_heads=base_cfg['n_heads'], hidden_dim=base_cfg['hidden_dim'],
-            dropout=base_cfg.get('dropout', 0.1),
-        ).to(dev)
-        base_model.load_state_dict(torch.load(out_dir / 'best_model.pt', map_location=dev, weights_only=True))
-        base_model.eval()
-        baseline_ap, _ = full_val_frame_macro_ap(
-            base_model, dev, annotations_csv, pair_labels_path, val_obs,
-            base_cfg['context_k'], base_cfg.get('stride', 1), emb_dim, load_fn,
+    for variant, use_patch_grid, budget, name in variants:
+        # Separate cached loader per variant — CLS and patch-grid read different embedding
+        # files, so they can't share one cache (see cached_loader's docstring: it's keyed on
+        # obs_boundary, not on which underlying file was loaded).
+        load_fn = cached_loader(
+            load_patchgrid_embeddings(str(PATCH_GRID_DIR / 'embeddings.npy'), str(PATCH_GRID_DIR / 'global_idx.npy'), 16, emb_dim)
+            if use_patch_grid else load_cls_embeddings(str(cls_embeddings_path), emb_dim)
         )
-        del base_model
-        torch.cuda.empty_cache()
-    log_result({'stage': 'baseline_recomputed', 'full_val_frame_macro_ap': baseline_ap})
-    summary_lines.append(f'- Current baseline (recomputed, full val): {baseline_ap:.4f}\n')
+        n_patches = 16 if use_patch_grid else None
 
-    if not results:
-        summary_lines.append('- Search found nothing usable (all trials errored).\n\n')
-    else:
+        results, n_trials = search_variant(
+            variant, use_patch_grid, annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim,
+            train_obs, val_obs, budget, load_fn,
+        )
+        out_dir = FRAME_DIR / variant
+        summary_lines.append(f'## {variant} ({n_trials} trials)\n')
+
+        # Recompute the CURRENT champion's full-val score fresh — never trust whatever
+        # number happens to be sitting in config.json.
+        baseline_ap = -1.0
+        if (out_dir / 'best_model.pt').exists() and (out_dir / 'config.json').exists():
+            base_cfg = json.load(open(out_dir / 'config.json'))['cfg']
+            dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            base_model = MouseFrameClassifier(
+                emb_dim=emb_dim, n_heads=base_cfg['n_heads'], hidden_dim=base_cfg['hidden_dim'],
+                use_patch_grid=use_patch_grid, dropout=base_cfg.get('dropout', 0.1),
+            ).to(dev)
+            base_model.load_state_dict(torch.load(out_dir / 'best_model.pt', map_location=dev, weights_only=True))
+            base_model.eval()
+            baseline_ap, _ = full_val_frame_macro_ap(
+                base_model, dev, annotations_csv, pair_labels_path, val_obs,
+                base_cfg['context_k'], base_cfg.get('stride', 1), emb_dim, load_fn, n_patches=n_patches,
+            )
+            del base_model
+            torch.cuda.empty_cache()
+        log_result({'variant': variant, 'stage': 'baseline_recomputed', 'full_val_frame_macro_ap': baseline_ap})
+        summary_lines.append(f'- Current baseline (recomputed, full val): {baseline_ap:.4f}\n')
+
+        if not results:
+            summary_lines.append('- Search found nothing usable (all trials errored).\n\n')
+            continue
         best_score, best_cfg = results[0]
         summary_lines.append(f'- Best search result (full val): {best_score:.4f}  cfg={best_cfg}\n')
 
         if best_score <= baseline_ap:
-            print(f'  frame: search result {best_score:.4f} did not beat baseline {baseline_ap:.4f} — keeping baseline', flush=True)
+            print(f'  {variant}: search result {best_score:.4f} did not beat baseline {baseline_ap:.4f} — keeping baseline', flush=True)
             summary_lines.append('- NOT promoted (baseline was already better)\n\n')
-        else:
-            print(f'  frame: NEW BEST {best_score:.4f} > baseline {baseline_ap:.4f} — final retrain + promoting', flush=True)
-            kwargs = dict(
-                annotations_csv=str(annotations_csv), pair_labels_parquet=str(pair_labels_path),
-                embeddings_path=str(cls_embeddings_path), output_dir=str(TMP_DIR / 'final'),
-                train_obs_ids=train_obs, val_obs_ids=val_obs, context_k=best_cfg['context_k'], stride=best_cfg['stride'],
-                emb_dim=emb_dim, n_heads=best_cfg['n_heads'], hidden_dim=best_cfg['hidden_dim'], n_epochs=FINAL_EPOCHS,
-                neg_ratio=best_cfg['neg_ratio'], lr=best_cfg['lr'], dropout=best_cfg['dropout'],
-                weight_decay=best_cfg['weight_decay'], device='cuda', seed=SEED, verbose=True, eval_every=1,
-                embeddings_loader=load_fn,
+            continue
+
+        print(f'  {variant}: NEW BEST {best_score:.4f} > baseline {baseline_ap:.4f} — final retrain + promoting', flush=True)
+        lr_used = min(best_cfg['lr'], 3e-4) if use_patch_grid else best_cfg['lr']
+        kwargs = dict(
+            annotations_csv=str(annotations_csv), pair_labels_parquet=str(pair_labels_path),
+            embeddings_path=str(cls_embeddings_path), output_dir=str(TMP_DIR / f'final_{variant}'),
+            train_obs_ids=train_obs, val_obs_ids=val_obs, context_k=best_cfg['context_k'], stride=best_cfg['stride'],
+            emb_dim=emb_dim, n_heads=best_cfg['n_heads'], hidden_dim=best_cfg['hidden_dim'], n_epochs=FINAL_EPOCHS,
+            neg_ratio=best_cfg['neg_ratio'], lr=lr_used, dropout=best_cfg['dropout'], weight_decay=best_cfg['weight_decay'],
+            device='cuda', seed=SEED, verbose=True, use_patch_grid=use_patch_grid, eval_every=1,
+            embeddings_loader=load_fn,
+        )
+        if use_patch_grid:
+            kwargs.update(
+                patch_embeddings_path=str(PATCH_GRID_DIR / 'embeddings.npy'),
+                patch_global_idx_path=str(PATCH_GRID_DIR / 'global_idx.npy'),
+                n_patches=16, batch_size=1024, max_train_frames=MAX_TRAIN_FRAMES_PATCHGRID,
             )
-            try:
-                result = train_frame(**kwargs)
-            except Exception as e:
-                log_result({'stage': 'final_retrain', 'cfg': best_cfg, 'error': str(e), 'traceback': traceback.format_exc()})
-                summary_lines.append(f'- Final retrain FAILED: {e}\n\n')
-                result = None
+        try:
+            result = train_frame(**kwargs)
+        except Exception as e:
+            log_result({'variant': variant, 'stage': 'final_retrain', 'cfg': best_cfg, 'error': str(e), 'traceback': traceback.format_exc()})
+            summary_lines.append(f'- Final retrain FAILED: {e}\n\n')
+            continue
 
-            if result is not None:
-                model = result['model']
-                dev = next(model.parameters()).device
-                final_score, final_per_label = full_val_frame_macro_ap(
-                    model, dev, annotations_csv, pair_labels_path, val_obs,
-                    best_cfg['context_k'], best_cfg['stride'], emb_dim, load_fn,
-                )
-                log_result({'stage': 'final_retrain', 'cfg': best_cfg, 'full_val_frame_macro_ap': final_score})
+        model = result['model']
+        dev = next(model.parameters()).device
+        final_score, final_per_label = full_val_frame_macro_ap(
+            model, dev, annotations_csv, pair_labels_path, val_obs,
+            best_cfg['context_k'], best_cfg['stride'], emb_dim, load_fn, n_patches=n_patches,
+        )
+        log_result({'variant': variant, 'stage': 'final_retrain', 'cfg': best_cfg, 'full_val_frame_macro_ap': final_score})
 
-                if final_score <= baseline_ap:
-                    print(f'  frame: full retrain {final_score:.4f} did not beat baseline {baseline_ap:.4f} after all — NOT promoting', flush=True)
-                    summary_lines.append(f'- Full retrain scored {final_score:.4f}, did not beat baseline — NOT promoted\n\n')
-                else:
-                    out_dir.mkdir(parents=True, exist_ok=True)
-                    torch.save(model.state_dict(), out_dir / 'best_model.pt')
-                    with open(out_dir / 'history.json', 'w') as f:
-                        json.dump(result['history'], f, indent=2)
-                    with open(out_dir / 'config.json', 'w') as f:
-                        json.dump({'cfg': best_cfg, 'val_pools': sorted(val_pool_set), 'n_epochs': FINAL_EPOCHS,
-                                   'best_ap': final_score, 'best_per_label': final_per_label,
-                                   'emb_dim': emb_dim, 'promoted_by_search': True}, f, indent=2)
+        if final_score <= baseline_ap:
+            print(f'  {variant}: full retrain {final_score:.4f} did not beat baseline {baseline_ap:.4f} after all — NOT promoting', flush=True)
+            summary_lines.append(f'- Full retrain scored {final_score:.4f}, did not beat baseline — NOT promoted\n\n')
+            del result['model']
+            torch.cuda.empty_cache()
+            continue
 
-                    val_data = FrameBatchData(
-                        str(annotations_csv), str(pair_labels_path), val_obs, best_cfg['context_k'], emb_dim, load_fn,
-                        stride=best_cfg['stride'],
-                    )
-                    probs, labels = collect_frame_val_predictions(model, val_data, dev)
-                    generate_frame_report(probs, labels, result['history'], 'Per-frame (no identity) mouse behavior classifier', best_cfg, out_dir)
-                    summary_lines.append(f'- **PROMOTED** to results/vision/mice/frame/ (full-val score {final_score:.4f}, report.png regenerated)\n\n')
-                del result['model']
-                torch.cuda.empty_cache()
+        cfg_final = {**best_cfg, 'lr': lr_used}
+        out_dir.mkdir(parents=True, exist_ok=True)
+        torch.save(model.state_dict(), out_dir / 'best_model.pt')
+        with open(out_dir / 'history.json', 'w') as f:
+            json.dump(result['history'], f, indent=2)
+        with open(out_dir / 'config.json', 'w') as f:
+            json.dump({'cfg': cfg_final, 'val_pools': sorted(val_pool_set), 'n_epochs': FINAL_EPOCHS,
+                       'best_ap': final_score, 'best_per_label': final_per_label,
+                       'emb_dim': emb_dim, 'promoted_by_search': True}, f, indent=2)
+
+        val_data = FrameBatchData(
+            str(annotations_csv), str(pair_labels_path), val_obs, best_cfg['context_k'], emb_dim, load_fn,
+            n_patches=n_patches, stride=best_cfg['stride'],
+        )
+        probs, labels = collect_frame_val_predictions(model, val_data, dev)
+        generate_frame_report(probs, labels, result['history'], name, cfg_final, out_dir)
+        summary_lines.append(f'- **PROMOTED** to results/vision/mice/frame/{variant}/ (full-val score {final_score:.4f}, report.png regenerated)\n\n')
+        del result['model']
+        torch.cuda.empty_cache()
 
     shutil.rmtree(TMP_DIR, ignore_errors=True)
-    with open(SEARCH_DIR / 'SUMMARY.md', 'w') as f:
+    mode = 'a' if args.variant != 'both' and (SEARCH_DIR / 'SUMMARY.md').exists() else 'w'
+    with open(SEARCH_DIR / 'SUMMARY.md', mode) as f:
         f.writelines(summary_lines)
     print(f'Search complete in {(time.time()-t_start)/3600:.2f}h. See {SEARCH_DIR / "SUMMARY.md"}', flush=True)
 

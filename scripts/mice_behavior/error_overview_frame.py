@@ -63,7 +63,7 @@ def main():
     val_pool_set = set(shuffled[:n_val])
     val_obs = [o for o in all_obs if obs_to_pool[o] in val_pool_set]
 
-    out_dir = RESULTS_DIR / 'frame'
+    out_dir = RESULTS_DIR / 'frame' / 'cls'
     cfg = json.load(open(out_dir / 'config.json'))['cfg']
     model = MouseFrameClassifier(
         emb_dim=emb_dim, n_heads=cfg['n_heads'], hidden_dim=cfg['hidden_dim'], dropout=cfg.get('dropout', 0.1),
