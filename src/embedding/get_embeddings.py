@@ -515,15 +515,25 @@ def extract_embeddings_to_disk(
     save_start = time.time()
     col_name = f'embedding_{encoder}_{token}'
 
-    # Read via memmap to avoid materialising Python lists (avoids ~14 GB RAM spike)
-    emb_np = np.array(
-        np.memmap(npy_file, dtype='float32', mode='r', shape=(n_samples, emb_dim)),
-        dtype=np.float32,
-    )
-    emb_dataset = Dataset.from_dict({col_name: emb_np})
+    # Stream rows straight from the on-disk memmap in fixed-size chunks so peak RAM stays
+    # O(chunk_size), not O(n_samples, emb_dim) — the previous approach (a full np.array(memmap)
+    # copy fed into Dataset.from_dict) held a complete extra in-RAM copy of the embeddings on
+    # top of the .pt tensor above, and Dataset.from_dict's own Arrow conversion adds further
+    # overhead on top of that — confirmed OOM-killed at exactly this step on a 7.85GB CLS-token
+    # array well within a 48G job's memory budget. Dataset.from_generator writes to its Arrow
+    # cache incrementally instead.
+    CHUNK = 50_000
+
+    def _row_generator():
+        mmap_ro = np.memmap(npy_file, dtype='float32', mode='r', shape=(n_samples, emb_dim))
+        for start in range(0, n_samples, CHUNK):
+            chunk = np.array(mmap_ro[start:start + CHUNK], dtype=np.float32)
+            for row in chunk:
+                yield {col_name: row}
+
+    emb_dataset = Dataset.from_generator(_row_generator)
     emb_dataset.set_format(type='torch', columns=[col_name])
     emb_dataset.save_to_disk(str(output_dir / "dataset"))
-    del emb_np
     del embeddings_mmap
     save_time = time.time() - save_start
 
