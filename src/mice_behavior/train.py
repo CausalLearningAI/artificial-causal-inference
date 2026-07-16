@@ -372,6 +372,8 @@ def train_frame(
     smooth_window: int = 5,
     embeddings_loader=None,
     max_train_frames: int = None,
+    n_hidden_layers: int = 1,
+    use_motion: bool = False,
 ):
     """Per-frame behavior detector — no mouse-identity conditioning, no pairwise
     ×12 sample expansion (one sample per annotated frame). See MouseFrameClassifier
@@ -447,6 +449,7 @@ def train_frame(
 
     model = MouseFrameClassifier(
         emb_dim=emb_dim, n_heads=n_heads, hidden_dim=hidden_dim, use_patch_grid=use_patch_grid, dropout=dropout,
+        n_hidden_layers=n_hidden_layers, use_motion=use_motion,
     ).to(dev)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
