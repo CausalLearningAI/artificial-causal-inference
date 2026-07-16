@@ -38,7 +38,10 @@ if not hasattr(PIL.Image, 'ExifTags') or not hasattr(PIL.Image.ExifTags, 'Base')
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.dataset.get_dataset import load_dataset
 
-MODEL_ID = 'facebook/dinov2-base'
+MODEL_IDS = {
+    'dinov2': 'facebook/dinov2-base',
+    'dinov3': 'facebook/dinov3-vitb16-pretrain-lvd1689m',
+}
 EMB_DIM = 768
 
 
@@ -46,15 +49,17 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--data-dir', default='./data')
     p.add_argument('--dataset-dir', default='./dataset')
+    p.add_argument('--encoder', default='dinov2', choices=sorted(MODEL_IDS), help='which backbone to extract patch tokens from')
     p.add_argument('--grid-size', type=int, default=4, help='pooled grid is grid-size x grid-size')
     p.add_argument('--batch-size', type=int, default=32)
     p.add_argument('--num-workers', type=int, default=4)
     p.add_argument('--device', default='cuda')
     p.add_argument('--overwrite', action='store_true')
     args = p.parse_args()
+    MODEL_ID = MODEL_IDS[args.encoder]
 
     dataset_dir = Path(args.dataset_dir)
-    out_dir = dataset_dir / 'mice' / 'v1' / 'embeddings' / 'full' / 'dinov2' / f'patch_grid{args.grid_size}'
+    out_dir = dataset_dir / 'mice' / 'v1' / 'embeddings' / 'full' / args.encoder / f'patch_grid{args.grid_size}'
     out_dir.mkdir(parents=True, exist_ok=True)
     emb_out = out_dir / 'embeddings.npy'
     idx_out = out_dir / 'global_idx.npy'
@@ -89,6 +94,14 @@ def main():
     model = AutoModel.from_pretrained(MODEL_ID).to(device)
     model.eval()
     model.requires_grad_(False)
+
+    # DINOv3 (and DINOv2's *_reg variants) prepend `num_register_tokens` storage tokens
+    # between CLS and the patch tokens in last_hidden_state — skip those too, or the
+    # reshape-to-grid below silently misaligns (or fails the perfect-square assert).
+    n_register_tokens = getattr(model.config, 'num_register_tokens', 0)
+    n_prefix_tokens = 1 + n_register_tokens
+    if n_register_tokens:
+        print(f'  {MODEL_ID} has {n_register_tokens} register tokens — skipping CLS + registers ({n_prefix_tokens} tokens) before the patch grid')
 
     G = args.grid_size
 
@@ -125,7 +138,7 @@ def main():
             pixel_values = batch['pixel_values'].to(device)
             with torch.inference_mode(), autocast_ctx:
                 outputs = model(pixel_values=pixel_values)
-            patch_tokens = outputs.last_hidden_state[:, 1:].float()  # (B, N_patches, emb_dim), drop CLS
+            patch_tokens = outputs.last_hidden_state[:, n_prefix_tokens:].float()  # (B, N_patches, emb_dim), drop CLS (+ registers)
             B, N, D = patch_tokens.shape
             side = int(round(N ** 0.5))
             assert side * side == N, f'patch count {N} is not a perfect square, cannot reshape to a grid'
