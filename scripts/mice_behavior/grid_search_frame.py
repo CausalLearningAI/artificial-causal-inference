@@ -54,7 +54,9 @@ from sklearn.metrics import average_precision_score
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.mice_behavior.build_pair_labels import build_pair_labels
-from src.mice_behavior.batch_data import FrameBatchData, load_cls_embeddings, load_patchgrid_embeddings, cached_loader
+from src.mice_behavior.batch_data import (
+    FrameBatchData, load_cls_embeddings, load_patchgrid_embeddings, load_patchgrid_concat_embeddings, cached_loader,
+)
 from src.mice_behavior.model import MouseFrameClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
 from src.mice_behavior.report import collect_frame_val_predictions, generate_frame_report
@@ -70,6 +72,7 @@ TMP_DIR = SEARCH_DIR / 'tmp'
 SEED = 42
 ENCODER, TOKEN = 'dinov2', 'class_l-2'
 PATCH_GRID_DIR = DATASET_DIR / 'mice' / 'v1' / 'embeddings' / 'full' / 'dinov2' / 'patch_grid4'
+PATCH_GRID_DIR_DINOV3 = DATASET_DIR / 'mice' / 'v1' / 'embeddings' / 'full' / 'dinov3' / 'patch_grid4'
 
 CLS_BUDGET_SEC = 3.5 * 3600
 PATCHGRID_BUDGET_SEC = 3.5 * 3600
@@ -77,6 +80,7 @@ SEARCH_EPOCHS = 80
 FINAL_EPOCHS = 100
 MAX_OFFSET = 8  # must match MouseFrameClassifier's max_offset
 MAX_TRAIN_FRAMES_PATCHGRID = 200_000  # ~4.9GB GPU-resident at 16 patches x 768dim x fp16 — same budget as grid_search.py's pairwise patch-grid (same per-frame footprint; frame-level doesn't multiply by 12 pairs, but the underlying frame count is unchanged, so the same bound applies)
+MAX_TRAIN_FRAMES_PATCHGRID_CONCAT = 60_000  # concat is 1536-dim (2x768); val alone (126,000 frames, always loaded unbounded) already costs ~6.2GB GPU-resident at this width, so train is cut further than a simple halving to leave headroom for batch activations on an 11GB 2080ti (same GPU class as the single-encoder patch-grid searches)
 
 
 def log_result(record: dict):
@@ -136,7 +140,8 @@ def full_val_frame_macro_ap(model, dev, annotations_csv, pair_labels_path, val_o
 
 
 def run_trial(cfg, annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim,
-              train_obs, val_obs, n_epochs, tag, load_fn, use_patch_grid=False):
+              train_obs, val_obs, n_epochs, tag, load_fn, use_patch_grid=False,
+              max_train_frames=MAX_TRAIN_FRAMES_PATCHGRID, batch_size=1024):
     out_dir = TMP_DIR / tag
     # Patch-grid's extra PatchAttnPool stage was found (pairwise search, earlier session) to
     # collapse into a dead uniform-softmax state at lr>=1e-3 even with grad clipping — clamp
@@ -155,13 +160,11 @@ def run_trial(cfg, annotations_csv, pair_labels_path, cls_embeddings_path, emb_d
     if use_patch_grid:
         n_patches = 16
         kwargs.update(
-            patch_embeddings_path=str(PATCH_GRID_DIR / 'embeddings.npy'),
-            patch_global_idx_path=str(PATCH_GRID_DIR / 'global_idx.npy'),
             n_patches=n_patches,
             # The available GPU has limited VRAM; patch-grid's per-batch context (16x more
             # tokens than CLS) needs a smaller batch — same precedent as grid_search.py.
-            batch_size=1024,
-            max_train_frames=MAX_TRAIN_FRAMES_PATCHGRID,
+            batch_size=batch_size,
+            max_train_frames=max_train_frames,
         )
     result = train_frame(**kwargs)
     model = result['model']
@@ -177,7 +180,8 @@ def run_trial(cfg, annotations_csv, pair_labels_path, cls_embeddings_path, emb_d
 
 
 def search_variant(variant_name, use_patch_grid, annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim,
-                    train_obs, val_obs, budget_sec, load_fn):
+                    train_obs, val_obs, budget_sec, load_fn,
+                    max_train_frames=MAX_TRAIN_FRAMES_PATCHGRID, batch_size=1024):
     print(f'=== Searching {variant_name} (budget {budget_sec/3600:.1f}h) ===', flush=True)
     sample_rng = random.Random(SEED + (2 if use_patch_grid else 1))
     results = []
@@ -191,6 +195,7 @@ def search_variant(variant_name, use_patch_grid, annotations_csv, pair_labels_pa
             full_ap, full_per_label, internal_ap = run_trial(
                 cfg, annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim, train_obs, val_obs,
                 SEARCH_EPOCHS, tag, load_fn, use_patch_grid=use_patch_grid,
+                max_train_frames=max_train_frames, batch_size=batch_size,
             )
         except Exception as e:
             log_result({'variant': variant_name, 'tag': tag, 'cfg': cfg, 'error': str(e), 'traceback': traceback.format_exc()})
@@ -209,9 +214,12 @@ def search_variant(variant_name, use_patch_grid, annotations_csv, pair_labels_pa
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--variant', choices=['cls', 'patchgrid', 'both'], default='both',
-                         help="Run only one variant's search. Submit 'cls' and 'patchgrid' as two "
-                              "separate SLURM jobs (recommended) — same rationale as grid_search.py.")
+    parser.add_argument(
+        '--variant', default='both',
+        choices=['cls', 'patchgrid', 'patchgrid_dinov3', 'patchgrid_concat', 'both'],
+        help="Run only one variant's search. Submit each as its own separate SLURM job "
+             "(recommended) — same rationale as grid_search.py. 'both' means cls+patchgrid "
+             "only (original two); the DINOv3/concat variants are always run explicitly.")
     args = parser.parse_args()
 
     SEARCH_DIR.mkdir(parents=True, exist_ok=True)
@@ -245,27 +253,74 @@ def main():
         '(nt/nn), computed identically for the search, the baseline, and the final report.\n\n',
     ]
 
-    all_variants = [
-        ('cls', False, CLS_BUDGET_SEC, 'CLS-token per-frame mouse behavior classifier'),
-        ('patchgrid', True, PATCHGRID_BUDGET_SEC, 'Patch-grid (attention-pooled) per-frame mouse behavior classifier'),
-    ]
-    variants = [v for v in all_variants if args.variant == 'both' or v[0] == args.variant]
+    # Each entry: (use_patch_grid, budget, title, emb_dim, raw_load_fn, max_train_frames, batch_size).
+    # emb_dim/raw_load_fn are per-variant now (not a single module-wide value) since the DINOv3
+    # and concat variants read different embedding sources with different dimensionality —
+    # concat is 1536-dim (768+768, both sources L2-normalized before concatenation: the 20x
+    # norm mismatch between DINOv2 and DINOv3 CLS/patch tokens collapsed a prior unnormalized
+    # comparison to exact-chance predictions) and gets a halved max_train_frames to keep the
+    # same GPU-resident footprint as the single-encoder variants on the same GPU class.
+    all_variants = {
+        'cls': dict(
+            use_patch_grid=False, budget=CLS_BUDGET_SEC, title='CLS-token per-frame mouse behavior classifier',
+            emb_dim=emb_dim, raw_load_fn=load_cls_embeddings(str(cls_embeddings_path), emb_dim),
+            max_train_frames=None, batch_size=4096,
+        ),
+        'patchgrid': dict(
+            use_patch_grid=True, budget=PATCHGRID_BUDGET_SEC,
+            title='Patch-grid (attention-pooled) per-frame mouse behavior classifier — DINOv2',
+            emb_dim=emb_dim,
+            raw_load_fn=load_patchgrid_embeddings(str(PATCH_GRID_DIR / 'embeddings.npy'), str(PATCH_GRID_DIR / 'global_idx.npy'), 16, emb_dim),
+            max_train_frames=MAX_TRAIN_FRAMES_PATCHGRID, batch_size=1024,
+        ),
+        'patchgrid_dinov3': dict(
+            use_patch_grid=True, budget=PATCHGRID_BUDGET_SEC,
+            title='Patch-grid (attention-pooled) per-frame mouse behavior classifier — DINOv3',
+            emb_dim=emb_dim,
+            raw_load_fn=load_patchgrid_embeddings(str(PATCH_GRID_DIR_DINOV3 / 'embeddings.npy'), str(PATCH_GRID_DIR_DINOV3 / 'global_idx.npy'), 16, emb_dim),
+            max_train_frames=MAX_TRAIN_FRAMES_PATCHGRID, batch_size=1024,
+        ),
+        'patchgrid_concat': dict(
+            use_patch_grid=True, budget=PATCHGRID_BUDGET_SEC,
+            title='Patch-grid (attention-pooled) per-frame mouse behavior classifier — DINOv2+DINOv3 concat (L2-normalized)',
+            emb_dim=2 * emb_dim,
+            raw_load_fn=load_patchgrid_concat_embeddings(
+                str(PATCH_GRID_DIR / 'embeddings.npy'), str(PATCH_GRID_DIR_DINOV3 / 'embeddings.npy'),
+                str(PATCH_GRID_DIR / 'global_idx.npy'), 16, emb_dim, emb_dim,
+            ),
+            max_train_frames=MAX_TRAIN_FRAMES_PATCHGRID_CONCAT, batch_size=128,
+        ),
+    }
+    # Output folder names are distinct from the CLI --variant identifiers (kept stable so
+    # existing sbatch scripts/search log entries don't need updating) — this is where the
+    # "4x4 pooled" vs "256 raw tokens" distinction (see train_patchgrid_online.py, a
+    # separate script — not one of this search's own variants) and encoder choice are made
+    # explicit in results/vision/mice/frame/, since 'patchgrid'/'patchgrid_dinov3'/etc. alone
+    # don't say which resolution or encoder without opening the config.
+    OUTPUT_DIR_NAME = {
+        'cls': 'cls',
+        'patchgrid': 'patchgrid4x4_dinov2',
+        'patchgrid_dinov3': 'patchgrid4x4_dinov3',
+        'patchgrid_concat': 'patchgrid4x4_concat',
+    }
+    variant_names = ['cls', 'patchgrid'] if args.variant == 'both' else [args.variant]
 
-    for variant, use_patch_grid, budget, name in variants:
-        # Separate cached loader per variant — CLS and patch-grid read different embedding
+    for variant in variant_names:
+        spec = all_variants[variant]
+        use_patch_grid, budget, name = spec['use_patch_grid'], spec['budget'], spec['title']
+        variant_emb_dim = spec['emb_dim']
+        max_train_frames, batch_size = spec['max_train_frames'], spec['batch_size']
+        # Separate cached loader per variant — different variants read different embedding
         # files, so they can't share one cache (see cached_loader's docstring: it's keyed on
         # obs_boundary, not on which underlying file was loaded).
-        load_fn = cached_loader(
-            load_patchgrid_embeddings(str(PATCH_GRID_DIR / 'embeddings.npy'), str(PATCH_GRID_DIR / 'global_idx.npy'), 16, emb_dim)
-            if use_patch_grid else load_cls_embeddings(str(cls_embeddings_path), emb_dim)
-        )
+        load_fn = cached_loader(spec['raw_load_fn'])
         n_patches = 16 if use_patch_grid else None
 
         results, n_trials = search_variant(
-            variant, use_patch_grid, annotations_csv, pair_labels_path, cls_embeddings_path, emb_dim,
-            train_obs, val_obs, budget, load_fn,
+            variant, use_patch_grid, annotations_csv, pair_labels_path, cls_embeddings_path, variant_emb_dim,
+            train_obs, val_obs, budget, load_fn, max_train_frames=max_train_frames, batch_size=batch_size,
         )
-        out_dir = FRAME_DIR / variant
+        out_dir = FRAME_DIR / OUTPUT_DIR_NAME[variant]
         summary_lines.append(f'## {variant} ({n_trials} trials)\n')
 
         # Recompute the CURRENT champion's full-val score fresh — never trust whatever
@@ -275,14 +330,14 @@ def main():
             base_cfg = json.load(open(out_dir / 'config.json'))['cfg']
             dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             base_model = MouseFrameClassifier(
-                emb_dim=emb_dim, n_heads=base_cfg['n_heads'], hidden_dim=base_cfg['hidden_dim'],
+                emb_dim=variant_emb_dim, n_heads=base_cfg['n_heads'], hidden_dim=base_cfg['hidden_dim'],
                 use_patch_grid=use_patch_grid, dropout=base_cfg.get('dropout', 0.1),
             ).to(dev)
             base_model.load_state_dict(torch.load(out_dir / 'best_model.pt', map_location=dev, weights_only=True))
             base_model.eval()
             baseline_ap, _ = full_val_frame_macro_ap(
                 base_model, dev, annotations_csv, pair_labels_path, val_obs,
-                base_cfg['context_k'], base_cfg.get('stride', 1), emb_dim, load_fn, n_patches=n_patches,
+                base_cfg['context_k'], base_cfg.get('stride', 1), variant_emb_dim, load_fn, n_patches=n_patches,
             )
             del base_model
             torch.cuda.empty_cache()
@@ -306,17 +361,13 @@ def main():
             annotations_csv=str(annotations_csv), pair_labels_parquet=str(pair_labels_path),
             embeddings_path=str(cls_embeddings_path), output_dir=str(TMP_DIR / f'final_{variant}'),
             train_obs_ids=train_obs, val_obs_ids=val_obs, context_k=best_cfg['context_k'], stride=best_cfg['stride'],
-            emb_dim=emb_dim, n_heads=best_cfg['n_heads'], hidden_dim=best_cfg['hidden_dim'], n_epochs=FINAL_EPOCHS,
+            emb_dim=variant_emb_dim, n_heads=best_cfg['n_heads'], hidden_dim=best_cfg['hidden_dim'], n_epochs=FINAL_EPOCHS,
             neg_ratio=best_cfg['neg_ratio'], lr=lr_used, dropout=best_cfg['dropout'], weight_decay=best_cfg['weight_decay'],
             device='cuda', seed=SEED, verbose=True, use_patch_grid=use_patch_grid, eval_every=1,
             embeddings_loader=load_fn,
         )
         if use_patch_grid:
-            kwargs.update(
-                patch_embeddings_path=str(PATCH_GRID_DIR / 'embeddings.npy'),
-                patch_global_idx_path=str(PATCH_GRID_DIR / 'global_idx.npy'),
-                n_patches=16, batch_size=1024, max_train_frames=MAX_TRAIN_FRAMES_PATCHGRID,
-            )
+            kwargs.update(n_patches=16, batch_size=batch_size, max_train_frames=max_train_frames)
         try:
             result = train_frame(**kwargs)
         except Exception as e:
@@ -328,7 +379,7 @@ def main():
         dev = next(model.parameters()).device
         final_score, final_per_label = full_val_frame_macro_ap(
             model, dev, annotations_csv, pair_labels_path, val_obs,
-            best_cfg['context_k'], best_cfg['stride'], emb_dim, load_fn, n_patches=n_patches,
+            best_cfg['context_k'], best_cfg['stride'], variant_emb_dim, load_fn, n_patches=n_patches,
         )
         log_result({'variant': variant, 'stage': 'final_retrain', 'cfg': best_cfg, 'full_val_frame_macro_ap': final_score})
 
@@ -347,15 +398,15 @@ def main():
         with open(out_dir / 'config.json', 'w') as f:
             json.dump({'cfg': cfg_final, 'val_pools': sorted(val_pool_set), 'n_epochs': FINAL_EPOCHS,
                        'best_ap': final_score, 'best_per_label': final_per_label,
-                       'emb_dim': emb_dim, 'promoted_by_search': True}, f, indent=2)
+                       'emb_dim': variant_emb_dim, 'promoted_by_search': True}, f, indent=2)
 
         val_data = FrameBatchData(
-            str(annotations_csv), str(pair_labels_path), val_obs, best_cfg['context_k'], emb_dim, load_fn,
+            str(annotations_csv), str(pair_labels_path), val_obs, best_cfg['context_k'], variant_emb_dim, load_fn,
             n_patches=n_patches, stride=best_cfg['stride'],
         )
         probs, labels = collect_frame_val_predictions(model, val_data, dev)
         generate_frame_report(probs, labels, result['history'], name, cfg_final, out_dir)
-        summary_lines.append(f'- **PROMOTED** to results/vision/mice/frame/{variant}/ (full-val score {final_score:.4f}, report.png regenerated)\n\n')
+        summary_lines.append(f'- **PROMOTED** to results/vision/mice/frame/{OUTPUT_DIR_NAME[variant]}/ (full-val score {final_score:.4f}, report.png regenerated)\n\n')
         del result['model']
         torch.cuda.empty_cache()
 

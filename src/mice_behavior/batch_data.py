@@ -543,6 +543,38 @@ def load_patchgrid_embeddings(embeddings_path: str, global_idx_path: str, n_patc
     return _load
 
 
+def load_patchgrid_concat_embeddings(
+    embeddings_path_a: str, embeddings_path_b: str, global_idx_path: str, n_patches: int,
+    emb_dim_a: int, emb_dim_b: int,
+):
+    """Concatenates two patch-grid sources (e.g. dinov2 + dinov3) per patch position, each
+    L2-normalized first. Both sources must share the same global_idx.npy (same annotated
+    frames, same row order) — true for dinov2/dinov3 patch_grid4 (same v1 annotated-frame
+    subset, confirmed identical global_idx arrays).
+
+    Normalization is mandatory here, not optional: DINOv2 and DINOv3 CLS-token norms differ
+    by ~20x (measured: mean 20.7 vs 415.6) — concatenating raw scales let the larger-norm
+    source dominate the combined vector and collapsed a prior comparison run to exact-chance
+    predictions (ROC-AUC 0.5). Kept fp16 (not upcast to float32) to avoid doubling this
+    already-16x-CLS's-footprint format's memory further.
+    """
+    def _load(obs_boundary):
+        global_idx = np.load(global_idx_path)
+        row_of_global = {int(g): i for i, g in enumerate(global_idx)}
+        mmap_a = np.memmap(embeddings_path_a, dtype='float16', mode='r', shape=(len(global_idx), n_patches, emb_dim_a))
+        mmap_b = np.memmap(embeddings_path_b, dtype='float16', mode='r', shape=(len(global_idx), n_patches, emb_dim_b))
+        out = {}
+        for obs_s, obs_e in obs_boundary.values():
+            pg_start, pg_end = row_of_global[obs_s], row_of_global[obs_e - 1] + 1
+            a = np.array(mmap_a[pg_start:pg_end]).astype(np.float32)
+            b = np.array(mmap_b[pg_start:pg_end]).astype(np.float32)
+            a /= np.clip(np.linalg.norm(a, axis=-1, keepdims=True), 1e-6, None)
+            b /= np.clip(np.linalg.norm(b, axis=-1, keepdims=True), 1e-6, None)
+            out[obs_s] = np.concatenate([a, b], axis=-1).astype(np.float16)
+        return out
+    return _load
+
+
 def cached_loader(load_embeddings_fn):
     """Wraps a load_embeddings_fn (load_cls_embeddings / load_patchgrid_embeddings) with
     an in-process memo cache keyed on obs_boundary. A hyperparameter search calls
