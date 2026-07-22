@@ -262,7 +262,7 @@ def save_dataset(
     # Strip metadata field to avoid DatasetInfo compatibility issues with older datasets versions
     if hasattr(dataset, "info") and hasattr(dataset.info, "__dict__"):
         dataset.info.__dict__.pop("metadata", None)
-    dataset.save_to_disk(str(output_dir), num_proc=4)
+    dataset.save_to_disk(str(output_dir), num_proc=8)
     return output_dir
 
 

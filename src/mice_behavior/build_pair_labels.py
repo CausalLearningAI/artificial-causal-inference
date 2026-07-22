@@ -56,6 +56,10 @@ def build_pair_labels(data_dir='./data', dataset_dir='./dataset', overwrite=Fals
         except Exception as e:
             print(f'[WARN] failed to parse {ann_path.name}: {e}')
             continue
+        # One BORIS export (rd64_SO_Test) used spaced column names ('agent 1 (active)',
+        # 'agent 2') instead of the usual 'agent1(active)'/'agent2' — normalize rather
+        # than fail; harmless no-op for every other file.
+        boris = boris.rename(columns={'agent 1 (active)': 'agent1(active)', 'agent 2': 'agent2'})
 
         for _, b in boris.iterrows():
             behavior = str(b['behavior_type']).strip()
