@@ -48,13 +48,19 @@ sys.path.insert(0, str(Path(__file__).parent))
 import grid_search_frame as gsf
 from src.mice_behavior.batch_data import FrameBatchData
 from src.mice_behavior.model import MouseFrameClassifier
+from src.mice_behavior.pools import get_val_pools
 from src.dataset.get_dataset import load_dataset
-from train_patchgrid_online import dummy_loader, _ImageDataset, N_PATCHES_FULL, EMB_DIM
+from train_patchgrid_online import dummy_loader, _ImageDataset, EMB_DIM
 
 MODEL_IDS = {
     'dinov2': 'facebook/dinov2-base',
     'dinov3': 'facebook/dinov3-vitb16-pretrain-lvd1689m',
 }
+# Patch count differs by patch size, not just image size: DINOv2 uses patch-size 14 at
+# 224x224 -> 16x16=256 tokens; DINOv3 uses patch-size 16 at 224x224 -> 14x14=196 tokens.
+# Confirmed empirically (a hardcoded 256 crashed the first DINOv3 search attempt with a
+# tensor-shape mismatch at the very first encoded batch).
+N_PATCHES = {'dinov2': 256, 'dinov3': 196}
 CONTEXT_K, STRIDE = 2, 1
 
 
@@ -84,6 +90,7 @@ def main():
     args = p.parse_args()
     MODEL_ID = MODEL_IDS[args.encoder]
 
+    n_patches_full = N_PATCHES[args.encoder]
     OUT_DIR = gsf.FRAME_DIR / f'patchgrid256_{args.encoder}'
     LOG_PATH = gsf.SEARCH_DIR / f'log_patchgrid256_{args.encoder}.jsonl'
     gsf.SEARCH_DIR.mkdir(parents=True, exist_ok=True)
@@ -99,11 +106,7 @@ def main():
     obs_to_pool = gsf.load_obs_to_pool_map(gsf.DATA_DIR)
     all_obs = pd.read_parquet(pair_labels_path)['observation_id'].unique().tolist()
     pools = sorted({obs_to_pool[o] for o in all_obs})
-    rng_split = random.Random(gsf.SEED)
-    shuffled = pools[:]
-    rng_split.shuffle(shuffled)
-    n_val = max(1, int(len(shuffled) * 0.2))
-    val_pool_set = set(shuffled[:n_val])
+    val_pool_set = get_val_pools(pools, seed=gsf.SEED)
     train_obs = [o for o in all_obs if obs_to_pool[o] not in val_pool_set]
     val_obs = [o for o in all_obs if obs_to_pool[o] in val_pool_set]
     print(f'Split: {len(train_obs)} train obs / {len(val_obs)} val obs', flush=True)
@@ -135,8 +138,17 @@ def main():
     # Union across ALL of train_meta (not a neg_ratio-specific subsample — every trial's
     # neg_ratio just subsamples this same fixed pool) + all of val_meta. context_k/stride are
     # fixed across every trial, so this single offsets_grid covers every trial exactly.
-    need_train = np.unique(train_meta.gi[:, None] + train_meta.offsets_grid[None, :])
-    need_val = np.unique(val_meta.gi[:, None] + val_meta.offsets_grid[None, :])
+    # Padding positions (context window running past an observation's start/end) MUST be
+    # excluded here via pad_mask — without it, this previously computed out-of-range raw
+    # indices (e.g. exactly len(hf_dataset), one past the last valid frame) and crashed the
+    # DataLoader; train_patchgrid_online.py's equivalent computation already did this
+    # correctly, this script's refactor dropped it by accident.
+    def _needed_raw_indices(meta):
+        abs_idx = meta.gi[:, None] + meta.offsets_grid[None, :]
+        return np.unique(abs_idx[~meta.pad_mask])
+
+    need_train = _needed_raw_indices(train_meta)
+    need_val = _needed_raw_indices(val_meta)
     all_needed = np.unique(np.concatenate([need_train, need_val]))
     print(f'{len(need_train):,} unique train frames, {len(need_val):,} unique val frames '
           f'-> {len(all_needed):,} total to encode once', flush=True)
@@ -147,7 +159,7 @@ def main():
         num_workers=args.num_workers, pin_memory=(dev.type == 'cuda'), shuffle=False,
         prefetch_factor=4 if args.num_workers > 0 else None, persistent_workers=args.num_workers > 0,
     )
-    cache = torch.empty((len(all_needed), N_PATCHES_FULL, EMB_DIM), dtype=torch.float16)
+    cache = torch.empty((len(all_needed), n_patches_full, EMB_DIM), dtype=torch.float16)
     idx_of_global = {int(g): i for i, g in enumerate(all_needed)}
     cursor = 0
     with torch.inference_mode():
@@ -175,7 +187,7 @@ def main():
         flat_idx = abs_idx[valid]
         positions = np.array([idx_of_global[int(g)] for g in flat_idx], dtype=np.int64)
         gathered = cache[positions].to(dev, non_blocking=True)
-        ctx = torch.zeros((B, T, N_PATCHES_FULL, EMB_DIM), dtype=torch.float16, device=dev)
+        ctx = torch.zeros((B, T, n_patches_full, EMB_DIM), dtype=torch.float16, device=dev)
         ctx[torch.from_numpy(valid)] = gathered
         offsets_t = torch.from_numpy(np.broadcast_to(offsets, (B, T)).copy()).to(dev)
         labels_t = torch.from_numpy(meta.labels[sample_idx]).to(dev)
@@ -324,7 +336,7 @@ def main():
     per_label = {name: average_precision_score(labels_np[:, i], probs[:, i]) for i, name in enumerate(['nt', 'nn'])}
 
     with open(OUT_DIR / 'config.json', 'w') as f:
-        json.dump({'cfg': best_overall_cfg, 'val_pools': sorted(val_pool_set), 'n_patches': N_PATCHES_FULL,
+        json.dump({'cfg': best_overall_cfg, 'val_pools': sorted(val_pool_set), 'n_patches': n_patches_full,
                    'max_train_frames': args.max_train_frames, 'search_epochs_cap': args.search_epochs,
                    'patience': args.patience, 'n_trials': args.n_trials,
                    'best_ap': best_overall_ap, 'best_per_label': per_label, 'encoder': args.encoder}, f, indent=2)

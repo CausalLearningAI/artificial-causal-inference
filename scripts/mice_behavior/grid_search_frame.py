@@ -58,7 +58,7 @@ from src.mice_behavior.batch_data import (
     FrameBatchData, load_cls_embeddings, load_patchgrid_embeddings, load_patchgrid_concat_embeddings, cached_loader,
 )
 from src.mice_behavior.model import MouseFrameClassifier
-from src.mice_behavior.pools import load_obs_to_pool_map
+from src.mice_behavior.pools import load_obs_to_pool_map, get_val_pools
 from src.mice_behavior.report import collect_frame_val_predictions, generate_frame_report
 from src.mice_behavior.train import train_frame
 
@@ -237,12 +237,11 @@ def main():
     pools = sorted({obs_to_pool[o] for o in all_obs})
     print(f'{len(pools)} pools, {len(all_obs)} annotated observations, emb_dim={emb_dim}', flush=True)
 
-    # Standard split — same seed/logic as train_frame_final.py / train_cls_final.py.
-    rng_split = random.Random(SEED)
-    shuffled = pools[:]
-    rng_split.shuffle(shuffled)
-    n_val = max(1, int(len(shuffled) * 0.2))
-    val_pool_set = set(shuffled[:n_val])
+    # Stable, insertion-robust split (see pools.get_val_pools docstring) — a plain
+    # shuffle-the-pool-list split silently reshuffles which pools land in val whenever
+    # the pool count changes (e.g. a new annotated pool added), making results across
+    # dataset versions incomparable by luck of the draw, not real model quality.
+    val_pool_set = get_val_pools(pools, seed=SEED)
     train_obs = [o for o in all_obs if obs_to_pool[o] not in val_pool_set]
     val_obs = [o for o in all_obs if obs_to_pool[o] in val_pool_set]
 
