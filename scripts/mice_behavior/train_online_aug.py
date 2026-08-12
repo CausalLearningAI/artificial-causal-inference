@@ -164,6 +164,15 @@ def main():
     p.add_argument('--patch-pool-dim', type=int, default=256)
     p.add_argument('--lr-decay-epochs', type=int, default=6)
     p.add_argument('--tag', type=str, default='online_aug')
+    p.add_argument('--jpeg-cache-file', type=str, default=None,
+                    help='persist/reuse the JPEG-bytes cache at this path (no extension). The read '
+                         'phase is 444k RANDOM small-file NFS opens taking ~33 min at ~226 f/s, '
+                         'during which the GPU sits at 0%% utilisation (measured). Written once as '
+                         'ONE ~17 GiB file, it reloads as a single SEQUENTIAL read (or is memory-'
+                         'mapped, so not read at all up front) in well under 2 min. Only the JPEG '
+                         'representation is small enough for this -- the token cache is 163 GiB at '
+                         '224px and 650 GiB at 448px. NOTE: shared storage was at 95%% capacity '
+                         'when this was added, so this is opt-in rather than default.')
     p.add_argument('--smoke', action='store_true',
                     help='tiny end-to-end check: caps train AND val so the (NFS-bound) read phase '
                          'takes ~1 min instead of ~30, surfacing pipeline bugs before a real run')
@@ -222,23 +231,55 @@ def main():
         needed(vm, np.arange(len(vm)))]))
     pos_of_global = {int(g): i for i, g in enumerate(all_needed)}
 
-    ann = pd.read_csv(ann_csv, usecols=['frame_path'])
-    paths = ann.frame_path.values[all_needed]
-    print(f'Reading {len(all_needed):,} JPEGs into RAM ({args.read_workers} workers; '
-          f'NFS-latency-bound, paid ONCE)...', flush=True)
-    t0 = time.time()
-    jpeg_cache = [None] * len(all_needed)
-    loader = DataLoader(_BytesReader(paths), batch_size=None, num_workers=args.read_workers,
-                        prefetch_factor=6, collate_fn=lambda x: x)
-    nbytes, last = 0, (0, 0.0)
-    for n, (i, buf) in enumerate(loader, 1):
-        jpeg_cache[i] = buf
-        nbytes += buf.nbytes
-        if n % 20000 == 0 or n == len(all_needed):
-            el = time.time() - t0
-            inst = (n - last[0]) / max(el - last[1], 1e-9); last = (n, el)
-            print(f'  {n:,}/{len(all_needed):,} ({inst:.0f} f/s now, {n/el:.0f} cum)', flush=True)
-    print(f'JPEG cache: {nbytes/1024**3:.1f} GiB in {(time.time()-t0)/60:.1f} min', flush=True)
+    cache_bin = Path(f'{args.jpeg_cache_file}.bin') if args.jpeg_cache_file else None
+    cache_idx = Path(f'{args.jpeg_cache_file}.npz') if args.jpeg_cache_file else None
+    jpeg_cache = None
+    if cache_bin and cache_bin.exists() and cache_idx.exists():
+        meta_np = np.load(cache_idx)
+        # the cache is only valid for the exact frame set it was built from; a different
+        # context_k / max_train_frames / split changes all_needed, so verify before trusting it
+        if np.array_equal(meta_np['all_needed'], all_needed):
+            t0 = time.time()
+            offs = meta_np['offsets']
+            blob = np.memmap(cache_bin, dtype=np.uint8, mode='r')   # lazy: OS pages it in
+            jpeg_cache = [blob[offs[i]:offs[i+1]] for i in range(len(all_needed))]
+            nbytes = int(offs[-1])
+            print(f'JPEG cache REUSED from {cache_bin} ({nbytes/1024**3:.1f} GiB, memory-mapped) '
+                  f'in {time.time()-t0:.1f}s -- skipped the ~33 min NFS random-read phase', flush=True)
+        else:
+            print(f'{cache_bin} exists but was built for a different frame set '
+                  f'({len(meta_np["all_needed"]):,} vs {len(all_needed):,}); re-reading', flush=True)
+
+    if jpeg_cache is None:
+        ann = pd.read_csv(ann_csv, usecols=['frame_path'])
+        paths = ann.frame_path.values[all_needed]
+        print(f'Reading {len(all_needed):,} JPEGs into RAM ({args.read_workers} workers; '
+              f'NFS-latency-bound, GPU idle during this)...', flush=True)
+        t0 = time.time()
+        jpeg_cache = [None] * len(all_needed)
+        loader = DataLoader(_BytesReader(paths), batch_size=None, num_workers=args.read_workers,
+                            prefetch_factor=6, collate_fn=lambda x: x)
+        nbytes, last = 0, (0, 0.0)
+        for n, (i, buf) in enumerate(loader, 1):
+            jpeg_cache[i] = buf
+            nbytes += buf.nbytes
+            if n % 20000 == 0 or n == len(all_needed):
+                el = time.time() - t0
+                inst = (n - last[0]) / max(el - last[1], 1e-9); last = (n, el)
+                print(f'  {n:,}/{len(all_needed):,} ({inst:.0f} f/s now, {n/el:.0f} cum)', flush=True)
+        print(f'JPEG cache: {nbytes/1024**3:.1f} GiB in {(time.time()-t0)/60:.1f} min', flush=True)
+        if cache_bin:
+            t0 = time.time()
+            cache_bin.parent.mkdir(parents=True, exist_ok=True)
+            offs = np.zeros(len(jpeg_cache) + 1, dtype=np.int64)
+            with open(cache_bin, 'wb') as fh:
+                for i, b in enumerate(jpeg_cache):
+                    fh.write(b.tobytes())
+                    offs[i+1] = offs[i] + b.nbytes
+            np.savez(cache_idx, all_needed=all_needed, offsets=offs)
+            print(f'Saved reusable cache -> {cache_bin} ({nbytes/1024**3:.1f} GiB, '
+                  f'{time.time()-t0:.0f}s). Future runs with the same frame set skip the read.',
+                  flush=True)
 
     encoder = AutoModel.from_pretrained(MODEL_ID).to(dev).eval()
     encoder.requires_grad_(False)
