@@ -37,7 +37,10 @@ validation:
 causal:
   # W_* confounders: define training environments (× treatment) and covariates W for all ATE estimators.
   # Missing columns are warned about and skipped.
-  confounders: [W_nestbox, W_batch, W_annotator, W_weak_marking] 
+  # W_nestbox deliberately excluded: batch -> nestbox is deterministic in every ants
+  # version (v3-v6, vA), so W_batch already encodes it. Verified no-op on v5's built
+  # dataset — n_envs = 78 both with and without it.
+  confounders: [W_batch, W_annotator, W_weak_marking]
   method: aipw  # ead | aipw | slearner | tlearner | xlearner | drlearner | causalforest
 
 wandb:

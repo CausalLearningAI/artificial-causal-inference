@@ -1,0 +1,18 @@
+# @package _global_
+defaults:
+  - /data: ants
+  - /dataset: ants/vA
+
+subject: ants
+version: vA
+annotations: "no"    # yes | no | partial  (quoted: bare `no` parses as boolean false)
+
+# Processing overwrite flags
+overwrite:
+  videos: false
+  frames: false
+  annotations: false
+  hf: false
+  embeddings: false
+  tracking: false
+  color_bounds: false

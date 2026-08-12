@@ -1,0 +1,35 @@
+# @package _global_
+# Tracking config for ants/vA — Lasius niger (v1-v6 are a different species)
+
+subject: ants
+version: vA
+
+
+quantile: 0.85
+n_background_frames: 40
+pov_radius: 80
+
+max_dist_activity: 80
+max_step: 100
+min_area_color: 5
+max_area_color: 400
+min_area_body: 100
+max_area_body: 2000
+
+# ── HSV bounds: PLACEHOLDER (v5 values) ──────────────────────────────────────
+# These four arrays are overwritten in place by the real calibration:
+#     python src/tracking/optimize_bounds.py vA
+# (grid search in src/tracking/calibration.py; needs dataset/ants/vA/frames/full/
+#  to exist first, then save_config() rewrites just these lines).
+# Seeded from v5 only so load_config() has something to read — NOT calibrated.
+# Every ants version so far needed its own bounds (v2->v5: blue hue lb 100->80,
+# yellow V lb 60->90), and vA is a different species, so expect these to move.
+yellow_marking_lb: [0, 60, 90]
+yellow_marking_ub: [11, 255, 255]
+blue_marking_lb: [80, 40, 50]
+blue_marking_ub: [135, 255, 255]
+
+# NOTE: optimize_bounds.py tunes ONLY the HSV arrays above. The body/area params
+# (min_area_body, max_area_body, pov_radius, max_step) are copied from v5 and are
+# body-size sensitive — L. niger is larger than L. neglectus. They can only be
+# checked visually on the sampled demo videos from job_track.sh.
