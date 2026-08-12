@@ -46,6 +46,7 @@ from ppci.visualize import (                # noqa: E402
     plot_comparison_versions,
     plot_comparison_versions_by_metric,
     plot_error_examples,
+    plot_prediction_examples,
 )
 
 
@@ -254,11 +255,32 @@ def _eval_version(
     )
     print(f"  ✓ plot_summary saved: {plot_path}")
 
+    outcome_cols = [f"Y_{o}" for o in outcomes]
+
+    # Predicted-example grid. Needs no ground truth, so it runs BEFORE the
+    # early return below — on an unannotated version this is the only visual
+    # check available (plot_error_examples has nothing to sample).
+    if plot_errors:
+        pred_path = str(out_dir / f"plot_pred_examples_{version}.png")
+        try:
+            plot_prediction_examples(
+                ds,
+                outcome_cols=outcome_cols,
+                n_per_class=n_error_examples // 2 or 6,
+                dataset_root=str(ROOT / "dataset"),
+                save=True,
+                save_path=pred_path,
+                frame_type=frame_type,
+                treatment_filter=error_treatment_filter,
+            )
+            print(f"  ✓ plot_pred_examples saved: {pred_path}")
+        except Exception as exc:
+            print(f"  [WARNING] plot_prediction_examples failed: {exc}")
+
     if not any_annotated or n_annotated == 0:
         print(f"  [no annotations] Classification metrics skipped.")
         return None
 
-    outcome_cols = [f"Y_{o}" for o in outcomes]
     m = compute_metrics(model, ds.X, ds.Y, device)
     print(f"  → bacc={m.get('bacc', 0):.4f}  acc={m.get('acc', 0):.4f}"
           f"  recall={m.get('recall', 0):.4f}  precision={m.get('precision', 0):.4f}")

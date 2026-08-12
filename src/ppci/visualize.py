@@ -18,6 +18,12 @@ plot_summary      — Convenience wrapper: one row per outcome.
 
 plot_error_examples — Grid of N worst prediction errors with frame images.
                       One row per error: frame image, true Y, predicted Yhat, obs context.
+                      Requires ground truth — samples only annotated frames.
+
+plot_prediction_examples — Grid of predicted-positive / predicted-negative frames per
+                      behaviour. Needs NO ground truth, so it is the diagnostic for
+                      unannotated versions where plot_error_examples has nothing to show.
+                      Two rows per outcome (pred=1 / pred=0), n_per_class columns.
 """
 
 from __future__ import annotations
@@ -969,6 +975,261 @@ def plot_error_examples(
                 ax.set_title(label, fontsize=9, pad=3)
 
     plt.tight_layout()
+    if save and save_path:
+        os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+    else:
+        plt.show()
+
+
+# Which POV crop illustrates which outcome. Names follow the ants convention:
+# Y* → yellow-marked nestmate, B* → blue-marked, F* (e.g. FOL) → focal, which has
+# no dedicated crop and falls back to the full frame. Override per call if needed.
+_POV_COLOR_BY_OUTCOME = {
+    "Y2F": "yellow", "YOL": "yellow",
+    "B2F": "blue",   "BOL": "blue",
+}
+
+
+def plot_prediction_examples(
+    dataset,
+    outcome_cols: list[str],
+    n_per_class: int = 6,
+    dataset_root: str = "./dataset",
+    seed: int = 0,
+    save: bool = False,
+    save_path: Optional[str] = None,
+    frame_type: str = "full",
+    treatment_filter=None,
+    threshold: float = 0.5,
+    mode: str = "stratified",
+    pov_color_by_outcome: Optional[Dict[str, str]] = None,
+) -> None:
+    """Plot predicted-positive and predicted-negative frame examples per behaviour.
+
+    Unlike plot_error_examples, this needs no ground truth: it samples on the
+    model's own probabilities.  That makes it the diagnostic for versions with
+    ``annotations: "no"``, where every frame is NaN and the error plot is empty.
+
+    Layout is two rows per outcome — ``pred=1`` then ``pred=0`` — with
+    ``n_per_class`` example frames each.  Row labels carry the predicted positive
+    rate, which is the number to sanity-check first on a new experiment: a rate
+    far from the annotated versions' is the loudest sign the model is off.
+
+    Args:
+        dataset:        PPCIDataset with add_predictions() already called.
+        outcome_cols:   Outcome columns, e.g. ["Y_Y2F", "Y_B2F"].
+        n_per_class:    Examples per (outcome, predicted class) — one per column.
+        dataset_root:   Root of the dataset directory.
+        seed:           RNG seed for sampling.
+        save:           If True, save to save_path instead of showing.
+        save_path:      File path for the saved figure.
+        frame_type:     "full" (default) shows the whole arena; "pov" shows the POV
+                        crop matching the outcome (see _POV_COLOR_BY_OUTCOME) and
+                        falls back to the full frame when there is no mapping or
+                        the crop is missing.
+        treatment_filter: Optional treatment value (or list) to restrict examples to.
+        threshold:      Probability cut separating predicted positive from negative.
+        mode:           "stratified" (default) spreads picks evenly across the
+                        probability range, so marginal calls are visible — the
+                        honest default.  "confident" shows only the most extreme
+                        probabilities, which flatters the model.
+        pov_color_by_outcome: Override the outcome→POV-colour mapping.
+
+    Sampling prefers distinct observation_ids, because adjacent frames of one
+    observation are near-duplicates and would otherwise fill a whole row.
+    """
+    from pathlib import Path
+    try:
+        from PIL import Image
+    except ImportError:
+        raise ImportError("Pillow is required for plot_prediction_examples: pip install Pillow")
+
+    if getattr(dataset, "Yhat", None) is None:
+        raise ValueError(
+            "Call dataset.add_predictions(model, device) before plot_prediction_examples()."
+        )
+    if mode not in ("stratified", "confident"):
+        raise ValueError(f"mode must be 'stratified' or 'confident', got {mode!r}")
+
+    color_map = dict(_POV_COLOR_BY_OUTCOME)
+    if pov_color_by_outcome:
+        color_map.update(pov_color_by_outcome)
+
+    Yhat = dataset.Yhat.float()
+    if Yhat.dim() == 1:
+        Yhat = Yhat[:, None]
+    Y = dataset.Y.float() if getattr(dataset, "Y", None) is not None else None
+    if Y is not None and Y.dim() == 1:
+        Y = Y[:, None]
+
+    n_total = Yhat.shape[0]
+    labels  = [c.replace("Y_", "") for c in outcome_cols]
+
+    obs_ids    = np.asarray(dataset.obs_ids)
+    frame_idxs = dataset.frame_idx.numpy()
+    ann        = np.asarray(dataset.annotated_mask).astype(bool)
+
+    def _as_array(vals):
+        if isinstance(vals, np.ndarray):
+            return vals
+        if isinstance(vals, (list, tuple)):
+            return np.asarray(vals)
+        try:
+            return vals.numpy()
+        except AttributeError:
+            return np.asarray(vals)
+
+    T_arr = _as_array(dataset.T)
+
+    # ── candidate mask (treatment filter) ────────────────────────────────────
+    keep = np.ones(n_total, dtype=bool)
+    if treatment_filter is not None:
+        tf = (treatment_filter if isinstance(treatment_filter, (list, tuple))
+              else [treatment_filter])
+        keep = np.isin(T_arr, np.asarray(tf, dtype=T_arr.dtype))
+        if not keep.any():
+            print(f"[plot_prediction_examples] No frames with treatment in {tf}.")
+            return
+
+    rng = np.random.default_rng(seed)
+
+    def _pick(pool: np.ndarray, probs: np.ndarray, lo: float, hi: float) -> list:
+        """Choose up to n_per_class indices from pool, preferring distinct observations."""
+        if len(pool) == 0:
+            return []
+        if mode == "confident":
+            order = np.argsort(probs)
+            if lo >= threshold:          # positive class → most confident first
+                order = order[::-1]
+            ranked = pool[order]
+            chosen, used = [], set()
+            for i in ranked:
+                if obs_ids[i] in used:
+                    continue
+                chosen.append(int(i)); used.add(obs_ids[i])
+                if len(chosen) == n_per_class:
+                    return chosen
+            for i in ranked:             # backfill when too few distinct observations
+                if len(chosen) == n_per_class:
+                    break
+                if int(i) not in chosen:
+                    chosen.append(int(i))
+            return chosen
+
+        # stratified: one pick per equal-width probability band
+        edges, chosen, used = np.linspace(lo, hi, n_per_class + 1), [], set()
+        for b in range(n_per_class):
+            b_lo, b_hi = edges[b], edges[b + 1]
+            in_band = (probs >= b_lo) & (probs <= b_hi if b == n_per_class - 1
+                                         else probs < b_hi)
+            band = pool[in_band]
+            if len(band) == 0:
+                continue                 # empty band → backfilled below
+            fresh = np.asarray([i for i in band if obs_ids[i] not in used])
+            src = fresh if len(fresh) else band
+            pick = int(rng.choice(src))
+            chosen.append(pick); used.add(obs_ids[pick])
+        if len(chosen) < n_per_class:
+            rest = np.asarray([int(i) for i in pool if int(i) not in set(chosen)])
+            if len(rest):
+                extra = rng.choice(rest, size=min(n_per_class - len(chosen), len(rest)),
+                                   replace=False)
+                chosen.extend(int(x) for x in np.atleast_1d(extra))
+        return chosen
+
+    # ── gather rows: (row_label, colour, [(idx, prob), ...]) ─────────────────
+    rows = []
+    for j, label in enumerate(labels):
+        p = Yhat[:, j].numpy()
+        pov_color = color_map.get(label) if frame_type == "pov" else None
+        for is_pos in (True, False):
+            cls_mask = keep & ((p >= threshold) if is_pos else (p < threshold))
+            pool = np.nonzero(cls_mask)[0]
+            rate = 100.0 * cls_mask.sum() / max(1, int(keep.sum()))
+            lo, hi = (threshold, 1.0) if is_pos else (0.0, threshold)
+            picks = _pick(pool, p[pool], lo, hi)
+            rows.append({
+                "label": f"{label}\npred={int(is_pos)}  {rate:.1f}%\n(n={len(pool):,})",
+                "color": pov_color,
+                "picks": [(i, float(p[i])) for i in picks],
+            })
+
+    if not any(r["picks"] for r in rows):
+        print("[plot_prediction_examples] No frames to show.")
+        return
+
+    n_rows, n_cols = len(rows), n_per_class
+    fig, axes = plt.subplots(
+        n_rows, n_cols,
+        figsize=(n_cols * 2.1 + 1.2, n_rows * 2.35),
+        squeeze=False,
+    )
+
+    n_ann = int((ann & keep).sum())
+    filter_desc = ""
+    if treatment_filter is not None:
+        tf = (treatment_filter if isinstance(treatment_filter, (list, tuple))
+              else [treatment_filter])
+        filter_desc = f"   T∈{{{','.join(str(x) for x in tf)}}}"
+    ann_desc = (f"{n_ann:,} of {int(keep.sum()):,} frames annotated"
+                if n_ann else "no ground truth (predictions only)")
+    fig.suptitle(
+        f"Prediction examples — {mode} sampling, threshold={threshold:g}, "
+        f"frames={frame_type}{filter_desc}\n{ann_desc}",
+        fontsize=12, y=0.997,
+    )
+
+    def _load(glob_pattern: str):
+        for cand in Path(dataset_root).glob(glob_pattern):
+            try:
+                return np.array(Image.open(cand).convert("RGB"))
+            except Exception:
+                continue
+        return None
+
+    for r, row in enumerate(rows):
+        for c in range(n_cols):
+            ax = axes[r][c]
+            ax.set_xticks([]); ax.set_yticks([])
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            if c == 0:
+                ax.set_ylabel(row["label"], fontsize=8, rotation=0,
+                              ha="right", va="center", labelpad=8)
+
+            if c >= len(row["picks"]):
+                ax.set_facecolor("#f2f2f2")
+                ax.text(0.5, 0.5, "—", ha="center", va="center",
+                        transform=ax.transAxes, fontsize=9, color="#999999")
+                continue
+
+            idx, prob = row["picks"][c]
+            obs, fidx = obs_ids[idx], int(frame_idxs[idx])
+
+            img = None
+            if row["color"]:
+                img = _load(f"*/*/frames/pov/{row['color']}/{obs}/frame_{fidx:06d}.jpg")
+            if img is None:
+                img = _load(f"*/*/frames/full/{obs}/frame_{fidx:06d}.jpg")
+
+            if img is not None:
+                ax.imshow(img)
+            else:
+                ax.set_facecolor("#dddddd")
+                ax.text(0.5, 0.5, "no image", ha="center", va="center",
+                        transform=ax.transAxes, fontsize=7)
+
+            title = f"{obs}  f={fidx}  T={T_arr[idx]}\np={prob:.3f}"
+            if ann[idx] and Y is not None:
+                y_true = float(Y[idx, min(r // 2, Y.shape[1] - 1)])
+                if not np.isnan(y_true):
+                    ok = round(y_true) == (prob >= threshold)
+                    title += f"   Y={int(y_true)} {'✓' if ok else '✗'}"
+            ax.set_title(title, fontsize=6.5, pad=2)
+
+    plt.tight_layout(rect=(0, 0, 1, 0.985))
     if save and save_path:
         os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
