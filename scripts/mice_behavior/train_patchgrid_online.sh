@@ -39,6 +39,10 @@ MAX_TRAIN_FRAMES=${MAX_TRAIN_FRAMES:-200000}
 N_EPOCHS=${N_EPOCHS:-20}
 PATIENCE=${PATIENCE:-8}
 VAL_MONITOR_SIZE=${VAL_MONITOR_SIZE:-50000}
+CONTEXT_K_ARGS=""
+if [ -n "${CONTEXT_K:-}" ]; then
+    CONTEXT_K_ARGS="--context-k ${CONTEXT_K}"
+fi
 LAYERNORM_ARGS=""
 if [ "${USE_LAYERNORM:-0}" = "1" ]; then
     LAYERNORM_ARGS="--use-layernorm"
@@ -73,6 +77,7 @@ python -u scripts/mice_behavior/train_patchgrid_online.py \
     --frame-dropout "${FRAME_DROPOUT}" \
     --neg-ratio "${NEG_RATIO}" \
     --val-monitor-size "${VAL_MONITOR_SIZE}" \
+    ${CONTEXT_K_ARGS} \
     --loss "${LOSS}" \
     --focal-gamma "${FOCAL_GAMMA}" \
     ${LAYERNORM_ARGS} \

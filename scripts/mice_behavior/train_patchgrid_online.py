@@ -172,6 +172,14 @@ def main():
     p.add_argument('--patience', type=int, default=8)
     p.add_argument('--batch-size', type=int, default=512)
     p.add_argument('--encode-batch-size', type=int, default=256)
+    p.add_argument('--context-k', type=int, default=None,
+                    help='override best_cfg context_k (temporal half-window; T = 2k+1 frames). '
+                         'NEVER swept before -- grid_search_frame.py hardcoded it to 2 and only '
+                         'widened via stride, and every wider setting was worse (stride 2/3/4 -> '
+                         '0.238/0.236/0.245 vs 0.288 at stride 1). Measured bout durations say the '
+                         'window is too WIDE, not too narrow: at 5 fps the k=2 window spans 1.0 s '
+                         'while the median bout is 3 frames (nt, 0.6 s) / 2 frames (nn, 0.4 s). '
+                         'Smaller k is also cheaper -- cache and per-batch bytes scale with T.')
     p.add_argument('--val-monitor-size', type=int, default=50_000,
                     help='size of the per-epoch val monitor subsample. Uniform/prevalence-preserving '
                          '(see note at the sampling site) -- NOT rebalanced. Costs no extra encoding '
@@ -243,11 +251,12 @@ def main():
     # stride stays at best_cfg's value (1): a 2/3/4 sweep was strictly worse (0.2376/0.2356/0.2450
     # vs 0.2875 at stride 1), so widening the temporal window is settled and no longer a knob.
     stride_val = best_cfg['stride']
+    context_k = args.context_k if args.context_k is not None else best_cfg['context_k']
     print(f'Reusing confirmed-best patchgrid cfg: {best_cfg}', flush=True)
     print(f'max_train_frames={args.max_train_frames}  n_epochs={args.n_epochs}  patience={args.patience}', flush=True)
     print(f'reg: cross_attn_dim={cross_attn_dim}  patch_dropout={args.patch_dropout}  '
           f'patch_noise_std={args.patch_noise_std}  frame_dropout={args.frame_dropout}', flush=True)
-    print(f'stride={stride_val}  input_size={args.input_size}  n_patches_full={n_patches_full}', flush=True)
+    print(f'context_k={context_k} (T={2*context_k+1} frames = {(2*context_k+1)/5:.1f}s @5fps)  stride={stride_val}  input_size={args.input_size}  n_patches_full={n_patches_full}', flush=True)
 
     pair_labels_path = gsf.build_pair_labels(DATA_DIR, DATASET_DIR, overwrite=False)
     annotations_csv = DATASET_DIR / 'mice' / 'v1' / 'annotations.csv'
@@ -261,11 +270,11 @@ def main():
 
     print('Building sample index (placeholder embeddings, cheap)...', flush=True)
     train_meta = FrameBatchData(
-        str(annotations_csv), str(pair_labels_path), train_obs, best_cfg['context_k'], 1,
+        str(annotations_csv), str(pair_labels_path), train_obs, context_k, 1,
         dummy_loader(1, 1), n_patches=1, stride=stride_val, max_frames=args.max_train_frames, seed=SEED,
     )
     val_meta = FrameBatchData(
-        str(annotations_csv), str(pair_labels_path), val_obs, best_cfg['context_k'], 1,
+        str(annotations_csv), str(pair_labels_path), val_obs, context_k, 1,
         dummy_loader(1, 1), n_patches=1, stride=stride_val,
     )
     del train_meta.flat, val_meta.flat  # never used — only gi/offsets_grid/pad_mask/labels matter
@@ -402,6 +411,51 @@ def main():
         mask_t = torch.from_numpy(mask).to(dev)
         return ctx, offsets_t, labels_t, mask_t
 
+    class _GatherDataset(Dataset):
+        """Builds one whole training batch per __getitem__, on a worker process.
+
+        Profiling (scripts/mice_behavior/bench_batch_pipeline.py, L40S) showed the training
+        loop spent 71% of each batch inside a blocking single-threaded `cache[positions]`
+        gather in the MAIN process -- 1350 ms of gather against 40-105 ms of forward+backward,
+        i.e. the GPU idled ~90% of training. The encode phase already used a parallel
+        DataLoader; the training loop had none at all.
+
+        Workers inherit `cache` through fork's copy-on-write, so the (hundreds of GiB) tensor
+        is NOT duplicated per worker -- they only read it. Returns CPU fp16 tensors; pinning
+        and the host->device copy are handled by the DataLoader (pin_memory=True) so the
+        transfer overlaps with compute instead of serialising after it.
+        """
+
+        def __init__(self, meta, batches):
+            self.meta, self.batches = meta, batches
+
+        def __len__(self):
+            return len(self.batches)
+
+        def __getitem__(self, i):
+            sample_idx = self.batches[i]
+            gi = self.meta.gi[sample_idx]
+            offsets = self.meta.offsets_grid
+            abs_idx = gi[:, None] + offsets[None, :]
+            mask = self.meta.pad_mask[sample_idx]
+            B, T = abs_idx.shape
+            valid = ~mask
+            positions = np.searchsorted(all_needed, abs_idx[valid])
+            ctx = torch.zeros((B, T, n_patches_full, EMB_DIM), dtype=torch.float16)
+            ctx[torch.from_numpy(valid)] = cache[positions]
+            return (ctx,
+                    torch.from_numpy(np.broadcast_to(offsets, (B, T)).copy()),
+                    torch.from_numpy(self.meta.labels[sample_idx]),
+                    torch.from_numpy(mask))
+
+    def make_batch_loader(meta, sample_order, batch_size, workers):
+        batches = [sample_order[i:i + batch_size] for i in range(0, len(sample_order), batch_size)]
+        return DataLoader(
+            _GatherDataset(meta, batches), batch_size=None, shuffle=False,
+            num_workers=workers, pin_memory=(dev.type == 'cuda'),
+            prefetch_factor=4 if workers > 0 else None, persistent_workers=False,
+        )
+
     model = MouseFrameClassifier(
         emb_dim=EMB_DIM, n_heads=best_cfg['n_heads'], hidden_dim=best_cfg['hidden_dim'],
         use_patch_grid=True, dropout=best_cfg['dropout'], cross_attn_dim=cross_attn_dim, patch_pool_dim=patch_pool_dim,
@@ -467,12 +521,16 @@ def main():
         grad_norms = []
         last_group_norms = {}
         t0 = time.time()
-        for b0 in range(0, len(epoch_idx), args.batch_size):
-            batch_idx = epoch_idx[b0:b0 + args.batch_size]
-            ctx, offs, lbl, mask = build_batch_tensor(train_meta, batch_idx)
+        for ctx, offs, lbl, mask in make_batch_loader(train_meta, epoch_idx, args.batch_size, args.num_workers):
+            ctx = ctx.to(dev, non_blocking=True)
+            offs, lbl, mask = (offs.to(dev, non_blocking=True), lbl.to(dev, non_blocking=True),
+                               mask.to(dev, non_blocking=True))
+            batch_idx = lbl  # only its length is used below
             optimizer.zero_grad()
             with torch.autocast(device_type=dev.type, dtype=torch.float16, enabled=amp_enabled):
-                logits = model(ctx.float(), offsets=offs, key_padding_mask=mask)
+                # no .float(): autocast casts to fp16 for the matmuls anyway, so upcasting here
+                # only materialised a second, 2x-larger fp32 copy of a multi-GiB tensor.
+                logits = model(ctx, offsets=offs, key_padding_mask=mask)
                 loss = criterion(logits, lbl)
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
@@ -555,7 +613,7 @@ def main():
                    'cross_attn_dim': cross_attn_dim, 'patch_dropout': args.patch_dropout,
                    'patch_noise_std': args.patch_noise_std, 'frame_dropout': args.frame_dropout,
                    'use_layernorm': args.use_layernorm, 'loss': args.loss, 'focal_gamma': args.focal_gamma,
-                   'stride': stride_val, 'input_size': args.input_size, 'neg_ratio': args.neg_ratio,
+                   'stride': stride_val, 'context_k': context_k, 'input_size': args.input_size, 'neg_ratio': args.neg_ratio,
                    'val_monitor_size': args.val_monitor_size, 'val_monitor_prevalence_preserving': True,
                    'lr_schedule': args.lr_schedule, 'patch_pool_dim': patch_pool_dim,
                    'n_params': n_params,

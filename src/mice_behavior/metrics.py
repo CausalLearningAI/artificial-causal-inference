@@ -71,6 +71,70 @@ def ap_report(probs: np.ndarray, labels: np.ndarray, sample_obs: np.ndarray,
     return out
 
 
+def rate_report(probs: np.ndarray, labels: np.ndarray, sample_obs: np.ndarray,
+                label_names=('nt', 'nn')) -> dict:
+    """Per-observation behaviour-rate agreement: correlation, MAE, and MAE's trivial baseline.
+
+    ALWAYS read MAE against `mae_baseline_pp` -- the MAE you get by predicting the dataset
+    mean rate for every observation. Unlike correlation, MAE has a trivial baseline that is
+    hard to beat under this much imbalance, so a small absolute MAE means little on its own.
+    Measured on the res448 checkpoint (frame AP 0.338): even after an *oracle* affine
+    calibration fitted on the evaluation set itself, MAE beat the predict-the-mean baseline
+    by only 27% (nt: 0.56 vs 0.77 pp) and 14% (nn: 1.48 vs 1.73 pp).
+
+    `mae_raw_pp` uses the mean predicted probability directly and will be enormous whenever
+    the model was trained with undersampling and/or pos_weight (prior shift): the same
+    checkpoint scored 14.8 pp against a 1.23% true rate, i.e. 12x too high. `mae_calibrated_pp`
+    applies the best affine rescale of the prediction; fit it on TRAINING folds only, never
+    on the evaluation fold, or the number is meaningless.
+
+    Correlation is the metric to select on -- it has no trivial baseline (a constant predictor
+    scores 0), it is unaffected by the affine bias, and for PPI++ the variance reduction is
+    ~(1 - r^2), so r is literally what determines how much the model helps downstream.
+    """
+    from scipy import stats
+
+    out = {}
+    df_obs = np.asarray(sample_obs)
+    uniq = np.unique(df_obs)
+    for i, name in enumerate(label_names):
+        true = np.array([labels[df_obs == o, i].mean() for o in uniq])
+        pred = np.array([probs[df_obs == o, i].mean() for o in uniq])
+        r = stats.pearsonr(true, pred)
+        rho = stats.spearmanr(true, pred)
+        slope, icept = np.polyfit(pred, true, 1)
+        out[name] = {
+            'n_observations': int(len(uniq)),
+            'pearson_r': float(r[0]), 'pearson_p': float(r[1]), 'spearman_rho': float(rho[0]),
+            'r2': float(r[0] ** 2),
+            'ppi_variance_reduction': float(1 - r[0] ** 2),
+            'true_rate_mean_pp': float(true.mean() * 100),
+            'mae_raw_pp': float(np.abs(pred - true).mean() * 100),
+            'mae_calibrated_pp': float(np.abs((slope * pred + icept) - true).mean() * 100),
+            'mae_baseline_pp': float(np.abs(true.mean() - true).mean() * 100),
+            'calibration_slope': float(slope),
+        }
+        o = out[name]
+        o['mae_vs_baseline'] = (f'{100*(1 - o["mae_calibrated_pp"]/o["mae_baseline_pp"]):.0f}% better'
+                                if o['mae_baseline_pp'] > 0 else 'n/a')
+    return out
+
+
+def format_rate_report(rep: dict, label_names=('nt', 'nn')) -> str:
+    lines = ['per-observation behaviour-rate agreement (the downstream-relevant quantity):']
+    for name in label_names:
+        r = rep[name]
+        lines.append(
+            f'  [{name}] n={r["n_observations"]}  true mean {r["true_rate_mean_pp"]:.2f}pp\n'
+            f'      SELECT ON -> Pearson r={r["pearson_r"]:+.3f} (p={r["pearson_p"]:.2g})  '
+            f'Spearman={r["spearman_rho"]:+.3f}  R2={r["r2"]:.3f}  '
+            f'=> PPI var x{r["ppi_variance_reduction"]:.2f} (eff. N x{1/max(r["ppi_variance_reduction"],1e-9):.1f})\n'
+            f'      MAE raw {r["mae_raw_pp"]:.2f}pp (calib slope {r["calibration_slope"]:.3f}) | '
+            f'calibrated {r["mae_calibrated_pp"]:.2f}pp | predict-the-mean baseline '
+            f'{r["mae_baseline_pp"]:.2f}pp -> {r["mae_vs_baseline"]}')
+    return '\n'.join(lines)
+
+
 def format_ap_report(rep: dict, label_names=('nt', 'nn'), tolerances=(0, 1, 2)) -> str:
     lines = [f'{"":<6} {"tol":>4} {"AP":>8} {"prev":>8} {"enrich":>8}']
     for name in label_names:
