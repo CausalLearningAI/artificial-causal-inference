@@ -374,6 +374,7 @@ def main():
     )
     cache = torch.empty((len(all_needed), n_patches_full, EMB_DIM), dtype=torch.float16)
     cursor = 0
+    last_report = (0, 0.0)
     with torch.inference_mode():
         for pixel_values in loader:
             pixel_values = pixel_values.to(dev, non_blocking=True)
@@ -384,7 +385,15 @@ def main():
             cursor += tokens.shape[0]
             if cursor % (args.encode_batch_size * 20) == 0 or cursor == len(all_needed):
                 elapsed = time.time() - t_encode0
-                print(f'  encoded {cursor:,}/{len(all_needed):,} ({cursor/elapsed:.1f} frames/s)', flush=True)
+                # Report a WINDOWED rate alongside the cumulative one. Cumulative average hides
+                # OS page-cache decay: a run whose first ~66k frames were still cached from a
+                # previous job read 877 frames/s cumulative while its true cold rate had already
+                # fallen to ~230, which nearly caused a non-existent speedup to be reported.
+                win_n, win_dt = cursor - last_report[0], elapsed - last_report[1]
+                inst = win_n / win_dt if win_dt > 0 else float('nan')
+                last_report = (cursor, elapsed)
+                print(f'  encoded {cursor:,}/{len(all_needed):,} '
+                      f'({inst:.1f} frames/s now, {cursor/elapsed:.1f} cumulative)', flush=True)
     print(f'Encoding done in {(time.time()-t_encode0)/60:.1f} min '
           f'({len(all_needed)/(time.time()-t_encode0):.1f} frames/s average)', flush=True)
     del encoder, processor, loader
