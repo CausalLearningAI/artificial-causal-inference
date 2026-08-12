@@ -193,7 +193,16 @@ def main():
                          'to discriminate against the bulk of easy negatives that dominate real val. '
                          'No pos_weight regardless of this value -- resampling already handles the '
                          'imbalance without needing to also reweight the loss.')
-    p.add_argument('--num-workers', type=int, default=8)
+    p.add_argument('--num-workers', type=int, default=8,
+                    help='ENCODE workers. Reads are NFS-latency-bound (~100ms/frame), so this '
+                         'should exceed the CPU count: 48 measured 4.8x over 16.')
+    p.add_argument('--gather-workers', type=int, default=6,
+                    help='TRAINING-gather workers -- deliberately SMALL and separate from '
+                         '--num-workers. The gather reads from the in-RAM token cache, so it is '
+                         'not latency-bound, and DataLoader holds workers*prefetch_factor batches '
+                         'in flight at once. Reusing the encode value here OOMed a run: 48 workers '
+                         'x prefetch 4 x 604MB/batch = 116GB of prefetch on top of a 163GiB cache, '
+                         'against a 300G allocation.')
     p.add_argument('--tag', type=str, default='', help='suffix for RESULTS_DIR, e.g. "reg_a" -> patchgrid256_dinov2_reg_a')
     p.add_argument('--cross-attn-dim', type=int, default=192, help='0 = no bottleneck (full emb_dim)')
     p.add_argument('--patch-pool-dim', type=int, default=0, help='0 = no bottleneck (full emb_dim); '
@@ -459,10 +468,16 @@ def main():
 
     def make_batch_loader(meta, sample_order, batch_size, workers):
         batches = [sample_order[i:i + batch_size] for i in range(0, len(sample_order), batch_size)]
+        in_flight = max(workers, 1) * 2
+        est_gib = in_flight * (args.batch_size * (2 * context_k + 1) * n_patches_full * EMB_DIM * 2) / 1024**3
+        if not hasattr(make_batch_loader, '_logged'):
+            print(f'  train gather: {workers} workers x prefetch 2 = {in_flight} batches in flight '
+                  f'~= {est_gib:.1f} GiB', flush=True)
+            make_batch_loader._logged = True
         return DataLoader(
             _GatherDataset(meta, batches), batch_size=None, shuffle=False,
             num_workers=workers, pin_memory=(dev.type == 'cuda'),
-            prefetch_factor=4 if workers > 0 else None, persistent_workers=False,
+            prefetch_factor=2 if workers > 0 else None, persistent_workers=False,
         )
 
     model = MouseFrameClassifier(
@@ -530,7 +545,7 @@ def main():
         grad_norms = []
         last_group_norms = {}
         t0 = time.time()
-        for ctx, offs, lbl, mask in make_batch_loader(train_meta, epoch_idx, args.batch_size, args.num_workers):
+        for ctx, offs, lbl, mask in make_batch_loader(train_meta, epoch_idx, args.batch_size, args.gather_workers):
             ctx = ctx.to(dev, non_blocking=True)
             offs, lbl, mask = (offs.to(dev, non_blocking=True), lbl.to(dev, non_blocking=True),
                                mask.to(dev, non_blocking=True))

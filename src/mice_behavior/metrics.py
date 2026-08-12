@@ -100,6 +100,18 @@ def rate_report(probs: np.ndarray, labels: np.ndarray, sample_obs: np.ndarray,
     for i, name in enumerate(label_names):
         true = np.array([labels[df_obs == o, i].mean() for o in uniq])
         pred = np.array([probs[df_obs == o, i].mean() for o in uniq])
+        if len(uniq) < 2 or np.ptp(true) == 0 or np.ptp(pred) == 0:
+            # correlation is undefined with <2 observations or a constant series -- return NaNs
+            # rather than raising, so smoke runs and degenerate splits still produce a report.
+            out[name] = {'n_observations': int(len(uniq)), 'pearson_r': float('nan'),
+                         'pearson_p': float('nan'), 'spearman_rho': float('nan'),
+                         'r2': float('nan'), 'ppi_variance_reduction': float('nan'),
+                         'true_rate_mean_pp': float(true.mean() * 100),
+                         'mae_raw_pp': float(np.abs(pred - true).mean() * 100),
+                         'mae_calibrated_pp': float('nan'),
+                         'mae_baseline_pp': float(np.abs(true.mean() - true).mean() * 100),
+                         'calibration_slope': float('nan'), 'mae_vs_baseline': 'n/a (degenerate)'}
+            continue
         r = stats.pearsonr(true, pred)
         rho = stats.spearmanr(true, pred)
         slope, icept = np.polyfit(pred, true, 1)

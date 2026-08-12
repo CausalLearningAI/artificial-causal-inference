@@ -42,6 +42,9 @@ VAL_MONITOR_SIZE=${VAL_MONITOR_SIZE:-50000}
 # frame reads are NFS-LATENCY-bound (~100ms/frame, decode is only ~2-3ms of it), so
 # workers should exceed the CPU count -- they sit blocked on I/O, not computing.
 NUM_WORKERS=${NUM_WORKERS:-16}
+# separate from NUM_WORKERS: the training gather reads from the RAM token cache and
+# holds workers*prefetch batches in flight, so a large value here OOMs (see py help).
+GATHER_WORKERS=${GATHER_WORKERS:-6}
 CONTEXT_K_ARGS=""
 if [ -n "${CONTEXT_K:-}" ]; then
     CONTEXT_K_ARGS="--context-k ${CONTEXT_K}"
@@ -72,6 +75,7 @@ python -u scripts/mice_behavior/train_patchgrid_online.py \
     --batch-size "${BATCH_SIZE}" \
     --encode-batch-size 256 \
     --num-workers "${NUM_WORKERS}" \
+    --gather-workers "${GATHER_WORKERS}" \
     --tag "${TAG}" \
     --cross-attn-dim "${CROSS_ATTN_DIM}" \
     --patch-pool-dim "${PATCH_POOL_DIM}" \
