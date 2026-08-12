@@ -1,11 +1,11 @@
 # @package _global_
 defaults:
   - /data: ants
-  - /dataset: ants/v4
+  - /dataset: ants/v6
 
 subject: ants
-version: v4
-annotations: "yes"   # yes | no | partial
+version: v6
+annotations: "no"    # yes | no | partial  (quoted: bare `no` parses as boolean false)
 
 # Processing overwrite flags
 overwrite:
@@ -15,5 +15,4 @@ overwrite:
   hf: false
   embeddings: false
   tracking: false
-  color_bounds: false 
-
+  color_bounds: false
