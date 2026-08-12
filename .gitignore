@@ -7,8 +7,7 @@ __init__.py
 results/
 logs/
 outputs/
-# anchored: bare `dataset/` also matched configs/dataset/
-/dataset/
+dataset/
 .claude/
 
 # data
