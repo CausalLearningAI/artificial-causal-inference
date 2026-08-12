@@ -1,0 +1,46 @@
+# Dataset configuration for ants/v5
+
+description: "Ant grooming behavior with orange and blue markers"
+
+
+treatment:
+  column: treatment
+  type: categorical
+  values: [A,B,C,D,F]
+  
+covariates:
+  batch:
+    type: string
+  position:
+    type: string
+  recording_date:
+    type: string
+  recording_hour:
+    type: float
+  nestbox:
+    type: string
+  weak_marking:
+    type: boolean
+
+outcomes:
+  - Y2F
+  - B2F
+  - FOL
+  - YOL
+  - BOL
+
+outcome_mapping:
+  "groom-orange": [1, 0, 0, 0, 0]
+  "groom-blue": [0, 1, 0, 0, 0]
+  "groom-orangeandblue": [1, 1, 0, 0, 0]
+  "onLid-focal": [0, 0, 1, 0, 0]
+  "onLid-orange": [0, 0, 0, 1, 0]
+  "onLid-blue": [0, 0, 0, 0, 1]
+
+annotation_format:
+  skiprows: 3
+  skipfooter: 1
+  columns:
+    start_frame: "Beginning-frame"
+    end_frame: "End-frame"
+    outcome: "Behavior"

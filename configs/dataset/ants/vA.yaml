@@ -1,0 +1,38 @@
+# Dataset configuration for ants/vA
+
+description: "Lasius niger grooming behavior with orange and blue markers"
+
+
+treatment:
+  column: treatment
+  type: categorical
+  values: [A,B,C]   # 3 arms (vs 6 in v5/v6); all 3 have valid observations
+
+covariates:
+  batch:
+    type: string
+  position:
+    type: string
+  recording_date:
+    type: string
+  recording_hour:
+    type: float
+  nestbox:
+    type: string
+  weak_marking:
+    type: boolean
+
+outcomes:
+  - Y2F
+  - B2F
+  - FOL
+  - YOL
+  - BOL
+
+# No outcome_mapping / annotation_format here: vA has no ground-truth annotations
+# (annotations: "no"), so Y_* is all-NaN and filled by a model trained elsewhere.
+# Both blocks are only read on the annotation-parsing path (extract_labels).
+# Copy them from v5 and verify against the real csv if vA ever gets annotated.
+#
+# `comment` is deliberately NOT a covariate: it is a free-text lab note carried in
+# experiment.csv for filtering, not a variable to condition on.

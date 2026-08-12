@@ -1,0 +1,34 @@
+# Dataset configuration for ants/v1
+
+description: "Ant grooming behavior with yellow and blue markers"
+
+
+treatment:
+  column: treatment
+  type: categorical
+  values: [0, 1, 2]
+
+covariates:
+  batch:
+    type: string
+  position:
+    type: string
+  recording_hour:
+    type: float
+
+outcomes:
+  - Y2F
+  - B2F
+
+outcome_mapping:
+  "groom-yellow": [1, 0]
+  "groom-blue": [0, 1]
+  "groom-yellowandblue": [1, 1]
+
+annotation_format:
+  skiprows: 3
+  skipfooter: 1
+  columns:
+    start_frame: "Beginning-frame"
+    end_frame: "End-frame"
+    outcome: "Behavior"

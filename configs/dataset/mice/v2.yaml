@@ -1,0 +1,47 @@
+# Dataset configuration for mice/v1
+
+description: "Autism spectrum disorder (ASD) mouse model experiment tracking 2 behaviors (one directional) in quadruplets of mice. Three different ASD-associated mouse lines, each with a heterozygous knockout of an epigenetic regulator gene (Ash1L, Kdm6B, or Kmt5B). Each quadruplet consists of 4 mice from the same genetic line: wildtype (WT) and heterozygous (HET) littermates. Genotype serves as the intervention to study causal effects on neurobehavior."
+
+# Annotation availability (yes|no|partial)
+annotations: no
+
+treatment:
+  column: genotype
+  type: categorical
+  values: ['wt', 'het']
+
+covariates:
+  line:
+    type: string
+  sex:
+    type: string
+  phase:
+    type: string
+  odor:
+    type: string
+  seed:
+    type: int
+  date:
+    type: string
+  time:
+    type: string
+  annotator:
+    type: string
+
+outcomes:
+  - nn
+  - np
+  - nt
+
+outcome_mapping:
+  "nn": [1, 0, 0]
+  "np": [0, 1, 0]
+  "nt": [0, 0, 1]
+
+annotation_format:
+  skiprows: 0
+  skipfooter: 1
+  columns:
+    start_frame: "Image index start"
+    end_frame: "Image index stop"
+    outcome: "behavior_type"

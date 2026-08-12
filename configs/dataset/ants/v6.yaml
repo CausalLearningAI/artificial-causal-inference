@@ -1,0 +1,35 @@
+# Dataset configuration for ants/v6
+
+description: "Ant grooming behavior with orange and blue markers"
+
+
+treatment:
+  column: treatment
+  type: categorical
+  values: [A,B,C,D,E,F]   # all 6 have valid observations (v5 lists 5: its E rows are all valid=0)
+
+covariates:
+  batch:
+    type: string
+  position:
+    type: string
+  recording_date:
+    type: string
+  recording_hour:
+    type: float
+  nestbox:
+    type: string
+  weak_marking:
+    type: boolean
+
+outcomes:
+  - Y2F
+  - B2F
+  - FOL
+  - YOL
+  - BOL
+
+# No outcome_mapping / annotation_format here: v6 has no ground-truth annotations
+# (annotations: "no"), so Y_* is all-NaN and filled by a model trained elsewhere.
+# Both blocks are only read on the annotation-parsing path (extract_labels).
+# Copy them from v5 and verify against the real csv if v6 ever gets annotated.

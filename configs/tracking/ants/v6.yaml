@@ -1,0 +1,28 @@
+# @package _global_
+# Tracking config for ants/v6
+
+subject: ants
+version: v6
+
+
+quantile: 0.85
+n_background_frames: 40
+pov_radius: 80
+
+max_dist_activity: 80
+max_step: 100
+min_area_color: 5
+max_area_color: 400
+min_area_body: 100
+max_area_body: 2000
+
+# Bounds copied verbatim from v5 as a STARTING POINT — not calibrated on v6.
+# v2-v5 each needed their own tuning (blue hue lb drifted 100->80, yellow V lb
+# 60->90), so expect these to move. v6's rig (FLIR BFS-U3-120S4C + Edmund 25mm,
+# EDDING 750 markers) is recorded in the lab export; v5's is not, so sameness is
+# unverified. Verify on the sampled demo videos from job_track.sh before
+# committing to POV extraction + embeddings.
+yellow_marking_lb: [0, 60, 90]
+yellow_marking_ub: [11, 255, 255]
+blue_marking_lb: [80, 40, 50]
+blue_marking_ub: [135, 255, 255]
