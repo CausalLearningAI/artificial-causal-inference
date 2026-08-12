@@ -1,0 +1,137 @@
+"""Visualize the DINOv2 patch grid on a real mice frame at each resolution explored by
+train_patchgrid_online.py (--input-size).
+
+Reproduces exactly what the encoder sees:
+  * 224 (no --input-size): the processor's DEFAULT path -- resize shortest edge to 256,
+    then center-crop 224. On a 512x512 frame that silently throws away a 12.5% border on
+    every side, and each 14px patch covers 32x32 native pixels.
+  * 336 / 448 / 504 (--input-size N): plain resize to NxN, no crop -- full frame kept,
+    patch count (N/14)^2, native pixels per patch 512*14/N.
+
+Also renders the 448 --blur-to 224 control (same 1024 patches, no real extra detail) so
+the "more detail" vs. "more attention slots" distinction is visible, and a zoomed crop
+around one mouse showing how many patches actually land on a body.
+
+Usage:
+    python scripts/mice_behavior/viz_patch_grid.py
+    python scripts/mice_behavior/viz_patch_grid.py --frame <path/to/frame.jpg>
+"""
+import argparse
+from pathlib import Path
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
+from PIL import Image
+
+PATCH_SIZE = 14
+NATIVE = 512
+DEFAULT_FRAME = Path('dataset/mice/v1/frames/full/'
+                     '2024-07-26_14-29-30_BHVScreen_rd11_2_SocialOdor_Test/frame_001500.jpg')
+OUT_DIR = Path('results/vision/mice/frame')
+
+
+def preprocess(image, input_size=None, blur_to=None):
+    """Mirror _ImageDataset.__getitem__ geometry (resize/crop only, no normalization)."""
+    if blur_to is not None:
+        image = image.resize((blur_to, blur_to)).resize((input_size, input_size))
+    if input_size is not None:
+        return image.resize((input_size, input_size)), input_size
+    # processor default: shortest_edge=256 resize, then 224 center crop
+    small = image.resize((256, 256))
+    off = (256 - 224) // 2
+    return small.crop((off, off, off + 224, off + 224)), 224
+
+
+def draw_grid(ax, size, step=PATCH_SIZE, lw=0.35, color='#00e5ff', alpha=0.55, off_x=0, off_y=0):
+    """off_x/off_y shift the lattice so a zoomed crop's lines still sit on the TRUE patch
+    boundaries of the full image (a crop rarely starts on a multiple of patch_size)."""
+    for x in range(off_x, size + 1, step):
+        ax.axvline(x - 0.5, color=color, lw=lw, alpha=alpha)
+    for y in range(off_y, size + 1, step):
+        ax.axhline(y - 0.5, color=color, lw=lw, alpha=alpha)
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument('--frame', type=Path, default=DEFAULT_FRAME)
+    p.add_argument('--out', type=Path, default=OUT_DIR / 'patch_grid_resolutions.png')
+    p.add_argument('--zoom-out', type=Path, default=OUT_DIR / 'patch_grid_zoom.png')
+    p.add_argument('--zoom-center', type=int, nargs=2, default=(185, 245),
+                    help='native-pixel (x y) centre of the zoom window (default: the middle '
+                         'mouse in the default frame)')
+    p.add_argument('--zoom-half', type=int, default=80, help='half-width of the zoom window in native px')
+    args = p.parse_args()
+
+    img = Image.open(args.frame).convert('RGB')
+    assert img.size == (NATIVE, NATIVE), f'expected {NATIVE}x{NATIVE}, got {img.size}'
+
+    # (label, input_size, blur_to)
+    variants = [
+        ('224  (default: 256-resize + center-crop)', None, None),
+        ('336  (--input-size 336)', 336, None),
+        ('448  (--input-size 448)', 448, None),
+        ('504  (--input-size 504)', 504, None),
+        ('448 <- blur 224  (patch-count control)', 448, 224),
+    ]
+
+    fig, axes = plt.subplots(2, 3, figsize=(16.5, 12.5))
+    axes = axes.ravel()
+
+    # panel 0: native frame, no grid, for reference
+    axes[0].imshow(img)
+    axes[0].set_title(f'stored frame — {NATIVE}x{NATIVE}\n(no grid; what is on disk)', fontsize=10)
+    axes[0].set_xticks([]); axes[0].set_yticks([])
+
+    for ax, (label, isize, blur) in zip(axes[1:], variants):
+        proc, size = preprocess(img, isize, blur)
+        n_side = size // PATCH_SIZE
+        native_px = NATIVE * PATCH_SIZE / size if isize is not None else NATIVE * PATCH_SIZE / 256
+        fov = 100.0 if isize is not None else 224 / 256 * 100
+        ax.imshow(proc)
+        draw_grid(ax, size)
+        ax.set_title(f'{label}\n{n_side}x{n_side} = {n_side ** 2} patches  |  '
+                     f'1 patch = {native_px:.1f}x{native_px:.1f} native px  |  FOV {fov:.1f}%',
+                     fontsize=9)
+        ax.set_xticks([]); ax.set_yticks([])
+
+    fig.suptitle(f'DINOv2 patch grid (patch_size=14) at each --input-size explored\n{args.frame.name}',
+                 fontsize=12)
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.subplots_adjust(hspace=0.12)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(args.out, dpi=150)
+    print(f'wrote {args.out}', flush=True)
+
+    # --- zoom: same native region, patches at each resolution -------------------------
+    cx, cy = args.zoom_center
+    half = args.zoom_half
+    win = 2 * half
+    box = (cx - half, cy - half, cx + half, cy + half)
+    MAG = 8
+    zfig, zaxes = plt.subplots(1, 4, figsize=(18, 5.4))
+    for ax, (label, isize, _) in zip(zaxes, [v for v in variants if v[2] is None]):
+        proc, size = preprocess(img, isize, None)
+        scale = size / NATIVE if isize is not None else 256 / NATIVE
+        shift = 0 if isize is not None else (256 - 224) // 2  # crop offset in the 256 space
+        zbox = tuple(int(c * scale) - shift for c in box)
+        crop = proc.crop(zbox)
+        w = crop.size[0]
+        ax.imshow(crop.resize((w * MAG, w * MAG), Image.NEAREST))
+        # keep the drawn lattice on the real patch boundaries of the full resized image
+        draw_grid(ax, w * MAG, step=PATCH_SIZE * MAG, lw=0.9, alpha=0.85,
+                  off_x=(-zbox[0] % PATCH_SIZE) * MAG, off_y=(-zbox[1] % PATCH_SIZE) * MAG)
+        n_p = w / PATCH_SIZE
+        ax.set_title(f'{label.split("(")[0].strip()}\n~{n_p:.1f}x{n_p:.1f} patches over the same '
+                     f'{win}x{win} native px', fontsize=10)
+        ax.set_xticks([]); ax.set_yticks([])
+    zfig.suptitle(f'Same {win}x{win} native-pixel region (one mouse), magnified {MAG}x — '
+                  f'how many patch tokens land on a single body', fontsize=12)
+    zfig.tight_layout(rect=[0, 0, 1, 0.92])
+    zfig.savefig(args.zoom_out, dpi=150)
+    print(f'wrote {args.zoom_out}', flush=True)
+
+
+if __name__ == '__main__':
+    main()

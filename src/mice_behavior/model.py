@@ -9,17 +9,35 @@ class PatchAttnPool(nn.Module):
     producing one smart-weighted-average vector per frame (replaces static
     average pooling / CLS-token summarization)."""
 
-    def __init__(self, emb_dim: int = 768, n_heads: int = 1):
+    def __init__(self, emb_dim: int = 768, out_dim: Optional[int] = None, n_heads: int = 1,
+                 dropout: float = 0.0, use_layernorm: bool = False):
         super().__init__()
-        self.query = nn.Parameter(torch.randn(1, 1, emb_dim) * 0.02)
-        self.attn = nn.MultiheadAttention(emb_dim, n_heads, batch_first=True)
+        self.out_dim = out_dim or emb_dim
+        if self.out_dim != emb_dim:
+            # project raw DINO patch tokens down before pooling, so the attention itself
+            # (and everything downstream) runs at the smaller dim -- a real capacity cut,
+            # not just a cheaper matmul.
+            self.in_proj = nn.Linear(emb_dim, self.out_dim)
+        self.query = nn.Parameter(torch.randn(1, 1, self.out_dim) * 0.02)
+        self.attn = nn.MultiheadAttention(self.out_dim, n_heads, dropout=dropout, batch_first=True)
+        self.use_layernorm = use_layernorm
+        if use_layernorm:
+            # pre-norm on the keys/values (raw DINO patch tokens have no normalization
+            # guarantee downstream of the frozen encoder) + post-norm on the pooled output,
+            # matching standard pre-LN transformer block design.
+            self.norm_kv = nn.LayerNorm(self.out_dim)
+            self.norm_out = nn.LayerNorm(self.out_dim)
 
     def forward(self, patch_seq: torch.Tensor) -> torch.Tensor:
-        # patch_seq: (N, P, emb_dim) -> (N, emb_dim)
+        # patch_seq: (N, P, emb_dim) -> (N, out_dim)
         N = patch_seq.size(0)
+        if self.out_dim != patch_seq.size(-1):
+            patch_seq = self.in_proj(patch_seq)
+        kv = self.norm_kv(patch_seq) if self.use_layernorm else patch_seq
         q = self.query.expand(N, -1, -1)
-        out, _ = self.attn(q, patch_seq, patch_seq)
-        return out.squeeze(1)
+        out, _ = self.attn(q, kv, kv)
+        out = out.squeeze(1)
+        return self.norm_out(out) if self.use_layernorm else out
 
 
 class MouseOPairClassifier(nn.Module):
@@ -108,30 +126,75 @@ class MouseFrameClassifier(nn.Module):
     to infer it from raw content alone. A cheap probe (mean patch-delta L2 norm, no learning)
     already separates nt/nn above a same-shape raw-content-magnitude baseline (ROC-AUC
     0.61/0.54 vs 0.53/0.46), motivating this.
+
+    Regularization knobs (all no-ops unless set, and all inactive in eval mode):
+        cross_attn_dim: bottleneck the temporal cross-attention (query/pos_emb/attn/head) down
+            to this dim instead of running it at the full emb_dim. A 5-position context window
+            (context_k=2) doesn't need a full 768-dim attention module (~2.4M params) — most of
+            that capacity has nowhere useful to go and just memorizes train-pool idiosyncrasies.
+        patch_dropout: probability of zeroing each patch token (independently, per patch per
+            frame) before pooling — structured input-level augmentation, cheap to apply on
+            already-encoded/cached tokens (no need to re-run the frozen encoder).
+        patch_noise_std: std of Gaussian noise added to patch tokens before pooling.
+        frame_dropout: probability of additionally masking a non-target context frame (offset
+            != 0; the target frame itself is never dropped) during training, on top of any real
+            padding — discourages the temporal cross-attention from over-relying on any single
+            context position.
+        use_layernorm: adds LayerNorm before/after each attention module (patch_pool's and
+            cross_attn's) and inside the MLP head, matching standard pre-LN transformer block
+            design. Off by default so old checkpoints (saved without these extra params) still
+            load; every prior experiment in this repo trained with zero normalization anywhere
+            in the trainable stack — raw DINO patch tokens went straight into an unnormalized
+            MultiheadAttention, whose output fed straight into a second unnormalized
+            MultiheadAttention, whose output fed an unnormalized MLP.
+        patch_pool_dim: bottleneck patch_pool itself (the spatial-attention pooling over the
+            256+ raw DINO patch tokens) down to this dim, on top of/independent from
+            cross_attn_dim's existing bottleneck on the temporal module. patch_pool is the
+            single largest capacity block (~2.4M params at full 768-dim) and was left untouched
+            by every prior capacity-reduction experiment in this repo -- only the temporal
+            cross-attention was ever bottlenecked.
     """
 
     def __init__(
         self, emb_dim: int = 768, n_heads: int = 1, hidden_dim: int = 256, n_labels: int = 2,
         max_offset: int = 8, use_patch_grid: bool = False, dropout: float = 0.0,
-        n_hidden_layers: int = 1, use_motion: bool = False,
+        n_hidden_layers: int = 1, use_motion: bool = False, cross_attn_dim: Optional[int] = None,
+        patch_dropout: float = 0.0, patch_noise_std: float = 0.0, frame_dropout: float = 0.0,
+        use_layernorm: bool = False, patch_pool_dim: Optional[int] = None,
     ):
         super().__init__()
         self.max_offset = max_offset
         self.use_patch_grid = use_patch_grid
         self.use_motion = use_motion
-        self.query = nn.Parameter(torch.randn(1, 1, emb_dim) * 0.02)
-        self.pos_emb = nn.Embedding(2 * max_offset + 1, emb_dim)
+        self.patch_dropout = patch_dropout
+        self.patch_noise_std = patch_noise_std
+        self.frame_dropout = frame_dropout
+        self.use_layernorm = use_layernorm
+        patch_content_dim = patch_pool_dim or emb_dim
+        self.cross_attn_dim = cross_attn_dim or patch_content_dim
         if use_patch_grid:
-            self.patch_pool = PatchAttnPool(emb_dim=emb_dim, n_heads=n_heads)
+            self.patch_pool = PatchAttnPool(emb_dim=emb_dim, out_dim=patch_pool_dim, n_heads=n_heads,
+                                             dropout=dropout, use_layernorm=use_layernorm)
             if use_motion:
-                self.motion_pool = PatchAttnPool(emb_dim=emb_dim, n_heads=n_heads)
-                self.motion_proj = nn.Linear(2 * emb_dim, emb_dim)
-        self.cross_attn = nn.MultiheadAttention(emb_dim, n_heads, dropout=dropout, batch_first=True)
+                self.motion_pool = PatchAttnPool(emb_dim=emb_dim, out_dim=patch_pool_dim, n_heads=n_heads,
+                                                  dropout=dropout, use_layernorm=use_layernorm)
+                self.motion_proj = nn.Linear(2 * patch_content_dim, patch_content_dim)
+        if self.cross_attn_dim != patch_content_dim:
+            self.temporal_proj = nn.Linear(patch_content_dim, self.cross_attn_dim)
+        self.query = nn.Parameter(torch.randn(1, 1, self.cross_attn_dim) * 0.02)
+        self.pos_emb = nn.Embedding(2 * max_offset + 1, self.cross_attn_dim)
+        self.cross_attn = nn.MultiheadAttention(self.cross_attn_dim, n_heads, dropout=dropout, batch_first=True)
+        if use_layernorm:
+            self.cross_attn_norm_in = nn.LayerNorm(self.cross_attn_dim)
+            self.cross_attn_norm_out = nn.LayerNorm(self.cross_attn_dim)
 
         layers = []
-        in_dim = emb_dim
+        in_dim = self.cross_attn_dim
         for _ in range(n_hidden_layers):
-            layers += [nn.Linear(in_dim, hidden_dim), nn.ReLU(), nn.Dropout(dropout)]
+            layers.append(nn.Linear(in_dim, hidden_dim))
+            if use_layernorm:
+                layers.append(nn.LayerNorm(hidden_dim))
+            layers += [nn.ReLU(), nn.Dropout(dropout)]
             in_dim = hidden_dim
         layers.append(nn.Linear(in_dim, n_labels))
         self.head = nn.Sequential(*layers)
@@ -144,18 +207,38 @@ class MouseFrameClassifier(nn.Module):
     ) -> torch.Tensor:
         if self.use_patch_grid:
             B, T, P, D = context_seq.shape
-            content = self.patch_pool(context_seq.reshape(B * T, P, D)).reshape(B, T, D)
+            if self.training and self.patch_noise_std > 0:
+                # scale relative to the batch's own std (detached) rather than an absolute
+                # constant — DINOv2/DINOv3 raw patch-token magnitudes differ substantially,
+                # so a fixed noise scale would mean something different for each encoder.
+                noise_scale = context_seq.std().detach() * self.patch_noise_std
+                context_seq = context_seq + torch.randn_like(context_seq) * noise_scale
+            if self.training and self.patch_dropout > 0:
+                keep = (torch.rand(B, T, P, 1, device=context_seq.device) > self.patch_dropout).float()
+                context_seq = context_seq * keep / (1 - self.patch_dropout)
+            content = self.patch_pool(context_seq.reshape(B * T, P, D)).reshape(B, T, -1)
             if self.use_motion:
                 delta = context_seq[:, 1:] - context_seq[:, :-1]  # (B, T-1, P, D)
                 delta = torch.cat([torch.zeros_like(delta[:, :1]), delta], dim=1)  # pad t=0 -> (B, T, P, D)
-                motion = self.motion_pool(delta.reshape(B * T, P, D)).reshape(B, T, D)
+                motion = self.motion_pool(delta.reshape(B * T, P, D)).reshape(B, T, -1)
                 context_seq = self.motion_proj(torch.cat([content, motion], dim=-1))
             else:
                 context_seq = content
+        if self.cross_attn_dim != context_seq.size(-1):
+            context_seq = self.temporal_proj(context_seq)
         B = context_seq.size(0)
         if offsets is not None:
             idx = offsets.clamp(-self.max_offset, self.max_offset) + self.max_offset
-            context_seq = context_seq + self.pos_emb(idx)  # (B, T, emb_dim)
-        query = self.query.expand(B, -1, -1)  # (B, 1, emb_dim)
-        attn_out, _ = self.cross_attn(query, context_seq, context_seq, key_padding_mask=key_padding_mask)  # (B, 1, emb_dim)
-        return self.head(attn_out.squeeze(1))
+            context_seq = context_seq + self.pos_emb(idx)  # (B, T, cross_attn_dim)
+        if self.training and self.frame_dropout > 0 and key_padding_mask is not None and offsets is not None:
+            is_center = (offsets == 0)
+            extra_drop = (torch.rand_like(key_padding_mask, dtype=torch.float) < self.frame_dropout) & ~is_center & ~key_padding_mask
+            key_padding_mask = key_padding_mask | extra_drop
+        if self.use_layernorm:
+            context_seq = self.cross_attn_norm_in(context_seq)
+        query = self.query.expand(B, -1, -1)  # (B, 1, cross_attn_dim)
+        attn_out, _ = self.cross_attn(query, context_seq, context_seq, key_padding_mask=key_padding_mask)  # (B, 1, cross_attn_dim)
+        attn_out = attn_out.squeeze(1)
+        if self.use_layernorm:
+            attn_out = self.cross_attn_norm_out(attn_out)
+        return self.head(attn_out)

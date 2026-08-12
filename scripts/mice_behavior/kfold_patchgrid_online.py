@@ -60,6 +60,9 @@ def main():
     p.add_argument('--batch-size', type=int, default=256)
     p.add_argument('--encode-batch-size', type=int, default=256)
     p.add_argument('--num-workers', type=int, default=16)
+    p.add_argument('--only-fold', type=int, default=None,
+                    help='Run just this one fold index (e.g. to finish a run that hit its time limit '
+                         'partway through, without re-running already-completed folds).')
     args = p.parse_args()
     MODEL_ID = MODEL_IDS[args.encoder]
     n_patches_full = N_PATCHES[args.encoder]
@@ -98,8 +101,9 @@ def main():
     print('Loading full-frame HF dataset (raw JPEGs)...', flush=True)
     hf_dataset = load_dataset(subject='mice', version='v1', dataset_root=str(gsf.DATASET_DIR), frame_type='full')
 
+    fold_range = [args.only_fold] if args.only_fold is not None else list(range(args.k))
     fold_scores = []
-    for fold in range(args.k):
+    for fold in fold_range:
         t_fold0 = time.time()
         val_pool_set = {p for p, f in fold_of_pool.items() if f == fold}
         train_obs = [o for o in all_obs if obs_to_pool[o] not in val_pool_set]
@@ -247,12 +251,15 @@ def main():
         if dev.type == 'cuda':
             torch.cuda.empty_cache()
 
-    mean_ap, std_ap = float(np.mean(fold_scores)), float(np.std(fold_scores))
-    print(f'\n=== {args.encoder} k={args.k}-fold CV: mean={mean_ap:.4f} std={std_ap:.4f} '
-          f'folds={[round(s, 4) for s in fold_scores]} ===', flush=True)
-    with open(OUT_DIR / 'summary.json', 'w') as f:
-        json.dump({'encoder': args.encoder, 'cfg': best_cfg, 'k': args.k,
-                   'fold_scores': fold_scores, 'mean_ap': mean_ap, 'std_ap': std_ap}, f, indent=2)
+    if args.only_fold is not None:
+        print(f'\n=== fold {args.only_fold} done (--only-fold run, not writing an aggregate summary) ===', flush=True)
+    else:
+        mean_ap, std_ap = float(np.mean(fold_scores)), float(np.std(fold_scores))
+        print(f'\n=== {args.encoder} k={args.k}-fold CV: mean={mean_ap:.4f} std={std_ap:.4f} '
+              f'folds={[round(s, 4) for s in fold_scores]} ===', flush=True)
+        with open(OUT_DIR / 'summary.json', 'w') as f:
+            json.dump({'encoder': args.encoder, 'cfg': best_cfg, 'k': args.k,
+                       'fold_scores': fold_scores, 'mean_ap': mean_ap, 'std_ap': std_ap}, f, indent=2)
     print(f'Saved {OUT_DIR}/summary.json', flush=True)
 
 

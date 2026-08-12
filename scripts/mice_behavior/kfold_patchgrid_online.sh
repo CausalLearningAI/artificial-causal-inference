@@ -25,6 +25,10 @@ cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 mkdir -p logs
 
 ENCODER=${ENCODER:-dinov2}
+ONLY_FOLD_ARGS=""
+if [ -n "${ONLY_FOLD:-}" ]; then
+    ONLY_FOLD_ARGS="--only-fold ${ONLY_FOLD}"
+fi
 
 python -u scripts/mice_behavior/kfold_patchgrid_online.py \
     --encoder "${ENCODER}" \
@@ -34,4 +38,5 @@ python -u scripts/mice_behavior/kfold_patchgrid_online.py \
     --patience 7 \
     --batch-size 256 \
     --encode-batch-size 256 \
-    --num-workers 16
+    --num-workers 16 \
+    ${ONLY_FOLD_ARGS}
