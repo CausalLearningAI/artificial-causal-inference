@@ -21,7 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as dc_replace
 from pathlib import Path
 
 import numpy as np
@@ -600,6 +600,13 @@ def main() -> None:
                         help="Filter error plot to this treatment value (e.g. 'B').")
     parser.add_argument("--error-outcome", default=None, metavar="COL",
                         help="Filter error plot to errors on this outcome (e.g. 'Y_Y2F').")
+    parser.add_argument("--extra-test-versions", nargs="+", default=None, metavar="V",
+                        help="Append versions to each config's test_versions, e.g. "
+                             "--extra-test-versions v6. Needed to evaluate a version the "
+                             "config does not list: only test_versions get the error and "
+                             "prediction-example plots, and a version absent from "
+                             "all_versions is not evaluated at all. Versions whose "
+                             "embeddings are missing are skipped with a warning.")
     args = parser.parse_args()
 
     if args.eval_only and args.skip_if_exists:
@@ -628,6 +635,16 @@ def main() -> None:
                 parser.error(f"Unknown config '{args.config}'. "
                              f"Choices: {', '.join(configs_by_name)}")
             configs = [configs_by_name[args.config]]
+
+    if args.extra_test_versions:
+        configs = [
+            dc_replace(c, test_versions=c.test_versions + [
+                v for v in args.extra_test_versions if v not in c.test_versions
+            ])
+            for c in configs
+        ]
+        print(f"  [extra-test-versions] appended {args.extra_test_versions} -> "
+              f"test_versions now { {c.name: c.test_versions for c in configs} }")
 
     for cfg in configs:
         deploy_one(
