@@ -21,6 +21,11 @@ set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 mkdir -p logs
 
+JPEG_CACHE_ARGS=""
+if [ -n "${JPEG_CACHE_FILE:-}" ]; then
+    JPEG_CACHE_ARGS="--jpeg-cache-file ${JPEG_CACHE_FILE}"
+fi
+
 python -u scripts/mice_behavior/train_online_aug.py \
     --context-k "${CONTEXT_K:-2}" \
     --augment "${AUGMENT:-d4}" \
@@ -30,4 +35,8 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --batch-size "${BATCH_SIZE:-64}" \
     --read-workers "${READ_WORKERS:-32}" \
     --decode-workers "${DECODE_WORKERS:-16}" \
+    --val-monitor-size "${VAL_MONITOR_SIZE:-12500}" \
+    --lr-decay-epochs "${LR_DECAY_EPOCHS:-6}" \
+    --n-epochs "${N_EPOCHS:-20}" \
+    ${JPEG_CACHE_ARGS} \
     --tag "${TAG:-online_aug}"

@@ -180,10 +180,13 @@ def main():
                          'window is too WIDE, not too narrow: at 5 fps the k=2 window spans 1.0 s '
                          'while the median bout is 3 frames (nt, 0.6 s) / 2 frames (nn, 0.4 s). '
                          'Smaller k is also cheaper -- cache and per-batch bytes scale with T.')
-    p.add_argument('--val-monitor-size', type=int, default=50_000,
+    p.add_argument('--val-monitor-size', type=int, default=12_500,
                     help='size of the per-epoch val monitor subsample. Uniform/prevalence-preserving '
                          '(see note at the sampling site) -- NOT rebalanced. Costs no extra encoding '
-                         '(full val is encoded anyway for the final number), only forward passes.')
+                         '(full val is encoded anyway for the final number), only forward passes. '
+                         'Reduced from 50,000: that exceeded the 46,560-sample TRAINING set, so '
+                         'over half of every epoch went on monitoring. 12.5k keeps ~122 nt / ~216 '
+                         'nn positives (~9%% relative AP noise), enough to rank checkpoints.')
     p.add_argument('--neg-ratio', type=int, default=10,
                     help='negatives per positive, resampled fresh each epoch from the cached pool. '
                          '1 (pure balance) measurably hurt full-val AP despite the healthiest-looking '

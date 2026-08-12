@@ -109,9 +109,12 @@ class _SampleDataset(Dataset):
     not duplicated per worker.
     """
 
-    def __init__(self, meta, batches, jpeg_cache, pos_of_global, input_size, augment, seed):
+    def __init__(self, meta, batches, jpeg_cache, input_size, augment, seed):
+        # jpeg_cache is keyed by GLOBAL frame index and is populated lazily, epoch by epoch.
+        # Workers fork per-epoch (a new DataLoader is built each epoch for the resampled
+        # negatives), so each fork inherits whatever the main process has cached so far.
         self.meta, self.batches, self.cache = meta, batches, jpeg_cache
-        self.pos_of_global, self.input_size = pos_of_global, input_size
+        self.input_size = input_size
         self.augment, self.seed = augment, seed
 
     def __len__(self):
@@ -133,7 +136,7 @@ class _SampleDataset(Dataset):
             for t in range(T):
                 if mask[b, t]:
                     continue
-                buf = self.cache[self.pos_of_global[int(abs_idx[b, t])]]
+                buf = self.cache[int(abs_idx[b, t])]
                 with Image.open(io.BytesIO(buf.tobytes())) as im:
                     im = im.convert('RGB')
                     if op:
@@ -159,7 +162,13 @@ def main():
     p.add_argument('--batch-size', type=int, default=128)
     p.add_argument('--read-workers', type=int, default=32, help='NFS reads: latency-bound, use many')
     p.add_argument('--decode-workers', type=int, default=16, help='decode+augment: CPU-bound, ~= n_cpus')
-    p.add_argument('--val-monitor-size', type=int, default=25_000)
+    p.add_argument('--val-monitor-size', type=int, default=12_500,
+                    help='per-epoch monitor size. Was 25k, but the monitor pass ran 25k val '
+                         'samples against a 46,560-sample training set -- a third of each epoch '
+                         'spent monitoring rather than learning (visible as a 99%%->70%% GPU '
+                         'utilisation dip). 12.5k still yields ~122 nt / ~216 nn positives, '
+                         'about 9%% relative noise on the AP estimate, which is ample for RANKING '
+                         'checkpoints; the reported number always comes from full val anyway.')
     p.add_argument('--cross-attn-dim', type=int, default=64)
     p.add_argument('--patch-pool-dim', type=int, default=256)
     p.add_argument('--lr-decay-epochs', type=int, default=6)
@@ -226,60 +235,44 @@ def main():
         a = meta.gi[si][:, None] + meta.offsets_grid[None, :]
         return np.unique(a[~meta.pad_mask[si]])
 
+    # Frames the run COULD touch. No longer pre-read -- used only to size the save manifest
+    # and to report what fraction the lazy path actually avoided.
     all_needed = np.unique(np.concatenate([
         needed(tm, np.concatenate([pos_idx, neg_idx])),
         needed(vm, np.arange(len(vm)))]))
-    pos_of_global = {int(g): i for i, g in enumerate(all_needed)}
+    val_full_frames = needed(vm, np.arange(len(vm)))
 
+    ann = pd.read_csv(ann_csv, usecols=['frame_path'])
+    frame_paths = ann.frame_path.values
     cache_bin = Path(f'{args.jpeg_cache_file}.bin') if args.jpeg_cache_file else None
     cache_idx = Path(f'{args.jpeg_cache_file}.npz') if args.jpeg_cache_file else None
-    jpeg_cache = None
-    if cache_bin and cache_bin.exists() and cache_idx.exists():
-        meta_np = np.load(cache_idx)
-        # the cache is only valid for the exact frame set it was built from; a different
-        # context_k / max_train_frames / split changes all_needed, so verify before trusting it
-        if np.array_equal(meta_np['all_needed'], all_needed):
-            t0 = time.time()
-            offs = meta_np['offsets']
-            blob = np.memmap(cache_bin, dtype=np.uint8, mode='r')   # lazy: OS pages it in
-            jpeg_cache = [blob[offs[i]:offs[i+1]] for i in range(len(all_needed))]
-            nbytes = int(offs[-1])
-            print(f'JPEG cache REUSED from {cache_bin} ({nbytes/1024**3:.1f} GiB, memory-mapped) '
-                  f'in {time.time()-t0:.1f}s -- skipped the ~33 min NFS random-read phase', flush=True)
-        else:
-            print(f'{cache_bin} exists but was built for a different frame set '
-                  f'({len(meta_np["all_needed"]):,} vs {len(all_needed):,}); re-reading', flush=True)
 
-    if jpeg_cache is None:
-        ann = pd.read_csv(ann_csv, usecols=['frame_path'])
-        paths = ann.frame_path.values[all_needed]
-        print(f'Reading {len(all_needed):,} JPEGs into RAM ({args.read_workers} workers; '
-              f'NFS-latency-bound, GPU idle during this)...', flush=True)
+    jpeg_cache = {}
+    if cache_bin and cache_bin.exists() and cache_idx.exists():
+        m = np.load(cache_idx)
         t0 = time.time()
-        jpeg_cache = [None] * len(all_needed)
-        loader = DataLoader(_BytesReader(paths), batch_size=None, num_workers=args.read_workers,
-                            prefetch_factor=6, collate_fn=lambda x: x)
-        nbytes, last = 0, (0, 0.0)
-        for n, (i, buf) in enumerate(loader, 1):
-            jpeg_cache[i] = buf
-            nbytes += buf.nbytes
-            if n % 20000 == 0 or n == len(all_needed):
-                el = time.time() - t0
-                inst = (n - last[0]) / max(el - last[1], 1e-9); last = (n, el)
-                print(f'  {n:,}/{len(all_needed):,} ({inst:.0f} f/s now, {n/el:.0f} cum)', flush=True)
-        print(f'JPEG cache: {nbytes/1024**3:.1f} GiB in {(time.time()-t0)/60:.1f} min', flush=True)
-        if cache_bin:
-            t0 = time.time()
-            cache_bin.parent.mkdir(parents=True, exist_ok=True)
-            offs = np.zeros(len(jpeg_cache) + 1, dtype=np.int64)
-            with open(cache_bin, 'wb') as fh:
-                for i, b in enumerate(jpeg_cache):
-                    fh.write(b.tobytes())
-                    offs[i+1] = offs[i] + b.nbytes
-            np.savez(cache_idx, all_needed=all_needed, offsets=offs)
-            print(f'Saved reusable cache -> {cache_bin} ({nbytes/1024**3:.1f} GiB, '
-                  f'{time.time()-t0:.0f}s). Future runs with the same frame set skip the read.',
-                  flush=True)
+        blob = np.memmap(cache_bin, dtype=np.uint8, mode='r')
+        offs, keys = m['offsets'], m['all_needed']
+        jpeg_cache = {int(k): blob[offs[i]:offs[i+1]] for i, k in enumerate(keys)}
+        print(f'JPEG cache REUSED from {cache_bin} ({int(offs[-1])/1024**3:.1f} GiB, memory-mapped, '
+              f'{len(jpeg_cache):,} frames) in {time.time()-t0:.1f}s', flush=True)
+
+    def ensure_cached(frame_idx, what):
+        """Read only the frames we do not already hold. Lazy by design: the upfront read of
+        every candidate frame blocked training for ~33 min at 0% GPU, and ~32% of it was
+        full-val frames that are not touched until the final evaluation."""
+        missing = np.array(sorted(set(int(g) for g in frame_idx) - set(jpeg_cache)), dtype=np.int64)
+        if not len(missing):
+            return 0.0
+        t0 = time.time()
+        dl = DataLoader(_BytesReader(frame_paths[missing]), batch_size=None,
+                        num_workers=args.read_workers, prefetch_factor=6, collate_fn=lambda x: x)
+        for i, buf in dl:
+            jpeg_cache[int(missing[i])] = buf
+        dt = time.time() - t0
+        print(f'  [{what}] read {len(missing):,} new frames in {dt/60:.1f} min '
+              f'({len(missing)/max(dt,1e-9):.0f} f/s); cache now {len(jpeg_cache):,}', flush=True)
+        return dt
 
     encoder = AutoModel.from_pretrained(MODEL_ID).to(dev).eval()
     encoder.requires_grad_(False)
@@ -298,7 +291,7 @@ def main():
 
     def make_loader(meta, order, augment, seed):
         batches = [order[i:i+args.batch_size] for i in range(0, len(order), args.batch_size)]
-        return DataLoader(_SampleDataset(meta, batches, jpeg_cache, pos_of_global,
+        return DataLoader(_SampleDataset(meta, batches, jpeg_cache,
                                          args.input_size, augment, seed),
                           batch_size=None, num_workers=args.decode_workers,
                           pin_memory=(dev.type == 'cuda'), prefetch_factor=4)
@@ -324,6 +317,9 @@ def main():
         order = (np.concatenate([pos_idx, neg_idx]) if saturated else
                  np.concatenate([pos_idx, rng.choice(neg_idx, size=n_neg, replace=False)]))
         rng.shuffle(order)
+        read_s = ensure_cached(needed(tm, order), f'epoch {ep} train')
+        if ep == 1:
+            read_s += ensure_cached(needed(vm, val_keep), 'val monitor')
         tot, seen, t0 = 0.0, 0, time.time()
         for imgs, offs, lbl, mask in make_loader(tm, order, args.augment, gsf.SEED * 1000 + ep):
             imgs, lbl = imgs.to(dev, non_blocking=True), lbl.to(dev, non_blocking=True)
@@ -345,7 +341,8 @@ def main():
         ap = float(np.mean([average_precision_score(labs[:, i], probs[:, i]) for i in (0, 1)]))
         hist.append({'epoch': ep, 'train_loss': tot/seen, 'monitor_ap': ap})
         print(f'epoch {ep:3d}/{args.n_epochs}  loss={tot/seen:.4f}  monitor_ap={ap:.4f}  '
-              f'lr={opt.param_groups[0]["lr"]:.2e}  ({time.time()-t0:.1f}s)', flush=True)
+              f'lr={opt.param_groups[0]["lr"]:.2e}  ({time.time()-t0:.1f}s compute'
+              f'{f", {read_s:.0f}s new-frame read" if read_s > 1 else ""})', flush=True)
         if ap > best:
             best, since = ap, 0
             torch.save(model.state_dict(), OUT / 'best_model.pt')
@@ -356,6 +353,7 @@ def main():
                 break
 
     model.load_state_dict(torch.load(OUT / 'best_model.pt', map_location=dev, weights_only=True))
+    ensure_cached(val_full_frames, 'full-val (deferred to the end)')
     probs, labs = evaluate(np.arange(len(vm)))
     sample_obs = np.zeros(len(vm), dtype=object)   # observation id per val sample
     a2 = pd.read_csv(ann_csv, usecols=['observation_id', 'frame_idx'])
@@ -376,6 +374,19 @@ def main():
                'jpeg_cache_gib': nbytes/1024**3, 'ap_report': apr, 'rate_report': rr,
                'best_ap': apr['macro/tol0']['ap'], 'history': hist},
               open(OUT / 'config.json', 'w'), indent=2)
+    if cache_bin and not cache_bin.exists():
+        t0 = time.time()
+        cache_bin.parent.mkdir(parents=True, exist_ok=True)
+        keys = np.array(sorted(jpeg_cache), dtype=np.int64)
+        offs = np.zeros(len(keys) + 1, dtype=np.int64)
+        with open(cache_bin, 'wb') as fh:
+            for i, k in enumerate(keys):
+                b = jpeg_cache[int(k)]
+                fh.write(b.tobytes() if hasattr(b, 'tobytes') else bytes(b))
+                offs[i+1] = offs[i] + len(b)
+        np.savez(cache_idx, all_needed=keys, offsets=offs)
+        print(f'Saved reusable JPEG cache -> {cache_bin} ({offs[-1]/1024**3:.1f} GiB, '
+              f'{len(keys):,} frames, {time.time()-t0:.0f}s)', flush=True)
     print(f'\nSaved {OUT}/', flush=True)
 
 

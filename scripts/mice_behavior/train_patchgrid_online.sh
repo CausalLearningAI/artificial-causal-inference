@@ -38,7 +38,7 @@ FRAME_DROPOUT=${FRAME_DROPOUT:-0.0}
 MAX_TRAIN_FRAMES=${MAX_TRAIN_FRAMES:-200000}
 N_EPOCHS=${N_EPOCHS:-20}
 PATIENCE=${PATIENCE:-8}
-VAL_MONITOR_SIZE=${VAL_MONITOR_SIZE:-50000}
+VAL_MONITOR_SIZE=${VAL_MONITOR_SIZE:-12500}
 # frame reads are NFS-LATENCY-bound (~100ms/frame, decode is only ~2-3ms of it), so
 # workers should exceed the CPU count -- they sit blocked on I/O, not computing.
 NUM_WORKERS=${NUM_WORKERS:-16}
