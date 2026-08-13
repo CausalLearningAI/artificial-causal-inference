@@ -171,6 +171,15 @@ def main():
                          'checkpoints; the reported number always comes from full val anyway.')
     p.add_argument('--cross-attn-dim', type=int, default=64)
     p.add_argument('--patch-pool-dim', type=int, default=256)
+    p.add_argument('--use-motion', action='store_true',
+                    help='pool the per-patch delta to the previous context position through a '
+                         'second PatchAttnPool and concatenate it with the content pooling (see '
+                         'MouseFrameClassifier.use_motion). Motivated by a zero-learning probe: '
+                         'the mean patch-delta L2 norm alone reaches ROC-AUC 0.61 (nt) / 0.54 (nn) '
+                         'vs 0.53/0.46 for a same-shape raw-content-magnitude baseline, so the '
+                         'frame-to-frame change carries signal the content-only path has to infer '
+                         'indirectly. Costs one extra pooling pass (~5%% of step time; the frozen '
+                         'encoder dominates).')
     p.add_argument('--lr-decay-epochs', type=int, default=6)
     p.add_argument('--tag', type=str, default='online_aug')
     p.add_argument('--jpeg-cache-file', type=str, default=None,
@@ -196,7 +205,8 @@ def main():
     best_cfg = json.load(open(gsf.FRAME_DIR / 'patchgrid4x4_dinov2' / 'config.json'))['cfg']
     dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'context_k={args.context_k} (T={2*args.context_k+1})  input_size={args.input_size} '
-          f'({n_patches} patches)  augment={args.augment}  neg_ratio={args.neg_ratio}', flush=True)
+          f'({n_patches} patches)  augment={args.augment}  neg_ratio={args.neg_ratio}'
+          f'  motion={args.use_motion}', flush=True)
 
     pair_labels = gsf.build_pair_labels(gsf.DATA_DIR, gsf.DATASET_DIR, overwrite=False)
     ann_csv = gsf.DATASET_DIR / 'mice' / 'v1' / 'annotations.csv'
@@ -278,7 +288,7 @@ def main():
     encoder.requires_grad_(False)
     model = MouseFrameClassifier(
         emb_dim=EMB_DIM, n_heads=best_cfg['n_heads'], hidden_dim=best_cfg['hidden_dim'],
-        use_patch_grid=True, dropout=best_cfg['dropout'],
+        use_patch_grid=True, dropout=best_cfg['dropout'], use_motion=args.use_motion,
         cross_attn_dim=args.cross_attn_dim or None, patch_pool_dim=args.patch_pool_dim or None).to(dev)
     print(f'classifier params: {sum(p.numel() for p in model.parameters()):,} '
           f'(DINOv2 frozen, {sum(p.numel() for p in encoder.parameters())/1e6:.0f}M)', flush=True)
@@ -370,6 +380,8 @@ def main():
     print(format_rate_report(rr))
     json.dump({'cfg': best_cfg, 'context_k': args.context_k, 'input_size': args.input_size,
                'n_patches': n_patches, 'augment': args.augment, 'neg_ratio': args.neg_ratio,
+               'use_motion': args.use_motion, 'lr_decay_epochs': args.lr_decay_epochs,
+               'n_epochs': args.n_epochs, 'batch_size': args.batch_size,
                'max_train_frames': args.max_train_frames, 'val_pools': sorted(val_pools),
                'jpeg_cache_gib': sum(len(b) for b in jpeg_cache.values())/1024**3,
                'jpeg_cache_frames': len(jpeg_cache), 'ap_report': apr, 'rate_report': rr,

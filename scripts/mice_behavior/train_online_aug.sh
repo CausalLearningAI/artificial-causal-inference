@@ -26,6 +26,11 @@ if [ -n "${JPEG_CACHE_FILE:-}" ]; then
     JPEG_CACHE_ARGS="--jpeg-cache-file ${JPEG_CACHE_FILE}"
 fi
 
+MOTION_ARGS=""
+if [ "${USE_MOTION:-0}" = "1" ]; then
+    MOTION_ARGS="--use-motion"
+fi
+
 python -u scripts/mice_behavior/train_online_aug.py \
     --context-k "${CONTEXT_K:-2}" \
     --augment "${AUGMENT:-d4}" \
@@ -39,5 +44,5 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --lr-decay-epochs "${LR_DECAY_EPOCHS:-6}" \
     --n-epochs "${N_EPOCHS:-20}" \
     --patience "${PATIENCE:-8}" \
-    ${JPEG_CACHE_ARGS} \
+    ${MOTION_ARGS} ${JPEG_CACHE_ARGS} \
     --tag "${TAG:-online_aug}"
