@@ -51,6 +51,7 @@ from src.mice_behavior.batch_data import FrameBatchData
 from src.mice_behavior.model import MouseFrameClassifier
 from src.mice_behavior.pools import get_fixed_val_pools
 from src.mice_behavior.metrics import ap_report, rate_report, format_ap_report, format_rate_report
+from src.mice_behavior.viz import plot_confusion_examples
 from train_patchgrid_online import dummy_loader
 
 EMB_DIM, PATCH_SIZE = toa.EMB_DIM, toa.PATCH_SIZE
@@ -359,6 +360,14 @@ def main():
     print(format_ap_report(apr, tolerances=(0, 1, 2)))
     print(f'\nROC-AUC  nt {auc[0]:.4f}  nn {auc[1]:.4f}')
     print(format_rate_report(rr))
+
+    try:
+        any_meta = metas[('val', specs[0]['context_k'], specs[0]['stride'])]
+        plot_confusion_examples(ens, val_lb, val_o, any_meta.gi, frame_paths, OUT,
+                                jpeg_cache=jpeg_cache,
+                                title_prefix=f'ensemble(w={best_w},{best["method"]})  ')
+    except Exception as e:
+        print(f'  [viz] skipped ({e.__class__.__name__}: {e})', flush=True)
 
     json.dump({'args': vars(args), 'selected': best, 'width': best_w,
                'val_ap_report': apr, 'val_rate_report': rr,

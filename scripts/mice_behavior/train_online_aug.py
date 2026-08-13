@@ -62,6 +62,7 @@ from src.mice_behavior.batch_data import FrameBatchData
 from src.mice_behavior.model import MouseFrameClassifier
 from src.mice_behavior.pools import get_fixed_val_pools
 from src.mice_behavior.metrics import ap_report, format_ap_report, rate_report, format_rate_report
+from src.mice_behavior.viz import plot_confusion_examples
 from train_patchgrid_online import dummy_loader
 
 MODEL_ID = 'facebook/dinov2-base'
@@ -551,7 +552,23 @@ def main():
     print(f'\nROC-AUC  nt {auc["nt"]:.4f}  nn {auc["nn"]:.4f}')
     print()
     print(format_rate_report(rr))
+
+    # qualitative TP/FP/FN/TN grids for both behaviours. The val frames are already in the
+    # JPEG cache from the full-val pass, so this costs decoding only -- no NFS re-read.
+    viz_files = {}
+    try:
+        viz_files = plot_confusion_examples(
+            probs, labs, sample_obs, vm.gi, frame_paths, OUT, jpeg_cache=jpeg_cache,
+            title_prefix=f'{args.tag}  ')
+    except Exception as e:                # never let a figure lose a finished training run
+        print(f'  [viz] skipped ({e.__class__.__name__}: {e})', flush=True)
+
     if run is not None:
+        try:
+            import wandb
+            run.log({f'confusion/{k}': wandb.Image(str(v)) for k, v in viz_files.items()})
+        except Exception:
+            pass
         try:
             # the whole suite, not just AP: plain + tolerant AP (bouts are 1-2 frames, so
             # tol1/tol2 separate genuine misses from boundary jitter), ROC-AUC, and the
