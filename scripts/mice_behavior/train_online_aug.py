@@ -51,7 +51,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 from PIL import Image
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, roc_auc_score
 from torch.utils.data import DataLoader, Dataset
 from transformers import AutoModel
 
@@ -181,6 +181,25 @@ def main():
                          'indirectly. Costs one extra pooling pass (~5%% of step time; the frozen '
                          'encoder dominates).')
     p.add_argument('--lr-decay-epochs', type=int, default=6)
+    p.add_argument('--warmup-epochs', type=int, default=0,
+                    help='linear LR ramp before the cosine decay starts. The trainable stack has '
+                         'no normalization anywhere by default (raw DINO patch tokens -> '
+                         'unnormalized MHA -> unnormalized MHA -> MLP), and every run to date '
+                         'started at the full LR on step 1; the res448 run scored monitor AP 0.107 '
+                         'in epoch 1 vs 0.242 in epoch 2, consistent with a wasted/unstable first '
+                         'epoch. 0 reproduces the old schedule exactly.')
+    p.add_argument('--optimizer', choices=['adam', 'adamw'], default='adam',
+                    help="'adam' applies weight_decay as L2 coupled to Adam's adaptive scaling, "
+                         'which makes it a near-no-op as a regularizer -- it was inherited '
+                         'unexamined from a config tuned on a 4x4 coarse patch grid. Now that the '
+                         'model demonstrably overfits (train loss still falling at epoch 40 while '
+                         'val AP is flat from ~24), decoupled AdamW decay is the knob that '
+                         'actually bites.')
+    p.add_argument('--lr', type=float, default=None, help='override inherited cfg lr')
+    p.add_argument('--weight-decay', type=float, default=None, help='override inherited cfg')
+    p.add_argument('--dropout', type=float, default=None, help='override inherited cfg')
+    p.add_argument('--wandb', action='store_true', help='log the run to Weights & Biases')
+    p.add_argument('--wandb-project', type=str, default='mice-behavior-frame')
     p.add_argument('--tag', type=str, default='online_aug')
     p.add_argument('--jpeg-cache-file', type=str, default=None,
                     help='persist/reuse the JPEG-bytes cache at this path (no extension). The read '
@@ -286,16 +305,44 @@ def main():
 
     encoder = AutoModel.from_pretrained(MODEL_ID).to(dev).eval()
     encoder.requires_grad_(False)
+    # best_cfg comes from a search run on a 4x4 (16-token) coarse patch grid with CACHED tokens,
+    # the old val split and neg_ratio=15 -- every one of those conditions has since changed, so
+    # each field is overridable rather than inherited on faith.
+    lr = args.lr if args.lr is not None else best_cfg['lr']
+    wd = args.weight_decay if args.weight_decay is not None else best_cfg['weight_decay']
+    dropout = args.dropout if args.dropout is not None else best_cfg['dropout']
     model = MouseFrameClassifier(
         emb_dim=EMB_DIM, n_heads=best_cfg['n_heads'], hidden_dim=best_cfg['hidden_dim'],
-        use_patch_grid=True, dropout=best_cfg['dropout'], use_motion=args.use_motion,
+        use_patch_grid=True, dropout=dropout, use_motion=args.use_motion,
         cross_attn_dim=args.cross_attn_dim or None, patch_pool_dim=args.patch_pool_dim or None).to(dev)
     print(f'classifier params: {sum(p.numel() for p in model.parameters()):,} '
           f'(DINOv2 frozen, {sum(p.numel() for p in encoder.parameters())/1e6:.0f}M)', flush=True)
-    opt = torch.optim.Adam(model.parameters(), lr=best_cfg['lr'], weight_decay=best_cfg['weight_decay'])
+    print(f'optimizer={args.optimizer} lr={lr:g} weight_decay={wd:g} dropout={dropout:g} '
+          f'warmup={args.warmup_epochs} decay_epochs={args.lr_decay_epochs}', flush=True)
+    opt_cls = torch.optim.AdamW if args.optimizer == 'adamw' else torch.optim.Adam
+    opt = opt_cls(model.parameters(), lr=lr, weight_decay=wd)
     eta = 0.01
-    sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda e: eta if e >= args.lr_decay_epochs else
-                                              eta + 0.5*(1-eta)*(1+math.cos(math.pi*e/args.lr_decay_epochs)))
+
+    def lr_factor(e):
+        # warmup_epochs=0 reduces this EXACTLY to the previous cosine-to-floor schedule.
+        if e < args.warmup_epochs:
+            return (e + 1) / (args.warmup_epochs + 1)
+        prog = (e - args.warmup_epochs) / max(args.lr_decay_epochs - args.warmup_epochs, 1)
+        return eta if prog >= 1 else eta + 0.5 * (1 - eta) * (1 + math.cos(math.pi * prog))
+
+    sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_factor)
+
+    run = None
+    if args.wandb:
+        try:
+            import wandb
+            run = wandb.init(project=args.wandb_project, name=args.tag, config=vars(args) | {
+                'n_patches': n_patches, 'lr': lr, 'weight_decay': wd, 'dropout': dropout,
+                'n_heads': best_cfg['n_heads'], 'hidden_dim': best_cfg['hidden_dim'],
+                'n_params': sum(p.numel() for p in model.parameters())})
+            print(f'wandb: {run.url}', flush=True)
+        except Exception as e:   # never let telemetry kill a multi-hour training run
+            print(f'wandb disabled ({e.__class__.__name__}: {e})', flush=True)
     crit = nn.BCEWithLogitsLoss()
     scaler = torch.amp.GradScaler('cuda', enabled=dev.type == 'cuda')
 
@@ -348,9 +395,27 @@ def main():
             tot += loss.item() * B; seen += B
         sched.step()
         probs, labs = evaluate(val_keep)
-        ap = float(np.mean([average_precision_score(labs[:, i], probs[:, i]) for i in (0, 1)]))
-        hist.append({'epoch': ep, 'train_loss': tot/seen, 'monitor_ap': ap})
-        print(f'epoch {ep:3d}/{args.n_epochs}  loss={tot/seen:.4f}  monitor_ap={ap:.4f}  '
+        per_ap = [float(average_precision_score(labs[:, i], probs[:, i])) for i in (0, 1)]
+        per_auc = [float(roc_auc_score(labs[:, i], probs[:, i])) for i in (0, 1)]
+        ap = float(np.mean(per_ap))
+        # val BCE on the PREVALENCE-PRESERVING monitor set, whereas train loss is on balanced
+        # 1:1 data -- the two are not comparable in absolute terms, but the val trend is the
+        # overfitting signal that a plateauing AP alone does not distinguish from convergence.
+        p = np.clip(probs, 1e-7, 1 - 1e-7)
+        val_loss = float(-(labs * np.log(p) + (1 - labs) * np.log(1 - p)).mean())
+        row = {'epoch': ep, 'train_loss': tot/seen, 'monitor_ap': ap, 'val_loss': val_loss,
+               'ap_nt': per_ap[0], 'ap_nn': per_ap[1],
+               'auc_nt': per_auc[0], 'auc_nn': per_auc[1],
+               'lr': float(opt.param_groups[0]['lr'])}
+        hist.append(row)
+        if run is not None:
+            try:
+                run.log(row, step=ep)
+            except Exception:
+                pass
+        print(f'epoch {ep:3d}/{args.n_epochs}  loss={tot/seen:.4f}  val_loss={val_loss:.4f}  '
+              f'monitor_ap={ap:.4f}  nt={per_ap[0]:.4f}  nn={per_ap[1]:.4f}  '
+              f'auc_nt={per_auc[0]:.4f}  auc_nn={per_auc[1]:.4f}  '
               f'lr={opt.param_groups[0]["lr"]:.2e}  ({time.time()-t0:.1f}s compute'
               f'{f", {read_s:.0f}s new-frame read" if read_s > 1 else ""})', flush=True)
         if ap > best:
@@ -376,8 +441,25 @@ def main():
     apr = ap_report(probs, labs, sample_obs, tolerances=(0, 1, 2))
     print(format_ap_report(apr, tolerances=(0, 1, 2)))
     rr = rate_report(probs, labs, sample_obs)
+    auc = {n: float(roc_auc_score(labs[:, i], probs[:, i])) for i, n in enumerate(('nt', 'nn'))}
+    print(f'\nROC-AUC  nt {auc["nt"]:.4f}  nn {auc["nn"]:.4f}')
     print()
     print(format_rate_report(rr))
+    if run is not None:
+        try:
+            # the whole suite, not just AP: plain + tolerant AP (bouts are 1-2 frames, so
+            # tol1/tol2 separate genuine misses from boundary jitter), ROC-AUC, and the
+            # per-observation rate agreement that metrics.py flags as the select-on quantity.
+            run.summary.update(
+                {f'fullval/ap_{k.replace("/", "_")}': v['ap'] for k, v in apr.items()}
+                | {f'fullval/enrich_{k.replace("/", "_")}': v['enrichment']
+                   for k, v in apr.items() if 'enrichment' in v}
+                | {f'fullval/auc_{k}': v for k, v in auc.items()}
+                | {f'fullval/rate_{n}_{k}': v for n, d in rr.items() for k, v in d.items()
+                   if isinstance(v, (int, float))})
+            run.finish()
+        except Exception:
+            pass
     json.dump({'cfg': best_cfg, 'context_k': args.context_k, 'input_size': args.input_size,
                'n_patches': n_patches, 'augment': args.augment, 'neg_ratio': args.neg_ratio,
                'use_motion': args.use_motion, 'lr_decay_epochs': args.lr_decay_epochs,

@@ -31,6 +31,18 @@ if [ "${USE_MOTION:-0}" = "1" ]; then
     MOTION_ARGS="--use-motion"
 fi
 
+WANDB_ARGS=""
+if [ "${WANDB:-0}" = "1" ]; then
+    WANDB_ARGS="--wandb"
+fi
+
+# only forward these when set, so an unset var keeps the value inherited from best_cfg
+OVERRIDE_ARGS=""
+for kv in "lr:LR" "weight-decay:WEIGHT_DECAY" "dropout:DROPOUT"; do
+    flag="${kv%%:*}"; var="${kv##*:}"; val="${!var:-}"
+    [ -n "$val" ] && OVERRIDE_ARGS="${OVERRIDE_ARGS} --${flag} ${val}"
+done
+
 python -u scripts/mice_behavior/train_online_aug.py \
     --context-k "${CONTEXT_K:-2}" \
     --augment "${AUGMENT:-d4}" \
@@ -44,5 +56,7 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --lr-decay-epochs "${LR_DECAY_EPOCHS:-6}" \
     --n-epochs "${N_EPOCHS:-20}" \
     --patience "${PATIENCE:-8}" \
-    ${MOTION_ARGS} ${JPEG_CACHE_ARGS} \
+    --optimizer "${OPTIMIZER:-adam}" \
+    --warmup-epochs "${WARMUP_EPOCHS:-0}" \
+    ${OVERRIDE_ARGS} ${MOTION_ARGS} ${WANDB_ARGS} ${JPEG_CACHE_ARGS} \
     --tag "${TAG:-online_aug}"
