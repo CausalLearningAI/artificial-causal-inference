@@ -24,10 +24,10 @@ max_area_body: 2000
 # Seeded from v5 only so load_config() has something to read — NOT calibrated.
 # Every ants version so far needed its own bounds (v2->v5: blue hue lb 100->80,
 # yellow V lb 60->90), and vA is a different species, so expect these to move.
-yellow_marking_lb: [0, 60, 90]
+yellow_marking_lb: [0, 70, 70]
 yellow_marking_ub: [11, 255, 255]
-blue_marking_lb: [80, 40, 50]
-blue_marking_ub: [135, 255, 255]
+blue_marking_lb: [95, 30, 60]
+blue_marking_ub: [125, 255, 255]
 
 # NOTE: optimize_bounds.py tunes ONLY the HSV arrays above. The body/area params
 # (min_area_body, max_area_body, pov_radius, max_step) are copied from v5 and are
