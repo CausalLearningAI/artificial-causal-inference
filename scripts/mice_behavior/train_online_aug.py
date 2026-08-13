@@ -371,7 +371,8 @@ def main():
     json.dump({'cfg': best_cfg, 'context_k': args.context_k, 'input_size': args.input_size,
                'n_patches': n_patches, 'augment': args.augment, 'neg_ratio': args.neg_ratio,
                'max_train_frames': args.max_train_frames, 'val_pools': sorted(val_pools),
-               'jpeg_cache_gib': nbytes/1024**3, 'ap_report': apr, 'rate_report': rr,
+               'jpeg_cache_gib': sum(len(b) for b in jpeg_cache.values())/1024**3,
+               'jpeg_cache_frames': len(jpeg_cache), 'ap_report': apr, 'rate_report': rr,
                'best_ap': apr['macro/tol0']['ap'], 'history': hist},
               open(OUT / 'config.json', 'w'), indent=2)
     if cache_bin and not cache_bin.exists():
