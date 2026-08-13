@@ -181,7 +181,7 @@ def main():
     n_patches = (args.input_size // PATCH_SIZE) ** 2
     total_epochs = args.rungs[-1]
     dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    OUT = gsf.FRAME_DIR / f'search_{args.tag}'
+    OUT = gsf.FRAME_DIR / args.tag
     OUT.mkdir(parents=True, exist_ok=True)
     LOG = gsf.SEARCH_DIR / f'log_{args.tag}.jsonl'
     gsf.SEARCH_DIR.mkdir(parents=True, exist_ok=True)
