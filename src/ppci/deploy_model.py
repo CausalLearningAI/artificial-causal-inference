@@ -248,7 +248,11 @@ def _eval_version(
     plot_summary(
         obs_df,
         outcomes=outcomes,
-        annotations=any_annotated,
+        # A version declared annotations: "no" still reports has_annotations
+        # == "partial" (0 of N frames labelled), so any_annotated alone made
+        # plot_summary draw a ground-truth ATE column of pure nan. Gate on the
+        # actual labelled-frame count instead.
+        annotations=any_annotated and n_annotated > 0,
         treatment_labels=treatment_labels,
         save=True,
         save_path=plot_path,
