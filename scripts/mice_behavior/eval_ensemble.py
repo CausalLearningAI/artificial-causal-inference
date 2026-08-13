@@ -61,6 +61,7 @@ DEFAULT_CKPTS = [
     'patchgrid256_dinov2_504_k0', 'patchgrid256_dinov2_504_k1', 'patchgrid256_dinov2_504_k2',
     'patchgrid256_dinov2_504_k2_adamw', 'patchgrid256_dinov2_504_k2_d4photo',
     'patchgrid256_dinov2_448_best_s1', 'patchgrid256_dinov2_448_best_s2',
+    'patchgrid256_dinov2_448_finetune2',
 ]
 
 
@@ -71,8 +72,11 @@ def load_spec(name):
     d = gsf.FRAME_DIR / name
     cfg = json.load(open(d / 'config.json'))
     sd = torch.load(d / 'best_model.pt', map_location='cpu', weights_only=True)
+    # a fine-tuned run's head is only meaningful with ITS encoder; pairing it with the
+    # pretrained weights would silently produce garbage rather than fail
+    enc_path = d / 'best_encoder.pt'
     spec = dict(
-        name=name, dir=d, state=sd,
+        name=name, dir=d, state=sd, encoder_path=(enc_path if enc_path.exists() else None),
         input_size=cfg.get('input_size', 224), context_k=cfg.get('context_k', 2),
         stride=cfg.get('stride', 1), n_heads=cfg['cfg']['n_heads'],
         hidden_dim=sd['head.0.weight'].shape[0],
@@ -203,8 +207,20 @@ def main():
         any_meta = metas[(split, *sorted({(s['context_k'], s['stride']) for s in specs})[0])]
         obs_of[split] = nm[np.searchsorted(stt, any_meta.gi, side='right') - 1]
 
-    encoder = AutoModel.from_pretrained(toa.MODEL_ID).to(dev).eval()
-    encoder.requires_grad_(False)
+    base_encoder = AutoModel.from_pretrained(toa.MODEL_ID).to(dev).eval()
+    base_encoder.requires_grad_(False)
+    enc_cache = {None: base_encoder}
+
+    def get_encoder(spec):
+        """Fine-tuned checkpoints carry their own encoder weights; frozen ones share the base."""
+        key = str(spec['encoder_path']) if spec['encoder_path'] else None
+        if key not in enc_cache:
+            e = AutoModel.from_pretrained(toa.MODEL_ID)
+            e.load_state_dict(torch.load(spec['encoder_path'], map_location='cpu',
+                                         weights_only=True))
+            enc_cache[key] = e.to(dev).eval().requires_grad_(False)
+            print(f'  loaded fine-tuned encoder for {spec["name"]}', flush=True)
+        return enc_cache[key]
 
     @torch.no_grad()
     def predict(spec, split, ops):
@@ -217,6 +233,7 @@ def main():
         ensure_cached(np.unique((meta.gi[order][:, None] + meta.offsets_grid[None, :])
                                 [~meta.pad_mask[order]]), f'{split}/{spec["name"][-18:]}')
         model = build(spec, dev)
+        encoder = get_encoder(spec)
         acc = None
         for op in ops:
             batches = [order[i:i+args.batch_size] for i in range(0, len(order), args.batch_size)]
@@ -246,7 +263,10 @@ def main():
     for split in ('fit', 'val'):
         for s in specs:
             f = OUT / f'pred_{split}_{s["name"]}_op0.npy'
-            if f.exists():
+            n_expect = len(metas[(split, s['context_k'], s['stride'])])
+            # the cache key does not encode which observations were used, so a changed
+            # --n-train-obs would otherwise reuse a mismatched array
+            if f.exists() and np.load(f, mmap_mode='r').shape[0] == n_expect:
                 preds[(split, s['name'])] = np.load(f)
             else:
                 t0 = time.time()
