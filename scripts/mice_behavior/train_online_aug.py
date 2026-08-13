@@ -154,7 +154,20 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--context-k', type=int, default=2)
     p.add_argument('--neg-ratio', type=int, default=1)
-    p.add_argument('--max-train-frames', type=int, default=300_000)
+    p.add_argument('--max-train-frames', type=int, default=300_000,
+                    help='NOT a cap on training data in the way the name suggests, and easy to '
+                         'misread: FrameBatchData keeps EVERY positive frame (+ its +-reach '
+                         'context) unconditionally, BEFORE this budget is consulted, then tops up '
+                         'with random NEGATIVE frames until the budget is reached. So all 23,280 '
+                         'positive anchors (~4.9k bouts) are already in at the 300k default, and '
+                         'raising this buys negative DIVERSITY only -- never more positives, never '
+                         'more bouts. Epoch cost is unaffected too: with neg_ratio=1 an epoch is '
+                         'n_pos positives + n_pos sampled negatives regardless of pool size. '
+                         'The original rationale (embedding RAM: patch-grid tokens are 16x CLS) is '
+                         'void on this online path, which passes a dummy 1-dim loader and deletes '
+                         '.flat immediately -- no embeddings are ever stored. What still binds is '
+                         'the JPEG-bytes cache at ~45 KB/frame: 300k -> ~19 GiB, 900k -> ~45 GiB, '
+                         'unbounded (2.59M) -> ~114 GiB, plus the one-time NFS read of each frame.')
     p.add_argument('--input-size', type=int, default=224)
     p.add_argument('--augment', choices=['none', 'd4'], default='d4')
     p.add_argument('--n-epochs', type=int, default=20)
