@@ -38,5 +38,6 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --val-monitor-size "${VAL_MONITOR_SIZE:-12500}" \
     --lr-decay-epochs "${LR_DECAY_EPOCHS:-6}" \
     --n-epochs "${N_EPOCHS:-20}" \
+    --patience "${PATIENCE:-8}" \
     ${JPEG_CACHE_ARGS} \
     --tag "${TAG:-online_aug}"
