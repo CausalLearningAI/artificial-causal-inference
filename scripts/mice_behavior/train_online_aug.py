@@ -111,7 +111,11 @@ class _SampleDataset(Dataset):
 
     def __init__(self, meta, batches, jpeg_cache, input_size, augment, seed,
                  photo_brightness=(0.80, 1.25), photo_contrast=(0.80, 1.25),
-                 photo_gamma=(0.83, 1.20)):
+                 photo_gamma=(0.83, 1.20), fixed_op=None):
+        # fixed_op pins the D4 transform instead of drawing it, which is what test-time
+        # augmentation needs: the same deterministic rendering applied to every sample, then
+        # averaged over ops. None keeps the training behaviour (draw per sample).
+        self.fixed_op = fixed_op
         self.photo_brightness = photo_brightness
         self.photo_contrast = photo_contrast
         self.photo_gamma = photo_gamma
@@ -139,7 +143,8 @@ class _SampleDataset(Dataset):
         for b in range(B):
             # one transform per SAMPLE, shared by all T context frames -- per-frame transforms
             # would break the temporal relationship nose-tail detection relies on.
-            op = int(rng.integers(0, 8)) if use_d4 else 0
+            op = (self.fixed_op if self.fixed_op is not None
+                  else (int(rng.integers(0, 8)) if use_d4 else 0))
             # Photometric jitter, drawn once per sample for the same reason: independent
             # per-frame jitter would inject spurious frame-to-frame change into a window the
             # model reads temporally. D4 gives only 8 exact renderings of each positive, and
@@ -178,6 +183,13 @@ class _SampleDataset(Dataset):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--context-k', type=int, default=2)
+    p.add_argument('--stride', type=int, default=1,
+                    help='context positions sit at +-context_k*stride in steps of stride, so the '
+                         'window widens WITHOUT adding positions: still 2k+1 frames encoded, same '
+                         'token and attention cost. At 5 fps, k=2 spans only +-0.4 s at stride 1 '
+                         'vs +-0.8 s at stride 2. nt is the context-dependent label (AP monotone '
+                         'in k: 0.105/0.154/0.197 at 504px) and the one furthest from target, so '
+                         'reach is worth probing separately from density.')
     p.add_argument('--neg-ratio', type=int, default=1)
     p.add_argument('--max-train-frames', type=int, default=300_000,
                     help='NOT a cap on training data in the way the name suggests, and easy to '
@@ -244,6 +256,19 @@ def main():
     p.add_argument('--lr', type=float, default=None, help='override inherited cfg lr')
     p.add_argument('--weight-decay', type=float, default=None, help='override inherited cfg')
     p.add_argument('--dropout', type=float, default=None, help='override inherited cfg')
+    p.add_argument('--unfreeze-blocks', type=int, default=0,
+                    help='SUPERVISED fine-tuning: unfreeze the last N of DINOv2-base\'s 12 '
+                         'transformer blocks and train them with the same BCE loss. Every result '
+                         'to date comes from a FROZEN encoder feeding a ~0.5M-param head, so the '
+                         'representation itself has never been adapted to top-down grayscale '
+                         'mouse video -- far from DINOv2\'s pretraining distribution. This is the '
+                         'largest remaining capacity lever, and also the riskiest: the model '
+                         'already overfits ~4.9k bouts, so the encoder gets its own much lower LR '
+                         '(--encoder-lr) with layer-wise decay rather than the head\'s.')
+    p.add_argument('--encoder-lr', type=float, default=1e-5,
+                    help='LR for the outermost unfrozen block; deeper blocks are scaled down by '
+                         '--layerwise-decay per block')
+    p.add_argument('--layerwise-decay', type=float, default=0.65)
     p.add_argument('--wandb', action='store_true', help='log the run to Weights & Biases')
     p.add_argument('--wandb-project', type=str, default='mice-behavior-frame')
     p.add_argument('--tag', type=str, default='online_aug')
@@ -269,7 +294,8 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     best_cfg = json.load(open(gsf.FRAME_DIR / 'patchgrid4x4_dinov2' / 'config.json'))['cfg']
     dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f'context_k={args.context_k} (T={2*args.context_k+1})  input_size={args.input_size} '
+    print(f'context_k={args.context_k} (T={2*args.context_k+1}, stride={args.stride}, '
+          f'reach +-{args.context_k*args.stride} frames)  input_size={args.input_size} '
           f'({n_patches} patches)  augment={args.augment}  neg_ratio={args.neg_ratio}'
           f'  motion={args.use_motion}', flush=True)
 
@@ -287,10 +313,10 @@ def main():
     print(f'train {len(train_obs)} obs / val {len(val_obs)} obs (pools {sorted(val_pools)})', flush=True)
 
     tm = FrameBatchData(str(ann_csv), str(pair_labels), train_obs, args.context_k, 1,
-                        dummy_loader(1, 1), n_patches=1, stride=1,
+                        dummy_loader(1, 1), n_patches=1, stride=args.stride,
                         max_frames=args.max_train_frames, seed=gsf.SEED)
     vm = FrameBatchData(str(ann_csv), str(pair_labels), val_obs, args.context_k, 1,
-                        dummy_loader(1, 1), n_patches=1, stride=1)
+                        dummy_loader(1, 1), n_patches=1, stride=args.stride)
     del tm.flat, vm.flat
 
     pos_idx = np.where(tm.labels.sum(1) > 0)[0]
@@ -366,7 +392,25 @@ def main():
     print(f'optimizer={args.optimizer} lr={lr:g} weight_decay={wd:g} dropout={dropout:g} '
           f'warmup={args.warmup_epochs} decay_epochs={args.lr_decay_epochs}', flush=True)
     opt_cls = torch.optim.AdamW if args.optimizer == 'adamw' else torch.optim.Adam
-    opt = opt_cls(model.parameters(), lr=lr, weight_decay=wd)
+    groups = [{'params': list(model.parameters()), 'lr': lr}]
+    if args.unfreeze_blocks > 0:
+        blocks = encoder.encoder.layer            # DINOv2-base: 12 blocks
+        n = min(args.unfreeze_blocks, len(blocks))
+        for depth, blk in enumerate(reversed(blocks[-n:])):
+            blk.requires_grad_(True)
+            # depth 0 = outermost (closest to the head) and most task-specific, so it moves
+            # fastest; deeper blocks hold the general features we do NOT want to disturb.
+            blk_lr = args.encoder_lr * (args.layerwise_decay ** depth)
+            groups.append({'params': list(blk.parameters()), 'lr': blk_lr})
+        # LayerNorm after the last block feeds the tokens we actually consume
+        encoder.layernorm.requires_grad_(True)
+        groups.append({'params': list(encoder.layernorm.parameters()), 'lr': args.encoder_lr})
+        trainable = sum(p.numel() for p in encoder.parameters() if p.requires_grad)
+        print(f'fine-tuning last {n}/{len(blocks)} encoder blocks: {trainable/1e6:.1f}M params, '
+              f'lr {args.encoder_lr:g} decaying x{args.layerwise_decay} per block inward',
+              flush=True)
+    opt = opt_cls(groups, lr=lr, weight_decay=wd)
+    finetune = args.unfreeze_blocks > 0
     eta = 0.01
 
     def lr_factor(e):
@@ -433,14 +477,18 @@ def main():
             B, T = imgs.shape[:2]
             opt.zero_grad()
             with torch.autocast('cuda', dtype=torch.float16, enabled=dev.type == 'cuda'):
-                with torch.no_grad():   # encoder frozen: no graph, no backward through DINOv2
+                # frozen encoder: no graph, no backward through DINOv2. When fine-tuning we
+                # must keep the graph, which is what makes the step ~2x more expensive.
+                with torch.set_grad_enabled(finetune):
                     tok = encoder(pixel_values=imgs.view(B*T, *imgs.shape[2:])).last_hidden_state[:, 1:]
-                logits = model(tok.view(B, T, n_patches, EMB_DIM).detach(),
+                tok = tok.view(B, T, n_patches, EMB_DIM)
+                logits = model(tok if finetune else tok.detach(),
                                offsets=offs.to(dev), key_padding_mask=mask.to(dev))
                 loss = crit(logits, lbl)
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
+            torch.nn.utils.clip_grad_norm_(
+                [p for g in opt.param_groups for p in g['params'] if p.grad is not None], 0.5)
             scaler.step(opt); scaler.update()
             tot += loss.item() * B; seen += B
         sched.step()
@@ -471,6 +519,10 @@ def main():
         if ap > best:
             best, since = ap, 0
             torch.save(model.state_dict(), OUT / 'best_model.pt')
+            if finetune:
+                # the head alone is not a usable checkpoint once the encoder has moved
+                torch.save({k: v for k, v in encoder.state_dict().items()},
+                           OUT / 'best_encoder.pt')
         else:
             since += 1
             if since >= args.patience:
@@ -478,6 +530,10 @@ def main():
                 break
 
     model.load_state_dict(torch.load(OUT / 'best_model.pt', map_location=dev, weights_only=True))
+    if finetune:
+        encoder.load_state_dict(torch.load(OUT / 'best_encoder.pt', map_location=dev,
+                                           weights_only=True))
+        encoder.eval()
     ensure_cached(val_full_frames, 'full-val (deferred to the end)')
     probs, labs = evaluate(np.arange(len(vm)))
     sample_obs = np.zeros(len(vm), dtype=object)   # observation id per val sample
@@ -512,7 +568,10 @@ def main():
             pass
     json.dump({'cfg': best_cfg, 'context_k': args.context_k, 'input_size': args.input_size,
                'n_patches': n_patches, 'augment': args.augment, 'neg_ratio': args.neg_ratio,
-               'use_motion': args.use_motion, 'lr_decay_epochs': args.lr_decay_epochs,
+               'use_motion': args.use_motion, 'lr_decay_epochs': args.lr_decay_epochs, 'stride': args.stride,
+               'cross_attn_dim': args.cross_attn_dim, 'patch_pool_dim': args.patch_pool_dim,
+               'unfreeze_blocks': args.unfreeze_blocks, 'encoder_lr': args.encoder_lr,
+               'layerwise_decay': args.layerwise_decay,
                'photo_strength': args.photo_strength, 'optimizer': args.optimizer,
                'warmup_epochs': args.warmup_epochs, 'lr': lr, 'weight_decay': wd, 'dropout': dropout,
                'n_epochs': args.n_epochs, 'batch_size': args.batch_size,

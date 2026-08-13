@@ -58,5 +58,9 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --patience "${PATIENCE:-8}" \
     --optimizer "${OPTIMIZER:-adam}" \
     --warmup-epochs "${WARMUP_EPOCHS:-0}" \
+    --stride "${STRIDE:-1}" \
+    --unfreeze-blocks "${UNFREEZE_BLOCKS:-0}" \
+    --encoder-lr "${ENCODER_LR:-1e-5}" \
+    --layerwise-decay "${LAYERWISE_DECAY:-0.65}" \
     ${OVERRIDE_ARGS} ${MOTION_ARGS} ${WANDB_ARGS} ${JPEG_CACHE_ARGS} \
     --tag "${TAG:-online_aug}"
