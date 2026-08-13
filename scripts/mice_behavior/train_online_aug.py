@@ -109,7 +109,12 @@ class _SampleDataset(Dataset):
     not duplicated per worker.
     """
 
-    def __init__(self, meta, batches, jpeg_cache, input_size, augment, seed):
+    def __init__(self, meta, batches, jpeg_cache, input_size, augment, seed,
+                 photo_brightness=(0.80, 1.25), photo_contrast=(0.80, 1.25),
+                 photo_gamma=(0.83, 1.20)):
+        self.photo_brightness = photo_brightness
+        self.photo_contrast = photo_contrast
+        self.photo_gamma = photo_gamma
         # jpeg_cache is keyed by GLOBAL frame index and is populated lazily, epoch by epoch.
         # Workers fork per-epoch (a new DataLoader is built each epoch for the resampled
         # negatives), so each fork inherits whatever the main process has cached so far.
@@ -129,10 +134,25 @@ class _SampleDataset(Dataset):
         S = self.input_size
         out = torch.zeros((B, T, 3, S, S), dtype=torch.float32)
         rng = np.random.default_rng((self.seed, bi))
+        use_d4 = self.augment in ('d4', 'd4_photo')
+        use_photo = self.augment == 'd4_photo'
         for b in range(B):
             # one transform per SAMPLE, shared by all T context frames -- per-frame transforms
             # would break the temporal relationship nose-tail detection relies on.
-            op = int(rng.integers(0, 8)) if self.augment == 'd4' else 0
+            op = int(rng.integers(0, 8)) if use_d4 else 0
+            # Photometric jitter, drawn once per sample for the same reason: independent
+            # per-frame jitter would inject spurious frame-to-frame change into a window the
+            # model reads temporally. D4 gives only 8 exact renderings of each positive, and
+            # with every positive drawn every epoch that is the binding limit on effective
+            # sample size -- this makes the rendering continuous instead. It also attacks
+            # video-level appearance nuisance (lighting/exposure differs per recording), the
+            # plausible reason frame ranking is much stronger than between-video rate ranking.
+            # Frames are pure grayscale (R=G=B exactly, verified), so hue/saturation jitter
+            # would be a no-op; brightness/contrast/gamma are the only meaningful axes.
+            if use_photo:
+                bright = float(rng.uniform(*self.photo_brightness))
+                contrast = float(rng.uniform(*self.photo_contrast))
+                gamma = float(rng.uniform(*self.photo_gamma))
             for t in range(T):
                 if mask[b, t]:
                     continue
@@ -143,7 +163,12 @@ class _SampleDataset(Dataset):
                         im = d4_transform(im, op)
                     im = im.resize((S, S), Image.BILINEAR)
                     arr = torch.from_numpy(np.asarray(im, dtype=np.uint8).copy())
-                out[b, t] = ((arr.permute(2, 0, 1).float() / 255.0) - IMAGENET_MEAN) / IMAGENET_STD
+                x = arr.permute(2, 0, 1).float() / 255.0
+                if use_photo:
+                    x = x.pow(gamma).mul(bright)
+                    m = x.mean()
+                    x = ((x - m) * contrast + m).clamp_(0.0, 1.0)
+                out[b, t] = (x - IMAGENET_MEAN) / IMAGENET_STD
         return (out,
                 torch.from_numpy(np.broadcast_to(offsets, (B, T)).copy()),
                 torch.from_numpy(self.meta.labels[sample_idx]),
@@ -169,7 +194,15 @@ def main():
                          'the JPEG-bytes cache at ~45 KB/frame: 300k -> ~19 GiB, 900k -> ~45 GiB, '
                          'unbounded (2.59M) -> ~114 GiB, plus the one-time NFS read of each frame.')
     p.add_argument('--input-size', type=int, default=224)
-    p.add_argument('--augment', choices=['none', 'd4'], default='d4')
+    p.add_argument('--augment', choices=['none', 'd4', 'd4_photo'], default='d4',
+                    help="'d4_photo' adds per-sample brightness/contrast/gamma jitter on top of "
+                         'the 8 exact D4 renderings. Every positive is drawn every epoch, so with '
+                         'd4 alone each one is seen 40 times across only 8 distinct renderings; '
+                         'the photometric draw is continuous, so no two are identical.')
+    p.add_argument('--photo-strength', type=float, default=1.0,
+                    help='scales the d4_photo jitter ranges about 1.0 (0.5 = half as strong, '
+                         '2.0 = double). 1.0 = brightness/contrast in [0.80, 1.25], gamma in '
+                         '[0.83, 1.20].')
     p.add_argument('--n-epochs', type=int, default=20)
     p.add_argument('--patience', type=int, default=8)
     p.add_argument('--batch-size', type=int, default=128)
@@ -359,10 +392,14 @@ def main():
     crit = nn.BCEWithLogitsLoss()
     scaler = torch.amp.GradScaler('cuda', enabled=dev.type == 'cuda')
 
+    def scaled(lo, hi):
+        return (1 - (1 - lo) * args.photo_strength, 1 + (hi - 1) * args.photo_strength)
+
     def make_loader(meta, order, augment, seed):
         batches = [order[i:i+args.batch_size] for i in range(0, len(order), args.batch_size)]
         return DataLoader(_SampleDataset(meta, batches, jpeg_cache,
-                                         args.input_size, augment, seed),
+                                         args.input_size, augment, seed,
+                                         scaled(0.80, 1.25), scaled(0.80, 1.25), scaled(0.83, 1.20)),
                           batch_size=None, num_workers=args.decode_workers,
                           pin_memory=(dev.type == 'cuda'), prefetch_factor=4)
 
@@ -476,6 +513,8 @@ def main():
     json.dump({'cfg': best_cfg, 'context_k': args.context_k, 'input_size': args.input_size,
                'n_patches': n_patches, 'augment': args.augment, 'neg_ratio': args.neg_ratio,
                'use_motion': args.use_motion, 'lr_decay_epochs': args.lr_decay_epochs,
+               'photo_strength': args.photo_strength, 'optimizer': args.optimizer,
+               'warmup_epochs': args.warmup_epochs, 'lr': lr, 'weight_decay': wd, 'dropout': dropout,
                'n_epochs': args.n_epochs, 'batch_size': args.batch_size,
                'max_train_frames': args.max_train_frames, 'val_pools': sorted(val_pools),
                'jpeg_cache_gib': sum(len(b) for b in jpeg_cache.values())/1024**3,
