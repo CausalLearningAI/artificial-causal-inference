@@ -83,8 +83,17 @@ export WANDB=1
 
 # --mem=180G: the JPEG cache fills lazily and grows every epoch, so peak RSS lands near the END
 # of training. 120G OOM-killed four arms of the previous sweep mid-run.
+#
+# MEM is overridable because those OOMs came from runs that BUILD the cache from scratch: they
+# hold ~18.6 GiB of JPEG bytes as anonymous numpy arrays and drag the page cache of 444k
+# individual NFS files in behind them, and the cgroup limit counts both (the killed jobs showed
+# only ~29 GiB of process RSS). Every arm here instead passes JPEG_CACHE_FILE and memory-maps
+# one pre-built 18.6 GiB file, so the same bytes are CLEAN FILE-BACKED pages the kernel reclaims
+# under pressure rather than OOM-killing on, and the small-file churn disappears. Measured peak
+# RSS of the runs that do build the cache is 30.3-34.9 GiB, so ~80G is ample for a mapping run
+# -- which matters because the node has idle A100s it cannot fill in 180G chunks.
 SB=(--partition="${PARTITION:-gpu}" --gres="${GRES:-gpu:A100:1}" --time="${TIME:-14:00:00}"
-    --mem=180G --cpus-per-task=32)
+    --mem="${MEM:-180G}" --cpus-per-task=32)
 
 # arm -> "TAG | per-arm env overrides". Tags already match rename_runs.py's scheme, so the
 # post-hoc rename is a confirmation rather than a reshuffle.
