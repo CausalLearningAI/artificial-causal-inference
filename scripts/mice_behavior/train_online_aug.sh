@@ -49,6 +49,13 @@ if [ "${SMOKE:-0}" = "1" ]; then
     SMOKE_ARGS="--smoke"
 fi
 
+# Stage B of the ssl_dapt arm: start the encoder from the SSL-adapted checkpoint instead of the
+# hub weights. Only forwarded when set, so every other run is byte-identical to before.
+INIT_ENCODER_ARGS=""
+if [ -n "${INIT_ENCODER:-}" ]; then
+    INIT_ENCODER_ARGS="--init-encoder ${INIT_ENCODER}"
+fi
+
 # only forward these when set, so an unset var keeps the value inherited from best_cfg
 # (SEED unset => gsf.SEED, i.e. every prior run reproduces; PHOTO_STRENGTH unset => 1.0)
 OVERRIDE_ARGS=""
@@ -81,4 +88,5 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --patch-selfattn-dim "${PATCH_SELFATTN_DIM:-0}" \
     --pool-queries "${POOL_QUERIES:-1}" \
     ${OVERRIDE_ARGS} ${MOTION_ARGS} ${WANDB_ARGS} ${SMOKE_ARGS} ${JPEG_CACHE_ARGS} \
+    ${INIT_ENCODER_ARGS} \
     --tag "${TAG:-online_aug}"

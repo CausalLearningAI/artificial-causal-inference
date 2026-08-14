@@ -317,6 +317,15 @@ def main():
                          'Vary this (not the config) to separate a real effect from run-to-run '
                          'noise, which matters because the metric that ranks these models '
                          '(per-observation Pearson r at n=24) has SE ~0.2.')
+    p.add_argument('--init-encoder', type=str, default=None,
+                    help='overlay a saved encoder checkpoint onto the pretrained weights before '
+                         'training, applied with strict=False in the same way every scoring '
+                         'script already applies best_encoder.pt. Added for the ssl_dapt arm, '
+                         'whose Stage A adapts the encoder on UNLABELLED frames and whose Stage B '
+                         'must then train the head on top of it with --unfreeze-blocks 0 -- i.e. '
+                         'this changes where the encoder STARTS, not whether it trains. Combining '
+                         'it with --unfreeze-blocks > 0 is legal but means fine-tuning an already '
+                         'adapted encoder, which is a different experiment.')
     p.add_argument('--wandb', action='store_true', help='log the run to Weights & Biases')
     p.add_argument('--wandb-project', type=str, default='mice-behavior-frame')
     p.add_argument('--tag', type=str, default='online_aug')
@@ -436,6 +445,19 @@ def main():
 
     encoder = AutoModel.from_pretrained(MODEL_ID).to(dev).eval()
     encoder.requires_grad_(False)
+    if args.init_encoder:
+        # strict=False: these checkpoints hold only the tensors that trained, so the rest of the
+        # encoder stays at the hub weights. An empty intersection means the wrong file was passed
+        # and every metric below would silently be a stock-encoder number, so it is fatal.
+        sd = torch.load(args.init_encoder, map_location=dev, weights_only=True)
+        missing, unexpected = encoder.load_state_dict(sd, strict=False)
+        if unexpected:
+            raise SystemExit(f'--init-encoder has keys the encoder does not: {unexpected[:5]}')
+        overlaid = len(sd) - len(unexpected)
+        if not overlaid:
+            raise SystemExit(f'--init-encoder {args.init_encoder} shares no keys with the encoder')
+        print(f'init encoder: overlaid {overlaid}/{len(sd)} tensors from {args.init_encoder}',
+              flush=True)
     # best_cfg comes from a search run on a 4x4 (16-token) coarse patch grid with CACHED tokens,
     # the old val split and neg_ratio=15 -- every one of those conditions has since changed, so
     # each field is overridable rather than inherited on faith.
