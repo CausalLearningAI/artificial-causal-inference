@@ -541,8 +541,15 @@ def main():
             best, since = ap, 0
             torch.save(model.state_dict(), OUT / 'best_model.pt')
             if finetune:
-                # the head alone is not a usable checkpoint once the encoder has moved
-                torch.save({k: v for k, v in encoder.state_dict().items()},
+                # The head alone is not a usable checkpoint once the encoder has moved -- but
+                # only the unfrozen blocks moved. Saving the whole encoder wrote 346 MB per run
+                # of which the frozen blocks are a byte-identical copy of facebook/dinov2-base:
+                # at --unfreeze-blocks 2 that is 10 of 12 blocks, ~287 MB of pure duplication,
+                # per saved epoch, per run. Store only the tensors that actually train; every
+                # loader pairs this with a freshly pretrained encoder and applies it with
+                # strict=False, so the frozen remainder comes from the hub as it always did.
+                train_keys = {n for n, p in encoder.named_parameters() if p.requires_grad}
+                torch.save({k: v for k, v in encoder.state_dict().items() if k in train_keys},
                            OUT / 'best_encoder.pt')
         else:
             since += 1
@@ -552,8 +559,11 @@ def main():
 
     model.load_state_dict(torch.load(OUT / 'best_model.pt', map_location=dev, weights_only=True))
     if finetune:
+        # strict=False: best_encoder.pt holds only the unfrozen tensors (see the save above).
+        # `encoder` already carries the pretrained weights, so this overlays the trained ones.
+        # Also accepts the pre-2026-08-14 full-encoder files, where every key simply matches.
         encoder.load_state_dict(torch.load(OUT / 'best_encoder.pt', map_location=dev,
-                                           weights_only=True))
+                                           weights_only=True), strict=False)
         encoder.eval()
     ensure_cached(val_full_frames, 'full-val (deferred to the end)')
     probs, labs = evaluate(np.arange(len(vm)))

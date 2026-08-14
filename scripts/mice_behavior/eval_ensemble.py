@@ -220,8 +220,12 @@ def main():
         key = str(spec['encoder_path']) if spec['encoder_path'] else None
         if key not in enc_cache:
             e = AutoModel.from_pretrained(toa.MODEL_ID)
+            # strict=False: since 2026-08-14 best_encoder.pt stores only the tensors that were
+            # unfrozen during training, so the frozen remainder comes from the pretrained load
+            # above rather than from a re-saved copy of it. Older full-encoder files still load
+            # through the same call, as every one of their keys matches.
             e.load_state_dict(torch.load(spec['encoder_path'], map_location='cpu',
-                                         weights_only=True))
+                                         weights_only=True), strict=False)
             enc_cache[key] = e.to(dev).eval().requires_grad_(False)
             print(f'  loaded fine-tuned encoder for {spec["name"]}', flush=True)
         return enc_cache[key]
