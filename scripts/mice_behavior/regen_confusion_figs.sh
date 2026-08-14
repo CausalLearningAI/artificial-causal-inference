@@ -3,7 +3,7 @@
 # Re-score finished runs on full val and redraw their error figures.
 # See regen_confusion_figs.py docstring.
 #
-#   TAGS="patchgrid256_dinov2_ft_b4 patchgrid256_dinov2_ft_b2" \
+#   TAGS="res448_k2_ft4_d4 res448_k2_ft2_d4_elr1e05" \
 #       sbatch scripts/mice_behavior/regen_confusion_figs.sh
 #
 # Redrawing after a figure-code change needs no GPU at all once val_probs.npz exists:
@@ -35,7 +35,7 @@ cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 mkdir -p logs
 
 TAG_ARGS=""
-for t in ${TAGS:-patchgrid256_dinov2_ft_b4}; do
+for t in ${TAGS:-res448_k2_ft4_d4}; do
     TAG_ARGS="${TAG_ARGS} --tag ${t}"
 done
 

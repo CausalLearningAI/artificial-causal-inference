@@ -24,10 +24,10 @@ it prints is a check that the reconstruction is faithful, and it should match co
 
 Usage:
     # one GPU pass per run, then all figures
-    python scripts/mice_behavior/regen_confusion_figs.py --tag patchgrid256_dinov2_ft_b2
+    python scripts/mice_behavior/regen_confusion_figs.py --tag res448_k2_ft2_d4_elr1e05
 
     # redraw only -- no GPU, no encoder, reads val_probs.npz
-    python scripts/mice_behavior/regen_confusion_figs.py --tag ft_b4 --from-cache
+    python scripts/mice_behavior/regen_confusion_figs.py --tag res448_k2_ft4_d4 --from-cache
 """
 import argparse
 import json
