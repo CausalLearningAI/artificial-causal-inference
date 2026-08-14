@@ -313,6 +313,18 @@ def main():
             members.append(n)
             cur = v
         print(f'  ensemble[{method}] fit AP {cur:.4f} with {len(members)}: {members}', flush=True)
+        if method == 'rank' and len(members) == 1:
+            # rank_norm is a strictly monotone per-column transform, so for a SINGLE member it
+            # cannot change AP or ROC-AUC at all -- any apparent difference from 'mean' is pure
+            # argsort tie-breaking (and frames are ordered by observation with contiguous bouts,
+            # so index-order tie-breaks can even leak label structure). Meanwhile it replaces
+            # probabilities with uniform ranks in [0,1], which pushes the mean prediction to ~0.5
+            # against a ~1.5% true rate and destroys every rate metric: on the 2026-08-13 overnight
+            # run it was selected by a meaningless 0.0016 fit-AP margin and took per-observation
+            # Pearson r from 0.542 -> 0.030, MAE from 1.6pp -> 49.4pp, calib slope 0.30 -> 0.003.
+            print('    ^ skipped: rank on 1 member is AP-invariant by construction and only '
+                  'destroys calibration', flush=True)
+            continue
         if cur > best['ap']:
             best = {'method': method, 'members': members, 'ap': cur}
     print(f'\n-> selected on fit: method={best["method"]}  width={best_w}  '

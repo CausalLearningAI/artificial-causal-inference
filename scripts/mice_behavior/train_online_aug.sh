@@ -13,6 +13,10 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=150G
 #SBATCH --gres=gpu:H100:1
+#
+# Every #SBATCH above can be overridden per-submission on the sbatch command line, which is
+# how the A100/gpu-partition sweeps are launched (H100s exist only on gpu100):
+#   sbatch --partition=gpu --gres=gpu:A100:1 --time=14:00:00 --mem=120G ... this_script
 
 module load conda
 conda activate crl
@@ -36,9 +40,16 @@ if [ "${WANDB:-0}" = "1" ]; then
     WANDB_ARGS="--wandb"
 fi
 
+SMOKE_ARGS=""
+if [ "${SMOKE:-0}" = "1" ]; then
+    SMOKE_ARGS="--smoke"
+fi
+
 # only forward these when set, so an unset var keeps the value inherited from best_cfg
+# (SEED unset => gsf.SEED, i.e. every prior run reproduces; PHOTO_STRENGTH unset => 1.0)
 OVERRIDE_ARGS=""
-for kv in "lr:LR" "weight-decay:WEIGHT_DECAY" "dropout:DROPOUT"; do
+for kv in "lr:LR" "weight-decay:WEIGHT_DECAY" "dropout:DROPOUT" "seed:SEED" \
+          "photo-strength:PHOTO_STRENGTH"; do
     flag="${kv%%:*}"; var="${kv##*:}"; val="${!var:-}"
     [ -n "$val" ] && OVERRIDE_ARGS="${OVERRIDE_ARGS} --${flag} ${val}"
 done
@@ -62,5 +73,5 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --unfreeze-blocks "${UNFREEZE_BLOCKS:-0}" \
     --encoder-lr "${ENCODER_LR:-1e-5}" \
     --layerwise-decay "${LAYERWISE_DECAY:-0.65}" \
-    ${OVERRIDE_ARGS} ${MOTION_ARGS} ${WANDB_ARGS} ${JPEG_CACHE_ARGS} \
+    ${OVERRIDE_ARGS} ${MOTION_ARGS} ${WANDB_ARGS} ${SMOKE_ARGS} ${JPEG_CACHE_ARGS} \
     --tag "${TAG:-online_aug}"

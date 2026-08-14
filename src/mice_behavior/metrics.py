@@ -72,7 +72,7 @@ def ap_report(probs: np.ndarray, labels: np.ndarray, sample_obs: np.ndarray,
 
 
 def rate_report(probs: np.ndarray, labels: np.ndarray, sample_obs: np.ndarray,
-                label_names=('nt', 'nn')) -> dict:
+                label_names=('nt', 'nn'), calib: dict = None) -> dict:
     """Per-observation behaviour-rate agreement: correlation, MAE, and MAE's trivial baseline.
 
     ALWAYS read MAE against `mae_baseline_pp` -- the MAE you get by predicting the dataset
@@ -87,6 +87,16 @@ def rate_report(probs: np.ndarray, labels: np.ndarray, sample_obs: np.ndarray,
     checkpoint scored 14.8 pp against a 1.23% true rate, i.e. 12x too high. `mae_calibrated_pp`
     applies the best affine rescale of the prediction; fit it on TRAINING folds only, never
     on the evaluation fold, or the number is meaningless.
+
+    `calib` is how you actually honour that last sentence. Pass {label: (slope, intercept)}
+    obtained from a fit fold and the affine rescale is APPLIED, not refitted; the report then
+    marks `calibration_source='held-out'`. Leaving it None refits on the evaluation fold's own
+    labels, which is an ORACLE calibration -- an upper bound, not an achievable number -- and
+    is flagged as `calibration_source='oracle (fitted on this fold)'` so it can never again be
+    read as if it were held out. Every mice-behaviour number reported before 2026-08-14 used
+    the oracle path, so `mae_calibrated_pp` and `mae_vs_baseline` in those runs are optimistic.
+    `calibration_fit` always carries the (slope, intercept) actually used, so a caller can fit
+    on train observations and feed them straight back in here for the val pass.
 
     Correlation is the metric to select on -- it has no trivial baseline (a constant predictor
     scores 0), it is unaffected by the affine bias, and for PPI++ the variance reduction is
@@ -110,12 +120,22 @@ def rate_report(probs: np.ndarray, labels: np.ndarray, sample_obs: np.ndarray,
                          'mae_raw_pp': float(np.abs(pred - true).mean() * 100),
                          'mae_calibrated_pp': float('nan'),
                          'mae_baseline_pp': float(np.abs(true.mean() - true).mean() * 100),
-                         'calibration_slope': float('nan'), 'mae_vs_baseline': 'n/a (degenerate)'}
+                         'calibration_slope': float('nan'), 'mae_vs_baseline': 'n/a (degenerate)',
+                         'calibration_source': 'n/a (degenerate)',
+                         'calibration_fit': None}
             continue
         r = stats.pearsonr(true, pred)
         rho = stats.spearmanr(true, pred)
-        slope, icept = np.polyfit(pred, true, 1)
+        if calib is not None and name in calib:
+            slope, icept = calib[name]
+            calib_src = 'held-out'
+        else:
+            # NOTE: this fits on the evaluation fold's own labels -- an oracle upper bound.
+            slope, icept = np.polyfit(pred, true, 1)
+            calib_src = 'oracle (fitted on this fold)'
         out[name] = {
+            'calibration_source': calib_src,
+            'calibration_fit': (float(slope), float(icept)),
             'n_observations': int(len(uniq)),
             'pearson_r': float(r[0]), 'pearson_p': float(r[1]), 'spearman_rho': float(rho[0]),
             'r2': float(r[0] ** 2),
@@ -143,7 +163,8 @@ def format_rate_report(rep: dict, label_names=('nt', 'nn')) -> str:
             f'=> PPI var x{r["ppi_variance_reduction"]:.2f} (eff. N x{1/max(r["ppi_variance_reduction"],1e-9):.1f})\n'
             f'      MAE raw {r["mae_raw_pp"]:.2f}pp (calib slope {r["calibration_slope"]:.3f}) | '
             f'calibrated {r["mae_calibrated_pp"]:.2f}pp | predict-the-mean baseline '
-            f'{r["mae_baseline_pp"]:.2f}pp -> {r["mae_vs_baseline"]}')
+            f'{r["mae_baseline_pp"]:.2f}pp -> {r["mae_vs_baseline"]}\n'
+            f'      calibration: {r.get("calibration_source", "unknown")}')
     return '\n'.join(lines)
 
 

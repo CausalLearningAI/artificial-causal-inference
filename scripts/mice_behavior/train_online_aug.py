@@ -270,6 +270,15 @@ def main():
                     help='LR for the outermost unfrozen block; deeper blocks are scaled down by '
                          '--layerwise-decay per block')
     p.add_argument('--layerwise-decay', type=float, default=0.65)
+    p.add_argument('--seed', type=int, default=None,
+                    help='seeds model init, dropout, negative resampling and the augmentation '
+                         'draw. Defaults to gsf.SEED, reproducing every prior run. Until now '
+                         'torch was never seeded on this path at all, so head init and dropout '
+                         'varied run to run while the data order did not -- meaning "same config, '
+                         'different result" was possible but a deliberate seed replicate was not. '
+                         'Vary this (not the config) to separate a real effect from run-to-run '
+                         'noise, which matters because the metric that ranks these models '
+                         '(per-observation Pearson r at n=24) has SE ~0.2.')
     p.add_argument('--wandb', action='store_true', help='log the run to Weights & Biases')
     p.add_argument('--wandb-project', type=str, default='mice-behavior-frame')
     p.add_argument('--tag', type=str, default='online_aug')
@@ -286,6 +295,9 @@ def main():
                     help='tiny end-to-end check: caps train AND val so the (NFS-bound) read phase '
                          'takes ~1 min instead of ~30, surfacing pipeline bugs before a real run')
     args = p.parse_args()
+    if args.seed is None:
+        args.seed = gsf.SEED
+    torch.manual_seed(args.seed)
     if args.smoke:
         args.max_train_frames, args.n_epochs, args.batch_size = 4_000, 2, 32
         args.val_monitor_size, args.tag = 600, 'online_aug_smoke'
@@ -315,7 +327,7 @@ def main():
 
     tm = FrameBatchData(str(ann_csv), str(pair_labels), train_obs, args.context_k, 1,
                         dummy_loader(1, 1), n_patches=1, stride=args.stride,
-                        max_frames=args.max_train_frames, seed=gsf.SEED)
+                        max_frames=args.max_train_frames, seed=args.seed)
     vm = FrameBatchData(str(ann_csv), str(pair_labels), val_obs, args.context_k, 1,
                         dummy_loader(1, 1), n_patches=1, stride=args.stride)
     del tm.flat, vm.flat
@@ -327,6 +339,9 @@ def main():
     print(f'{args.neg_ratio}:1 sampling: {len(pos_idx):,} pos, {len(neg_idx):,} neg available -> '
           f'{"SATURATED" if saturated else f"fresh {n_neg:,} each epoch"}', flush=True)
 
+    # deliberately gsf.SEED, not args.seed: the monitor subset is evaluation infrastructure, and
+    # early stopping has to score every arm of a sweep against the identical val frames or the
+    # arms are not comparable. --seed varies the training run, never what it is measured on.
     v_rng = np.random.default_rng(gsf.SEED)
     val_keep = np.sort(v_rng.choice(len(vm), size=min(len(vm), args.val_monitor_size), replace=False))
     vp = vm.labels[val_keep]
@@ -462,7 +477,7 @@ def main():
             P.append(torch.sigmoid(logits).float().cpu()); L.append(lbl)
         return torch.cat(P).numpy(), torch.cat(L).numpy()
 
-    rng = np.random.default_rng(gsf.SEED)
+    rng = np.random.default_rng(args.seed)
     best, since, hist = -1.0, 0, []
     for ep in range(1, args.n_epochs + 1):
         model.train()
@@ -473,7 +488,7 @@ def main():
         if ep == 1:
             read_s += ensure_cached(needed(vm, val_keep), 'val monitor')
         tot, seen, t0 = 0.0, 0, time.time()
-        for imgs, offs, lbl, mask in make_loader(tm, order, args.augment, gsf.SEED * 1000 + ep):
+        for imgs, offs, lbl, mask in make_loader(tm, order, args.augment, args.seed * 1000 + ep):
             imgs, lbl = imgs.to(dev, non_blocking=True), lbl.to(dev, non_blocking=True)
             B, T = imgs.shape[:2]
             opt.zero_grad()
@@ -589,7 +604,7 @@ def main():
                'cross_attn_dim': args.cross_attn_dim, 'patch_pool_dim': args.patch_pool_dim,
                'unfreeze_blocks': args.unfreeze_blocks, 'encoder_lr': args.encoder_lr,
                'layerwise_decay': args.layerwise_decay,
-               'photo_strength': args.photo_strength, 'optimizer': args.optimizer,
+               'photo_strength': args.photo_strength, 'optimizer': args.optimizer, 'seed': args.seed,
                'warmup_epochs': args.warmup_epochs, 'lr': lr, 'weight_decay': wd, 'dropout': dropout,
                'n_epochs': args.n_epochs, 'batch_size': args.batch_size,
                'max_train_frames': args.max_train_frames, 'val_pools': sorted(val_pools),
