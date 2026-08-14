@@ -296,6 +296,11 @@ def main():
     # separate script — not one of this search's own variants) and encoder choice are made
     # explicit in results/vision/mice/frame/, since 'patchgrid'/'patchgrid_dinov3'/etc. alone
     # don't say which resolution or encoder without opening the config.
+    # LEGACY. These four directories were deleted on 2026-08-14 -- they held the 4x4-era runs,
+    # scored on the retired rd14/rd19/rd29/rd35_3 split. Re-running this script recreates them
+    # from scratch; it does not resurrect the old results, and nothing it writes here is
+    # comparable to a current run. See results/vision/mice/frame/RETIRED.md for what they
+    # established, and rename_runs.py for the naming scheme current runs follow instead.
     OUTPUT_DIR_NAME = {
         'cls': 'cls',
         'patchgrid': 'patchgrid4x4_dinov2',

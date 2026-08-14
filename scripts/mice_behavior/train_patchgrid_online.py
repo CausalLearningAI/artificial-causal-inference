@@ -78,6 +78,7 @@ import grid_search_frame as gsf
 from src.mice_behavior.batch_data import FrameBatchData
 from src.mice_behavior.model import MouseFrameClassifier
 from src.mice_behavior.pools import get_fixed_val_pools
+from src.mice_behavior.head_cfg import get_head_cfg
 from src.dataset.get_dataset import load_dataset
 
 DATA_DIR = gsf.DATA_DIR
@@ -259,7 +260,7 @@ def main():
 
     tag_suffix = '_smoke' if args.smoke else (f'_{args.tag}' if args.tag else '')
     RESULTS_DIR = gsf.FRAME_DIR / f'patchgrid256_dinov2{tag_suffix}'
-    best_cfg = json.load(open(gsf.FRAME_DIR / 'patchgrid4x4_dinov2' / 'config.json'))['cfg']
+    best_cfg = get_head_cfg()
     # stride stays at best_cfg's value (1): a 2/3/4 sweep was strictly worse (0.2376/0.2356/0.2450
     # vs 0.2875 at stride 1), so widening the temporal window is settled and no longer a knob.
     stride_val = best_cfg['stride']

@@ -26,6 +26,7 @@ import grid_search_frame as gsf
 from src.mice_behavior.batch_data import FrameBatchData
 from src.mice_behavior.report import collect_frame_val_predictions, generate_frame_report
 from src.mice_behavior.train import train_frame
+from src.mice_behavior.head_cfg import get_head_cfg, LEGACY_4X4_BASELINE_AP
 
 pair_labels_path = gsf.build_pair_labels(gsf.DATA_DIR, gsf.DATASET_DIR, overwrite=False)
 annotations_csv = gsf.DATASET_DIR / 'mice' / 'v1' / 'annotations.csv'
@@ -44,7 +45,7 @@ val_pool_set = set(shuffled[:n_val])
 train_obs = [o for o in all_obs if obs_to_pool[o] not in val_pool_set]
 val_obs = [o for o in all_obs if obs_to_pool[o] in val_pool_set]
 
-best_cfg = json.load(open(gsf.FRAME_DIR / 'patchgrid4x4_dinov2' / 'config.json'))['cfg']
+best_cfg = get_head_cfg()
 print(f'Reusing confirmed-best patchgrid cfg: {best_cfg}', flush=True)
 
 MAX_TRAIN_FRAMES = 1_000_000  # effectively unbounded — full annotated pool is ~756,000 train frames
@@ -72,7 +73,7 @@ final_score, final_per_label = gsf.full_val_frame_macro_ap(
 )
 print(f'FINAL full-val macro AP: {final_score:.4f}  {final_per_label}', flush=True)
 
-baseline_ap = json.load(open(gsf.FRAME_DIR / 'patchgrid4x4_dinov2' / 'config.json'))['best_ap']
+baseline_ap = LEGACY_4X4_BASELINE_AP
 print(f'Currently-promoted patchgrid baseline: {baseline_ap:.4f}', flush=True)
 
 out_dir = gsf.FRAME_DIR / 'patchgrid4x4_dinov2_1Mframes'

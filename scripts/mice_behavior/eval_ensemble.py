@@ -57,12 +57,15 @@ from train_patchgrid_online import dummy_loader
 EMB_DIM, PATCH_SIZE = toa.EMB_DIM, toa.PATCH_SIZE
 TTA_OPS = {'none': [0], 'rot4': [0, 1, 2, 3], 'd4': list(range(8))}
 
+# Renamed 2026-08-14 to the config-derived scheme (see rename_runs.py):
+# res<input>_k<context>[s<stride>]_<encoder>_<augment>. The old 504_k2 entry is dropped -- that
+# directory never held a checkpoint and only ever produced a FileNotFoundError skip.
 DEFAULT_CKPTS = [
-    'patchgrid256_dinov2_d4_decay40_res448', 'patchgrid256_dinov2_d4_decay20',
-    'patchgrid256_dinov2_504_k0', 'patchgrid256_dinov2_504_k1', 'patchgrid256_dinov2_504_k2',
-    'patchgrid256_dinov2_504_k2_adamw', 'patchgrid256_dinov2_504_k2_d4photo',
-    'patchgrid256_dinov2_448_best_s1', 'patchgrid256_dinov2_448_best_s2',
-    'patchgrid256_dinov2_448_finetune2',
+    'res448_k2_ft2_d4photo',        # best single model to date (macro AP 0.4889, r 0.542)
+    'res448_k2_frozen_d4photo', 'res448_k2s2_frozen_d4photo', 'res448_k2_frozen_d4',
+    'res504_k2_frozen_d4photo', 'res504_k2_frozen_d4',
+    'res504_k1_frozen_d4', 'res504_k0_frozen_d4',
+    'res224_k2_frozen_d4_decay20',
 ]
 
 

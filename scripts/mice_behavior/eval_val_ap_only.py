@@ -27,6 +27,7 @@ import grid_search_frame as gsf
 from src.mice_behavior.batch_data import FrameBatchData
 from src.mice_behavior.model import MouseFrameClassifier
 from src.mice_behavior.pools import get_fixed_val_pools
+from src.mice_behavior.head_cfg import get_head_cfg
 from src.dataset.get_dataset import load_dataset
 from train_patchgrid_online import dummy_loader, _ImageDataset
 
@@ -45,7 +46,7 @@ args = p.parse_args()
 n_patches_full = 256 if args.input_size is None else (args.input_size // PATCH_SIZE) ** 2
 
 OUT_DIR = gsf.FRAME_DIR / f'patchgrid256_dinov2_{args.tag}'
-best_cfg = json.load(open(gsf.FRAME_DIR / 'patchgrid4x4_dinov2' / 'config.json'))['cfg']
+best_cfg = get_head_cfg()
 print(f'Evaluating {OUT_DIR}/best_model.pt at input_size={args.input_size} (n_patches={n_patches_full})', flush=True)
 
 pair_labels_path = gsf.build_pair_labels(gsf.DATA_DIR, gsf.DATASET_DIR, overwrite=False)

@@ -150,7 +150,7 @@ def collect(full: bool, pattern: str | None) -> list[dict]:
     return rows
 
 
-COLS = [('run', 26, 's'), ('config', 32, 's'), ('ep', 4, 'd'), ('bst', 4, 'd'),
+COLS = [('run', 34, 's'), ('config', 30, 's'), ('ep', 4, 'd'), ('bst', 4, 'd'),
         ('macroAP0', 9, '.4f'), ('macroAP1', 9, '.4f'), ('ap_nt', 7, '.4f'), ('ap_nn', 7, '.4f'),
         ('monAP', 7, '.4f'), ('auc_nt~', 8, '.3f'), ('r_nt', 7, '.3f'), ('r_nn', 7, '.3f'),
         ('ppi_nt', 7, '.2f'), ('calib', 9, 's')]

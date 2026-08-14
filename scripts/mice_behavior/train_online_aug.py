@@ -63,6 +63,7 @@ from src.mice_behavior.model import MouseFrameClassifier
 from src.mice_behavior.pools import get_fixed_val_pools
 from src.mice_behavior.metrics import ap_report, format_ap_report, rate_report, format_rate_report
 from src.mice_behavior.viz import plot_confusion_examples
+from src.mice_behavior.head_cfg import get_head_cfg
 from train_patchgrid_online import dummy_loader
 
 MODEL_ID = 'facebook/dinov2-base'
@@ -303,9 +304,13 @@ def main():
         args.val_monitor_size, args.tag = 600, 'online_aug_smoke'
 
     n_patches = (args.input_size // PATCH_SIZE) ** 2
-    OUT = gsf.FRAME_DIR / f'patchgrid256_dinov2_{args.tag}'
+    # The old 'patchgrid256_dinov2_' prefix is gone: every run here is a 256-dim patch grid over
+    # DINOv2, so it distinguished nothing and just pushed the informative part of the name out of
+    # sight. Pass a --tag matching the scheme in rename_runs.py -- res<input>_k<context>_<encoder>
+    # _<augment> -- or run that script afterwards to fold this run into it.
+    OUT = gsf.FRAME_DIR / args.tag
     OUT.mkdir(parents=True, exist_ok=True)
-    best_cfg = json.load(open(gsf.FRAME_DIR / 'patchgrid4x4_dinov2' / 'config.json'))['cfg']
+    best_cfg = get_head_cfg()
     dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'context_k={args.context_k} (T={2*args.context_k+1}, stride={args.stride}, '
           f'reach +-{args.context_k*args.stride} frames)  input_size={args.input_size} '
