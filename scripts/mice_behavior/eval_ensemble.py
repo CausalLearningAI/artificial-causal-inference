@@ -87,6 +87,12 @@ def load_spec(name):
         cross_attn_dim=sd['query'].shape[-1],
         patch_pool_dim=(sd['patch_pool.in_proj.weight'].shape[0]
                         if 'patch_pool.in_proj.weight' in sd else None),
+        # both recovered the same way, for the same reason: the 2026-08-14 head ablation added
+        # two axes, and a checkpoint from either arm loads as garbage (or not at all) if the
+        # architecture is assumed rather than read off the tensors that are actually in it.
+        patch_selfattn_dim=(sd['patch_selfattn.down.weight'].shape[0]
+                            if 'patch_selfattn.down.weight' in sd else None),
+        n_pool_queries=sd['patch_pool.query'].shape[1] if 'patch_pool.query' in sd else 1,
         use_motion=any(k.startswith('motion_pool') for k in sd),
         val_ap=cfg.get('ap_report', {}).get('macro/tol0', {}).get('ap'),
     )
@@ -97,7 +103,8 @@ def build(spec, dev):
     m = MouseFrameClassifier(
         emb_dim=EMB_DIM, n_heads=spec['n_heads'], hidden_dim=spec['hidden_dim'],
         use_patch_grid=True, dropout=0.0, use_motion=spec['use_motion'],
-        cross_attn_dim=spec['cross_attn_dim'], patch_pool_dim=spec['patch_pool_dim'])
+        cross_attn_dim=spec['cross_attn_dim'], patch_pool_dim=spec['patch_pool_dim'],
+        patch_selfattn_dim=spec['patch_selfattn_dim'], n_pool_queries=spec['n_pool_queries'])
     m.load_state_dict(spec['state'])
     return m.to(dev).eval()
 

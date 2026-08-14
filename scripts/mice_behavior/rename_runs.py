@@ -5,10 +5,13 @@ which context? frozen?), 'd4_decay40_res448', '448_best_s1', 'ft_b4'. Every one 
 config.json opened to interpret. The scheme here derives the name FROM the config, so the
 name and the run can never disagree:
 
-    res<input>_k<context>[s<stride>]_<encoder>_<augment>[_<discriminator>...]
+    res<input>_k<context>[s<stride>]_<encoder>[_sa<dim>][_q<K>]_<augment>[_<discriminator>...]
 
     res448_k2_ft2_d4photo        448px, context_k 2, 2 encoder blocks unfrozen, D4+photometric
     res448_k2_frozen_d4          448px, context_k 2, frozen encoder, D4 only
+    res448_k2_bit2_d4photo       ... 2 blocks unfrozen but BITFIT (biases/norm gains only)
+    res448_k2_frozen_sa128_d4photo   ... frozen, plus a 128-dim patch self-attention layer
+    res448_k2_frozen_q4_d4photo      ... frozen, 4 patch-pooling queries instead of 1
     res448_k2s2_frozen_d4photo   ... with stride 2
     res224_k2_frozen_d4_decay20  ... disambiguated by LR schedule (see below)
 
@@ -53,31 +56,65 @@ def base_name(c: dict) -> str:
     stride = c.get('stride') or 1
     ctx = f'k{k}' + (f's{stride}' if stride != 1 else '')
     nb = c.get('unfreeze_blocks') or 0
-    enc = f'ft{nb}' if nb else 'frozen'
+    # 'bit<N>' vs 'ft<N>': same N blocks unfrozen, but bitfit trains only their biases/norm
+    # gains. Those are different experiments with the same block count, so the mode has to be
+    # in the name and not a tie-break suffix.
+    enc = ('frozen' if not nb
+           else f'bit{nb}' if c.get('ft_mode') == 'bitfit' else f'ft{nb}')
+    # head architecture is a first-class axis of the 2026-08-14 ablation (is the HEAD the
+    # bottleneck, or the encoder?), so it sits beside the encoder slot rather than being
+    # demoted to a collision tie-break. Absent for the default head, which keeps every
+    # pre-existing run's name byte-identical.
+    head = []
+    if c.get('patch_selfattn_dim'):
+        head.append(f"sa{c['patch_selfattn_dim']}")
+    if (c.get('pool_queries') or 1) != 1:
+        head.append(f"q{c['pool_queries']}")
     aug = {'d4_photo': 'd4photo', 'd4': 'd4', 'none': 'noaug'}.get(c.get('augment'), c.get('augment') or 'augNA')
-    return f'res{res}_{ctx}_{enc}_{aug}'
+    return '_'.join(['res' + str(res), ctx, enc] + head + [aug])
 
 
-def discriminators(c: dict) -> list[str]:
-    """Ordered candidate suffixes, applied only when a base name collides."""
-    out = []
-    if c.get('lr_decay_epochs') is not None:
-        out.append(f"decay{c['lr_decay_epochs']}")
-    if c.get('optimizer'):
-        out.append(c['optimizer'])
-    if c.get('use_motion'):
-        out.append('motion')
+def discriminators(c: dict) -> dict[str, str]:
+    """Candidate suffixes keyed by axis, in priority order. Applied only on a base-name
+    collision, and then only for axes that actually VARY within the colliding group -- an axis
+    every member shares cannot separate anything, so including it just lengthens every name.
+    A run missing the field contributes '' , which is itself a distinguishing value.
+
+    encoder LR leads for fine-tuned runs: when two fine-tuned runs share a base name, the LR is
+    overwhelmingly the axis they differ on. Frozen runs never emit it.
+    """
+    out = {}
     if c.get('encoder_lr') and (c.get('unfreeze_blocks') or 0):
-        out.append(f"elr{c['encoder_lr']:g}".replace('-', ''))
-    if c.get('photo_strength') not in (None, 1.0) and c.get('augment') == 'd4_photo':
-        out.append(f"ps{c['photo_strength']:g}")
-    if c.get('dropout') is not None:
-        out.append(f"do{c['dropout']:g}")
-    if c.get('neg_ratio') not in (None, 1):
-        out.append(f"neg{c['neg_ratio']}")
+        out['elr'] = f"elr{c['encoder_lr']:g}".replace('-', '')
+    if c.get('lr_decay_epochs') is not None:
+        out['decay'] = f"decay{c['lr_decay_epochs']}"
     if c.get('seed') is not None:
-        out.append(f"seed{c['seed']}")
+        out['seed'] = f"seed{c['seed']}"
+    if c.get('optimizer'):
+        out['opt'] = c['optimizer']
+    if c.get('use_motion'):
+        out['motion'] = 'motion'
+    if c.get('photo_strength') not in (None, 1.0) and c.get('augment') == 'd4_photo':
+        out['ps'] = f"ps{c['photo_strength']:g}"
+    if c.get('dropout') is not None:
+        out['do'] = f"do{c['dropout']:g}"
+    if c.get('neg_ratio') not in (None, 1):
+        out['neg'] = f"neg{c['neg_ratio']}"
     return out
+
+
+ORDER = ['elr', 'decay', 'seed', 'opt', 'motion', 'ps', 'do', 'neg']
+
+
+def separate(base: str, members: list) -> list[str] | None:
+    """Shortest prefix of the VARYING discriminators that gives every member a unique name."""
+    ds = [discriminators(c) for _, c in members]
+    varying = [k for k in ORDER if len({d.get(k, '') for d in ds}) > 1]
+    for depth in range(1, len(varying) + 1):
+        cand = [base + ''.join('_' + d[k] for k in varying[:depth] if d.get(k)) for d in ds]
+        if len(set(cand)) == len(cand):
+            return cand
+    return None
 
 
 def legacy_suffix(old: str, base: str) -> str:
@@ -113,12 +150,7 @@ def plan() -> list[tuple[Path, str]]:
             out.append((members[0][0], base))
             continue
         # widen with as few config discriminators as it takes to separate this group
-        names = None
-        for depth in range(1, 7):
-            cand = [base + ''.join('_' + s for s in discriminators(c)[:depth]) for _, c in members]
-            if len(set(cand)) == len(cand):
-                names = cand
-                break
+        names = separate(base, members)
         # configs alone can't separate them (older schema recorded almost nothing) -- fall back
         # to what the old directory name said, which is where the difference actually lives
         if names is None:

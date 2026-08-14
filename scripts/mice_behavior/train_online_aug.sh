@@ -11,7 +11,11 @@
 #SBATCH --partition=gpu100
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
-#SBATCH --mem=150G
+# 180G, not 150G: the JPEG cache is populated LAZILY and keeps growing every epoch (each epoch
+# resamples negatives, pulling in frames no earlier epoch touched), so peak RSS lands near the
+# end of training, not at the start. A 120G allocation OOM-killed four arms of the previous
+# sweep mid-run, which is the most expensive possible time to die.
+#SBATCH --mem=180G
 #SBATCH --gres=gpu:H100:1
 #
 # Every #SBATCH above can be overridden per-submission on the sbatch command line, which is
@@ -71,7 +75,10 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --warmup-epochs "${WARMUP_EPOCHS:-0}" \
     --stride "${STRIDE:-1}" \
     --unfreeze-blocks "${UNFREEZE_BLOCKS:-0}" \
+    --ft-mode "${FT_MODE:-full}" \
     --encoder-lr "${ENCODER_LR:-1e-5}" \
     --layerwise-decay "${LAYERWISE_DECAY:-0.65}" \
+    --patch-selfattn-dim "${PATCH_SELFATTN_DIM:-0}" \
+    --pool-queries "${POOL_QUERIES:-1}" \
     ${OVERRIDE_ARGS} ${MOTION_ARGS} ${WANDB_ARGS} ${SMOKE_ARGS} ${JPEG_CACHE_ARGS} \
     --tag "${TAG:-online_aug}"

@@ -5,20 +5,31 @@ import torch.nn as nn
 
 
 class PatchAttnPool(nn.Module):
-    """Single learned query attends over a frame's spatial patch-grid tokens,
-    producing one smart-weighted-average vector per frame (replaces static
-    average pooling / CLS-token summarization)."""
+    """Learned queries attend over a frame's spatial patch-grid tokens, producing one
+    smart-weighted-average vector per query per frame (replaces static average pooling /
+    CLS-token summarization).
+
+    n_queries > 1 pools the same frame K independent ways and concatenates the results, so the
+    output is (N, n_queries * out_dim). One query has to compress a whole frame into a single
+    weighted average; with four mice in the cage and a behaviour defined by ONE pair, a single
+    softmax over patches must split its mass between the pair that matters and everything else.
+    K queries let different queries settle on different regions. This is the cheapest possible
+    capacity increase (K extra query vectors, plus a wider projection downstream) and it is what
+    MouseOPairClassifier has always done -- it carries 4 mouse queries; the frame classifier was
+    written with one and never revisited.
+    """
 
     def __init__(self, emb_dim: int = 768, out_dim: Optional[int] = None, n_heads: int = 1,
-                 dropout: float = 0.0, use_layernorm: bool = False):
+                 dropout: float = 0.0, use_layernorm: bool = False, n_queries: int = 1):
         super().__init__()
         self.out_dim = out_dim or emb_dim
+        self.n_queries = n_queries
         if self.out_dim != emb_dim:
             # project raw DINO patch tokens down before pooling, so the attention itself
             # (and everything downstream) runs at the smaller dim -- a real capacity cut,
             # not just a cheaper matmul.
             self.in_proj = nn.Linear(emb_dim, self.out_dim)
-        self.query = nn.Parameter(torch.randn(1, 1, self.out_dim) * 0.02)
+        self.query = nn.Parameter(torch.randn(1, n_queries, self.out_dim) * 0.02)
         self.attn = nn.MultiheadAttention(self.out_dim, n_heads, dropout=dropout, batch_first=True)
         self.use_layernorm = use_layernorm
         if use_layernorm:
@@ -29,15 +40,54 @@ class PatchAttnPool(nn.Module):
             self.norm_out = nn.LayerNorm(self.out_dim)
 
     def forward(self, patch_seq: torch.Tensor) -> torch.Tensor:
-        # patch_seq: (N, P, emb_dim) -> (N, out_dim)
+        # patch_seq: (N, P, emb_dim) -> (N, n_queries * out_dim)
         N = patch_seq.size(0)
         if self.out_dim != patch_seq.size(-1):
             patch_seq = self.in_proj(patch_seq)
         kv = self.norm_kv(patch_seq) if self.use_layernorm else patch_seq
         q = self.query.expand(N, -1, -1)
-        out, _ = self.attn(q, kv, kv)
-        out = out.squeeze(1)
-        return self.norm_out(out) if self.use_layernorm else out
+        # need_weights=False routes this through scaled_dot_product_attention instead of the
+        # math path that materializes the (N, n_heads, n_queries, P) score tensor. Numerically
+        # equivalent; the weights were never read here.
+        out, _ = self.attn(q, kv, kv, need_weights=False)
+        if self.use_layernorm:
+            out = self.norm_out(out)
+        return out.reshape(N, -1)
+
+
+class PatchSelfAttn(nn.Module):
+    """One self-attention layer over a frame's patch tokens, as a zero-initialised residual.
+
+    THE GAP THIS FILLS. Neither pooling module computes a function of two patch features
+    jointly: attention scores are query-vs-key, never key-vs-key, so with a single learned
+    query the only patch-patch coupling anywhere in the head is the softmax normaliser.
+    A predicate like "nose of one mouse adjacent to the tail of another" is relational by
+    definition, so under this head it can only be computed inside DINOv2's own blocks -- which
+    is exactly what unfreezing them supplies. This module adds the missing pairwise term to a
+    FROZEN encoder, so the two explanations can be told apart.
+
+    Bottlenecked to `dim` because the attention is O(P^2) and P = 1024 at 448px. The output
+    projection is zero-initialised, so at step 0 this module is the identity and the network is
+    bit-for-bit the baseline head -- any difference in the result is attributable to the pairwise
+    term itself rather than to a perturbed initialisation or a changed downstream width.
+    """
+
+    def __init__(self, emb_dim: int = 768, dim: int = 128, n_heads: int = 8, dropout: float = 0.0):
+        super().__init__()
+        self.norm_in = nn.LayerNorm(emb_dim)
+        self.down = nn.Linear(emb_dim, dim)
+        self.norm_attn = nn.LayerNorm(dim)
+        self.attn = nn.MultiheadAttention(dim, n_heads, dropout=dropout, batch_first=True)
+        self.up = nn.Linear(dim, emb_dim)
+        nn.init.zeros_(self.up.weight)
+        nn.init.zeros_(self.up.bias)
+
+    def forward(self, patch_seq: torch.Tensor) -> torch.Tensor:
+        # patch_seq: (N, P, emb_dim) -> (N, P, emb_dim)
+        h = self.down(self.norm_in(patch_seq))
+        hn = self.norm_attn(h)
+        h = h + self.attn(hn, hn, hn, need_weights=False)[0]
+        return patch_seq + self.up(h)
 
 
 class MouseOPairClassifier(nn.Module):
@@ -153,6 +203,12 @@ class MouseFrameClassifier(nn.Module):
             single largest capacity block (~2.4M params at full 768-dim) and was left untouched
             by every prior capacity-reduction experiment in this repo -- only the temporal
             cross-attention was ever bottlenecked.
+        patch_selfattn_dim: insert a PatchSelfAttn residual at this bottleneck width before
+            pooling -- the only operation in this head that computes a function of two patch
+            features jointly. See PatchSelfAttn. No-op at init by construction.
+        n_pool_queries: number of patch-pooling queries (see PatchAttnPool). >1 widens the
+            pooled per-frame vector to n_pool_queries * patch_pool_dim, which temporal_proj
+            then maps back to cross_attn_dim, so everything downstream keeps its shape.
     """
 
     def __init__(
@@ -161,6 +217,7 @@ class MouseFrameClassifier(nn.Module):
         n_hidden_layers: int = 1, use_motion: bool = False, cross_attn_dim: Optional[int] = None,
         patch_dropout: float = 0.0, patch_noise_std: float = 0.0, frame_dropout: float = 0.0,
         use_layernorm: bool = False, patch_pool_dim: Optional[int] = None,
+        patch_selfattn_dim: Optional[int] = None, n_pool_queries: int = 1,
     ):
         super().__init__()
         self.max_offset = max_offset
@@ -170,14 +227,20 @@ class MouseFrameClassifier(nn.Module):
         self.patch_noise_std = patch_noise_std
         self.frame_dropout = frame_dropout
         self.use_layernorm = use_layernorm
-        patch_content_dim = patch_pool_dim or emb_dim
+        self.n_pool_queries = n_pool_queries
+        patch_content_dim = (patch_pool_dim or emb_dim) * n_pool_queries
         self.cross_attn_dim = cross_attn_dim or patch_content_dim
         if use_patch_grid:
+            self.patch_selfattn = (PatchSelfAttn(emb_dim=emb_dim, dim=patch_selfattn_dim,
+                                                 n_heads=n_heads, dropout=dropout)
+                                   if patch_selfattn_dim else None)
             self.patch_pool = PatchAttnPool(emb_dim=emb_dim, out_dim=patch_pool_dim, n_heads=n_heads,
-                                             dropout=dropout, use_layernorm=use_layernorm)
+                                             dropout=dropout, use_layernorm=use_layernorm,
+                                             n_queries=n_pool_queries)
             if use_motion:
                 self.motion_pool = PatchAttnPool(emb_dim=emb_dim, out_dim=patch_pool_dim, n_heads=n_heads,
-                                                  dropout=dropout, use_layernorm=use_layernorm)
+                                                  dropout=dropout, use_layernorm=use_layernorm,
+                                                  n_queries=n_pool_queries)
                 self.motion_proj = nn.Linear(2 * patch_content_dim, patch_content_dim)
         if self.cross_attn_dim != patch_content_dim:
             self.temporal_proj = nn.Linear(patch_content_dim, self.cross_attn_dim)
@@ -216,6 +279,11 @@ class MouseFrameClassifier(nn.Module):
             if self.training and self.patch_dropout > 0:
                 keep = (torch.rand(B, T, P, 1, device=context_seq.device) > self.patch_dropout).float()
                 context_seq = context_seq * keep / (1 - self.patch_dropout)
+            if self.patch_selfattn is not None:
+                # per frame, independently: the pairwise term is SPATIAL. Temporal mixing stays
+                # the cross-attention's job, so context positions never see each other here.
+                context_seq = self.patch_selfattn(
+                    context_seq.reshape(B * T, P, D)).reshape(B, T, P, D)
             content = self.patch_pool(context_seq.reshape(B * T, P, D)).reshape(B, T, -1)
             if self.use_motion:
                 delta = context_seq[:, 1:] - context_seq[:, :-1]  # (B, T-1, P, D)

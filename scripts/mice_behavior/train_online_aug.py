@@ -231,6 +231,27 @@ def main():
                          'checkpoints; the reported number always comes from full val anyway.')
     p.add_argument('--cross-attn-dim', type=int, default=64)
     p.add_argument('--patch-pool-dim', type=int, default=256)
+    p.add_argument('--patch-selfattn-dim', type=int, default=0,
+                    help='0 = off (the head every prior run used). Non-zero inserts one '
+                         'bottlenecked self-attention layer over the P patch tokens before '
+                         'pooling -- the ONLY operation in this head that is a joint function of '
+                         'two patch features, since attention scores are query-vs-key and both '
+                         'existing attention ops pool a single query. Relational predicates like '
+                         '"nose of one mouse at the tail of another" are therefore computable '
+                         'only inside DINOv2\'s blocks under the default head, which is one '
+                         'explanation for why unfreezing them helped; this supplies the missing '
+                         'term to a FROZEN encoder so the two explanations separate. Costs '
+                         'O(P^2) attention (P=1024 at 448px), hence the bottleneck. Injected as a '
+                         'ZERO-INITIALISED residual, so at step 0 the model is exactly the '
+                         'baseline head.')
+    p.add_argument('--pool-queries', type=int, default=1,
+                    help='number of PatchAttnPool queries, concatenated. 1 = every prior run. A '
+                         'single query must compress a frame holding four mice into one weighted '
+                         'average, while the label is a predicate over ONE pair; K queries let '
+                         'different queries land on different regions. Cheapest capacity test '
+                         'available (~K x patch_pool_dim new params plus a wider temporal_proj), '
+                         'and MouseOPairClassifier has always used 4 -- the frame classifier '
+                         'simply never inherited that design.')
     p.add_argument('--use-motion', action='store_true',
                     help='pool the per-patch delta to the previous context position through a '
                          'second PatchAttnPool and concatenate it with the content pooling (see '
@@ -267,10 +288,26 @@ def main():
                          'largest remaining capacity lever, and also the riskiest: the model '
                          'already overfits ~4.9k bouts, so the encoder gets its own much lower LR '
                          '(--encoder-lr) with layer-wise decay rather than the head\'s.')
+    p.add_argument('--ft-mode', choices=['full', 'bitfit'], default='full',
+                    help="which parameters inside the unfrozen blocks actually train. 'full' is "
+                         'every weight (14,180,352 at --unfreeze-blocks 2). \'bitfit\' trains only '
+                         'the LayerNorm affine parameters, the LayerScale gains and every bias '
+                         '(24,576, a 577x cut) -- the parameters that can RESCALE and RESHIFT an '
+                         'existing feature but can never form a new one, because none of them '
+                         'touches a weight matrix. That makes the two modes a test of WHY '
+                         'fine-tuning helped: if the gain was really new relational computation, '
+                         "bitfit cannot reproduce it; if it was recalibrating DINOv2's statistics "
+                         'for top-down grayscale rodent video, bitfit is sufficient and the '
+                         'remaining 14.18M params were never the point.')
     p.add_argument('--encoder-lr', type=float, default=1e-5,
                     help='LR for the outermost unfrozen block; deeper blocks are scaled down by '
-                         '--layerwise-decay per block')
-    p.add_argument('--layerwise-decay', type=float, default=0.65)
+                         '--layerwise-decay per block. NOTE for --ft-mode bitfit: 1e-5 was chosen '
+                         'for 14.2M densely-coupled weights, and bias-only tuning is normally run '
+                         'orders of magnitude higher, so a bitfit null at 1e-5 alone would be '
+                         'uninterpretable -- it must be probed at a larger value too.')
+    p.add_argument('--layerwise-decay', type=float, default=0.65,
+                    help='held at 0.65 for every fine-tuning run in this repo to date, i.e. '
+                         'inherited rather than tuned -- the decay schedule itself is untested.')
     p.add_argument('--seed', type=int, default=None,
                     help='seeds model init, dropout, negative resampling and the augmentation '
                          'draw. Defaults to gsf.SEED, reproducing every prior run. Until now '
@@ -407,27 +444,48 @@ def main():
     model = MouseFrameClassifier(
         emb_dim=EMB_DIM, n_heads=best_cfg['n_heads'], hidden_dim=best_cfg['hidden_dim'],
         use_patch_grid=True, dropout=dropout, use_motion=args.use_motion,
-        cross_attn_dim=args.cross_attn_dim or None, patch_pool_dim=args.patch_pool_dim or None).to(dev)
+        cross_attn_dim=args.cross_attn_dim or None, patch_pool_dim=args.patch_pool_dim or None,
+        patch_selfattn_dim=args.patch_selfattn_dim or None,
+        n_pool_queries=args.pool_queries).to(dev)
     print(f'classifier params: {sum(p.numel() for p in model.parameters()):,} '
           f'(DINOv2 frozen, {sum(p.numel() for p in encoder.parameters())/1e6:.0f}M)', flush=True)
+    print(f'head: patch_selfattn={args.patch_selfattn_dim or "off"}  '
+          f'pool_queries={args.pool_queries}  patch_pool_dim={args.patch_pool_dim}  '
+          f'cross_attn_dim={args.cross_attn_dim}', flush=True)
     print(f'optimizer={args.optimizer} lr={lr:g} weight_decay={wd:g} dropout={dropout:g} '
           f'warmup={args.warmup_epochs} decay_epochs={args.lr_decay_epochs}', flush=True)
     opt_cls = torch.optim.AdamW if args.optimizer == 'adamw' else torch.optim.Adam
     groups = [{'params': list(model.parameters()), 'lr': lr}]
+    def is_bitfit(name: str) -> bool:
+        """Parameters that can only rescale or reshift a feature the frozen weights already
+        compute: every bias, both LayerNorm gains, and the LayerScale residual gains. No weight
+        MATRIX qualifies, so nothing here can build a new function of two inputs."""
+        return (name.endswith('.bias') or name.endswith('lambda1')
+                or ('norm' in name and name.endswith('.weight')))
+
     if args.unfreeze_blocks > 0:
         blocks = encoder.encoder.layer            # DINOv2-base: 12 blocks
         n = min(args.unfreeze_blocks, len(blocks))
         for depth, blk in enumerate(reversed(blocks[-n:])):
-            blk.requires_grad_(True)
+            if args.ft_mode == 'bitfit':
+                ps = [p for nm, p in blk.named_parameters() if is_bitfit(nm)]
+                for prm in ps:
+                    prm.requires_grad_(True)
+            else:
+                blk.requires_grad_(True)
+                ps = list(blk.parameters())
             # depth 0 = outermost (closest to the head) and most task-specific, so it moves
             # fastest; deeper blocks hold the general features we do NOT want to disturb.
             blk_lr = args.encoder_lr * (args.layerwise_decay ** depth)
-            groups.append({'params': list(blk.parameters()), 'lr': blk_lr})
-        # LayerNorm after the last block feeds the tokens we actually consume
+            groups.append({'params': ps, 'lr': blk_lr})
+        # LayerNorm after the last block feeds the tokens we actually consume (and is bitfit-legal
+        # in its entirety, so this line is identical in both modes)
         encoder.layernorm.requires_grad_(True)
         groups.append({'params': list(encoder.layernorm.parameters()), 'lr': args.encoder_lr})
         trainable = sum(p.numel() for p in encoder.parameters() if p.requires_grad)
-        print(f'fine-tuning last {n}/{len(blocks)} encoder blocks: {trainable/1e6:.1f}M params, '
+        print(f'fine-tuning last {n}/{len(blocks)} encoder blocks [{args.ft_mode}]: '
+              f'{trainable/1e6:.3f}M params '
+              f'({100*trainable/sum(p.numel() for p in encoder.parameters()):.2f}% of the encoder), '
               f'lr {args.encoder_lr:g} decaying x{args.layerwise_decay} per block inward',
               flush=True)
     opt = opt_cls(groups, lr=lr, weight_decay=wd)
@@ -617,8 +675,11 @@ def main():
                'n_patches': n_patches, 'augment': args.augment, 'neg_ratio': args.neg_ratio,
                'use_motion': args.use_motion, 'lr_decay_epochs': args.lr_decay_epochs, 'stride': args.stride,
                'cross_attn_dim': args.cross_attn_dim, 'patch_pool_dim': args.patch_pool_dim,
-               'unfreeze_blocks': args.unfreeze_blocks, 'encoder_lr': args.encoder_lr,
-               'layerwise_decay': args.layerwise_decay,
+               'patch_selfattn_dim': args.patch_selfattn_dim, 'pool_queries': args.pool_queries,
+               'unfreeze_blocks': args.unfreeze_blocks, 'ft_mode': args.ft_mode,
+               'encoder_lr': args.encoder_lr, 'layerwise_decay': args.layerwise_decay,
+               'n_head_params': sum(p.numel() for p in model.parameters()),
+               'n_encoder_trainable': sum(p.numel() for p in encoder.parameters() if p.requires_grad),
                'photo_strength': args.photo_strength, 'optimizer': args.optimizer, 'seed': args.seed,
                'warmup_epochs': args.warmup_epochs, 'lr': lr, 'weight_decay': wd, 'dropout': dropout,
                'n_epochs': args.n_epochs, 'batch_size': args.batch_size,
