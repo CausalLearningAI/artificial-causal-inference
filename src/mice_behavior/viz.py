@@ -47,19 +47,57 @@ def _load_frame(gi, frame_paths, jpeg_cache, dataset_root):
     return Image.open(Path(dataset_root) / frame_paths[int(gi)]).convert('L')
 
 
+def _pick_confident(pool, p, sample_obs, n, most_confident_high):
+    """The n most confident frames in a bucket, at most one per observation.
+
+    Confidence means distance from the decision, not distance from 0.5: for TP and FP the
+    model's conviction rises with p, for FN and TN it rises as p falls. So each bucket is
+    sorted in the direction that puts its own strongest case first -- the TPs it was surest
+    about, and the FPs it was surest about and still got wrong.
+
+    The one-per-observation rule is what makes the row informative. Positives arrive in
+    contiguous bouts (22% of nt bouts and 38% of nn bouts are a single frame, but the rest run
+    consecutively), and adjacent frames of one bout score almost identically, so an unfiltered
+    top-n is typically eight views of the same two seconds of one video. Capping at one frame
+    per observation turns the row into eight independent cases and makes a failure mode that
+    recurs across videos visually distinguishable from one video going wrong.
+    """
+    if not len(pool):
+        return []
+    order = pool[np.argsort(-p[pool] if most_confident_high else p[pool])]
+    seen, out = set(), []
+    for i in order:
+        o = str(sample_obs[i])
+        if o in seen:
+            continue
+        seen.add(o); out.append(i)
+        if len(out) == n:
+            break
+    # fewer distinct observations than columns: top up with the next most confident frames
+    # rather than leaving the row short, since a short row reads as "no such errors exist".
+    if len(out) < n:
+        out += [i for i in order if i not in set(out)][:n - len(out)]
+    return out
+
+
 def plot_confusion_examples(probs, labels, sample_obs, frame_gi, frame_paths, out_dir,
                             label_names=('nt', 'nn'), n_examples=8, seed=42,
                             jpeg_cache=None, dataset_root='dataset', title_prefix=''):
-    """One figure per behavior: rows TP/FP/FN/TN, columns are random examples from that bucket.
+    """One figure per behavior: rows TP/FP/FN/TN, columns the most confident cases in each.
 
-    Examples are drawn at RANDOM within a bucket (not by extreme confidence) so each row is
-    representative of that error mode rather than of its tail, then sorted by probability so
-    the row reads left-to-right. Each panel is captioned with the model's probability, and
-    the row label carries the bucket's absolute count and share of the split.
+    Each row shows where the model was most sure, in the direction that bucket is sure about
+    (see _pick_confident), with at most one frame per observation so the eight columns are
+    eight independent cases rather than eight frames of one bout. Panels are captioned with
+    the probability and the source observation; the row label carries the bucket's absolute
+    count and share of the split.
+
+    Confident errors are the diagnostic ones. A high-probability FP is a frame the model
+    argues hard for and is wrong about, and a low-probability FN is a real bout it saw no
+    evidence in at all -- those two rows say what the representation is actually missing,
+    which a random draw from the same buckets mostly buries in borderline cases.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    rng = np.random.default_rng(seed)
     written = {}
 
     for li, name in enumerate(label_names):
@@ -74,8 +112,8 @@ def plot_confusion_examples(probs, labels, sample_obs, frame_gi, frame_paths, ou
         axes = np.atleast_2d(axes)
         for r, b in enumerate(BUCKETS):
             pool = idx[b]
-            pick = rng.choice(pool, size=min(n_examples, len(pool)), replace=False) if len(pool) else []
-            pick = sorted(pick, key=lambda i: -p[i])
+            # TP/FP are most convincing at high p, FN/TN at low p
+            pick = _pick_confident(pool, p, sample_obs, n_examples, b in ('TP', 'FP'))
             for c in range(n_examples):
                 ax = axes[r, c]
                 ax.set_xticks([]); ax.set_yticks([])

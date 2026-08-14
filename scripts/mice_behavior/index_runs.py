@@ -83,7 +83,12 @@ def describe(cfg: dict) -> str:
     if (cfg.get('stride') or 1) != 1:
         bits.append(f"s{cfg['stride']}")
     nb = cfg.get('unfreeze_blocks') or 0
-    bits.append(f"ft{nb}@{cfg['encoder_lr']:g}" if nb else 'frozen')
+    mode = 'bit' if cfg.get('ft_mode') == 'bitfit' else 'ft'
+    bits.append(f"{mode}{nb}@{cfg['encoder_lr']:g}" if nb else 'frozen')
+    if cfg.get('patch_selfattn_dim'):
+        bits.append(f"sa{cfg['patch_selfattn_dim']}")
+    if (cfg.get('pool_queries') or 1) != 1:
+        bits.append(f"q{cfg['pool_queries']}")
     if cfg.get('optimizer'):
         bits.append(cfg['optimizer'])
     aug = cfg.get('augment')
@@ -178,6 +183,11 @@ def main():
     p.add_argument('--pattern', default=None)
     p.add_argument('--split', default=None, choices=SPLIT_ORDER)
     p.add_argument('--full', action='store_true')
+    p.add_argument('--csv', nargs='?', const=str(OUT_CSV), default=None,
+                    help='also write the table as CSV. Off by default: this is derived from the '
+                         'config.json files and regenerates in under a second, so a copy left '
+                         'lying in the results directory is just one more thing that can go '
+                         'stale and be mistaken for a source of truth.')
     args = p.parse_args()
 
     rows = collect(args.full, args.pattern)
@@ -206,11 +216,12 @@ def main():
     print("calib=oracle -> that run's mae_calibrated/mae_vs_baseline were fit on the eval fold "
           "itself and are optimistic; 'oracle*' predates the flag entirely.")
 
-    keys = sorted({k for r in rows for k in r})
-    with open(OUT_CSV, 'w', newline='') as f:
-        w = csv.DictWriter(f, fieldnames=keys)
-        w.writeheader(); w.writerows(rows)
-    print(f'wrote {OUT_CSV}')
+    if args.csv:
+        keys = sorted({k for r in rows for k in r})
+        with open(args.csv, 'w', newline='') as f:
+            w = csv.DictWriter(f, fieldnames=keys)
+            w.writeheader(); w.writerows(rows)
+        print(f'wrote {args.csv}')
 
 
 if __name__ == '__main__':

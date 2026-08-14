@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 LOG_DIR = Path('logs')
-OUT_PNG = Path('results/vision/mice/frame/run_tracking.png')
+OUT_PNG = Path('results/vision/mice/frame/_figures/run_tracking.png')
 
 # train_patchgrid_online.py: "epoch 3/20 loss=.. val_loss=.. macro_ap=.. nt=.. nn=.. lr=.. (12.3s)"
 # train_online_aug.py:       "epoch 3/20 loss=.. monitor_ap=.. lr=.. (12.3s)"

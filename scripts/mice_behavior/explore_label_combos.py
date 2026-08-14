@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 DATASET_DIR = Path('./dataset')
 ANNOTATIONS_CSV = DATASET_DIR / 'mice' / 'v1' / 'annotations.csv'
-OUT_PATH = Path('./results/vision/mice/frame/label_combo_examples.png')
+OUT_PATH = Path('./results/vision/mice/frame/_figures/label_combo_examples.png')
 SEED = 42
 K = 20
 N_COLS = 5                      # tile grid within one panel: N_COLS x (K // N_COLS)
