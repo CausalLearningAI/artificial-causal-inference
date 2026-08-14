@@ -62,7 +62,7 @@ from src.mice_behavior.batch_data import FrameBatchData
 from src.mice_behavior.model import MouseFrameClassifier
 from src.mice_behavior.pools import get_fixed_val_pools
 from src.mice_behavior.metrics import ap_report, format_ap_report, rate_report, format_rate_report
-from src.mice_behavior.viz import plot_confusion_examples
+from src.mice_behavior.viz import plot_confusion_examples, plot_error_strips
 from src.mice_behavior.head_cfg import get_head_cfg
 from train_patchgrid_online import dummy_loader
 
@@ -401,8 +401,9 @@ def main():
         needed(vm, np.arange(len(vm)))]))
     val_full_frames = needed(vm, np.arange(len(vm)))
 
-    ann = pd.read_csv(ann_csv, usecols=['frame_path'])
+    ann = pd.read_csv(ann_csv, usecols=['frame_path', 'frame_idx'])
     frame_paths = ann.frame_path.values
+    frame_idx_all = ann.frame_idx.values      # global frame index -> position within its video
     cache_bin = Path(f'{args.jpeg_cache_file}.bin') if args.jpeg_cache_file else None
     cache_idx = Path(f'{args.jpeg_cache_file}.npz') if args.jpeg_cache_file else None
 
@@ -641,6 +642,17 @@ def main():
     print()
     print(format_rate_report(rr))
 
+    # Persist the full-val predictions BEFORE drawing anything. Every figure below is a view
+    # of this array, and until 2026-08-14 the array itself was thrown away with the process --
+    # so any later change to the figure code stranded every existing figure, redrawable only
+    # by repeating a 6-hour training run. 2.3 MB per run buys unlimited redraws
+    # (regen_confusion_figs.py --from-cache) and makes the numbers behind a figure auditable.
+    try:
+        np.savez_compressed(OUT / 'val_probs.npz', probs=probs, labels=labs, gi=vm.gi,
+                            obs=sample_obs.astype(str))
+    except Exception as e:
+        print(f'  [viz] val_probs.npz not saved ({e.__class__.__name__}: {e})', flush=True)
+
     # qualitative TP/FP/FN/TN grids for both behaviours. The val frames are already in the
     # JPEG cache from the full-val pass, so this costs decoding only -- no NFS re-read.
     viz_files = {}
@@ -648,6 +660,12 @@ def main():
         viz_files = plot_confusion_examples(
             probs, labs, sample_obs, vm.gi, frame_paths, OUT, jpeg_cache=jpeg_cache,
             title_prefix=f'{args.tag}  ')
+        # ...and the temporal view of the two error buckets: a single still cannot distinguish
+        # contact from approach at 5 fps, and the neighbouring frames carry the annotations
+        # that say whether an error is a boundary disagreement or a real miss.
+        viz_files |= plot_error_strips(
+            probs, labs, sample_obs, vm.gi, frame_paths, OUT, jpeg_cache=jpeg_cache,
+            title_prefix=f'{args.tag}  ', frame_idx=frame_idx_all[vm.gi])
     except Exception as e:                # never let a figure lose a finished training run
         print(f'  [viz] skipped ({e.__class__.__name__}: {e})', flush=True)
 

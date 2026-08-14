@@ -19,13 +19,24 @@ from pathlib import Path
 
 import matplotlib
 matplotlib.use('Agg')
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.lines import Line2D
 from PIL import Image
 from sklearn.metrics import precision_recall_curve
 
 BUCKETS = ('TP', 'FP', 'FN', 'TN')
 BUCKET_COLOR = {'TP': '#2e7d32', 'FP': '#c62828', 'FN': '#ef6c00', 'TN': '#455a64'}
+BUCKET_LONG = {'TP': 'true positives', 'FP': 'false positives',
+               'FN': 'false negatives', 'TN': 'true negatives'}
+
+# Human annotation, drawn on every panel including context frames. Deliberately a different
+# green from BUCKET_COLOR['TP'] -- in a strip figure the border means "the annotator marked
+# this frame", which is a statement about the DATA and must not be confused with a statement
+# about the model's prediction.
+LABEL_POS = '#00a000'
+LABEL_NEG = '#cfcfcf'
 
 
 def best_f1_threshold(y, p):
@@ -47,7 +58,7 @@ def _load_frame(gi, frame_paths, jpeg_cache, dataset_root):
     return Image.open(Path(dataset_root) / frame_paths[int(gi)]).convert('L')
 
 
-def _pick_confident(pool, p, sample_obs, n, most_confident_high):
+def _pick_confident(pool, p, sample_obs, n, most_confident_high, top_up=True):
     """The n most confident frames in a bucket, at most one per observation.
 
     Confidence means distance from the decision, not distance from 0.5: for TP and FP the
@@ -61,6 +72,12 @@ def _pick_confident(pool, p, sample_obs, n, most_confident_high):
     top-n is typically eight views of the same two seconds of one video. Capping at one frame
     per observation turns the row into eight independent cases and makes a failure mode that
     recurs across videos visually distinguishable from one video going wrong.
+
+    top_up=False drops the one-per-observation rule's fallback and returns a SHORT list when
+    the bucket spans fewer than n observations. The grid figure tops up because a short row
+    reads as "no such errors exist"; the strip figure does not, because there every row is
+    captioned with its own video and a repeated video would silently break the "n independent
+    cases" claim the figure is making.
     """
     if not len(pool):
         return []
@@ -75,7 +92,7 @@ def _pick_confident(pool, p, sample_obs, n, most_confident_high):
             break
     # fewer distinct observations than columns: top up with the next most confident frames
     # rather than leaving the row short, since a short row reads as "no such errors exist".
-    if len(out) < n:
+    if top_up and len(out) < n:
         out += [i for i in order if i not in set(out)][:n - len(out)]
     return out
 
@@ -146,4 +163,137 @@ def plot_confusion_examples(probs, labels, sample_obs, frame_gi, frame_paths, ou
         written[name] = f
         print(f'  [viz] {name}: thr={thr:.3f} P={prec:.3f} R={rec:.3f} F1={f1:.3f} -> {f}',
               flush=True)
+    return written
+
+
+def plot_error_strips(probs, labels, sample_obs, frame_gi, frame_paths, out_dir,
+                      label_names=('nt', 'nn'), buckets=('FP', 'FN'), n_rows=10, context=3,
+                      jpeg_cache=None, dataset_root='dataset', title_prefix='',
+                      frame_idx=None):
+    """One figure per (behavior, error type): each row is one error shown as a time strip.
+
+    Why a strip and not a single frame
+    ----------------------------------
+    plot_confusion_examples answers "which frames does it get wrong"; it cannot answer "what
+    was happening". At 5 fps a nose-to-nose contact lasts a handful of frames, and a single
+    still of two mice near each other is compatible with contact, with approach, and with
+    passing by -- the three cases the classifier has to separate. Showing t-{context}..t+{context}
+    around the error makes the event legible, and it makes the model's own trajectory legible
+    too: an FP that ramps 0.02 -> 0.99 -> 0.03 is a momentary pose confusion, whereas one
+    that sits at 0.99 across the whole window is a sustained misreading of the configuration.
+
+    Why the human label is drawn on every frame
+    -------------------------------------------
+    The context frames carry annotations of their own, and those annotations are the point.
+    A "false positive" whose neighbours are annotated positive is an off-by-one against a bout
+    the model did find -- a boundary disagreement, not a hallucination -- and the tolerant-AP
+    columns in metrics.py exist precisely because that case is common here (22%/38% of nt/nn
+    bouts are a single frame, so boundaries are a large share of the label mass). A green
+    border marks a frame the annotator marked positive for THIS behavior; the center frame
+    additionally carries an inner rectangle in the bucket color, so the two claims -- what the
+    human said, what the model got wrong -- never collapse into one mark.
+
+    A frame annotated positive for the OTHER behavior gets a small corner tag. An nn false
+    positive on a frame the human called nt is a confusion BETWEEN behaviors and has a
+    different fix from an nn false positive on an empty cage.
+
+    Rows are the n_rows most confident errors, one per video, sorted in the direction that
+    bucket is confident about (see _pick_confident): highest p for FP, lowest for FN.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    probs, labels = np.asarray(probs), np.asarray(labels)
+    frame_gi = np.asarray(frame_gi, dtype=np.int64)
+    sample_of_gi = {int(g): i for i, g in enumerate(frame_gi)}
+    offsets = list(range(-context, context + 1))
+    written = {}
+
+    for li, name in enumerate(label_names):
+        y, p = labels[:, li].astype(int), probs[:, li]
+        other = [j for j in range(labels.shape[1]) if j != li]
+        thr, prec, rec, f1 = best_f1_threshold(y, p)
+        pred = p >= thr
+        pools = {'TP': np.where((y == 1) & pred)[0], 'FP': np.where((y == 0) & pred)[0],
+                 'FN': np.where((y == 1) & ~pred)[0], 'TN': np.where((y == 0) & ~pred)[0]}
+
+        for b in buckets:
+            rows = _pick_confident(pools[b], p, sample_obs, n_rows, b in ('TP', 'FP'),
+                                   top_up=False)
+            if not rows:
+                print(f'  [viz] {name}/{b}: bucket empty, no strip figure', flush=True)
+                continue
+            if len(rows) < n_rows:
+                # never silently render a shorter figure than asked for: the cap is the number
+                # of distinct val videos containing this error, which is itself a finding.
+                print(f'  [viz] {name}/{b}: only {len(rows)} distinct videos have this error '
+                      f'(asked {n_rows})', flush=True)
+
+            fig, axes = plt.subplots(len(rows), len(offsets),
+                                     figsize=(1.55 * len(offsets), 1.72 * len(rows) + 1.1))
+            axes = np.atleast_2d(axes)
+            for r, i in enumerate(rows):
+                g0, obs = int(frame_gi[i]), str(sample_obs[i])
+                for c, d in enumerate(offsets):
+                    ax = axes[r, c]
+                    ax.set_xticks([]); ax.set_yticks([])
+                    j = sample_of_gi.get(g0 + d)
+                    # a context frame belongs to this strip only if it is the same video --
+                    # global frame indices run straight across the observation boundary, so
+                    # without this an error near the start of a video would show the end of
+                    # the previous one.
+                    if j is None or str(sample_obs[j]) != obs:
+                        for sp in ax.spines.values():
+                            sp.set_color('#eeeeee')
+                        ax.set_facecolor('#fafafa')
+                        ax.text(.5, .5, '—', ha='center', va='center', color='#bbbbbb', fontsize=9)
+                        continue
+                    pos_here = labels[j, li] > 0
+                    for sp in ax.spines.values():
+                        sp.set_color(LABEL_POS if pos_here else LABEL_NEG)
+                        sp.set_linewidth(3.0 if pos_here else 1.0)
+                    try:
+                        ax.imshow(_load_frame(frame_gi[j], frame_paths, jpeg_cache, dataset_root),
+                                  cmap='gray', vmin=0, vmax=255)
+                    except Exception as e:           # a figure must never kill a run
+                        ax.text(.5, .5, f'{e.__class__.__name__}', ha='center', va='center',
+                                fontsize=6)
+                    if d == 0:
+                        ax.add_patch(mpatches.Rectangle(
+                            (0.035, 0.035), 0.93, 0.93, transform=ax.transAxes, fill=False,
+                            edgecolor=BUCKET_COLOR[b], linewidth=2.6, zorder=5))
+                    tags = [label_names[o] for o in other if labels[j, o] > 0]
+                    if tags:
+                        ax.text(0.04, 0.96, '+'.join(tags), transform=ax.transAxes,
+                                ha='left', va='top', fontsize=6.5, color='#1565c0',
+                                bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='#1565c0',
+                                          lw=0.6, alpha=0.85))
+                    ax.set_title(f'{d:+d}   p={p[j]:.3f}' if d else f'0   p={p[j]:.3f}',
+                                 fontsize=7, pad=2,
+                                 color=BUCKET_COLOR[b] if d == 0 else '#444444',
+                                 fontweight='bold' if d == 0 else 'normal')
+                fnum = f'\nframe {int(frame_idx[i]):,}' if frame_idx is not None else ''
+                axes[r, 0].set_ylabel(f'{obs}{fnum}\np={p[i]:.3f}', fontsize=7, rotation=0,
+                                      ha='right', va='center', labelpad=8, color='#333333')
+
+            handles = [
+                Line2D([], [], color=LABEL_POS, lw=3, label=f'human-annotated {name} on that frame'),
+                Line2D([], [], color=LABEL_NEG, lw=1.6, label=f'human-annotated not-{name}'),
+                Line2D([], [], color=BUCKET_COLOR[b], lw=2.6, label=f'the {b} frame itself (offset 0)'),
+                mpatches.Patch(fc='white', ec='#1565c0', label='corner tag: other behavior annotated here'),
+            ]
+            fig.legend(handles=handles, loc='lower center', ncol=4, fontsize=7.5,
+                       frameon=False, bbox_to_anchor=(0.5, 0.004))
+            fig.suptitle(
+                f'{title_prefix}{name}  —  {len(rows)} most confident {BUCKET_LONG[b]}, one per video\n'
+                f'operating point: p ≥ {thr:.3f} (max-F1)  precision {prec:.3f}  recall {rec:.3f}  '
+                f'F1 {f1:.3f}   |   bucket n={len(pools[b]):,} '
+                f'({100*len(pools[b])/max(len(y), 1):.2f}% of {len(y):,} val frames)\n'
+                f'columns are frame offsets at 5 fps (±{context} frames = ±{context/5:.1f} s)',
+                fontsize=10)
+            fig.tight_layout(rect=[0.015, 0.022, 1, 0.955])
+            f = out_dir / f'error_strip_{name}_{b}.png'
+            fig.savefig(f, dpi=125)
+            plt.close(fig)
+            written[f'{name}_{b}'] = f
+            print(f'  [viz] {name}/{b}: {len(rows)} strips ±{context} -> {f}', flush=True)
     return written
