@@ -115,6 +115,12 @@ for arm in ${ARMS:-$ORDER}; do
     if [ -e "results/vision/mice/frame/$tag/config.json" ]; then
         echo "SKIP  $arm -> $tag already has results"; continue
     fi
+    # A config.json only appears when a run FINISHES, so that check alone happily submits a
+    # second copy of an arm that is queued or mid-training -- and both would write the same
+    # results/.../$tag directory, interleaving checkpoints into a run that is neither.
+    if squeue -u "$USER" -h -o '%j' 2>/dev/null | grep -qx "$arm"; then
+        echo "SKIP  $arm -> already queued or running"; continue
+    fi
     if [ -n "${DRY:-}" ]; then
         echo "[dry] $arm: TAG=$tag $envs"; continue
     fi
