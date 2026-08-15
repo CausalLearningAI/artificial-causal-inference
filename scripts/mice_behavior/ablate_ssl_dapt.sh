@@ -15,10 +15,12 @@
 # ~11 h of A100 on a single node that the rest of the ablation is already queueing for.
 #
 # THE TWO STAGES
-#   A  ssl_dapt.sh          adapt the last 2 encoder blocks on 244,800 UNLABELLED frames
-#                           spanning all 68 non-val pools (of which 288 observations, 1.73M
-#                           frames, have no behaviour annotation at all). ~5 h + ~45 min of
-#                           first-time JPEG cache build.
+#   A  ssl_dapt.sh          adapt the last 2 encoder blocks on 374,400 UNLABELLED frames from
+#                           v1 AND v2 -- 624 observations over 104 pools, 81% of them from
+#                           observations with no behaviour annotation at all. v2 contributes
+#                           216 observations that are 100% unannotated and share no pool with
+#                           v1, so no supervised arm could ever have used them. ~9 h on an
+#                           A100 + ~45 min of first-time JPEG cache build (15.7 GiB).
 #   B  train_online_aug.sh  freeze that encoder and train the head with flags IDENTICAL to
 #                           frozen_ctrl_s42. ~5 h.
 #
@@ -99,8 +101,15 @@ for j in ssl_dapt "$STAGE_B_TAG"; do
     fi
 done
 
-SB_A=(--partition="${PARTITION:-gpu}" --gres="${GRES:-gpu:A100:1}" --time="${TIME_A:-10:00:00}"
-      --mem="${MEM_A:-120G}" --cpus-per-task=32)
+SB_A=(--partition="${PARTITION:-gpu}" --gres="${GRES:-gpu:A100:1}" --time="${TIME_A:-20:00:00}"
+      --mem="${MEM_A:-180G}" --cpus-per-task=32)
+# 180G, not the 120G ssl_dapt.sh's own header assumes. That header is right about the STEADY
+# state -- the frame set is fixed, so the memory-mapped cache never grows -- but wrong about
+# the FIRST run, which builds the cache: it holds all 15.7 GiB of JPEG bytes as anonymous
+# numpy arrays while dragging in the page cache of 374,400 individual NFS files, and the
+# cgroup counts both. That is exactly what OOM-killed six arms of the previous sweep at 120G
+# (measured peak RSS for cache-building runs: 30.3-34.9 GiB). Once dataset/mice/jpegcache_ssl
+# exists, MEM_A=120G is fine for every later SSL arm.
 
 if [ -n "${SMOKE:-}" ]; then
     echo "[smoke] Stage A only, tiny corpus"

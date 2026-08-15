@@ -108,6 +108,22 @@ declare -A ARM=(
   [ft_bitfit_hi]="res448_k2_bit2_d4photo_elr0.001   | UNFREEZE_BLOCKS=2 FT_MODE=bitfit ENCODER_LR=1e-3 SEED=42"
   [frozen_ctrl_s42]="res448_k2_frozen_d4photo_decay30_seed42 | UNFREEZE_BLOCKS=0 SEED=42"
   [frozen_ctrl_s1]="res448_k2_frozen_d4photo_decay30_seed1   | UNFREEZE_BLOCKS=0 SEED=1"
+  # ---- follow-ups added 2026-08-15, after the six arms above resolved ----------------------
+  # bit6 is the test the RESULT block names as the open question. bitfit matching full FT is
+  # established only AT 2 BLOCKS; ft6 (0.5243) still beats bit2 (0.4902) by ~3.8x the noise
+  # floor, so "recalibration explains fine-tuning" is NOT yet established -- it is established
+  # at matched depth. If bit6 reaches ft6, recalibration explains all of it at 1/577th the
+  # params. If it does not, depth of WEIGHT adaptation buys something bias-only cannot.
+  # AUGMENT=d4 (not the d4_photo every other arm here uses) because ft6, the run this is
+  # measured against, was trained at d4 -- matching it is the whole point.
+  # ENCODER_LR=1e-3 is bitfit's own good value, not ft6's 1e-5. That asymmetry is deliberate
+  # and defensible: full FT gets WORSE with a bigger step (ft2 0.4866 at 1e-5 -> 0.4449 at
+  # 3e-5) while bitfit gets better (0.4509 -> 0.4902), so each method is run where it works.
+  [ft_bit6]="res448_k2_bit6_d4                      | UNFREEZE_BLOCKS=6 FT_MODE=bitfit ENCODER_LR=1e-3 SEED=42 AUGMENT=d4"
+  # Every arm above except the two controls is a SINGLE seed, so the headline (+0.061) rests on
+  # one draw measured against a noise floor estimated from a different config. This replicates
+  # the winner at seed 1.
+  [ft_bitfit_hi_s1]="res448_k2_bit2_d4photo_elr0.001_seed1 | UNFREEZE_BLOCKS=2 FT_MODE=bitfit ENCODER_LR=1e-3 SEED=1"
 )
 ORDER="head_selfattn head_multiquery ft_bitfit ft_bitfit_hi frozen_ctrl_s42 frozen_ctrl_s1"
 

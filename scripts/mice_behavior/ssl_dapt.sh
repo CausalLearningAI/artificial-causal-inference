@@ -9,7 +9,7 @@
 #SBATCH --job-name=ssl_dapt
 #SBATCH --output=logs/ssl_dapt_%j.out
 #SBATCH --error=logs/ssl_dapt_%j.err
-#SBATCH --time=10:00:00
+#SBATCH --time=20:00:00
 # gpu, not gpu100: the A100 partition is where the rest of this ablation runs, so arms stay
 # measured on comparable hardware. Override with PARTITION/GRES for an H100.
 #SBATCH --partition=gpu
@@ -42,6 +42,7 @@ fi
 
 python -u scripts/mice_behavior/ssl_dapt.py \
     --tag "${TAG:-ssl_dapt}" \
+    --versions "${VERSIONS:-v1,v2}" \
     --input-size "${INPUT_SIZE:-448}" \
     --frame-stride "${FRAME_STRIDE:-10}" \
     --include-labeled-obs "${INCLUDE_LABELED_OBS:-1}" \
@@ -56,5 +57,5 @@ python -u scripts/mice_behavior/ssl_dapt.py \
     --augment "${AUGMENT:-d4_photo}" \
     --read-workers "${READ_WORKERS:-32}" \
     --decode-workers "${DECODE_WORKERS:-16}" \
-    --jpeg-cache-file "${JPEG_CACHE_FILE:-dataset/mice/v1/jpegcache_ssl}" \
+    --jpeg-cache-file "${JPEG_CACHE_FILE:-dataset/mice/jpegcache_ssl}" \
     ${WANDB_ARGS} ${SMOKE_ARGS}

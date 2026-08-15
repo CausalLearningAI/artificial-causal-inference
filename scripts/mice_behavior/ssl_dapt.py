@@ -27,9 +27,17 @@ budget re-encoding near-duplicates. --frame-stride 10 keeps one frame every 2 s:
 frames and a 10.3 GiB cache, and it still spans EVERY non-val observation and pool. Diversity
 is preserved; redundancy is what gets dropped.
 
+v2 DOUBLES DOWN ON EXACTLY THIS ARGUMENT. It is 216 observations / 1,296,000 frames with ZERO
+behaviour annotation -- not "not yet annotated for this task", none at all -- and it shares no
+pool with v1 (72 v1 pools, 36 v2 pools, 0 overlap), so it is wholly distinct animals and cannot
+leak the v1 val set. Supervised adaptation can never use a frame of it. Default --versions
+v1,v2 therefore gives 374,400 frames over 624 observations and 104 pools: 4.3x the pools the
+head is trained on.
+
 Measured throughput (smoke run, L40S, 448px, batch 64): 97 frames/s including teacher forward
-and student forward/backward, i.e. ~42 min per epoch at stride 10, so ~8.4 h for 12 epochs on
-an L40S and ~6 h on an A100. That fits one job; stride 1 would not.
+and student forward/backward. At stride 10 over v1+v2 that is ~64 min per epoch, so ~13 h for
+12 epochs on an L40S and ~9 h on an A100, plus a one-off ~30-45 min cache build (15.7 GiB).
+Stride 1 over both versions would be a 157 GiB cache and ~11 h PER EPOCH -- not a schedule.
 
 VAL POOLS ARE EXCLUDED (rd11_2, rd13, rd14, rd18)
 -------------------------------------------------
@@ -238,6 +246,12 @@ def make_targets(teacher, x, n_layers):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--tag', default='ssl_dapt')
+    p.add_argument('--versions', default='v1,v2',
+                   help='dataset versions to draw the SSL corpus from. v2 is 216 observations / '
+                        '1,296,000 frames with ZERO behaviour annotation, and shares NO pool with '
+                        'v1 (verified: 72 v1 pools, 36 v2 pools, 0 overlap), so it is entirely '
+                        'distinct animals and cannot leak the v1 val set. Supervised arms can '
+                        'never touch it; this objective can, which is the point of the arm.')
     p.add_argument('--input-size', type=int, default=448,
                    help='448 to match the downstream head. Adapting at 224 and deploying at 448 '
                         'would confound this arm with a resolution shift.')
@@ -285,8 +299,10 @@ def main():
                    help='frames from the VAL pools used only to measure drift. Never trained on.')
     p.add_argument('--collapse-std', type=float, default=0.05,
                    help='abort if the teacher targets stop varying across the batch')
-    p.add_argument('--jpeg-cache-file', default='dataset/mice/v1/jpegcache_ssl',
-                   help='built once, reused by every later SSL arm')
+    p.add_argument('--jpeg-cache-file', default='dataset/mice/jpegcache_ssl',
+                   help='built once, reused by every later SSL arm. Keyed by row index into the '
+                        'CONCATENATED per-version frame table, so it is specific to --versions '
+                        'and deliberately not shareable with the v1-only jpegcache_k2.')
     p.add_argument('--seed', type=int, default=None)
     p.add_argument('--wandb', action='store_true')
     p.add_argument('--wandb-project', default='mice-behavior-frame')
@@ -298,7 +314,7 @@ def main():
     if args.smoke:
         args.n_epochs, args.warmup_epochs, args.frame_stride = 2, 0, 400
         args.probe_size, args.tag = 64, 'ssl_dapt_smoke'
-        args.jpeg_cache_file = 'dataset/mice/v1/jpegcache_ssl_smoke'
+        args.jpeg_cache_file = 'dataset/mice/jpegcache_ssl_smoke'
     torch.manual_seed(args.seed)
     rng = np.random.default_rng(args.seed)
     dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -308,36 +324,59 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
 
     # ---- frame selection -------------------------------------------------------------
-    ann = pd.read_csv(gsf.DATASET_DIR / 'mice' / 'v1' / 'annotations.csv',
-                      usecols=['observation_id', 'frame_idx', 'frame_path'])
+    # One concatenated table across --versions. Row index in THIS table is the JPEG cache key,
+    # which is why the cache file is version-set specific and cannot be shared with the v1-only
+    # jpegcache_k2 the supervised runs use.
+    versions = [v.strip() for v in args.versions.split(',') if v.strip()]
+    parts = []
+    for v in versions:
+        csv = gsf.DATASET_DIR / 'mice' / v / 'annotations.csv'
+        a = pd.read_csv(csv, usecols=['observation_id', 'frame_idx', 'frame_path'])
+        y = pd.read_csv(csv, usecols=['Y_nn', 'Y_np', 'Y_nt'])
+        a['version'] = v
+        # An observation counts as labelled if any behaviour column is non-null anywhere in it.
+        lab = set(a.observation_id[y.notna().any(axis=1).values].unique())
+        a['labeled'] = a.observation_id.isin(lab)
+        o2p = load_obs_to_pool_map(gsf.DATA_DIR, version=v)
+        raw = a.observation_id.map(o2p)
+        if raw.isna().any():
+            raise SystemExit(f'{v}: {int(raw.isna().sum())} frames have no pool mapping')
+        # Pools are namespaced by version. v1 and v2 pool names do not currently collide, but
+        # nothing enforces that upstream, and a silent collision would merge two different
+        # quadruplets -- the exact failure pools.py exists to prevent.
+        a['pool'] = v + ':' + raw
+        # Only v1 has a standing val set. v2 has no labelled observation at all (0/216), so it
+        # cannot be anyone's held-out set and nothing there needs excluding.
+        a['is_val'] = (v == 'v1') & raw.isin(VAL_POOLS_V1)
+        parts.append(a)
+    ann = pd.concat(parts, ignore_index=True)
     ann['g'] = np.arange(len(ann))            # global index: the JPEG cache's key
-    o2p = load_obs_to_pool_map(gsf.DATA_DIR)
-    ann['pool'] = ann.observation_id.map(o2p)
-    if ann['pool'].isna().any():
-        raise SystemExit(f'{ann["pool"].isna().sum()} frames have no pool mapping')
-    is_val = ann['pool'].isin(VAL_POOLS_V1)
+    is_val = ann['is_val'].values
 
-    # An observation counts as labelled if any behaviour column is non-null anywhere in it.
-    lab_cols = ['Y_nn', 'Y_np', 'Y_nt']
-    ycols = pd.read_csv(gsf.DATASET_DIR / 'mice' / 'v1' / 'annotations.csv', usecols=lab_cols)
-    labeled_obs = set(ann.observation_id[ycols.notna().any(axis=1).values].unique())
-
-    pool_ok = ~is_val
+    keep = ~is_val
     if not args.include_labeled_obs:
-        pool_ok &= ~ann.observation_id.isin(labeled_obs)
-    sel = ann[pool_ok & (ann.frame_idx % args.frame_stride == 0)]
+        keep &= ~ann['labeled'].values
+    sel = ann[keep & (ann.frame_idx % args.frame_stride == 0).values]
     gidx = sel['g'].values
     frame_paths = ann.frame_path.values
 
-    n_unlab = int((~sel.observation_id.isin(labeled_obs)).sum())
+    n_unlab = int((~sel['labeled']).sum())
     print(f'SSL corpus: {len(gidx):,} frames  '
           f'({sel.observation_id.nunique()} observations, {sel["pool"].nunique()} pools, '
-          f'stride {args.frame_stride})', flush=True)
+          f'versions {"+".join(versions)}, stride {args.frame_stride})', flush=True)
+    for v in versions:
+        sv = sel[sel.version == v]
+        print(f'    {v}: {len(sv):>9,} frames  {sv.observation_id.nunique():>3} obs  '
+              f'{sv["pool"].nunique():>3} pools', flush=True)
     print(f'  from never-annotated observations: {n_unlab:,} frames '
           f'({100*n_unlab/max(len(gidx),1):.0f}%)', flush=True)
-    print(f'  val pools EXCLUDED: {sorted(VAL_POOLS_V1)}', flush=True)
+    print(f'  v1 val pools EXCLUDED: {sorted(VAL_POOLS_V1)} '
+          f'({int(is_val.sum()):,} frames withheld)', flush=True)
+    if int((sel["is_val"]).sum()):
+        raise SystemExit('val-pool frames leaked into the SSL corpus')
 
-    # probe frames: val pools only, so drift is measured where nothing was trained
+    # probe frames: v1 val pools only, so drift is measured on the animals Stage B is scored on
+    # and that this objective never trains on
     probe_pool = ann[is_val]['g'].values
     probe_gidx = rng.choice(probe_pool, size=min(args.probe_size, len(probe_pool)), replace=False)
 
