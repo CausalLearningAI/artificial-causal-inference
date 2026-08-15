@@ -61,8 +61,11 @@ TTA_OPS = {'none': [0], 'rot4': [0, 1, 2, 3], 'd4': list(range(8))}
 # res<input>_k<context>[s<stride>]_<encoder>_<augment>. The old 504_k2 entry is dropped -- that
 # directory never held a checkpoint and only ever produced a FileNotFoundError skip.
 DEFAULT_CKPTS = [
-    'res448_k2_ft2_d4photo',        # best single model to date (macro AP 0.4889, r 0.542)
-    'res448_k2_frozen_d4photo', 'res448_k2s2_frozen_d4photo', 'res448_k2_frozen_d4',
+    'res448_k2_ft6_d4',             # best single model to date (macro AP 0.5243)
+    'res448_k2_ft2_d4photo',        # macro AP 0.4889, r 0.542
+    # gained its _decay40 suffix on 2026-08-15, when the decay30 controls landed and collided
+    # with the bare name -- same run and same checkpoint as before, just disambiguated.
+    'res448_k2_frozen_d4photo_decay40', 'res448_k2s2_frozen_d4photo', 'res448_k2_frozen_d4',
     'res504_k2_frozen_d4photo', 'res504_k2_frozen_d4',
     'res504_k1_frozen_d4', 'res504_k0_frozen_d4',
     'res224_k2_frozen_d4_decay20',
