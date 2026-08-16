@@ -228,8 +228,20 @@ def main():
                          'the JPEG-bytes cache at ~45 KB/frame: 300k -> ~19 GiB, 900k -> ~45 GiB, '
                          'unbounded (2.59M) -> ~114 GiB, plus the one-time NFS read of each frame.')
     p.add_argument('--input-size', type=int, default=224)
-    p.add_argument('--env-key', choices=['none', 'annotator', 'pool', 'line'], default='none',
-                    help="grouping variable defining vREx environments. 'none' = plain ERM.")
+    p.add_argument('--env-key',
+                    choices=['none', 'condition', 'phase', 'annotator', 'pool', 'line'],
+                    default='none',
+                    help="grouping variable defining vREx environments. 'none' = plain ERM. "
+                         "'condition' = phase x odor, the 6 EXPERIMENTAL CELLS -- the motivated "
+                         "default for the phase-ATE estimand: the odor delivery visibly changes "
+                         "the scene, so a classifier can acquire a condition-dependent error, and "
+                         "a bias that moves WITH the treatment is exactly what biases an ATE "
+                         "estimated without a rectifier (measured: predicted/true rate ratio "
+                         "2.26 (H) / 1.80 (O) / 3.51 (P) on the best model). Equalising RISK "
+                         "across cells removes that bias without touching the effect itself. "
+                         "'annotator' targets a different problem -- label-convention shift across "
+                         "the 6 people who labelled v1 -- which is a training-time nuisance, not a "
+                         "test-time environment, since v2 has no annotator at all.")
     p.add_argument('--vrex-beta', type=float, default=0.0,
                     help='weight on the across-environment RISK VARIANCE. 0 = ERM even when '
                          '--env-key is set (useful as the exact-same-code control).')
@@ -446,7 +458,10 @@ def main():
         names = np.array([k for k, _ in sorted(st_.items(), key=lambda x: x[1])])
         obs_of_sample = names[np.searchsorted(starts, tm.gi, side='right') - 1]
         exp = pd.read_csv(gsf.DATA_DIR / 'mice' / 'v1' / 'experiment.csv')
-        key = {'annotator': 'annotator', 'pool': 'pool', 'line': 'line'}[args.env_key]
+        if args.env_key == 'condition':
+            exp['condition'] = exp['phase'].astype(str) + '_' + exp['odor'].astype(str)
+        key = {'condition': 'condition', 'phase': 'phase', 'annotator': 'annotator',
+               'pool': 'pool', 'line': 'line'}[args.env_key]
         o2e = dict(zip(exp['observation_id'], exp[key].astype(str)))
         raw = np.array([o2e.get(o, 'NA') for o in obs_of_sample])
         env_names, train_envs = np.unique(raw, return_inverse=True)
