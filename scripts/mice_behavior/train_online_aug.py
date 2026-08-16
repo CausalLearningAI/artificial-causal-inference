@@ -228,6 +228,10 @@ def main():
                          'the JPEG-bytes cache at ~45 KB/frame: 300k -> ~19 GiB, 900k -> ~45 GiB, '
                          'unbounded (2.59M) -> ~114 GiB, plus the one-time NFS read of each frame.')
     p.add_argument('--input-size', type=int, default=224)
+    p.add_argument('--val-pools', default=None,
+                    help='comma-separated pool ids to hold out, overriding the standing split. '
+                         'Used for cross-fitting: several runs whose val sets tile all 24 '
+                         'annotated pools give the out-of-fold predictions PPI requires.')
     p.add_argument('--pool-grid', type=int, default=0,
                     help='pool each frame into a GxG grid of REGION vectors instead of collapsing '
                          'it to one, and run the temporal attention over T*G^2 region tokens with '
@@ -438,7 +442,18 @@ def main():
     o2p = gsf.load_obs_to_pool_map(gsf.DATA_DIR)
     all_obs = pd.read_parquet(pair_labels)['observation_id'].unique().tolist()
     pools = sorted({o2p[o] for o in all_obs})
-    val_pools = get_fixed_val_pools(pools)
+    if args.val_pools:
+        # Explicit fold for CROSS-FITTING. PPI's rectifier needs f on the labelled pools to be
+        # out-of-fold: an in-sample f is shrunk toward the labels, which understates the
+        # correction and produces an interval that is too narrow -- the exact failure PPI exists
+        # to prevent. Three folds of 8 tile all 24 annotated pools, each held out exactly once.
+        val_pools = set(args.val_pools.split(','))
+        missing = val_pools - set(pools)
+        if missing:
+            raise SystemExit(f'--val-pools not in the annotated set: {sorted(missing)}')
+    else:
+        val_pools = get_fixed_val_pools(pools)
+    print(f'  val pools ({len(val_pools)}): {sorted(val_pools)}', flush=True)
     train_obs = [o for o in all_obs if o2p[o] not in val_pools]
     val_obs = [o for o in all_obs if o2p[o] in val_pools]
     if args.n_train_pools:
@@ -859,6 +874,7 @@ def main():
     json.dump({'cfg': best_cfg, 'context_k': args.context_k, 'input_size': args.input_size,
                'pixel_source': args.pixel_source, 'init_encoder': args.init_encoder,
                'n_train_pools': args.n_train_pools, 'pool_grid': args.pool_grid,
+               'val_pools': sorted(val_pools),
                'env_key': args.env_key, 'vrex_beta': args.vrex_beta,
                'vrex_warmup_epochs': args.vrex_warmup_epochs,
                'n_environments': (len(env_names) if env_names is not None else 0),

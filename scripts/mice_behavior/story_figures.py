@@ -66,8 +66,11 @@ def contrast(df, col, x, y):
 
 def fig_causal(r):
     """Per behaviour, one panel each -- the estimand, in the units it is best measured in."""
-    trans = [('H', 'O'), ('O', 'P'), ('H', 'P')]
-    tnames = ['odour ON\n(O − H)', 'odour OFF\n(P − O)', 'net\n(P − H)']
+    # CONSECUTIVE transitions only, in the order the experiment ran: H -> O -> P.
+    # P - H is a composite of the two and is not an independent contrast, so quoting it
+    # alongside them triple-counts the same 24 pools.
+    trans = [('H', 'O'), ('O', 'P')]
+    tnames = ['odour ON\nH → O', 'odour OFF\nO → P']
     fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.3), sharey=False)
     for ax, (lab, nice) in zip(axes, [('Y_nt', 'nose-to-tail  (nt)'), ('Y_nn', 'nose-to-nose  (nn)')]):
         ypos, ticks, labels = [], [], []
@@ -109,7 +112,7 @@ def fig_causal(r):
 
 def fig_outcome_choice(r):
     """Why bouts/min and not occupancy: same design, more of it resolves."""
-    trans = [('H', 'O'), ('O', 'P'), ('H', 'P')]
+    trans = [('H', 'O'), ('O', 'P')]
     cells, sig_rate, sig_bpm = [], 0, 0
     for lab in ('Y_nt', 'Y_nn'):
         for od in ('F', 'S'):
@@ -127,7 +130,7 @@ def fig_outcome_choice(r):
                     ha='center', fontsize=11, weight='bold', color=INK)
     ax.set_xticks([0, 1]); ax.set_xticklabels(['time-in-behaviour\n(occupancy)',
                                                'bouts per minute\n(event count)'])
-    ax.set_ylabel('phase contrasts resolved (of 12)')
+    ax.set_ylabel('contrasts with 95% CI excluding 0')
     ax.set_ylim(0, len(cells) * 1.15)
     ax.grid(axis='y', color=GRID, lw=0.7); ax.set_axisbelow(True)
     for s in ('top', 'right'):

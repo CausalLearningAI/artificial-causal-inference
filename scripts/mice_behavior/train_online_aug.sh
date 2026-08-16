@@ -72,6 +72,7 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --max-train-frames "${MAX_TRAIN_FRAMES:-300000}" \
     --input-size "${INPUT_SIZE:-224}" \
     --pixel-source "${PIXEL_SOURCE:-0}" \
+    --val-pools "${VAL_POOLS:-}" \
     --pool-grid "${POOL_GRID:-0}" \
     --cross-attn-dim "${CROSS_ATTN_DIM:-0}" \
     --patch-pool-dim "${PATCH_POOL_DIM:-0}" \
