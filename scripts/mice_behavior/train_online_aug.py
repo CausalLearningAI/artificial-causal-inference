@@ -228,6 +228,18 @@ def main():
                          'the JPEG-bytes cache at ~45 KB/frame: 300k -> ~19 GiB, 900k -> ~45 GiB, '
                          'unbounded (2.59M) -> ~114 GiB, plus the one-time NFS read of each frame.')
     p.add_argument('--input-size', type=int, default=224)
+    p.add_argument('--pool-grid', type=int, default=0,
+                    help='pool each frame into a GxG grid of REGION vectors instead of collapsing '
+                         'it to one, and run the temporal attention over T*G^2 region tokens with '
+                         'separable temporal+spatial position codes. 0 = off (current behaviour). '
+                         'Fixes the structural defect that all spatial layout is destroyed before '
+                         'the temporal stage -- the reason --use-motion could not work. G=4 at '
+                         '448px gives 16 regions of 8x8 patches each.')
+    p.add_argument('--n-train-pools', type=int, default=0,
+                    help='train on only this many of the 20 labelled training pools (0 = all). '
+                         'Nested across sizes at fixed --seed, so smaller points are subsets of '
+                         'larger ones. This is the learning curve that matters: it varies the '
+                         'number of ANNOTATED CAGES, which is what a labelling budget buys.')
     p.add_argument('--env-key',
                     choices=['none', 'condition', 'phase', 'annotator', 'pool', 'line'],
                     default='none',
@@ -429,6 +441,21 @@ def main():
     val_pools = get_fixed_val_pools(pools)
     train_obs = [o for o in all_obs if o2p[o] not in val_pools]
     val_obs = [o for o in all_obs if o2p[o] in val_pools]
+    if args.n_train_pools:
+        # Learning curve over LABELLED POOLS -- the axis that actually costs money, since a pool
+        # is 6 observations one annotator had to sit through. Subsample pools, never observations:
+        # dropping observations would keep all 20 cages in the training set and so would measure
+        # something else entirely (less data per animal, not fewer animals). Sorted before the
+        # seeded draw so the subset is reproducible, and nested across sizes at a fixed seed so
+        # the n=5 pools are a subset of the n=10 pools -- otherwise each point on the curve moves
+        # for two reasons at once.
+        tp = sorted({o2p[o] for o in train_obs})
+        if args.n_train_pools > len(tp):
+            raise SystemExit(f'--n-train-pools {args.n_train_pools} > {len(tp)} available')
+        keep = set(np.random.default_rng(args.seed).permutation(tp)[:args.n_train_pools])
+        train_obs = [o for o in train_obs if o2p[o] in keep]
+        print(f'  learning-curve point: {args.n_train_pools}/{len(tp)} train pools '
+              f'({len(train_obs)} obs) -> {sorted(keep)}', flush=True)
     if args.smoke:
         # val is 144k frames and dominates the read phase, so cap it too or "smoke" isn't smoke
         train_obs, val_obs = train_obs[:2], val_obs[:1]
@@ -560,12 +587,12 @@ def main():
         use_patch_grid=True, dropout=dropout, use_motion=args.use_motion,
         cross_attn_dim=args.cross_attn_dim or None, patch_pool_dim=args.patch_pool_dim or None,
         patch_selfattn_dim=args.patch_selfattn_dim or None,
-        n_pool_queries=args.pool_queries).to(dev)
+        n_pool_queries=args.pool_queries, pool_grid=args.pool_grid).to(dev)
     print(f'classifier params: {sum(p.numel() for p in model.parameters()):,} '
           f'(DINOv2 frozen, {sum(p.numel() for p in encoder.parameters())/1e6:.0f}M)', flush=True)
     print(f'head: patch_selfattn={args.patch_selfattn_dim or "off"}  '
           f'pool_queries={args.pool_queries}  patch_pool_dim={args.patch_pool_dim}  '
-          f'cross_attn_dim={args.cross_attn_dim}', flush=True)
+          f'cross_attn_dim={args.cross_attn_dim}  pool_grid={args.pool_grid or "off"}', flush=True)
     print(f'optimizer={args.optimizer} lr={lr:g} weight_decay={wd:g} dropout={dropout:g} '
           f'warmup={args.warmup_epochs} decay_epochs={args.lr_decay_epochs}', flush=True)
     opt_cls = torch.optim.AdamW if args.optimizer == 'adamw' else torch.optim.Adam
@@ -831,6 +858,7 @@ def main():
             pass
     json.dump({'cfg': best_cfg, 'context_k': args.context_k, 'input_size': args.input_size,
                'pixel_source': args.pixel_source, 'init_encoder': args.init_encoder,
+               'n_train_pools': args.n_train_pools, 'pool_grid': args.pool_grid,
                'env_key': args.env_key, 'vrex_beta': args.vrex_beta,
                'vrex_warmup_epochs': args.vrex_warmup_epochs,
                'n_environments': (len(env_names) if env_names is not None else 0),

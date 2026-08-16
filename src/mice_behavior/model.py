@@ -218,8 +218,31 @@ class MouseFrameClassifier(nn.Module):
         patch_dropout: float = 0.0, patch_noise_std: float = 0.0, frame_dropout: float = 0.0,
         use_layernorm: bool = False, patch_pool_dim: Optional[int] = None,
         patch_selfattn_dim: Optional[int] = None, n_pool_queries: int = 1,
+        pool_grid: int = 0,
     ):
+        """pool_grid: pool each frame into a pool_grid x pool_grid SPATIAL GRID of region
+        vectors instead of collapsing it to one vector, and let the temporal attention run over
+        the T x pool_grid^2 region tokens.
+
+        THE PROBLEM THIS FIXES. Every configuration to date pools 1024 patches down to a single
+        vector per frame BEFORE the temporal stage, so all spatial structure is destroyed exactly
+        where motion would have to be read. That is why --use-motion lost: it differenced
+        globally-pooled vectors, which cannot tell "one mouse moved" from "the whole scene
+        shifted". With regions kept, a difference is LOCAL, and a pairwise predicate has somewhere
+        to live -- the two mice in an interaction are usually in the same or adjacent regions.
+
+        Cost is negligible: the temporal attention goes from 5 tokens to T*G^2 = 80 at G=4, and
+        the pooling itself is unchanged in FLOPs (the same 1024 patches are pooled, just into G^2
+        groups instead of one). It composes with cross_attn_dim, which is the module that should
+        shrink -- 2.36M params at 768 width to weight five positions is the single most
+        over-provisioned block in the head, and the regime is overfitting, not underfitting.
+        """
         super().__init__()
+        if pool_grid and use_motion:
+            raise ValueError('pool_grid and use_motion are not composable as written: the motion '
+                             'path assumes one pooled vector per frame. Region-local differencing '
+                             'is the natural version and is worth doing, but as a separate change.')
+        self.pool_grid = pool_grid
         self.max_offset = max_offset
         self.use_patch_grid = use_patch_grid
         self.use_motion = use_motion
@@ -246,6 +269,12 @@ class MouseFrameClassifier(nn.Module):
             self.temporal_proj = nn.Linear(patch_content_dim, self.cross_attn_dim)
         self.query = nn.Parameter(torch.randn(1, 1, self.cross_attn_dim) * 0.02)
         self.pos_emb = nn.Embedding(2 * max_offset + 1, self.cross_attn_dim)
+        # Separable position code: the temporal embedding above is indexed by frame offset and
+        # shared across regions; this one is indexed by region and shared across time. Separable
+        # rather than a joint (T x G^2) table because the two axes mean different things and the
+        # temporal one must keep generalising across context windows.
+        self.region_emb = (nn.Embedding(pool_grid * pool_grid, self.cross_attn_dim)
+                           if pool_grid else None)
         self.cross_attn = nn.MultiheadAttention(self.cross_attn_dim, n_heads, dropout=dropout, batch_first=True)
         if use_layernorm:
             self.cross_attn_norm_in = nn.LayerNorm(self.cross_attn_dim)
@@ -284,7 +313,22 @@ class MouseFrameClassifier(nn.Module):
                 # the cross-attention's job, so context positions never see each other here.
                 context_seq = self.patch_selfattn(
                     context_seq.reshape(B * T, P, D)).reshape(B, T, P, D)
-            content = self.patch_pool(context_seq.reshape(B * T, P, D)).reshape(B, T, -1)
+            if self.pool_grid:
+                # (B*T, P, D) -> (B*T*G^2, P/G^2, D): split the SxS patch grid into G x G
+                # contiguous square regions, keeping each region's patches together so the
+                # pooling attention sees one neighbourhood at a time.
+                G = self.pool_grid
+                S = int(P ** 0.5)
+                if S * S != P or S % G:
+                    raise ValueError(f'pool_grid={G} needs a square patch grid divisible by G; '
+                                     f'got P={P} (S={S})')
+                r = S // G
+                x = context_seq.reshape(B * T, S, S, D)
+                x = x.reshape(B * T, G, r, G, r, D).permute(0, 1, 3, 2, 4, 5)
+                x = x.reshape(B * T * G * G, r * r, D)
+                content = self.patch_pool(x).reshape(B, T * G * G, -1)
+            else:
+                content = self.patch_pool(context_seq.reshape(B * T, P, D)).reshape(B, T, -1)
             if self.use_motion:
                 delta = context_seq[:, 1:] - context_seq[:, :-1]  # (B, T-1, P, D)
                 delta = torch.cat([torch.zeros_like(delta[:, :1]), delta], dim=1)  # pad t=0 -> (B, T, P, D)
@@ -292,12 +336,25 @@ class MouseFrameClassifier(nn.Module):
                 context_seq = self.motion_proj(torch.cat([content, motion], dim=-1))
             else:
                 context_seq = content
+        if self.pool_grid:
+            # Each context position became G^2 region tokens, so the per-position offsets and
+            # padding flags have to be repeated to match -- interleaved, not tiled, because the
+            # region axis is the FAST one in the reshape above.
+            g2 = self.pool_grid * self.pool_grid
+            if offsets is not None:
+                offsets = offsets.repeat_interleave(g2, dim=1)
+            if key_padding_mask is not None:
+                key_padding_mask = key_padding_mask.repeat_interleave(g2, dim=1)
         if self.cross_attn_dim != context_seq.size(-1):
             context_seq = self.temporal_proj(context_seq)
         B = context_seq.size(0)
         if offsets is not None:
             idx = offsets.clamp(-self.max_offset, self.max_offset) + self.max_offset
-            context_seq = context_seq + self.pos_emb(idx)  # (B, T, cross_attn_dim)
+            context_seq = context_seq + self.pos_emb(idx)  # (B, T[*G^2], cross_attn_dim)
+        if self.pool_grid:
+            n_pos = context_seq.size(1) // g2
+            ridx = torch.arange(g2, device=context_seq.device).repeat(n_pos)
+            context_seq = context_seq + self.region_emb(ridx).unsqueeze(0)
         if self.training and self.frame_dropout > 0 and key_padding_mask is not None and offsets is not None:
             is_center = (offsets == 0)
             extra_drop = (torch.rand_like(key_padding_mask, dtype=torch.float) < self.frame_dropout) & ~is_center & ~key_padding_mask
