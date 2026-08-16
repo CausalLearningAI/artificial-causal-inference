@@ -111,9 +111,23 @@ class _SampleDataset(Dataset):
     not duplicated per worker.
     """
 
+    # Set by main() from --pixel-source. 0 = off. When >0 each frame is first resized DOWN to
+    # this edge length and then back up to input_size, so the encoder still sees exactly
+    # (input_size/14)^2 tokens while the pixel information is capped at pixel_source^2. This is
+    # the only ablation in the repo that separates TOKEN COUNT from PIXEL RESOLUTION: every
+    # previous resolution experiment moved both together, because DINOv2's patch size is fixed
+    # at 14 so input_size alone sets both. A mouse is ~35 px in the 512 px stored frame -> 2.19
+    # patches at 448 and 2.46 at 504, which is why 504 bought nothing; whether the 224->448
+    # jump (+41% macro AP) was extra tokens or extra pixels has never been tested.
+    pixel_source = 0
+
     def __init__(self, meta, batches, jpeg_cache, input_size, augment, seed,
                  photo_brightness=(0.80, 1.25), photo_contrast=(0.80, 1.25),
-                 photo_gamma=(0.83, 1.20), fixed_op=None):
+                 photo_gamma=(0.83, 1.20), fixed_op=None, envs=None):
+        # envs: (n_samples,) int env code per sample, or None -> zeros. Carried through the
+        # loader so the training loop can group a batch's per-sample losses by environment
+        # without re-deriving the observation of every anchor on the hot path.
+        self.envs = envs
         # fixed_op pins the D4 transform instead of drawing it, which is what test-time
         # augmentation needs: the same deterministic rendering applied to every sample, then
         # averaged over ops. None keeps the training behaviour (draw per sample).
@@ -168,6 +182,9 @@ class _SampleDataset(Dataset):
                     im = im.convert('RGB')
                     if op:
                         im = d4_transform(im, op)
+                    if self.pixel_source:
+                        # down then up: destroys pixel detail, leaves the token grid untouched.
+                        im = im.resize((self.pixel_source, self.pixel_source), Image.BILINEAR)
                     im = im.resize((S, S), Image.BILINEAR)
                     arr = torch.from_numpy(np.asarray(im, dtype=np.uint8).copy())
                 x = arr.permute(2, 0, 1).float() / 255.0
@@ -176,10 +193,13 @@ class _SampleDataset(Dataset):
                     m = x.mean()
                     x = ((x - m) * contrast + m).clamp_(0.0, 1.0)
                 out[b, t] = (x - IMAGENET_MEAN) / IMAGENET_STD
+        env = (torch.from_numpy(self.envs[sample_idx]) if self.envs is not None
+               else torch.zeros(B, dtype=torch.int64))
         return (out,
                 torch.from_numpy(np.broadcast_to(offsets, (B, T)).copy()),
                 torch.from_numpy(self.meta.labels[sample_idx]),
-                torch.from_numpy(mask))
+                torch.from_numpy(mask),
+                env)
 
 
 def main():
@@ -208,6 +228,27 @@ def main():
                          'the JPEG-bytes cache at ~45 KB/frame: 300k -> ~19 GiB, 900k -> ~45 GiB, '
                          'unbounded (2.59M) -> ~114 GiB, plus the one-time NFS read of each frame.')
     p.add_argument('--input-size', type=int, default=224)
+    p.add_argument('--env-key', choices=['none', 'annotator', 'pool', 'line'], default='none',
+                    help="grouping variable defining vREx environments. 'none' = plain ERM.")
+    p.add_argument('--vrex-beta', type=float, default=0.0,
+                    help='weight on the across-environment RISK VARIANCE. 0 = ERM even when '
+                         '--env-key is set (useful as the exact-same-code control).')
+    p.add_argument('--vrex-warmup-epochs', type=int, default=5,
+                    help='epochs of pure ERM before the penalty switches on. Applying it from '
+                         'step 0 admits the degenerate invariant solution (equally bad everywhere).')
+    p.add_argument('--vrex-min-env', type=int, default=4,
+                    help='minimum samples an environment needs IN A BATCH to contribute a risk '
+                         'term; smaller groups give a mean too noisy to take a variance over.')
+    p.add_argument('--pixel-source', type=int, default=0,
+                    help='cap PIXEL detail at this edge length while keeping the token grid at '
+                         '(input_size/14)^2: each frame is resized down to pixel_source then back '
+                         'up to input_size. 0 = off. Separates token count from pixel resolution, '
+                         'which every prior resolution experiment confounded (DINOv2 patch size is '
+                         'fixed at 14, so input_size sets both at once). Run at input_size=448 '
+                         'with --pixel-source 224 against the plain 448 control: if macro AP holds '
+                         'up, the 224->448 gain (+41%) was TOKENS and the next lever is more tokens '
+                         'per mouse (tiling); if it collapses to the 224 level, it was PIXELS and '
+                         'only going back to the 2060x2062 source (per-animal crops) can help.')
     p.add_argument('--augment', choices=['none', 'd4', 'd4_photo'], default='d4',
                     help="'d4_photo' adds per-sample brightness/contrast/gamma jitter on top of "
                          'the 8 exact D4 renderings. Every positive is drawn every epoch, so with '
@@ -349,6 +390,11 @@ def main():
         args.max_train_frames, args.n_epochs, args.batch_size = 4_000, 2, 32
         args.val_monitor_size, args.tag = 600, 'online_aug_smoke'
 
+    if args.pixel_source and args.pixel_source >= args.input_size:
+        p.error(f'--pixel-source {args.pixel_source} >= --input-size {args.input_size} is a no-op '
+                '(or an upsample); it only makes sense strictly below input_size.')
+    _SampleDataset.pixel_source = args.pixel_source
+
     n_patches = (args.input_size // PATCH_SIZE) ** 2
     # The old 'patchgrid256_dinov2_' prefix is gone: every run here is a 256-dim patch grid over
     # DINOv2, so it distinguished nothing and just pushed the informative part of the name out of
@@ -382,6 +428,36 @@ def main():
     vm = FrameBatchData(str(ann_csv), str(pair_labels), val_obs, args.context_k, 1,
                         dummy_loader(1, 1), n_patches=1, stride=args.stride)
     del tm.flat, vm.flat
+
+    # ---- environments for vREx -------------------------------------------------------------
+    # Environment = a group across which the LABELLING CONVENTION, not the biology, is expected
+    # to shift. `annotator` is the motivated default: 6 people annotated v1, none of the 432
+    # observations was double-annotated, and within a single line x genotype cell their rates
+    # differ by up to 3.7x. ERM fits a blend of those conventions; vREx keeps only what predicts
+    # equally well for all of them -- which is exactly what has to survive the move to v2, where
+    # there is no annotator at all. `pool` is the alternative (cage/cohort/date) and `line` the
+    # coarsest. None = plain ERM.
+    train_envs, env_names = None, None
+    if args.env_key != 'none':
+        a3 = pd.read_csv(ann_csv, usecols=['observation_id', 'frame_idx'])
+        a3 = a3[a3.observation_id.isin(set(train_obs))].reset_index()
+        st_ = {o: int(g['index'].values[0]) for o, g in a3.groupby('observation_id', sort=False)}
+        starts = np.array(sorted(st_.values()))
+        names = np.array([k for k, _ in sorted(st_.items(), key=lambda x: x[1])])
+        obs_of_sample = names[np.searchsorted(starts, tm.gi, side='right') - 1]
+        exp = pd.read_csv(gsf.DATA_DIR / 'mice' / 'v1' / 'experiment.csv')
+        key = {'annotator': 'annotator', 'pool': 'pool', 'line': 'line'}[args.env_key]
+        o2e = dict(zip(exp['observation_id'], exp[key].astype(str)))
+        raw = np.array([o2e.get(o, 'NA') for o in obs_of_sample])
+        env_names, train_envs = np.unique(raw, return_inverse=True)
+        train_envs = train_envs.astype(np.int64)
+        cnt = np.bincount(train_envs, minlength=len(env_names))
+        print(f'  env_key={args.env_key}: {len(env_names)} environments over {len(train_envs):,} '
+              f'train anchors -> ' + ', '.join(f'{n}:{c:,}' for n, c in zip(env_names, cnt)),
+              flush=True)
+        if len(env_names) < 2:
+            raise SystemExit(f'--env-key {args.env_key} yields <2 environments; nothing to be '
+                             'invariant across.')
 
     pos_idx = np.where(tm.labels.sum(1) > 0)[0]
     neg_idx = np.where(tm.labels.sum(1) == 0)[0]
@@ -536,16 +612,18 @@ def main():
         except Exception as e:   # never let telemetry kill a multi-hour training run
             print(f'wandb disabled ({e.__class__.__name__}: {e})', flush=True)
     crit = nn.BCEWithLogitsLoss()
+    crit_ns = nn.BCEWithLogitsLoss(reduction='none')   # per-sample, for the vREx grouping
     scaler = torch.amp.GradScaler('cuda', enabled=dev.type == 'cuda')
 
     def scaled(lo, hi):
         return (1 - (1 - lo) * args.photo_strength, 1 + (hi - 1) * args.photo_strength)
 
-    def make_loader(meta, order, augment, seed):
+    def make_loader(meta, order, augment, seed, envs=None):
         batches = [order[i:i+args.batch_size] for i in range(0, len(order), args.batch_size)]
         return DataLoader(_SampleDataset(meta, batches, jpeg_cache,
                                          args.input_size, augment, seed,
-                                         scaled(0.80, 1.25), scaled(0.80, 1.25), scaled(0.83, 1.20)),
+                                         scaled(0.80, 1.25), scaled(0.80, 1.25), scaled(0.83, 1.20),
+                                         envs=envs),
                           batch_size=None, num_workers=args.decode_workers,
                           pin_memory=(dev.type == 'cuda'), prefetch_factor=4)
 
@@ -553,7 +631,7 @@ def main():
     def evaluate(order):
         model.eval()
         P, L = [], []
-        for imgs, offs, lbl, mask in make_loader(vm, order, 'none', 0):
+        for imgs, offs, lbl, mask, _env in make_loader(vm, order, 'none', 0):
             imgs = imgs.to(dev, non_blocking=True)
             B, T = imgs.shape[:2]
             with torch.autocast('cuda', dtype=torch.float16, enabled=dev.type == 'cuda'):
@@ -574,8 +652,15 @@ def main():
         if ep == 1:
             read_s += ensure_cached(needed(vm, val_keep), 'val monitor')
         tot, seen, t0 = 0.0, 0, time.time()
-        for imgs, offs, lbl, mask in make_loader(tm, order, args.augment, args.seed * 1000 + ep):
+        # vREx penalty is annealed in: applying it from step 0 pins the model at a degenerate
+        # solution where every environment is equally badly predicted, which is trivially
+        # invariant. Standard practice for IRM/vREx and the reason the ERM phase exists.
+        beta_ep = args.vrex_beta if (train_envs is not None and ep > args.vrex_warmup_epochs) else 0.0
+        ep_pen, ep_pen_n = 0.0, 0
+        for imgs, offs, lbl, mask, env in make_loader(tm, order, args.augment,
+                                                      args.seed * 1000 + ep, envs=train_envs):
             imgs, lbl = imgs.to(dev, non_blocking=True), lbl.to(dev, non_blocking=True)
+            env = env.to(dev, non_blocking=True)
             B, T = imgs.shape[:2]
             opt.zero_grad()
             with torch.autocast('cuda', dtype=torch.float16, enabled=dev.type == 'cuda'):
@@ -586,7 +671,24 @@ def main():
                 tok = tok.view(B, T, n_patches, EMB_DIM)
                 logits = model(tok if finetune else tok.detach(),
                                offsets=offs.to(dev), key_padding_mask=mask.to(dev))
-                loss = crit(logits, lbl)
+                if beta_ep:
+                    # vREx (Krueger et al. 2021): minimise mean risk + beta * VARIANCE of risk
+                    # across environments. Penalising the spread -- not the predictions -- is what
+                    # keeps a genuine treatment effect intact: forcing the PREDICTIONS to be
+                    # invariant across phase would suppress the very phase effect we estimate.
+                    per_sample = crit_ns(logits, lbl).mean(dim=1)
+                    risks = [per_sample[env == e].mean()
+                             for e in torch.unique(env)
+                             if int((env == e).sum()) >= args.vrex_min_env]
+                    if len(risks) >= 2:
+                        rs = torch.stack(risks)
+                        pen = rs.var(unbiased=False)
+                        loss = rs.mean() + beta_ep * pen
+                        ep_pen += float(pen.detach()); ep_pen_n += 1
+                    else:
+                        loss = per_sample.mean()
+                else:
+                    loss = crit(logits, lbl)
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
             torch.nn.utils.clip_grad_norm_(
@@ -616,6 +718,7 @@ def main():
         print(f'epoch {ep:3d}/{args.n_epochs}  loss={tot/seen:.4f}  val_loss={val_loss:.4f}  '
               f'monitor_ap={ap:.4f}  nt={per_ap[0]:.4f}  nn={per_ap[1]:.4f}  '
               f'auc_nt={per_auc[0]:.4f}  auc_nn={per_auc[1]:.4f}  '
+              f'{f"vrex_pen={ep_pen/max(ep_pen_n,1):.3e} (b={beta_ep:g})  " if beta_ep else ""}'
               f'lr={opt.param_groups[0]["lr"]:.2e}  ({time.time()-t0:.1f}s compute'
               f'{f", {read_s:.0f}s new-frame read" if read_s > 1 else ""})', flush=True)
         if ap > best:
@@ -712,6 +815,10 @@ def main():
         except Exception:
             pass
     json.dump({'cfg': best_cfg, 'context_k': args.context_k, 'input_size': args.input_size,
+               'pixel_source': args.pixel_source, 'init_encoder': args.init_encoder,
+               'env_key': args.env_key, 'vrex_beta': args.vrex_beta,
+               'vrex_warmup_epochs': args.vrex_warmup_epochs,
+               'n_environments': (len(env_names) if env_names is not None else 0),
                'n_patches': n_patches, 'augment': args.augment, 'neg_ratio': args.neg_ratio,
                'use_motion': args.use_motion, 'lr_decay_epochs': args.lr_decay_epochs, 'stride': args.stride,
                'cross_attn_dim': args.cross_attn_dim, 'patch_pool_dim': args.patch_pool_dim,

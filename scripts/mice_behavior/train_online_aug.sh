@@ -71,6 +71,10 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --neg-ratio "${NEG_RATIO:-1}" \
     --max-train-frames "${MAX_TRAIN_FRAMES:-300000}" \
     --input-size "${INPUT_SIZE:-224}" \
+    --pixel-source "${PIXEL_SOURCE:-0}" \
+    --env-key "${ENV_KEY:-none}" \
+    --vrex-beta "${VREX_BETA:-0}" \
+    --vrex-warmup-epochs "${VREX_WARMUP_EPOCHS:-5}" \
     --batch-size "${BATCH_SIZE:-64}" \
     --read-workers "${READ_WORKERS:-32}" \
     --decode-workers "${DECODE_WORKERS:-16}" \
