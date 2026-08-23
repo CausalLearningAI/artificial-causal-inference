@@ -90,8 +90,12 @@ export WANDB=1
 # (18.6 GiB) to the job, and several arms sharing a node each pay it, so the "clean file-backed
 # pages the kernel reclaims" argument does not hold. Do not lower this again without checking
 # `sacct -o MaxRSS`.
-SB=(--partition="${PARTITION:-gpu}" --gres="${GRES:-gpu:L40S:1}" --time="${TIME:-14:00:00}"
-    --mem="${MEM:-180G}" --cpus-per-task=32)
+# GPU depends on the arm, and getting this wrong is a silent 30-second CUDA OOM. A frozen encoder
+# fits comfortably on an L40S (44 GiB); anything that UNFREEZES blocks has to retain activations
+# through them and needs an A100. The bit6 arms below died on L40S at 1.88 GiB short.
+gpu_for () {  # $1 = the arm's env string
+    case "$1" in *UNFREEZE_BLOCKS=[1-9]*) echo "gpu:A100:1" ;; *) echo "gpu:L40S:1" ;; esac
+}
 
 declare -A ARM=(
   # THE motivated arm. Environments are the 3 phases, which is the estimand's own treatment
@@ -142,6 +146,8 @@ for arm in ${ARMS:-$ORDER}; do
     if [ -n "${DRY:-}" ]; then
         echo "[dry] $arm: TAG=$tag $envs"; continue
     fi
+    SB=(--partition="${PARTITION:-gpu}" --gres="${GRES:-$(gpu_for "$envs")}"
+        --time="${TIME:-14:00:00}" --mem="${MEM:-180G}" --cpus-per-task=32)
     jid=$(env $envs TAG="$tag" sbatch "${SB[@]}" --job-name="$arm" \
               --output="logs/${arm}_%j.out" --error="logs/${arm}_%j.err" \
               --parsable scripts/mice_behavior/train_online_aug.sh)

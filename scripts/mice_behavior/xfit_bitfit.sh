@@ -59,9 +59,15 @@ export CROSS_ATTN_DIM=64 PATCH_POOL_DIM=256      # the 0.52 M head the winning r
 export JPEG_CACHE_FILE=dataset/mice/v1/jpegcache_k2
 export WANDB=1
 
-# MEM=180G for the same reason ablate_derm.sh uses it: the cgroup charges the mapped pages of
-# jpegcache_k2 to every job sharing the node. Two arms were OOM-killed at 100G.
-SB=(--partition="${PARTITION:-gpu}" --gres="${GRES:-gpu:L40S:1}" --time="${TIME:-14:00:00}"
+# A100, NOT L40S. BitFit-6 unfreezes six blocks, so backprop retains activations through them at
+# 1024 tokens x batch 64. That does not fit in the L40S's 44 GiB: the first attempt at this script
+# died in all three folds with "tried to allocate 1.88 GiB, 1.08 GiB free of 44.42 GiB total".
+# ablate_head_vs_encoder.sh, which trained the arm this script cross-fits, asks for A100 for
+# exactly this reason. Frozen-encoder runs are fine on L40S and should keep using it.
+#
+# MEM=180G (host RAM) for a separate reason: the cgroup charges the mapped pages of jpegcache_k2
+# to every job sharing the node, and two arms were OOM-killed at 100G.
+SB=(--partition="${PARTITION:-gpu}" --gres="${GRES:-gpu:A100:1}" --time="${TIME:-14:00:00}"
     --mem="${MEM:-180G}" --cpus-per-task=32)
 
 declare -A FOLD=(
