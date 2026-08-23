@@ -426,10 +426,21 @@ BODY = f'''
         <tr><td>BitFit 6 blocks <b>on the SSL encoder</b></td><td>adapted</td><td>0.5127</td>
           <td>{rr('res448_k2_bit6_d4_sslinit')}</td><td class="lo">&minus;0.028 against BitFit alone</td></tr>
       </tbody></table></div>
-    <p><b>+0.033 macro AP is 3.7&times; the seed spread</b>, bought with <em>zero labels</em>, and
-    it is the only intervention that also reaches v2 &mdash; which is why it is the encoder every
-    number in section 05 rests on. Note that the AP leader and the nn-r&Delta; leader are different
-    arms; section 05 is about that disagreement.</p>
+    <p><b>Fine-tuning helps from either starting encoder; starting from SSL does not survive it.</b>
+    On every metric at once:</p>
+    <div class="scroll"><table>
+      <thead><tr><th></th><th>macro AP</th><th>event F1 nt</th><th>event F1 nn</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
+      <tbody>
+        <tr><td>stock, frozen</td><td>0.4200</td><td>0.421</td><td>0.490</td><td>0.417</td><td>0.768</td></tr>
+        <tr><td>SSL, frozen</td><td>0.4622</td><td>0.432</td><td>0.489</td><td>0.455</td><td class="hi">0.902</td></tr>
+        <tr><td>BitFit-6 on stock</td><td class="hi">0.5409</td><td>0.473</td><td class="hi">0.553</td><td class="hi">0.669</td><td>0.872</td></tr>
+        <tr><td>BitFit-6 on SSL</td><td>0.5127</td><td class="hi">0.476</td><td>0.527</td><td>0.626</td><td>0.760</td></tr>
+      </tbody></table></div>
+    <p>SSL alone is worth +0.042 AP and the <b>best nose-to-nose r&Delta; of any run</b>, for zero
+    labels &mdash; and it is the only intervention that reaches v2, which is why it is the encoder
+    every number in section 05 rests on. Fine-tuning on top of it is worth a further +0.051 AP. But
+    fine-tuning <em>stock</em> reaches higher still (0.5409 against 0.5127), and the SSL start is
+    behind on three of the five metrics. Event F1 is the exception, where the two are level.</p>
     <div class="note warnbox"><b>Two caveats of unequal strength.</b> That SSL and BitFit do not
     <em>stack</em> rests on a single pair, 0.5127 against 0.5409, one draw each &mdash; suggestive
     that both buy the same domain recalibration and therefore substitute, but not established. Seed
@@ -617,26 +628,30 @@ BODY = f'''
   ratio is &radic;(24/72) = 0.577 no matter how good the model gets. Measured today the mean
   narrowing is <b>12%</b>, best cell 22%. The gap is entirely r&Delta;, which is why r&Delta; is
   the ranking metric.</p>
-  <div class="note warnbox"><b>The second ceiling is the labels, and on nose-to-tail it binds
-  hard.</b> No observation in v1 was scored twice, so agreement cannot be measured directly &mdash;
-  but the design bounds it. Within a genotype group the six pools are exchangeable, yet different
-  people scored them, so a one-way decomposition with annotator as the factor separates variance
-  that tracks the scorer from variance that does not.
+  <div class="note"><b>The second ceiling is the labels &mdash; and the estimand is largely
+  protected from it.</b> No observation in v1 was scored twice, so agreement cannot be measured
+  directly; the design bounds it instead, because within a genotype group the six pools are
+  exchangeable yet different people scored them. Decomposing variance with annotator as the factor,
+  against a permutation null of the same shape:
   <div class="scroll" style="margin-top:11px"><table>
-    <thead><tr><th></th><th>annotator share of within-cell variance</th><th>chance</th><th>p</th><th>best possible model r</th></tr></thead>
+    <thead><tr><th>quantity</th><th>annotator share of within-cell variance</th><th>chance</th><th>p</th></tr></thead>
     <tbody>
-      <tr><td>nose-to-tail</td><td class="lo">68%</td><td>40%</td><td class="lo">0.001</td>
-        <td class="lo">&le; 0.65</td></tr>
-      <tr><td>nose-to-nose</td><td>30%</td><td>41%</td><td>0.69</td><td>no bound &mdash; none detected</td></tr>
+      <tr><td>rate, per observation &mdash; nt</td><td class="lo">31.7%</td><td>8.2%</td><td class="lo">&lt;0.001</td></tr>
+      <tr><td>rate, per observation &mdash; nn</td><td class="lo">17.8%</td><td>7.6%</td><td class="lo">0.010</td></tr>
+      <tr><td><b>within-pool difference &mdash; nt</b></td><td class="hi">26.1%</td><td>32.4%</td><td class="hi">0.59</td></tr>
+      <tr><td><b>within-pool difference &mdash; nn</b></td><td class="hi">40.3%</td><td>35.7%</td><td class="hi">0.38</td></tr>
     </tbody></table></div>
-  <b>Nose-to-tail labels are substantially scorer-dependent and nose-to-nose labels are not.</b>
-  The deployed model correlates with observed nose-to-tail rates at about 0.45, against a ceiling
-  of 0.65 &mdash; so roughly two thirds of the attainable agreement is already captured, and the
-  apparent headroom to 1.0 is mostly unreachable. One caveat that cannot be resolved without
-  double-scoring: 22 of 24 pools have a single annotator, so scorer is nearly collinear with cage
-  and date. Either it is annotator bias, which no model can predict, or a cage effect, which a
-  model could only predict by reading nuisance appearance &mdash; neither belongs in a behaviour
-  score.</div>
+  <b>Who scored a recording moves its measured rate, and stops mattering once the rate is
+  differenced within a pool.</b> On levels the annotator effect is 2&ndash;4&times; chance and
+  significant; on the within-pool phase difference &mdash; the estimand's own quantity, where the
+  same person scored both phases &mdash; it is indistinguishable from a random grouping. The
+  cancellation the design was built for is real, and now measured rather than asserted.
+  <br><br>The consequence for model selection: a label-noise ceiling computed on <em>rates</em>
+  (best attainable r &le; 0.65 on nose-to-tail) constrains level correlations, <b>not r&Delta;</b>.
+  What bounds r&Delta; is within-annotator noise &mdash; the same scorer's inconsistency between
+  two phases &mdash; and no design without replication can separate that from real between-phase
+  change. Double-scoring 15&ndash;20 observations is the only way to get it, and it is the one
+  number that would tell us how much of the model's remaining error is even addressable.</div>
   <div class="note warnbox"><b>CI and PPI++ do not target quite the same population.</b>
   Annotation is <b>3:1 het-enriched</b> (18 het / 6 wt against a 36/36 design), so CI estimates the
   effect <em>in the annotated pools</em> while PPI++ pulls in 48 unannotated ones that are

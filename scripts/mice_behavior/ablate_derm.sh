@@ -114,6 +114,14 @@ declare -A ARM=(
   # everything else, DERM off. Without these there is no DERM comparison, only a head comparison.
   [erm_ctrl_h5m]="res448_k2_frozen_d4photo_ermH5M          | ENV_KEY=none SEED=42"
   [erm_ctrl_h5m_s1]="res448_k2_frozen_d4photo_ermH5M_s1    | ENV_KEY=none SEED=1"
+  # DERM ON THE BEST MODEL. The four arms above sit on a weak base -- frozen stock encoder, plain
+  # head, macro AP ~0.41 -- and were judged on a screen whose seed spread turned out to be 0.50 on
+  # r_delta nt. That is not evidence DERM does nothing; it is evidence the test was underpowered.
+  # These two apply it to res448_k2_bit6_d4 (AP 0.5409, the accuracy leader) at two seeds, against
+  # controls that already exist at both seeds: res448_k2_bit6_d4 (42) and res448_k2_bit6_d4_seed1.
+  # A full 2x2, and the only DERM comparison in this project that will be readable.
+  [derm_bit6]="res448_k2_bit6_d4_dermPhase              | ENV_KEY=phase DERM=1 SEED=42 UNFREEZE_BLOCKS=6 FT_MODE=bitfit ENCODER_LR=1e-3 AUGMENT=d4 CROSS_ATTN_DIM=64 PATCH_POOL_DIM=256"
+  [derm_bit6_s1]="res448_k2_bit6_d4_dermPhase_s1        | ENV_KEY=phase DERM=1 SEED=1  UNFREEZE_BLOCKS=6 FT_MODE=bitfit ENCODER_LR=1e-3 AUGMENT=d4 CROSS_ATTN_DIM=64 PATCH_POOL_DIM=256"
 )
 ORDER="erm_ctrl_h5m erm_ctrl_h5m_s1 derm_phase derm_cond derm_phase_s1 derm_ann"
 
