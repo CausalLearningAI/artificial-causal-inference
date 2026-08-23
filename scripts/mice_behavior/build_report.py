@@ -68,6 +68,7 @@ def main():
         raise SystemExit(f'{ex_p} missing -- run scripts/mice_behavior/build_examples.py first')
     examples = (Path(__file__).parent / 'report_examples.html').read_text()
     examples = examples.replace('__EXAMPLES_JSON__', ex_p.read_text().strip())
+    ex = json.load(open(ex_p))
 
     head = (Path(__file__).parent / 'report_head.html').read_text()
     body = (Path(__file__).parent / 'report_body.py')
@@ -75,7 +76,7 @@ def main():
     if not out_p.exists():
         raise SystemExit(f'{out_p} missing -- run scripts/mice_behavior/build_outcome.py first')
     ns = {'img': img, 'CHART': chart, 'DECAY': decay, 'MODELS': models, 'EXAMPLES': examples,
-          'E': est, 'M': json.load(open(mod_p)), 'O': json.load(open(out_p))}
+          'E': est, 'M': json.load(open(mod_p)), 'O': json.load(open(out_p)), 'X': ex}
     exec(compile(body.read_text(), str(body), 'exec'), ns)
     Path(a.out).write_text(head + ns['BODY'])
     mb = Path(a.out).stat().st_size / 1024 / 1024

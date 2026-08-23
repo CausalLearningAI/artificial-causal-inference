@@ -64,7 +64,7 @@
     ['model candidate', '--m-cand', 'candidate model — 4-pool validation split'],
     ['deployment fold', '--m-fold', 'deployment fold — out-of-fold on 8 pools'],
   ];
-  const state = { y: 'mean', show: 'all' };
+  const state = { y: 'mean' };
 
   const $ = (id) => document.getElementById(id);
   const css = (n) => getComputedStyle($('mdl')).getPropertyValue(n).trim();
@@ -146,12 +146,8 @@
 
   function render() {
     const bar = $('mdl-bar'); bar.textContent = '';
-    bar.append(
-      seg('vertical axis', 'y', [['mean', 'mean rΔ'], ['nt', 'rΔ nose-to-tail'],
-        ['nn', 'rΔ nose-to-nose']]),
-      seg('runs shown', 'show', [['all', 'every scored run'],
-        ['cand', 'candidates only']]),
-    );
+    bar.append(seg('vertical axis', 'y', [['mean', 'mean rΔ'], ['nt', 'rΔ nose-to-tail'],
+      ['nn', 'rΔ nose-to-nose']]));
     const lg = $('mdl-legend'); lg.textContent = '';
     ROLES.forEach(([role, v, txt]) => {
       const s = document.createElement('span');
@@ -160,8 +156,7 @@
       s.append(i, t); lg.appendChild(s);
     });
 
-    const shown = state.show === 'cand'
-      ? runs.filter(r => r.role === 'model candidate') : runs;
+    const shown = runs;
     const yv = Y[state.y].key;
     const dx = scales(shown.map(r => r.ap), 0.10);
     const dy = scales(shown.map(yv), 0.12);
@@ -217,18 +212,13 @@
 
     const plot = $('mdl-plot'); plot.textContent = ''; plot.appendChild(svg);
     $('mdl-note').innerHTML =
-      `${shown.length} runs. <b>rΔ</b> is the correlation between true and predicted `
-      + '<i>within-pool phase differences</i> in bouts per minute — the only quantity PPI’s '
-      + 'variance reduction is a function of. Spearman correlation between the two axes over the '
-      + `${DATA.meta.n_candidates} candidates: <b>${DATA.meta.spearman_ap_vs_rdelta >= 0 ? '+' : ''}`
-      + `${DATA.meta.spearman_ap_vs_rdelta.toFixed(2)}</b> — enough to shortlist on AP, not enough `
-      + 'to choose on it.'
-      + '<br>Hover or focus any point for the full recipe: encoder, whether it saw unlabelled '
-      + 'frames, how it was adapted, the head and its parameter count, the augmentation and the '
-      + 'training objective.'
-      + `<br>${esc(DATA.meta.split)}. rΔ on 4 pools is <b>16 points</b> at a threshold picked by `
-      + 'max-F1 on those same pools, so the vertical axis separates arms far more loosely than it '
-      + 'looks — it is a screen, not a measurement.';
+      `${shown.length} runs. Spearman between the two axes: <b>`
+      + `${DATA.meta.spearman_ap_vs_rdelta >= 0 ? '+' : ''}`
+      + `${DATA.meta.spearman_ap_vs_rdelta.toFixed(2)}</b> — enough to shortlist on AP, not to `
+      + 'choose on it. <b>Hover any point for the full recipe.</b>'
+      + '<br>rΔ on the 4-pool split rests on 16 points at a threshold fitted to those same pools, '
+      + 'so it screens arms rather than measuring them; only the deployment folds, which hold out '
+      + 'all 24 annotated pools, give it an honest denominator.';
   }
 
   render();

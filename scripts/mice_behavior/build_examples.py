@@ -93,10 +93,45 @@ def best_f1_threshold(y, p):
 
 # ------------------------------------------------------------------ frame paths and thumbnails
 def annotated_paths():
-    """Row index in annotations.csv -> frame path. `gi` in val_probs.npz is exactly that index."""
+    """Row index in annotations.csv -> (frame path, frame_idx). `gi` in val_probs.npz is that index."""
     a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
-                    usecols=['frame_path'], low_memory=False)
-    return a['frame_path'].to_numpy()
+                    usecols=['frame_path', 'frame_idx'], low_memory=False)
+    return a['frame_path'].to_numpy(), a['frame_idx'].to_numpy()
+
+
+def nearest(targets, queries):
+    """Frame distance from each query to the nearest target, within one observation.
+
+    inf where the observation contains no target at all -- which is itself a finding, not a
+    missing value: it means the model fired in a recording the annotator scored nothing in.
+    """
+    if not len(targets):
+        return np.full(len(queries), np.inf)
+    t = np.sort(targets)
+    j = np.searchsorted(t, queries)
+    lo = np.where(j > 0, queries - t[np.clip(j - 1, 0, len(t) - 1)], np.inf)
+    hi = np.where(j < len(t), t[np.clip(j, 0, len(t) - 1)] - queries, np.inf)
+    return np.minimum(lo, hi)
+
+
+def error_distances(obs, fidx, y, pred):
+    """How far is each error from being right?
+
+    FP -> frames to the nearest LABEL-positive frame. Small means the model fired just outside a
+          real bout (a boundary disagreement); large means it read contact where none was scored.
+    FN -> frames to the nearest PREDICTION-positive frame. Small means it found the bout and
+          mis-timed its extent; large means it missed the bout outright.
+    """
+    d = np.full(len(y), np.nan)
+    for o in np.unique(obs):
+        m = np.flatnonzero(obs == o)
+        f, yy, pp = fidx[m], y[m], pred[m]
+        fp, fn = np.flatnonzero((yy == 0) & pp), np.flatnonzero((yy == 1) & ~pp)
+        if len(fp):
+            d[m[fp]] = nearest(f[yy == 1], f[fp])
+        if len(fn):
+            d[m[fn]] = nearest(f[pp], f[fn])
+    return d
 
 
 def stem_map(version):
@@ -140,7 +175,7 @@ def pick(order, obs, n):
 
 
 # ------------------------------------------------------------------------- the annotated side
-def annotated(model, paths, n, px, q):
+def annotated(model, paths, fidx_of, n, px, q):
     tags = FOLDS if model.get('folds') else (model['key'],)
     parts = []
     for t in tags:
@@ -153,11 +188,13 @@ def annotated(model, paths, n, px, q):
     labs = np.concatenate([p[1] for p in parts])
     gi = np.concatenate([p[2] for p in parts])
     obs = np.concatenate([p[3] for p in parts])
+    fidx = fidx_of[gi]
     out = {}
     for li, lab in enumerate(LABELS):
         y, p = labs[:, li].astype(int), probs[:, li]
         thr, f1 = best_f1_threshold(y, p)
         pr = p >= thr
+        dist = error_distances(obs, fidx, y, pr)
         idx = {'TP': np.flatnonzero((y == 1) & pr), 'FP': np.flatnonzero((y == 0) & pr),
                'FN': np.flatnonzero((y == 1) & ~pr), 'TN': np.flatnonzero((y == 0) & ~pr)}
         buckets = {}
@@ -172,15 +209,31 @@ def annotated(model, paths, n, px, q):
             for i in pick(order, obs, n):
                 u = thumb(ROOT / 'dataset' / paths[gi[i]], px, q)
                 if u:
-                    items.append({'p': round(float(p[i]), 3), 'obs': str(obs[i]),
-                                  'frame': int(gi[i]), 'img': u})
-            buckets[b] = {'n': int(len(pool)), 'share': round(100 * len(pool) / len(y), 2),
-                          'items': items}
+                    it = {'p': round(float(p[i]), 3), 'obs': str(obs[i]),
+                          'frame': int(fidx[i]), 'img': u}
+                    if b in ('FP', 'FN'):
+                        it['d'] = None if not np.isfinite(dist[i]) else int(dist[i])
+                    items.append(it)
+            rec = {'n': int(len(pool)), 'share': round(100 * len(pool) / len(y), 2),
+                   'items': items}
+            if b in ('FP', 'FN'):                    # the distribution, not just the examples
+                v = dist[pool]; fin = v[np.isfinite(v)]
+                rec['dist'] = {
+                    'median': None if not len(fin) else int(np.median(fin)),
+                    'le2': None if not len(fin) else round(100 * float((fin <= 2).mean()), 0),
+                    'le25': None if not len(fin) else round(100 * float((fin <= 25).mean()), 0),
+                    'unreachable': round(100 * float((~np.isfinite(v)).mean()), 1)}
+            buckets[b] = rec
         out[lab] = {'threshold': round(thr, 2), 'f1': round(f1, 3),
                     'n_frames': int(len(y)), 'prevalence': round(100 * float(y.mean()), 2),
                     'buckets': buckets}
         print(f'    annotated {lab}: thr {thr:.2f}, frame-F1 {f1:.3f}, '
               + ', '.join(f'{b} {buckets[b]["n"]:,}' for b in ('TP', 'FP', 'FN', 'TN')))
+        for b in ('FP', 'FN'):
+            dd = buckets[b]['dist']
+            print(f'      {b} distance to nearest {"true bout" if b == "FP" else "detection"}: '
+                  f'median {dd["median"]} frames, {dd["le2"]:.0f}% within 2, '
+                  f'{dd["le25"]:.0f}% within 25, {dd["unreachable"]:.1f}% none in the recording')
     return out
 
 
@@ -233,12 +286,12 @@ def unannotated(model, version, labelled_pools, n, px, q):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--n', type=int, default=3, help='examples per bucket')
-    ap.add_argument('--px', type=int, default=200, help='thumbnail edge in px')
+    ap.add_argument('--n', type=int, default=8, help='examples per bucket (= columns)')
+    ap.add_argument('--px', type=int, default=152, help='thumbnail edge in px')
     ap.add_argument('--q', type=int, default=72, help='JPEG quality')
     a = ap.parse_args()
 
-    paths = annotated_paths()
+    paths, fidx_of = annotated_paths()
     # annotations.csv carries a row for EVERY v1 frame, labelled or not (Y_* is NaN where no
     # annotator looked), so its observation_id list is all 72 pools and cannot be used to find
     # the annotated ones. The annotation FILE existing on disk is the actual record.
@@ -253,7 +306,7 @@ def main():
     for m in MODELS:
         print(f'\n{m["name"]}')
         entry = {k: m[k] for k in ('key', 'name', 'note')}
-        entry['annotated'] = annotated(m, paths, a.n, a.px, a.q)
+        entry['annotated'] = annotated(m, paths, fidx_of, a.n, a.px, a.q)
         entry['unannotated'] = {}
         for v in ('v1', 'v2'):
             u = unannotated(m, v, labelled_pools, a.n, a.px, a.q)
@@ -264,7 +317,7 @@ def main():
         models.append(entry)
 
     payload = {'meta': {'behaviours': BEHAV_NICE, 'n_per_bucket': a.n, 'px': a.px,
-                        'buckets_annotated': ['TP', 'FP', 'FN', 'TN'],
+                        'buckets_annotated': ['TP', 'FP', 'FN', 'TN'], 'fps': 5,
                         'buckets_unannotated': ['POS', 'NEG']},
                'models': models}
     OUT.mkdir(parents=True, exist_ok=True)

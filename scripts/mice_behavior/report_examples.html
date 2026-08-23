@@ -1,15 +1,16 @@
 <!-- Interactive qualitative-error figure. Injected by build_report.py, which replaces
      __EXAMPLES_JSON__ with results/vision/mice/frame/_figures/examples.json (build_examples.py).
-     Replaces six baked PNG grids, each of which froze the model, the behaviour and the cohort at
-     render time.
 
      THE ONE RULE THIS FIGURE ENFORCES
      =================================
-     On annotated pools a frame has a ground truth, so TP/FP/FN/TN are meaningful and the counts
-     and shares are shown. On the 84 unannotated pools NO ground truth exists, so the buckets can
-     only be "the model is confident it IS happening" and "confident it is NOT" -- never correct or
-     incorrect. The two panels are therefore built from different templates on purpose, and the
-     unannotated one carries no count, no share and no accuracy claim. -->
+     On annotated pools a frame has a ground truth, so TP/FP/FN/TN are meaningful and carry counts.
+     On the 84 unannotated pools no ground truth exists, so the only honest buckets are "confident
+     yes" and "confident no" -- never correct or incorrect. Two templates on purpose, so the
+     wording cannot drift into calling an unlabelled frame correct.
+
+     d = frames to the nearest thing that would have made the model right: for a false positive,
+     the nearest scored bout; for a false negative, the nearest detection. 5 fps, so d=5 is one
+     second. It is what turns "these are boundary disagreements" from an assertion into a number. -->
 <style>
 .ex{--x-tp:#1baf7a;--x-fp:#eb6834;--x-fn:#b0740a;--x-tn:#6d7684;--x-pos:#2a78d6;--x-neg:#6d7684;
     --ex-surface:var(--surface)}
@@ -19,34 +20,37 @@
     --x-pos:#5b9ce8;--x-neg:#8590a0}
 .ex{border:1px solid var(--line);border-radius:3px;background:var(--ex-surface);
     margin:18px 0 0;overflow:hidden}
-.ex-bar{display:flex;flex-wrap:wrap;gap:18px;padding:14px 16px;border-bottom:1px solid var(--line);
-        background:var(--surface-2)}
+.ex-bar{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;padding:14px 16px;
+        border-bottom:1px solid var(--line);background:var(--surface-2)}
 .ex-ctl{display:flex;flex-direction:column;gap:5px}
 .ex-ctl .lab{font-family:var(--mono);font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;
              color:var(--ink-3)}
 .ex-seg{display:flex;border:1px solid var(--line);border-radius:3px;overflow:hidden}
 .ex-seg button{font-family:var(--mono);font-size:.72rem;padding:5px 10px;border:0;cursor:pointer;
-               background:var(--surface);color:var(--ink-2);line-height:1.3;text-align:left}
+               background:var(--surface);color:var(--ink-2);line-height:1.3}
 .ex-seg button+button{border-left:1px solid var(--line)}
 .ex-seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
 .ex-seg button:disabled{opacity:.36;cursor:not-allowed}
+.ex-ctl select{font-family:var(--mono);font-size:.72rem;padding:5px 8px;background:var(--surface);
+               color:var(--ink-2);border:1px solid var(--line);border-radius:3px;max-width:320px}
 .ex-head{font-family:var(--mono);font-size:.72rem;line-height:1.6;color:var(--ink-3);
          padding:13px 16px 0}
 .ex-head b{color:var(--ink-2)}
-.ex-grid{display:flex;flex-direction:column;gap:1px;padding:13px 16px 4px}
-.ex-row{display:grid;grid-template-columns:104px 1fr;gap:12px;align-items:start;
+.ex-grid{display:flex;flex-direction:column;padding:11px 16px 4px}
+.ex-row{display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:start;
         padding:9px 0;border-top:1px solid var(--line)}
 .ex-row:first-child{border-top:0}
 .ex-rowlab{font-family:var(--mono);font-size:.72rem;line-height:1.45;padding-top:2px}
-.ex-rowlab .b{display:block;font-size:.8rem;font-weight:600;letter-spacing:.02em}
-.ex-rowlab .n{display:block;color:var(--ink-3);font-size:.66rem}
-.ex-rowlab .d{display:block;color:var(--ink-3);font-size:.66rem;font-family:var(--serif);
-              line-height:1.35;margin-top:3px}
-.ex-cells{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:9px}
-.ex-cell{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ex-rowlab .b{display:block;font-size:.8rem;font-weight:600}
+.ex-rowlab .n{display:block;color:var(--ink-3);font-size:.65rem}
+/* exactly N columns so every row fills the width; fewer on narrow viewports */
+.ex-cells{display:grid;gap:7px;grid-template-columns:repeat(var(--ncol,8),minmax(0,1fr))}
+@media(max-width:900px){.ex-cells{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:520px){.ex-cells{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ex-cell{display:flex;flex-direction:column;gap:2px;min-width:0}
 .ex-cell img{width:100%;height:auto;display:block;border:2px solid currentColor;border-radius:2px;
-             background:#000;image-rendering:auto}
-.ex-cap{font-family:var(--mono);font-size:.63rem;line-height:1.35;color:var(--ink-3);
+             background:#000}
+.ex-cap{font-family:var(--mono);font-size:.6rem;line-height:1.3;color:var(--ink-3);
         overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ex-cap b{color:var(--ink-2)}
 .ex-note{font-family:var(--mono);font-size:.72rem;line-height:1.6;color:var(--ink-3);
@@ -66,18 +70,22 @@
   const DATA = __EXAMPLES_JSON__;
   const models = DATA.models || [];
   const BEH = DATA.meta.behaviours;
+  const NCOL = DATA.meta.n_per_bucket || 8;
 
-  /* Annotated buckets carry a verdict; unannotated ones cannot. Two separate tables so the
-     wording can never drift into calling an unlabelled frame "correct". */
   const ANN = [
-    ['TP', 'true positive', '--x-tp', 'scored, and the model agrees — shown where it is most sure'],
-    ['FP', 'false positive', '--x-fp', 'not scored, but the model argues hard for it'],
-    ['FN', 'false negative', '--x-fn', 'scored, and the model saw the least evidence of all'],
-    ['TN', 'true negative', '--x-tn', 'not scored, and the model agrees'],
+    ['TP', 'true positive', '--x-tp'],
+    ['FP', 'false positive', '--x-fp'],
+    ['FN', 'false negative', '--x-fn'],
+    ['TN', 'true negative', '--x-tn'],
   ];
   const UNA = [
-    ['POS', 'confident yes', '--x-pos', 'highest predicted probability — no label exists to check it'],
-    ['NEG', 'confident no', '--x-neg', 'lowest predicted probability — no label exists to check it'],
+    ['POS', 'confident yes', '--x-pos'],
+    ['NEG', 'confident no', '--x-neg'],
+  ];
+  const DATASETS = [
+    { key: 'ann_v1', label: 'v1 · annotated', has: (m) => !!m.annotated },
+    { key: 'un_v1', label: 'v1 · unannotated', has: (m) => !!(m.unannotated || {}).v1 },
+    { key: 'un_v2', label: 'v2 · unannotated', has: (m) => !!(m.unannotated || {}).v2 },
   ];
 
   const state = { model: models[0] ? models[0].key : null, data: 'ann_v1', behav: 'nn' };
@@ -85,12 +93,6 @@
   const css = (n) => getComputedStyle($('ex')).getPropertyValue(n).trim();
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const mdl = () => models.find(m => m.key === state.model) || models[0];
-
-  const DATASETS = [
-    { key: 'ann_v1', label: 'v1 · annotated', has: (m) => !!m.annotated },
-    { key: 'un_v1', label: 'v1 · unannotated', has: (m) => !!(m.unannotated || {}).v1 },
-    { key: 'un_v2', label: 'v2 · unannotated', has: (m) => !!(m.unannotated || {}).v2 },
-  ];
 
   function seg(label, key, opts) {
     const wrap = document.createElement('div'); wrap.className = 'ex-ctl';
@@ -108,6 +110,22 @@
     wrap.append(l, box); return wrap;
   }
 
+  /* Model names are long sentences, not chips -- a dropdown keeps the control bar one line. */
+  function dropdown(label, key, opts) {
+    const wrap = document.createElement('div'); wrap.className = 'ex-ctl';
+    const l = document.createElement('span'); l.className = 'lab'; l.textContent = label;
+    const sel = document.createElement('select');
+    sel.setAttribute('aria-label', label);
+    opts.forEach(([val, txt]) => {
+      const o = document.createElement('option');
+      o.value = val; o.textContent = txt;
+      if (state[key] === val) o.selected = true;
+      sel.appendChild(o);
+    });
+    sel.onchange = () => { state[key] = sel.value; render(); };
+    wrap.append(l, sel); return wrap;
+  }
+
   function cell(it, colour) {
     const d = document.createElement('div'); d.className = 'ex-cell';
     d.style.color = colour;
@@ -115,31 +133,35 @@
     im.src = it.img; im.loading = 'lazy';
     im.alt = `frame ${it.frame} of ${it.obs}, predicted probability ${it.p}`;
     const cap = document.createElement('div'); cap.className = 'ex-cap';
-    cap.innerHTML = `<b>p = ${it.p.toFixed(3)}</b>`;
+    cap.innerHTML = `<b>p ${it.p.toFixed(2)}</b>`
+      + (it.d !== undefined ? `  d ${it.d == null ? '∞' : it.d}` : '');
     const who = document.createElement('div'); who.className = 'ex-cap';
     who.textContent = it.obs; who.title = `${it.obs} · frame ${it.frame}`;
     d.append(im, cap, who); return d;
   }
 
   function row(spec, bucket, annotated) {
-    const [key, nice, v, why] = spec;
+    const [key, nice, v] = spec;
     const colour = css(v);
     const r = document.createElement('div'); r.className = 'ex-row';
     const lab = document.createElement('div'); lab.className = 'ex-rowlab';
     lab.style.color = colour;
-    const parts = [`<span class="b">${annotated ? key : nice.toUpperCase()}</span>`];
+    const parts = [`<span class="b">${annotated ? key : nice}</span>`];
     if (annotated) parts.push(`<span class="n">${nice}</span>`);
     if (bucket.n != null) {
       parts.push(`<span class="n">n = ${bucket.n.toLocaleString()}</span>`);
-      parts.push(`<span class="n">${bucket.share.toFixed(2)}% of frames</span>`);
+      parts.push(`<span class="n">${bucket.share.toFixed(2)}%</span>`);
     }
-    parts.push(`<span class="d">${why}</span>`);
+    if (bucket.dist) {
+      parts.push(`<span class="n">median d = ${bucket.dist.median}</span>`);
+      parts.push(`<span class="n">${bucket.dist.le2.toFixed(0)}% at d≤2</span>`);
+    }
     lab.innerHTML = parts.join('');
     const cells = document.createElement('div'); cells.className = 'ex-cells';
+    cells.style.setProperty('--ncol', String(NCOL));
     if (!bucket.items.length) {
       const e = document.createElement('div'); e.className = 'ex-cap';
-      e.textContent = 'no frames in this bucket';
-      cells.appendChild(e);
+      e.textContent = 'no frames in this bucket'; cells.appendChild(e);
     } else bucket.items.forEach(it => cells.appendChild(cell(it, colour)));
     r.append(lab, cells); return r;
   }
@@ -147,15 +169,14 @@
   function render() {
     const m = mdl();
     if (!m) return;
-    // a dataset the selected model has no predictions for falls back to the annotated panel
     const ds = DATASETS.find(d => d.key === state.data);
     if (!ds || !ds.has(m)) state.data = 'ann_v1';
 
     const bar = $('ex-bar'); bar.textContent = '';
     bar.append(
-      seg('model', 'model', models.map(x => [x.key, x.name])),
+      dropdown('model', 'model', models.map(x => [x.key, x.name])),
       seg('frames', 'data', DATASETS.map(d => [d.key, d.label, !d.has(m),
-        d.has(m) ? '' : 'this model has no cached predictions for those pools'])),
+        d.has(m) ? '' : 'no cached predictions for those pools with this model'])),
       seg('behaviour', 'behav', [['nn', 'nose-to-nose'], ['nt', 'nose-to-tail']]),
     );
 
@@ -175,25 +196,19 @@
     });
 
     $('ex-head').innerHTML = annotated
-      ? `<b>${esc(BEH[state.behav])}</b> on the annotated pools · operating point `
-        + `<b>p ≥ ${src.threshold.toFixed(2)}</b> (max-F1) · frame F1 <b>${src.f1.toFixed(3)}</b> · `
-        + `${src.n_frames.toLocaleString()} frames, ${src.prevalence.toFixed(2)}% positive`
-      : `<b>${esc(BEH[state.behav])}</b> on <b>${src.n_pools} pools with no annotation</b> · `
-        + `${src.n_obs} observations, ${src.n_frames.toLocaleString()} frames · mean predicted `
-        + `probability ${src.mean_p.toFixed(2)}%`;
+      ? `<b>${esc(BEH[state.behav])}</b> · operating point <b>p ≥ ${src.threshold.toFixed(2)}</b> `
+        + `(max-F1) · frame F1 ${src.f1.toFixed(3)} · ${src.n_frames.toLocaleString()} frames, `
+        + `${src.prevalence.toFixed(2)}% positive`
+      : `<b>${esc(BEH[state.behav])}</b> · <b>${src.n_pools} pools with no annotation</b>, `
+        + `${src.n_obs} observations · mean predicted probability ${src.mean_p.toFixed(2)}%`;
 
-    $('ex-note').innerHTML = esc(m.note)
-      + '<br>' + (annotated
-        ? 'Each row is drawn from the end of the probability range that row is <em>sure</em> about '
-          + '— TP and FP from the top, FN and TN from the bottom — because a confident error says '
-          + 'more about the representation than a borderline one does. At most one frame per '
-          + 'observation, so the columns are independent cases rather than several frames of one '
-          + 'bout. The TN row is included for calibration: it is 97–99% of all frames.'
-        : '<b>No ground truth exists for any of these frames</b>, so nothing here can be called '
-          + 'correct or incorrect and no count or share is shown — only where the model is most '
-          + 'and least confident. This is a sanity check on whether confident detections actually '
-          + 'show the behaviour, never a performance claim.')
-      + '<br>Frames are the stored 512² greyscale, downsampled for the page.';
+    $('ex-note').innerHTML = annotated
+      ? 'Each row is drawn from the end of the range it is <em>sure</em> about — TP and FP from the '
+        + 'top, FN and TN from the bottom — one frame per observation. <b>d</b> = frames to the '
+        + 'nearest thing that would have made the model right (a scored bout for FP, a detection '
+        + 'for FN); 5 fps, so d = 5 is one second, and ∞ means the recording contains none at all.'
+      : '<b>No ground truth exists for these frames</b>, so nothing here is correct or incorrect '
+        + 'and no count is shown — only where the model is most and least confident.';
   }
 
   render();
