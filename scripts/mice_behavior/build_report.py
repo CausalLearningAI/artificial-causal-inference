@@ -14,15 +14,8 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 F = ROOT / 'results' / 'vision' / 'mice' / 'frame'
 FIG = F / '_figures'
-SSL = F / 'res448_k2_frozen_d4photo_sslinit'
-XF = F / 'xfit_f2'
 
-SRC = {
-    'lcurve': FIG / 'story_learning_curve.png',
-    'conf_nt': SSL / 'confusion_examples_nt.png', 'conf_nn': SSL / 'confusion_examples_nn.png',
-    'un_nn_v1': XF / 'confident_nn_v1.png', 'un_nt_v1': XF / 'confident_nt_v1.png',
-    'un_nn_v2': XF / 'confident_nn_v2.png', 'un_nt_v2': XF / 'confident_nt_v2.png',
-}
+SRC = {'lcurve': FIG / 'story_learning_curve.png'}
 
 
 def enc(p: Path, maxw: int, q: int = 80) -> str:
@@ -41,7 +34,7 @@ def main():
     for k, p in SRC.items():
         if not p.exists():
             print(f'  [skip] {k}: {p} missing'); continue
-        img[k] = enc(p, 1400 if k.startswith('conf') else 1300)
+        img[k] = enc(p, 1300)
     # The interactive figure is a VIEW over estimates.json -- the whole grid of estimates,
     # every one computed by build_estimates.py. Nothing is recomputed in the browser and nothing
     # is transcribed, so the figure cannot disagree with the numbers in the text.
@@ -68,13 +61,21 @@ def main():
     models = (Path(__file__).parent / 'report_models.html').read_text()
     models = models.replace('__MODELS_JSON__', mod_p.read_text().strip())
 
+    # And the qualitative error figure: model x cohort x behaviour x annotated-or-not, sliced in
+    # the browser from one payload of embedded thumbnails instead of six baked PNG grids.
+    ex_p = FIG / 'examples.json'
+    if not ex_p.exists():
+        raise SystemExit(f'{ex_p} missing -- run scripts/mice_behavior/build_examples.py first')
+    examples = (Path(__file__).parent / 'report_examples.html').read_text()
+    examples = examples.replace('__EXAMPLES_JSON__', ex_p.read_text().strip())
+
     head = (Path(__file__).parent / 'report_head.html').read_text()
     body = (Path(__file__).parent / 'report_body.py')
     out_p = FIG / 'outcome.json'
     if not out_p.exists():
         raise SystemExit(f'{out_p} missing -- run scripts/mice_behavior/build_outcome.py first')
-    ns = {'img': img, 'CHART': chart, 'DECAY': decay, 'MODELS': models, 'E': est,
-          'M': json.load(open(mod_p)), 'O': json.load(open(out_p))}
+    ns = {'img': img, 'CHART': chart, 'DECAY': decay, 'MODELS': models, 'EXAMPLES': examples,
+          'E': est, 'M': json.load(open(mod_p)), 'O': json.load(open(out_p))}
     exec(compile(body.read_text(), str(body), 'exec'), ns)
     Path(a.out).write_text(head + ns['BODY'])
     mb = Path(a.out).stat().st_size / 1024 / 1024
