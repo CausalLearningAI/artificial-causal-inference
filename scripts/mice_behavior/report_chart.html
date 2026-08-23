@@ -67,8 +67,14 @@
     { key: 'ppi', name: 'PPI++', v: '--s-ppi',
       why: 'labelled pools rectify the unlabelled ones. Unbiased for ANY predictor.' },
     { key: 'ppci', name: 'PPCI', v: '--s-ppci',
-      why: 'plug-in on every pool, no rectifier. Trades bias for variance.' },
+      why: 'plug-in on every pool, no rectifier. Scale calibrated by k = mean(D_Y)/mean(D_f) '
+           + 'fitted on labels; on v2 that k is transported from v1.' },
   ];
+  /* ppci_raw is the SAME estimator with no calibration at all -- the only version that needs no
+     labels anywhere, and therefore the only one that would exist on a wholly unannotated cohort.
+     It is deliberately NOT drawn: it lives on the MODEL's scale, so putting it on this axis
+     would be a second scale on one chart. It appears in the table, where sign is all it claims. */
+  const RAW = 'ppci_raw';
   const M = Object.fromEntries(METHODS.map(m => [m.key, m]));
   const ODOURS = [['fear', 'FEAR exposure'], ['social', 'SOCIAL exposure']];
   const TRANS = [['H->O', 'exposure ON   H \u2192 O'], ['O->P', 'exposure OFF   O \u2192 P']];
@@ -116,11 +122,12 @@
     bar.append(seg('table', 'table', [[false, 'chart'], [true, 'chart + table']]));
   }
 
-  function pick(odour, stratum, trans) {
+  function pick(odour, stratum, trans, withRaw) {
     return cells.filter(c => c.exp === state.exp && c.unit === state.unit
       && c.behav === state.behav && c.model === state.model
       && c.stratum === stratum && c.odour === odour && c.trans === trans
-      && c.est != null && isFinite(c.est));
+      && c.est != null && isFinite(c.est)
+      && (withRaw ? true : c.method !== RAW));
   }
   const strataOf = () => {
     const seen = new Map();
@@ -265,8 +272,8 @@
           + `${c.n_lab} labelled${c.n_unlab ? ' / ' + c.n_unlab + ' predicted' : ''} pools`
           + (c.r != null ? `<br>within-cell r = ${c.r.toFixed(2)}` : '')
           + (c.lam != null ? `<br>\u03bb = ${c.lam.toFixed(3)}` : '')
-          + (c.beta != null ? `<br>\u03b2 = ${c.beta.toFixed(3)}`
-            + (c.transported ? ' (transported from v1)' : '') : '')
+          + (c.k != null ? `<br>k = ${c.k.toFixed(3)}`
+            + (c.transported ? ' (transported from v1)' : ' (fitted on labels)') : '')
           + sh + `<br><span style="opacity:.7">${M[c.method].why}</span>`);
         svg.appendChild(g);
         y += rowH;
@@ -283,21 +290,27 @@
     const d = document.createElement('div'); d.className = 'scroll';
     const t = document.createElement('table');
     t.innerHTML = '<thead><tr><th>panel</th><th>transition</th><th>method</th><th>estimate</th>'
-      + '<th>95% CI</th><th>CI width</th><th>vs classical</th><th>pools</th></tr></thead>';
+      + '<th>95% CI</th><th>CI width</th><th>vs classical</th><th>pools</th>'
+      + '<th>scale</th></tr></thead>';
     const tb = document.createElement('tbody');
     groups.forEach(g => {
       const ref = g.marks.find(c => c.method === 'classical');
       const refW = ref && ref.lo != null ? ref.hi - ref.lo : null;
       g.marks.forEach(c => {
         const w = (c.lo != null && isFinite(c.lo)) ? c.hi - c.lo : null;
-        const rel = (refW && w && c.method !== 'classical')
+        // A CI width on the MODEL's scale is not comparable to one on the behaviour's scale,
+        // so the uncalibrated row gets no shrinkage figure rather than a meaningless one.
+        const rel = (refW && w && c.method !== 'classical' && c.method !== RAW)
           ? (100 * (1 - w / refW) >= 0 ? '\u2212' : '+')
             + Math.abs(100 * (1 - w / refW)).toFixed(0) + '%' : '\u2014';
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${g.panel}</td><td>${c.trans}</td><td>${M[c.method].name}</td>`
+        const nm = c.method === RAW ? 'PPCI, uncalibrated' : M[c.method].name;
+        const sc = c.method === RAW ? 'model (sign only)'
+          : (c.transported ? 'k transported from v1' : (c.k != null ? 'k from labels' : 'labels'));
+        tr.innerHTML = `<td>${g.panel}</td><td>${c.trans}</td><td>${nm}</td>`
           + `<td>${fmt(c.est)}</td><td>[${fmt(c.lo)}, ${fmt(c.hi)}]</td>`
           + `<td>${w == null ? '\u2014' : w.toFixed(2)}</td><td>${rel}</td>`
-          + `<td>${c.n_lab}${c.n_unlab ? ' + ' + c.n_unlab : ''}</td>`;
+          + `<td>${c.n_lab}${c.n_unlab ? ' + ' + c.n_unlab : ''}</td><td>${sc}</td>`;
         tb.appendChild(tr);
       });
     });
@@ -323,6 +336,9 @@
 
     if (state.view === 'all') {
       const groups = ODOURS.map(([od]) => TRANS.map(([tr]) => pick(od, 'all', tr)).flat());
+      ODOURS.forEach(([od, nice]) => TRANS.forEach(([tr]) =>
+        pick(od, 'all', tr, true).filter(c => c.method === RAW)
+          .forEach(c => flat.push({ panel: nice, marks: [c] }))));
       const dom = domain(groups);
       ODOURS.forEach(([od, nice], i) => {
         const rows = TRANS.map(([tr, tn]) => ({ label: tn, marks: pick(od, 'all', tr) }))
@@ -379,7 +395,7 @@
           + ', chosen leave-one-fold-out so no pool informs its own operating point.'
         : '')
       + '<br>Filled-weight numbers resolve (95% CI excludes zero). Hover or focus any mark for '
-      + 'n, r, \u03bb / \u03b2 and the CI change against classical.'
+      + 'n, r, \u03bb / k and the CI change against classical.'
       + (state.view === 'strata'
         ? '<br>An arrow cap means the interval continues past the axis. The wild-type strata carry '
           + '<b>2 annotated pools each</b> against the heterozygous strata\u2019s 6, so their '

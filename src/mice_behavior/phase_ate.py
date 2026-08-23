@@ -72,7 +72,7 @@ import numpy as np
 from scipy import stats
 
 __all__ = ['PoolDeltas', 'Estimate', 'pool_deltas', 'classical', 'ppi', 'ppci',
-           'assert_out_of_fold', 'TRANSITIONS']
+           'assert_out_of_fold', 'scale_bootstrap', 'TRANSITIONS']
 
 # Consecutive only, in experimental order. P-H is their sum, not a third contrast.
 TRANSITIONS = (('H', 'O'), ('O', 'P'))
@@ -180,65 +180,98 @@ def ppi(d: PoolDeltas) -> Estimate:
                     {'se': se, 'lam': lam, 'r': d.r()})
 
 
-def ppci(d: PoolDeltas, beta: float = None, beta_boot=None, reps: int = 4000,
-         seed: int = 0) -> Estimate:
-    """Plug-in on EVERY pool, labelled and unlabelled, with a slope fitted on labelled data.
+def ppci(d: PoolDeltas, k: float = None, k_boot=None, reps: int = 4000,
+         seed: int = 0, raw: bool = False) -> Estimate:
+    """Plug-in on EVERY pool, with the scale taken from labels -- or, with raw=True, no scale.
 
-    `beta=None` fits the slope on this cell's own labelled pools. Pass `beta` (and
-    `beta_boot`, a sample of slopes carrying its uncertainty) to TRANSPORT a slope fitted
-    elsewhere -- the v2 case, where no labels exist locally.
+    WHY THIS IS NOT beta, AND WHY beta WAS WRONG
+    ============================================
+    An earlier version rescaled by the regression slope beta = Cov(D_Y,D_f)/Var(D_f). That is
+    the right multiplier for predicting ONE pool's D_Y from its own D_f, but it is the wrong
+    multiplier for rescaling a MEAN, because beta = rho * sd_Y/sd_f is attenuated by noise in
+    D_f. Measured on v1: beta ran 0.10-0.46 while the actual ratio of means E[D_Y]/E[D_f] ran
+    0.44-2.18 -- a factor of SEVEN apart on nn/social/H->O (beta 0.209 against a ratio of 1.56).
+    Every beta-rescaled estimate was therefore pulled toward zero by regression attenuation:
+    +0.04 where the classical mean is +0.47. That is a bug, not a conservative choice.
 
-    The interval is a pool-level bootstrap that REFITS the slope inside every replicate, so it
-    carries the uncertainty in b rather than treating a fitted quantity as known. It does NOT
-    carry any guarantee that b transfers across cohorts; that is an assumption, stated as one.
+    The correct scale for a mean is the ratio of means,
+
+        k = mean(D_Y) / mean(D_f)      fitted on the labelled pools
+
+    which is unbiased for the population mean whenever the predictor is off by a multiplicative
+    factor: if E[D_f] = c E[D_Y] then k = 1/c and k * mean_all(D_f) targets E[D_Y]. One free
+    parameter, and it is a calibration of the quantity actually being reported.
+
+    IT STILL NEEDS LABELS, AND ON v2 THERE ARE NONE
+    ===============================================
+    k cannot be fitted on v2 -- nothing there is annotated. Passing `k` transports v1's value,
+    and that transport is the whole load-bearing assumption, not a detail. `raw=True` is the
+    honest alternative: the plug-in mean(D_f) with no calibration at all, which uses no labels
+    anywhere and is therefore the only version that is genuinely available on an unannotated
+    cohort. Its magnitude is on the MODEL's scale, not the behaviour's, so it supports
+    statements about SIGN and relative pattern and nothing about effect size.
+
+    k is fragile exactly where mean(D_f) approaches zero -- it is a ratio -- so it is refused
+    when the denominator is not separated from zero, rather than returned as a large number.
     """
     rng = np.random.default_rng(seed)
     lab = d.labelled
-    dy, fl, f_all = d.d_true[lab], d.d_pred[lab], d.d_pred
-    f_all = f_all[np.isfinite(f_all)]
+    dy, fl = d.d_true[lab], d.d_pred[lab]
+    f_all = d.d_pred[np.isfinite(d.d_pred)]
     if len(f_all) < 2:
         return Estimate('ppci', float('nan'), float('nan'), float('nan'),
                         int(lab.sum()), len(f_all), {'note': 'no predictions'})
-    local = beta is None
+    if raw:
+        est = float(f_all.mean())
+        bs = [f_all[rng.integers(0, len(f_all), len(f_all))].mean() for _ in range(reps)]
+        lo, hi = np.percentile(bs, [2.5, 97.5])
+        return Estimate('ppci', est, float(lo), float(hi), int(lab.sum()), len(f_all),
+                        {'scale': 'model (uncalibrated)', 'k': None})
+    local = k is None
     if local:
-        if lab.sum() < 3 or fl.var(ddof=1) == 0:
+        if lab.sum() < 3:
+            return Estimate('ppci', float('nan'), float('nan'), float('nan'),
+                            int(lab.sum()), len(f_all), {'note': 'needs >=3 labelled pools'})
+        # refuse a ratio whose denominator is not separated from zero
+        se_f = fl.std(ddof=1) / np.sqrt(len(fl))
+        if abs(fl.mean()) < 2 * se_f:
             return Estimate('ppci', float('nan'), float('nan'), float('nan'),
                             int(lab.sum()), len(f_all),
-                            {'note': 'needs >=3 labelled pools to fit a slope locally'})
-        beta = float(np.cov(dy, fl)[0, 1] / fl.var(ddof=1))
-    est = float(beta * f_all.mean())
+                            {'note': 'mean(D_f) not separated from zero: k is not identified'})
+        k = float(dy.mean() / fl.mean())
+    est = float(k * f_all.mean())
     bs = []
     for _ in range(reps):
         fb = f_all[rng.integers(0, len(f_all), len(f_all))]
         if local:
             i = rng.integers(0, len(dy), len(dy))
-            vb = fl[i].var(ddof=1)
-            if vb == 0:
+            den = fl[i].mean()
+            if abs(den) < 1e-9:
                 continue
-            b = np.cov(dy[i], fl[i])[0, 1] / vb
+            kk = dy[i].mean() / den
         else:
-            b = beta if beta_boot is None else beta_boot[rng.integers(0, len(beta_boot))]
-        bs.append(b * fb.mean())
+            kk = k if k_boot is None else k_boot[rng.integers(0, len(k_boot))]
+        bs.append(kk * fb.mean())
     if len(bs) < reps // 10:
         return Estimate('ppci', est, float('nan'), float('nan'), int(lab.sum()), len(f_all),
-                        {'beta': float(beta), 'note': 'bootstrap degenerate'})
+                        {'k': float(k), 'note': 'bootstrap degenerate'})
     lo, hi = np.percentile(bs, [2.5, 97.5])
     return Estimate('ppci', est, float(lo), float(hi), int(lab.sum()), len(f_all),
-                    {'beta': float(beta), 'r': d.r(),
-                     'transported': not local})
+                    {'k': float(k), 'r': d.r(), 'transported': not local,
+                     'scale': 'calibrated to labels'})
 
 
-def slope_bootstrap(d: PoolDeltas, reps: int = 4000, seed: int = 0) -> np.ndarray:
-    """Bootstrap sample of the calibration slope b, for transporting it to another cohort."""
+def scale_bootstrap(d: PoolDeltas, reps: int = 4000, seed: int = 0) -> np.ndarray:
+    """Bootstrap sample of the ratio-of-means calibration k, for transporting it to a cohort."""
     rng = np.random.default_rng(seed)
     lab = d.labelled
     dy, fl = d.d_true[lab], d.d_pred[lab]
     out = []
     for _ in range(reps):
         i = rng.integers(0, len(dy), len(dy))
-        v = fl[i].var(ddof=1)
-        if v > 0:
-            out.append(np.cov(dy[i], fl[i])[0, 1] / v)
+        den = fl[i].mean()
+        if abs(den) > 1e-9:
+            out.append(dy[i].mean() / den)
     return np.array(out)
 
 

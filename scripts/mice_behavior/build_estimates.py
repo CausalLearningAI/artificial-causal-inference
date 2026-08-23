@@ -73,7 +73,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.mice_behavior.phase_ate import (                                  # noqa: E402
-    TRANSITIONS, classical, pool_deltas, ppci, ppi, slope_bootstrap)
+    TRANSITIONS, classical, pool_deltas, ppci, ppi, scale_bootstrap)
 from event_eval import postprocess, runs                                   # noqa: E402
 
 FRAME = ROOT / 'results' / 'vision' / 'mice' / 'frame'
@@ -261,19 +261,21 @@ def main():
         # slope describes how the MODEL relates to truth, which is a property of the predictor,
         # not of a genotype. The strata differ in their D_f, and that is what should move the
         # estimate; the bootstrap carries the slope's uncertainty into every stratum.
-        global_beta = {}
+        global_k = {}
         for unit in ('events', 'time'):
             for lab in LABELS:
                 for od, odn in ODOURS:
                     for tr in TRANSITIONS:
                         d0 = pool_deltas(labdf if labdf is not None else frame,
                                          f't_{unit}_{lab}', f'f_{unit}_{lab}', od, tr)
-                        if d0.labelled.sum() < 3 or d0.d_pred[d0.labelled].var(ddof=1) == 0:
+                        if d0.labelled.sum() < 3:
                             continue
                         dy0, fl0 = d0.d_true[d0.labelled], d0.d_pred[d0.labelled]
-                        global_beta[(unit, lab, od, tr)] = (
-                            float(np.cov(dy0, fl0)[0, 1] / fl0.var(ddof=1)),
-                            slope_bootstrap(d0))
+                        se_f = fl0.std(ddof=1) / np.sqrt(len(fl0))
+                        if abs(fl0.mean()) < 2 * se_f:
+                            continue          # k is a ratio; refuse it near a zero denominator
+                        global_k[(unit, lab, od, tr)] = (
+                            float(dy0.mean() / fl0.mean()), scale_bootstrap(d0))
         for sid, snice, _ in strata_of(exp_df.drop_duplicates('pool'), version):
             if sid == 'all':
                 sub = frame
@@ -296,11 +298,17 @@ def main():
                             if version == 'v1':
                                 ests.append(classical(d))
                                 ests.append(ppi(d))
-                                gb = global_beta.get((unit, lab, od, tr))
+                                gk = global_k.get((unit, lab, od, tr))
                                 if sid == 'all':
                                     ests.append(ppci(d))
-                                elif gb is not None:
-                                    ests.append(ppci(d, beta=gb[0], beta_boot=gb[1]))
+                                elif gk is not None:
+                                    ests.append(ppci(d, k=gk[0], k_boot=gk[1]))
+                                # the label-free version, on every stratum: no calibration at
+                                # all, so it is the only one that would survive on a cohort
+                                # with no annotations. Model scale -- sign only.
+                                e_raw = ppci(d, raw=True)
+                                e_raw.method = 'ppci_raw'
+                                ests.append(e_raw)
                             for e in ests:
                                 if e is None:
                                     continue
@@ -316,20 +324,21 @@ def main():
                 for od, odn in ODOURS:
                     for tr in TRANSITIONS:
                         dv1 = pool_deltas(lab1, f't_{unit}_{lab}', f'f_{unit}_{lab}', od, tr)
-                        if dv1.labelled.sum() < 3:
-                            continue
-                        bsamp = slope_bootstrap(dv1)
-                        beta = float(np.cov(dv1.d_true[dv1.labelled],
-                                            dv1.d_pred[dv1.labelled])[0, 1]
-                                     / dv1.d_pred[dv1.labelled].var(ddof=1))
+                        fl1 = dv1.d_pred[dv1.labelled]
+                        ok = (dv1.labelled.sum() >= 3
+                              and abs(fl1.mean()) >= 2 * fl1.std(ddof=1) / np.sqrt(len(fl1)))
+                        ksamp = scale_bootstrap(dv1) if ok else None
+                        kk = float(dv1.d_true[dv1.labelled].mean() / fl1.mean()) if ok else None
                         for sid, snice, _ in strata_of(exp2.drop_duplicates('pool'), 'v2'):
                             sub = frame2 if sid == 'all' else frame2[frame2.line == sid]
                             d = pool_deltas(sub, None, f'f_{unit}_{lab}', od, tr)
-                            e = ppci(d, beta=beta, beta_boot=bsamp)
-                            cells.append({'exp': 'v2', 'unit': unit, 'behav': lab,
-                                          'stratum': sid, 'stratum_label': snice, 'odour': odn,
-                                          'trans': f'{tr[0]}->{tr[1]}', 'model': 'xfit_dense',
-                                          'r': None, **e.as_dict()})
+                            base = {'exp': 'v2', 'unit': unit, 'behav': lab, 'stratum': sid,
+                                    'stratum_label': snice, 'odour': odn,
+                                    'trans': f'{tr[0]}->{tr[1]}', 'model': 'xfit_dense', 'r': None}
+                            if ok:
+                                cells.append({**base, **ppci(d, k=kk, k_boot=ksamp).as_dict()})
+                            e_raw = ppci(d, raw=True); e_raw.method = 'ppci_raw'
+                            cells.append({**base, **e_raw.as_dict()})
 
     payload = {
         'meta': {

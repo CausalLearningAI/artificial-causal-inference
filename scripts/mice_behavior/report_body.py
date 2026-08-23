@@ -149,33 +149,62 @@ BODY = f'''
 
   <div class="sub">
     <p class="q">outcome design</p>
-    <h3>Does the decay call for a different unit? <span class="verdict v-part">a matched window, yes; an extrapolated amplitude, no</span></h3>
-    <p>The obvious fix is to stop summarising a phase by a mean and instead report the decay's own
-    parameters &mdash; an initial amplitude at phase onset plus a habituation constant, neither of
-    which depends on recording length. It was worth measuring rather than assuming, and
-    <b>the extrapolated amplitude fails</b>:</p>
+    <h3>Which window, and how to measure decay <span class="verdict v-part">two effects, not one</span></h3>
+    <div class="note warnbox"><b>First, a confound that decides the window question: the
+    phase-onset spike is not the treatment.</b> Every phase is a separate recording, and the
+    experimenter opens the cage to start it. <b>P is the phase where the odour is <em>removed</em>
+    &mdash; and P has the LARGEST onset spike of the three in 3 of 4 cells</b> (first-2-minutes
+    over last-2-minutes rate: nn&nbsp;&middot;&nbsp;fear H 7.6, O 6.7, <b>P 12.3</b>).
+    A response that is strongest when the odour is taken away cannot be a response to the odour.
+    It is handling.</div>
+    <p>That settles what the two candidate windows for the 30-minute habituation phase actually
+    measure. Comparing the <b>last</b> 15 minutes of H against O uses the state the animals were
+    genuinely in when the odour arrived &mdash; the better <em>baseline</em> &mdash; but it puts a
+    decayed tail on one side and a fresh onset on the other, so it charges the handling spike to
+    the odour. Comparing the <b>first</b> 15 minutes matches onset position, so the handling
+    response appears on both sides and cancels, at the cost of contrasting cage-novelty with
+    odour-novelty. Neither is clean, and they disagree by a lot:</p>
     <div class="scroll"><table>
-      <thead><tr><th>unit</th><th>what it is</th><th>contrasts resolved</th><th>verdict</th></tr></thead>
+      <thead><tr><th>H &rarr; O</th><th>full H</th><th>first 15</th><th>last 15</th><th>spread</th></tr></thead>
       <tbody>
-        <tr><td>mean, full window</td><td>the current outcome</td><td>7 of 8</td><td class="lo">carries the H&rarr;O length artefact</td></tr>
-        <tr><td><b>mean, matched 15 min</b></td><td>same mean, equal windows</td><td>5 of 8</td><td class="hi">assumption-free; fixes the artefact</td></tr>
-        <tr><td>amplitude at <i>t</i>&nbsp;=&nbsp;0</td><td>counts de-trended to phase onset</td><td class="lo">3 of 8</td><td class="lo">trades a small bias for a large variance</td></tr>
+        <tr><td>nt &middot; fear</td><td>+0.36</td><td>+0.22</td><td>+0.49</td><td>0.28</td></tr>
+        <tr><td>nt &middot; social</td><td>&minus;0.37</td><td>&minus;0.67</td><td>&minus;0.07</td><td>0.60</td></tr>
+        <tr><td>nn &middot; fear</td><td class="hi">+0.66</td><td class="hi">+0.45</td><td class="hi">+0.86</td><td>0.42</td></tr>
+        <tr><td>nn &middot; social</td><td>+0.47</td><td>&minus;0.03</td><td>+0.97</td><td class="lo">1.01 &mdash; spans zero</td></tr>
       </tbody></table></div>
-    <p>De-trending to <i>t</i>&nbsp;=&nbsp;0 multiplies minute 29.5 by
-    e<sup>0.11&times;29.5</sup>&nbsp;&asymp;&nbsp;25, so a single late bout dominates the estimate.
-    Its intervals run 2&ndash;4&times; wider and it resolves three contrasts against the matched
-    window's five. <b>It removes a bias by paying far more in variance</b> &mdash; the opposite of
-    what this analysis is trying to do everywhere else. A single exponential is not even the right
-    model: adding a <i>t</i>&sup2; term is significant in 7 of 12 cells and in 3 of the 4
-    thirty-minute H cells, so the decay flattens toward a floor and an honest amplitude needs a
-    three-parameter hierarchical fit, not a reweighting.</p>
-    <div class="note"><b>What to do instead.</b> Keep the mean, and take H&rarr;O on the matched
-    15-minute window &mdash; it is the only contrast the choice touches, and it needs no model.
-    Then report the <b>habituation slope as a second outcome in its own right</b>, because it
-    carries an effect no mean can express: P habituates faster than H in every cell, and social
-    exposure abolishes nose-to-tail habituation entirely during O. That is two questions
-    &mdash; <em>how much</em> behaviour the exposure triggers, and <em>how long</em> it holds
-    &mdash; and the second one is currently thrown away.</div>
+    <p><b>nose-to-nose under social exposure must not be a headline under any window.</b> It runs
+    from &minus;0.03 to +0.97 across three defensible choices &mdash; a full bout per minute, and
+    it changes sign. <b>nose-to-nose under fear is the one H&rarr;O effect that survives
+    everything</b>, positive and resolving in all three. And all four O&rarr;P contrasts are
+    window-invariant by construction, so those are the ones to trust.</p>
+    <h3 style="margin-top:22px">Measuring the decay: not a slope, and not a time constant</h3>
+    <p>Two candidates fail before they start. A <b>Poisson slope</b> assumes log-linear decay,
+    which the curvature test rejects in 7 of 12 cells. A <b>time constant &tau;</b> inherits that
+    misspecification and blows up wherever the slope approaches zero &mdash; nose-to-tail under
+    social exposure during O actually <em>rises</em>, giving &tau;&nbsp;=&nbsp;&minus;27 min. A
+    <b>time-to-asymptote</b> needs the floor, which needs a three-parameter fit that 0&ndash;3
+    counts per minute will not support per pool.</p>
+    <div class="note"><b>What works is a front-loading fraction.</b>
+    F = bouts in the first 5 minutes / bouts in the first 15. Flat process &rarr; 0.33; strong
+    decay &rarr; higher. Bounded, model-free, length-invariant, defined per observation so it
+    drops straight into the same pool-level contrast, and it needs no exponential. It resolves
+    <b>5 of 8</b> contrasts &mdash; and it says something the level cannot:
+    <div class="scroll" style="margin-top:11px"><table>
+      <thead><tr><th>&Delta;F</th><th>nt &middot; fear</th><th>nt &middot; social</th><th>nn &middot; fear</th><th>nn &middot; social</th></tr></thead>
+      <tbody>
+        <tr><td>H &rarr; O &nbsp;(odour ON)</td><td class="hi">&minus;0.40*</td><td>&minus;0.12</td><td class="hi">&minus;0.19*</td><td class="hi">&minus;0.11*</td></tr>
+        <tr><td>O &rarr; P &nbsp;(odour OFF)</td><td>+0.19</td><td class="hi">+0.31*</td><td>+0.04</td><td class="hi">+0.27*</td></tr>
+      </tbody></table></div>
+    <b>Every sign is negative turning the odour on and positive turning it off.</b> The exposure
+    <em>flattens</em> the habituation curve, and withdrawing it restores fast habituation. That is
+    a second, separable effect: not &ldquo;how much behaviour the odour triggers&rdquo; but
+    &ldquo;how long it holds attention&rdquo;. Its cost is that F is undefined for an observation
+    with no bouts in the window, so n falls to 17&ndash;24 depending on the cell.</div>
+    <p><b>Recommendation.</b> Report <b>both</b>, per transition, as the two effects they are:
+    the <b>level</b> on a matched window &mdash; first-15 if the question is the odour net of
+    handling, last-15 if it is the odour against a settled baseline, stated explicitly either way
+    &mdash; and <b>&Delta;F</b> as the decay effect. Do not replace the level with an extrapolated
+    amplitude: measured above, that trades a small bias for a large variance and resolves 3 of 8.</p>
   </div>
 </div></section>
 
@@ -499,40 +528,49 @@ BODY = f'''
 <div class="measure">
   <h3 style="margin-top:26px">The three estimators, and what separates them</h3>
   <p class="defn"><b>They are not the same estimator.</b> Write
-  <span style="white-space:nowrap">Y&#772;</span> for the classical mean over the
-  {n_lab} labelled pools, <span style="white-space:nowrap">f&#772;<sub>n</sub></span> and
-  <span style="white-space:nowrap">f&#772;<sub>N</sub></span> for the mean prediction on the
-  labelled and unlabelled pools, and &beta; = Cov(D<sub>Y</sub>,&nbsp;D<sub>f</sub>) /
-  Var(D<sub>f</sub>) for the calibration slope fitted on the labelled pools. Then:</p>
+  <span style="white-space:nowrap">Y&#772;</span> for the classical mean over the {n_lab} labelled
+  pools and <span style="white-space:nowrap">f&#772;<sub>n</sub></span>,
+  <span style="white-space:nowrap">f&#772;<sub>N</sub></span>,
+  <span style="white-space:nowrap">f&#772;<sub>all</sub></span> for the mean predicted difference
+  on the labelled, unlabelled and all pools.</p>
   <div class="scroll"><table>
-    <thead><tr><th>estimator</th><th>formula</th><th>anchored on the labels?</th></tr></thead>
+    <thead><tr><th>estimator</th><th>formula</th><th>needs labels?</th><th>what it assumes</th></tr></thead>
     <tbody>
-      <tr><td>classical</td><td>Y&#772;</td><td>yes &mdash; it <em>is</em> the labels</td></tr>
-      <tr><td><b>PPI++</b></td><td>Y&#772; + &lambda;&nbsp;(f&#772;<sub>N</sub> &minus; f&#772;<sub>n</sub>),&nbsp;&nbsp;&lambda; = &beta;/(1+n/N)</td><td class="hi">yes &mdash; a damped adjustment to Y&#772;</td></tr>
-      <tr><td><b>PPCI</b></td><td>&beta;&nbsp;f&#772;<sub>all</sub></td><td class="lo">no &mdash; Y&#772; does not appear</td></tr>
+      <tr><td>classical</td><td>Y&#772;</td><td>yes &mdash; it <em>is</em> the labels</td><td>nothing beyond the design</td></tr>
+      <tr><td><b>PPI++</b></td><td>Y&#772; + &lambda;&thinsp;(f&#772;<sub>N</sub> &minus; f&#772;<sub>n</sub>)</td><td class="hi">yes, for the rectifier</td><td class="hi">nothing &mdash; unbiased for ANY predictor</td></tr>
+      <tr><td><b>PPCI</b></td><td>k&thinsp;&middot;&thinsp;f&#772;<sub>all</sub>,&nbsp;&nbsp;k = Y&#772; / f&#772;<sub>n</sub></td><td>yes, for k only</td><td class="lo">the model is off by a constant FACTOR</td></tr>
+      <tr><td>PPCI, uncalibrated</td><td>f&#772;<sub>all</sub></td><td class="hi">no &mdash; none at all</td><td>nothing, but reports the MODEL's scale</td></tr>
     </tbody></table></div>
-  <p><b>That is the whole difference, and it has an exact size.</b> PPI++ starts from the classical
-  mean and moves it only by however much the unlabelled pools' predictions differ from the labelled
-  pools' predictions &mdash; damped by 1/(1+n/N), which is what makes it unbiased for any
-  predictor. PPCI throws the anchor away and trusts &beta;&nbsp;&times;&nbsp;predictions everywhere.
-  Subtracting the two:</p>
-  <div class="note"><b>PPI++ &minus; PPCI = Y&#772; &minus; &beta;&nbsp;f&#772;<sub>n</sub> =
-  <em>a</em></b>, the intercept of the very same calibration fit. Verified algebraically and to
-  nine decimals numerically.
-  <br><br>So &ldquo;no rectifier&rdquo; is not a vague caveat &mdash; it is precisely one number,
-  the intercept that PPCI drops. On v1 nose-to-nose under fear exposure, H&rarr;O, in bouts per
-  minute: classical +0.65, PPCI +0.43, so the discarded intercept is <b>+0.22</b> and the naive
-  plug-in reads about a third too small. The gap between the PPCI and PPI++ marks in the figure in
-  section 03 <em>is</em> that intercept, drawn to scale.
-  <br><br>(The related identity is worth stating once because it is easy to half-remember: if you
-  put the intercept <em>back</em> and average over all n+N pools, you land exactly on PPI++, since
-  &beta;&middot;N/(n+N)&nbsp;=&nbsp;&lambda;. That describes a third estimator, not the PPCI
-  reported here.)</p></div>
-  <p class="defn"><b>Why the calibration needs only a slope.</b> The estimand is a within-pool
-  <em>difference</em>, so under any affine calibration Y&nbsp;=&nbsp;a&nbsp;+&nbsp;b&thinsp;f the
-  additive term cancels: D<sub>Y</sub>&nbsp;=&nbsp;b&thinsp;D<sub>f</sub>. The calibration this
-  analysis needs therefore has exactly <b>one</b> free parameter, and the model's several-fold
-  over-prediction of absolute occupancy never reaches the estimate.</p>
+  <div class="note warnbox"><b>A correction: PPCI used to rescale by the regression slope, and
+  that was wrong.</b> The slope
+  &beta;&nbsp;=&nbsp;Cov(D<sub>Y</sub>,D<sub>f</sub>)/Var(D<sub>f</sub>) is the right multiplier
+  for predicting <em>one</em> pool's outcome from its own prediction, but it is the wrong
+  multiplier for rescaling a <em>mean</em>: &beta;&nbsp;=&nbsp;&rho;&thinsp;&sigma;<sub>Y</sub>/&sigma;<sub>f</sub>
+  is attenuated by noise in the predictor. Measured here, &beta; ran 0.10&ndash;0.46 while the
+  ratio of means ran 0.44&ndash;2.18 &mdash; a factor of <b>seven</b> apart on
+  nose-to-nose&nbsp;&middot;&nbsp;social, where &beta;&nbsp;=&nbsp;0.21 against a true ratio of
+  1.56. Every &beta;-rescaled estimate was pulled toward zero by regression attenuation: +0.04
+  where the classical mean is +0.47. Replaced by
+  k&nbsp;=&nbsp;Y&#772;/f&#772;<sub>n</sub>, the ratio of means, which is the calibration of the
+  quantity actually being reported. PPCI now agrees with classical where it is identified
+  (+0.66 against +0.65 on nn&nbsp;&middot;&nbsp;fear) instead of undershooting it.</div>
+  <p><b>k is a ratio, so it is refused near a zero denominator.</b> In three of the eight cells
+  the mean predicted difference is not separated from zero, k is not identified, and PPCI is
+  reported as undefined rather than as a large number. That is the honest failure mode of any
+  scale calibration and it is worth seeing rather than smoothing over.</p>
+  <div class="note"><b>&ldquo;Is calibrating cheating?&rdquo; &mdash; the answer differs by cohort.</b>
+  <br><br><b>On v1: no, but it is not label-free either.</b> k is fitted on the annotated pools'
+  out-of-fold predictions and the bootstrap refits it, so there is no leakage. But PPCI is not
+  &ldquo;the model alone&rdquo; &mdash; it borrows one number from the labels. If you have those
+  labels, PPI++ uses them better: it is unbiased for <em>any</em> predictor, where PPCI needs the
+  model to be wrong only by a constant factor.
+  <br><br><b>On v2: you cannot fit k, and that is the whole problem.</b> Nothing in v2 is
+  annotated. The v2 column transports v1's k, and that transport &mdash; not the model, not the
+  inference &mdash; is the load-bearing assumption. The <em>uncalibrated</em> row in the table
+  view is the only estimate on this page that needs no labels anywhere; it is on the model's
+  scale, so it supports claims about <b>sign and relative pattern only</b>. Read the v2 agreement
+  that way: 7 of 8 signs reproduce v1, which is evidence the model transfers, and it is not
+  evidence that any v2 magnitude is right.</div>
   <div class="note warnbox"><b>Classical and PPI++ do not target quite the same population.</b>
   Annotation is <b>3:1 het-enriched</b>: the 24 labelled pools are 18 het / 6 wt against a 36/36
   design. Classical therefore estimates the effect <em>in the annotated pools</em>, while PPI++

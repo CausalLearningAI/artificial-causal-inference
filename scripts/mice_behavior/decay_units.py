@@ -68,7 +68,7 @@ BEH = (('Y_nt', 'nt'), ('Y_nn', 'nn'))
 ODOURS = (('F', 'fear'), ('S', 'social'))
 PHASES = ('H', 'O', 'P')
 TRANS = (('H', 'O'), ('O', 'P'))
-UNITS = ('mean_full', 'mean_15', 'amp_t0')
+UNITS = ('mean_full', 'mean_first15', 'mean_last15', 'amp_t0', 'frontload')
 
 
 def minute_counts() -> pd.DataFrame:
@@ -120,9 +120,19 @@ def per_observation(mt: pd.DataFrame, fits: dict) -> pd.DataFrame:
         r = {'observation_id': oid, 'pool': g.pool.iloc[0], 'phase': ph, 'odor': od}
         for lab, _ in BEH:
             b = fits[(lab, od, ph)]
+            first15 = g[g.minute < 15][lab]
             r[f'{lab}_mean_full'] = g[lab].mean()
-            r[f'{lab}_mean_15'] = g[g.minute < 15][lab].mean()
+            r[f'{lab}_mean_first15'] = first15.mean()
+            # H is the only 30-minute phase, so it is the only one where "last 15" differs.
+            r[f'{lab}_mean_last15'] = (g[(g.minute >= 15) & (g.minute < 30)][lab].mean()
+                                       if ph == 'H' else first15.mean())
             r[f'{lab}_amp_t0'] = (g[lab].to_numpy() * np.exp(-b * g.t.to_numpy())).mean()
+            # FRONT-LOADING: share of the window's bouts that fall in its first third.
+            # Flat process -> 1/3; strong decay -> higher. Bounded, model-free, length-invariant,
+            # and it needs no exponential -- which matters because the curvature test rejects a
+            # single exponential in 7 of 12 cells. Undefined when the window holds no bouts.
+            tot = first15.sum()
+            r[f'{lab}_frontload'] = (g[g.minute < 5][lab].sum() / tot) if tot > 0 else np.nan
         rows.append(r)
     return pd.DataFrame(rows)
 
@@ -174,21 +184,39 @@ def main():
                 if np.prod(contrast(po[po.odor == od], f'{lab}_{u}', x, y)[1:]) > 0)
         print(f'    {u:10} resolves {n}/8')
 
-    print('\n4. THE WINDOW ONLY TOUCHES H->O -- O and P are both 15 minutes')
+    print('\n4. THE PHASE-ONSET SPIKE IS NOT ODOUR-SPECIFIC -- P proves it')
+    print('   P is the phase where the odour is REMOVED. If P spikes at onset too, the spike is')
+    print('   handling/disturbance (the experimenter opens the cage), not a treatment response.')
+    print(f"   {'behav':6}{'odour':8}{'phase':6}{'min 0-2':>9}{'min 13-15':>11}{'ratio':>8}")
+    for lab, nice in BEH:
+        for od, odn in ODOURS:
+            for ph in PHASES:
+                d = mt[(mt.odor == od) & (mt.phase == ph)]
+                e0 = d[d.minute < 2][lab].mean()
+                l0 = d[(d.minute >= 13) & (d.minute < 15)][lab].mean()
+                print(f'   {nice:6}{odn:8}{ph:6}{e0:9.2f}{l0:11.2f}{e0/max(l0,1e-9):8.2f}')
+    print('   -> P has the LARGEST onset/late ratio in 3 of 4 cells. Any contrast that compares')
+    print('      a decayed H tail against a fresh O onset therefore charges that handling spike')
+    print('      to the odour.')
+
+    print('\n5. THE WINDOW ONLY TOUCHES H->O -- O and P are both 15 minutes')
     same = True
     for lab, nice in BEH:
         for od, odn in ODOURS:
             a = contrast(po[po.odor == od], f'{lab}_mean_full', 'O', 'P')[0]
-            b = contrast(po[po.odor == od], f'{lab}_mean_15', 'O', 'P')[0]
+            b = contrast(po[po.odor == od], f'{lab}_mean_first15', 'O', 'P')[0]
             same &= np.isclose(a, b)
     print(f'  O->P identical under mean_full and mean_15 in all 4 cells: {same}')
-    print('  H->O shifts (mean_full -> mean_15):')
+    print('  H->O under three defensible windows -- a cell that moves across all three is not '
+          'a result:')
+    print(f"    {'behav':5}{'odour':8}{'full':>8}{'first15':>9}{'last15':>9}{'spread':>8}")
     for lab, nice in BEH:
         for od, odn in ODOURS:
-            a = contrast(po[po.odor == od], f'{lab}_mean_full', 'H', 'O')[0]
-            b = contrast(po[po.odor == od], f'{lab}_mean_15', 'H', 'O')[0]
-            flag = '  <-- SIGN FLIP' if np.sign(a) != np.sign(b) else ''
-            print(f'    {nice:3} {odn:7} {a:+.2f} -> {b:+.2f}   (shift {b-a:+.2f}){flag}')
+            vs = [contrast(po[po.odor == od], f'{lab}_{u}', 'H', 'O')[0]
+                  for u in ('mean_full', 'mean_first15', 'mean_last15')]
+            flag = '  <-- SPANS ZERO' if min(vs) * max(vs) < 0 else ''
+            print(f'    {nice:5}{odn:8}{vs[0]:+8.2f}{vs[1]:+9.2f}{vs[2]:+9.2f}'
+                  f'{max(vs)-min(vs):8.2f}{flag}')
 
 
 if __name__ == '__main__':
