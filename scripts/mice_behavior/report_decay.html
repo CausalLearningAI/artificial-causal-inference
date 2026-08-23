@@ -1,0 +1,309 @@
+<!-- Interactive within-protocol activity figure. Injected by build_report.py, which replaces the
+     __DECAY_JSON__ token with results/vision/mice/frame/_figures/decay.json (written by
+     build_decay.py). Kept out of report_body.py on purpose: that file is one big f-string, and
+     JS braces in it would need doubling everywhere. -->
+<style>
+.dec{--p-H:#2a78d6;--p-O:#eb6834;--p-P:#1baf7a;
+     --dec-surface:var(--surface);--dec-grid:var(--line)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .dec{
+     --p-H:#3987e5;--p-O:#d95926;--p-P:#199e70}}
+:root[data-theme="dark"] .dec{--p-H:#3987e5;--p-O:#d95926;--p-P:#199e70}
+.dec{border:1px solid var(--line);border-radius:3px;background:var(--dec-surface);
+     margin:18px 0 0;overflow:hidden}
+.dec-bar{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;padding:14px 16px;
+         border-bottom:1px solid var(--line);background:var(--surface-2)}
+.dec-ctl{display:flex;flex-direction:column;gap:5px}
+.dec-ctl .lab{font-family:var(--mono);font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;
+              color:var(--ink-3)}
+.dec-seg{display:flex;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.dec-seg button{font-family:var(--mono);font-size:.72rem;padding:5px 11px;border:0;cursor:pointer;
+                background:var(--surface);color:var(--ink-2);line-height:1.3}
+.dec-seg button+button{border-left:1px solid var(--line)}
+.dec-seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.dec-legend{display:flex;flex-wrap:wrap;gap:16px;padding:12px 16px 0;font-family:var(--mono);
+            font-size:.72rem;color:var(--ink-2)}
+.dec-legend span{display:inline-flex;align-items:center;gap:7px}
+.dec-legend i{width:11px;height:11px;border-radius:2px;display:inline-block}
+.dec-panel{padding:2px 16px 0;min-width:0}
+.dec-panel+.dec-panel{margin-top:6px;padding-top:14px;border-top:1px solid var(--line)}
+.dec svg{width:100%;height:auto;display:block;overflow:visible}
+.dec-note{font-family:var(--mono);font-size:.72rem;line-height:1.6;color:var(--ink-3);
+          padding:12px 16px 16px}
+.dec-tt{position:fixed;pointer-events:none;z-index:50;opacity:0;transition:opacity .1s;
+        background:var(--ink);color:var(--bg);font-family:var(--mono);font-size:.7rem;
+        line-height:1.55;padding:8px 10px;border-radius:3px;max-width:280px;white-space:normal}
+.dec-tbl{padding:0 16px 16px}
+.dec-tbl[hidden]{display:none}
+.dec-tbl h5{font-family:var(--mono);font-size:.68rem;letter-spacing:.11em;text-transform:uppercase;
+            color:var(--ink-3);font-weight:400;margin:14px 0 7px}
+</style>
+
+<div class="dec" id="dec">
+  <div class="dec-bar" id="dec-bar"></div>
+  <div class="dec-legend" id="dec-legend"></div>
+  <div id="dec-panels"></div>
+  <div class="dec-note" id="dec-note"></div>
+  <div class="dec-tbl" id="dec-tbl" hidden></div>
+</div>
+<div class="dec-tt" id="dec-tt" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  const DATA = __DECAY_JSON__;
+  const M = DATA.meta, SEGS = M.segs, TOT = M.total_min;
+  const PHN = { H: 'habituation', O: 'exposure', P: 'post' };
+  const state = { unit: M.units[0].key, table: false };
+
+  const $ = (id) => document.getElementById(id);
+  const css = (n) => getComputedStyle($('dec')).getPropertyValue(n).trim();
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (n, a) => { const e = document.createElementNS(NS, n);
+    for (const k in a) e.setAttribute(k, a[k]); return e; };
+  const txt = (s, a) => { const t = el('text', Object.assign(
+    { 'font-family': 'ui-monospace,monospace' }, a)); t.textContent = s; return t; };
+  const unitLabel = () => M.units.find(u => u.key === state.unit).label;
+
+  // ---------------------------------------------------------------- controls
+  function seg(label, key, opts) {
+    const wrap = document.createElement('div'); wrap.className = 'dec-ctl';
+    const l = document.createElement('span'); l.className = 'lab'; l.textContent = label;
+    const box = document.createElement('div'); box.className = 'dec-seg';
+    box.setAttribute('role', 'group'); box.setAttribute('aria-label', label);
+    opts.forEach(([val, t]) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = t;
+      b.setAttribute('aria-pressed', String(state[key] === val));
+      b.onclick = () => { state[key] = val; render(); };
+      box.appendChild(b);
+    });
+    wrap.append(l, box); return wrap;
+  }
+
+  function tip(node, html) {
+    const tt = $('dec-tt');
+    const show = (ev) => {
+      tt.innerHTML = html; tt.style.opacity = '1';
+      const r = tt.getBoundingClientRect();
+      tt.style.left = Math.min((ev.clientX ?? 0) + 14, innerWidth - r.width - 10) + 'px';
+      tt.style.top = Math.min((ev.clientY ?? 0) + 14, innerHeight - r.height - 10) + 'px';
+    };
+    node.addEventListener('mouseenter', show);
+    node.addEventListener('mousemove', show);
+    node.addEventListener('focus', () => { const b = node.getBoundingClientRect();
+      show({ clientX: b.left + b.width / 2, clientY: b.top }); });
+    const hide = () => { $('dec-tt').style.opacity = '0'; };
+    node.addEventListener('mouseleave', hide);
+    node.addEventListener('blur', hide);
+  }
+
+  /* ONE y-scale across both behaviours. They are measured in the same unit, so independent
+     scales would let a 1.0 nose-to-tail peak look identical to a 2.5 nose-to-nose peak and
+     invite exactly the cross-panel comparison this layout exists to support.
+
+     Letting the WIDEST band set that scale does not work: bootstrapping 24 pools per minute
+     produces the odd minute whose upper bound is three times the next largest -- one pool with
+     one very long bout -- and under seconds/min that single minute pushed the axis to 8 and
+     squashed all 240 plotted minutes into the bottom sixth of the panel. So the scale is set by
+     the MEANS plus the bulk of the bands (98th percentile), and the rare band that runs past the
+     top is clipped with a caret at the edge, exactly as the ATE figure clips its 1-degree-of-
+     freedom intervals. The trace itself is never off-scale: the top is always above every mean. */
+  function domain() {
+    let hiMean = 0; const tops = [];
+    M.behav.forEach(b => DATA.series[state.unit][b.key].seg.forEach(s => {
+      s.mean.forEach(v => { if (isFinite(v)) hiMean = Math.max(hiMean, v); });
+      s.hi.forEach(v => { if (isFinite(v)) tops.push(v); });
+    }));
+    tops.sort((a, b) => a - b);
+    const q98 = tops.length ? tops[Math.min(tops.length - 1,
+      Math.floor(tops.length * 0.98))] : 0;
+    return [0, Math.max(hiMean * 1.12, q98) || 1];
+  }
+  function ticks([lo, hi]) {
+    const raw = (hi - lo) / 5, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(s => s * mag).find(s => s >= raw) || mag * 10;
+    const out = [];
+    for (let t = 0; t <= hi + 1e-9; t += step) out.push(+t.toFixed(10));
+    return out;
+  }
+
+  // ---------------------------------------------------------------- one behaviour = one panel
+  const W = 1180, L = 58, R = 16, TOP = 52, PH = 300, AX = 66;
+  const H = TOP + PH + AX;
+
+  function panel(behav, dom) {
+    const d = DATA.series[state.unit][behav.key];
+    const x = (t) => L + t / TOT * (W - L - R);
+    const y = (v) => TOP + PH - (v - dom[0]) / (dom[1] - dom[0]) * PH;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img',
+      'aria-label': `${behav.label}: ${unitLabel()} across the full ${TOT}-minute protocol, `
+        + `with 95% bands and a mean for each of the six phases.` });
+
+    // --- horizontal grid + y axis
+    ticks(dom).forEach(t => {
+      svg.appendChild(el('line', { x1: L, x2: W - R, y1: y(t), y2: y(t),
+        stroke: css('--dec-grid'), 'stroke-width': t === 0 ? 1.4 : 0.8 }));
+      svg.appendChild(txt(t, { x: L - 9, y: y(t) + 3.5, 'text-anchor': 'end',
+        fill: css('--ink-3'), 'font-size': 11 }));
+    });
+    const yl = txt(unitLabel(), { x: 0, y: 0, 'text-anchor': 'middle', fill: css('--ink-3'),
+      'font-size': 11.5, transform: `translate(${L - 42},${TOP + PH / 2}) rotate(-90)` });
+    svg.appendChild(yl);
+
+    // --- panel title
+    svg.appendChild(txt(behav.label, { x: L, y: 15, fill: css('--ink-2'), 'font-size': 13,
+      'font-weight': 600 }));
+
+    // --- session bands: the two 60-minute sessions are separate recordings, an hour apart
+    [[0, 60, 'social exposure session'], [60, 120, 'fear exposure session']].forEach(
+      ([a, b, name], i) => {
+        if (i === 1) svg.appendChild(el('rect', { x: x(a), y: TOP - 22, width: x(b) - x(a),
+          height: PH + 22, fill: css('--ink'), opacity: 0.028 }));
+        svg.appendChild(txt(name.toUpperCase(), { x: (x(a) + x(b)) / 2, y: TOP - 28,
+          'text-anchor': 'middle', fill: css('--ink-3'), 'font-size': 10,
+          'letter-spacing': '.14em' }));
+      });
+
+    // --- per phase: mean bar behind, then band, then line
+    SEGS.forEach((s, i) => {
+      const col = css('--p-' + s.phase), b = d.bar[i], p = d.seg[i];
+      // 2px surface gap on each side so adjacent bars never touch
+      const bx = x(s.t0) + 1, bw = x(s.t1) - x(s.t0) - 2;
+      const g = el('g', { class: 'dec-mark', tabindex: 0, role: 'button' });
+      g.appendChild(el('rect', { x: bx, y: y(b.mean), width: bw, height: y(0) - y(b.mean),
+        fill: col, opacity: 0.08 }));
+      g.appendChild(el('line', { x1: bx, x2: bx + bw, y1: y(b.mean), y2: y(b.mean),
+        stroke: col, 'stroke-width': 2.6 }));
+      tip(g, `<b>${s.odour_label} &middot; ${s.phase} ${PHN[s.phase]}</b><br>`
+        + `phase mean ${b.mean.toFixed(2)} ${unitLabel()}<br>`
+        + `95% CI [${b.lo.toFixed(2)}, ${b.hi.toFixed(2)}] over ${b.n} pools<br>`
+        + `minutes ${s.t0}–${s.t1} &middot; ${s.dur} min long`);
+      svg.appendChild(g);
+
+      // 95% band, then the trace. One polyline PER PHASE: the six recordings are separate
+      // videos minutes apart, so a line joined across a boundary would draw a continuity that
+      // does not exist.
+      const up = p.t.map((t, k) => `${x(t)},${y(Math.min(p.hi[k], dom[1]))}`).join(' ');
+      const dn = p.t.map((t, k) => `${x(t)},${y(p.lo[k])}`).reverse().join(' ');
+      svg.appendChild(el('polygon', { points: up + ' ' + dn, fill: col, opacity: 0.15 }));
+      // caret = "this band continues past the axis", never a silent truncation
+      p.hi.forEach((v, k) => { if (v > dom[1]) svg.appendChild(el('path', {
+        d: `M${x(p.t[k]) - 4},${TOP + 6}L${x(p.t[k]) + 4},${TOP + 6}L${x(p.t[k])},${TOP}Z`,
+        fill: col, opacity: 0.75 })); });
+      svg.appendChild(el('polyline', { points: p.t.map((t, k) => `${x(t)},${y(p.mean[k])}`)
+        .join(' '), fill: 'none', stroke: col, 'stroke-width': 2,
+        'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+
+      // phase boundary rule + the phase's own label under the axis
+      if (i) svg.appendChild(el('line', { x1: x(s.t0), x2: x(s.t0), y1: TOP - 22,
+        y2: TOP + PH, stroke: css('--dec-grid'),
+        'stroke-width': s.phase === 'H' ? 1.6 : 0.9,
+        'stroke-dasharray': s.phase === 'H' ? '' : '3 3' }));
+      svg.appendChild(txt(`${s.phase}  ${PHN[s.phase]}`, { x: (x(s.t0) + x(s.t1)) / 2,
+        y: TOP + PH + 33, 'text-anchor': 'middle', fill: col, 'font-size': 10.5,
+        'font-weight': 600 }));
+      // direct value label on the bar -- identity and magnitude never rest on colour alone
+      svg.appendChild(txt(b.mean.toFixed(2), { x: (x(s.t0) + x(s.t1)) / 2, y: y(b.mean) - 7,
+        'text-anchor': 'middle', fill: css('--ink-2'), 'font-size': 11.5, 'font-weight': 600,
+        stroke: css('--dec-surface'), 'stroke-width': 3.5, 'paint-order': 'stroke' }));
+    });
+
+    // --- x axis
+    svg.appendChild(el('line', { x1: L, x2: W - R, y1: TOP + PH, y2: TOP + PH,
+      stroke: css('--dec-grid'), 'stroke-width': 1.4 }));
+    for (let t = 0; t <= TOT; t += 15) {
+      svg.appendChild(txt(t, { x: x(t), y: TOP + PH + 16, 'text-anchor': 'middle',
+        fill: css('--ink-3'), 'font-size': 11 }));
+    }
+    svg.appendChild(txt('minutes into the protocol', { x: (L + W - R) / 2, y: TOP + PH + 58,
+      'text-anchor': 'middle', fill: css('--ink-3'), 'font-size': 11 }));
+
+    // --- crosshair over the whole plot: a 120-point trace needs a per-minute readout
+    const cross = el('line', { x1: 0, x2: 0, y1: TOP, y2: TOP + PH, stroke: css('--ink-3'),
+      'stroke-width': 1, 'stroke-dasharray': '3 3', opacity: 0 });
+    const dot = el('circle', { r: 4.5, fill: css('--ink'), stroke: css('--dec-surface'),
+      'stroke-width': 2, opacity: 0 });
+    svg.append(cross, dot);
+    const hit = el('rect', { x: L, y: TOP, width: W - L - R, height: PH, fill: 'transparent' });
+    const tt = $('dec-tt');
+    hit.addEventListener('mousemove', (ev) => {
+      const r = svg.getBoundingClientRect();
+      const t = (ev.clientX - r.left) / r.width * W;
+      const mins = (t - L) / (W - L - R) * TOT;
+      const si = SEGS.findIndex(s => mins >= s.t0 && mins < s.t1);
+      if (si < 0) return;
+      const s = SEGS[si], p = d.seg[si], b = d.bar[si];
+      const k = Math.max(0, Math.min(p.t.length - 1, Math.floor(mins - s.t0)));
+      cross.setAttribute('x1', x(p.t[k])); cross.setAttribute('x2', x(p.t[k]));
+      cross.setAttribute('opacity', 1);
+      dot.setAttribute('cx', x(p.t[k])); dot.setAttribute('cy', y(p.mean[k]));
+      dot.setAttribute('opacity', 1);
+      tt.innerHTML = `<b>${s.odour_label} &middot; ${s.phase} ${PHN[s.phase]}</b><br>`
+        + `elapsed minute ${k}–${k + 1} of the phase `
+        + `(${p.t[k] - 0.5}–${p.t[k] + 0.5} of the protocol)<br>`
+        + `<b>${p.mean[k].toFixed(2)}</b> ${unitLabel()} `
+        + `&middot; 95% CI [${p.lo[k].toFixed(2)}, ${p.hi[k].toFixed(2)}]<br>`
+        + `phase mean ${b.mean.toFixed(2)}`;
+      tt.style.opacity = '1';
+      const tr = tt.getBoundingClientRect();
+      tt.style.left = Math.min(ev.clientX + 14, innerWidth - tr.width - 10) + 'px';
+      tt.style.top = Math.min(ev.clientY + 14, innerHeight - tr.height - 10) + 'px';
+    });
+    hit.addEventListener('mouseleave', () => {
+      cross.setAttribute('opacity', 0); dot.setAttribute('opacity', 0); tt.style.opacity = '0';
+    });
+    svg.appendChild(hit);
+    return svg;
+  }
+
+  // ---------------------------------------------------------------- table view
+  function table() {
+    const box = $('dec-tbl'); box.textContent = ''; box.hidden = !state.table;
+    if (!state.table) return;
+    M.behav.forEach(b => {
+      const d = DATA.series[state.unit][b.key];
+      const h = document.createElement('h5');
+      h.textContent = `${b.label} · phase means, ${unitLabel()}`;
+      const w = document.createElement('div'); w.className = 'scroll';
+      w.innerHTML = '<table><thead><tr><th>session</th><th>phase</th><th>minutes</th>'
+        + '<th>mean</th><th>95% CI</th><th>pools</th></tr></thead><tbody>'
+        + SEGS.map((s, i) => { const r = d.bar[i];
+          return `<tr><td>${s.odour_label}</td><td>${s.phase} ${PHN[s.phase]}</td>`
+            + `<td>${s.t0}–${s.t1}</td><td>${r.mean.toFixed(2)}</td>`
+            + `<td>[${r.lo.toFixed(2)}, ${r.hi.toFixed(2)}]</td><td>${r.n}</td></tr>`; }).join('')
+        + '</tbody></table>';
+      box.append(h, w);
+    });
+  }
+
+  // ---------------------------------------------------------------- render
+  function render() {
+    const bar = $('dec-bar'); bar.textContent = '';
+    bar.append(seg('unit', 'unit', M.units.map(u => [u.key, u.label])),
+               seg('view', 'table', [[false, 'chart'], [true, 'chart + table']]));
+
+    $('dec-legend').innerHTML = ['H', 'O', 'P'].map(p =>
+      `<span><i style="background:var(--p-${p})"></i>${p}&nbsp; ${PHN[p]}`
+      + `&nbsp; ${p === 'H' ? '30' : '15'} min</span>`).join('')
+      + '<span style="color:var(--ink-3)">shaded band = 95% bootstrap over the '
+      + `${M.n_pools} annotated pools &middot; flat bar = that phase&rsquo;s mean</span>`;
+
+    const dom = domain(), panels = $('dec-panels');
+    panels.textContent = '';
+    M.behav.forEach(b => {
+      const div = document.createElement('div'); div.className = 'dec-panel';
+      div.appendChild(panel(b, dom)); panels.appendChild(div);
+    });
+
+    $('dec-note').innerHTML =
+      'The x axis is the whole protocol laid end to end &mdash; (30 + 15 + 15) &times; 2 = '
+      + `${TOT} minutes &mdash; in the order it was run, social session first (19 of the `
+      + `${M.n_pools} annotated pools). It is a LAYOUT, not one recording: the six videos are `
+      + 'separate, minutes apart, and each phase restarts at its own elapsed zero, so the trace '
+      + 'is not joined across a boundary. Both panels share one y scale because both are in the '
+      + 'same unit, and a caret at the top edge marks the rare minute whose band runs past it. The six flat bars are the phase means &mdash; the outcome every effect in '
+      + 'this report is estimated on &mdash; so a contrast is the step between two adjacent bars.';
+    table();
+  }
+  render();
+})();
+</script>

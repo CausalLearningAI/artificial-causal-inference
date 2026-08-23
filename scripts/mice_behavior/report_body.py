@@ -118,11 +118,10 @@ BODY = f'''
   a classical stratified interval there has one degree of freedom and runs off the axis. Those are
   exactly the cells with 10 unlabelled pools apiece to borrow from.</p>
 </div>
-  <div class="figwrap"><figure>
-    <img src="{img['within']}" alt="Bouts per minute against elapsed minutes into each phase, with 95% bands, split by behaviour and exposure.">
-    <figcaption>Bands are 95% intervals bootstrapped over the 24 pools. The dashed line is elapsed
-    minute 15, where O and P stop and H keeps going.</figcaption>
-  </figure></div>
+  <div class="figwrap">{DECAY}
+    <p class="deccap">Pick a unit; both behaviours redraw. Hover any minute for its value and
+    interval, or any bar for the phase mean it summarises.</p>
+  </div>
 <div class="measure">
   <h3 style="margin-top:26px">Nothing is stationary inside a phase</h3>
   <p>Rates fall several-fold across a recording. Fitting a Poisson decay per cell,
