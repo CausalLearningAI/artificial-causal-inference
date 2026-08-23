@@ -534,6 +534,17 @@ BODY = f'''
   additive term cancels: D<sub>Y</sub>&nbsp;=&nbsp;b&thinsp;D<sub>f</sub>. The calibration this
   analysis needs therefore has exactly <b>one</b> free parameter, and the model's several-fold
   over-prediction of absolute occupancy never reaches the estimate.</p>
+  <div class="note warnbox"><b>Classical and PPI++ do not target quite the same population.</b>
+  Annotation is <b>3:1 het-enriched</b>: the 24 labelled pools are 18 het / 6 wt against a 36/36
+  design. Classical therefore estimates the effect <em>in the annotated pools</em>, while PPI++
+  pulls in 48 unlabelled pools that are wt-enriched (30 wt / 18 het) and so targets the full
+  72-pool population. Those coincide only if the phase effect does not vary with genotype, and
+  the stratified view suggests it varies a little &mdash; nose-to-nose under fear reads about
+  +0.79 across the wt strata against +0.60 across the het strata, which moves the population
+  target roughly +0.05 (about 7%) away from the labelled one. Small next to the intervals here,
+  but it is a difference in <em>estimand</em>, not in precision, so it does not shrink with more
+  data. The clean fix is to estimate within stratum and recombine with design weights &mdash;
+  which is what the stratified view is for.</div>
   <div class="note warnbox"><b>Read the shrinkage honestly.</b> A narrower interval is only worth
   having if it still covers the truth. PPI++'s does, by construction, for any predictor.
   <b>PPCI's is not guaranteed</b>: dropping the intercept buys its narrowing partly with bias, and
