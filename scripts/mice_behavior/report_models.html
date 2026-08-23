@@ -5,11 +5,11 @@
      need doubling everywhere. The point of the interaction is that a run is a RECIPE, not a
      directory name: hovering a point prints the whole specification that produced it. -->
 <style>
-.mdl{--m-cand:#2a78d6;--m-fold:#eb6834;--m-other:#8590a0;
+.mdl{--m-cand:#2a78d6;--m-fold:#eb6834;--m-obj:#8a5cd6;--m-other:#8590a0;
      --mdl-surface:var(--surface)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .mdl{
-     --m-cand:#5b9ce8;--m-fold:#f07f52;--m-other:#6d7684}}
-:root[data-theme="dark"] .mdl{--m-cand:#5b9ce8;--m-fold:#f07f52;--m-other:#6d7684}
+     --m-cand:#5b9ce8;--m-fold:#f07f52;--m-obj:#a684e8;--m-other:#8590a0}}
+:root[data-theme="dark"] .mdl{--m-cand:#5b9ce8;--m-fold:#f07f52;--m-obj:#a684e8;--m-other:#8590a0}
 .mdl{border:1px solid var(--line);border-radius:3px;background:var(--mdl-surface);
      margin:18px 0 0;overflow:hidden}
 .mdl-bar{display:flex;flex-wrap:wrap;gap:18px;padding:14px 16px;border-bottom:1px solid var(--line);
@@ -61,7 +61,8 @@
     nn: { key: (r) => r.rd_nn, name: 'nose-to-nose' },
   };
   const ROLES = [
-    ['model candidate', '--m-cand', 'candidate model — 4-pool validation split'],
+    ['model candidate', '--m-cand', 'candidate — encoder / head / input, 4-pool split'],
+    ['objective', '--m-obj', 'objective ablation — vREx and DERM, different head'],
     ['deployment fold', '--m-fold', 'deployment fold — out-of-fold on 8 pools'],
   ];
   const state = { y: 'mean' };
@@ -69,7 +70,8 @@
   const $ = (id) => document.getElementById(id);
   const css = (n) => getComputedStyle($('mdl')).getPropertyValue(n).trim();
   const colour = (r) => css(r.role === 'model candidate' ? '--m-cand'
-    : r.role === 'deployment fold' ? '--m-fold' : '--m-other');
+    : r.role === 'deployment fold' ? '--m-fold'
+    : r.role === 'objective' ? '--m-obj' : '--m-other');
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
   const NS = 'http://www.w3.org/2000/svg';
@@ -212,10 +214,13 @@
 
     const plot = $('mdl-plot'); plot.textContent = ''; plot.appendChild(svg);
     $('mdl-note').innerHTML =
-      `${shown.length} runs. Spearman between the two axes: <b>`
+      `${shown.length} runs, ${DATA.meta.n_candidates} of them candidates. `
+      + 'Spearman between the two axes, over candidates only: <b>'
       + `${DATA.meta.spearman_ap_vs_rdelta >= 0 ? '+' : ''}`
       + `${DATA.meta.spearman_ap_vs_rdelta.toFixed(2)}</b> — enough to shortlist on AP, not to `
       + 'choose on it. <b>Hover any point for the full recipe.</b>'
+      + '<br>Objective ablations are plotted in a third colour because they carry a different head '
+      + 'from the candidates and belong against their own controls, not this pool.'
       + '<br>rΔ on the 4-pool split rests on 16 points at a threshold fitted to those same pools, '
       + 'so it screens arms rather than measuring them; only the deployment folds, which hold out '
       + 'all 24 annotated pools, give it an honest denominator.';

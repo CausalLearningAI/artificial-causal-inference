@@ -112,8 +112,9 @@ declare -A ARM=(
   # bit6 is the test the RESULT block names as the open question. bitfit matching full FT is
   # established only AT 2 BLOCKS; ft6 (0.5243) still beats bit2 (0.4902) by ~3.8x the noise
   # floor, so "recalibration explains fine-tuning" is NOT yet established -- it is established
-  # at matched depth. If bit6 reaches ft6, recalibration explains all of it at 1/577th the
-  # params. If it does not, depth of WEIGHT adaptation buys something bias-only cannot.
+  # at matched depth. If bit6 reaches ft6, recalibration explains all of it at 1/602nd the
+  # params (70,656 against 42.5 M = 602x, from the runs' own n_encoder_trainable).
+  # If it does not, depth of WEIGHT adaptation buys something bias-only cannot.
   # AUGMENT=d4 (not the d4_photo every other arm here uses) because ft6, the run this is
   # measured against, was trained at d4 -- matching it is the whole point.
   # ENCODER_LR=1e-3 is bitfit's own good value, not ft6's 1e-5. That asymmetry is deliberate
@@ -124,6 +125,11 @@ declare -A ARM=(
   # one draw measured against a noise floor estimated from a different config. This replicates
   # the winner at seed 1.
   [ft_bitfit_hi_s1]="res448_k2_bit2_d4photo_elr0.001_seed1 | UNFREEZE_BLOCKS=2 FT_MODE=bitfit ENCODER_LR=1e-3 SEED=1"
+  # "SSL and BitFit do not stack" rests on ONE pair: bit6_d4 (0.5409) against bit6_d4_sslinit
+  # (0.5127), one draw each, judged against a noise floor estimated from a different config.
+  # These two replicate that pair at seed 1 and are the whole cost of settling it.
+  [ft_bit6_s1]="res448_k2_bit6_d4_seed1              | UNFREEZE_BLOCKS=6 FT_MODE=bitfit ENCODER_LR=1e-3 SEED=1 AUGMENT=d4"
+  [ft_bit6_ssl_s1]="res448_k2_bit6_d4_sslinit_seed1  | UNFREEZE_BLOCKS=6 FT_MODE=bitfit ENCODER_LR=1e-3 SEED=1 AUGMENT=d4 INIT_ENCODER=results/vision/mice/frame/ssl_dapt/best_encoder.pt"
 )
 ORDER="head_selfattn head_multiquery ft_bitfit ft_bitfit_hi frozen_ctrl_s42 frozen_ctrl_s1"
 

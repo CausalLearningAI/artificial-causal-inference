@@ -42,6 +42,11 @@ def rr(tag):
     return f"{r['rd_nt']:.3f} / {r['rd_nn']:.3f}"
 
 
+def rr2(tag, which):
+    """One r-delta value, so a table cell can carry its own highlight class."""
+    return f"{run(tag)['rd_' + which]:.3f}"
+
+
 # Section 05's shortlist. Named here, scored from models.json, so the table cannot drift from the
 # runs -- and the `hi` classes are computed, not asserted, so the highlight always marks the
 # actual column leader.
@@ -264,11 +269,10 @@ BODY = f'''
     <p class="q">outcome design</p>
     <h3>The decay is a second effect, not a nuisance
       <span class="verdict v-part">report both</span></h3>
-    <p>A slope or a time constant will not summarise it &mdash; log-linearity is rejected in 7 of
-    12 cells and &tau; blows up wherever the slope nears zero (&minus;27 min on the one rising
-    cell). What works is a <b>front-loading fraction</b> F = bouts in the first 5 minutes / bouts in
-    the first 15: bounded, model-free, length-invariant, per-observation. Flat &rarr; 0.33, strong
-    decay &rarr; higher.</p>
+    <p>Measure it with a <b>front-loading fraction</b> F = bouts in the first 5 minutes / bouts in
+    the first 15 &mdash; bounded, model-free, length-invariant, per-observation, and it needs no
+    exponential (a fitted slope or time constant does not survive: log-linearity is rejected in 7
+    of 12 cells, and &tau; reaches &minus;27 min on the one rising cell). Flat &rarr; 0.33.</p>
     <div class="scroll"><table>
       <thead><tr><th>&Delta;F</th><th>nt &middot; fear</th><th>nt &middot; social</th><th>nn &middot; fear</th><th>nn &middot; social</th></tr></thead>
       <tbody>
@@ -277,13 +281,9 @@ BODY = f'''
       </tbody></table></div>
     <p><b>Every sign is negative turning the odour on and positive turning it off</b> (* = resolves;
     5 of 8 do). The exposure flattens the habituation curve and withdrawing it restores fast
-    habituation &mdash; not &ldquo;how much behaviour the odour triggers&rdquo; but &ldquo;how long
-    it holds attention&rdquo;. F is undefined where an observation has no bouts in the window, so n
-    falls to 17&ndash;24 by cell.</p>
-    <p><b>Recommendation.</b> Report the <b>level</b> on a stated matched window and <b>&Delta;F</b>
-    as the decay effect, per transition. Do not swap the level for a decay-corrected amplitude:
-    extrapolating to t&nbsp;=&nbsp;0 multiplies minute 29.5 by ~25 and resolves 3 of 8 with
-    intervals 2&ndash;4&times; wider &mdash; a small bias traded for a large variance.</p>
+    habituation &mdash; not how much behaviour the odour triggers, but how long it holds attention.
+    <b>Report both</b>: the level on a stated matched window, and &Delta;F as the decay effect. F is
+    undefined where an observation has no bouts in the window, so n falls to 17&ndash;24 by cell.</p>
   </div>
 </div></section>
 
@@ -294,7 +294,7 @@ BODY = f'''
   a number on the other 84: a per-frame detector whose per-observation aggregate can stand in for a
   human score.</p>
   <div class="flow">
-    <div class="step"><b>Video</b><span>2064&sup2; @ 30 fps<br>&rarr; stored 512&sup2; @ 5 fps</span></div>
+    <div class="step"><b>Video</b><span>2060&sup2; @ 30 fps<br>&rarr; stored 512&sup2; @ 5 fps</span></div>
     <div class="step"><b>Encoder</b><span>DINOv2-base ViT-B/14<br>448 px &rarr; 1024 tokens/frame</span></div>
     <div class="step"><b>Spatial pool</b><span>1 learned query over<br>1024 patch tokens</span></div>
     <div class="step"><b>Temporal</b><span>attention over 5 frames<br>(&plusmn;0.4 s)</span></div>
@@ -326,8 +326,8 @@ BODY = f'''
         <td>whether the detector finds the right <em>events</em> rather than the right frames.</td></tr>
       <tr><td><b>r&Delta;</b></td><td>correlation between true and predicted <em>within-pool phase
         differences</em>.</td>
-        <td class="hi">the ranking. PPI's variance reduction is a function of r&Delta; and nothing
-        else. It is <em>not</em> what training selects on.</td></tr>
+        <td class="hi">the ranking. PPI++'s variance reduction is a function of r&Delta; and
+        nothing else. It is <em>not</em> what training selects on.</td></tr>
     </tbody></table></div>
   <div class="note warnbox"><b>r&Delta; is the ranking key and also the noisiest number here.</b>
   On the standing 4-pool split it rests on <b>16 points</b> (4 pools &times; 2 exposures &times; 2
@@ -348,7 +348,7 @@ BODY = f'''
       <tr><td>3</td><td>SSL on unlabelled frames</td><td>encoder, label-free</td><td class="hi">+0.033</td><td class="hi">what we deploy; also reaches v2</td></tr>
       <tr><td>4</td><td>224 &rarr; 448 px input</td><td>input</td><td class="hi">+0.132</td><td>real, and now saturated</td></tr>
       <tr><td>5</td><td>vREx</td><td>objective</td><td class="lo">+0.008 at best, &minus;0.094 at &beta;=100</td><td class="lo">no help, and harmful when pushed</td></tr>
-      <tr><td>6</td><td>DERM</td><td>objective</td><td>&mdash;</td><td class="v-part">four arms in training now</td></tr>
+      <tr><td>6</td><td>DERM</td><td>objective</td><td class="lo">&minus;0.02 to &minus;0.04, head-confounded</td><td class="lo">no effect the screen can resolve</td></tr>
       <tr><td>&mdash;</td><td>head capacity (self-attn, multi-query)</td><td>head</td><td>&minus;0.003 to +0.014</td><td class="lo">flat</td></tr>
     </tbody></table></div>
   <div class="note warnbox"><b>One structural limit, before any of it.</b> The regime overfits
@@ -364,8 +364,6 @@ BODY = f'''
     <p>Nested subsets of the labelled pools, so each point differs from the last for exactly one
     reason.</p>
   </div>
-  <figure><img src="{img['lcurve']}" alt="Macro AP against number of annotated pools, still rising at 20.">
-    <figcaption>Log-linear fit, R&sup2; = 0.993, no plateau.</figcaption></figure>
   <div class="scroll"><table>
     <thead><tr><th>annotated pools</th><th>observations</th><th>macro AP</th><th>gain</th></tr></thead>
     <tbody>
@@ -376,6 +374,10 @@ BODY = f'''
       <tr><td>40 &mdash; extrapolated</td><td>240</td><td>~0.499</td><td>+0.070</td></tr>
       <tr><td>72 &mdash; extrapolated</td><td>432</td><td>~0.564</td><td>+0.135</td></tr>
     </tbody></table></div>
+  <figure><img src="{img['lcurve']}" alt="Macro AP against number of annotated pools, still rising at 20.">
+    <figcaption>Log-linear fit, R&sup2; = 0.993, no plateau. The 20-pool point is the deployed
+    0.52 M-head control; the three subset points use the plain 5.03 M head, so the last step is
+    worth slightly less than +0.045. The slope is not sensitive to it.</figcaption></figure>
   <div class="note"><b>~0.076 macro AP per doubling, and the curve has not bent.</b> Every
   modelling intervention below is worth between &minus;0.09 and +0.11, the best label-free one
   +0.033 &mdash; so twenty more annotated pools would beat all of them combined.</div>
@@ -430,10 +432,11 @@ BODY = f'''
     arms; section 05 is about that disagreement.</p>
     <div class="note warnbox"><b>Two caveats of unequal strength.</b> That SSL and BitFit do not
     <em>stack</em> rests on a single pair, 0.5127 against 0.5409, one draw each &mdash; suggestive
-    that both buy the same domain recalibration and therefore substitute, but not established; two
-    seeds would settle it for ~3 GPU-hours. What is established, each a clean single-variable
-    change: 2&times; the corpus at matched compute is neutral, and six adapted blocks is clearly
-    harmful. So <em>scaling</em> the corpus is closed; SSL itself is not.</div>
+    that both buy the same domain recalibration and therefore substitute, but not established. Seed
+    replicates of both are training now, which is the whole cost of settling it. What <em>is</em>
+    established, each a clean single-variable change: 2&times; the corpus at matched compute is
+    neutral, and six adapted blocks is clearly harmful. So <em>scaling</em> the corpus is closed;
+    SSL itself is not.</div>
   </div>
 
   <div class="sub">
@@ -463,34 +466,53 @@ BODY = f'''
   </div>
 
   <div class="sub">
-    <p class="q">in progress &middot; deconfounding</p>
-    <h3>DERM <span class="verdict v-part">in training &mdash; no result yet</span></h3>
+    <p class="q">ablation &middot; deconfounding</p>
+    <h3>DERM <span class="verdict v-no">no effect the screen can see</span></h3>
     <p><b>The problem it targets.</b> Phase predicts <em>prevalence</em> here &mdash; the odour port
     visibly changes the scene &mdash; so a classifier can score a frame by which phase it
     <em>looks like</em> rather than by what the mice are doing. A bias that moves with the treatment
-    is what corrupts an effect estimated without a rectifier, which is exactly the situation on v2.</p>
-    <p><b>What DERM does.</b> It reweights every training sample by
-    Var(<i>Y</i>|<i>E</i>)&thinsp;/&thinsp;P(<i>Y</i>,<i>E</i>) over a set of environments
-    <i>E</i>. For a binary label that reduces to
-    <code>w(y=1,&nbsp;e) = (1&minus;p<sub>e</sub>)/P(e)</code> and
+    is what corrupts an effect estimated without a rectifier, which is the situation on v2.</p>
+    <p><b>What it does.</b> Reweight every training sample by
+    Var(<i>Y</i>|<i>E</i>)&thinsp;/&thinsp;P(<i>Y</i>,<i>E</i>) over a set of environments. For a
+    binary label that is <code>w(y=1,&nbsp;e) = (1&minus;p<sub>e</sub>)/P(e)</code> and
     <code>w(y=0,&nbsp;e) = p<sub>e</sub>/P(e)</code>, which gives positives and negatives
-    <b>equal mass inside every environment</b>: a raw prevalence spread of 3.5&times; across
-    environments becomes exactly 0.5 in each. The mean weight is normalised to 1, so the effective
-    step size is unchanged and the comparison against unweighted training is not confounded by a
-    different learning rate. It never asks the model to be invariant to phase &mdash; only to stop
-    the label carrying information about which phase it came from.</p>
-    <p><b>Four arms.</b> Environments = the 3 <b>phases</b> (the estimand's own treatment
-    variable), the 6 <b>phase &times; exposure</b> cells, a <b>seed replicate</b> of the phase arm,
-    and <b>annotator</b> as a falsification test. That last one matters: annotator is exactly
-    balanced across phase &mdash; every scorer took all six observations of each pool they touched,
-    so H/O/P = 48/48/48 &mdash; so it <em>already cancels</em> in a within-pool phase contrast. If
-    deconfounding against annotator moves r&Delta; as much as deconfounding against phase does,
-    the mechanism is not the one described above.</p>
-    <div class="note warnbox"><b>Status: mid-schedule, nothing to report.</b> All four arms are at
-    epoch 18&ndash;24 of 30. They will be screened on <b>r&Delta;</b>, and whichever clears the
-    controls will be cross-fitted over the three folds before any interval is quoted, because only
-    out-of-fold predictions license a shrinkage number. No DERM figure appears anywhere in this
-    report until then.</div>
+    <b>equal mass inside every environment</b>: a raw prevalence spread of 3.5&times; becomes
+    exactly 0.5 in each. Mean weight is normalised to 1, so the step size is unchanged. It never
+    asks the model to be invariant to phase &mdash; only to stop the label carrying information
+    about which phase it came from.</p>
+    <div class="scroll"><table>
+      <thead><tr><th>arm</th><th>environments</th><th>macro AP</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
+      <tbody>
+        <tr><td>DERM</td><td>the 3 <b>phases</b></td><td>0.4060</td>
+          <td class="lo">{rr2('res448_k2_frozen_d4photo_dermPhase','nt')}</td>
+          <td>{rr2('res448_k2_frozen_d4photo_dermPhase','nn')}</td></tr>
+        <tr><td>DERM, seed replicate</td><td>the 3 <b>phases</b></td><td>0.3902</td>
+          <td class="lo">{rr2('res448_k2_frozen_d4photo_dermPhase_s1','nt')}</td>
+          <td>{rr2('res448_k2_frozen_d4photo_dermPhase_s1','nn')}</td></tr>
+        <tr><td>DERM</td><td>the 6 phase &times; exposure cells</td><td>0.3863</td>
+          <td>{rr2('res448_k2_frozen_d4photo_dermCond','nt')}</td>
+          <td>{rr2('res448_k2_frozen_d4photo_dermCond','nn')}</td></tr>
+        <tr><td>DERM</td><td>annotator (falsification)</td><td colspan="3">still training</td></tr>
+        <tr><td>matched control, 2 seeds</td><td>none (unweighted)</td>
+          <td colspan="3" class="v-part">running &mdash; see below</td></tr>
+      </tbody></table></div>
+    <div class="note warnbox"><b>The seed replicate is the result.</b> Two runs of the same
+    phase-environment arm, differing only in seed, give
+    r&Delta;&nbsp;nt of <b>{rr2('res448_k2_frozen_d4photo_dermPhase','nt')}</b> and
+    <b>{rr2('res448_k2_frozen_d4photo_dermPhase_s1','nt')}</b> &mdash; a spread of
+    {abs(float(rr2('res448_k2_frozen_d4photo_dermPhase','nt'))-float(rr2('res448_k2_frozen_d4photo_dermPhase_s1','nt'))):.2f},
+    far larger than any method effect could plausibly be. On the stable behaviour, r&Delta;&nbsp;nn,
+    all three arms sit at 0.78&ndash;0.80 against a control's 0.77: unmoved. So the standing 4-pool
+    split cannot answer this question at all, which is the caveat above made concrete rather than a
+    result about DERM.</div>
+    <div class="note warnbox"><b>And these arms are not yet comparable to their controls.</b> The
+    launcher that submitted them does not set the head configuration, so every DERM arm carries the
+    plain <b>5.03 M</b> head while the controls quoted throughout this section carry the 0.52 M
+    cross-attention head. The AP gap of about &minus;0.02 to &minus;0.04 is therefore a head
+    difference and an objective difference together. Two matched ERM controls &mdash; same head,
+    same everything, deconfounding off &mdash; are training now; until they land no AP claim about
+    DERM is worth making. Judged on r&Delta;&nbsp;nn, which is the stable axis, there is nothing to
+    find either way.</div>
   </div>
 </div></section>
 
@@ -499,10 +521,10 @@ BODY = f'''
   <h2>The model we run, and what it buys</h2></div>
   <p><b>Shortlist on frame AP; choose on the causal quantity.</b> Across the
   {M['meta']['n_candidates']} candidates the two rank models only loosely together (Spearman
-  {M['meta']['spearman_ap_vs_rdelta']:+.2f}), and the disagreement is not academic &mdash; the
-  best-AP arm of an earlier ablation was among the worst for the estimate. <b>Hover a point for the
-  whole recipe behind it</b>: encoder, unlabelled-frame adaptation, fine-tuning, head and parameter
-  count, augmentation, objective.</p>
+  {M['meta']['spearman_ap_vs_rdelta']:+.2f}): the best-AP arm ranks 5th of
+  {M['meta']['n_candidates']} on r&Delta;, and the r&Delta; leader ranks 4th on AP. AP is a usable
+  filter, not the decision. <b>Hover a point for the whole recipe behind it</b> &mdash; encoder,
+  unlabelled-frame adaptation, fine-tuning, head and parameter count, augmentation, objective.</p>
 </div>
   <div class="figwrap">{MODELS}</div>
 <div class="measure">
@@ -534,8 +556,8 @@ BODY = f'''
   unannotated pools for PPCI, is the cheapest outstanding improvement to the estimate at roughly
   18 GPU-hours.</div>
 
-  <h3 style="margin-top:26px">Where it is right, where it is wrong, and what it sees
-  where nobody looked</h3>
+  <h3 style="margin-top:26px">Where it is right, where it is wrong, and what it sees on the
+  pools nobody scored</h3>
   <p>Pick a model, a set of frames and a behaviour. On the annotated pools every frame has a ground
   truth, so the four confusion buckets are meaningful and carry their counts. On the 84 unannotated
   pools there is no ground truth at all, so the only honest buckets are <em>confident yes</em> and
@@ -570,9 +592,9 @@ BODY = f'''
   v2 detections show genuine contact. Predicted occupancy runs about <b>5&times; above truth</b>
   throughout &mdash; part calibration offset, part the deliberate prior shift in training &mdash;
   so these must never be read as behaviour rates directly. For PPI++ that costs nothing, because
-  &lambda; absorbs the scale. <b>For PPCI it is the whole caveat</b>: PPCI reports this scale, not
-  the behaviour's, which is exactly why the figure gives it a separate axis and why nothing on this
-  page reads a PPCI magnitude as a rate.</p>
+  &lambda; absorbs the scale. <b>For PPCI it is the whole caveat</b>: PPCI reports this scale rather
+  than the behaviour's, which is why it is drawn hollow in the effects figure and why nothing on
+  this page reads a PPCI magnitude as a rate.</p>
 </div>
 
 <div class="measure">
@@ -596,11 +618,11 @@ BODY = f'''
       <tr><td>1</td><td>annotate ~20 more v1 pools</td><td>+0.076 AP per doubling and no plateau &mdash; worth more than every modelling change combined</td></tr>
       <tr><td>2</td><td>annotate 4&ndash;6 v2 pools</td><td>the only way v2 gets a CI or a PPI++ estimate at all; today it has PPCI and nothing to check it against</td></tr>
       <tr><td>3</td><td>fix the observation window on biological grounds</td><td>largest single lever on the headline number; currently inherited, not chosen</td></tr>
-      <tr><td>4</td><td>land the four DERM arms and screen them on r&Delta;</td><td>in training now; the one objective-level idea this dataset actually motivates</td></tr>
+      <tr><td>4</td><td>finish the matched ERM controls for DERM</td><td>launched; without them the DERM arms differ from their controls in the head as well as the objective, so no AP claim about them is readable</td></tr>
       <tr><td>5</td><td>run BitFit-6 over the three folds and the unannotated pools</td><td>~18 GPU-h to put every estimate on the configuration that leads on accuracy &mdash; and PPCI needs no cross-fitting at all, so it can use the single best model</td></tr>
       <tr><td>6</td><td>per-animal crops from the 2060 px source</td><td>the only resolution lever left, and a prerequisite for any per-animal outcome</td></tr>
       <tr><td>7</td><td>record which animal in each v2 cage is the heterozygote</td><td>without it the within-pool genotype contrast is not identified no matter how good the vision gets</td></tr>
-      <tr><td>8</td><td>double-annotate 15&ndash;20 observations</td><td>the only clean way to bound irreducible label noise, which caps everything above</td></tr>
+      <tr><td>8</td><td>double-annotate 15&ndash;20 observations</td><td>the only clean way to bound irreducible label noise, which caps everything above &mdash; and the only way to tell model error from label disagreement in the confusion figure</td></tr>
     </tbody></table></div>
   <div class="note warnbox"><b>Closed.</b> Scaling the SSL corpus (2&times; the frames at matched
   compute is neutral; six adapted blocks is harmful) and vREx (four arms across two environment
@@ -613,8 +635,8 @@ BODY = f'''
   build time &mdash; <code>build_estimates.py</code> (every effect), <code>build_models.py</code>
   (every scored run and its recipe), <code>build_outcome.py</code> (the outcome-unit numbers) and
   <code>build_decay.py</code> (the within-phase curves). Numbers quoted in the prose are read from
-  those same payloads, so the text cannot drift from the tables. Figures still rendered ahead of
-  time by <code>story_figures.py</code> and <code>event_eval.py</code>.
+  those same payloads, so the text cannot drift from the tables. One static figure, the annotation
+  scaling curve, is still pre-rendered by <code>story_figures.py</code>.
 </footer></div>
 
 </div>

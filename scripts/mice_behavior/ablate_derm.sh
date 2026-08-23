@@ -45,9 +45,21 @@
 # controls by a margin worth having, cross-fit it (3 folds, ~18 GPU-h) and only then quote a
 # CI shrinkage.
 #
-# Controls already on disk, no need to re-run:
-#     res448_k2_frozen_d4photo_decay30_seed42   AP 0.4289   r_delta nt --    nn --
-#     res448_k2_frozen_d4photo_decay30_seed1    AP 0.4200   r_delta nt 0.417 nn 0.768
+# THE CONTROL THIS SCRIPT NEEDED AND DID NOT HAVE  (found 2026-08-23)
+# ==================================================================
+# The first four arms were compared against res448_k2_frozen_d4photo_decay30_seed{42,1}
+# (AP 0.4289 / 0.4200). Those controls were launched from ablate_head_vs_encoder.sh, which sets
+# CROSS_ATTN_DIM=64 PATCH_POOL_DIM=256 -> the 0.52 M cross-attention head. This script sets
+# neither, so train_online_aug.sh fell back to its defaults 0/0 -> the plain 5.03 M head. Every
+# DERM arm therefore differed from its control in the HEAD as well as the objective, and the
+# comparison could not be read.
+#
+# Fixed by adding erm_ctrl_h5m / erm_ctrl_h5m_s1: identical to the DERM arms in every respect,
+# including this script's head defaults, with DERM off. Compare DERM against THOSE.
+#
+# For reference, the head-mismatched controls (do NOT use them for DERM):
+#     res448_k2_frozen_d4photo_decay30_seed42   AP 0.4289   0.52 M head
+#     res448_k2_frozen_d4photo_decay30_seed1    AP 0.4200   0.52 M head, r_delta 0.417 / 0.768
 #     -> seed noise on AP is 0.0089
 #
 # Usage:
@@ -98,8 +110,12 @@ declare -A ARM=(
   # If this arm moves r_delta as much as the phase arms do, the mechanism is not deconfounding
   # the treatment and the phase result needs a different explanation.
   [derm_ann]="res448_k2_frozen_d4photo_dermAnn           | ENV_KEY=annotator DERM=1 SEED=42"
+  # The matched ERM controls. Same head as the arms above (this script's defaults, 5.03 M), same
+  # everything else, DERM off. Without these there is no DERM comparison, only a head comparison.
+  [erm_ctrl_h5m]="res448_k2_frozen_d4photo_ermH5M          | ENV_KEY=none SEED=42"
+  [erm_ctrl_h5m_s1]="res448_k2_frozen_d4photo_ermH5M_s1    | ENV_KEY=none SEED=1"
 )
-ORDER="derm_phase derm_cond derm_phase_s1 derm_ann"
+ORDER="erm_ctrl_h5m erm_ctrl_h5m_s1 derm_phase derm_cond derm_phase_s1 derm_ann"
 
 for arm in ${ARMS:-$ORDER}; do
     spec="${ARM[$arm]:-}"

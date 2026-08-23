@@ -36,21 +36,37 @@ FRAME = ROOT / 'results' / 'vision' / 'mice' / 'frame'
 OUT = FRAME / '_figures'
 THS = np.round(np.arange(0.05, 1.0, 0.05), 2)
 
-# see the module docstring: the one arm whose config predates the init_encoder field
-SSL_BACKFILL = {'res448_k2_frozen_d4photo_sslinit': 'ssl_dapt'}
+# Runs whose config predates the `init_encoder` field. Without these the model figure reports
+# "no SSL" for arms the section-04 table calls SSL-adapted -- a figure contradicting a table.
+#   frozen_d4photo_sslinit  named explicitly in ablate_ssl_dapt.sh (SSL_TAG / STAGE_B_TAG)
+#   bit6_d4_sslinit         no launcher records it; the pairing is inferred from the `_sslinit`
+#                           suffix and flagged as such in the output rather than asserted
+SSL_BACKFILL = {'res448_k2_frozen_d4photo_sslinit': ('ssl_dapt', 'ablate_ssl_dapt.sh'),
+                'res448_k2_bit6_d4_sslinit': ('ssl_dapt', 'run name')}
 
 # how many unlabelled frames each SSL checkpoint was adapted on, from its own run log
 SSL_CORPUS = {'ssl_dapt': '374k frames, v1+v2, 2 blocks',
               'ssl_s5_b2': '2x corpus, matched compute, 2 blocks',
               'ssl_s10_b6': '374k frames, 6 blocks'}
 
-# the runs that are not candidate models: they answer a different question, and mixing them into
-# a model comparison would compare a 5-pool budget against a 20-pool one.
+# Runs that are not candidate models. Mixing them in would compare a 5-pool budget against a
+# 20-pool one, or an objective change against a head change, and the AP-vs-rDelta correlation
+# reported to the reader would be measured over an incoherent set.
+#
+# `objective` is its own role for a reason: every vREx and DERM arm was launched from a script
+# that does not set CROSS_ATTN_DIM/PATCH_POOL_DIM, so the DERM arms carry the plain 5.03 M head
+# while the encoder/head candidates carry the 0.52 M cross-attention one. They are comparable to
+# each other and to their own matched controls, not to the candidate pool.
 ROLE = {
     'res448_k2_frozen_d4photo_lc5p': 'label budget', 'res448_k2_frozen_d4photo_lc10p': 'label budget',
     'res448_k2_frozen_d4photo_lc15p': 'label budget',
     'res448_k2_frozen_d4photo_px112': 'input ablation',
     'res448_k2_frozen_d4photo_px224': 'input ablation',
+    'res448_k2_frozen_d4photo_vrexCond_b1': 'objective', 'res448_k2_frozen_d4photo_vrexCond_b10': 'objective',
+    'res448_k2_frozen_d4photo_vrexAnn_b10': 'objective', 'res448_k2_frozen_d4photo_vrexAnn_b100': 'objective',
+    'res448_k2_frozen_d4photo_dermPhase': 'objective', 'res448_k2_frozen_d4photo_dermPhase_s1': 'objective',
+    'res448_k2_frozen_d4photo_dermCond': 'objective', 'res448_k2_frozen_d4photo_dermAnn': 'objective',
+    'res448_k2_frozen_d4photo_ermH5M': 'objective', 'res448_k2_frozen_d4photo_ermH5M_s1': 'objective',
     'xfit_f1': 'deployment fold', 'xfit_f2': 'deployment fold', 'xfit_f3': 'deployment fold',
 }
 
@@ -72,7 +88,8 @@ def spec(tag: str, c: dict) -> dict:
         ft += f' @ lr {c.get("encoder_lr")}'
 
     ssl = c.get('init_encoder')
-    ssl_tag = Path(ssl).parts[-2] if ssl else SSL_BACKFILL.get(tag)
+    back = SSL_BACKFILL.get(tag)
+    ssl_tag = Path(ssl).parts[-2] if ssl else (back[0] if back else None)
     head_p = c.get('n_head_params')
     bits = []
     q = c.get('pool_queries') or 1
@@ -96,6 +113,9 @@ def spec(tag: str, c: dict) -> dict:
         obj = f'DERM, environments = {env_nice}'
     else:
         obj = 'ERM (weighted BCE)'
+    # the head is what the DERM/vREx launcher silently changed; surface it next to the objective
+    if not c.get('cross_attn_dim') and (c.get('n_head_params') or 0) > 1e6:
+        obj += ' — plain head, comparable only to its own matched control'
     aug = {'d4_photo': 'D4 dihedral + brightness / contrast / gamma',
            'd4': 'D4 dihedral only', 'none': 'none'}.get(c.get('augment'), str(c.get('augment')))
     return {
@@ -103,8 +123,8 @@ def spec(tag: str, c: dict) -> dict:
         'input': f'{c.get("input_size")} px → {c.get("n_patches")} tokens/frame'
                  + (f' (pixel detail capped at {c["pixel_source"]} px)' if c.get('pixel_source') else ''),
         'ssl': (f'yes — {SSL_CORPUS.get(ssl_tag, ssl_tag)}'
-                + (' [pairing from ablate_ssl_dapt.sh, not the config]'
-                   if tag in SSL_BACKFILL else '')) if ssl_tag else 'no (stock DINOv2)',
+                + (f' [pairing from {back[1]}, not the config]' if back else ''))
+               if ssl_tag else 'no (stock DINOv2)',
         'finetuning': ft,
         'head': (f'{head_p:,} params — ' if head_p else '') + '; '.join(bits),
         'augmentation': aug,
