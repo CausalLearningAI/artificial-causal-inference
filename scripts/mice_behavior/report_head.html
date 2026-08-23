@@ -1,0 +1,82 @@
+<title>The Exposure Effect</title>
+<style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --surface-2:#eef1f6; --line:#dde2ea;
+  --ink:#11141a; --ink-2:#3f4753; --ink-3:#6d7684;
+  --accent:#2a78d6; --accent-soft:#e7f0fb; --warm:#eb6834; --good:#1baf7a; --warn:#b0740a;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11141a; --surface:#171b23; --surface-2:#1e242e; --line:#2b323d;
+  --ink:#eef1f6; --ink-2:#b6bfcc; --ink-3:#8590a0;
+  --accent:#5b9ce8; --accent-soft:#182436; --warm:#f07f52; --good:#35c390; --warn:#d99a2b;
+}}
+:root[data-theme="dark"]{
+  --bg:#11141a; --surface:#171b23; --surface-2:#1e242e; --line:#2b323d;
+  --ink:#eef1f6; --ink-2:#b6bfcc; --ink-3:#8590a0;
+  --accent:#5b9ce8; --accent-soft:#182436; --warm:#f07f52; --good:#35c390; --warn:#d99a2b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--serif);
+     font-size:17px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1240px;margin:0 auto;padding:0 28px 96px}
+.measure{max-width:68ch;margin-inline:auto}
+.figwrap{max-width:1240px;margin:22px auto 0}
+h1,h2,h3{text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:clamp(2.1rem,4.6vw,3.1rem);font-weight:600;letter-spacing:-.02em}
+h2{font-size:clamp(1.35rem,2.3vw,1.8rem);font-weight:600;letter-spacing:-.01em}
+p{margin:0}
+a{color:var(--accent)}
+.eyebrow{font-family:var(--mono);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;
+         color:var(--ink-3);margin:0}
+header.top{padding:72px 0 36px;border-bottom:1px solid var(--line);margin-bottom:52px}
+header.top .measure{display:flex;flex-direction:column;gap:18px}
+.lede{font-size:1.18rem;color:var(--ink-2)}
+section{margin-bottom:60px}
+section .measure{display:flex;flex-direction:column;gap:19px}
+.sechead{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
+figure{margin:12px 0 0;display:flex;flex-direction:column;gap:10px}
+figure img{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:3px;
+           background:#fff}
+figcaption{font-family:var(--mono);font-size:.75rem;line-height:1.55;color:var(--ink-3)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:1px;
+       background:var(--line);border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.tile{background:var(--surface);padding:18px;display:flex;flex-direction:column;gap:5px}
+.tile .k{font-family:var(--mono);font-size:.65rem;letter-spacing:.13em;text-transform:uppercase;
+         color:var(--ink-3)}
+.tile .v{font-family:var(--mono);font-size:1.45rem;font-variant-numeric:tabular-nums;
+         color:var(--ink);letter-spacing:-.02em}
+.tile .s{font-size:.84rem;color:var(--ink-2);line-height:1.4}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:3px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:.78rem;
+      font-variant-numeric:tabular-nums}
+th,td{padding:9px 13px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+         font-weight:400;background:var(--surface-2)}
+tbody tr:last-child td{border-bottom:none}
+td[colspan]{white-space:normal}
+.hi{color:var(--good)}
+.lo{color:var(--warm)}
+.note{border-left:2px solid var(--accent);background:var(--accent-soft);padding:15px 20px;
+      border-radius:0 3px 3px 0;font-size:.94rem;color:var(--ink-2)}
+.note b{color:var(--ink)}
+.warnbox{border-left-color:var(--warn)}
+.defn{background:var(--surface-2);border-radius:3px;padding:13px 17px;font-size:.93rem;
+      color:var(--ink-2)}
+.defn b{color:var(--ink)}
+.flow{display:flex;flex-wrap:wrap;gap:9px;font-family:var(--mono);font-size:.73rem}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:11px 13px;
+      flex:1 1 128px;display:flex;flex-direction:column;gap:4px}
+.step b{font-weight:600;color:var(--ink);font-size:.77rem}
+.step span{color:var(--ink-3);line-height:1.45}
+ul{margin:0;padding-left:1.15em;display:flex;flex-direction:column;gap:9px}
+li::marker{color:var(--ink-3)}
+code{font-family:var(--mono);font-size:.85em;background:var(--surface-2);padding:1px 5px;
+     border-radius:2px;color:var(--ink-2)}
+footer{border-top:1px solid var(--line);padding-top:30px;font-family:var(--mono);font-size:.75rem;
+       color:var(--ink-3);line-height:1.75}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>

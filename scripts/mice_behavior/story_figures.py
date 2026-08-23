@@ -70,12 +70,12 @@ def fig_causal(r):
     # P - H is a composite of the two and is not an independent contrast, so quoting it
     # alongside them triple-counts the same 24 pools.
     trans = [('H', 'O'), ('O', 'P')]
-    tnames = ['odour ON\nH → O', 'odour OFF\nO → P']
+    tnames = ['exposure ON\nH → O', 'exposure OFF\nO → P']
     fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.3), sharey=False)
     for ax, (lab, nice) in zip(axes, [('Y_nt', 'nose-to-tail  (nt)'), ('Y_nn', 'nose-to-nose  (nn)')]):
         ypos, ticks, labels = [], [], []
         for i, ((x, y), tn) in enumerate(zip(trans, tnames)):
-            for k, (od, col, odn) in enumerate([('F', C2, 'fear odour'), ('S', C1, 'social odour')]):
+            for k, (od, col, odn) in enumerate([('F', C2, 'fear exposure'), ('S', C1, 'social exposure')]):
                 m, lo, hi = contrast(r[r.odor == od], lab + '_bpm', x, y)
                 pos = -(i * 2.6 + k * 0.9)
                 sig = lo * hi > 0
@@ -99,7 +99,7 @@ def fig_causal(r):
             ax.spines[s].set_visible(False)
     axes[0].legend(frameon=False, fontsize=8.5, ncol=2, loc='lower center',
                    bbox_to_anchor=(0.5, -0.42))
-    fig.suptitle('Effect of the phase transition on behaviour initiation — human labels only, '
+    fig.suptitle('Effect of the hormonal exposure on behaviour initiation — human labels only, '
                  '24 annotated pools', fontsize=11.5, weight='bold', x=0.02, ha='left', y=1.0)
     fig.text(0.02, -0.03, 'Filled = 95% CI excludes zero. Unit of analysis is the pool (n=24); '
              'each estimate is the mean within-pool difference, so cage, genotype, sex and '
@@ -437,8 +437,8 @@ def fig_learning_curve():
     return f, sl, r2
 
 
-def fig_within_phase_by_odour():
-    """Same decay, split by odour -- they are distinct treatments and must not be averaged."""
+def minute_table():
+    """Bouts started per elapsed minute, per observation -- the raw material of the decay plot."""
     a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
                     usecols=['observation_id', 'frame_idx', 'Y_nt', 'Y_nn']).dropna(subset=['Y_nt'])
     e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')[
@@ -447,23 +447,69 @@ def fig_within_phase_by_odour():
     a['minute'] = (a.frame_idx // int(FPS * 60)).astype(int)
     rows = []
     for (oid, m), g in a.groupby(['observation_id', 'minute'], sort=False):
-        if len(g) < 250:
+        if len(g) < 250:   # drop the ragged final partial minute
             continue
         r = {'observation_id': oid, 'minute': m}
         for lab in ('Y_nt', 'Y_nn'):
             v = g[lab].to_numpy()
             r[lab] = int(((v == 1) & (np.r_[0, v[:-1]] == 0)).sum())
         rows.append(r)
-    d = pd.DataFrame(rows).merge(e, on='observation_id')
-    fig, axes = plt.subplots(2, 2, figsize=(10.4, 6.4), sharex=True, sharey='row')
-    style = {'H': (MUTED, '-'), 'O': (C2, '-'), 'P': (C1, '--')}
+    return pd.DataFrame(rows).merge(e, on='observation_id')
+
+
+def _minute_ci(d, lab, reps=2000, seed=0):
+    """Per-minute mean with a 95% interval bootstrapped over POOLS, the independent unit.
+
+    Resampling observations would quote an interval built on 24-48 units when the design
+    supplies at most 24, and the six recordings of one pool share a cage, a day and an
+    annotator. Pools are therefore the resampling unit here exactly as they are the
+    clustering unit everywhere else in this analysis.
+    """
+    piv = d.pivot_table(index='pool', columns='minute', values=lab, aggfunc='mean')
+    piv = piv.reindex(sorted(piv.columns), axis=1)
+    x = piv.to_numpy(float)
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, len(x), size=(reps, len(x)))
+    with np.errstate(invalid='ignore'):
+        boots = np.nanmean(x[idx], axis=1)
+    return (np.asarray(piv.columns, int) + 1, np.nanmean(x, axis=0),
+            np.nanpercentile(boots, 2.5, axis=0), np.nanpercentile(boots, 97.5, axis=0))
+
+
+def fig_within_phase_by_odour():
+    """Same decay, split by exposure -- they are distinct treatments and must not be averaged.
+
+    Drawn over the FULL length of each phase (H = 30 min, O and P = 15) with one line style
+    for all three, so the only visual differences are the ones in the data: the level, the
+    slope, and the fact that habituation keeps running for fifteen minutes after the other
+    two have stopped. That last one is the whole window problem, and a 15-minute x-axis
+    hid it.
+    """
+    d = minute_table()
+    fig, axes = plt.subplots(2, 2, figsize=(10.4, 6.6), sharex=True, sharey='row')
+    colour = {'H': C1, 'O': C2, 'P': C3}
     for i, (lab, nice) in enumerate([('Y_nt', 'nose-to-tail'), ('Y_nn', 'nose-to-nose')]):
-        for j, (od, odn) in enumerate([('F', 'fear odour'), ('S', 'social odour')]):
+        for j, (od, odn) in enumerate([('F', 'fear exposure'), ('S', 'social exposure')]):
             ax = axes[i][j]
+            ends = {}
             for ph in ('H', 'O', 'P'):
-                s = d[(d.phase == ph) & (d.odor == od) & (d.minute < 15)].groupby('minute')[lab].mean()
-                col, ls = style[ph]
-                ax.plot(s.index + 1, s.values, ls, color=col, lw=2, label=ph, zorder=3)
+                sub = d[(d.phase == ph) & (d.odor == od) & (d.minute < 30)]
+                m, mu, lo, hi = _minute_ci(sub, lab)
+                ax.fill_between(m, lo, hi, color=colour[ph], alpha=0.13, lw=0, zorder=2)
+                ax.plot(m, mu, '-', color=colour[ph], lw=2, label=ph, zorder=3)
+                ends[ph] = (m[-1], mu[-1])
+            # O and P both stop at minute 15, so their end labels collide whenever the two
+            # curves finish close together -- push them apart rather than dropping either.
+            dy = {'H': 0.0, 'O': 0.0, 'P': 0.0}
+            if abs(ends['O'][1] - ends['P'][1]) < 0.18:
+                hi_ph = 'O' if ends['O'][1] >= ends['P'][1] else 'P'
+                dy[hi_ph], dy['P' if hi_ph == 'O' else 'O'] = 6.0, -8.0
+            for ph, (mx, my) in ends.items():
+                ax.annotate(ph, (mx, my), textcoords='offset points', xytext=(5, -2 + dy[ph]),
+                            fontsize=8.5, weight='bold', color=colour[ph], zorder=4)
+            ax.axvline(15.5, color=MUTED, lw=0.9, ls=(0, (3, 3)), zorder=1)
+            ax.set_xticks([1, 5, 10, 15, 20, 25, 30])
+            ax.set_xlim(0.2, 31.5)
             ax.grid(color=GRID, lw=0.7); ax.set_axisbelow(True)
             for s_ in ('top', 'right'):
                 ax.spines[s_].set_visible(False)
@@ -472,14 +518,134 @@ def fig_within_phase_by_odour():
                 ax.set_xlabel('minute within the phase')
             if j == 0:
                 ax.set_ylabel('bouts per minute')
-    axes[0][0].legend(frameon=False, fontsize=8.5, title='phase', title_fontsize=8, ncol=3)
-    fig.suptitle('Behaviour decays inside every phase — and the two odours behave differently',
+    h, lg = axes[0][0].get_legend_handles_labels()
+    fig.legend(h[:3], ['H  habituation', 'O  exposure', 'P  post'], frameon=False, fontsize=8.5,
+               ncol=3, loc='upper right', bbox_to_anchor=(0.995, 1.035))
+    fig.suptitle('Behaviour decays inside every phase — and habituation runs twice as long',
                  fontsize=11, weight='bold', x=0.02, ha='left')
-    fig.text(0.02, -0.02, 'Bottom-left is the exception that matters: nose-to-tail under social odour '
-             'during the O phase is the only one of twelve cells\nthat does NOT decay (slope +0.02/min, '
-             'CI includes zero) — social odour sustains investigation while everything else habituates.',
+    fig.text(0.02, -0.075, 'Bands are 95% intervals bootstrapped over the 24 annotated pools. '
+             'The dashed line is minute 15, where O and P stop and H keeps going: a phase MEAN '
+             'therefore\naverages over different stretches of the same decay. 11 of the 12 '
+             'phase × exposure × behaviour cells decay significantly; the exception is top right '
+             '— nose-to-tail\nunder social exposure during O (slope +0.017/min, CI includes zero) '
+             'is the one thing the exposure sustains instead of habituating.',
              fontsize=8, color=INK2, ha='left')
     fig.tight_layout()
     f = OUT / 'story_within_phase.png'
+    fig.savefig(f, dpi=160, bbox_inches='tight'); plt.close(fig)
+    return f
+
+
+BEHAV = {'Y_nt': 'nt · nose-to-tail', 'Y_nn': 'nn · nose-to-nose',
+         'Y_np': 'np · nose-to-anogenital', 'Y_c2': 'nn+np · what the model learns'}
+
+
+def behav_table():
+    """Per-observation outcomes for ALL THREE annotated behaviours, plus the merged class.
+
+    build_pair_labels.py maps {'nn','np','np?'} -> class 2 and {'nt'} -> class 1, so the model has
+    only two heads and its second one covers nose-to-nose TOGETHER WITH nose-to-anogenital. Y_np
+    (11,772 positive frames) is nearly twice Y_nn (6,516), so that head is dominated by the
+    behaviour it is not named after. Verified: any-pair class 2 matches Y_nn+Y_np at r=1.0000, and
+    class 1 matches Y_nt at r=1.0000.
+    """
+    a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
+                    usecols=['observation_id', 'frame_idx', 'Y_nt', 'Y_nn', 'Y_np']).dropna(subset=['Y_nt'])
+    e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')[
+        ['observation_id', 'pool', 'phase', 'odor']]
+    a = a.sort_values(['observation_id', 'frame_idx']).merge(e, on='observation_id')
+    a['Y_c2'] = ((a.Y_nn + a.Y_np) > 0).astype(int)
+    rows = []
+    for oid, g in a.groupby('observation_id', sort=False):
+        n = len(g); r = {'observation_id': oid}
+        for lab in BEHAV:
+            v = g[lab].to_numpy()
+            r[lab + '_bpm'] = int(((v == 1) & (np.r_[0, v[:-1]] == 0)).sum()) / (n / FPS / 60)
+            r[lab + '_occ'] = v.mean() * 100
+        rows.append(r)
+    return pd.DataFrame(rows).merge(e, on='observation_id')
+
+
+def fig_behaviours(r=None):
+    """Three annotated behaviours, kept apart -- merging them hides a real dissociation."""
+    r = behav_table() if r is None else r
+    labs = ['Y_nt', 'Y_nn', 'Y_np']
+    fig, axes = plt.subplots(1, 3, figsize=(12.6, 3.9), sharex=True)
+    for ax, lab in zip(axes, labs):
+        ticks, ypos = [], []
+        for i, (x, y, tn) in enumerate([('H', 'O', 'exposure ON\nH → O'),
+                                        ('O', 'P', 'exposure OFF\nO → P')]):
+            for k, (od, col, odn) in enumerate([('F', C2, 'fear'), ('S', C1, 'social')]):
+                m, lo, hi = contrast(r[r.odor == od], lab + '_bpm', x, y)
+                pos = -(i * 2.6 + k * 0.9); sig = lo * hi > 0
+                ax.plot([lo, hi], [pos, pos], color=col, lw=2, solid_capstyle='round',
+                        alpha=1 if sig else .4, zorder=2)
+                ax.plot([m], [pos], 'o', ms=8, color=col, mec='white', mew=1.8,
+                        alpha=1 if sig else .4, zorder=3, label=odn if i == 0 else None)
+                if sig:
+                    ax.annotate(f'{m:+.2f}', (m, pos), textcoords='offset points', xytext=(0, 9),
+                                ha='center', fontsize=7.8, weight='bold', color=INK)
+                ypos.append(pos)
+            ticks.append(-(i * 2.6 + 0.45))
+        ax.axvline(0, color=MUTED, lw=1, zorder=1)
+        ax.set_yticks(ticks)
+        ax.set_yticklabels(['exposure ON\nH → O', 'exposure OFF\nO → P'] if lab == labs[0] else ['', ''],
+                           fontsize=8.5)
+        ax.set_ylim(min(ypos) - 1.0, max(ypos) + 0.9)
+        ax.set_xlabel('change in bouts per minute')
+        ax.set_title(BEHAV[lab], fontsize=10, weight='bold', loc='left', color=INK)
+        ax.grid(axis='x', color=GRID, lw=.7); ax.set_axisbelow(True)
+        for s in ('top', 'right', 'left'):
+            ax.spines[s].set_visible(False)
+    axes[0].legend(frameon=False, fontsize=8.5, ncol=2, loc='lower center', bbox_to_anchor=(.5, -.40))
+    fig.suptitle('All three annotated behaviours — human labels only, 24 pools',
+                 fontsize=11.5, weight='bold', x=0.02, ha='left')
+    fig.text(0.02, -0.05, 'Filled = 95% CI excludes zero. The dissociation the model cannot see: under '
+             'SOCIAL exposure nose-to-nose rises (+0.47) while nose-to-anogenital does not move (+0.03).\n'
+             'The classifier merges these two into one head, so it can only report their sum.',
+             fontsize=8, color=INK2, ha='left')
+    fig.tight_layout()
+    f = OUT / 'story_behaviours.png'
+    fig.savefig(f, dpi=160, bbox_inches='tight'); plt.close(fig)
+    return f
+
+
+def fig_ppi():
+    """Classical vs PPI++ vs transported-to-v2, per behaviour x exposure."""
+    res = json.load(open(OUT / 'ppi_results.json'))
+    order = [('nn_fear', 'nn+np · fear'), ('nn_social', 'nn+np · social'),
+             ('nt_fear', 'nt · fear'), ('nt_social', 'nt · social')]
+    fig, axes = plt.subplots(1, 4, figsize=(13.2, 3.7), sharex=False)
+    for ax, (k, nice) in zip(axes, order):
+        d = res[k]
+        rows = [('classical\n24 labelled', d['classical'], MUTED),
+                ('PPI++\n+48 unlabelled', d['ppi'], C1),
+                ('v2 transported\n36 pools, 0 labels', d['v2'], C4)]
+        for i, (nm, (m, lo, hi), col) in enumerate(rows):
+            y = -i
+            ax.plot([lo, hi], [y, y], color=col, lw=2.4, solid_capstyle='round', zorder=2)
+            ax.plot([m], [y], 'o', ms=8, color=col, mec='white', mew=1.8, zorder=3)
+            ax.annotate(f'{m:+.2f}', (m, y), textcoords='offset points', xytext=(0, 9),
+                        ha='center', fontsize=8, weight='bold', color=INK)
+        ax.axvline(0, color=MUTED, lw=1, zorder=1)
+        ax.set_yticks([0, -1, -2])
+        ax.set_yticklabels([r[0] for r in rows] if k == order[0][0] else ['', '', ''], fontsize=7.8)
+        ax.set_ylim(-2.75, .75)
+        ax.set_xlabel('H → O effect (occupancy, pp)', fontsize=8.5)
+        sh = 100 * d['shrink']
+        ax.set_title(f"{nice}\nr = {d['r']:.2f}   CI −{sh:.0f}%", fontsize=9.5, weight='bold',
+                     loc='left', color=INK)
+        ax.grid(axis='x', color=GRID, lw=.7); ax.set_axisbelow(True)
+        for s in ('top', 'right', 'left'):
+            ax.spines[s].set_visible(False)
+    fig.suptitle('Prediction-powered inference: the model narrows the interval only where it '
+                 'actually tracks the effect', fontsize=11.5, weight='bold', x=0.02, ha='left')
+    fig.text(0.02, -0.07, 'PPI++ is unbiased for ANY predictor, so a wrong model costs variance and never '
+             'validity — which is why the three weak cells simply revert to the classical interval.\n'
+             'r is the WITHIN-CELL correlation of predicted and true phase differences across the 24 '
+             'pools; it is far below the 0.72 obtained by pooling cells, because pooling adds '
+             'between-cell signal a single-cell estimate cannot use.', fontsize=8, color=INK2, ha='left')
+    fig.tight_layout()
+    f = OUT / 'story_ppi.png'
     fig.savefig(f, dpi=160, bbox_inches='tight'); plt.close(fig)
     return f
