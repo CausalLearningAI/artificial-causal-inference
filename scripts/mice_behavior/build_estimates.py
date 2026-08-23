@@ -14,7 +14,7 @@ THE GRID
     stratum     all | v1: line x genotype (6) | v2: line (3)
     exposure    fear | social                  -- separate treatments, never pooled
     transition  H->O | O->P                    -- consecutive only
-    method      classical | PPI++ | PPCI
+    method      CI (human labels, v1) | PPI++ (human+model, v1) | PPCI (model only, both)
 
 WHERE EACH INPUT COMES FROM
 ===========================
@@ -73,7 +73,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.mice_behavior.phase_ate import (                                  # noqa: E402
-    TRANSITIONS, classical, pool_deltas, ppci, ppi, scale_bootstrap)
+    TRANSITIONS, classical, pool_deltas, ppci, ppi)
 from event_eval import postprocess, runs                                   # noqa: E402
 
 FRAME = ROOT / 'results' / 'vision' / 'mice' / 'frame'
@@ -254,28 +254,6 @@ def main():
             for lab in LABELS:
                 for u in ('time', 'events'):
                     frame[f't_{u}_{lab}'] = np.nan
-        # The calibration slope is fitted ONCE per cell on all 24 labelled pools and then
-        # transported to every stratum, rather than refitted inside each one. Refitting is what
-        # made PPCI undefined for the wild-type strata: annotation gave them 2 pools each, and a
-        # slope fitted on 2 points is not a quantity. It is also the wrong thing to want -- the
-        # slope describes how the MODEL relates to truth, which is a property of the predictor,
-        # not of a genotype. The strata differ in their D_f, and that is what should move the
-        # estimate; the bootstrap carries the slope's uncertainty into every stratum.
-        global_k = {}
-        for unit in ('events', 'time'):
-            for lab in LABELS:
-                for od, odn in ODOURS:
-                    for tr in TRANSITIONS:
-                        d0 = pool_deltas(labdf if labdf is not None else frame,
-                                         f't_{unit}_{lab}', f'f_{unit}_{lab}', od, tr)
-                        if d0.labelled.sum() < 3:
-                            continue
-                        dy0, fl0 = d0.d_true[d0.labelled], d0.d_pred[d0.labelled]
-                        se_f = fl0.std(ddof=1) / np.sqrt(len(fl0))
-                        if abs(fl0.mean()) < 2 * se_f:
-                            continue          # k is a ratio; refuse it near a zero denominator
-                        global_k[(unit, lab, od, tr)] = (
-                            float(dy0.mean() / fl0.mean()), scale_bootstrap(d0))
         for sid, snice, _ in strata_of(exp_df.drop_duplicates('pool'), version):
             if sid == 'all':
                 sub = frame
@@ -296,49 +274,19 @@ def main():
                                         r=None if not np.isfinite(d.r()) else round(d.r(), 4))
                             ests = []
                             if version == 'v1':
-                                ests.append(classical(d))
+                                # CI  -- human annotations only, on the 24 annotated pools
+                                e = classical(d); e.method = 'ci'; ests.append(e)
+                                # PPI++ -- human annotations rectify the model on all 72
                                 ests.append(ppi(d))
-                                gk = global_k.get((unit, lab, od, tr))
-                                if sid == 'all':
-                                    ests.append(ppci(d))
-                                elif gk is not None:
-                                    ests.append(ppci(d, k=gk[0], k_boot=gk[1]))
-                                # the label-free version, on every stratum: no calibration at
-                                # all, so it is the only one that would survive on a cohort
-                                # with no annotations. Model scale -- sign only.
-                                e_raw = ppci(d, raw=True)
-                                e_raw.method = 'ppci_raw'
-                                ests.append(e_raw)
+                            # PPCI -- model annotations only, UNCALIBRATED. Needs no label
+                            # anywhere, which is why it is the only estimator that exists on v2.
+                            # It reports on the MODEL's scale: sign and pattern, never magnitude.
+                            e = ppci(d, raw=True); e.method = 'ppci'; ests.append(e)
                             for e in ests:
                                 if e is None:
                                     continue
                                 cells.append({**base, **e.as_dict()})
         print(f'  {version}: built {sum(1 for c in cells if c["exp"] == version)} estimates')
-
-    # v2 PPCI transports the v1 slope: no labels exist on v2, so b cannot be fitted there.
-    if v2 is not None:
-        exp2 = pd.read_csv(ROOT / 'data' / 'mice' / 'v2' / 'experiment.csv')
-        frame2 = v2.copy()
-        for unit in ('events', 'time'):
-            for lab in LABELS:
-                for od, odn in ODOURS:
-                    for tr in TRANSITIONS:
-                        dv1 = pool_deltas(lab1, f't_{unit}_{lab}', f'f_{unit}_{lab}', od, tr)
-                        fl1 = dv1.d_pred[dv1.labelled]
-                        ok = (dv1.labelled.sum() >= 3
-                              and abs(fl1.mean()) >= 2 * fl1.std(ddof=1) / np.sqrt(len(fl1)))
-                        ksamp = scale_bootstrap(dv1) if ok else None
-                        kk = float(dv1.d_true[dv1.labelled].mean() / fl1.mean()) if ok else None
-                        for sid, snice, _ in strata_of(exp2.drop_duplicates('pool'), 'v2'):
-                            sub = frame2 if sid == 'all' else frame2[frame2.line == sid]
-                            d = pool_deltas(sub, None, f'f_{unit}_{lab}', od, tr)
-                            base = {'exp': 'v2', 'unit': unit, 'behav': lab, 'stratum': sid,
-                                    'stratum_label': snice, 'odour': odn,
-                                    'trans': f'{tr[0]}->{tr[1]}', 'model': 'xfit_dense', 'r': None}
-                            if ok:
-                                cells.append({**base, **ppci(d, k=kk, k_boot=ksamp).as_dict()})
-                            e_raw = ppci(d, raw=True); e_raw.method = 'ppci_raw'
-                            cells.append({**base, **e_raw.as_dict()})
 
     payload = {
         'meta': {

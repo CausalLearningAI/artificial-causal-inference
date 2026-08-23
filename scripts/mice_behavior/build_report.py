@@ -18,9 +18,7 @@ SSL = F / 'res448_k2_frozen_d4photo_sslinit'
 XF = F / 'xfit_f2'
 
 SRC = {
-    'behav': FIG / 'story_causal_ate.png',
-    'outcome': FIG / 'story_outcome_choice.png', 'lcurve': FIG / 'story_learning_curve.png',
-    'tokpix': FIG / 'story_tokens_pixels.png', 'apcausal': FIG / 'story_ap_vs_causal.png',
+    'lcurve': FIG / 'story_learning_curve.png',
     'conf_nt': SSL / 'confusion_examples_nt.png', 'conf_nn': SSL / 'confusion_examples_nn.png',
     'un_nn_v1': XF / 'confident_nn_v1.png', 'un_nt_v1': XF / 'confident_nt_v1.png',
     'un_nn_v2': XF / 'confident_nn_v2.png', 'un_nt_v2': XF / 'confident_nt_v2.png',
@@ -62,9 +60,21 @@ def main():
     decay = (Path(__file__).parent / 'report_decay.html').read_text()
     decay = decay.replace('__DECAY_JSON__', dec_p.read_text().strip())
 
+    # And again for the model figure: a VIEW over models.json, one point per finished run, each
+    # carrying its own full specification so a point can be read without decoding a run name.
+    mod_p = FIG / 'models.json'
+    if not mod_p.exists():
+        raise SystemExit(f'{mod_p} missing -- run scripts/mice_behavior/build_models.py first')
+    models = (Path(__file__).parent / 'report_models.html').read_text()
+    models = models.replace('__MODELS_JSON__', mod_p.read_text().strip())
+
     head = (Path(__file__).parent / 'report_head.html').read_text()
     body = (Path(__file__).parent / 'report_body.py')
-    ns = {'img': img, 'CHART': chart, 'DECAY': decay, 'E': est}
+    out_p = FIG / 'outcome.json'
+    if not out_p.exists():
+        raise SystemExit(f'{out_p} missing -- run scripts/mice_behavior/build_outcome.py first')
+    ns = {'img': img, 'CHART': chart, 'DECAY': decay, 'MODELS': models, 'E': est,
+          'M': json.load(open(mod_p)), 'O': json.load(open(out_p))}
     exec(compile(body.read_text(), str(body), 'exec'), ns)
     Path(a.out).write_text(head + ns['BODY'])
     mb = Path(a.out).stat().st_size / 1024 / 1024

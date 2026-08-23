@@ -1,0 +1,240 @@
+<!-- Interactive model figure: frame accuracy against the causal quantity, one point per run.
+     Injected by build_report.py, which replaces __MODELS_JSON__ with
+     results/vision/mice/frame/_figures/models.json (written by build_models.py).
+     Kept out of report_body.py because that file is one big f-string and JS braces there would
+     need doubling everywhere. The point of the interaction is that a run is a RECIPE, not a
+     directory name: hovering a point prints the whole specification that produced it. -->
+<style>
+.mdl{--m-cand:#2a78d6;--m-fold:#eb6834;--m-other:#8590a0;
+     --mdl-surface:var(--surface)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .mdl{
+     --m-cand:#5b9ce8;--m-fold:#f07f52;--m-other:#6d7684}}
+:root[data-theme="dark"] .mdl{--m-cand:#5b9ce8;--m-fold:#f07f52;--m-other:#6d7684}
+.mdl{border:1px solid var(--line);border-radius:3px;background:var(--mdl-surface);
+     margin:18px 0 0;overflow:hidden}
+.mdl-bar{display:flex;flex-wrap:wrap;gap:18px;padding:14px 16px;border-bottom:1px solid var(--line);
+         background:var(--surface-2)}
+.mdl-ctl{display:flex;flex-direction:column;gap:5px}
+.mdl-ctl .lab{font-family:var(--mono);font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;
+              color:var(--ink-3)}
+.mdl-seg{display:flex;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.mdl-seg button{font-family:var(--mono);font-size:.72rem;padding:5px 10px;border:0;cursor:pointer;
+                background:var(--surface);color:var(--ink-2);line-height:1.3}
+.mdl-seg button+button{border-left:1px solid var(--line)}
+.mdl-seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.mdl-legend{display:flex;flex-wrap:wrap;gap:16px;padding:12px 16px 0;font-family:var(--mono);
+            font-size:.72rem;color:var(--ink-2)}
+.mdl-legend span{display:inline-flex;align-items:center;gap:7px}
+.mdl-legend i{width:11px;height:11px;border-radius:50%;display:inline-block;
+              box-shadow:0 0 0 2px var(--mdl-surface)}
+.mdl-plot{padding:6px 16px 4px}
+.mdl svg{width:100%;height:auto;display:block;overflow:visible}
+.mdl-note{font-family:var(--mono);font-size:.72rem;line-height:1.6;color:var(--ink-3);
+          padding:4px 16px 16px}
+.mdl-tt{position:fixed;pointer-events:none;z-index:50;opacity:0;transition:opacity .1s;
+        background:var(--ink);color:var(--bg);font-family:var(--mono);font-size:.7rem;
+        line-height:1.6;padding:10px 12px;border-radius:3px;max-width:390px;white-space:normal}
+.mdl-tt b{color:var(--bg)}
+.mdl-tt dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:7px 0 0}
+.mdl-tt dt{opacity:.62;text-transform:uppercase;font-size:.62rem;letter-spacing:.08em;
+           padding-top:2px}
+.mdl-tt dd{margin:0}
+.mdl-mark{cursor:pointer}
+.mdl-mark:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<div class="mdl" id="mdl">
+  <div class="mdl-bar" id="mdl-bar"></div>
+  <div class="mdl-legend" id="mdl-legend"></div>
+  <div class="mdl-plot" id="mdl-plot"></div>
+  <div class="mdl-note" id="mdl-note"></div>
+</div>
+<div class="mdl-tt" id="mdl-tt" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  const DATA = __MODELS_JSON__;
+  const runs = DATA.runs || [];
+  const Y = {
+    mean: { key: (r) => (r.rd_nt + r.rd_nn) / 2, name: 'mean of the two behaviours' },
+    nt: { key: (r) => r.rd_nt, name: 'nose-to-tail' },
+    nn: { key: (r) => r.rd_nn, name: 'nose-to-nose' },
+  };
+  const ROLES = [
+    ['model candidate', '--m-cand', 'candidate model — 4-pool validation split'],
+    ['deployment fold', '--m-fold', 'deployment fold — out-of-fold on 8 pools'],
+  ];
+  const state = { y: 'mean', show: 'all' };
+
+  const $ = (id) => document.getElementById(id);
+  const css = (n) => getComputedStyle($('mdl')).getPropertyValue(n).trim();
+  const colour = (r) => css(r.role === 'model candidate' ? '--m-cand'
+    : r.role === 'deployment fold' ? '--m-fold' : '--m-other');
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (n, a) => { const e = document.createElementNS(NS, n);
+    for (const k in a) e.setAttribute(k, a[k]); return e; };
+
+  function seg(label, key, opts) {
+    const wrap = document.createElement('div'); wrap.className = 'mdl-ctl';
+    const l = document.createElement('span'); l.className = 'lab'; l.textContent = label;
+    const box = document.createElement('div'); box.className = 'mdl-seg';
+    box.setAttribute('role', 'group'); box.setAttribute('aria-label', label);
+    opts.forEach(([val, txt]) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = txt;
+      b.setAttribute('aria-pressed', String(state[key] === val));
+      b.onclick = () => { state[key] = val; render(); };
+      box.appendChild(b);
+    });
+    wrap.append(l, box); return wrap;
+  }
+
+  function tip(node, html) {
+    const tt = $('mdl-tt');
+    const show = (ev) => {
+      tt.innerHTML = html; tt.style.opacity = '1';
+      const r = tt.getBoundingClientRect();
+      tt.style.left = Math.min((ev.clientX ?? 0) + 14, innerWidth - r.width - 10) + 'px';
+      tt.style.top = Math.min((ev.clientY ?? 0) + 14, innerHeight - r.height - 10) + 'px';
+    };
+    node.addEventListener('mouseenter', show);
+    node.addEventListener('mousemove', show);
+    node.addEventListener('focus', () => {
+      const b = node.getBoundingClientRect();
+      show({ clientX: b.left + b.width / 2, clientY: b.top });
+    });
+    const hide = () => { $('mdl-tt').style.opacity = '0'; };
+    node.addEventListener('mouseleave', hide);
+    node.addEventListener('blur', hide);
+  }
+
+  /* The whole recipe, in the order a reader reconstructs a run: what it looked at, what was
+     adapted, what sat on top, how it was trained. Metrics last -- they are the axes. */
+  const FIELDS = [
+    ['encoder', 'encoder'], ['input', 'input'], ['ssl', 'SSL'],
+    ['finetuning', 'fine-tune'], ['head', 'head'], ['augmentation', 'augment'],
+    ['objective', 'objective'],
+  ];
+  function card(r) {
+    const s = r.spec;
+    const rows = FIELDS.map(([k, nice]) =>
+      `<dt>${nice}</dt><dd>${esc(s[k])}</dd>`).join('')
+      + `<dt>data</dt><dd>${s.train_pools} annotated pools, ${s.epochs} epochs, seed ${s.seed}</dd>`
+      + `<dt>macro AP</dt><dd>${r.ap.toFixed(4)}</dd>`
+      + `<dt>event F1</dt><dd>${r.f1_nt.toFixed(3)} nt / ${r.f1_nn.toFixed(3)} nn</dd>`
+      + `<dt>rΔ</dt><dd>${r.rd_nt.toFixed(3)} nt / ${r.rd_nn.toFixed(3)} nn</dd>`;
+    return `<b>${esc(r.tag)}</b><br><span style="opacity:.7">${esc(r.role)}</span>`
+      + `<dl>${rows}</dl>`;
+  }
+
+  function scales(vals, pad) {
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    if (lo === hi) { lo -= 0.05; hi += 0.05; }
+    const p = (hi - lo) * pad;
+    return [lo - p, hi + p];
+  }
+  function ticks([lo, hi]) {
+    const raw = (hi - lo) / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(s => s * mag).find(s => s >= raw) || mag * 10;
+    const out = [];
+    for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) out.push(+t.toFixed(10));
+    return out;
+  }
+
+  function render() {
+    const bar = $('mdl-bar'); bar.textContent = '';
+    bar.append(
+      seg('vertical axis', 'y', [['mean', 'mean rΔ'], ['nt', 'rΔ nose-to-tail'],
+        ['nn', 'rΔ nose-to-nose']]),
+      seg('runs shown', 'show', [['all', 'every scored run'],
+        ['cand', 'candidates only']]),
+    );
+    const lg = $('mdl-legend'); lg.textContent = '';
+    ROLES.forEach(([role, v, txt]) => {
+      const s = document.createElement('span');
+      const i = document.createElement('i'); i.style.background = css(v);
+      const t = document.createElement('span'); t.textContent = txt;
+      s.append(i, t); lg.appendChild(s);
+    });
+
+    const shown = state.show === 'cand'
+      ? runs.filter(r => r.role === 'model candidate') : runs;
+    const yv = Y[state.y].key;
+    const dx = scales(shown.map(r => r.ap), 0.10);
+    const dy = scales(shown.map(yv), 0.12);
+
+    const W = 760, H = 400, L = 62, R = 18, T = 16, B = 54;
+    const x = (v) => L + (v - dx[0]) / (dx[1] - dx[0]) * (W - L - R);
+    const y = (v) => H - B - (v - dy[0]) / (dy[1] - dy[0]) * (H - T - B);
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img',
+      'aria-label': `Macro average precision against rΔ, ${shown.length} runs.` });
+    const mono = 'ui-monospace,monospace';
+
+    ticks(dy).forEach(t => {
+      svg.appendChild(el('line', { x1: L, x2: W - R, y1: y(t), y2: y(t),
+        stroke: css('--line'), 'stroke-width': 0.8 }));
+      const tx = el('text', { x: L - 8, y: y(t) + 3.4, 'text-anchor': 'end',
+        fill: css('--ink-3'), 'font-size': 10, 'font-family': mono });
+      tx.textContent = t.toFixed(2); svg.appendChild(tx);
+    });
+    ticks(dx).forEach(t => {
+      svg.appendChild(el('line', { x1: x(t), x2: x(t), y1: T, y2: H - B,
+        stroke: css('--line'), 'stroke-width': 0.8 }));
+      const tx = el('text', { x: x(t), y: H - B + 17, 'text-anchor': 'middle',
+        fill: css('--ink-3'), 'font-size': 10, 'font-family': mono });
+      tx.textContent = t.toFixed(2); svg.appendChild(tx);
+    });
+    const xa = el('text', { x: (L + W - R) / 2, y: H - 14, 'text-anchor': 'middle',
+      fill: css('--ink-3'), 'font-size': 10, 'font-family': mono });
+    xa.textContent = 'macro AP — what training selects on'; svg.appendChild(xa);
+    const ya = el('text', { x: 0, y: 0, fill: css('--ink-3'), 'font-size': 10,
+      'font-family': mono, transform: `translate(13,${(T + H - B) / 2}) rotate(-90)`,
+      'text-anchor': 'middle' });
+    ya.textContent = 'rΔ — what the estimate depends on'; svg.appendChild(ya);
+
+    // the two runs worth naming on the page: best on each axis, among candidates
+    const cand = shown.filter(r => r.role === 'model candidate');
+    const bestAp = cand.reduce((a, b) => (b.ap > a.ap ? b : a), cand[0]);
+    const bestRd = cand.reduce((a, b) => (yv(b) > yv(a) ? b : a), cand[0]);
+
+    shown.forEach(r => {
+      const g = el('g', { class: 'mdl-mark', tabindex: 0, role: 'button' });
+      const star = r === bestAp || r === bestRd;
+      g.appendChild(el('circle', { cx: x(r.ap), cy: y(yv(r)), r: star ? 7 : 5.4,
+        fill: colour(r), stroke: css('--mdl-surface'), 'stroke-width': 2 }));
+      if (star) {
+        const lb = el('text', { x: x(r.ap) + 11, y: y(yv(r)) + 3.4, fill: css('--ink-2'),
+          'font-size': 9.5, 'font-weight': 600, 'font-family': mono });
+        lb.textContent = r.tag.replace('res448_k2_', '').replace('_d4photo', '');
+        svg.appendChild(lb);
+      }
+      tip(g, card(r));
+      svg.appendChild(g);
+    });
+
+    const plot = $('mdl-plot'); plot.textContent = ''; plot.appendChild(svg);
+    $('mdl-note').innerHTML =
+      `${shown.length} runs. <b>rΔ</b> is the correlation between true and predicted `
+      + '<i>within-pool phase differences</i> in bouts per minute — the only quantity PPI’s '
+      + 'variance reduction is a function of. Spearman correlation between the two axes over the '
+      + `${DATA.meta.n_candidates} candidates: <b>${DATA.meta.spearman_ap_vs_rdelta >= 0 ? '+' : ''}`
+      + `${DATA.meta.spearman_ap_vs_rdelta.toFixed(2)}</b> — enough to shortlist on AP, not enough `
+      + 'to choose on it.'
+      + '<br>Hover or focus any point for the full recipe: encoder, whether it saw unlabelled '
+      + 'frames, how it was adapted, the head and its parameter count, the augmentation and the '
+      + 'training objective.'
+      + `<br>${esc(DATA.meta.split)}. rΔ on 4 pools is <b>16 points</b> at a threshold picked by `
+      + 'max-F1 on those same pools, so the vertical axis separates arms far more loosely than it '
+      + 'looks — it is a screen, not a measurement.';
+  }
+
+  render();
+  const mq = matchMedia('(prefers-color-scheme: dark)');
+  mq.addEventListener && mq.addEventListener('change', render);
+  new MutationObserver(render).observe(document.documentElement,
+    { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>

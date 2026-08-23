@@ -1,13 +1,24 @@
 <!-- Interactive phase-transition ATE figure. Injected by build_report.py, which replaces the
      __ESTIMATES_JSON__ token with results/vision/mice/frame/_figures/estimates.json.
      Kept out of report_body.py on purpose: that file is one big f-string, and JS braces in it
-     would need doubling everywhere. -->
+     would need doubling everywhere.
+
+     THREE ESTIMATORS, TWO SCALES
+     ============================
+       CI     human annotations only          -- v1 only, behaviour scale
+       PPI++  human + model annotations       -- v1 only, behaviour scale
+       PPCI   model annotations only, UNCALIBRATED -- v1 and v2, MODEL scale
+
+     PPCI is not calibrated to the labels, so its numbers are in the model's units, not bouts per
+     minute. Putting it on the same axis as the other two would invite a comparison of magnitudes
+     that is not licensed. It therefore gets its OWN axis inside every panel, with its own shared
+     domain, and the only things it claims are sign and pattern. -->
 <style>
-.ate{--s-cls:#2a78d6;--s-ppi:#1baf7a;--s-ppci:#eb6834;
+.ate{--s-ci:#2a78d6;--s-ppi:#1baf7a;--s-ppci:#eb6834;
      --ate-surface:var(--surface);--ate-grid:var(--line)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .ate{
-     --s-cls:#3987e5;--s-ppi:#199e70;--s-ppci:#d95926}}
-:root[data-theme="dark"] .ate{--s-cls:#3987e5;--s-ppi:#199e70;--s-ppci:#d95926}
+     --s-ci:#3987e5;--s-ppi:#199e70;--s-ppci:#d95926}}
+:root[data-theme="dark"] .ate{--s-ci:#3987e5;--s-ppi:#199e70;--s-ppci:#d95926}
 .ate{border:1px solid var(--line);border-radius:3px;background:var(--ate-surface);
      margin:18px 0 0;overflow:hidden}
 .ate-bar{display:flex;flex-wrap:wrap;gap:18px;padding:14px 16px;border-bottom:1px solid var(--line);
@@ -33,14 +44,12 @@
 @media(max-width:680px){.ate-panels.strata{grid-template-columns:minmax(0,1fr)}
   .ate-colhead:nth-of-type(2){display:none}}
 .ate-panel{padding:6px 16px 16px;min-width:0}
-.ate-panel h4{font-family:var(--mono);font-size:.7rem;letter-spacing:.11em;text-transform:uppercase;
-              color:var(--ink-2);margin:10px 0 0;font-weight:400}
 .ate svg{width:100%;height:auto;display:block;overflow:visible}
 .ate-note{font-family:var(--mono);font-size:.72rem;line-height:1.6;color:var(--ink-3);
           padding:0 16px 16px}
 .ate-tt{position:fixed;pointer-events:none;z-index:50;opacity:0;transition:opacity .1s;
         background:var(--ink);color:var(--bg);font-family:var(--mono);font-size:.7rem;
-        line-height:1.55;padding:8px 10px;border-radius:3px;max-width:290px;white-space:normal}
+        line-height:1.55;padding:8px 10px;border-radius:3px;max-width:300px;white-space:normal}
 .ate-tbl{padding:0 16px 16px}
 .ate-tbl[hidden]{display:none}
 .ate-empty{font-family:var(--mono);font-size:.75rem;color:var(--ink-3);padding:22px 16px}
@@ -62,23 +71,28 @@
   const DATA = __ESTIMATES_JSON__;
   const cells = DATA.cells || [];
   const METHODS = [
-    { key: 'classical', name: 'classical', v: '--s-cls',
-      why: 'human labels only, no model. Unbiased; limited to the annotated pools.' },
-    { key: 'ppi', name: 'PPI++', v: '--s-ppi',
-      why: 'labelled pools rectify the unlabelled ones. Unbiased for ANY predictor.' },
-    { key: 'ppci', name: 'PPCI', v: '--s-ppci',
-      why: 'plug-in on every pool, no rectifier. Scale calibrated by k = mean(D_Y)/mean(D_f) '
-           + 'fitted on labels; on v2 that k is transported from v1.' },
+    { key: 'ci', name: 'CI', long: 'CI (human annotations)', v: '--s-ci', scale: 'human',
+      why: 'The mean of the human-scored within-pool differences over the 24 annotated pools. '
+           + 'No model anywhere.' },
+    { key: 'ppi', name: 'PPI++', long: 'PPI++ (human + AI annotations)', v: '--s-ppi',
+      scale: 'human',
+      why: 'Adds the 48 unlabelled pools, with a rectifier fitted on the labelled ones. '
+           + 'Unbiased for ANY predictor, so the model can only move the variance.' },
+    { key: 'ppci', name: 'PPCI', long: 'PPCI (AI annotations)', v: '--s-ppci', scale: 'model',
+      why: 'The mean of the MODEL’s within-pool differences over every pool, with no '
+           + 'calibration to labels at all. Needs no annotation anywhere — which is why it '
+           + 'is the only estimator that exists on v2 — and reports on the model’s own '
+           + 'scale, so it claims sign and pattern, never magnitude.' },
   ];
-  /* ppci_raw is the SAME estimator with no calibration at all -- the only version that needs no
-     labels anywhere, and therefore the only one that would exist on a wholly unannotated cohort.
-     It is deliberately NOT drawn: it lives on the MODEL's scale, so putting it on this axis
-     would be a second scale on one chart. It appears in the table, where sign is all it claims. */
-  const RAW = 'ppci_raw';
   const M = Object.fromEntries(METHODS.map(m => [m.key, m]));
+  const SCALES = [
+    { key: 'human', head: 'human annotations',
+      ax: { events: 'change in bouts per minute', time: 'change in occupancy (pp)' } },
+    { key: 'model', head: 'AI annotations — model scale, sign and pattern only',
+      ax: { events: 'change in predicted bouts per minute', time: 'change in predicted occupancy' } },
+  ];
   const ODOURS = [['fear', 'FEAR exposure'], ['social', 'SOCIAL exposure']];
-  const TRANS = [['H->O', 'exposure ON   H \u2192 O'], ['O->P', 'exposure OFF   O \u2192 P']];
-  const UNIT_AX = { events: 'change in bouts per minute', time: 'change in occupancy (pp)' };
+  const TRANS = [['H->O', 'exposure ON   H → O'], ['O->P', 'exposure OFF   O → P']];
   const state = {
     exp: 'v1', unit: 'events', behav: 'nn', model: null, view: 'all', trans: 'H->O', table: false,
   };
@@ -87,8 +101,8 @@
 
   const $ = (id) => document.getElementById(id);
   const css = (n) => getComputedStyle($('ate')).getPropertyValue(n).trim();
-  const fmt = (x, d = 2) => (x == null || !isFinite(x) ? '\u2014'
-    : (x >= 0 ? '+' : '\u2212') + Math.abs(x).toFixed(d));
+  const fmt = (x, d = 2) => (x == null || !isFinite(x) ? '—'
+    : (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(d));
 
   // ---------------------------------------------------------------- controls
   function seg(label, key, opts) {
@@ -109,12 +123,11 @@
   function controls() {
     const bar = $('ate-bar'); bar.textContent = '';
     bar.append(
-      seg('experiment', 'exp', [['v1', 'v1  \u00b7 72 pools'], ['v2', 'v2  \u00b7 36 pools']]),
+      seg('experiment', 'exp', [['v1', 'v1  · 72 pools'], ['v2', 'v2  · 36 pools']]),
       seg('unit', 'unit', [['events', 'number of events'], ['time', 'mean time']]),
       seg('behaviour', 'behav', [['nn', 'nose-to-nose'], ['nt', 'nose-to-tail']]),
-      seg('model', 'model', uniq('model').map(m => [m, m])),
       seg('breakdown', 'view', [['all', 'all pools'],
-        ['strata', state.exp === 'v1' ? 'by line \u00d7 genotype' : 'by line']]),
+        ['strata', state.exp === 'v1' ? 'by line × genotype' : 'by line']]),
     );
     if (state.view === 'strata') {
       bar.append(seg('transition', 'trans', TRANS.map(([k, n]) => [k, n.replace(/\s+/g, ' ')])));
@@ -122,12 +135,14 @@
     bar.append(seg('table', 'table', [[false, 'chart'], [true, 'chart + table']]));
   }
 
-  function pick(odour, stratum, trans, withRaw) {
+  function pick(odour, stratum, trans, scale) {
     return cells.filter(c => c.exp === state.exp && c.unit === state.unit
       && c.behav === state.behav && c.model === state.model
       && c.stratum === stratum && c.odour === odour && c.trans === trans
       && c.est != null && isFinite(c.est)
-      && (withRaw ? true : c.method !== RAW));
+      && (scale ? M[c.method] && M[c.method].scale === scale : true))
+      .sort((a, b) => METHODS.findIndex(m => m.key === a.method)
+        - METHODS.findIndex(m => m.key === b.method));
   }
   const strataOf = () => {
     const seen = new Map();
@@ -137,22 +152,21 @@
   };
 
   // ---------------------------------------------------------------- scale over everything drawn
-  /* A classical interval built on 2 pools has ONE degree of freedom: t = 12.7, so it spans
-     several bouts per minute and is uninformative by construction. Letting it set the shared
-     x-scale would crush every other panel to a few pixels -- which is what the wild-type strata
-     did, since annotation gave them 2 pools each against the heterozygous strata's 6. Such
-     intervals therefore do not set the scale; they are drawn CLIPPED with an arrow cap, which
-     says "continues past the axis" instead of silently rescaling everyone else. Estimates always
-     count, so no dot is ever off-scale. */
-  const SETS_SCALE = (c) => c.n_lab >= 3 || c.method !== 'classical';
-  function domain(groups) {
+  /* A CI built on 2 pools has ONE degree of freedom: t = 12.7, so it spans several bouts per
+     minute and is uninformative by construction. Letting it set the shared domain would crush
+     every other panel to a few pixels -- which is what the wild-type strata did, since annotation
+     gave them 2 pools each against the heterozygous strata's 6. Such intervals therefore do not
+     set the scale; they are drawn CLIPPED with an arrow cap, which says "continues past the axis"
+     instead of silently rescaling everyone else. Estimates always count, so no dot is off-scale. */
+  const SETS_SCALE = (c) => c.n_lab >= 3 || c.method !== 'ci';
+  function domain(list) {
     let lo = 0, hi = 0;
-    groups.forEach(g => g.forEach(c => {
+    list.forEach(c => {
       const vs = SETS_SCALE(c) ? [c.lo, c.hi, c.est] : [c.est];
       vs.forEach(v => {
         if (v != null && isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
       });
-    }));
+    });
     if (lo === hi) { lo -= 1; hi += 1; }
     const pad = (hi - lo) * 0.14;
     return [lo - pad, hi + pad];
@@ -181,7 +195,7 @@
     };
     node.addEventListener('mouseenter', show);
     node.addEventListener('mousemove', show);
-    node.addEventListener('focus', (e) => {
+    node.addEventListener('focus', () => {
       const b = node.getBoundingClientRect();
       show({ clientX: b.left + b.width / 2, clientY: b.top });
     });
@@ -190,96 +204,100 @@
     node.addEventListener('blur', hide);
   }
 
-  /* One panel = one exposure (main view) or one stratum x exposure (strata view).
-     Rows are the phase transitions; inside a row, one mark per method. A row is the unit of
-     comparison, so the methods sit stacked at the same x-scale rather than in separate charts --
-     the whole point is to read PPI++ and PPCI against the classical interval they are trying to
-     beat. */
-  function panel(title, sub, rows, dom, showAxis, shrinkRef) {
-    const labelled = rows.some(r => r.label);
-    const W = 480, L = labelled ? 118 : 14, R = 58, rowH = 26, groupPad = 16, top = 26;
-    const bodyH = rows.reduce((h, r) => h + r.marks.length * rowH + groupPad, 0);
-    const H = top + bodyH + (showAxis ? 40 : 12);
-    const x = (v) => L + (v - dom[0]) / (dom[1] - dom[0]) * (W - L - R);
+  /* One panel = one exposure (main view) or one stratum x exposure (strata view). Inside it, one
+     BLOCK per scale: the human-annotation estimators share an axis in behaviour units, PPCI gets
+     its own axis in model units. Rows inside a block are the phase transitions, so the methods
+     that ARE comparable sit stacked against each other -- the whole point is to read PPI++ against
+     the CI it is trying to narrow. */
+  function panel(title, blocks, lastPanel) {
+    const labelled = blocks.some(b => b.rows.some(r => r.label));
+    const W = 480, L = labelled ? 118 : 14, R = 58, rowH = 26, groupPad = 14, headH = 17;
+    let H = 26;
+    blocks.forEach(b => {
+      b.top = H + headH;
+      b.bodyH = b.rows.reduce((h, r) => h + r.marks.length * rowH + groupPad, 0);
+      H = b.top + b.bodyH + (b.axis ? 36 : 10);
+    });
     const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img',
-      'aria-label': `${title}. ${rows.length} phase transitions.` });
-
-    ticks(dom).forEach(t => {
-      svg.appendChild(el('line', { x1: x(t), x2: x(t), y1: top - 8, y2: top + bodyH,
-        stroke: css('--ate-grid'), 'stroke-width': t === 0 ? 1.6 : 0.8 }));
-      if (showAxis) {
-        const tx = el('text', { x: x(t), y: top + bodyH + 16, 'text-anchor': 'middle',
-          fill: css('--ink-3'), 'font-size': 9.5,
-          'font-family': 'ui-monospace,monospace' });
-        tx.textContent = (t > 0 ? '+' : '') + t;
-        svg.appendChild(tx);
-      }
-    });
-    if (showAxis) {
-      const ax = el('text', { x: (L + W - R) / 2, y: top + bodyH + 33, 'text-anchor': 'middle',
-        fill: css('--ink-3'), 'font-size': 9.5, 'font-family': 'ui-monospace,monospace' });
-      ax.textContent = UNIT_AX[state.unit]; svg.appendChild(ax);
-    }
+      'aria-label': `${title}. ${blocks.length} scale blocks.` });
+    const mono = 'ui-monospace,monospace';
     const ttl = el('text', { x: 0, y: 12, fill: css('--ink-2'), 'font-size': 10.5,
-      'font-weight': 600, 'font-family': 'ui-monospace,monospace' });
+      'font-weight': 600, 'font-family': mono });
     ttl.textContent = title; svg.appendChild(ttl);
-    if (sub) {
-      const s = el('text', { x: W, y: 12, 'text-anchor': 'end', fill: css('--ink-3'),
-        'font-size': 9, 'font-family': 'ui-monospace,monospace' });
-      s.textContent = sub; svg.appendChild(s);
-    }
 
-    let y = top + 12;
-    rows.forEach(row => {
-      const rl = el('text', { x: 0, y: y + 3, fill: css('--ink-3'), 'font-size': 9.5,
-        'font-family': 'ui-monospace,monospace' });
-      rl.textContent = row.label; svg.appendChild(rl);
-      const ref = shrinkRef ? row.marks.find(c => c.method === 'classical') : null;
-      const refW = ref && ref.lo != null ? ref.hi - ref.lo : null;
-      row.marks.forEach(c => {
-        const col = css(M[c.method].v);
-        const hasCI = c.lo != null && isFinite(c.lo) && c.hi != null && isFinite(c.hi);
-        const g = el('g', { class: 'ate-mark', tabindex: 0, role: 'button' });
-        if (hasCI) {
-          const clipLo = c.lo < dom[0], clipHi = c.hi > dom[1];
-          const xa = clipLo ? x(dom[0]) : x(c.lo), xb = clipHi ? x(dom[1]) : x(c.hi);
-          // 2px line, rounded ends -- the interval is the mark, the dot is the estimate
-          g.appendChild(el('line', { x1: xa, x2: xb, y1: y, y2: y, stroke: col,
-            'stroke-width': 2,
-            'stroke-linecap': (clipLo || clipHi) ? 'butt' : 'round' }));
-          // arrow cap = "this interval continues past the axis", never a silent truncation
-          if (clipLo) g.appendChild(el('path', { d: `M${xa - 5},${y}L${xa + 1},${y - 3.6}`
-            + `L${xa + 1},${y + 3.6}Z`, fill: col }));
-          if (clipHi) g.appendChild(el('path', { d: `M${xb + 5},${y}L${xb - 1},${y - 3.6}`
-            + `L${xb - 1},${y + 3.6}Z`, fill: col }));
+    blocks.forEach(b => {
+      const x = (v) => L + (v - b.dom[0]) / (b.dom[1] - b.dom[0]) * (W - L - R);
+      const hd = el('text', { x: 0, y: b.top - 5, fill: css('--ink-3'), 'font-size': 8.5,
+        'font-family': mono, 'letter-spacing': '0.08em' });
+      hd.textContent = b.head.toUpperCase(); svg.appendChild(hd);
+      ticks(b.dom).forEach(t => {
+        svg.appendChild(el('line', { x1: x(t), x2: x(t), y1: b.top, y2: b.top + b.bodyH,
+          stroke: css('--ate-grid'), 'stroke-width': t === 0 ? 1.6 : 0.8 }));
+        if (b.axis) {
+          const tx = el('text', { x: x(t), y: b.top + b.bodyH + 14, 'text-anchor': 'middle',
+            fill: css('--ink-3'), 'font-size': 9.5, 'font-family': mono });
+          tx.textContent = (t > 0 ? '+' : '') + t; svg.appendChild(tx);
         }
-        // 2px surface ring so overlapping methods stay separable
-        g.appendChild(el('circle', { cx: x(c.est), cy: y, r: 4.6, fill: col,
-          stroke: css('--ate-surface'), 'stroke-width': 2 }));
-        const resolved = hasCI && c.lo * c.hi > 0;
-        const vl = el('text', { x: W - R + 8, y: y + 3.4, fill: css('--ink-2'),
-          'font-size': 9.5, 'font-weight': resolved ? 600 : 400,
-          'font-family': 'ui-monospace,monospace' });
-        vl.textContent = fmt(c.est);           // direct label on every mark (relief rule: aqua
-        g.appendChild(vl);                      // is sub-3:1 on the light surface)
-        let sh = '';
-        if (refW && c.method !== 'classical' && hasCI) {
-          const d = 100 * (1 - (c.hi - c.lo) / refW);
-          sh = `<br>CI width vs classical: <b>${d >= 0 ? '\u2212' : '+'}${Math.abs(d).toFixed(0)}%</b>`;
-        }
-        tip(g, `<b>${M[c.method].name}</b> \u00b7 ${row.label.replace(/\s+/g, ' ')}<br>`
-          + `${fmt(c.est)} &nbsp;95% CI [${fmt(c.lo)}, ${fmt(c.hi)}]<br>`
-          + `${c.n_lab} labelled${c.n_unlab ? ' / ' + c.n_unlab + ' predicted' : ''} pools`
-          + (c.r != null ? `<br>within-cell r = ${c.r.toFixed(2)}` : '')
-          + (c.lam != null ? `<br>\u03bb = ${c.lam.toFixed(3)}` : '')
-          + (c.k != null ? `<br>k = ${c.k.toFixed(3)}`
-            + (c.transported ? ' (transported from v1)' : ' (fitted on labels)') : '')
-          + sh + `<br><span style="opacity:.7">${M[c.method].why}</span>`);
-        svg.appendChild(g);
-        y += rowH;
       });
-      y += groupPad;
+      if (b.axis) {
+        const ax = el('text', { x: (L + W - R) / 2, y: b.top + b.bodyH + 30,
+          'text-anchor': 'middle', fill: css('--ink-3'), 'font-size': 9.5, 'font-family': mono });
+        ax.textContent = b.axis; svg.appendChild(ax);
+      }
+      let y = b.top + 12;
+      b.rows.forEach(row => {
+        if (row.label) {
+          const rl = el('text', { x: 0, y: y + 3, fill: css('--ink-3'), 'font-size': 9.5,
+            'font-family': mono });
+          rl.textContent = row.label; svg.appendChild(rl);
+        }
+        const ref = row.marks.find(c => c.method === 'ci');
+        const refW = ref && ref.lo != null ? ref.hi - ref.lo : null;
+        row.marks.forEach(c => {
+          const col = css(M[c.method].v);
+          const hasCI = c.lo != null && isFinite(c.lo) && c.hi != null && isFinite(c.hi);
+          const g = el('g', { class: 'ate-mark', tabindex: 0, role: 'button' });
+          if (hasCI) {
+            const clipLo = c.lo < b.dom[0], clipHi = c.hi > b.dom[1];
+            const xa = clipLo ? x(b.dom[0]) : x(c.lo), xb = clipHi ? x(b.dom[1]) : x(c.hi);
+            g.appendChild(el('line', { x1: xa, x2: xb, y1: y, y2: y, stroke: col,
+              'stroke-width': 2,
+              'stroke-linecap': (clipLo || clipHi) ? 'butt' : 'round' }));
+            // arrow cap = "this interval continues past the axis", never a silent truncation
+            if (clipLo) g.appendChild(el('path', { d: `M${xa - 5},${y}L${xa + 1},${y - 3.6}`
+              + `L${xa + 1},${y + 3.6}Z`, fill: col }));
+            if (clipHi) g.appendChild(el('path', { d: `M${xb + 5},${y}L${xb - 1},${y - 3.6}`
+              + `L${xb - 1},${y + 3.6}Z`, fill: col }));
+          }
+          // 2px surface ring so overlapping methods stay separable
+          g.appendChild(el('circle', { cx: x(c.est), cy: y, r: 4.6, fill: col,
+            stroke: css('--ate-surface'), 'stroke-width': 2 }));
+          const resolved = hasCI && c.lo * c.hi > 0;
+          const vl = el('text', { x: W - R + 8, y: y + 3.4, fill: css('--ink-2'),
+            'font-size': 9.5, 'font-weight': resolved ? 600 : 400, 'font-family': mono });
+          vl.textContent = fmt(c.est);        // direct label on every mark (relief rule)
+          g.appendChild(vl);
+          let sh = '';
+          if (refW && c.method === 'ppi' && hasCI) {
+            const dd = 100 * (1 - (c.hi - c.lo) / refW);
+            sh = `<br>CI width vs CI: <b>${dd >= 0 ? '−' : '+'}`
+              + `${Math.abs(dd).toFixed(0)}%</b>`;
+          }
+          tip(g, `<b>${M[c.method].long}</b> · `
+            + `${(row.label || title).replace(/\s+/g, ' ')}<br>`
+            + `${fmt(c.est)} &nbsp;95% CI [${fmt(c.lo)}, ${fmt(c.hi)}]`
+            + (c.method === 'ppci' ? ' &nbsp;<i>(model scale)</i>' : '') + '<br>'
+            + `${c.n_lab} labelled${c.n_unlab ? ' / ' + c.n_unlab + ' predicted' : ''} pools`
+            + (c.r != null ? `<br>within-cell r = ${c.r.toFixed(2)}` : '')
+            + (c.lam != null ? `<br>λ = ${c.lam.toFixed(3)}` : '')
+            + sh + `<br><span style="opacity:.7">${M[c.method].why}</span>`);
+          svg.appendChild(g);
+          y += rowH;
+        });
+        y += groupPad;
+      });
     });
+    void lastPanel;
     return svg;
   }
 
@@ -289,28 +307,25 @@
     if (!state.table) return;
     const d = document.createElement('div'); d.className = 'scroll';
     const t = document.createElement('table');
-    t.innerHTML = '<thead><tr><th>panel</th><th>transition</th><th>method</th><th>estimate</th>'
-      + '<th>95% CI</th><th>CI width</th><th>vs classical</th><th>pools</th>'
-      + '<th>scale</th></tr></thead>';
+    t.innerHTML = '<thead><tr><th>panel</th><th>transition</th><th>estimator</th><th>estimate</th>'
+      + '<th>95% CI</th><th>CI width</th><th>vs CI</th><th>pools</th><th>scale</th></tr></thead>';
     const tb = document.createElement('tbody');
     groups.forEach(g => {
-      const ref = g.marks.find(c => c.method === 'classical');
+      const ref = g.marks.find(c => c.method === 'ci');
       const refW = ref && ref.lo != null ? ref.hi - ref.lo : null;
       g.marks.forEach(c => {
         const w = (c.lo != null && isFinite(c.lo)) ? c.hi - c.lo : null;
-        // A CI width on the MODEL's scale is not comparable to one on the behaviour's scale,
-        // so the uncalibrated row gets no shrinkage figure rather than a meaningless one.
-        const rel = (refW && w && c.method !== 'classical' && c.method !== RAW)
-          ? (100 * (1 - w / refW) >= 0 ? '\u2212' : '+')
-            + Math.abs(100 * (1 - w / refW)).toFixed(0) + '%' : '\u2014';
+        // A CI width on the MODEL's scale is not comparable to one on the behaviour's scale, so
+        // PPCI gets no shrinkage figure rather than a meaningless one.
+        const rel = (refW && w && c.method === 'ppi')
+          ? (100 * (1 - w / refW) >= 0 ? '−' : '+')
+            + Math.abs(100 * (1 - w / refW)).toFixed(0) + '%' : '—';
         const tr = document.createElement('tr');
-        const nm = c.method === RAW ? 'PPCI, uncalibrated' : M[c.method].name;
-        const sc = c.method === RAW ? 'model (sign only)'
-          : (c.transported ? 'k transported from v1' : (c.k != null ? 'k from labels' : 'labels'));
-        tr.innerHTML = `<td>${g.panel}</td><td>${c.trans}</td><td>${nm}</td>`
+        tr.innerHTML = `<td>${g.panel}</td><td>${c.trans}</td><td>${M[c.method].name}</td>`
           + `<td>${fmt(c.est)}</td><td>[${fmt(c.lo)}, ${fmt(c.hi)}]</td>`
-          + `<td>${w == null ? '\u2014' : w.toFixed(2)}</td><td>${rel}</td>`
-          + `<td>${c.n_lab}${c.n_unlab ? ' + ' + c.n_unlab : ''}</td><td>${sc}</td>`;
+          + `<td>${w == null ? '—' : w.toFixed(2)}</td><td>${rel}</td>`
+          + `<td>${c.n_lab}${c.n_unlab ? ' + ' + c.n_unlab : ''}</td>`
+          + `<td>${M[c.method].scale === 'model' ? 'model (sign only)' : 'behaviour'}</td>`;
         tb.appendChild(tr);
       });
     });
@@ -320,10 +335,11 @@
   function legend() {
     const lg = $('ate-legend'); lg.textContent = '';
     const avail = new Set(cells.filter(c => c.exp === state.exp).map(c => c.method));
-    METHODS.filter(m => avail.has(m.key)).forEach(m => {
+    METHODS.forEach(m => {
       const s = document.createElement('span');
       const i = document.createElement('i'); i.style.background = css(m.v);
-      const t = document.createElement('span'); t.textContent = m.name;
+      const t = document.createElement('span'); t.textContent = m.long;
+      if (!avail.has(m.key)) { s.style.opacity = '.4'; t.textContent = m.long + ' — n/a here'; }
       s.append(i, t); lg.appendChild(s);
     });
   }
@@ -333,78 +349,93 @@
     const panels = $('ate-panels'); panels.textContent = ''; panels.classList.remove('strata');
     const note = $('ate-note');
     const flat = [];
+    // one shared domain PER SCALE, over everything this view draws
+    const doms = {};
+    const collect = (scale) => {
+      const all = [];
+      if (state.view === 'all') {
+        ODOURS.forEach(([od]) => TRANS.forEach(([tr]) => all.push(...pick(od, 'all', tr, scale))));
+      } else {
+        strataOf().forEach(([sid]) => ODOURS.forEach(([od]) =>
+          all.push(...pick(od, sid, state.trans, scale))));
+      }
+      return all;
+    };
+    SCALES.forEach(s => { const a = collect(s.key); doms[s.key] = a.length ? domain(a) : null; });
+
+    const blocksFor = (rowsOf) => SCALES.map(s => {
+      const rows = rowsOf(s.key).filter(r => r.marks.length);
+      return rows.length ? { head: s.head, rows, dom: doms[s.key],
+        axis: s.ax[state.unit] } : null;
+    }).filter(Boolean);
 
     if (state.view === 'all') {
-      const groups = ODOURS.map(([od]) => TRANS.map(([tr]) => pick(od, 'all', tr)).flat());
-      ODOURS.forEach(([od, nice]) => TRANS.forEach(([tr]) =>
-        pick(od, 'all', tr, true).filter(c => c.method === RAW)
-          .forEach(c => flat.push({ panel: nice, marks: [c] }))));
-      const dom = domain(groups);
-      ODOURS.forEach(([od, nice], i) => {
-        const rows = TRANS.map(([tr, tn]) => ({ label: tn, marks: pick(od, 'all', tr) }))
-          .filter(r => r.marks.length);
-        if (!rows.length) return;
-        rows.forEach(r => r.marks.forEach(c => flat.push({ panel: nice, marks: [c] })));
+      ODOURS.forEach(([od, nice]) => {
+        const blocks = blocksFor(scale =>
+          TRANS.map(([tr, tn]) => ({ label: tn, marks: pick(od, 'all', tr, scale) })));
+        if (!blocks.length) return;
+        blocks.forEach(b => b.rows.forEach(r =>
+          r.marks.forEach(c => flat.push({ panel: nice, marks: [c] }))));
         const d = document.createElement('div'); d.className = 'ate-panel';
-        d.appendChild(panel(nice, '', rows, dom, true, true));
+        d.appendChild(panel(nice, blocks, true));
         panels.appendChild(d);
-        void i;
       });
     } else {
       const st = strataOf();
-      const groups = st.map(([sid]) => ODOURS.map(([od]) => pick(od, sid, state.trans)).flat());
-      const dom = domain(groups);
       panels.classList.add('strata');
       ODOURS.forEach(([, nice]) => {
         const h = document.createElement('div'); h.className = 'ate-colhead';
         h.textContent = nice; panels.appendChild(h);
       });
-      st.forEach(([sid, slab], ri) => {
-        const last = ri === st.length - 1;
+      st.forEach(([sid, slab]) => {
         ODOURS.forEach(([od, nice]) => {
-          const marks = pick(od, sid, state.trans);
+          const blocks = blocksFor(scale =>
+            [{ label: '', marks: pick(od, sid, state.trans, scale) }]);
           const d = document.createElement('div'); d.className = 'ate-panel';
-          if (marks.length) {
-            marks.forEach(c => flat.push({ panel: `${slab} \u00b7 ${nice}`, marks: [c] }));
-            d.appendChild(panel(slab, '', [{ label: '', marks }], dom, last, true));
+          if (blocks.length) {
+            blocks.forEach(b => b.rows.forEach(r => r.marks.forEach(c =>
+              flat.push({ panel: `${slab} · ${nice}`, marks: [c] }))));
+            d.appendChild(panel(slab, blocks, true));
           }
           panels.appendChild(d);
         });
       });
     }
 
-    if (!panels.children.length) {
+    if (!panels.querySelector('svg')) {
       const e = document.createElement('div'); e.className = 'ate-empty';
-      e.textContent = 'No estimate for this combination yet \u2014 '
-        + (state.exp === 'v2'
-          ? 'v2 carries no labels, so only PPCI is defined there.'
-          : 'the dense inference that supplies this unit is still running.');
+      e.textContent = 'No estimate for this combination yet — the dense inference that '
+        + 'supplies this unit is still running.';
       panels.appendChild(e);
     }
 
-    const dsg = DATA.meta && DATA.meta.design ? DATA.meta.design[state.exp] : null;
     const th = DATA.meta && DATA.meta.threshold_unlabelled;
     note.innerHTML =
       (state.exp === 'v1'
-        ? 'v1: 72 pools, 12 per line \u00d7 genotype, 24 annotated. All three methods available.'
-        : 'v2: 36 pools, 12 per line, 3 wt + 1 het per cage, <b>zero</b> annotated \u2014 so there '
-          + 'is no classical estimate and no rectifier. PPCI transports the calibration slope '
-          + 'fitted on v1; treat it as an extrapolation, not an estimate with guarantees.')
+        ? '<b>v1</b>: 72 pools, 24 of them annotated. All three estimators exist here, which is '
+          + 'what makes it the cohort where the model can be checked against human labels at all.'
+        : '<b>v2</b>: 36 pools, <b>zero</b> annotated. CI and PPI++ are not defined — one '
+          + '<em>is</em> the labels and the other needs them to build a rectifier — so PPCI '
+          + 'on model annotations is the only estimator that exists, and this is the case it was '
+          + 'built for.')
+      + '<br><b>Two axes per panel, on purpose.</b> CI and PPI++ are in behaviour units. PPCI is '
+      + 'uncalibrated, so its numbers are in the MODEL’s units — predicted rates run '
+      + 'several-fold above true ones — and it gets its own axis rather than an invited '
+      + 'comparison of magnitudes. Read it for <b>sign and pattern</b> only.'
       + (state.unit === 'events' && th
-        ? `<br>Bout counts use threshold ${th[state.behav] != null ? th[state.behav].toFixed(2) : '\u2014'}`
+        ? `<br>Bout counts use threshold ${th[state.behav] != null ? th[state.behav].toFixed(2) : '—'}`
           + ', chosen leave-one-fold-out so no pool informs its own operating point.'
         : '')
-      + '<br>Filled-weight numbers resolve (95% CI excludes zero). Hover or focus any mark for '
-      + 'n, r, \u03bb / k and the CI change against classical.'
+      + '<br>Bold numbers resolve (95% CI excludes zero). Hover or focus any mark for n, r, '
+      + 'λ and PPI++’s CI change against CI.'
       + (state.view === 'strata'
         ? '<br>An arrow cap means the interval continues past the axis. The wild-type strata carry '
-          + '<b>2 annotated pools each</b> against the heterozygous strata\u2019s 6, so their '
-          + 'classical interval has 1 degree of freedom and does not set the shared scale.'
-        : '')
-      + (dsg && dsg.annotated_pools === 0 ? '' : '');
+          + '<b>2 annotated pools each</b> against the heterozygous strata’s 6, so their CI '
+          + 'has 1 degree of freedom and does not set the shared scale.'
+        : '');
     table(flat.reduce((acc, f) => {
-      const k = f.panel; const g = acc.find(a => a.panel === k);
-      if (g) g.marks.push(...f.marks); else acc.push({ panel: k, marks: [...f.marks] });
+      const g = acc.find(a => a.panel === f.panel);
+      if (g) g.marks.push(...f.marks); else acc.push({ panel: f.panel, marks: [...f.marks] });
       return acc;
     }, []));
   }
