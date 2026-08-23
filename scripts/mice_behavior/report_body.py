@@ -25,17 +25,24 @@ BODY = f'''
   order &mdash; <b>H</b>abituation (30 min) &rarr; <b>O</b> exposure (15 min) &rarr; <b>P</b>ost
   (15 min) &mdash; crossed with two hormonal exposures, <b>fear</b> and <b>social</b>. All six
   share a cage, a day and an annotator. Video is 2064&sup2; at 30 fps, stored 512&sup2; at 5 fps.</p>
-  <div class="scroll"><table>
+</div>
+  <div class="figwrap"><div class="scroll"><table>
     <thead><tr><th></th><th>v1</th><th>v2</th></tr></thead>
     <tbody>
       <tr><td>pools &times; observations</td><td>72 &times; 6 = 432</td><td>36 &times; 6 = 216</td></tr>
-      <tr><td>design</td><td><b>12 pools per line &times; genotype</b><br>3 &times; 2 &times; 12 = 72</td><td><b>12 pools per line</b><br>3 &times; 12 = 36</td></tr>
+      <tr><td>design</td><td><b>12 per line &times; genotype</b><br>3 &times; 2 &times; 12 = 72</td><td><b>12 per line</b><br>3 &times; 12 = 36</td></tr>
       <tr><td>genotype</td><td>pure cage: 36 wt, 36 het</td><td>mixed cage: <b>3 wt + 1 het</b> per cage</td></tr>
       <tr><td>strata</td><td class="hi">6 (line &times; genotype)</td><td class="hi">3 (line)</td></tr>
       <tr><td>lines</td><td colspan="2"><i>Ash1l</i> / <i>Kdm6b</i> / <i>Kmt5b</i>, 1:1:1, sexes balanced within every line</td></tr>
-      <tr><td>annotated</td><td class="hi">24 pools / 144 obs</td><td class="lo">none</td></tr>
+      <tr><td>annotated pools</td><td class="hi">24 of 72</td><td class="lo">0 of 36</td></tr>
+      <tr><td>annotated observations</td><td class="hi">144 of 432</td><td class="lo">0 of 216</td></tr>
+      <tr><td>annotated frames</td><td>864k of 2.59 M</td><td>0 of 1.30 M</td></tr>
+      <tr><td>annotators</td><td>6 &middot; 22 of 24 pools single-scored</td><td>&mdash;</td></tr>
+      <tr><td>pools with no labels</td><td>48</td><td>36</td></tr>
       <tr><td>where genotype lives</td><td>between pools</td><td>within a pool</td></tr>
-    </tbody></table></div>
+      <tr><td>estimator available</td><td>classical, PPI++, PPCI</td><td class="lo">PPCI only</td></tr>
+    </tbody></table></div></div>
+<div class="measure">
   <p><b>The two cohorts fail in opposite ways for the genotype question, and that is why this
   report is about the exposure.</b> In v1 the genotype contrast is between cages, and annotation is
   not exchangeable across it: 18 of the 24 annotated pools are het, and annotator is confounded
@@ -44,13 +51,7 @@ BODY = f'''
   animal needs per-mouse identity, and the shave marks that carry it are destroyed by the
   512&sup2; downsample. Neither blocks the exposure contrast, which is taken <em>within</em> a
   pool and therefore cancels cage, genotype, sex and annotator by construction.</p>
-  <div class="tiles">
-    <div class="tile"><span class="k">unit of analysis</span><span class="v">pool</span><span class="s">n = 24 labelled, clustered</span></div>
-    <div class="tile"><span class="k">unlabelled pools</span><span class="v">84</span><span class="s">48 in v1 &middot; 36 in v2</span></div>
-    <div class="tile"><span class="k">annotators</span><span class="v">6</span><span class="s">22 of 24 pools single-scored</span></div>
-    <div class="tile"><span class="k">annotated frames</span><span class="v">864k</span><span class="s">of 2.59 M in v1</span></div>
-  </div>
-  <div class="note"><b>Estimand.</b> The mean <em>within-pool</em> change in behaviour across one
+  <div class="note"><b>Estimand.</b> The unit of analysis is the <b>pool</b>, clustered. The mean <em>within-pool</em> change in behaviour across one
   phase transition, per exposure. Consecutive transitions only &mdash; H&rarr;O and O&rarr;P.
   P&minus;H is their sum, not an independent contrast. The two exposures are separate treatments
   with opposite signs on nose-to-tail and are never pooled. Genotype-specific effects are the next
@@ -83,30 +84,23 @@ BODY = f'''
 </div></section>
 
 <section><div class="measure">
-  <div class="sechead"><p class="eyebrow">03 &middot; Preliminary patterns</p>
-  <h2>What the 24 annotated pools already show</h2></div>
-  <p>Human labels only, no model anywhere in this section.</p>
+  <div class="sechead"><p class="eyebrow">03 &middot; Effects</p>
+  <h2>Every estimate, in one figure</h2></div>
+  <p>Pick a cohort, an outcome unit, a behaviour and a breakdown. The figure draws each estimator
+  against a shared axis, one panel per exposure, with both phase transitions. <b>Start on
+  <i>classical</i>: human labels only, no model anywhere.</b> The two model-based estimators are
+  what sections 04 and 05 exist to justify &mdash; <i>PPI++</i> adds the unlabelled pools with a
+  rectifier that keeps it unbiased for any predictor, and <i>PPCI</i> is the plug-in that has no
+  rectifier and is the only thing available on v2.</p>
 </div>
-  <div class="figwrap"><figure>
-    <img src="{img['behav']}" alt="Effects on bouts per minute for nose-to-tail and nose-to-nose, split by fear and social exposure.">
-    <figcaption>Filled = 95% CI excludes zero. Unit of analysis is the pool (n = 24); each estimate
-    is a mean of within-pool differences.</figcaption>
-  </figure></div>
+  <div class="figwrap">{CHART}</div>
 <div class="measure">
-  <div class="scroll"><table>
-    <thead><tr><th>behaviour</th><th>exposure</th><th>H &rarr; O</th><th>O &rarr; P</th></tr></thead>
-    <tbody>
-      <tr><td>nt &middot; nose-to-tail</td><td>fear</td><td class="hi">+0.35</td><td>&minus;0.11</td></tr>
-      <tr><td>nt &middot; nose-to-tail</td><td>social</td><td class="hi">&minus;0.36</td><td class="hi">+0.27</td></tr>
-      <tr><td>nn &middot; nose-to-nose</td><td>fear</td><td class="hi">+0.65</td><td class="hi">&minus;0.28</td></tr>
-      <tr><td>nn &middot; nose-to-nose</td><td>social</td><td class="hi">+0.47</td><td class="hi">&minus;0.70</td></tr>
-    </tbody></table></div>
-  <p><b>Two patterns are already legible.</b> Nose-to-nose contact rises on exposure and falls
-  when it is withdrawn &mdash; the sign flips between the two transitions, and both halves
-  resolve under both exposures. And the exposures are genuinely different treatments: nose-to-nose
-  rises on exposure under both (+0.65 fear, +0.47 social) while nose-to-tail runs in OPPOSITE
-  directions (+0.35 fear, &minus;0.36 social). Averaging over exposures would cancel the nt effect
-  outright, which is why they are never pooled.</p>
+  <p><b>Two patterns are already legible in the classical numbers.</b> Nose-to-nose contact rises
+  on exposure and falls when it is withdrawn &mdash; the sign flips between the two transitions,
+  and both halves resolve under both exposures. And the exposures are genuinely different
+  treatments: nose-to-nose rises on exposure under both (+0.65 fear, +0.47 social) while
+  nose-to-tail runs in OPPOSITE directions (+0.35 fear, &minus;0.36 social). Averaging over
+  exposures would cancel the nt effect outright, which is why they are never pooled.</p>
   <div class="note"><b>There are two behaviours here, not three.</b> The lab's
   <code>behavior_type</code> column carries three codes and an earlier version of this report
   read the third, <code>np</code>, as &ldquo;nose-to-anogenital&rdquo; &mdash; then built a
@@ -115,27 +109,75 @@ BODY = f'''
   <code>nn</code> is <b>nose-to-nose, mutual</b> (<i>nose-nose_reciprocal</i>) and <code>np</code>
   is <b>nose-to-nose, directional</b> (<i>nose-nose_passive</i> &mdash; one animal sniffs, the
   other does not reciprocate). There is no anogenital behaviour anywhere in this dataset. The
-  dissociation was an artefact of the misreading and has been removed.</div>
+  label is a DIRECTED pair, so a mutual bout is a 1 for both animals and a one-sided bout only for
+  the active one &mdash; which means the model's <code>nn</code> head predicts the union, and nn
+  and np can never be reported as separate effects.</div>
+  <p><b>Switch the breakdown to the strata</b> &mdash; 6 line&nbsp;&times;&nbsp;genotype cells on
+  v1, 3 lines on v2 &mdash; and the reason for everything that follows becomes visible.
+  Annotation gave the wild-type strata <b>2 pools each</b> against the heterozygous strata's 6, so
+  a classical stratified interval there has one degree of freedom and runs off the axis. Those are
+  exactly the cells with 10 unlabelled pools apiece to borrow from.</p>
 </div>
   <div class="figwrap"><figure>
-    <img src="{img['within']}" alt="Bouts per minute against elapsed minute within each phase, with 95% bands, split by behaviour and exposure.">
-    <figcaption>Bands are 95% intervals bootstrapped over the 24 pools. 11 of 12 phase &times;
-    exposure &times; behaviour cells decay significantly.</figcaption>
+    <img src="{img['within']}" alt="Bouts per minute against elapsed minutes into each phase, with 95% bands, split by behaviour and exposure.">
+    <figcaption>Bands are 95% intervals bootstrapped over the 24 pools. The dashed line is elapsed
+    minute 15, where O and P stop and H keeps going.</figcaption>
   </figure></div>
 <div class="measure">
-  <p><b>Nothing is stationary inside a phase.</b> Rates fall several-fold across a recording, so a
-  phase mean is an average over whatever stretch of that decay the schedule happened to sample.
-  One cell is the exception and it is the interesting one: nose-to-tail under social exposure
-  during O does not decay at all (slope +0.017/min, CI includes zero) &mdash; the exposure sustains
-  investigation while everything else habituates.</p>
-  <div class="note warnbox"><b>The window is not yet fixed, and it moves the headline.</b>
-  Habituation runs 30 minutes against 15 for the other two phases, so H&rarr;O compares a mean
-  taken over a longer tail of decay with one taken over a shorter one. Re-estimating on a matched
-  last-15-minute window strengthens both fear effects and unsettles the social ones. That choice
-  is a biological question &mdash; a novelty response and a settled baseline are different
-  comparators &mdash; and it should be pre-specified rather than inherited. The durable fix is to
-  stop summarising a phase by a mean at all: fit the decay and report an initial amplitude plus a
-  habituation time constant, which no longer depends on recording length.</div>
+  <h3 style="margin-top:26px">Nothing is stationary inside a phase</h3>
+  <p>Rates fall several-fold across a recording. Fitting a Poisson decay per cell,
+  <code>log E[N] = a + b&middot;t</code>, the half-life is <b>4&ndash;14 minutes</b> and
+  <b>P decays fastest in every single cell</b> (&tau; &asymp; 6 min against 9&ndash;20 for H).
+  One cell does not decay at all: <b>nose-to-tail under social exposure during O has a positive
+  slope</b> &mdash; the exposure sustains investigation while everything else habituates.</p>
+  <div class="note"><b>The window problem is confined to one contrast, and that is the useful
+  part.</b> O and P are both 15 minutes, so any window rule applied to both leaves
+  O&rarr;P <em>bit-for-bit unchanged</em> (verified: identical in all four cells). Only H&rarr;O
+  is affected, because habituation runs 30 minutes and a mean over a decaying curve depends on how
+  long you watch. Re-estimating H&rarr;O on a matched first-15-minute window:
+  <div class="scroll" style="margin-top:11px"><table>
+    <thead><tr><th>H &rarr; O</th><th>full window</th><th>matched 15 min</th><th>shift</th></tr></thead>
+    <tbody>
+      <tr><td>nt &middot; fear</td><td>+0.36</td><td>+0.22</td><td>&minus;0.14</td></tr>
+      <tr><td>nt &middot; social</td><td>&minus;0.37</td><td class="hi">&minus;0.67</td><td>&minus;0.30</td></tr>
+      <tr><td>nn &middot; fear</td><td>+0.66</td><td class="hi">+0.45</td><td>&minus;0.21</td></tr>
+      <tr><td>nn &middot; social</td><td>+0.47</td><td class="lo">&minus;0.03</td><td class="lo">&minus;0.50 &mdash; sign flip</td></tr>
+    </tbody></table></div></div>
+  <p><b>So one headline number is an artefact.</b> nn&nbsp;&middot;&nbsp;social H&rarr;O is +0.47
+  on the full window and &minus;0.03 on a matched one: the apparent rise is the H mean being
+  dragged down by fifteen extra minutes of decay that O never gets. The other three keep their
+  sign, and nt&nbsp;&middot;&nbsp;social gets <em>stronger</em> when matched.</p>
+
+  <div class="sub">
+    <p class="q">outcome design</p>
+    <h3>Does the decay call for a different unit? <span class="verdict v-part">a matched window, yes; an extrapolated amplitude, no</span></h3>
+    <p>The obvious fix is to stop summarising a phase by a mean and instead report the decay's own
+    parameters &mdash; an initial amplitude at phase onset plus a habituation constant, neither of
+    which depends on recording length. It was worth measuring rather than assuming, and
+    <b>the extrapolated amplitude fails</b>:</p>
+    <div class="scroll"><table>
+      <thead><tr><th>unit</th><th>what it is</th><th>contrasts resolved</th><th>verdict</th></tr></thead>
+      <tbody>
+        <tr><td>mean, full window</td><td>the current outcome</td><td>7 of 8</td><td class="lo">carries the H&rarr;O length artefact</td></tr>
+        <tr><td><b>mean, matched 15 min</b></td><td>same mean, equal windows</td><td>5 of 8</td><td class="hi">assumption-free; fixes the artefact</td></tr>
+        <tr><td>amplitude at <i>t</i>&nbsp;=&nbsp;0</td><td>counts de-trended to phase onset</td><td class="lo">3 of 8</td><td class="lo">trades a small bias for a large variance</td></tr>
+      </tbody></table></div>
+    <p>De-trending to <i>t</i>&nbsp;=&nbsp;0 multiplies minute 29.5 by
+    e<sup>0.11&times;29.5</sup>&nbsp;&asymp;&nbsp;25, so a single late bout dominates the estimate.
+    Its intervals run 2&ndash;4&times; wider and it resolves three contrasts against the matched
+    window's five. <b>It removes a bias by paying far more in variance</b> &mdash; the opposite of
+    what this analysis is trying to do everywhere else. A single exponential is not even the right
+    model: adding a <i>t</i>&sup2; term is significant in 7 of 12 cells and in 3 of the 4
+    thirty-minute H cells, so the decay flattens toward a floor and an honest amplitude needs a
+    three-parameter hierarchical fit, not a reweighting.</p>
+    <div class="note"><b>What to do instead.</b> Keep the mean, and take H&rarr;O on the matched
+    15-minute window &mdash; it is the only contrast the choice touches, and it needs no model.
+    Then report the <b>habituation slope as a second outcome in its own right</b>, because it
+    carries an effect no mean can express: P habituates faster than H in every cell, and social
+    exposure abolishes nose-to-tail habituation entirely during O. That is two questions
+    &mdash; <em>how much</em> behaviour the exposure triggers, and <em>how long</em> it holds
+    &mdash; and the second one is currently thrown away.</div>
+  </div>
 </div></section>
 
 <section><div class="measure">
@@ -160,46 +202,33 @@ BODY = f'''
       <tr><td>dropout</td><td>0.4</td><td>train / val</td><td>20 / 4 pools</td></tr>
       <tr><td>augmentation</td><td colspan="3">D4 dihedral (exact &mdash; the cage is filmed top-down) + brightness / contrast / gamma</td></tr>
     </tbody></table></div>
-  <div class="note warnbox"><b>One structural limit, before any ablation.</b> The regime overfits
-  &mdash; training loss falls monotonically while validation AP plateaus near epoch 24, so longer
-  schedules and extra head capacity do nothing.
-  <br><br>The head's two outputs are <b>the right two</b>, which was not clear until the
-  annotation vocabulary was checked. The label for a directed pair
-  (<i>i</i>&nbsp;&rarr;&nbsp;<i>j</i>) is &ldquo;<i>i</i> directs nose-to-nose contact at
-  <i>j</i>&rdquo;, so a mutual bout is a 1 for both animals and a one-sided bout only for the
-  active one. That is exactly what <code>build_pair_labels.py</code> does. The consequence bounds
-  what may be claimed downstream: the <code>nn</code> head predicts mutual and directional
-  contact together, and no predictor here separates them, so <b>nn and np can never be reported
-  as separate effects</b>. Splitting them would need its own label definition and its own head,
-  not a regrouping of these outputs.</div>
 
-  <div class="sub">
-    <p class="q">ablation &middot; input</p>
-    <h3>Resolution against tokens <span class="verdict v-part">token-bound, now saturated</span></h3>
-    <p>Raising the input from 224 px to 448 px changes two things at once &mdash; the number of
-    patch tokens and the pixel detail inside each. Capping the pixels while keeping the tokens
-    separates them.</p>
-  </div>
-</div>
-  <div class="figwrap"><figure>
-    <img src="{img['tokpix']}" alt="Waterfall decomposing the 224 to 448 improvement into a token step and a pixel step.">
-    <figcaption>Quadrupling tokens at fixed pixel detail is worth +0.103 macro AP; restoring full
-    pixels at fixed tokens adds +0.029; going further to 1,296 tokens adds +0.003.</figcaption>
-  </figure></div>
-<div class="measure">
+  <h3 style="margin-top:28px">What actually moves the number</h3>
+  <p>Every lever tried, largest first, against a seed-noise floor of <b>0.0089</b> macro AP
+  measured from two identical runs. Read this table first; the subsections below are the evidence
+  for each row, in the same order.</p>
   <div class="scroll"><table>
-    <thead><tr><th>option</th><th>tokens/frame</th><th>patches per mouse</th><th>verdict</th></tr></thead>
+    <thead><tr><th>#</th><th>lever</th><th>what varies</th><th>&Delta; macro AP</th><th>verdict</th></tr></thead>
     <tbody>
-      <tr><td>today: 448 px whole frame</td><td>1,024</td><td>2.2</td><td>at the ceiling</td></tr>
-      <tr><td>504 px whole frame</td><td>1,296</td><td>2.5</td><td class="lo">+0.003, saturated</td></tr>
-      <tr><td>full 2064 px whole frame</td><td>21,609</td><td>10</td><td class="lo">quadratic cost; 466 GB</td></tr>
-      <tr><td>224 px crop around a pair</td><td>256</td><td>10</td><td class="hi">4.5&times; the detail at &frac14; the cost</td></tr>
+      <tr><td>1</td><td>annotate more pools</td><td>data</td><td class="hi">+0.076 per doubling</td><td class="hi">the binding constraint, no plateau</td></tr>
+      <tr><td>2</td><td>adapt the encoder (BitFit)</td><td>encoder</td><td class="hi">+0.112</td><td class="hi">recalibration, at 1/577th the params</td></tr>
+      <tr><td>3</td><td>224 &rarr; 448 px input</td><td>input</td><td class="hi">+0.132</td><td>real, but now saturated</td></tr>
+      <tr><td>4</td><td>SSL on unlabelled frames</td><td>encoder, label-free</td><td class="hi">+0.033</td><td class="hi">what we deploy; also reaches v2</td></tr>
+      <tr><td>5</td><td>vREx</td><td>objective</td><td>&plusmn;0.008</td><td class="lo">inside seed noise</td></tr>
+      <tr><td>6</td><td>DERM</td><td>objective</td><td>&mdash;</td><td class="v-part">never run until now</td></tr>
+      <tr><td>&mdash;</td><td>head capacity (self-attn, multi-query)</td><td>head</td><td>&minus;0.003 to +0.014</td><td class="lo">flat</td></tr>
     </tbody></table></div>
-  <p>Whole-frame resolution is spent. Cropping is the lever that is left, and it is the same fix
-  the identity problem needs. Separately, the pipeline resamples twice (2064&rarr;512&rarr;448)
-  and so retains only <b>76% of the fine detail</b> of a direct 2064&rarr;448 &mdash; recoverable
-  for free by extracting frames at the working size.</p>
+  <div class="note warnbox"><b>One structural limit, before any of it.</b> The regime overfits
+  &mdash; training loss falls monotonically while validation AP plateaus near epoch 24, so longer
+  schedules and extra head capacity do nothing. That is row 3 and the last row of the table in one
+  sentence, and it is why rows 1 and 2 are where the leverage is.
+  <br><br>And <b>AP is not the quantity that decides any of this</b>. What PPI's variance reduction
+  depends on is r&Delta;, the correlation between true and predicted <em>within-pool phase
+  differences</em>. The AP leader and the r&Delta; leader are different arms &mdash; see section 05.
+  Rows are ordered by AP here because that is what every arm reports; it is not the ranking key.</div>
+</div>
 
+<div class="measure">
   <div class="sub">
     <p class="q">ablation &middot; data</p>
     <h3>The scaling law of annotation <span class="verdict v-yes">the binding constraint</span></h3>
@@ -285,6 +314,33 @@ BODY = f'''
     is clearly harmful (0.3831). The pretrained features are easy to damage. Do not spend more
     runs on <em>scaling</em> SSL; that is a narrower claim than closing SSL.</div>
   </div>
+
+  <div class="sub">
+    <p class="q">ablation &middot; input</p>
+    <h3>Resolution against tokens <span class="verdict v-part">token-bound, now saturated</span></h3>
+    <p>Raising the input from 224 px to 448 px changes two things at once &mdash; the number of
+    patch tokens and the pixel detail inside each. Capping the pixels while keeping the tokens
+    separates them.</p>
+  </div>
+</div>
+  <div class="figwrap"><figure>
+    <img src="{img['tokpix']}" alt="Waterfall decomposing the 224 to 448 improvement into a token step and a pixel step.">
+    <figcaption>Quadrupling tokens at fixed pixel detail is worth +0.103 macro AP; restoring full
+    pixels at fixed tokens adds +0.029; going further to 1,296 tokens adds +0.003.</figcaption>
+  </figure></div>
+<div class="measure">
+  <div class="scroll"><table>
+    <thead><tr><th>option</th><th>tokens/frame</th><th>patches per mouse</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td>today: 448 px whole frame</td><td>1,024</td><td>2.2</td><td>at the ceiling</td></tr>
+      <tr><td>504 px whole frame</td><td>1,296</td><td>2.5</td><td class="lo">+0.003, saturated</td></tr>
+      <tr><td>full 2064 px whole frame</td><td>21,609</td><td>10</td><td class="lo">quadratic cost; 466 GB</td></tr>
+      <tr><td>224 px crop around a pair</td><td>256</td><td>10</td><td class="hi">4.5&times; the detail at &frac14; the cost</td></tr>
+    </tbody></table></div>
+  <p>Whole-frame resolution is spent. Cropping is the lever that is left, and it is the same fix
+  the identity problem needs. Separately, the pipeline resamples twice (2064&rarr;512&rarr;448)
+  and so retains only <b>76% of the fine detail</b> of a direct 2064&rarr;448 &mdash; recoverable
+  for free by extracting frames at the working size.</p>
 
   <div class="sub">
     <p class="q">ablation &middot; invariance</p>
@@ -442,41 +498,49 @@ BODY = f'''
 </div>
 
 <div class="measure">
-  <h3 style="margin-top:26px">The estimates</h3>
-  <p class="defn"><b>Three estimators of the same quantity.</b>
-  <b>Classical</b> averages within-pool differences on human labels &mdash; unbiased, and confined
-  to the {n_lab} annotated pools. <b>PPI++</b> adds the unlabelled pools and rectifies them
-  against the labelled ones; it is <em>unbiased for any predictor</em>, so a miscalibrated model
-  costs variance and never validity. <b>PPCI</b> is the plug-in: rescale the model's predictions
-  and average them over <em>every</em> pool, annotated or not, with no rectifier. It is the only
-  one of the three that exists on v2.</p>
-  <div class="note"><b>The intercept is the rectifier &mdash; exactly.</b> Verified algebraically
-  and numerically: PPCI over all <i>n</i>+<i>N</i> pools <em>with the fitted intercept restored</em>
-  is identical to PPI++ with its power-tuned &lambda;, because
-  &beta;&middot;<i>N</i>/(<i>n</i>+<i>N</i>) = &beta;/(1+<i>n</i>/<i>N</i>) = &lambda;. So the gap
-  between the PPCI and PPI++ marks below is not a modelling detail &mdash; it <em>is</em> the
-  correction PPI applies, drawn to scale. Because the estimand is a within-pool <em>difference</em>,
-  any additive calibration offset cancels and the calibration has exactly one free parameter, the
-  slope. None of the model's several-fold over-prediction of absolute rate reaches the estimate.</div>
-</div>
-  <div class="figwrap">{CHART}</div>
-<div class="measure">
-  <p><b>What the figure is for.</b> Pick a cohort, an outcome unit, a behaviour and a model, and it
-  draws every estimator against the same axis, per exposure and per transition, so PPI++ and PPCI
-  are read against the classical interval they are trying to beat. Switch <em>breakdown</em> to the
-  strata &mdash; 6 line&nbsp;&times;&nbsp;genotype cells on v1, 3 lines on v2 &mdash; and the
-  reason to do any of this becomes visible: <b>the wild-type strata hold 2 annotated pools each</b>
-  against the heterozygous strata's 6, so a classical stratified interval there spans several
-  bouts per minute and says nothing. Those are exactly the cells with 10 unlabelled pools apiece
-  to borrow from.</p>
+  <h3 style="margin-top:26px">The three estimators, and what separates them</h3>
+  <p class="defn"><b>They are not the same estimator.</b> Write
+  <span style="white-space:nowrap">Y&#772;</span> for the classical mean over the
+  {n_lab} labelled pools, <span style="white-space:nowrap">f&#772;<sub>n</sub></span> and
+  <span style="white-space:nowrap">f&#772;<sub>N</sub></span> for the mean prediction on the
+  labelled and unlabelled pools, and &beta; = Cov(D<sub>Y</sub>,&nbsp;D<sub>f</sub>) /
+  Var(D<sub>f</sub>) for the calibration slope fitted on the labelled pools. Then:</p>
+  <div class="scroll"><table>
+    <thead><tr><th>estimator</th><th>formula</th><th>anchored on the labels?</th></tr></thead>
+    <tbody>
+      <tr><td>classical</td><td>Y&#772;</td><td>yes &mdash; it <em>is</em> the labels</td></tr>
+      <tr><td><b>PPI++</b></td><td>Y&#772; + &lambda;&nbsp;(f&#772;<sub>N</sub> &minus; f&#772;<sub>n</sub>),&nbsp;&nbsp;&lambda; = &beta;/(1+n/N)</td><td class="hi">yes &mdash; a damped adjustment to Y&#772;</td></tr>
+      <tr><td><b>PPCI</b></td><td>&beta;&nbsp;f&#772;<sub>all</sub></td><td class="lo">no &mdash; Y&#772; does not appear</td></tr>
+    </tbody></table></div>
+  <p><b>That is the whole difference, and it has an exact size.</b> PPI++ starts from the classical
+  mean and moves it only by however much the unlabelled pools' predictions differ from the labelled
+  pools' predictions &mdash; damped by 1/(1+n/N), which is what makes it unbiased for any
+  predictor. PPCI throws the anchor away and trusts &beta;&nbsp;&times;&nbsp;predictions everywhere.
+  Subtracting the two:</p>
+  <div class="note"><b>PPI++ &minus; PPCI = Y&#772; &minus; &beta;&nbsp;f&#772;<sub>n</sub> =
+  <em>a</em></b>, the intercept of the very same calibration fit. Verified algebraically and to
+  nine decimals numerically.
+  <br><br>So &ldquo;no rectifier&rdquo; is not a vague caveat &mdash; it is precisely one number,
+  the intercept that PPCI drops. On v1 nose-to-nose under fear exposure, H&rarr;O, in bouts per
+  minute: classical +0.65, PPCI +0.43, so the discarded intercept is <b>+0.22</b> and the naive
+  plug-in reads about a third too small. The gap between the PPCI and PPI++ marks in the figure in
+  section 03 <em>is</em> that intercept, drawn to scale.
+  <br><br>(The related identity is worth stating once because it is easy to half-remember: if you
+  put the intercept <em>back</em> and average over all n+N pools, you land exactly on PPI++, since
+  &beta;&middot;N/(n+N)&nbsp;=&nbsp;&lambda;. That describes a third estimator, not the PPCI
+  reported here.)</p></div>
+  <p class="defn"><b>Why the calibration needs only a slope.</b> The estimand is a within-pool
+  <em>difference</em>, so under any affine calibration Y&nbsp;=&nbsp;a&nbsp;+&nbsp;b&thinsp;f the
+  additive term cancels: D<sub>Y</sub>&nbsp;=&nbsp;b&thinsp;D<sub>f</sub>. The calibration this
+  analysis needs therefore has exactly <b>one</b> free parameter, and the model's several-fold
+  over-prediction of absolute occupancy never reaches the estimate.</p>
   <div class="note warnbox"><b>Read the shrinkage honestly.</b> A narrower interval is only worth
-  having if it is still covering the truth. PPI++'s is, by construction, for any predictor.
-  <b>PPCI's is not guaranteed</b>: it drops the rectifier, so its narrowing is bought partly with
-  bias, and on v2 it additionally assumes a slope fitted on v1 transfers to a cohort recorded
-  months later. Every interval in the figure uses the same
-  <i>t</i><sub>n&minus;1</sub> quantile on the same pool-clustered scale, so the percentages are
-  comparable across methods; an earlier version mixed <i>t</i> for classical with 1.96 for PPI and
-  attributed the 5% difference to PPI.</div>
+  having if it still covers the truth. PPI++'s does, by construction, for any predictor.
+  <b>PPCI's is not guaranteed</b>: dropping the intercept buys its narrowing partly with bias, and
+  on v2 it additionally assumes a slope fitted on v1 transfers to a cohort recorded months later.
+  Every interval in the figure uses the same <i>t</i><sub>n&minus;1</sub> quantile on the same
+  pool-clustered scale, so the percentages are comparable across methods; an earlier version mixed
+  <i>t</i> for classical with 1.96 for PPI and attributed the 5% difference to PPI.</div>
 </div></section>
 
 

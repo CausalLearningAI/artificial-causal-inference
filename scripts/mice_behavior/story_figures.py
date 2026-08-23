@@ -71,7 +71,10 @@ def fig_causal(r):
     # alongside them triple-counts the same 24 pools.
     trans = [('H', 'O'), ('O', 'P')]
     tnames = ['exposure ON\nH → O', 'exposure OFF\nO → P']
-    fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.3), sharey=False)
+    # sharex, deliberately: both panels are in the SAME unit (bouts per minute), so independent
+    # x-scales would let a +0.35 nt bar look the same length as a +0.65 nn bar and invite exactly
+    # the cross-panel comparison the figure exists to support.
+    fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.3), sharey=False, sharex=True)
     for ax, (lab, nice) in zip(axes, [('Y_nt', 'nose-to-tail  (nt)'), ('Y_nn', 'nose-to-nose  (nn)')]):
         ypos, ticks, labels = [], [], []
         for i, ((x, y), tn) in enumerate(zip(trans, tnames)):
@@ -93,6 +96,7 @@ def fig_causal(r):
         ax.set_yticks(ticks); ax.set_yticklabels(labels, fontsize=9)
         ax.set_ylim(min(ypos) - 1.0, max(ypos) + 1.0)
         ax.set_xlabel('change in bouts per minute')
+        ax.tick_params(labelbottom=True)
         ax.set_title(nice, fontsize=11, weight='bold', loc='left', color=INK)
         ax.grid(axis='x', color=GRID, lw=0.7); ax.set_axisbelow(True)
         for s in ('top', 'right', 'left'):
@@ -373,7 +377,10 @@ def _minute_ci(d, lab, reps=2000, seed=0):
     idx = rng.integers(0, len(x), size=(reps, len(x)))
     with np.errstate(invalid='ignore'):
         boots = np.nanmean(x[idx], axis=1)
-    return (np.asarray(piv.columns, int) + 1, np.nanmean(x, axis=0),
+    # x is the elapsed-minute MIDPOINT of each bin: bin m covers elapsed [m, m+1), so it is
+    # plotted at m+0.5. That makes the axis genuine elapsed time, and the phase boundary of O
+    # and P -- elapsed minute 15 -- lands exactly on x = 15 rather than half a bin past it.
+    return (np.asarray(piv.columns, float) + 0.5, np.nanmean(x, axis=0),
             np.nanpercentile(boots, 2.5, axis=0), np.nanpercentile(boots, 97.5, axis=0))
 
 
@@ -408,15 +415,16 @@ def fig_within_phase_by_odour():
             for ph, (mx, my) in ends.items():
                 ax.annotate(ph, (mx, my), textcoords='offset points', xytext=(5, -2 + dy[ph]),
                             fontsize=8.5, weight='bold', color=colour[ph], zorder=4)
-            ax.axvline(15.5, color=MUTED, lw=0.9, ls=(0, (3, 3)), zorder=1)
-            ax.set_xticks([1, 5, 10, 15, 20, 25, 30])
-            ax.set_xlim(0.2, 31.5)
+            # exactly 15: where O and P end and H keeps running
+            ax.axvline(15, color=INK2, lw=1.1, ls=(0, (4, 3)), zorder=4)
+            ax.set_xticks([0, 5, 10, 15, 20, 25, 30])
+            ax.set_xlim(0, 30.6)
             ax.grid(color=GRID, lw=0.7); ax.set_axisbelow(True)
             for s_ in ('top', 'right'):
                 ax.spines[s_].set_visible(False)
             ax.set_title(f'{nice} · {odn}', fontsize=9.5, weight='bold', loc='left', color=INK)
             if i == 1:
-                ax.set_xlabel('minute within the phase')
+                ax.set_xlabel('elapsed minutes into the phase')
             if j == 0:
                 ax.set_ylabel('bouts per minute')
     h, lg = axes[0][0].get_legend_handles_labels()
