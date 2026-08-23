@@ -19,7 +19,7 @@ XF = F / 'xfit_f2'
 
 SRC = {
     'behav': FIG / 'story_behaviours.png', 'ppi': FIG / 'story_ppi.png',
-    'within': FIG / 'story_within_phase.png', 'window': FIG / 'story_window_sensitivity.png',
+    'within': FIG / 'story_within_phase.png',
     'outcome': FIG / 'story_outcome_choice.png', 'lcurve': FIG / 'story_learning_curve.png',
     'tokpix': FIG / 'story_tokens_pixels.png', 'apcausal': FIG / 'story_ap_vs_causal.png',
     'conf_nt': SSL / 'confusion_examples_nt.png', 'conf_nn': SSL / 'confusion_examples_nn.png',

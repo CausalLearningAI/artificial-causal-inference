@@ -244,50 +244,6 @@ if __name__ == '__main__':
         print(f'    {n:44s} AP={x:.4f}  mean r_delta={y:.3f}')
 
 
-def fig_within_phase(a=None):
-    """Event rate against elapsed time INSIDE each phase. The phase mean hides this entirely."""
-    a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
-                    usecols=['observation_id', 'frame_idx', 'Y_nt', 'Y_nn']).dropna(subset=['Y_nt'])
-    e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')[
-        ['observation_id', 'pool', 'phase', 'odor']]
-    a = a.sort_values(['observation_id', 'frame_idx']).merge(e, on='observation_id')
-    a['minute'] = (a.frame_idx // int(FPS * 60)).astype(int)
-    rows = []
-    for (oid, m), g in a.groupby(['observation_id', 'minute'], sort=False):
-        if len(g) < 250:
-            continue
-        r = {'observation_id': oid, 'minute': m}
-        for lab in ('Y_nt', 'Y_nn'):
-            v = g[lab].to_numpy()
-            r[lab] = int(((v == 1) & (np.r_[0, v[:-1]] == 0)).sum())
-        rows.append(r)
-    d = pd.DataFrame(rows).merge(e, on='observation_id')
-    fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.0), sharey=True)
-    style = {'H': (MUTED, '-'), 'O': (C2, '-'), 'P': (C1, '--')}
-    for ax, (lab, nice) in zip(axes, [('Y_nt', 'nose-to-tail'), ('Y_nn', 'nose-to-nose')]):
-        for ph in ('H', 'O', 'P'):
-            s = d[(d.phase == ph) & (d.minute < 15)].groupby('minute')[lab].mean()
-            col, ls = style[ph]
-            ax.plot(s.index + 1, s.values, ls, color=col, lw=2, label=f'{ph}', zorder=3)
-        ax.set_xlabel('minute within the phase')
-        ax.set_title(nice, fontsize=10.5, weight='bold', loc='left', color=INK)
-        ax.grid(color=GRID, lw=0.7); ax.set_axisbelow(True)
-        for s_ in ('top', 'right'):
-            ax.spines[s_].set_visible(False)
-    axes[0].set_ylabel('bouts per minute')
-    axes[0].legend(frameon=False, fontsize=8.5, title='phase', title_fontsize=8)
-    fig.suptitle('Behaviour decays steeply INSIDE every phase — averaged over 24 pools and both odours',
-                 fontsize=11, weight='bold', x=0.02, ha='left')
-    fig.text(0.02, -0.04, 'Rates fall roughly 4–6× across a recording. 11 of 12 phase × odour cells have a '
-             'significantly negative slope. A single phase mean therefore\ndepends on how long the '
-             'recording is — and habituation is 30 minutes while odour and post are 15.',
-             fontsize=8, color=INK2, ha='left')
-    fig.tight_layout()
-    f = OUT / 'story_within_phase.png'
-    fig.savefig(f, dpi=160, bbox_inches='tight'); plt.close(fig)
-    return f
-
-
 def fig_window_sensitivity():
     """The same contrast under three defensible windows. One of them flips sign."""
     a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',

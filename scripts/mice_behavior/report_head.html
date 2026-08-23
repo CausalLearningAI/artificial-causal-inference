@@ -1,4 +1,4 @@
-<title>The Exposure Effect</title>
+<title>Genotype Under Hormonal Exposure</title>
 <style>
 :root{
   --bg:#f7f8fa; --surface:#ffffff; --surface-2:#eef1f6; --line:#dde2ea;
@@ -26,6 +26,16 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--serif);
 h1,h2,h3{text-wrap:balance;line-height:1.2;margin:0}
 h1{font-size:clamp(2.1rem,4.6vw,3.1rem);font-weight:600;letter-spacing:-.02em}
 h2{font-size:clamp(1.35rem,2.3vw,1.8rem);font-weight:600;letter-spacing:-.01em}
+h3{font-size:1.1rem;font-weight:600;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sub{display:flex;flex-direction:column;gap:14px;margin-top:14px;padding-top:20px;
+     border-top:1px solid var(--line)}
+.sub .q{font-family:var(--mono);font-size:.68rem;letter-spacing:.13em;text-transform:uppercase;
+        color:var(--ink-3)}
+.verdict{font-family:var(--mono);font-size:.64rem;letter-spacing:.09em;text-transform:uppercase;
+         border:1px solid currentColor;border-radius:2px;padding:1px 6px;font-weight:400}
+.v-yes{color:var(--good)}
+.v-no{color:var(--warm)}
+.v-part{color:var(--warn)}
 p{margin:0}
 a{color:var(--accent)}
 .eyebrow{font-family:var(--mono);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;
