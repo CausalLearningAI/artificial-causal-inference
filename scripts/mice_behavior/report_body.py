@@ -1,6 +1,7 @@
-# Consumed by build_report.py via exec(); expects `img` (dict of data URIs) and `P` (ppi_results).
-def f(t):
-    return f"{t[0]:+.2f} [{t[1]:+.2f}, {t[2]:+.2f}]"
+# Consumed by build_report.py via exec(). Expects `img` (data URIs), `CHART` (the interactive
+# figure, already JSON-injected) and `E` (estimates.json, for inline numbers).
+n_lab = max((c['n_lab'] for c in E['cells'] if c['exp'] == 'v1' and c['method'] == 'classical'),
+            default=24)
 
 BODY = f'''
 <div class="wrap">
@@ -8,9 +9,11 @@ BODY = f'''
 <header class="top"><div class="measure">
   <p class="eyebrow">Mice v1 / v2 &middot; status &middot; 23 August 2026</p>
   <h1>Genotype under hormonal exposure</h1>
-  <p class="lede">Three ASD-associated mouse lines, wild-type against heterozygous knockout
-  littermates, filmed before, during and after two hormonal exposures. The programme asks how the
-  genotype intervention changes social behaviour. This report covers the step in front of that:
+  <p class="lede">Three ASD-associated mouse lines, wild-type against heterozygous
+  littermates &mdash; the mutation is not expressed in the wild type and is expressed in the
+  heterozygote, filmed before, during and after two hormonal exposures. The
+  programme asks how the genotype changes social behaviour. This report covers the step
+  in front of that:
   the <b>average</b> effect of the exposure itself, pooled over genotypes &mdash; and the vision
   model that has to carry it to the 84 pools nobody has annotated.</p>
 </div></header>
@@ -26,8 +29,10 @@ BODY = f'''
     <thead><tr><th></th><th>v1</th><th>v2</th></tr></thead>
     <tbody>
       <tr><td>pools &times; observations</td><td>72 &times; 6 = 432</td><td>36 &times; 6 = 216</td></tr>
-      <tr><td>genotype</td><td>pure cage: 36 wt, 36 het</td><td>mixed cage: wt + het littermates</td></tr>
-      <tr><td>lines</td><td colspan="2">ash1l / kdm6b / kmt5b, 1:1:1, sexes balanced within every line</td></tr>
+      <tr><td>design</td><td><b>12 pools per line &times; genotype</b><br>3 &times; 2 &times; 12 = 72</td><td><b>12 pools per line</b><br>3 &times; 12 = 36</td></tr>
+      <tr><td>genotype</td><td>pure cage: 36 wt, 36 het</td><td>mixed cage: <b>3 wt + 1 het</b> per cage</td></tr>
+      <tr><td>strata</td><td class="hi">6 (line &times; genotype)</td><td class="hi">3 (line)</td></tr>
+      <tr><td>lines</td><td colspan="2"><i>Ash1l</i> / <i>Kdm6b</i> / <i>Kmt5b</i>, 1:1:1, sexes balanced within every line</td></tr>
       <tr><td>annotated</td><td class="hi">24 pools / 144 obs</td><td class="lo">none</td></tr>
       <tr><td>where genotype lives</td><td>between pools</td><td>within a pool</td></tr>
     </tbody></table></div>
@@ -83,7 +88,7 @@ BODY = f'''
   <p>Human labels only, no model anywhere in this section.</p>
 </div>
   <div class="figwrap"><figure>
-    <img src="{img['behav']}" alt="Effects on bouts per minute for nose-to-tail, nose-to-nose and nose-to-anogenital, split by fear and social exposure.">
+    <img src="{img['behav']}" alt="Effects on bouts per minute for nose-to-tail and nose-to-nose, split by fear and social exposure.">
     <figcaption>Filled = 95% CI excludes zero. Unit of analysis is the pool (n = 24); each estimate
     is a mean of within-pool differences.</figcaption>
   </figure></div>
@@ -95,15 +100,22 @@ BODY = f'''
       <tr><td>nt &middot; nose-to-tail</td><td>social</td><td class="hi">&minus;0.36</td><td class="hi">+0.27</td></tr>
       <tr><td>nn &middot; nose-to-nose</td><td>fear</td><td class="hi">+0.65</td><td class="hi">&minus;0.28</td></tr>
       <tr><td>nn &middot; nose-to-nose</td><td>social</td><td class="hi">+0.47</td><td class="hi">&minus;0.70</td></tr>
-      <tr><td>np &middot; nose-to-anogenital</td><td>fear</td><td class="hi">+0.64</td><td class="hi">&minus;0.38</td></tr>
-      <tr><td>np &middot; nose-to-anogenital</td><td>social</td><td>+0.03</td><td>&minus;0.03</td></tr>
     </tbody></table></div>
-  <p><b>Two patterns are already legible.</b> Head-directed contact rises on exposure and falls
-  when it is withdrawn &mdash; the sign flips between the two transitions in every cell where both
-  resolve. And the exposures are genuinely different treatments: under fear the two head-directed
-  behaviours move together (nn +0.65, np +0.64), while under social they come apart (nn +0.47,
-  np +0.03) and nose-to-tail runs the other way (&minus;0.36). Averaging over exposures would
-  cancel the nt effect outright.</p>
+  <p><b>Two patterns are already legible.</b> Nose-to-nose contact rises on exposure and falls
+  when it is withdrawn &mdash; the sign flips between the two transitions, and both halves
+  resolve under both exposures. And the exposures are genuinely different treatments: nose-to-nose
+  rises on exposure under both (+0.65 fear, +0.47 social) while nose-to-tail runs in OPPOSITE
+  directions (+0.35 fear, &minus;0.36 social). Averaging over exposures would cancel the nt effect
+  outright, which is why they are never pooled.</p>
+  <div class="note"><b>There are two behaviours here, not three.</b> The lab's
+  <code>behavior_type</code> column carries three codes and an earlier version of this report
+  read the third, <code>np</code>, as &ldquo;nose-to-anogenital&rdquo; &mdash; then built a
+  three-behaviour dissociation on it. Cross-tabulating the code against the annotation files' own
+  human-readable <code>Behavior</code> column over all 144 files shows what it really is:
+  <code>nn</code> is <b>nose-to-nose, mutual</b> (<i>nose-nose_reciprocal</i>) and <code>np</code>
+  is <b>nose-to-nose, directional</b> (<i>nose-nose_passive</i> &mdash; one animal sniffs, the
+  other does not reciprocate). There is no anogenital behaviour anywhere in this dataset. The
+  dissociation was an artefact of the misreading and has been removed.</div>
 </div>
   <div class="figwrap"><figure>
     <img src="{img['within']}" alt="Bouts per minute against elapsed minute within each phase, with 95% bands, split by behaviour and exposure.">
@@ -137,7 +149,7 @@ BODY = f'''
     <div class="step"><b>Encoder</b><span>DINOv2-base ViT-B/14<br>448 px &rarr; 1024 tokens/frame</span></div>
     <div class="step"><b>Spatial pool</b><span>1 learned query over<br>1024 patch tokens</span></div>
     <div class="step"><b>Temporal</b><span>attention over 5 frames<br>(&plusmn;0.4 s)</span></div>
-    <div class="step"><b>Output</b><span>2 sigmoids: nt, nn+np<br>multi-label</span></div>
+    <div class="step"><b>Output</b><span>2 sigmoids: nt, nn<br>multi-label</span></div>
   </div>
   <div class="scroll"><table>
     <thead><tr><th>setting</th><th>value</th><th>setting</th><th>value</th></tr></thead>
@@ -148,13 +160,18 @@ BODY = f'''
       <tr><td>dropout</td><td>0.4</td><td>train / val</td><td>20 / 4 pools</td></tr>
       <tr><td>augmentation</td><td colspan="3">D4 dihedral (exact &mdash; the cage is filmed top-down) + brightness / contrast / gamma</td></tr>
     </tbody></table></div>
-  <div class="note warnbox"><b>Two structural limits, before any ablation.</b> The regime overfits
+  <div class="note warnbox"><b>One structural limit, before any ablation.</b> The regime overfits
   &mdash; training loss falls monotonically while validation AP plateaus near epoch 24, so longer
-  schedules and extra head capacity do nothing. And the head has <b>two outputs for three
-  annotated behaviours</b>: nn and np are merged into one class, and np contributes nearly twice
-  the positive frames (11,772 against 6,516), so every &ldquo;nn&rdquo; number the model produces
-  is really about the union. Defensible under fear, where both move together; it dilutes the
-  social result, where only nn moves.</div>
+  schedules and extra head capacity do nothing.
+  <br><br>The head's two outputs are <b>the right two</b>, which was not clear until the
+  annotation vocabulary was checked. The label for a directed pair
+  (<i>i</i>&nbsp;&rarr;&nbsp;<i>j</i>) is &ldquo;<i>i</i> directs nose-to-nose contact at
+  <i>j</i>&rdquo;, so a mutual bout is a 1 for both animals and a one-sided bout only for the
+  active one. That is exactly what <code>build_pair_labels.py</code> does. The consequence bounds
+  what may be claimed downstream: the <code>nn</code> head predicts mutual and directional
+  contact together, and no predictor here separates them, so <b>nn and np can never be reported
+  as separate effects</b>. Splitting them would need its own label definition and its own head,
+  not a regrouping of these outputs.</div>
 
   <div class="sub">
     <p class="q">ablation &middot; input</p>
@@ -223,7 +240,7 @@ BODY = f'''
 
   <div class="sub">
     <p class="q">ablation &middot; unlabelled frames</p>
-    <h3>Self-supervised adaptation <span class="verdict v-part">yes, but it does not stack</span></h3>
+    <h3>Self-supervised adaptation <span class="verdict v-yes">yes &mdash; and it is what we deploy</span></h3>
     <p>data2vec-style masked patch-feature regression against an EMA teacher, on 374,400 unlabelled
     frames spanning v1 and v2 &mdash; including 216 v2 observations no supervised arm can reach.
     Stage&nbsp;B then <b>freezes that encoder and trains the head only</b>, so the comparison is
@@ -238,36 +255,111 @@ BODY = f'''
         <tr><td>BitFit 6 blocks</td><td>stock DINOv2</td><td class="hi">0.5409</td><td>best model overall</td></tr>
         <tr><td>BitFit 6 blocks <b>on the SSL encoder</b></td><td>adapted</td><td class="lo">0.5127</td><td class="lo">&minus;0.028 against BitFit alone</td></tr>
       </tbody></table></div>
-    <p>So: yes, as a label-free replacement for supervised recalibration; no, as an addition to it.
-    The last row is the informative one &mdash; the SSL encoder <em>was</em> subsequently given
-    supervised recalibration and a head, and the combination lands below BitFit on the stock
-    encoder. Both interventions appear to be buying the same thing, and doing it twice costs
-    accuracy. Scaling SSL does not help either: doubling the corpus at matched compute is neutral,
-    and adapting six blocks instead of two is clearly harmful, so the pretrained features are easy
-    to damage.</p>
+    <p><b>SSL works, and an earlier draft of this report undersold it.</b> +0.033 macro AP is 3.7&times;
+    the 0.0089 seed spread, it is bought with <em>zero labels</em>, and it is the only intervention
+    here that also reaches v2 &mdash; 216 observations no supervised arm can touch. It is also
+    <b>the encoder every number in section 05 rests on</b>: the three cross-fitting folds were run
+    on it. Calling it &ldquo;closed&rdquo; was wrong.</p>
+    <p>On the quantity that actually decides whether a model helps the estimate, it is the best
+    thing measured. r&Delta; is the correlation between true and predicted <em>within-pool phase
+    differences</em>, and PPI's variance reduction is a function of it and nothing else:</p>
+    <div class="scroll"><table>
+      <thead><tr><th>arm</th><th>macro AP</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
+      <tbody>
+        <tr><td>frozen control (seed 1)</td><td>0.4200</td><td>0.417</td><td>0.768</td></tr>
+        <tr><td>SSL-adapted, frozen</td><td>0.4622</td><td>0.455</td><td class="hi">0.902 &mdash; highest of any run</td></tr>
+        <tr><td>BitFit 6 blocks</td><td class="hi">0.5409</td><td class="hi">0.669</td><td>0.872</td></tr>
+        <tr><td>BitFit 6 blocks on the SSL encoder</td><td>0.5127</td><td>0.626</td><td>0.760</td></tr>
+      </tbody></table></div>
+    <p>The AP leader and the r&Delta; leader are <b>different arms</b>, which is the whole reason
+    section 05 shortlists on AP and chooses on the causal quantity.</p>
+    <div class="note warnbox"><b>&ldquo;It does not stack&rdquo; is one seed, and should not be
+    quoted as settled.</b> The claim rests on a single comparison &mdash; BitFit-6 on the SSL
+    encoder at 0.5127 against BitFit-6 alone at 0.5409. That gap is 0.028, about 3&times; a seed
+    spread estimated from a <em>different</em> configuration, from one draw each. It is suggestive
+    that both interventions buy the same domain recalibration and therefore substitute rather than
+    compose, and the r&Delta; column above is consistent with that. It is not established. Two
+    seeds per arm would settle it for ~3 GPU-hours.<br><br>
+    What <em>is</em> established, because each was a clean single-variable change: scaling the
+    corpus 2&times; at matched compute is neutral (0.4524), and adapting six blocks instead of two
+    is clearly harmful (0.3831). The pretrained features are easy to damage. Do not spend more
+    runs on <em>scaling</em> SSL; that is a narrower claim than closing SSL.</div>
   </div>
 
   <div class="sub">
     <p class="q">ablation &middot; invariance</p>
-    <h3>DERM / vREx <span class="verdict v-no">no measurable help</span></h3>
+    <h3>vREx <span class="verdict v-no">no measurable help</span></h3>
     <p><b>Where it should have been needed.</b> The model's bias is treatment-dependent: the ratio
     of predicted to true rate varies across phases, and on the best-AP arm it varied enough to
     predict O&nbsp;&lt;&nbsp;H &mdash; the wrong sign on the primary effect. Within v1 that costs
     nothing, because PPI's rectifier corrects any predictor; on v2, where no labels exist and no
-    rectifier can be built, it is exactly the failure mode that invariant training targets.</p>
+    rectifier can be built, it is exactly the failure mode invariant training targets.</p>
     <div class="scroll"><table>
-      <thead><tr><th>environment definition</th><th>&beta;</th><th>macro AP</th><th>read</th></tr></thead>
+      <thead><tr><th>environment definition</th><th>&beta;</th><th>macro AP</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
       <tbody>
-        <tr><td>none (control)</td><td>&mdash;</td><td>0.4289</td><td>reference, seed noise &plusmn;0.009</td></tr>
-        <tr><td>the 6 phase &times; exposure cells</td><td>1</td><td>0.4366</td><td>within noise</td></tr>
-        <tr><td>the 6 phase &times; exposure cells</td><td>10</td><td>0.4265</td><td>within noise</td></tr>
-        <tr><td>annotator</td><td>10</td><td>0.4272</td><td>within noise</td></tr>
-        <tr><td>annotator</td><td>100</td><td class="lo">0.3352</td><td class="lo">penalty swamps the task</td></tr>
+        <tr><td>none (control, seed 1)</td><td>&mdash;</td><td>0.4200</td><td>0.417</td><td>0.768</td></tr>
+        <tr><td>the 6 phase &times; exposure cells</td><td>1</td><td>0.4366</td><td class="lo">0.300</td><td class="hi">0.861</td></tr>
+        <tr><td>the 6 phase &times; exposure cells</td><td>10</td><td>0.4265</td><td class="lo">0.205</td><td>0.770</td></tr>
+        <tr><td>annotator</td><td>10</td><td>0.4272</td><td>0.542</td><td class="hi">0.876</td></tr>
+        <tr><td>annotator</td><td>100</td><td class="lo">0.3352</td><td>0.736</td><td>0.702</td></tr>
       </tbody></table></div>
-    <p>Three variants across two environment definitions, all inside seed noise, and none of them
-    flattened the per-phase bias. That is unsurprising in hindsight: switching the outcome from
-    occupancy to bout counts already halved the treatment-linked bias (argument 5 in section 02),
-    which is most of what vREx was there to remove. Keep the code; stop spending runs on it.</p>
+    <p>Every AP is inside seed noise and none of them flattened the per-phase bias. The r&Delta;
+    columns are new here and they do not rescue it either: the moves go in both directions, and
+    they are measured on the standing 4-pool split, which supplies <b>16 points</b> (4 pools
+    &times; 2 exposures &times; 2 transitions) at an operating threshold picked by max-F1 on that
+    same split. That is a screen, not a result. Stop spending runs on vREx.</p>
+  </div>
+
+  <div class="sub">
+    <p class="q">ablation &middot; deconfounding</p>
+    <h3>DERM <span class="verdict v-part">never actually run &mdash; now running</span></h3>
+    <div class="note warnbox"><b>A correction to the previous version of this report.</b> This
+    section was headed &ldquo;DERM / vREx &mdash; no measurable help&rdquo; and the summary listed
+    DERM as closed. That was a misattribution: <code>train_online_aug.py</code> only ever
+    implemented <b>vREx</b>, the four runs behind the claim are named <code>vrexCond_b1/b10</code>
+    and <code>vrexAnn_b10/b100</code>, and <b>DERM had never been run on this dataset at all</b>.
+    The two methods attack the same failure by opposite means and there is no reason a null for one
+    transfers to the other.</div>
+    <div class="scroll"><table>
+      <thead><tr><th></th><th>what it changes</th><th>mechanism</th></tr></thead>
+      <tbody>
+        <tr><td><b>vREx</b></td><td>the objective</td><td>keeps the training distribution, ADDS a penalty on the variance of risk across environments</td></tr>
+        <tr><td><b>DERM</b></td><td>the distribution</td><td>keeps the loss, REWEIGHTS every sample by Var(<i>Y</i>|<i>E</i>) / P(<i>Y</i>,<i>E</i>)</td></tr>
+      </tbody></table></div>
+    <p>For a binary label DERM's weight collapses to something you can read off. With
+    <i>p<sub>e</sub></i> = P(<i>Y</i>=1|<i>E</i>=<i>e</i>) and P(<i>e</i>) the environment's share
+    of the training pool:</p>
+    <div class="note"><code>w(y=1, e) = (1 &minus; p<sub>e</sub>) / P(e)</code> &nbsp;&nbsp;and&nbsp;&nbsp;
+    <code>w(y=0, e) = p<sub>e</sub> / P(e)</code><br><br>
+    so positives and negatives end up carrying <b>equal total mass inside every environment</b>,
+    and each environment's contribution becomes proportional to its own outcome variance. Verified
+    numerically against the general formula: raw prevalence spread 3.5&times; across environments
+    &rarr; DERM-weighted prevalence exactly 0.5 in every one, mean weight normalised to 1 so the
+    effective learning rate is unchanged and the comparison against ERM is not confounded by a
+    quietly different step size.</div>
+    <p><b>Why this is the mechanism the problem calls for.</b> Phase predicts <em>prevalence</em>
+    here &mdash; the odour port visibly changes the scene, and the predicted/true rate ratio moves
+    1.80&ndash;3.51 across phases. A classifier can therefore score a frame by which phase it looks
+    like rather than by what the mice are doing, and a bias that moves with the treatment is
+    exactly what corrupts an ATE estimated without a rectifier. DERM removes that route by
+    construction, and unlike a penalty on predictions it never asks the model to be invariant to
+    phase &mdash; it only breaks the label&ndash;environment association, leaving the biology
+    intact.</p>
+    <p><b>Four arms are running</b>, all at the config the controls and the vREx arms used, so the
+    method is the only thing that varies: environments = the 3 <b>phases</b> (the estimand's own
+    treatment variable), environments = the 6 <b>phase &times; exposure</b> cells, a <b>seed
+    replicate</b> of the phase arm because every vREx arm was a single draw, and environments =
+    <b>annotator</b> as a contrast rather than a candidate. That last one matters for
+    interpretation: annotator is exactly balanced across phase &mdash; every scorer took all six
+    observations of each pool they touched, so H/O/P = 48/48/48 &mdash; which means annotator
+    <em>already cancels</em> in a within-pool phase contrast. If deconfounding against annotator
+    moves r&Delta; as much as deconfounding against phase does, the mechanism is not what the
+    argument above says it is, and the phase result would need a different explanation.</p>
+    <div class="note warnbox"><b>These will be screened on r&Delta;, not AP, and a screen is not a
+    CI.</b> The vREx round was judged on macro AP alone &mdash; and AP is not what PPI's variance
+    reduction depends on. Whichever arm clears the controls will then be <b>cross-fitted over three
+    folds</b>, because only out-of-fold predictions on all 24 annotated pools license a real
+    shrinkage number. Until that runs, no CI shrinkage is quoted for DERM.</div>
   </div>
 </div></section>
 
@@ -286,7 +378,7 @@ BODY = f'''
   </figure></div>
 <div class="measure">
   <div class="scroll"><table>
-    <thead><tr><th>candidate</th><th>macro AP</th><th>event F1 nt / nn+np</th><th>r&Delta; nt</th><th>r&Delta; nn+np</th></tr></thead>
+    <thead><tr><th>candidate</th><th>macro AP</th><th>event F1 nt / nn</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
     <tbody>
       <tr><td>BitFit, 6 blocks</td><td class="hi">0.5409</td><td>0.473 / 0.553</td><td>0.669</td><td>0.872</td></tr>
       <tr><td>full FT, 2 blocks (seed 1)</td><td>0.4927</td><td>0.428 / 0.537</td><td class="hi">0.824</td><td class="hi">0.875</td></tr>
@@ -315,8 +407,8 @@ BODY = f'''
   <figure><img src="{img['conf_nt']}" alt="True positive, false positive, false negative and true negative examples for nose-to-tail.">
     <figcaption><b>nt.</b> Confident false positives are mostly frames adjacent to a scored bout
     &mdash; the model holds p&nbsp;&asymp;&nbsp;1 through a gap the annotator left.</figcaption></figure>
-  <figure><img src="{img['conf_nn']}" alt="Examples for the merged nose-to-nose plus nose-to-anogenital class.">
-    <figcaption><b>nn+np</b>, same run and operating point.</figcaption></figure>
+  <figure><img src="{img['conf_nn']}" alt="Examples for the nose-to-nose class.">
+    <figcaption><b>nn</b> (mutual and directional together), same run and operating point.</figcaption></figure>
   </div>
 <div class="measure">
   <h3 style="margin-top:26px">Detections where no annotator ever looked</h3>
@@ -325,19 +417,19 @@ BODY = f'''
   stay physically plausible, and whether the confident detections actually show the behaviour.</p>
 </div>
   <div class="figwrap">
-  <figure><img src="{img['un_nn_v1']}" alt="Confident merged-class detections on unannotated v1 pools.">
-    <figcaption><b>Unannotated v1 &middot; nn+np.</b> The 48 pools PPI rectifies.</figcaption></figure>
+  <figure><img src="{img['un_nn_v1']}" alt="Confident nose-to-nose detections on unannotated v1 pools.">
+    <figcaption><b>Unannotated v1 &middot; nn.</b> The 48 pools PPI rectifies.</figcaption></figure>
   <figure><img src="{img['un_nt_v1']}" alt="Confident nose-to-tail detections on unannotated v1 pools.">
     <figcaption><b>Unannotated v1 &middot; nt.</b></figcaption></figure>
-  <figure><img src="{img['un_nn_v2']}" alt="Confident merged-class detections on v2.">
-    <figcaption><b>v2 &middot; nn+np.</b> A different cohort recorded months later, with zero
+  <figure><img src="{img['un_nn_v2']}" alt="Confident nose-to-nose detections on v2.">
+    <figcaption><b>v2 &middot; nn.</b> A different cohort recorded months later, with zero
     annotations anywhere.</figcaption></figure>
   <figure><img src="{img['un_nt_v2']}" alt="Confident nose-to-tail detections on v2.">
     <figcaption><b>v2 &middot; nt.</b></figcaption></figure>
   </div>
 <div class="measure">
   <div class="scroll"><table>
-    <thead><tr><th>set</th><th>pools</th><th>observations</th><th>predicted nt</th><th>predicted nn+np</th><th>read</th></tr></thead>
+    <thead><tr><th>set</th><th>pools</th><th>observations</th><th>predicted nt</th><th>predicted nn</th><th>read</th></tr></thead>
     <tbody>
       <tr><td>v1 labelled (out-of-fold)</td><td>24</td><td>144</td><td>2.9&ndash;7.2%</td><td>8.3&ndash;13.1%</td><td>true 0.5&ndash;1.4% / 1.2&ndash;2.9%</td></tr>
       <tr><td>v1 unlabelled</td><td>48</td><td>288</td><td>3.9&ndash;10.1%</td><td>5.5&ndash;8.5%</td><td>plausible</td></tr>
@@ -345,48 +437,48 @@ BODY = f'''
     </tbody></table></div>
   <p>Ranges are over the six phase &times; exposure cells. Nothing collapses or saturates, and the
   v2 detections show genuine contact. Predicted occupancy runs about <b>5&times; above truth</b>
-  throughout &mdash; part calibration offset, part the nn+np merge &mdash; so these must never be
+  throughout &mdash; part calibration offset, part the deliberate prior shift in training &mdash; so these must never be
   read as behaviour rates directly. It costs nothing downstream: PPI's &lambda; absorbs the scale.</p>
 </div>
 
 <div class="measure">
-  <h3 style="margin-top:26px">Prediction-powered inference</h3>
-  <p class="defn"><b>PPI++ on v1</b> combines {P['nn_fear']['n']} labelled pools carrying
-  out-of-fold predictions with {P['nn_fear']['N']} unlabelled ones. It is <b>unbiased for any
-  predictor</b>: the rectifier subtracts exactly what the unlabelled term added, so a miscalibrated
-  model costs variance and never validity. <b>Transport to v2</b> has no labels anywhere and
-  therefore no rectifier &mdash; it applies the calibration slope fitted on v1 to
-  {P['nn_fear']['Nv2']} v2 pools.</p>
+  <h3 style="margin-top:26px">The estimates</h3>
+  <p class="defn"><b>Three estimators of the same quantity.</b>
+  <b>Classical</b> averages within-pool differences on human labels &mdash; unbiased, and confined
+  to the {n_lab} annotated pools. <b>PPI++</b> adds the unlabelled pools and rectifies them
+  against the labelled ones; it is <em>unbiased for any predictor</em>, so a miscalibrated model
+  costs variance and never validity. <b>PPCI</b> is the plug-in: rescale the model's predictions
+  and average them over <em>every</em> pool, annotated or not, with no rectifier. It is the only
+  one of the three that exists on v2.</p>
+  <div class="note"><b>The intercept is the rectifier &mdash; exactly.</b> Verified algebraically
+  and numerically: PPCI over all <i>n</i>+<i>N</i> pools <em>with the fitted intercept restored</em>
+  is identical to PPI++ with its power-tuned &lambda;, because
+  &beta;&middot;<i>N</i>/(<i>n</i>+<i>N</i>) = &beta;/(1+<i>n</i>/<i>N</i>) = &lambda;. So the gap
+  between the PPCI and PPI++ marks below is not a modelling detail &mdash; it <em>is</em> the
+  correction PPI applies, drawn to scale. Because the estimand is a within-pool <em>difference</em>,
+  any additive calibration offset cancels and the calibration has exactly one free parameter, the
+  slope. None of the model's several-fold over-prediction of absolute rate reaches the estimate.</div>
 </div>
-  <div class="figwrap"><figure>
-    <img src="{img['ppi']}" alt="Classical, PPI++ and transported-to-v2 intervals for four behaviour by exposure cells.">
-    <figcaption>H&rarr;O contrast on the occupancy scale, because the unlabelled inference stores a
-    per-observation mean probability rather than a frame series.</figcaption>
-  </figure></div>
+  <div class="figwrap">{CHART}</div>
 <div class="measure">
-  <div class="scroll"><table>
-    <thead><tr><th>cell</th><th>within-cell r</th><th>classical</th><th>PPI++</th><th>CI</th><th>v2 transported</th></tr></thead>
-    <tbody>
-      <tr><td>nn+np &middot; fear</td><td class="hi">{P['nn_fear']['r']:.2f}</td><td>{f(P['nn_fear']['classical'])}</td><td>{f(P['nn_fear']['ppi'])}</td><td class="hi">&minus;{100*P['nn_fear']['shrink']:.0f}%</td><td class="hi">{f(P['nn_fear']['v2'])}</td></tr>
-      <tr><td>nn+np &middot; social</td><td>{P['nn_social']['r']:.2f}</td><td>{f(P['nn_social']['classical'])}</td><td>{f(P['nn_social']['ppi'])}</td><td>&minus;{100*P['nn_social']['shrink']:.0f}%</td><td>{f(P['nn_social']['v2'])}</td></tr>
-      <tr><td>nt &middot; fear</td><td>{P['nt_fear']['r']:.2f}</td><td>{f(P['nt_fear']['classical'])}</td><td>{f(P['nt_fear']['ppi'])}</td><td>&minus;{100*P['nt_fear']['shrink']:.0f}%</td><td>{f(P['nt_fear']['v2'])}</td></tr>
-      <tr><td>nt &middot; social</td><td>{P['nt_social']['r']:.2f}</td><td>{f(P['nt_social']['classical'])}</td><td>{f(P['nt_social']['ppi'])}</td><td>&minus;{100*P['nt_social']['shrink']:.0f}%</td><td>{f(P['nt_social']['v2'])}</td></tr>
-    </tbody></table></div>
-  <p><b>The model helps in exactly one cell, and that is the honest result.</b> nn+np under fear
-  exposure has a within-cell correlation of {P['nn_fear']['r']:.2f} and gains a
-  {100*P['nn_fear']['shrink']:.0f}% narrower interval &mdash; worth roughly
-  {24/(1-P['nn_fear']['shrink'])**2 - 24:.0f} extra annotated pools. The other three sit at
-  r &asymp; 0.15&ndash;0.19 and revert to the classical interval, which is precisely what PPI is
-  supposed to do when the predictor carries no information: lose nothing.</p>
-  <div class="note warnbox"><b>Two caveats.</b> The within-cell r is far below the 0.72 obtained by
-  pooling all cells, because pooling adds between-cell signal a single-contrast estimate cannot
-  use &mdash; so the pooled figure overstates PPI's value for any one number here. And
-  <b>the v2 column is an extrapolation, not an estimate with guarantees</b>: it stands or falls on
-  the v1 calibration transferring to a cohort recorded months later. The encouraging evidence is
-  that all four v1 signs reproduce on v2 and the fear cell lands at {P['nn_fear']['v2'][0]:+.2f}
-  against v1's {P['nn_fear']['classical'][0]:+.2f}. Treat it as a hypothesis until a handful of v2
-  pools are annotated.</div>
+  <p><b>What the figure is for.</b> Pick a cohort, an outcome unit, a behaviour and a model, and it
+  draws every estimator against the same axis, per exposure and per transition, so PPI++ and PPCI
+  are read against the classical interval they are trying to beat. Switch <em>breakdown</em> to the
+  strata &mdash; 6 line&nbsp;&times;&nbsp;genotype cells on v1, 3 lines on v2 &mdash; and the
+  reason to do any of this becomes visible: <b>the wild-type strata hold 2 annotated pools each</b>
+  against the heterozygous strata's 6, so a classical stratified interval there spans several
+  bouts per minute and says nothing. Those are exactly the cells with 10 unlabelled pools apiece
+  to borrow from.</p>
+  <div class="note warnbox"><b>Read the shrinkage honestly.</b> A narrower interval is only worth
+  having if it is still covering the truth. PPI++'s is, by construction, for any predictor.
+  <b>PPCI's is not guaranteed</b>: it drops the rectifier, so its narrowing is bought partly with
+  bias, and on v2 it additionally assumes a slope fitted on v1 transfers to a cohort recorded
+  months later. Every interval in the figure uses the same
+  <i>t</i><sub>n&minus;1</sub> quantile on the same pool-clustered scale, so the percentages are
+  comparable across methods; an earlier version mixed <i>t</i> for classical with 1.96 for PPI and
+  attributed the 5% difference to PPI.</div>
 </div></section>
+
 
 <section><div class="measure">
   <div class="sechead"><p class="eyebrow">06 &middot; Next</p><h2>What to do next</h2></div>
@@ -396,15 +488,17 @@ BODY = f'''
       <tr><td>1</td><td>annotate ~20 more v1 pools</td><td>+0.076 AP per doubling and no plateau &mdash; worth more than every modelling change combined</td></tr>
       <tr><td>2</td><td>annotate 4&ndash;6 v2 pools</td><td>converts the v2 extrapolation into a real PPI estimate with a rectifier</td></tr>
       <tr><td>3</td><td>fix the observation window on biological grounds</td><td>largest single lever on the headline number; currently inherited, not chosen</td></tr>
-      <tr><td>4</td><td>split the merged class into nn and np heads</td><td>recovers the social-exposure dissociation the model cannot currently express</td></tr>
       <tr><td>5</td><td>re-run the three cross-fitting folds on BitFit-6</td><td>~18 GPU-h to put the estimate on the configuration that actually won</td></tr>
       <tr><td>6</td><td>per-animal crops from the 2064 px source</td><td>only resolution lever left, and the same fix the genotype question needs in v2</td></tr>
       <tr><td>7</td><td>amplitude + decay constant per phase</td><td>replaces a mean whose value depends on how long the recording ran</td></tr>
       <tr><td>8</td><td>double-annotate 15&ndash;20 observations</td><td>the only clean way to bound irreducible label noise, which caps everything above</td></tr>
     </tbody></table></div>
-  <div class="note warnbox"><b>Closed, deliberately.</b> DERM as a headline and further SSL scaling.
-  Both are characterised, neither pays, and the bias DERM targeted is largely gone once the outcome
-  is bout counts. Keep the code; stop spending runs.</div>
+  <div class="note warnbox"><b>Closed, deliberately &mdash; and narrower than it used to read.</b>
+  Two things are closed: <em>scaling</em> the SSL corpus (2&times; frames at matched compute is
+  neutral; six adapted blocks is harmful), and <em>vREx</em> as a headline (three variants across
+  two environment definitions, all inside seed noise). Neither &ldquo;SSL&rdquo; nor
+  &ldquo;DERM&rdquo; is closed: SSL is the encoder this report deploys, and DERM had never been run
+  at all &mdash; see section 04.</div>
 </div></section>
 
 <div class="measure"><footer>

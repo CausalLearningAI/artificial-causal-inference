@@ -1,0 +1,402 @@
+<!-- Interactive phase-transition ATE figure. Injected by build_report.py, which replaces the
+     __ESTIMATES_JSON__ token with results/vision/mice/frame/_figures/estimates.json.
+     Kept out of report_body.py on purpose: that file is one big f-string, and JS braces in it
+     would need doubling everywhere. -->
+<style>
+.ate{--s-cls:#2a78d6;--s-ppi:#1baf7a;--s-ppci:#eb6834;
+     --ate-surface:var(--surface);--ate-grid:var(--line)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .ate{
+     --s-cls:#3987e5;--s-ppi:#199e70;--s-ppci:#d95926}}
+:root[data-theme="dark"] .ate{--s-cls:#3987e5;--s-ppi:#199e70;--s-ppci:#d95926}
+.ate{border:1px solid var(--line);border-radius:3px;background:var(--ate-surface);
+     margin:18px 0 0;overflow:hidden}
+.ate-bar{display:flex;flex-wrap:wrap;gap:18px;padding:14px 16px;border-bottom:1px solid var(--line);
+         background:var(--surface-2)}
+.ate-ctl{display:flex;flex-direction:column;gap:5px}
+.ate-ctl .lab{font-family:var(--mono);font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;
+              color:var(--ink-3)}
+.ate-seg{display:flex;gap:0;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.ate-seg button{font-family:var(--mono);font-size:.72rem;padding:5px 10px;border:0;cursor:pointer;
+                background:var(--surface);color:var(--ink-2);line-height:1.3}
+.ate-seg button+button{border-left:1px solid var(--line)}
+.ate-seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.ate-seg button:disabled{opacity:.38;cursor:not-allowed}
+.ate-legend{display:flex;flex-wrap:wrap;gap:16px;padding:12px 16px 0;font-family:var(--mono);
+            font-size:.72rem;color:var(--ink-2)}
+.ate-legend span{display:inline-flex;align-items:center;gap:7px}
+.ate-legend i{width:11px;height:11px;border-radius:50%;display:inline-block;
+              box-shadow:0 0 0 2px var(--ate-surface)}
+.ate-panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:0}
+.ate-panels.strata{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ate-colhead{font-family:var(--mono);font-size:.68rem;letter-spacing:.11em;text-transform:uppercase;
+             color:var(--ink-2);padding:10px 16px 0}
+@media(max-width:680px){.ate-panels.strata{grid-template-columns:minmax(0,1fr)}
+  .ate-colhead:nth-of-type(2){display:none}}
+.ate-panel{padding:6px 16px 16px;min-width:0}
+.ate-panel h4{font-family:var(--mono);font-size:.7rem;letter-spacing:.11em;text-transform:uppercase;
+              color:var(--ink-2);margin:10px 0 0;font-weight:400}
+.ate svg{width:100%;height:auto;display:block;overflow:visible}
+.ate-note{font-family:var(--mono);font-size:.72rem;line-height:1.6;color:var(--ink-3);
+          padding:0 16px 16px}
+.ate-tt{position:fixed;pointer-events:none;z-index:50;opacity:0;transition:opacity .1s;
+        background:var(--ink);color:var(--bg);font-family:var(--mono);font-size:.7rem;
+        line-height:1.55;padding:8px 10px;border-radius:3px;max-width:290px;white-space:normal}
+.ate-tbl{padding:0 16px 16px}
+.ate-tbl[hidden]{display:none}
+.ate-empty{font-family:var(--mono);font-size:.75rem;color:var(--ink-3);padding:22px 16px}
+.ate-mark{cursor:pointer}
+.ate-mark:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<div class="ate" id="ate">
+  <div class="ate-bar" id="ate-bar"></div>
+  <div class="ate-legend" id="ate-legend"></div>
+  <div class="ate-panels" id="ate-panels"></div>
+  <div class="ate-note" id="ate-note"></div>
+  <div class="ate-tbl" id="ate-tbl" hidden></div>
+</div>
+<div class="ate-tt" id="ate-tt" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  const DATA = __ESTIMATES_JSON__;
+  const cells = DATA.cells || [];
+  const METHODS = [
+    { key: 'classical', name: 'classical', v: '--s-cls',
+      why: 'human labels only, no model. Unbiased; limited to the annotated pools.' },
+    { key: 'ppi', name: 'PPI++', v: '--s-ppi',
+      why: 'labelled pools rectify the unlabelled ones. Unbiased for ANY predictor.' },
+    { key: 'ppci', name: 'PPCI', v: '--s-ppci',
+      why: 'plug-in on every pool, no rectifier. Trades bias for variance.' },
+  ];
+  const M = Object.fromEntries(METHODS.map(m => [m.key, m]));
+  const ODOURS = [['fear', 'FEAR exposure'], ['social', 'SOCIAL exposure']];
+  const TRANS = [['H->O', 'exposure ON   H \u2192 O'], ['O->P', 'exposure OFF   O \u2192 P']];
+  const UNIT_AX = { events: 'change in bouts per minute', time: 'change in occupancy (pp)' };
+  const state = {
+    exp: 'v1', unit: 'events', behav: 'nn', model: null, view: 'all', trans: 'H->O', table: false,
+  };
+  const uniq = (k) => [...new Set(cells.map(c => c[k]))];
+  state.model = uniq('model')[0] || 'xfit_dense';
+
+  const $ = (id) => document.getElementById(id);
+  const css = (n) => getComputedStyle($('ate')).getPropertyValue(n).trim();
+  const fmt = (x, d = 2) => (x == null || !isFinite(x) ? '\u2014'
+    : (x >= 0 ? '+' : '\u2212') + Math.abs(x).toFixed(d));
+
+  // ---------------------------------------------------------------- controls
+  function seg(label, key, opts) {
+    const wrap = document.createElement('div'); wrap.className = 'ate-ctl';
+    const l = document.createElement('span'); l.className = 'lab'; l.textContent = label;
+    const box = document.createElement('div'); box.className = 'ate-seg';
+    box.setAttribute('role', 'group'); box.setAttribute('aria-label', label);
+    opts.forEach(([val, txt, dis]) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = txt;
+      b.setAttribute('aria-pressed', String(state[key] === val));
+      if (dis) b.disabled = true;
+      b.onclick = () => { state[key] = val; render(); };
+      box.appendChild(b);
+    });
+    wrap.append(l, box); return wrap;
+  }
+  function controls() {
+    const bar = $('ate-bar'); bar.textContent = '';
+    bar.append(
+      seg('experiment', 'exp', [['v1', 'v1  \u00b7 72 pools'], ['v2', 'v2  \u00b7 36 pools']]),
+      seg('unit', 'unit', [['events', 'number of events'], ['time', 'mean time']]),
+      seg('behaviour', 'behav', [['nn', 'nose-to-nose'], ['nt', 'nose-to-tail']]),
+      seg('model', 'model', uniq('model').map(m => [m, m])),
+      seg('breakdown', 'view', [['all', 'all pools'],
+        ['strata', state.exp === 'v1' ? 'by line \u00d7 genotype' : 'by line']]),
+    );
+    if (state.view === 'strata') {
+      bar.append(seg('transition', 'trans', TRANS.map(([k, n]) => [k, n.replace(/\s+/g, ' ')])));
+    }
+    bar.append(seg('table', 'table', [[false, 'chart'], [true, 'chart + table']]));
+  }
+
+  function pick(odour, stratum, trans) {
+    return cells.filter(c => c.exp === state.exp && c.unit === state.unit
+      && c.behav === state.behav && c.model === state.model
+      && c.stratum === stratum && c.odour === odour && c.trans === trans
+      && c.est != null && isFinite(c.est));
+  }
+  const strataOf = () => {
+    const seen = new Map();
+    cells.filter(c => c.exp === state.exp && c.stratum !== 'all')
+      .forEach(c => seen.set(c.stratum, c.stratum_label));
+    return [...seen.entries()];
+  };
+
+  // ---------------------------------------------------------------- scale over everything drawn
+  /* A classical interval built on 2 pools has ONE degree of freedom: t = 12.7, so it spans
+     several bouts per minute and is uninformative by construction. Letting it set the shared
+     x-scale would crush every other panel to a few pixels -- which is what the wild-type strata
+     did, since annotation gave them 2 pools each against the heterozygous strata's 6. Such
+     intervals therefore do not set the scale; they are drawn CLIPPED with an arrow cap, which
+     says "continues past the axis" instead of silently rescaling everyone else. Estimates always
+     count, so no dot is ever off-scale. */
+  const SETS_SCALE = (c) => c.n_lab >= 3 || c.method !== 'classical';
+  function domain(groups) {
+    let lo = 0, hi = 0;
+    groups.forEach(g => g.forEach(c => {
+      const vs = SETS_SCALE(c) ? [c.lo, c.hi, c.est] : [c.est];
+      vs.forEach(v => {
+        if (v != null && isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+      });
+    }));
+    if (lo === hi) { lo -= 1; hi += 1; }
+    const pad = (hi - lo) * 0.14;
+    return [lo - pad, hi + pad];
+  }
+  function ticks([lo, hi]) {
+    const raw = (hi - lo) / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(s => s * mag).find(s => s >= raw) || mag * 10;
+    const out = [];
+    for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) out.push(+t.toFixed(10));
+    return out;
+  }
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (n, a) => { const e = document.createElementNS(NS, n);
+    for (const k in a) e.setAttribute(k, a[k]); return e; };
+
+  function tip(node, html) {
+    const tt = $('ate-tt');
+    const show = (ev) => {
+      tt.innerHTML = html; tt.style.opacity = '1';
+      const r = tt.getBoundingClientRect();
+      const x = (ev.clientX ?? 0) + 14, y = (ev.clientY ?? 0) + 14;
+      tt.style.left = Math.min(x, innerWidth - r.width - 10) + 'px';
+      tt.style.top = Math.min(y, innerHeight - r.height - 10) + 'px';
+    };
+    node.addEventListener('mouseenter', show);
+    node.addEventListener('mousemove', show);
+    node.addEventListener('focus', (e) => {
+      const b = node.getBoundingClientRect();
+      show({ clientX: b.left + b.width / 2, clientY: b.top });
+    });
+    const hide = () => { tt.style.opacity = '0'; };
+    node.addEventListener('mouseleave', hide);
+    node.addEventListener('blur', hide);
+  }
+
+  /* One panel = one exposure (main view) or one stratum x exposure (strata view).
+     Rows are the phase transitions; inside a row, one mark per method. A row is the unit of
+     comparison, so the methods sit stacked at the same x-scale rather than in separate charts --
+     the whole point is to read PPI++ and PPCI against the classical interval they are trying to
+     beat. */
+  function panel(title, sub, rows, dom, showAxis, shrinkRef) {
+    const labelled = rows.some(r => r.label);
+    const W = 480, L = labelled ? 118 : 14, R = 58, rowH = 26, groupPad = 16, top = 26;
+    const bodyH = rows.reduce((h, r) => h + r.marks.length * rowH + groupPad, 0);
+    const H = top + bodyH + (showAxis ? 40 : 12);
+    const x = (v) => L + (v - dom[0]) / (dom[1] - dom[0]) * (W - L - R);
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img',
+      'aria-label': `${title}. ${rows.length} phase transitions.` });
+
+    ticks(dom).forEach(t => {
+      svg.appendChild(el('line', { x1: x(t), x2: x(t), y1: top - 8, y2: top + bodyH,
+        stroke: css('--ate-grid'), 'stroke-width': t === 0 ? 1.6 : 0.8 }));
+      if (showAxis) {
+        const tx = el('text', { x: x(t), y: top + bodyH + 16, 'text-anchor': 'middle',
+          fill: css('--ink-3'), 'font-size': 9.5,
+          'font-family': 'ui-monospace,monospace' });
+        tx.textContent = (t > 0 ? '+' : '') + t;
+        svg.appendChild(tx);
+      }
+    });
+    if (showAxis) {
+      const ax = el('text', { x: (L + W - R) / 2, y: top + bodyH + 33, 'text-anchor': 'middle',
+        fill: css('--ink-3'), 'font-size': 9.5, 'font-family': 'ui-monospace,monospace' });
+      ax.textContent = UNIT_AX[state.unit]; svg.appendChild(ax);
+    }
+    const ttl = el('text', { x: 0, y: 12, fill: css('--ink-2'), 'font-size': 10.5,
+      'font-weight': 600, 'font-family': 'ui-monospace,monospace' });
+    ttl.textContent = title; svg.appendChild(ttl);
+    if (sub) {
+      const s = el('text', { x: W, y: 12, 'text-anchor': 'end', fill: css('--ink-3'),
+        'font-size': 9, 'font-family': 'ui-monospace,monospace' });
+      s.textContent = sub; svg.appendChild(s);
+    }
+
+    let y = top + 12;
+    rows.forEach(row => {
+      const rl = el('text', { x: 0, y: y + 3, fill: css('--ink-3'), 'font-size': 9.5,
+        'font-family': 'ui-monospace,monospace' });
+      rl.textContent = row.label; svg.appendChild(rl);
+      const ref = shrinkRef ? row.marks.find(c => c.method === 'classical') : null;
+      const refW = ref && ref.lo != null ? ref.hi - ref.lo : null;
+      row.marks.forEach(c => {
+        const col = css(M[c.method].v);
+        const hasCI = c.lo != null && isFinite(c.lo) && c.hi != null && isFinite(c.hi);
+        const g = el('g', { class: 'ate-mark', tabindex: 0, role: 'button' });
+        if (hasCI) {
+          const clipLo = c.lo < dom[0], clipHi = c.hi > dom[1];
+          const xa = clipLo ? x(dom[0]) : x(c.lo), xb = clipHi ? x(dom[1]) : x(c.hi);
+          // 2px line, rounded ends -- the interval is the mark, the dot is the estimate
+          g.appendChild(el('line', { x1: xa, x2: xb, y1: y, y2: y, stroke: col,
+            'stroke-width': 2,
+            'stroke-linecap': (clipLo || clipHi) ? 'butt' : 'round' }));
+          // arrow cap = "this interval continues past the axis", never a silent truncation
+          if (clipLo) g.appendChild(el('path', { d: `M${xa - 5},${y}L${xa + 1},${y - 3.6}`
+            + `L${xa + 1},${y + 3.6}Z`, fill: col }));
+          if (clipHi) g.appendChild(el('path', { d: `M${xb + 5},${y}L${xb - 1},${y - 3.6}`
+            + `L${xb - 1},${y + 3.6}Z`, fill: col }));
+        }
+        // 2px surface ring so overlapping methods stay separable
+        g.appendChild(el('circle', { cx: x(c.est), cy: y, r: 4.6, fill: col,
+          stroke: css('--ate-surface'), 'stroke-width': 2 }));
+        const resolved = hasCI && c.lo * c.hi > 0;
+        const vl = el('text', { x: W - R + 8, y: y + 3.4, fill: css('--ink-2'),
+          'font-size': 9.5, 'font-weight': resolved ? 600 : 400,
+          'font-family': 'ui-monospace,monospace' });
+        vl.textContent = fmt(c.est);           // direct label on every mark (relief rule: aqua
+        g.appendChild(vl);                      // is sub-3:1 on the light surface)
+        let sh = '';
+        if (refW && c.method !== 'classical' && hasCI) {
+          const d = 100 * (1 - (c.hi - c.lo) / refW);
+          sh = `<br>CI width vs classical: <b>${d >= 0 ? '\u2212' : '+'}${Math.abs(d).toFixed(0)}%</b>`;
+        }
+        tip(g, `<b>${M[c.method].name}</b> \u00b7 ${row.label.replace(/\s+/g, ' ')}<br>`
+          + `${fmt(c.est)} &nbsp;95% CI [${fmt(c.lo)}, ${fmt(c.hi)}]<br>`
+          + `${c.n_lab} labelled${c.n_unlab ? ' / ' + c.n_unlab + ' predicted' : ''} pools`
+          + (c.r != null ? `<br>within-cell r = ${c.r.toFixed(2)}` : '')
+          + (c.lam != null ? `<br>\u03bb = ${c.lam.toFixed(3)}` : '')
+          + (c.beta != null ? `<br>\u03b2 = ${c.beta.toFixed(3)}`
+            + (c.transported ? ' (transported from v1)' : '') : '')
+          + sh + `<br><span style="opacity:.7">${M[c.method].why}</span>`);
+        svg.appendChild(g);
+        y += rowH;
+      });
+      y += groupPad;
+    });
+    return svg;
+  }
+
+  // ---------------------------------------------------------------- table view (relief + a11y)
+  function table(groups) {
+    const box = $('ate-tbl'); box.textContent = ''; box.hidden = !state.table;
+    if (!state.table) return;
+    const d = document.createElement('div'); d.className = 'scroll';
+    const t = document.createElement('table');
+    t.innerHTML = '<thead><tr><th>panel</th><th>transition</th><th>method</th><th>estimate</th>'
+      + '<th>95% CI</th><th>CI width</th><th>vs classical</th><th>pools</th></tr></thead>';
+    const tb = document.createElement('tbody');
+    groups.forEach(g => {
+      const ref = g.marks.find(c => c.method === 'classical');
+      const refW = ref && ref.lo != null ? ref.hi - ref.lo : null;
+      g.marks.forEach(c => {
+        const w = (c.lo != null && isFinite(c.lo)) ? c.hi - c.lo : null;
+        const rel = (refW && w && c.method !== 'classical')
+          ? (100 * (1 - w / refW) >= 0 ? '\u2212' : '+')
+            + Math.abs(100 * (1 - w / refW)).toFixed(0) + '%' : '\u2014';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${g.panel}</td><td>${c.trans}</td><td>${M[c.method].name}</td>`
+          + `<td>${fmt(c.est)}</td><td>[${fmt(c.lo)}, ${fmt(c.hi)}]</td>`
+          + `<td>${w == null ? '\u2014' : w.toFixed(2)}</td><td>${rel}</td>`
+          + `<td>${c.n_lab}${c.n_unlab ? ' + ' + c.n_unlab : ''}</td>`;
+        tb.appendChild(tr);
+      });
+    });
+    t.appendChild(tb); d.appendChild(t); box.appendChild(d);
+  }
+
+  function legend() {
+    const lg = $('ate-legend'); lg.textContent = '';
+    const avail = new Set(cells.filter(c => c.exp === state.exp).map(c => c.method));
+    METHODS.filter(m => avail.has(m.key)).forEach(m => {
+      const s = document.createElement('span');
+      const i = document.createElement('i'); i.style.background = css(m.v);
+      const t = document.createElement('span'); t.textContent = m.name;
+      s.append(i, t); lg.appendChild(s);
+    });
+  }
+
+  function render() {
+    controls(); legend();
+    const panels = $('ate-panels'); panels.textContent = ''; panels.classList.remove('strata');
+    const note = $('ate-note');
+    const flat = [];
+
+    if (state.view === 'all') {
+      const groups = ODOURS.map(([od]) => TRANS.map(([tr]) => pick(od, 'all', tr)).flat());
+      const dom = domain(groups);
+      ODOURS.forEach(([od, nice], i) => {
+        const rows = TRANS.map(([tr, tn]) => ({ label: tn, marks: pick(od, 'all', tr) }))
+          .filter(r => r.marks.length);
+        if (!rows.length) return;
+        rows.forEach(r => r.marks.forEach(c => flat.push({ panel: nice, marks: [c] })));
+        const d = document.createElement('div'); d.className = 'ate-panel';
+        d.appendChild(panel(nice, '', rows, dom, true, true));
+        panels.appendChild(d);
+        void i;
+      });
+    } else {
+      const st = strataOf();
+      const groups = st.map(([sid]) => ODOURS.map(([od]) => pick(od, sid, state.trans)).flat());
+      const dom = domain(groups);
+      panels.classList.add('strata');
+      ODOURS.forEach(([, nice]) => {
+        const h = document.createElement('div'); h.className = 'ate-colhead';
+        h.textContent = nice; panels.appendChild(h);
+      });
+      st.forEach(([sid, slab], ri) => {
+        const last = ri === st.length - 1;
+        ODOURS.forEach(([od, nice]) => {
+          const marks = pick(od, sid, state.trans);
+          const d = document.createElement('div'); d.className = 'ate-panel';
+          if (marks.length) {
+            marks.forEach(c => flat.push({ panel: `${slab} \u00b7 ${nice}`, marks: [c] }));
+            d.appendChild(panel(slab, '', [{ label: '', marks }], dom, last, true));
+          }
+          panels.appendChild(d);
+        });
+      });
+    }
+
+    if (!panels.children.length) {
+      const e = document.createElement('div'); e.className = 'ate-empty';
+      e.textContent = 'No estimate for this combination yet \u2014 '
+        + (state.exp === 'v2'
+          ? 'v2 carries no labels, so only PPCI is defined there.'
+          : 'the dense inference that supplies this unit is still running.');
+      panels.appendChild(e);
+    }
+
+    const dsg = DATA.meta && DATA.meta.design ? DATA.meta.design[state.exp] : null;
+    const th = DATA.meta && DATA.meta.threshold_unlabelled;
+    note.innerHTML =
+      (state.exp === 'v1'
+        ? 'v1: 72 pools, 12 per line \u00d7 genotype, 24 annotated. All three methods available.'
+        : 'v2: 36 pools, 12 per line, 3 wt + 1 het per cage, <b>zero</b> annotated \u2014 so there '
+          + 'is no classical estimate and no rectifier. PPCI transports the calibration slope '
+          + 'fitted on v1; treat it as an extrapolation, not an estimate with guarantees.')
+      + (state.unit === 'events' && th
+        ? `<br>Bout counts use threshold ${th[state.behav] != null ? th[state.behav].toFixed(2) : '\u2014'}`
+          + ', chosen leave-one-fold-out so no pool informs its own operating point.'
+        : '')
+      + '<br>Filled-weight numbers resolve (95% CI excludes zero). Hover or focus any mark for '
+      + 'n, r, \u03bb / \u03b2 and the CI change against classical.'
+      + (state.view === 'strata'
+        ? '<br>An arrow cap means the interval continues past the axis. The wild-type strata carry '
+          + '<b>2 annotated pools each</b> against the heterozygous strata\u2019s 6, so their '
+          + 'classical interval has 1 degree of freedom and does not set the shared scale.'
+        : '')
+      + (dsg && dsg.annotated_pools === 0 ? '' : '');
+    table(flat.reduce((acc, f) => {
+      const k = f.panel; const g = acc.find(a => a.panel === k);
+      if (g) g.marks.push(...f.marks); else acc.push({ panel: k, marks: [...f.marks] });
+      return acc;
+    }, []));
+  }
+
+  render();
+  const mq = matchMedia('(prefers-color-scheme: dark)');
+  mq.addEventListener && mq.addEventListener('change', render);
+  new MutationObserver(render).observe(document.documentElement,
+    { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>

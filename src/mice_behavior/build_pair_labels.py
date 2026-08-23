@@ -4,6 +4,40 @@ Parse raw BORIS annotation CSVs into per-frame per-pair behavior labels.
 Output: dataset/mice/v1/pair_labels.parquet
 Schema: observation_id, frame_idx (5fps), agent1 (0-3), agent2 (0-3), label (1=nt, 2=nn)
 Only positive (non-none) rows are stored.
+
+THE ANNOTATION VOCABULARY -- there are TWO behaviours, not three
+===============================================================
+The lab's `behavior_type` column carries three codes, and the third is not a third behaviour.
+Cross-tabulating it against the human-readable `Behavior` column over all 144 annotation files:
+
+    code   n     Behavior column (dominant)          meaning
+    ----   ----  ----------------------------------  ------------------------------
+    nn     2843  nose-nose, nose-nose_reciprocal     nose-to-nose, MUTUAL
+    np     3111  nose-nose, nose-nose_passive        nose-to-nose, DIRECTIONAL
+    nt     1744  nose-tail                           nose-to-tail
+    np?       1  (one ambiguous nn/np call)          treated as np
+
+`np` is the ONE-SIDED form of the same nose-to-nose contact: agent1 (the `agent1(active)`
+column) sniffs agent2's nose while agent2 does not reciprocate. `nn` is the reciprocal form.
+There is no fourth behaviour and no anogenital behaviour anywhere in this dataset -- an earlier
+round of analysis read `np` as "nose-to-anogenital" and built a three-behaviour "dissociation"
+result on top of it. That was an artefact of the misreading and has been removed.
+
+WHY THE COLLAPSE BELOW IS THE CORRECT LABEL, NOT A COMPROMISE
+============================================================
+The unit of a label here is a DIRECTED pair (i -> j) = "mouse i is directing nose-to-nose
+contact at mouse j". Under that definition the two codes are one behaviour observed at
+different reciprocity, so they map to the same class and differ only in how many directions
+they light up:
+
+    nn (mutual)      -> both (a1 -> a2) and (a2 -> a1) get a 1
+    np (directional) -> only (a1 -> a2) gets a 1; a2 is passive and stays 0
+
+which is exactly what `pairs` does below. The consequence bounds what any downstream analysis
+may claim: the model has two heads, `nt` and `nn`, and the `nn` head predicts the UNION. nn and
+np can therefore never be reported as separate effects in a PPI/PPCI analysis -- no predictor
+here distinguishes them. Splitting them is a question about reciprocity that would need its own
+label definition and its own head, not a regrouping of these outputs.
 """
 import argparse
 import math
@@ -17,7 +51,9 @@ SOURCE_FPS = 30
 TARGET_FPS = 5
 FPS_RATIO = SOURCE_FPS // TARGET_FPS  # 6
 
-# nn and np both collapse to label=2 (nn class); nt → label=1
+# Both nose-to-nose codes collapse to label=2: mutual (nn) and directional (np) are the
+# same contact, distinguished only by reciprocity, which the direction of the pair
+# already encodes. nt -> label=1. See the module docstring.
 LABEL_MAP = {'nn': 2, 'np': 2, 'np?': 2, 'nt': 1}
 
 
@@ -80,7 +116,9 @@ def build_pair_labels(data_dir='./data', dataset_dir='./dataset', overwrite=Fals
             if i_start >= i_end:
                 continue
 
-            # nn is symmetric: label both (a1→a2) and (a2→a1)
+            # Reciprocity decides how many directed labels a bout produces: a mutual
+            # bout (nn) is a 1 for BOTH animals, a one-sided bout (np) only for the
+            # active one.
             pairs = [(a1, a2), (a2, a1)] if behavior == 'nn' else [(a1, a2)]
 
             for fi in range(i_start, i_end):

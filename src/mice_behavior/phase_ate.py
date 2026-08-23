@@ -1,0 +1,256 @@
+"""Estimators for the mice within-pool PHASE-TRANSITION ATE, in one place.
+
+THE ESTIMAND
+============
+The mean WITHIN-POOL change in a behaviour rate across one phase transition, for one exposure.
+The unit of analysis is the POOL: a pool is one cage of four littermates filmed through all
+three phases of both exposures, so every pool supplies its own control and cage, genotype, sex,
+line, date and annotator cancel by construction. Consecutive transitions only, in the order the
+experiment ran (H -> O -> P): P - H is the sum of the other two, so quoting all three
+triple-counts the same pools.
+
+The two exposures are DISTINCT treatments and are never pooled -- they carry opposite signs on
+nose-to-tail, so averaging them returns approximately zero.
+
+THREE ESTIMATORS, AND WHAT EACH ONE COSTS
+=========================================
+Write D_Y for a pool's true phase difference and D_f for its predicted one.
+
+  classical   mean(D_Y) over the labelled pools. No model. Unbiased, and the only one of the
+              three that needs no assumption beyond the design. Limited to 24 of v1's 72 pools
+              and unavailable on v2, which has no labels at all.
+
+  PPI++       lam * mean_N(D_f)  +  mean_n(D_Y - lam * D_f)
+              Unbiased for ANY predictor: whatever lam is and however wrong f is, the second
+              term subtracts exactly what the first added. f moves only the VARIANCE. The
+              power-tuned lam = Cov(D_Y, D_f) / (Var(D_f) * (1 + n/N)) is what makes a
+              miscalibrated model harmless -- lam absorbs the scale, so calibration happens in
+              the one place where getting it wrong costs variance instead of validity.
+              REQUIRES out-of-fold predictions on the labelled pools (see below).
+
+  PPCI        b * mean(D_f) over ALL pools, labelled and unlabelled alike, with
+              b = Cov(D_Y, D_f) / Var(D_f) fitted on the labelled pools.
+              There is NO rectifier. This is the plug-in estimate, and it is the only thing
+              available on v2, where nothing is labelled. It trades bias for variance: the
+              interval is narrower than classical because it uses every pool, but the narrowing
+              is not free -- it is exactly the term PPI would have subtracted. Report it as an
+              extrapolation, never as an estimate with guarantees.
+
+WHY ONLY THE SLOPE, AND NEVER AN INTERCEPT
+==========================================
+The estimand is a DIFFERENCE of two phases within the same pool. Under any affine calibration
+Y = a + b f + e the intercept cancels: D_Y = b D_f. So the calibration this analysis needs has
+exactly ONE free parameter, fitted on labelled pools, and no additive offset is identifiable
+from -- or relevant to -- a within-pool contrast. That is worth stating because the raw
+predictions overstate occupancy several-fold; none of that offset reaches the estimate.
+
+CROSS-FITTING IS NOT OPTIONAL FOR PPI
+=====================================
+f must not have been trained on the labelled pools that enter the rectifier. If it was, f fits
+Y in sample, (D_Y - lam D_f) shrinks toward zero, and the SE is understated -- the interval
+undercovers while looking excellent. `assert_out_of_fold` enforces it rather than trusting the
+caller.
+
+The matching requirement, which is easy to miss: the labelled and unlabelled predictions must
+come from the SAME predictor, or the rectifier does not cancel. With K fold models the correct
+construction (cross-prediction) is f_{k(j)} for a labelled pool j held out by fold k(j), and the
+AVERAGE of all K models for an unlabelled pool. Both then have expectation
+(1/K) sum_k E[f_k], so the estimator stays unbiased. Using a single fold's model on the
+unlabelled pools while the labelled side carries out-of-fold predictions mixes two different
+functions and reintroduces a bias of lam * (E[f_single] - E[f_oof]).
+
+INTERVALS
+=========
+All three use the SAME t_{n-1} quantile on the same pool-clustered scale, because a shrinkage
+percentage compared across methods is meaningless if one of them used 1.96 and another 2.07.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+import numpy as np
+from scipy import stats
+
+__all__ = ['PoolDeltas', 'Estimate', 'pool_deltas', 'classical', 'ppi', 'ppci',
+           'assert_out_of_fold', 'TRANSITIONS']
+
+# Consecutive only, in experimental order. P-H is their sum, not a third contrast.
+TRANSITIONS = (('H', 'O'), ('O', 'P'))
+
+
+@dataclass
+class PoolDeltas:
+    """One row per pool: its true and/or predicted phase difference for one cell."""
+    pools: np.ndarray
+    d_true: np.ndarray          # NaN where the pool is unlabelled
+    d_pred: np.ndarray
+
+    @property
+    def labelled(self):
+        return np.isfinite(self.d_true)
+
+    def r(self) -> float:
+        """Within-cell correlation of true and predicted differences on the labelled pools.
+
+        This -- not frame AP -- is what PPI's variance reduction is a function of. It is also
+        much lower than the value obtained by pooling cells together, because pooling adds
+        between-cell signal that a single-cell estimate cannot use.
+        """
+        m = self.labelled
+        if m.sum() < 3 or np.ptp(self.d_pred[m]) == 0 or np.ptp(self.d_true[m]) == 0:
+            return float('nan')
+        return float(np.corrcoef(self.d_true[m], self.d_pred[m])[0, 1])
+
+
+@dataclass
+class Estimate:
+    method: str
+    est: float
+    lo: float
+    hi: float
+    n_lab: int
+    n_unlab: int
+    extra: dict = field(default_factory=dict)
+
+    @property
+    def width(self) -> float:
+        return self.hi - self.lo
+
+    def as_dict(self) -> dict:
+        return {'method': self.method, 'est': _f(self.est), 'lo': _f(self.lo), 'hi': _f(self.hi),
+                'n_lab': int(self.n_lab), 'n_unlab': int(self.n_unlab),
+                **{k: _f(v) if isinstance(v, float) else v for k, v in self.extra.items()}}
+
+
+def _f(x):
+    return None if x is None or not np.isfinite(x) else round(float(x), 6)
+
+
+def _t(n: int) -> float:
+    """Two-sided 95% quantile with n-1 df. Shared by every method on purpose."""
+    return float(stats.t.ppf(0.975, max(n - 1, 1)))
+
+
+def pool_deltas(df, true_col, pred_col, odour, transition) -> PoolDeltas:
+    """Collapse per-observation rows to one difference per pool, for ONE exposure cell.
+
+    `df` needs columns pool, phase, odor and the two value columns. A pool contributes only if
+    it has BOTH phases of the transition; `true_col=None` marks the frame as unlabelled.
+    """
+    x, y = transition
+    sub = df[df.odor == odour]
+    keys, dy, dp = [], [], []
+    for pool, g in sub.groupby('pool', sort=True):
+        m = g.drop_duplicates('phase').set_index('phase')
+        if x not in m.index or y not in m.index:
+            continue
+        keys.append(pool)
+        dy.append(m.loc[y, true_col] - m.loc[x, true_col] if true_col else np.nan)
+        dp.append(m.loc[y, pred_col] - m.loc[x, pred_col] if pred_col else np.nan)
+    return PoolDeltas(np.array(keys, dtype=object), np.array(dy, float), np.array(dp, float))
+
+
+def classical(d: PoolDeltas) -> Estimate:
+    """Mean of within-pool differences on labelled pools only. No model anywhere."""
+    v = d.d_true[d.labelled]
+    n = len(v)
+    if n < 2:
+        return Estimate('classical', float(v.mean()) if n else float('nan'),
+                        float('nan'), float('nan'), n, 0,
+                        {'note': 'n<2: no interval is defined'})
+    se = v.std(ddof=1) / np.sqrt(n)
+    m, q = float(v.mean()), _t(n)
+    return Estimate('classical', m, m - q * se, m + q * se, n, 0, {'se': float(se)})
+
+
+def ppi(d: PoolDeltas) -> Estimate:
+    """PPI++ with power-tuned lambda. Unbiased for any predictor; f moves only the variance."""
+    lab = d.labelled
+    dy, fl, fu = d.d_true[lab], d.d_pred[lab], d.d_pred[~lab]
+    n, N = len(dy), len(fu)
+    if n < 2 or N < 2:
+        return Estimate('ppi', float('nan'), float('nan'), float('nan'), n, N,
+                        {'note': 'needs >=2 labelled and >=2 unlabelled pools'})
+    v = fl.var(ddof=1)
+    lam = float(np.cov(dy, fl)[0, 1] / (v * (1 + n / N))) if v > 0 else 0.0
+    est = float((lam * fu).mean() + (dy - lam * fl).mean())
+    se = float(np.sqrt((dy - lam * fl).var(ddof=1) / n + lam ** 2 * fu.var(ddof=1) / N))
+    q = _t(n)
+    return Estimate('ppi', est, est - q * se, est + q * se, n, N,
+                    {'se': se, 'lam': lam, 'r': d.r()})
+
+
+def ppci(d: PoolDeltas, beta: float = None, beta_boot=None, reps: int = 4000,
+         seed: int = 0) -> Estimate:
+    """Plug-in on EVERY pool, labelled and unlabelled, with a slope fitted on labelled data.
+
+    `beta=None` fits the slope on this cell's own labelled pools. Pass `beta` (and
+    `beta_boot`, a sample of slopes carrying its uncertainty) to TRANSPORT a slope fitted
+    elsewhere -- the v2 case, where no labels exist locally.
+
+    The interval is a pool-level bootstrap that REFITS the slope inside every replicate, so it
+    carries the uncertainty in b rather than treating a fitted quantity as known. It does NOT
+    carry any guarantee that b transfers across cohorts; that is an assumption, stated as one.
+    """
+    rng = np.random.default_rng(seed)
+    lab = d.labelled
+    dy, fl, f_all = d.d_true[lab], d.d_pred[lab], d.d_pred
+    f_all = f_all[np.isfinite(f_all)]
+    if len(f_all) < 2:
+        return Estimate('ppci', float('nan'), float('nan'), float('nan'),
+                        int(lab.sum()), len(f_all), {'note': 'no predictions'})
+    local = beta is None
+    if local:
+        if lab.sum() < 3 or fl.var(ddof=1) == 0:
+            return Estimate('ppci', float('nan'), float('nan'), float('nan'),
+                            int(lab.sum()), len(f_all),
+                            {'note': 'needs >=3 labelled pools to fit a slope locally'})
+        beta = float(np.cov(dy, fl)[0, 1] / fl.var(ddof=1))
+    est = float(beta * f_all.mean())
+    bs = []
+    for _ in range(reps):
+        fb = f_all[rng.integers(0, len(f_all), len(f_all))]
+        if local:
+            i = rng.integers(0, len(dy), len(dy))
+            vb = fl[i].var(ddof=1)
+            if vb == 0:
+                continue
+            b = np.cov(dy[i], fl[i])[0, 1] / vb
+        else:
+            b = beta if beta_boot is None else beta_boot[rng.integers(0, len(beta_boot))]
+        bs.append(b * fb.mean())
+    if len(bs) < reps // 10:
+        return Estimate('ppci', est, float('nan'), float('nan'), int(lab.sum()), len(f_all),
+                        {'beta': float(beta), 'note': 'bootstrap degenerate'})
+    lo, hi = np.percentile(bs, [2.5, 97.5])
+    return Estimate('ppci', est, float(lo), float(hi), int(lab.sum()), len(f_all),
+                    {'beta': float(beta), 'r': d.r(),
+                     'transported': not local})
+
+
+def slope_bootstrap(d: PoolDeltas, reps: int = 4000, seed: int = 0) -> np.ndarray:
+    """Bootstrap sample of the calibration slope b, for transporting it to another cohort."""
+    rng = np.random.default_rng(seed)
+    lab = d.labelled
+    dy, fl = d.d_true[lab], d.d_pred[lab]
+    out = []
+    for _ in range(reps):
+        i = rng.integers(0, len(dy), len(dy))
+        v = fl[i].var(ddof=1)
+        if v > 0:
+            out.append(np.cov(dy[i], fl[i])[0, 1] / v)
+    return np.array(out)
+
+
+def assert_out_of_fold(labelled_pools, fold_train_pools: dict) -> None:
+    """Refuse to proceed if any labelled pool was in the training set of the model scoring it.
+
+    `fold_train_pools` maps fold tag -> the pools that fold TRAINED on. A labelled pool is only
+    admissible if the fold whose prediction we are using held it out. This is the assumption
+    that, when violated, makes a PPI interval look excellent while undercovering.
+    """
+    bad = {p: t for t, tr in fold_train_pools.items() for p in labelled_pools if p in tr}
+    if bad:
+        raise AssertionError(
+            'these labelled pools carry IN-SAMPLE predictions, which invalidates the PPI '
+            f'rectifier: {sorted(bad)}. Use the fold that held each pool out.')

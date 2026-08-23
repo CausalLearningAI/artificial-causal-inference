@@ -63,7 +63,7 @@ def load() -> pd.DataFrame:
     e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')
     m = obs.merge(e[['observation_id', 'pool', 'line', 'genotype', 'phase', 'odor', 'annotator']],
                   on='observation_id').dropna(subset=['annotator'])
-    # The 4 groups the experiment actually contrasts: wild type, and het of each line. wt is
+    # The 4 groups the experiment actually contrasts: wild-type, and het of each line. wt is
     # pooled across lines because a wt littermate is the same genotype whichever line it came
     # from; conditioning on this is what makes two pools exchangeable apart from their annotator.
     m['g4'] = np.where(m.genotype == 'wt', 'wt', 'het_' + m.line)

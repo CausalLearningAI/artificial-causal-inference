@@ -39,6 +39,13 @@ if [ "${USE_MOTION:-0}" = "1" ]; then
     MOTION_ARGS="--use-motion"
 fi
 
+# Deconfounded ERM (ours). A flag, not a value, so it is only forwarded when asked for and
+# every prior run stays byte-identical.
+DERM_ARGS=""
+if [ "${DERM:-0}" = "1" ]; then
+    DERM_ARGS="--derm"
+fi
+
 WANDB_ARGS=""
 if [ "${WANDB:-0}" = "1" ]; then
     WANDB_ARGS="--wandb"
@@ -78,6 +85,7 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --patch-pool-dim "${PATCH_POOL_DIM:-0}" \
     --n-train-pools "${N_TRAIN_POOLS:-0}" \
     --env-key "${ENV_KEY:-none}" \
+    --derm-floor "${DERM_FLOOR:-0.02}" \
     --vrex-beta "${VREX_BETA:-0}" \
     --vrex-warmup-epochs "${VREX_WARMUP_EPOCHS:-5}" \
     --batch-size "${BATCH_SIZE:-64}" \
@@ -97,5 +105,5 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --patch-selfattn-dim "${PATCH_SELFATTN_DIM:-0}" \
     --pool-queries "${POOL_QUERIES:-1}" \
     ${OVERRIDE_ARGS} ${MOTION_ARGS} ${WANDB_ARGS} ${SMOKE_ARGS} ${JPEG_CACHE_ARGS} \
-    ${INIT_ENCODER_ARGS} \
+    ${INIT_ENCODER_ARGS} ${DERM_ARGS} \
     --tag "${TAG:-online_aug}"

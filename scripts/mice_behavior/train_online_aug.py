@@ -202,6 +202,74 @@ class _SampleDataset(Dataset):
                 env)
 
 
+def derm_table(labels: np.ndarray, envs: np.ndarray, idx: np.ndarray, n_env: int,
+               floor: float = 0.02):
+    """DERM per-sample weights w = Var(Y | E) / P(Y, E), as a lookup table [env, label, y].
+
+    This is Deconfounded ERM (ours), NOT vREx, and the distinction is mechanical rather than
+    cosmetic. vREx leaves the training distribution alone and adds a PENALTY on the spread of
+    risk across environments. DERM leaves the loss alone and changes the DISTRIBUTION the risk
+    is averaged over, by reweighting each sample. Same failure targeted, opposite means.
+
+    For a BINARY label the general formula collapses to something you can read off. With
+    p_e = P(Y=1 | E=e) and P(e) the environment's share of the training pool:
+
+        Var(Y | E=e)  = p_e (1 - p_e)
+        P(Y=1, E=e)   = P(e) p_e        ->  w(y=1, e) = (1 - p_e) / P(e)
+        P(Y=0, E=e)   = P(e) (1 - p_e)  ->  w(y=0, e) =      p_e  / P(e)
+
+    Two consequences, and they are the whole reason to expect this to work here:
+
+      * positives and negatives end up with EQUAL total mass inside every environment (each
+        integrates to p_e (1 - p_e)), so the environment no longer carries any information
+        about how PREVALENT the behaviour is;
+      * each environment's total contribution is proportional to its own outcome variance, so
+        an environment where nothing varies stops dominating by sheer size.
+
+    That is precisely the shortcut this dataset offers. Phase predicts prevalence -- the odour
+    port visibly changes the scene and the measured predicted/true rate ratio moves 1.80-3.51
+    across phases -- so a classifier can score a frame by which phase it LOOKS like instead of
+    by what the mice are doing. A bias that moves with the treatment is exactly what corrupts
+    an ATE estimated without a rectifier, which is the situation on v2. Equalising prevalence
+    within every environment leaves that route nothing to carry, while leaving what a contact
+    looks like untouched -- DERM never asks the predictions to be invariant, only the
+    label-environment association to be broken.
+
+    Computed PER LABEL, never on a mean over labels: nt and nn sit at ~1.1% and ~3.2%
+    prevalence with different phase profiles, so collapsing them applies nt's correction to nn.
+    (`src/ppci/dataset.py:compute_derm_weights` takes the mean over outcome columns and warns
+    that multilabel falls back to uniform; this is the multilabel version done properly.)
+
+    `floor` clips p_e away from 0 and 1 so an environment holding no positives for one label is
+    strongly downweighted rather than deleted -- Var(Y|E)=0 would zero it out entirely and
+    silently drop data.
+
+    Returns (table, mean_weight_before_normalisation) where table is
+    (n_env, n_labels, 2) float32, indexed [env, label, int(y)], normalised so the mean weight
+    over `idx` is exactly 1. That normalisation matters: it keeps the effective learning rate
+    and gradient scale identical to ERM, so a DERM-vs-ERM comparison is not confounded by
+    having quietly changed the step size.
+    """
+    y = labels[idx]
+    e = envs[idx].astype(np.int64)
+    n, L = y.shape
+    cnt = np.bincount(e, minlength=n_env).astype(np.float64)
+    P_e = cnt / max(n, 1)
+    tab = np.ones((n_env, L, 2), dtype=np.float64)
+    for l in range(L):
+        pos = np.bincount(e, weights=(y[:, l] > 0.5).astype(np.float64), minlength=n_env)
+        p_e = np.divide(pos, cnt, out=np.full(n_env, 0.5, dtype=np.float64), where=cnt > 0)
+        p_e = np.clip(p_e, floor, 1.0 - floor)
+        safe = np.maximum(P_e, 1e-12)
+        tab[:, l, 1] = (1.0 - p_e) / safe
+        tab[:, l, 0] = p_e / safe
+    w = tab[e[:, None], np.arange(L)[None, :], (y > 0.5).astype(np.int64)]
+    m = float(w.mean())
+    if m > 0:
+        tab /= m
+    return tab.astype(np.float32), m
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--context-k', type=int, default=2)
@@ -258,6 +326,18 @@ def main():
                          "'annotator' targets a different problem -- label-convention shift across "
                          "the 6 people who labelled v1 -- which is a training-time nuisance, not a "
                          "test-time environment, since v2 has no annotator at all.")
+    p.add_argument('--derm', action='store_true',
+                    help='DECONFOUNDED ERM (ours): reweight every sample by '
+                         'Var(Y|E)/P(Y,E) over the --env-key environments, instead of adding '
+                         "vREx's risk-variance penalty. For binary labels this equalises the "
+                         'positive/negative mass inside each environment, which removes the '
+                         '"phase predicts prevalence" shortcut without constraining the '
+                         'predictions. Requires --env-key. Composes with --vrex-beta (the '
+                         'weights are applied inside each per-environment risk), but the '
+                         'motivated arm is DERM alone: --env-key phase --derm --vrex-beta 0.')
+    p.add_argument('--derm-floor', type=float, default=0.02,
+                    help='clip P(Y=1|E) into [floor, 1-floor] so an environment with no '
+                         'positives for one label is downweighted, not deleted.')
     p.add_argument('--vrex-beta', type=float, default=0.0,
                     help='weight on the across-environment RISK VARIANCE. 0 = ERM even when '
                          '--env-key is set (useful as the exact-same-code control).')
@@ -515,6 +595,9 @@ def main():
         if len(env_names) < 2:
             raise SystemExit(f'--env-key {args.env_key} yields <2 environments; nothing to be '
                              'invariant across.')
+    if args.derm and train_envs is None:
+        raise SystemExit('--derm needs environments to deconfound against; pass --env-key '
+                         '(phase is the motivated default for the phase-transition estimand).')
 
     pos_idx = np.where(tm.labels.sum(1) > 0)[0]
     neg_idx = np.where(tm.labels.sum(1) == 0)[0]
@@ -714,6 +797,14 @@ def main():
         # invariant. Standard practice for IRM/vREx and the reason the ERM phase exists.
         beta_ep = args.vrex_beta if (train_envs is not None and ep > args.vrex_warmup_epochs) else 0.0
         ep_pen, ep_pen_n = 0.0, 0
+        # Rebuilt every epoch because the negatives are RESAMPLED every epoch: the weights
+        # must describe the distribution the loss is actually averaged over this epoch, not a
+        # different one computed once at startup.
+        derm_tab, derm_raw_mean = (None, None)
+        if args.derm:
+            _tab, derm_raw_mean = derm_table(tm.labels, train_envs, order, len(env_names),
+                                             args.derm_floor)
+            derm_tab = torch.from_numpy(_tab).to(dev)
         for imgs, offs, lbl, mask, env in make_loader(tm, order, args.augment,
                                                       args.seed * 1000 + ep, envs=train_envs):
             imgs, lbl = imgs.to(dev, non_blocking=True), lbl.to(dev, non_blocking=True)
@@ -728,12 +819,21 @@ def main():
                 tok = tok.view(B, T, n_patches, EMB_DIM)
                 logits = model(tok if finetune else tok.detach(),
                                offsets=offs.to(dev), key_padding_mask=mask.to(dev))
+                # One per-label loss matrix feeds every variant, so ERM stays bit-identical
+                # to `crit(logits, lbl)` (both are the mean over B x L) and the only thing an
+                # arm changes is the weighting or the grouping applied on top of it.
+                per_lbl = crit_ns(logits, lbl)                        # (B, L)
+                if derm_tab is not None:
+                    # w[b, l] = table[env[b], l, int(lbl[b, l])] -- DERM reweights the SAMPLING
+                    # DISTRIBUTION, so it multiplies the loss rather than adding a penalty.
+                    yi = (lbl > 0.5).long()
+                    per_lbl = per_lbl * derm_tab[env].gather(2, yi.unsqueeze(-1)).squeeze(-1)
+                per_sample = per_lbl.mean(dim=1)
                 if beta_ep:
                     # vREx (Krueger et al. 2021): minimise mean risk + beta * VARIANCE of risk
                     # across environments. Penalising the spread -- not the predictions -- is what
                     # keeps a genuine treatment effect intact: forcing the PREDICTIONS to be
                     # invariant across phase would suppress the very phase effect we estimate.
-                    per_sample = crit_ns(logits, lbl).mean(dim=1)
                     risks = [per_sample[env == e].mean()
                              for e in torch.unique(env)
                              if int((env == e).sum()) >= args.vrex_min_env]
@@ -745,7 +845,7 @@ def main():
                     else:
                         loss = per_sample.mean()
                 else:
-                    loss = crit(logits, lbl)
+                    loss = per_sample.mean()
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
             torch.nn.utils.clip_grad_norm_(
@@ -776,6 +876,7 @@ def main():
               f'monitor_ap={ap:.4f}  nt={per_ap[0]:.4f}  nn={per_ap[1]:.4f}  '
               f'auc_nt={per_auc[0]:.4f}  auc_nn={per_auc[1]:.4f}  '
               f'{f"vrex_pen={ep_pen/max(ep_pen_n,1):.3e} (b={beta_ep:g})  " if beta_ep else ""}'
+              f'{f"derm_w_raw={derm_raw_mean:.2f}  " if derm_tab is not None else ""}'
               f'lr={opt.param_groups[0]["lr"]:.2e}  ({time.time()-t0:.1f}s compute'
               f'{f", {read_s:.0f}s new-frame read" if read_s > 1 else ""})', flush=True)
         if ap > best:
@@ -876,6 +977,7 @@ def main():
                'n_train_pools': args.n_train_pools, 'pool_grid': args.pool_grid,
                'val_pools': sorted(val_pools),
                'env_key': args.env_key, 'vrex_beta': args.vrex_beta,
+               'derm': bool(args.derm), 'derm_floor': args.derm_floor,
                'vrex_warmup_epochs': args.vrex_warmup_epochs,
                'n_environments': (len(env_names) if env_names is not None else 0),
                'n_patches': n_patches, 'augment': args.augment, 'neg_ratio': args.neg_ratio,

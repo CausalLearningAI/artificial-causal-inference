@@ -18,7 +18,7 @@ SSL = F / 'res448_k2_frozen_d4photo_sslinit'
 XF = F / 'xfit_f2'
 
 SRC = {
-    'behav': FIG / 'story_behaviours.png', 'ppi': FIG / 'story_ppi.png',
+    'behav': FIG / 'story_causal_ate.png',
     'within': FIG / 'story_within_phase.png',
     'outcome': FIG / 'story_outcome_choice.png', 'lcurve': FIG / 'story_learning_curve.png',
     'tokpix': FIG / 'story_tokens_pixels.png', 'apcausal': FIG / 'story_ap_vs_causal.png',
@@ -45,14 +45,26 @@ def main():
         if not p.exists():
             print(f'  [skip] {k}: {p} missing'); continue
         img[k] = enc(p, 1400 if k.startswith('conf') else 1300)
-    P = json.load(open(FIG / 'ppi_results.json'))
+    # The interactive figure is a VIEW over estimates.json -- the whole grid of estimates,
+    # every one computed by build_estimates.py. Nothing is recomputed in the browser and nothing
+    # is transcribed, so the figure cannot disagree with the numbers in the text.
+    est_p = FIG / 'estimates.json'
+    if not est_p.exists():
+        raise SystemExit(f'{est_p} missing -- run scripts/mice_behavior/build_estimates.py first')
+    est = json.load(open(est_p))
+    chart = (Path(__file__).parent / 'report_chart.html').read_text()
+    chart = chart.replace('__ESTIMATES_JSON__', json.dumps(est, separators=(',', ':')))
+
     head = (Path(__file__).parent / 'report_head.html').read_text()
     body = (Path(__file__).parent / 'report_body.py')
-    ns = {'img': img, 'P': P}
+    ns = {'img': img, 'CHART': chart, 'E': est}
     exec(compile(body.read_text(), str(body), 'exec'), ns)
     Path(a.out).write_text(head + ns['BODY'])
     mb = Path(a.out).stat().st_size / 1024 / 1024
-    print(f'wrote {a.out}  ({mb:.2f} MB, {len(img)} figures)')
+    n_cells = len(est.get('cells', []))
+    print(f'wrote {a.out}  ({mb:.2f} MB, {len(img)} figures, {n_cells} estimates)')
+    if est.get('meta', {}).get('missing'):
+        print(f"  NOTE incomplete estimates -- waiting on: {', '.join(est['meta']['missing'])}")
 
 
 if __name__ == '__main__':

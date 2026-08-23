@@ -14,7 +14,7 @@ Two modes:
   PROJECT (default)            No predictions yet. The CLASSICAL side is still real -- it
                                needs only annotations -- and the PPI++ side is simulated at
                                the true v1 design (het 18/18, wt 6/30) using the real
-                               per-arm pool-rate means and SDs, swept over pool-level
+                               per-stratum pool-rate means and SDs, swept over pool-level
                                correlation r. Everything projected is labelled as such in
                                the figure. This is a power analysis, not a result.
 
@@ -40,12 +40,12 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from mice_behavior.ppi import (  # noqa: E402
-    ArmData, classical_contrast, ppi_contrast, projected_variance_factor,
+    StratumData, classical_contrast, ppi_contrast, projected_variance_factor,
     assert_crossfitted,
 )
 
 LABELS = ("nt", "nn")
-ARMS = ("het", "wt")
+STRATA = ("het", "wt")
 OUT_DIR = ROOT / "results" / "vision" / "mice" / "frame" / "_figures"
 
 # Observation-level Pearson r measured on the 24-observation val split for the best
@@ -93,8 +93,8 @@ def real_classical(pool: pd.DataFrame) -> dict:
     for y in LABELS:
         het = pool.loc[pool.genotype == "het", y].to_numpy()
         wt  = pool.loc[pool.genotype == "wt",  y].to_numpy()
-        out[y] = classical_contrast(ArmData("het", het, het, np.zeros(0)),
-                                    ArmData("wt",  wt,  wt,  np.zeros(0)))
+        out[y] = classical_contrast(StratumData("het", het, het, np.zeros(0)),
+                                    StratumData("wt",  wt,  wt,  np.zeros(0)))
     return out
 
 
@@ -107,27 +107,27 @@ def project_ppi_width(pool: pd.DataFrame, label: str, r: float,
                       reps: int = 600, seed: int = 0) -> tuple[float, float]:
     """Expected PPI++ CI width at pool-level correlation r, and the classical width.
 
-    Simulates at the real design using each arm's REAL mean and SD, so the only invented
+    Simulates at the real design using each stratum's REAL mean and SD, so the only invented
     quantity is r. f is generated as a deliberately miscalibrated affine function of y
     (13x slope, large offset) to confirm the estimator is indifferent to that -- lambda
     absorbs it. Averaging over reps folds in the lambda-estimation penalty, which the
     closed-form `projected_variance_factor` ignores and which is NOT negligible at n=6.
     """
     rng = np.random.default_rng(seed)
-    stats_by_arm = {a: (pool.loc[pool.genotype == a, label].mean(),
-                        pool.loc[pool.genotype == a, label].std(ddof=1)) for a in ARMS}
+    stats_by_stratum = {a: (pool.loc[pool.genotype == a, label].mean(),
+                           pool.loc[pool.genotype == a, label].std(ddof=1)) for a in STRATA}
     w_ppi, w_cls = [], []
     for _ in range(reps):
-        arms = {}
-        for a in ARMS:
+        strata = {}
+        for a in STRATA:
             n_l, n_u = DESIGN[a]
-            mu, sd = stats_by_arm[a]
+            mu, sd = stats_by_stratum[a]
             y = rng.normal(mu, sd, n_l + n_u)
             noise = rng.normal(0, sd * np.sqrt(max(1 / r ** 2 - 1, 0.0)), n_l + n_u)
             f = 13.0 * (y + noise) + 0.05
-            arms[a] = ArmData(a, y[:n_l], f[:n_l], f[n_l:])
-        w_ppi.append(ppi_contrast(arms["het"], arms["wt"]).ci_width)
-        w_cls.append(classical_contrast(arms["het"], arms["wt"]).ci_width)
+            strata[a] = StratumData(a, y[:n_l], f[:n_l], f[n_l:])
+        w_ppi.append(ppi_contrast(strata["het"], strata["wt"]).ci_width)
+        w_cls.append(classical_contrast(strata["het"], strata["wt"]).ci_width)
     return float(np.mean(w_ppi)), float(np.mean(w_cls))
 
 
@@ -150,17 +150,17 @@ def real_ppi(pool: pd.DataFrame, preds: pd.DataFrame, train_pools=None) -> dict:
     merged = preds.merge(pool[["pool"] + list(LABELS)], on="pool", how="left")
     out = {}
     for y in LABELS:
-        arms = {}
-        for a in ARMS:
+        strata = {}
+        for a in STRATA:
             sub = merged[merged.genotype == a]
             lab = sub[sub[y].notna()]
             unl = sub[sub[y].isna()]
             if train_pools is not None:
-                assert_crossfitted(lab.pool.tolist(), train_pools, arm_name=f"{a}/{y}")
-            arms[a] = ArmData(a, lab[y].to_numpy(), lab[f"f_{y}"].to_numpy(),
-                              unl[f"f_{y}"].to_numpy())
-        out[y] = {"ppi": ppi_contrast(arms["het"], arms["wt"]),
-                  "r": {a: arms[a].r for a in ARMS}}
+                assert_crossfitted(lab.pool.tolist(), train_pools, stratum_name=f"{a}/{y}")
+            strata[a] = StratumData(a, lab[y].to_numpy(), lab[f"f_{y}"].to_numpy(),
+                                    unl[f"f_{y}"].to_numpy())
+        out[y] = {"ppi": ppi_contrast(strata["het"], strata["wt"]),
+                  "r": {a: strata[a].r for a in STRATA}}
     return out
 
 
@@ -378,7 +378,7 @@ def main() -> None:
         "projected_extra_pools": projected["extra_pools"],
         "measured_obs_r": MEASURED_OBS_R,
         "design": {a: {"labeled_pools": DESIGN[a][0], "unlabeled_pools": DESIGN[a][1]}
-                   for a in ARMS},
+                   for a in STRATA},
     }
     if real:
         summary["ppi_measured"] = {y: real[y]["ppi"].as_dict() for y in LABELS}

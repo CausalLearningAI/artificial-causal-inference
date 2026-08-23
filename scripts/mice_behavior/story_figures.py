@@ -143,48 +143,6 @@ def fig_outcome_choice(r):
     return f, sig_rate, sig_bpm
 
 
-def fig_tokens_pixels():
-    """The one ablation that separates token count from pixel resolution."""
-    pts = [('224 px input\n256 tokens', 'res224_k2_frozen_d4_decay20', MUTED),
-           ('448 px input\n1024 tokens\npixels capped at 112', 'res448_k2_frozen_d4photo_px112', C4),
-           ('448 px input\n1024 tokens\npixels capped at 224', 'res448_k2_frozen_d4photo_px224', C2),
-           ('448 px input\n1024 tokens\nfull 512 px', 'res448_k2_frozen_d4photo_decay30_seed42', C1)]
-    vals, labs, cols = [], [], []
-    for nice, tag, c in pts:
-        p = FRAME / tag / 'config.json'
-        if not p.exists():
-            continue
-        vals.append(json.load(open(p))['ap_report']['macro/tol0']['ap'])
-        labs.append(nice); cols.append(c)
-    fig, ax = plt.subplots(figsize=(7.6, 3.9))
-    ax.bar(range(len(vals)), vals, width=0.55, color=cols, zorder=2,
-           edgecolor='white', linewidth=2)
-    for i, v in enumerate(vals):
-        ax.annotate(f'{v:.3f}', (i, v), textcoords='offset points', xytext=(0, 6),
-                    ha='center', fontsize=9.5, weight='bold', color=INK)
-    ax.set_xticks(range(len(labs))); ax.set_xticklabels(labs, fontsize=8)
-    ax.set_ylabel('macro AP (frame level)')
-    ax.set_ylim(0, max(vals) * 1.22)
-    ax.grid(axis='y', color=GRID, lw=0.7); ax.set_axisbelow(True)
-    for s in ('top', 'right'):
-        ax.spines[s].set_visible(False)
-    if len(vals) == 4:
-        ax.annotate('', xy=(1, vals[1] * 0.5), xytext=(0, vals[0] * 0.5),
-                    arrowprops=dict(arrowstyle='->', color=INK2, lw=1.2))
-        ax.text(0.5, vals[0] * 0.5 + 0.015, f'+{vals[1]-vals[0]:.3f}\nmore tokens,\nsame pixels',
-                ha='center', fontsize=7.5, color=INK2)
-        ax.annotate('', xy=(3, vals[3] * 0.5), xytext=(2, vals[2] * 0.5),
-                    arrowprops=dict(arrowstyle='->', color=INK2, lw=1.2))
-        ax.text(2.5, vals[2] * 0.5 + 0.015, f'+{vals[3]-vals[2]:.3f}\nmore pixels,\nsame tokens',
-                ha='center', fontsize=7.5, color=INK2)
-    ax.set_title('Token count and pixel resolution, finally separated',
-                 fontsize=10.5, weight='bold', loc='left', color=INK)
-    fig.tight_layout()
-    f = OUT / 'story_tokens_pixels.png'
-    fig.savefig(f, dpi=160, bbox_inches='tight'); plt.close(fig)
-    return f, vals
-
-
 def fig_ap_vs_causal():
     """Frame AP does not order models by their value to the causal estimate."""
     from event_eval import evaluate
@@ -229,19 +187,6 @@ def fig_ap_vs_causal():
     f = OUT / 'story_ap_vs_causal.png'
     fig.savefig(f, dpi=160, bbox_inches='tight'); plt.close(fig)
     return f, list(zip(ns, xs, ys))
-
-
-if __name__ == '__main__':
-    r = obs_table()
-    print('causal   ->', fig_causal(r))
-    f, a, b = fig_outcome_choice(r)
-    print(f'outcome  -> {f}   occupancy {a}/12 vs bouts {b}/12')
-    f, v = fig_tokens_pixels()
-    print(f'tok/px   -> {f}   {[round(x,4) for x in v]}')
-    f, rows = fig_ap_vs_causal()
-    print(f'ap-vs-r  -> {f}')
-    for n, x, y in sorted(rows, key=lambda z: -z[2])[:5]:
-        print(f'    {n:44s} AP={x:.4f}  mean r_delta={y:.3f}')
 
 
 def fig_window_sensitivity():
@@ -492,116 +437,21 @@ def fig_within_phase_by_odour():
     return f
 
 
-BEHAV = {'Y_nt': 'nt · nose-to-tail', 'Y_nn': 'nn · nose-to-nose',
-         'Y_np': 'np · nose-to-anogenital', 'Y_c2': 'nn+np · what the model learns'}
 
-
-def behav_table():
-    """Per-observation outcomes for ALL THREE annotated behaviours, plus the merged class.
-
-    build_pair_labels.py maps {'nn','np','np?'} -> class 2 and {'nt'} -> class 1, so the model has
-    only two heads and its second one covers nose-to-nose TOGETHER WITH nose-to-anogenital. Y_np
-    (11,772 positive frames) is nearly twice Y_nn (6,516), so that head is dominated by the
-    behaviour it is not named after. Verified: any-pair class 2 matches Y_nn+Y_np at r=1.0000, and
-    class 1 matches Y_nt at r=1.0000.
-    """
-    a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
-                    usecols=['observation_id', 'frame_idx', 'Y_nt', 'Y_nn', 'Y_np']).dropna(subset=['Y_nt'])
-    e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')[
-        ['observation_id', 'pool', 'phase', 'odor']]
-    a = a.sort_values(['observation_id', 'frame_idx']).merge(e, on='observation_id')
-    a['Y_c2'] = ((a.Y_nn + a.Y_np) > 0).astype(int)
-    rows = []
-    for oid, g in a.groupby('observation_id', sort=False):
-        n = len(g); r = {'observation_id': oid}
-        for lab in BEHAV:
-            v = g[lab].to_numpy()
-            r[lab + '_bpm'] = int(((v == 1) & (np.r_[0, v[:-1]] == 0)).sum()) / (n / FPS / 60)
-            r[lab + '_occ'] = v.mean() * 100
-        rows.append(r)
-    return pd.DataFrame(rows).merge(e, on='observation_id')
-
-
-def fig_behaviours(r=None):
-    """Three annotated behaviours, kept apart -- merging them hides a real dissociation."""
-    r = behav_table() if r is None else r
-    labs = ['Y_nt', 'Y_nn', 'Y_np']
-    fig, axes = plt.subplots(1, 3, figsize=(12.6, 3.9), sharex=True)
-    for ax, lab in zip(axes, labs):
-        ticks, ypos = [], []
-        for i, (x, y, tn) in enumerate([('H', 'O', 'exposure ON\nH → O'),
-                                        ('O', 'P', 'exposure OFF\nO → P')]):
-            for k, (od, col, odn) in enumerate([('F', C2, 'fear'), ('S', C1, 'social')]):
-                m, lo, hi = contrast(r[r.odor == od], lab + '_bpm', x, y)
-                pos = -(i * 2.6 + k * 0.9); sig = lo * hi > 0
-                ax.plot([lo, hi], [pos, pos], color=col, lw=2, solid_capstyle='round',
-                        alpha=1 if sig else .4, zorder=2)
-                ax.plot([m], [pos], 'o', ms=8, color=col, mec='white', mew=1.8,
-                        alpha=1 if sig else .4, zorder=3, label=odn if i == 0 else None)
-                if sig:
-                    ax.annotate(f'{m:+.2f}', (m, pos), textcoords='offset points', xytext=(0, 9),
-                                ha='center', fontsize=7.8, weight='bold', color=INK)
-                ypos.append(pos)
-            ticks.append(-(i * 2.6 + 0.45))
-        ax.axvline(0, color=MUTED, lw=1, zorder=1)
-        ax.set_yticks(ticks)
-        ax.set_yticklabels(['exposure ON\nH → O', 'exposure OFF\nO → P'] if lab == labs[0] else ['', ''],
-                           fontsize=8.5)
-        ax.set_ylim(min(ypos) - 1.0, max(ypos) + 0.9)
-        ax.set_xlabel('change in bouts per minute')
-        ax.set_title(BEHAV[lab], fontsize=10, weight='bold', loc='left', color=INK)
-        ax.grid(axis='x', color=GRID, lw=.7); ax.set_axisbelow(True)
-        for s in ('top', 'right', 'left'):
-            ax.spines[s].set_visible(False)
-    axes[0].legend(frameon=False, fontsize=8.5, ncol=2, loc='lower center', bbox_to_anchor=(.5, -.40))
-    fig.suptitle('All three annotated behaviours — human labels only, 24 pools',
-                 fontsize=11.5, weight='bold', x=0.02, ha='left')
-    fig.text(0.02, -0.05, 'Filled = 95% CI excludes zero. The dissociation the model cannot see: under '
-             'SOCIAL exposure nose-to-nose rises (+0.47) while nose-to-anogenital does not move (+0.03).\n'
-             'The classifier merges these two into one head, so it can only report their sum.',
-             fontsize=8, color=INK2, ha='left')
-    fig.tight_layout()
-    f = OUT / 'story_behaviours.png'
-    fig.savefig(f, dpi=160, bbox_inches='tight'); plt.close(fig)
-    return f
-
-
-def fig_ppi():
-    """Classical vs PPI++ vs transported-to-v2, per behaviour x exposure."""
-    res = json.load(open(OUT / 'ppi_results.json'))
-    order = [('nn_fear', 'nn+np · fear'), ('nn_social', 'nn+np · social'),
-             ('nt_fear', 'nt · fear'), ('nt_social', 'nt · social')]
-    fig, axes = plt.subplots(1, 4, figsize=(13.2, 3.7), sharex=False)
-    for ax, (k, nice) in zip(axes, order):
-        d = res[k]
-        rows = [('classical\n24 labelled', d['classical'], MUTED),
-                ('PPI++\n+48 unlabelled', d['ppi'], C1),
-                ('v2 transported\n36 pools, 0 labels', d['v2'], C4)]
-        for i, (nm, (m, lo, hi), col) in enumerate(rows):
-            y = -i
-            ax.plot([lo, hi], [y, y], color=col, lw=2.4, solid_capstyle='round', zorder=2)
-            ax.plot([m], [y], 'o', ms=8, color=col, mec='white', mew=1.8, zorder=3)
-            ax.annotate(f'{m:+.2f}', (m, y), textcoords='offset points', xytext=(0, 9),
-                        ha='center', fontsize=8, weight='bold', color=INK)
-        ax.axvline(0, color=MUTED, lw=1, zorder=1)
-        ax.set_yticks([0, -1, -2])
-        ax.set_yticklabels([r[0] for r in rows] if k == order[0][0] else ['', '', ''], fontsize=7.8)
-        ax.set_ylim(-2.75, .75)
-        ax.set_xlabel('H → O effect (occupancy, pp)', fontsize=8.5)
-        sh = 100 * d['shrink']
-        ax.set_title(f"{nice}\nr = {d['r']:.2f}   CI −{sh:.0f}%", fontsize=9.5, weight='bold',
-                     loc='left', color=INK)
-        ax.grid(axis='x', color=GRID, lw=.7); ax.set_axisbelow(True)
-        for s in ('top', 'right', 'left'):
-            ax.spines[s].set_visible(False)
-    fig.suptitle('Prediction-powered inference: the model narrows the interval only where it '
-                 'actually tracks the effect', fontsize=11.5, weight='bold', x=0.02, ha='left')
-    fig.text(0.02, -0.07, 'PPI++ is unbiased for ANY predictor, so a wrong model costs variance and never '
-             'validity — which is why the three weak cells simply revert to the classical interval.\n'
-             'r is the WITHIN-CELL correlation of predicted and true phase differences across the 24 '
-             'pools; it is far below the 0.72 obtained by pooling cells, because pooling adds '
-             'between-cell signal a single-cell estimate cannot use.', fontsize=8, color=INK2, ha='left')
-    fig.tight_layout()
-    f = OUT / 'story_ppi.png'
-    fig.savefig(f, dpi=160, bbox_inches='tight'); plt.close(fig)
-    return f
+if __name__ == '__main__':
+    # Every figure the status report consumes, regenerated in one pass. The previous __main__ sat
+    # in the MIDDLE of this file and called four of these; the other seven were run by hand,
+    # which is how story_tokens_pixels.png came to be written by two different functions and how
+    # a figure could drift from the run it claims to describe.
+    r = obs_table()
+    print('causal        ->', fig_causal(r))
+    f, a, b = fig_outcome_choice(r)
+    print(f'outcome       -> {f}   occupancy {a}/12 vs bouts {b}/12')
+    print('tokens/pixels ->', fig_tokens_pixels_waterfall())
+    print('within-phase  ->', fig_within_phase_by_odour())
+    print('window sens.  ->', fig_window_sensitivity())
+    print('learning curve->', fig_learning_curve())
+    f, rows = fig_ap_vs_causal()
+    print(f'ap-vs-r_delta -> {f}')
+    for n, x, y in sorted(rows, key=lambda z: -z[2])[:5]:
+        print(f'    {n:44s} AP={x:.4f}  mean r_delta={y:.3f}')

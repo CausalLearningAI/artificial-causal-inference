@@ -16,8 +16,8 @@ Three separate things were being conflated in the run index:
 
 2. **`rate_report`'s advertised PPI gain is the N -> infinity limit and is too optimistic.**
    `ppi.projected_variance_factor` says the finite-sample factor is `1 - r^2/(1 + n/N)`, not
-   `1 - r^2`. In v1 the het arm has n/N = 18/18 = 1, so its best possible variance factor is
-   `1 - r^2/2` -- HALF the advertised reduction. This report quotes the correct one, per arm.
+   `1 - r^2`. In v1 the het stratum has n/N = 18/18 = 1, so its best possible variance factor is
+   `1 - r^2/2` -- HALF the advertised reduction. This report quotes the correct one, per stratum.
 
 3. **r itself carries an annotator component that no model can predict.** The 4 val pools were
    labelled by 5 different people, and within a single line x genotype cell annotators differ
@@ -53,7 +53,7 @@ from mice_behavior.viz import best_f1_threshold                  # noqa: E402
 
 FRAME_DIR = ROOT / 'results' / 'vision' / 'mice' / 'frame'
 LABELS = ('nt', 'nn')
-# (labeled pools, unlabeled pools) per arm -- the real v1 design, mirrored from ppi_report.py.
+# (labeled pools, unlabeled pools) per stratum -- the real v1 design, mirrored from ppi_report.py.
 DESIGN = {'het': (18, 18), 'wt': (6, 30)}
 
 
@@ -181,9 +181,9 @@ def main():
             else:
                 r = rr.get(nm, {}).get('pearson_r', float('nan')); lo = hi = float('nan')
             row[f'r_{nm}'] = r; row[f'r_{nm}_lo'] = lo; row[f'r_{nm}_hi'] = hi
-            # correct finite-N factor per arm, not rate_report's 1-r^2
-            for arm, (n, N) in DESIGN.items():
-                row[f'ppi_{nm}_{arm}'] = projected_variance_factor(r, n, N)
+            # correct finite-N factor per stratum, not rate_report's 1-r^2
+            for stratum, (n, N) in DESIGN.items():
+                row[f'ppi_{nm}_{stratum}'] = projected_variance_factor(r, n, N)
         row['has_npz'] = d is not None
         rows.append(row)
 
