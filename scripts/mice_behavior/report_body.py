@@ -492,7 +492,7 @@ BODY = f'''
         <tr><td>DERM</td><td>the 6 phase &times; exposure cells</td><td>0.3863</td>
           <td>{rr2('res448_k2_frozen_d4photo_dermCond','nt')}</td>
           <td>{rr2('res448_k2_frozen_d4photo_dermCond','nn')}</td></tr>
-        <tr><td>DERM</td><td>annotator (falsification)</td><td colspan="3">still training</td></tr>
+        <tr><td>DERM</td><td>annotator</td><td colspan="3" class="lo">cancelled &mdash; a falsification test has nothing to falsify while the screen is this noisy</td></tr>
         <tr><td>matched control, 2 seeds</td><td>none (unweighted)</td>
           <td colspan="3" class="v-part">running &mdash; see below</td></tr>
       </tbody></table></div>
@@ -598,6 +598,45 @@ BODY = f'''
 </div>
 
 <div class="measure">
+  <h3 style="margin-top:26px">How much is there left to win?</h3>
+  <p>Two ceilings bound everything above, and both are computable rather than rhetorical.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>r&Delta;</th><th>predicted CI width vs CI</th><th>where that is</th></tr></thead>
+    <tbody>
+      <tr><td>0.50</td><td>&minus;9%</td><td></td></tr>
+      <tr><td>0.60</td><td>&minus;13%</td><td>roughly where we are: <b>&minus;12% measured</b>,
+        averaged over the eight cells</td></tr>
+      <tr><td>0.70</td><td>&minus;18%</td><td></td></tr>
+      <tr><td>0.80</td><td>&minus;24%</td><td></td></tr>
+      <tr><td class="hi">1.00</td><td class="hi">&minus;42%</td><td class="hi">a perfect model
+        &mdash; the variance of all 72 pools labelled</td></tr>
+    </tbody></table></div>
+  <p><b>PPI++'s ceiling on v1 is a 42% narrower interval</b>, and the reason is exact: with
+  D<sub>f</sub>&nbsp;=&nbsp;D<sub>Y</sub> the estimator's variance collapses to
+  Var(D<sub>Y</sub>)/(n+N), which is what you would get by annotating all 72 pools. So the SE
+  ratio is &radic;(24/72) = 0.577 no matter how good the model gets. Measured today the mean
+  narrowing is <b>12%</b>, best cell 22%. The gap is entirely r&Delta;, which is why r&Delta; is
+  the ranking metric.</p>
+  <div class="note warnbox"><b>The second ceiling is the labels, and on nose-to-tail it binds
+  hard.</b> No observation in v1 was scored twice, so agreement cannot be measured directly &mdash;
+  but the design bounds it. Within a genotype group the six pools are exchangeable, yet different
+  people scored them, so a one-way decomposition with annotator as the factor separates variance
+  that tracks the scorer from variance that does not.
+  <div class="scroll" style="margin-top:11px"><table>
+    <thead><tr><th></th><th>annotator share of within-cell variance</th><th>chance</th><th>p</th><th>best possible model r</th></tr></thead>
+    <tbody>
+      <tr><td>nose-to-tail</td><td class="lo">68%</td><td>40%</td><td class="lo">0.001</td>
+        <td class="lo">&le; 0.65</td></tr>
+      <tr><td>nose-to-nose</td><td>30%</td><td>41%</td><td>0.69</td><td>no bound &mdash; none detected</td></tr>
+    </tbody></table></div>
+  <b>Nose-to-tail labels are substantially scorer-dependent and nose-to-nose labels are not.</b>
+  The deployed model correlates with observed nose-to-tail rates at about 0.45, against a ceiling
+  of 0.65 &mdash; so roughly two thirds of the attainable agreement is already captured, and the
+  apparent headroom to 1.0 is mostly unreachable. One caveat that cannot be resolved without
+  double-scoring: 22 of 24 pools have a single annotator, so scorer is nearly collinear with cage
+  and date. Either it is annotator bias, which no model can predict, or a cage effect, which a
+  model could only predict by reading nuisance appearance &mdash; neither belongs in a behaviour
+  score.</div>
   <div class="note warnbox"><b>CI and PPI++ do not target quite the same population.</b>
   Annotation is <b>3:1 het-enriched</b> (18 het / 6 wt against a 36/36 design), so CI estimates the
   effect <em>in the annotated pools</em> while PPI++ pulls in 48 unannotated ones that are
@@ -615,14 +654,14 @@ BODY = f'''
   <div class="scroll"><table>
     <thead><tr><th></th><th>action</th><th>why now</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td>annotate ~20 more v1 pools</td><td>+0.076 AP per doubling and no plateau &mdash; worth more than every modelling change combined</td></tr>
+      <tr><td>1</td><td>annotate ~20 more v1 pools</td><td>+0.076 AP per doubling and no plateau &mdash; worth more than every modelling change combined, and it raises CI's own precision rather than only PPI++'s</td></tr>
       <tr><td>2</td><td>annotate 4&ndash;6 v2 pools</td><td>the only way v2 gets a CI or a PPI++ estimate at all; today it has PPCI and nothing to check it against</td></tr>
       <tr><td>3</td><td>fix the observation window on biological grounds</td><td>largest single lever on the headline number; currently inherited, not chosen</td></tr>
       <tr><td>4</td><td>finish the matched ERM controls for DERM</td><td>launched; without them the DERM arms differ from their controls in the head as well as the objective, so no AP claim about them is readable</td></tr>
-      <tr><td>5</td><td>run BitFit-6 over the three folds and the unannotated pools</td><td>~18 GPU-h to put every estimate on the configuration that leads on accuracy &mdash; and PPCI needs no cross-fitting at all, so it can use the single best model</td></tr>
+      <tr><td>5</td><td>run BitFit-6 over the three folds and the unannotated pools</td><td class="hi">launched &mdash; ~18 GPU-h to move every estimate onto the configuration that leads on accuracy (macro AP 0.541 against the deployed 0.382)</td></tr>
       <tr><td>6</td><td>per-animal crops from the 2060 px source</td><td>the only resolution lever left, and a prerequisite for any per-animal outcome</td></tr>
       <tr><td>7</td><td>record which animal in each v2 cage is the heterozygote</td><td>without it the within-pool genotype contrast is not identified no matter how good the vision gets</td></tr>
-      <tr><td>8</td><td>double-annotate 15&ndash;20 observations</td><td>the only clean way to bound irreducible label noise, which caps everything above &mdash; and the only way to tell model error from label disagreement in the confusion figure</td></tr>
+      <tr><td>8</td><td>double-annotate 15&ndash;20 observations, <b>nose-to-tail first</b></td><td>the annotator bound above is inferred from the design, not measured, and it is aliased with cage; nose-to-tail is where it binds (best possible r &le; 0.65)</td></tr>
     </tbody></table></div>
   <div class="note warnbox"><b>Closed.</b> Scaling the SSL corpus (2&times; the frames at matched
   compute is neutral; six adapted blocks is harmful) and vREx (four arms across two environment
