@@ -18,11 +18,6 @@ def rd(u):
     return f"{d['nn']:.2f} / {d['nt']:.2f}"
 
 
-def bs(u):
-    d = O['units'][u]['bias_spread']
-    return f"{d['nn']:.2f}× / {d['nt']:.2f}×"
-
-
 nnf, ntf = (round(100 * O['bouts'][l]['one_frame']) for l in ('nn', 'nt'))
 nnt, ntt = (round(100 * O['bouts'][l]['tail10']) for l in ('nn', 'nt'))
 
@@ -304,33 +299,26 @@ BODY = f'''
   Occupancy has the opposite problem: the longest 10% of bouts carry {nnt}% of all nose-to-nose
   behaviour time and {ntt}% of nose-to-tail, so one long huddle moves it more than ten short
   contacts. Counts sit between the two and are what the model tracks best.</p>
-  <p class="defn"><b>Not an argument, but a reader will ask.</b> Counts also resolve more contrasts
-  than the alternatives &mdash; {O['units']['counts']['resolves']} of 8 against
-  {O['units']['occupancy']['resolves']} for occupancy and {O['units']['duration']['resolves']} for
-  duration. That is <em>not</em> why they were chosen: picking the outcome that yields the most
-  rejections of the null is selection on significance. The treatment-linked part of the model's
-  error is no argument either &mdash; it is the same size on both ({bs('counts')} against
-  {bs('occupancy')} as a max/min ratio across phases) and is measured properly in 04.6.</p>
 </div>
 
 <div class="measure">
   <div class="sub">
     <p class="q">02b &middot; the timing</p>
-    <h3>Nothing is stationary inside a phase</h3>
-    <p>Rates fall several-fold across every recording &mdash; half-life <b>4&ndash;14 minutes</b>,
-    and P decays fastest in every cell. One cell rises instead, nose-to-tail under social exposure
-    during O, so the exposure sustains investigation while everything else habituates. Two things
-    follow, and the rest of this section is those two things: a phase <em>mean</em> needs a window
-    rule, and <b>the timing is an outcome in its own right</b>.</p>
+    <h3>When in the phase behaviour happens</h3>
+    <p>Before choosing anything, look at the whole protocol laid end to end &mdash; six recordings,
+    120 minutes, both behaviours.</p>
   </div>
 </div>
   <div class="figwrap">{DECAY}</div>
 <div class="measure">
-  <h3 style="margin-top:22px">Consequence 1 &mdash; the window for the level</h3>
-  <p>Because habituation runs 30 minutes against O and P's 15, the two sides of H&rarr;O do not
-  sample the same stretch of a decaying curve. O&rarr;P is unaffected: both phases are the same
-  length, so any window rule applied to both leaves it bit-for-bit identical, checked in all four
-  cells. So this is a question about H&rarr;O alone.</p>
+  <p><b>Nothing is stationary inside a phase.</b> Rates fall several-fold across every recording
+  &mdash; half-life <b>4&ndash;14 minutes</b>, and P decays fastest in every cell. One cell rises
+  instead, nose-to-tail under social exposure during O, so the exposure sustains investigation while
+  everything else habituates. A phase <em>mean</em> is therefore an average over whichever stretch
+  of a decaying curve the schedule happened to sample &mdash; and because H runs 30 minutes against
+  O and P's 15, <b>the two sides of H&rarr;O do not sample the same stretch</b>. O&rarr;P is
+  unaffected: equal lengths, so any window rule leaves it bit-for-bit identical, checked in all four
+  cells. Here is what the choice is worth on H&rarr;O:</p>
   <div class="scroll"><table>
     <thead><tr><th>H &rarr; O</th><th>full H (30 min)</th><th>first 15</th><th>last 15</th><th>spread</th></tr></thead>
     <tbody>
@@ -340,45 +328,36 @@ BODY = f'''
       <tr><td>nn &middot; social</td><td>+0.47</td><td>&minus;0.03</td><td>+0.97</td><td class="lo">1.01 &mdash; changes sign</td></tr>
     </tbody></table></div>
   <div class="note"><b>Decision: match the first 15 minutes of every phase.</b> Every phase is a
-  separate recording the experimenter starts by opening the cage, and the onset spike that follows
-  is largest in <b>P</b> &mdash; where the odour is <em>removed</em> &mdash; in 3 of 4 cells
+  separate recording the experimenter starts by opening the cage, and the onset spike that follows is
+  largest in <b>P</b> &mdash; where the odour is <em>removed</em> &mdash; in 3 of 4 cells
   (first-2-min over last-2-min rate, nn&nbsp;&middot;&nbsp;fear: H 7.6, O 6.7, <b>P 12.3</b>). A
   response peaking when the odour is taken away is handling, not odour, so matching onset position
-  puts it on both sides of every contrast where it cancels. The cost is contrasting cage-novelty
-  against odour-novelty rather than a settled baseline, the smaller of the two errors.
-  <br><br>That leaves one effect quotable and one not. <b>Nose-to-nose under fear</b> holds its sign
-  under all three windows (+0.45 matched), so it is the H&rarr;O number to quote. <b>Nose-to-nose
-  under social</b> runs +0.47 to &minus;0.03 and changes sign, so its full-window value is mostly
-  the H mean being pulled down by fifteen extra minutes of decay that O never gets. The figure above
-  is still cut on the full window &mdash; re-cutting the grid is next-step 3.</div>
+  puts it on both sides of every contrast, where it cancels. Two readings follow from the table:
+  <b>nose-to-nose under fear</b> holds its sign under all three windows (+0.45 matched), so it is the
+  H&rarr;O number to quote, while <b>nose-to-nose under social</b> runs +0.47 to &minus;0.03 and
+  changes sign, so it is not reportable as it stands. The figure above is still cut on the full
+  window &mdash; re-cutting the grid is next-step 3.</div>
 
-  <h3 style="margin-top:26px">Consequence 2 &mdash; the timing as its own outcome</h3>
-  <p>Measure it with the <b>mean onset time</b> of a phase's bouts inside the same 15-minute window
-  &mdash; called <b>decay</b> throughout:</p>
-  <div class="eqn"><math display="block"><mrow><mi>decay</mi><mo>=</mo>
-    <mfrac><mn>1</mn><mrow><mo>|</mo><mi>B</mi><mo>|</mo></mrow></mfrac>
-    <munder><mo>&#x2211;</mo><mrow><mi>b</mi><mo>&#x2208;</mo><mi>B</mi></mrow></munder>
-    <mi>onset</mi><mo>(</mo><mi>b</mi><mo>)</mo>
-    <mo>,</mo><mspace width="1.2em"/>
-    <mi>B</mi><mo>=</mo><mrow><mo>{{</mo><mtext>bouts starting in minutes&#xA0;0&#x2013;15</mtext>
-    <mo>}}</mo></mrow></mrow></math></div>
-  <p>In minutes, so it interprets itself: a <b>flat process gives 7.5</b>, half the window;
-  front-loaded gives less, back-loaded more. A difference reads as <em>&ldquo;the exposure pushes
-  bouts X minutes later into the phase&rdquo;</em>. Model-free, per-observation, and needing no
-  exponential &mdash; a fitted slope does not survive here (log-linearity is rejected in 7 of 12
-  cells and &tau; reaches &minus;27&nbsp;min on the one rising cell). Only H is truncated by the
-  window, which is what makes the three phases comparable at all. <b>Select &ldquo;decay within
-  phase&rdquo; in section 03&rsquo;s figure</b> to read it with all three estimators.</p>
-  <div class="defn"><b>Two measures this replaced.</b> A <b>front-loading fraction</b> &mdash; bouts
-  in minutes 0&ndash;5 over bouts in minutes 0&ndash;15, flat&nbsp;&rarr;&nbsp;0.33 &mdash; whose
-  null was an artefact of the nesting, which collapsed every bout to which side of minute 5 it fell
-  on, and which was a ratio of two correlated counts where a mean has an ordinary standard error.
-  <b>Note the sign convention is the reverse of that one</b>: a higher fraction meant more
-  front-loaded, a higher mean onset means less. And the <b>median</b> onset, which is worse on every
-  axis used above &mdash; CV 0.59&nbsp;/&nbsp;0.54 against 0.51&nbsp;/&nbsp;0.38, mean r&Delta; 0.483
-  against 0.502, worst-cell r&Delta; 0.174 against 0.293. Not because it is coarse (130 of 144
-  distinct values, since onsets are frame indices) but because the tail it discards is
-  <em>signal</em>: a flatter habituation curve is precisely more late onsets.</div>
+  <div class="bound">
+    <p class="t">the metric &middot; decay</p>
+    <p>The same non-stationarity makes <em>when</em> a bout starts an outcome in its own right.
+    Measured as the <b>mean onset time</b> of a phase's bouts, inside the matched 15-minute
+    window:</p>
+    <div class="eqn"><math display="block"><mrow><mi>decay</mi><mo>=</mo>
+      <mfrac><mn>1</mn><mrow><mo>|</mo><mi>B</mi><mo>|</mo></mrow></mfrac>
+      <munder><mo>&#x2211;</mo><mrow><mi>b</mi><mo>&#x2208;</mo><mi>B</mi></mrow></munder>
+      <mi>onset</mi><mo>(</mo><mi>b</mi><mo>)</mo>
+      <mo>,</mo><mspace width="1.2em"/>
+      <mi>B</mi><mo>=</mo><mrow><mo>{{</mo><mtext>bouts starting in minutes&#xA0;0&#x2013;15</mtext>
+      <mo>}}</mo></mrow></mrow></math></div>
+    <p>In minutes, so it interprets itself: a <b>flat process gives 7.5</b>, half the window.
+    A difference reads as <em>&ldquo;the exposure pushes bouts X minutes later into the
+    phase&rdquo;</em>. Model-free, per-observation, and needing no exponential &mdash; a fitted
+    slope does not survive here, with log-linearity rejected in 7 of 12 cells. Beats a
+    front-loading fraction (whose null was an artefact of its own nesting) and the median (which
+    discards the late tail, where a flatter curve actually shows). <b>Select &ldquo;decay within
+    phase&rdquo; in section 03&rsquo;s figure</b> to read it with all three estimators.</p>
+  </div>
 </div></section>
 
 <section><div class="measure">
