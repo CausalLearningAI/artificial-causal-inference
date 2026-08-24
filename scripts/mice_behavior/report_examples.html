@@ -202,7 +202,8 @@
       : `<b>${esc(BEH[state.behav])}</b> · <b>${src.n_pools} pools with no annotation</b>, `
         + `${src.n_obs} observations · mean predicted probability ${src.mean_p.toFixed(2)}%`;
 
-    $('ex-note').innerHTML = annotated
+    $('ex-note').innerHTML = '';
+    if (0) $('ex-note').innerHTML = annotated
       ? 'Each row is drawn from the end of the range it is <em>sure</em> about — TP and FP from the '
         + 'top, FN and TN from the bottom — one frame per observation. <b>d</b> = frames to the '
         + 'nearest thing that would have made the model right (a scored bout for FP, a detection '

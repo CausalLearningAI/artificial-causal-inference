@@ -54,7 +54,13 @@
 <script>
 (function () {
   const DATA = __MODELS_JSON__;
-  const runs = DATA.runs || [];
+  /* Only runs that are COMPARABLE to each other appear here. The label-budget arms differ in how
+     much data they saw, the input ablations in resolution, and every vREx/DERM arm carries a
+     different head from the candidates (its launcher never set CROSS_ATTN_DIM) -- plotting them on
+     one AP-vs-rDelta panel would invite exactly the cross-arm reading the axes cannot support.
+     Their numbers live in section 04's own tables, against their own matched controls. */
+  const SHOW = new Set(['model candidate', 'deployment fold']);
+  const runs = (DATA.runs || []).filter((r) => SHOW.has(r.role));
   const Y = {
     mean: { key: (r) => (r.rd_nt + r.rd_nn) / 2, name: 'mean of the two behaviours' },
     nt: { key: (r) => r.rd_nt, name: 'nose-to-tail' },
@@ -62,7 +68,6 @@
   };
   const ROLES = [
     ['model candidate', '--m-cand', 'candidate — encoder / head / input, 4-pool split'],
-    ['objective', '--m-obj', 'objective ablation — vREx and DERM, different head'],
     ['deployment fold', '--m-fold', 'deployment fold — out-of-fold on 8 pools'],
   ];
   const state = { y: 'mean' };
@@ -213,7 +218,8 @@
     });
 
     const plot = $('mdl-plot'); plot.textContent = ''; plot.appendChild(svg);
-    $('mdl-note').innerHTML =
+    $('mdl-note').innerHTML = '';
+    if (0) $('mdl-note').innerHTML =
       `${shown.length} runs, ${DATA.meta.n_candidates} of them candidates. `
       + 'Spearman between the two axes, over candidates only: <b>'
       + `${DATA.meta.spearman_ap_vs_rdelta >= 0 ? '+' : ''}`

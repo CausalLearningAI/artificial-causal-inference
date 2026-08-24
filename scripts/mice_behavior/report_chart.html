@@ -390,7 +390,9 @@
       panels.appendChild(e);
     }
 
-    $('ate-note').innerHTML =
+    $('ate-note').innerHTML = 'Bars are 95% intervals, clustered on pool. Hollow marks are on '
+      + 'the model\u2019s scale, not the behaviour\u2019s.';
+    if (0) $('ate-note').innerHTML =
       (state.exp === 'v1'
         ? '<b>v1</b> has 24 of its 72 pools annotated, so all three estimators exist and the model '
           + 'can be checked against human labels.'

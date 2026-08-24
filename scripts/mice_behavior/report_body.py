@@ -106,54 +106,6 @@ xf = {k: sum(r[k] for r in _folds) / len(_folds)
       for k in ('ap', 'f1_nt', 'f1_nn', 'rd_nt', 'rd_nn')}
 
 
-# ---------------------------------------------------------------- derm.json readers
-# Section 04's objective subsection quotes a phase LEAK -- how well the model's own output
-# separates two phases at fixed ground truth. Every number below is read from derm.json so the
-# prose, the table and the verdict cannot disagree.
-_DL = [r for r in D['leak'] if r['odour'] == 'both' and r['truth'] == 0]
-
-
-def _leak(fam, behav=None, trans=None):
-    return [r for r in _DL if r['family'] == fam
-            and (behav is None or r['behav'] == behav)
-            and (trans is None or r['trans'] == trans)]
-
-
-def lk(fam, behav, trans):
-    """Mean leak AUC over seeds, as the table prints it."""
-    v = _leak(fam, behav, trans)
-    return f"{sum(r['auc'] for r in v) / len(v):.3f}" if v else '&mdash;'
-
-
-def lkci(fam, behav, trans):
-    """The pool-bootstrap interval, averaged over seeds. Marked when it excludes 0.5."""
-    v = _leak(fam, behav, trans)
-    if not v:
-        return '&mdash;'
-    lo = sum(r['lo'] for r in v) / len(v)
-    hi = sum(r['hi'] for r in v) / len(v)
-    star = '*' if (lo - 0.5) * (hi - 0.5) > 0 else ''
-    return f'[{lo:.3f}, {hi:.3f}]{star}'
-
-
-def lkdev(fam):
-    """Mean |AUC - 0.5| over the four behaviour x transition cells."""
-    v = _leak(fam)
-    return f"{sum(abs(r['auc'] - 0.5) for r in v) / len(v):.3f}" if v else '&mdash;'
-
-
-def lkres(fam):
-    """How many of the four cells have an interval that excludes 0.5."""
-    out, v = 0, _leak(fam)
-    for b in ('nt', 'nn'):
-        for t in ('H->O', 'O->P'):
-            g = [r for r in v if r['behav'] == b and r['trans'] == t]
-            if g and (sum(r['lo'] for r in g) / len(g) - 0.5) * \
-                     (sum(r['hi'] for r in g) / len(g) - 0.5) > 0:
-                out += 1
-    return out
-
-
 def nui(behav, fac, which):
     """eta-squared and p for a pool-level factor's share of the model's bias."""
     d = D['nuisance'][which][behav][fac]
@@ -168,45 +120,12 @@ _PB = D['ppi_bound']
 
 
 
-def dcorr(which):
-    """One correlation from derm.json, with a real minus sign and a 2-dp p."""
-    c = D['corr'][which]
-    return f"{c['r']:+.2f}".replace('-', '&minus;'), f"{c['p']:.2f}"
-
-
-_rp, _pp = dcorr('phase')
-_rc, _pc = dcorr('cond')
-
 
 # ---------------------------------------------------------------- probe + estimand-bias readers
 # Section 04.6's load-bearing fact: a physical bag sits in a corner of the cage during O, so the
 # treatment is legible in a frame that carries no behaviour at all. Read from derm.json.
 _P = D['probe']
 _R = _P['region']
-
-
-def pb(target, field='bal_acc'):
-    return f"{_P['targets'][target][field]:.3f}"
-
-
-def pbch(target):
-    return f"{_P['targets'][target]['chance']:.3f}"
-
-
-def rg(name):
-    return f"{_R[name]:.3f}"
-
-
-def mask(key):
-    m = _P['mask'][key]
-    return f"{m['bal_acc']:.3f}", f"{100 * m['frame_share']:.1f}%"
-
-
-_bag = sorted({v['quadrant'] for v in _P['corner'].values()})
-bag_quadrant = _bag[0] if len(_bag) == 1 else ' / '.join(_bag)
-bag_pools = f"{len(_P['corner'])}"
-bag_peak = (f"{min(v['peak'] for v in _P['corner'].values()):.2f}"
-            f"&ndash;{max(v['peak'] for v in _P['corner'].values()):.2f}")
 
 
 def eb(behav, fam, what='mean'):
@@ -386,39 +305,9 @@ BODY = f'''
   ask. The treatment-linked component of the model's error is also no argument between the two
   &mdash; it is the same size on both ({bs('counts')} against {bs('occupancy')} as a max/min ratio
   across phases) and is measured properly in section 04.</p>
-</div></section>
 
-<section><div class="measure">
-  <div class="sechead"><p class="eyebrow">03 &middot; Effects</p>
-  <h2>Every estimate, in one figure</h2></div>
-  <p>Pick a cohort, an outcome unit, a behaviour and a breakdown. One panel per exposure, both
-  phase transitions in each, and <b>three estimators</b>:</p>
-  <div class="scroll"><table>
-    <thead><tr><th>estimator</th><th>annotations it uses</th><th>cohorts</th><th>reads as</th></tr></thead>
-    <tbody>
-      <tr><td><b>CI</b></td><td>human only</td><td>v1 (24 pools)</td>
-        <td>the answer, on a third of the data</td></tr>
-      <tr><td><b>PPI++</b></td><td>human + AI</td><td>v1 (72 pools)</td>
-        <td class="hi">the same answer, narrower &mdash; unbiased for ANY predictor</td></tr>
-      <tr><td><b>PPCI</b></td><td>AI only, uncalibrated</td>
-        <td class="hi">v1 (72) and v2 (36)</td>
-        <td class="lo">sign and pattern only &mdash; it is on the model's scale</td></tr>
-    </tbody></table></div>
-  <p><b>Start on CI</b> and read the other two against it. PPCI is the only one that needs no
-  annotation anywhere, which is why it is the only estimator that exists on v2. Sections 04 and 05
-  say how far that model can be trusted.</p>
 </div>
-  <div class="figwrap">{CHART}</div>
-<div class="measure">
-  <p><b>The two exposures act differently, and one of them acts in opposite directions on the two
-  behaviours.</b> Nose-to-nose rises on exposure under both (+0.65 fear, +0.47 social) and falls
-  when it is withdrawn. Nose-to-tail rises under fear (+0.35) and <em>falls</em> under social
-  (&minus;0.36). Each exposure is reported separately throughout.</p>
-</div>
-  <div class="figwrap">{DECAY}
-    <p class="deccap">Pick a unit; both behaviours redraw. Hover any minute for its value and
-    interval, or any bar for the phase mean it summarises.</p>
-  </div>
+  <div class="figwrap">{DECAY}</div>
 <div class="measure">
   <h3 style="margin-top:26px">Nothing is stationary inside a phase</h3>
   <p>Rates fall several-fold across every recording: half-life <b>4&ndash;14 minutes</b>, and P
@@ -452,7 +341,8 @@ BODY = f'''
   sign, so its full-window value is mostly the H mean being pulled down by fifteen extra minutes of
   decay that O never gets; it is not reportable as it stands. The figure above is still cut on the
   full window &mdash; re-cutting the grid is next-step 3.</div>
-  <div class="sub">
+  
+<div class="sub">
     <p class="q">outcome design</p>
     <h3>The decay is a second effect
       <span class="verdict v-yes">in the figure, as its own unit</span></h3>
@@ -466,8 +356,45 @@ BODY = f'''
     <p>Bounded, model-free, length-invariant, per-observation, and needing no exponential &mdash; a
     fitted slope or time constant does not survive here: log-linearity is rejected in 7 of 12 cells
     and &tau; reaches &minus;27&nbsp;min on the one rising cell. <b>Select &ldquo;decay within
-    phase&rdquo; as the unit in the figure above</b> to read it with all three estimators, the same
-    way as the level.</p>
+    phase&rdquo; as the unit in section 03&rsquo;s figure</b> to read it with all three estimators, the same way
+    as the level.</p>
+  </div>
+</div></section>
+
+<section><div class="measure">
+  <div class="sechead"><p class="eyebrow">03 &middot; Effects</p>
+  <h2>Every estimate, in one figure</h2></div>
+  <p>Pick a cohort, an outcome unit, a behaviour and a breakdown. One panel per exposure, both
+  phase transitions in each, and <b>three estimators</b>:</p>
+  <div class="scroll"><table>
+    <thead><tr><th>estimator</th><th>annotations it uses</th><th>cohorts</th><th>reads as</th></tr></thead>
+    <tbody>
+      <tr><td><b>CI</b></td><td>human only</td><td>v1 (24 pools)</td>
+        <td>the answer, on a third of the data</td></tr>
+      <tr><td><b>PPI++</b></td><td>human + AI</td><td>v1 (72 pools)</td>
+        <td class="hi">the same answer, narrower &mdash; unbiased for ANY predictor</td></tr>
+      <tr><td><b>PPCI</b></td><td>AI only, uncalibrated</td>
+        <td class="hi">v1 (72) and v2 (36)</td>
+        <td class="lo">sign and pattern only &mdash; it is on the model's scale</td></tr>
+    </tbody></table></div>
+  <p><b>Start on CI</b> and read the other two against it. PPCI is the only one that needs no
+  annotation anywhere, which is why it is the only estimator that exists on v2. Sections 04 and 05
+  say how far that model can be trusted.</p>
+</div>
+  <div class="figwrap">{CHART}</div>
+<div class="measure">
+  <p><b>The two exposures act differently, and one of them acts in opposite directions on the two
+  behaviours.</b> Nose-to-nose rises on exposure under both (+0.65 fear, +0.47 social) and falls
+  when it is withdrawn. Nose-to-tail rises under fear (+0.35) and <em>falls</em> under social
+  (&minus;0.36). Each exposure is reported separately throughout.</p>
+</div>
+<div class="measure">
+  <div class="sub">
+    <p class="q">the second effect</p>
+    <h3>Decay, as its own unit
+      <span class="verdict v-yes">in the figure above, selectable</span></h3>
+    <p>The exposure changes <em>when</em> in a phase behaviour happens as well as how
+    much of it there is. Section 02 defines the measure; here is what it estimates to.</p>
     <div class="scroll"><table>
       <thead><tr><th>&Delta;decay, human labels</th><th>nt &middot; fear</th><th>nt &middot; social</th><th>nn &middot; fear</th><th>nn &middot; social</th></tr></thead>
       <tbody>
@@ -485,6 +412,7 @@ BODY = f'''
     no bout in the window, so n falls to 13&ndash;24 by cell, which is why the model buys more here
     than it does on the level.</p>
   </div>
+
 </div></section>
 
 <section><div class="measure">
@@ -627,7 +555,7 @@ BODY = f'''
         <td class="lo">+0.008 at best, &minus;0.094 at &beta;=100</td><td class="lo">no help, and harmful when pushed</td></tr>
       <tr><td>04.6</td><td><b>objective</b></td><td>DERM &mdash; deconfound against phase</td>
         <td>&minus;0.02 against a matched control<br><span style="opacity:.65">the expected price, not a cost</span></td>
-        <td class="lo">unresolved on 4 pools &mdash; and AP is the wrong scoreboard for it</td></tr>
+        <td class="lo">open &mdash; judge it on the estimand, not on AP</td></tr>
     </tbody></table></div>
   <div class="note warnbox"><b>One structural limit, before any of it.</b> The regime overfits
   &mdash; training loss falls monotonically while validation AP plateaus near epoch 24. That is why
@@ -643,12 +571,14 @@ BODY = f'''
 </div>
 
 <div class="measure">
-  <div class="sub">
+  <details class="sub" open>
+    <summary>
     <p class="q">04.1 &middot; data</p>
     <h3>The scaling law of annotation <span class="verdict v-yes">the binding constraint</span></h3>
+    </summary>
+    <div class="body">
     <p>Nested subsets of the labelled pools, so each point differs from the last for exactly one
     reason.</p>
-  </div>
   <div class="scroll"><table>
     <thead><tr><th>annotated pools</th><th>observations</th><th>macro AP</th><th>gain</th></tr></thead>
     <tbody>
@@ -666,10 +596,26 @@ BODY = f'''
   <div class="note"><b>~0.076 macro AP per doubling, and the curve has not bent.</b> Every
   modelling intervention below is worth between &minus;0.09 and +0.11, the best label-free one
   +0.033 &mdash; so twenty more annotated pools would beat all of them combined.</div>
+  <div class="note"><b>What &ldquo;more data&rdquo; means here is more POSITIVES, and the
+  imbalance is handled by subsampling.</b> A frame carries nose-to-tail 1.2% of the time and
+  nose-to-nose 0.8%, so an unweighted epoch would be 99% negatives. Every arm on this page
+  therefore trains on <b>all 23,280 positive anchors plus an equal number of negatives drawn fresh
+  from the 54,292 available every epoch</b> &mdash; 46,560 samples, 1:1, resampled so the model
+  still sees most of the negative pool over 30 epochs without any epoch being swamped by it. Two
+  consequences worth carrying forward. The effective training prevalence is <b>~25%, not ~1%</b>,
+  which is why predicted occupancy runs about fivefold above truth in section 05 and why no
+  prediction on this page may be read as a rate. And the label budget in the table above binds
+  through positives: annotating a pool adds ~970 positive anchors, and negatives were never
+  scarce.</div>
 
-  <div class="sub">
+  </div>
+  </details>
+  <details class="sub">
+    <summary>
     <p class="q">04.2 &middot; encoder &mdash; fine-tuning</p>
     <h3>Adapting the encoder <span class="verdict v-yes">yes &mdash; +0.11 AP, for 70k params</span></h3>
+    </summary>
+    <div class="body">
     <p>Unfreezing the last DINOv2 blocks is the largest modelling gain measured: macro AP 0.4289
     frozen &rarr; 0.4889 at two blocks &rarr; 0.5243 at six &mdash; a +0.095 span against a seed
     spread of at most 0.016.</p>
@@ -685,11 +631,15 @@ BODY = f'''
     <em>matched</em> <code>d4</code> control (0.4187) BitFit-6 is <b>+0.122</b>, so the mismatch
     understates the gain rather than manufacturing it. And encoder learning rate is decisive here,
     not incidental: BitFit reads 0.4509 at 1e-5 against 0.4902 at 1e-3.</div>
-  </div>
 
-  <div class="sub">
+  </div>
+  </details>
+  <details class="sub">
+    <summary>
     <p class="q">04.3 &middot; encoder &mdash; unlabelled frames</p>
     <h3>Self-supervised adaptation <span class="verdict v-yes">yes &mdash; and it is what we deploy</span></h3>
+    </summary>
+    <div class="body">
     <p>data2vec-style masked patch-feature regression against an EMA teacher, on <b>374,400</b>
     unlabelled frames over 104 pools spanning v1 and v2 &mdash; including the 216 v2 observations no
     supervised arm can reach. Stage&nbsp;B <b>freezes that encoder and trains the head only</b>, so
@@ -745,11 +695,15 @@ BODY = f'''
     established, each a clean single-variable change: 2&times; the corpus at matched compute is
     neutral, and six adapted blocks is clearly harmful. So <em>scaling</em> the corpus is closed;
     SSL itself is not.</div>
-  </div>
 
-  <div class="sub">
+  </div>
+  </details>
+  <details class="sub">
+    <summary>
     <p class="q">04.4 &middot; input</p>
     <h3>Resolution against tokens <span class="verdict v-part">token-bound, now saturated</span></h3>
+    </summary>
+    <div class="body">
     <p>Going from 224 px to 448 px changes tokens and pixel detail at once. Capping the source
     pixels while holding the token count separates them: <b>tokens carried most of it</b>.</p>
     <div class="scroll"><table>
@@ -771,11 +725,15 @@ BODY = f'''
     +0.010 of photometric augmentation the 224 px arm lacked; and the pipeline resamples twice,
     2060&rarr;512&rarr;448, keeping 76% of the detail of a direct 2060&rarr;448 &mdash; free to
     recover by extracting frames at the working size.)</p>
-  </div>
 
-  <div class="sub">
+  </div>
+  </details>
+  <details class="sub">
+    <summary>
     <p class="q">04.5 &middot; head</p>
     <h3>Head capacity <span class="verdict v-no">flat across an 11&times; parameter range</span></h3>
+    </summary>
+    <div class="body">
     <p>Everything else held fixed &mdash; frozen stock DINOv2, 448&nbsp;px, D4 + photometric
     augmentation, 30 epochs, seed&nbsp;42 &mdash; and only the pooling head changed.</p>
     <div class="scroll"><table>
@@ -812,65 +770,32 @@ BODY = f'''
     the cross-attention width from 64 to 128, so it moves two things rather than one. And the
     control's own second seed reads 0.4200, which is 0.009 below the 0.4289 every &Delta; in this
     table is taken against &mdash; another way of saying that nothing here is resolved.</div>
-  </div>
 
-  <div class="sub">
+  </div>
+  </details>
+  <details class="sub">
+    <summary>
     <p class="q">04.6 &middot; objective</p>
     <h3>Does the model read the treatment?
-      <span class="verdict v-part">it can, very easily &mdash; 4 pools cannot say whether it does</span></h3>
-    <p><b>The shortcut is physical.</b> A bag is placed in a corner of the cage for the exposure
-    phase. So the treatment is <em>legible in the frame</em>, and legible in frames that carry no
-    behaviour at all &mdash; which means a classifier can score a frame by which phase it
-    <em>looks like</em> instead of by what the mice are doing. Prevalence moves with the phase too
-    (nose-to-tail 0.89% in H against 1.22% in O on the training pools), and <b>ERM's objective
-    contains nothing that penalises the shortcut</b>: the ERM optimum is
+      <span class="verdict v-part">open &mdash; 4 pools cannot answer it</span></h3>
+    </summary>
+    <div class="body">
+    <p><b>The shortcut, and why ERM would take it.</b> A bag is placed in a corner of the cage for
+    the exposure phase, so the treatment is visible in the frame whether or not any behaviour is.
+    Prevalence moves with the phase too (nose-to-tail 0.89% in H against 1.22% in O on the training
+    pools). ERM's optimum is
     <math><mrow><mi>P</mi><mo>(</mo><mi>Y</mi><mo>=</mo><mn>1</mn><mo>|</mo><mi>x</mi>
-    <mo>)</mo></mrow></math>, which <em>includes</em> the phase-conditional prior. DERM's optimum
-    divides that prior out. So the question is not whether DERM has a job in principle. It does.</p>
+    <mo>)</mo></mrow></math>, which <em>includes</em> that phase-conditional prior, so nothing in
+    the objective discourages scoring a frame by which phase it looks like. DERM reweights each
+    sample by
+    <math><mrow><mi>Var</mi><mo>(</mo><mi>Y</mi><mo>|</mo><mi>E</mi><mo>)</mo><mo>/</mo>
+    <mi>P</mi><mo>(</mo><mi>Y</mi><mo>,</mo><mi>E</mi><mo>)</mo></mrow></math>, which divides the
+    prior odds out. It is the right tool for this.</p>
 
-    <p><b>How freely legible?</b> Measured rather than assumed, and measured where a shortcut would
-    do damage: a leave-one-<em>pool</em>-out linear probe on a {_P['thumb']}&times;{_P['thumb']}
-    grey thumbnail of a <b>quiet</b> frame &mdash; no scored behaviour, at least
-    {_P['dist_frames']} frames ({_P['dist_frames'] // 5}&nbsp;s) from any bout, so the probe has
-    nothing legitimate to go on. {_P['n_frames']:,} frames, balanced across pool, phase and
-    exposure.</p>
-    <div class="scroll"><table>
-      <thead><tr><th>can a quiet frame tell you&hellip;</th><th>balanced accuracy</th><th>chance</th><th></th></tr></thead>
-      <tbody>
-        <tr><td><b>&hellip;whether the bag is in the cage</b> (O against H and P)</td>
-          <td class="lo">{pb('O_vs_rest')}</td><td>{pbch('O_vs_rest')}</td>
-          <td class="lo">the treatment indicator, essentially free</td></tr>
-        <tr><td>&hellip;which of the three phases it is</td>
-          <td class="lo">{pb('phase')}</td><td>{pbch('phase')}</td>
-          <td>O recalled at {_P['targets']['phase']['recall']['O']:.2f}</td></tr>
-        <tr><td>&hellip;H from P &mdash; both bag-free</td>
-          <td>{pb('H_vs_P')}</td><td>{pbch('H_vs_P')}</td>
-          <td>weaker, and this is what is left once the bag is gone</td></tr>
-        <tr><td>&hellip;<b>which exposure</b> &mdash; fear or social</td>
-          <td class="hi">{pb('exposure')}</td><td>{pbch('exposure')}</td>
-          <td class="hi">the negative control: near chance, so the probe reads the
-          <em>protocol</em>, not the cage, the animal or the hour</td></tr>
-      </tbody></table></div>
-    <p>A thousand downsampled pixels identify the treatment at <b>{pb('O_vs_rest')}</b>. DINOv2 at
-    1024 tokens and 448&nbsp;px sees it far better. And the cue is where the bag is: restricted to
-    one region of the frame, O-against-the-rest reads {rg('bottom-left')} from the
-    <b>{bag_quadrant}</b> quadrant against {rg('top-right')}, {rg('top-left')} and
-    {rg('bottom-right')} from the other three, {rg('border')} from the border alone and
-    {rg('centre')} from the centre where the animals are. The same corner in all {bag_pools} pools,
-    with the mean O-minus-not-O difference peaking at {bag_peak} of full intensity there.</p>
-
-    <div class="note warnbox"><b>The &minus;0.02 macro AP is the price of the correction, not
-    evidence against it.</b> A model that has stopped using the phase prior <em>must</em> be
-    slightly worse at frame classification, because the prior is genuinely informative for that
-    task. Scoring DERM on AP scores it on exactly the thing it is designed to give up. The same goes
-    for r&Delta;&nbsp;nt, whose two same-configuration seeds differ by 0.67. Neither can arbitrate
-    this, and the report previously let one of them do so.</div>
-
-    <p><b>What the shortcut would cost, and where it shows.</b> The estimand is a within-pool
-    difference, so write the model's expected output in phase <math><mi>p</mi></math> as
+    <p><b>What the shortcut would cost.</b> The estimand is a within-pool difference, so with
     <math><mrow><mi>E</mi><mo>[</mo><mi>f</mi><mo>|</mo><mi>p</mi><mo>]</mo><mo>=</mo>
     <msub><mi>a</mi><mi>p</mi></msub><mo>+</mo><mi>b</mi><mspace width="0.15em"/><mi>E</mi>
-    <mo>[</mo><mi>Y</mi><mo>|</mo><mi>p</mi><mo>]</mo></mrow></math>. Then</p>
+    <mo>[</mo><mi>Y</mi><mo>|</mo><mi>p</mi><mo>]</mo></mrow></math>,</p>
     <div class="eqn"><math display="block"><mrow>
       <mi>E</mi><mo>[</mo><msub><mi>D</mi><mi>f</mi></msub><mo>]</mo><mo>=</mo>
       <munder><munder><mrow><mi>b</mi><mspace width="0.15em"/><mi>E</mi><mo>[</mo>
@@ -883,113 +808,42 @@ BODY = f'''
     </mrow></math></div>
     <p>The scale is absorbed by PPI++'s <math><mi>&#x3BB;</mi></math> and never quoted by
     uncalibrated PPCI. <math><mrow><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo>
-    <msub><mi>a</mi><mi>H</mi></msub></mrow></math> is the whole risk. Measured in bouts per minute
-    at the <b>rate-matched threshold</b> &mdash; which spends the one scale the estimand allows, so
-    nothing here is calibration &mdash; per (pool &times; exposure), the estimand's own unit, giving
-    eight of them. Seeds averaged within a unit first, because seed noise is not sampling error.</p>
+    <msub><mi>a</mi><mi>H</mi></msub></mrow></math> is the whole risk, and it is what an objective
+    change has to be judged on. Measured in bouts per minute at the rate-matched threshold &mdash;
+    which spends the one scale the estimand allows &mdash; per (pool &times; exposure), eight units,
+    seeds averaged within a unit:</p>
     <div class="scroll"><table>
       <thead><tr><th></th><th>mean a<sub>O</sub>&minus;a<sub>H</sub></th><th>95% CI</th>
-        <th>against the pooled true effect</th><th>true effect, H&rarr;O</th></tr></thead>
+        <th>true effect, H&rarr;O</th></tr></thead>
       <tbody>
         <tr><td>nose-to-tail &middot; <b>ERM</b></td><td class="lo">{eb('nt','ERM')}</td>
-          <td>{eb('nt','ERM','ci')}</td><td class="lo">{eb('nt','ERM','share')} its size</td>
-          <td rowspan="3">{dY('nt')} pooled<br>
-            <span style="opacity:.65">fear {dY('nt','fear')}, social {dY('nt','social')}</span></td></tr>
-        <tr><td>nose-to-tail &middot; <b>DERM</b>, phases</td><td>{eb('nt','DERM')}</td>
-          <td>{eb('nt','DERM','ci')}</td><td>{eb('nt','DERM','share')}</td></tr>
-        <tr><td>nose-to-tail &middot; DERM, 6 cells</td><td>{eb('nt','DERM-cells')}</td>
-          <td>{eb('nt','DERM-cells','ci')}</td><td>{eb('nt','DERM-cells','share')}</td></tr>
+          <td>{eb('nt','ERM','ci')}</td>
+          <td rowspan="2">{dY('nt')} pooled &mdash; so the bias is
+          <b>{eb('nt','ERM','share')}</b> its size, and opposite in sign</td></tr>
+        <tr><td>nose-to-tail &middot; <b>DERM</b></td><td>{eb('nt','DERM')}</td>
+          <td>{eb('nt','DERM','ci')}</td></tr>
         <tr><td>nose-to-nose &middot; <b>ERM</b></td><td>{eb('nn','ERM')}</td>
-          <td>{eb('nn','ERM','ci')}</td><td>{eb('nn','ERM','share')}</td>
-          <td rowspan="3">{dY('nn')} pooled<br>
-            <span style="opacity:.65">fear {dY('nn','fear')}, social {dY('nn','social')}</span></td></tr>
-        <tr><td>nose-to-nose &middot; <b>DERM</b>, phases</td><td>{eb('nn','DERM')}</td>
-          <td>{eb('nn','DERM','ci')}</td><td>{eb('nn','DERM','share')}</td></tr>
-        <tr><td>nose-to-nose &middot; DERM, 6 cells</td><td>{eb('nn','DERM-cells')}</td>
-          <td>{eb('nn','DERM-cells','ci')}</td><td>{eb('nn','DERM-cells','share')}</td></tr>
+          <td>{eb('nn','ERM','ci')}</td>
+          <td rowspan="2">{dY('nn')} pooled &mdash; nothing to see, and the sign flips
+          between seeds under both objectives</td></tr>
+        <tr><td>nose-to-nose &middot; <b>DERM</b></td><td>{eb('nn','DERM')}</td>
+          <td>{eb('nn','DERM','ci')}</td></tr>
       </tbody></table></div>
-    <p><b>On nose-to-tail everything points the way the mechanism predicts.</b> ERM's bias is
-    <b>{eb('nt','ERM')}</b> against a pooled true effect of {dY('nt')} &mdash;
-    {eb('nt','ERM','share')} the size of the thing being estimated, and of the opposite sign. DERM's
-    is {eb('nt','DERM')}, {eb('nt','DERM','share')}. Both positive with DERM nearer zero, which is
-    correction rather than overshoot. On nose-to-nose there is nothing to see: ERM reads
-    {eb('nn','ERM')} and the sign flips between seeds under both objectives.</p>
-    <div class="note warnbox"><b>And none of it resolves.</b> The intervals are
-    {eb('nt','ERM','ci')} and {eb('nt','DERM','ci')}; the paired ERM-minus-DERM difference is
-    {ebp('nt','diff')} at p&nbsp;=&nbsp;{ebp('nt','p')} on nose-to-tail and
-    {ebp('nn','diff')} at p&nbsp;=&nbsp;{ebp('nn','p')} on nose-to-nose, shrinking in
-    {ebp('nt','shrunk_units')} and {ebp('nn','shrunk_units')} of {ebp('nt','n_units')} units. <b>Four
-    validation pools cannot answer this question</b> &mdash; and note what does <em>not</em> shrink:
-    the per-unit <em>scatter</em> is flat ({eb('nt','ERM','mean_abs')} against
-    {eb('nt','DERM','mean_abs')} in mean absolute terms), which is expected, because DERM applies one
-    shift per environment and can only move a mean. This section reports a mechanism, a measured
-    opportunity for it, and a point estimate in the predicted direction. It does not report an
-    effect.</div>
+    <p>On nose-to-tail both values are positive with DERM nearer zero, which is what a correction
+    looks like rather than an overshoot. But the paired ERM-minus-DERM difference is
+    {ebp('nt','diff')} at p&nbsp;=&nbsp;{ebp('nt','p')}, so <b>four validation pools cannot answer
+    this</b>. What is running now is the same comparison cross-fitted over the three deployment
+    folds: 24 pools instead of 4, cutting the standard error about 2.4&times;, which is what it
+    takes to separate {eb('nt','ERM')} from zero.</p>
 
-    <div class="note"><b>What was wrong here before, and it mattered.</b> The previous version
-    measured this leak as an <em>AUC</em> separating two phases from the model's output at fixed
-    ground truth, read the ERM value of about 0.5 as &ldquo;the shortcut is not open&rdquo;, and
-    concluded DERM had nothing to remove. Three errors.
-    <br><br>&#8203;<b>1.</b> An AUC weights the whole output distribution, but the estimand is a
-    <em>count of threshold crossings</em> at &tau;&nbsp;&asymp;&nbsp;0.90&ndash;0.98. It lives
-    entirely in the far upper tail, and a tail shift large enough to move bout counts barely moves
-    an AUC.
-    <br>&#8203;<b>2.</b> Frames at fixed truth are not exchangeable across phases &mdash; the quiet
-    stretches of O are not the quiet stretches of H. So 0.5 is not the no-shortcut baseline, and a
-    deviation from it cannot be read in either direction.
-    <br>&#8203;<b>3.</b> DERM deflates the high-prevalence environment <em>by construction</em>: its
-    weights are
-    <math><mrow><mi>w</mi><mo>(</mo><mi>Y</mi><mo>=</mo><mn>1</mn><mo>,</mo><mi>e</mi><mo>)</mo>
-    <mo>=</mo><mo>(</mo><mn>1</mn><mo>&#x2212;</mo><msub><mi>p</mi><mi>e</mi></msub><mo>)</mo>
-    <mo>/</mo><mi>P</mi><mo>(</mo><mi>e</mi><mo>)</mo></mrow></math> and
-    <math><mrow><mi>w</mi><mo>(</mo><mi>Y</mi><mo>=</mo><mn>0</mn><mo>,</mo><mi>e</mi><mo>)</mo>
-    <mo>=</mo><msub><mi>p</mi><mi>e</mi></msub><mo>/</mo><mi>P</mi><mo>(</mo><mi>e</mi>
-    <mo>)</mo></mrow></math>, whose ratio is the prior odds
-    <math><mrow><msub><mi>p</mi><mi>e</mi></msub><mo>/</mo><mo>(</mo><mn>1</mn><mo>&#x2212;</mo>
-    <msub><mi>p</mi><mi>e</mi></msub><mo>)</mo></mrow></math> &mdash; exactly the prior a prevalence
-    shortcut exploits. So DERM moving O downward relative to ERM is <em>the correction working</em>.
-    Calling it &ldquo;DERM installs its own bias&rdquo; had the sign of the argument backwards.</div>
+    <div class="note"><b>Do not read the AP column as a verdict.</b> A model that has stopped using
+    the phase prior is <em>necessarily</em> a little worse at frame classification, because the
+    prior is genuinely informative for that task &mdash; so the &minus;0.02 macro AP below is the
+    expected price of the correction, not evidence against it. r&Delta;&nbsp;nt cannot arbitrate
+    either: two seeds of the same unweighted control give
+    {rr2('res448_k2_frozen_d4photo_ermH5M','nt')} and
+    {rr2('res448_k2_frozen_d4photo_ermH5M_s1','nt')}.</div>
 
-    <p><b>Two things would settle it, and the first needs no GPU at all.</b></p>
-    <div class="scroll"><table>
-      <thead><tr><th></th><th>what</th><th>why it is the stronger move</th></tr></thead>
-      <tbody>
-        <tr><td>1</td><td><b>mask the bag's corner at the input</b></td>
-          <td>removes the cue rather than asking the model to unlearn it, costs nothing at
-          inference, and is <em>verifiable without training</em>: blanking the {bag_quadrant}
-          {mask('bottom_left_0.25')[1]} of the frame drops the treatment probe from
-          {mask('unmasked')[0] if isinstance(_P['mask']['unmasked'], str) else f"{_P['mask']['unmasked']:.3f}"}
-          to {mask('bottom_left_0.25')[0]}</td></tr>
-        <tr><td>2</td><td>cross-fit the matched pair &mdash; DERM-on-phases and its ERM control
-          &mdash; over the three deployment folds</td>
-          <td>measures a<sub>O</sub>&minus;a<sub>H</sub> on <b>24 pools instead of 4</b>, cutting the
-          standard error about 2.4&times;, which is what it takes to resolve
-          {eb('nt','ERM')} from zero. It is also the only way to get real PPI++ intervals and PPCI
-          point estimates under both objectives, with CI as ground truth</td></tr>
-      </tbody></table></div>
-    <div class="note"><b>Why masking does not reach chance, and why that is right.</b> The residual
-    after blanking the corner is {mask('bottom_left_0.25')[0]}, not 0.500 &mdash; and the centre of
-    the frame alone already reads {rg('centre')}. The bag does not only sit in the cage; it changes
-    <em>where the animals are</em>. That is real behaviour and it must not be removed. Masking takes
-    out the non-behavioural cue and leaves the behavioural one, which is exactly the split you want.
-    <b>D4 augmentation is not a substitute</b>: it randomises which corner the bag appears in, so the
-    model cannot use its <em>position</em> &mdash; but presence anywhere on the border still reads
-    {rg('border')}, and presence is all it needs.</div>
-
-    <p><b>The one structural constraint, restated correctly.</b> DERM's correction is a
-    per-environment shift of the decision logit, so it reaches a within-pool contrast only when the
-    environment varies within a pool. Measured on the 24 annotated pools: phase constant in
-    {D['pool_constant']['phase']['constant_pools']} of {D['pool_constant']['phase']['n_pools']},
-    annotator in {D['pool_constant']['annotator']['constant_pools']}, line, sex and genotype in
-    {D['pool_constant']['genotype']['constant_pools']}. So <code>--env-key phase</code> is the
-    <em>only</em> setting that can reach this shortcut &mdash; and therefore also the only one that
-    could overshoot it, which is why it has to be validated on the estimand and not on AP.
-    <code>--env-key annotator</code> cancels in every within-pool difference: free, and no
-    substitute.</p>
-
-    <p><b>The arms, as run.</b> Same head, augmentation, split and schedule as their controls; only
-    the objective differs. vREx changes the loss (a penalty on risk spread across environments);
-    DERM changes the distribution the risk is averaged over.</p>
     <div class="scroll"><table>
       <thead><tr><th>arm</th><th>environments</th><th>seed</th><th>macro AP</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
       <tbody>
@@ -1012,39 +866,27 @@ BODY = f'''
           <td>{run('res448_k2_frozen_d4photo_vrexCond_b1')['ap']:.4f}</td>
           <td>{rr2('res448_k2_frozen_d4photo_vrexCond_b1','nt')}</td>
           <td>{rr2('res448_k2_frozen_d4photo_vrexCond_b1','nn')}</td></tr>
-        <tr><td>vREx, &beta; = 10</td><td>annotator</td><td>42</td>
-          <td>{run('res448_k2_frozen_d4photo_vrexAnn_b10')['ap']:.4f}</td>
-          <td>{rr2('res448_k2_frozen_d4photo_vrexAnn_b10','nt')}</td>
-          <td>{rr2('res448_k2_frozen_d4photo_vrexAnn_b10','nn')}</td></tr>
         <tr><td>vREx, &beta; = 100</td><td>annotator</td><td>42</td>
           <td class="lo">{run('res448_k2_frozen_d4photo_vrexAnn_b100')['ap']:.4f}</td>
           <td>{rr2('res448_k2_frozen_d4photo_vrexAnn_b100','nt')}</td>
           <td class="lo">{rr2('res448_k2_frozen_d4photo_vrexAnn_b100','nn')}</td></tr>
       </tbody></table></div>
-    <div class="note"><b>The other channel, and it is genuinely null.</b> PPI++ is unbiased for any
-    predictor, so a treatment-linked bias costs it variance rather than validity. What
-    <em>can</em> break its validity is that the 24 labelled pools are not a random sample &mdash;
-    annotation is 3:1 het-enriched &mdash; so the rectifier has to transport to 48 wt-enriched pools.
-    That needs the model's bias not to depend on genotype. On all 24 annotated pools, out-of-fold:
-    <div class="scroll" style="margin-top:11px"><table>
-      <thead><tr><th>share of the model's bias explained by</th><th>at the LEVEL &mdash; nt / nn</th>
-        <th>in the WITHIN-POOL DIFFERENCE &mdash; nt / nn</th></tr></thead>
-      <tbody>
-        <tr><td><b>genotype</b></td>
-          <td class="hi">{nui('nt','genotype','level')} / {nui('nn','genotype','level')}</td>
-          <td class="hi">{nui('nt','genotype','delta')} / {nui('nn','genotype','delta')}</td></tr>
-        <tr><td>annotator</td>
-          <td class="lo">{nui('nt','annotator','level')} / {nui('nn','annotator','level')}</td>
-          <td>{nui('nt','annotator','delta')} / {nui('nn','annotator','delta')}</td></tr>
-        <tr><td>line</td>
-          <td class="lo">{nui('nt','line','level')} / {nui('nn','line','level')}</td>
-          <td>{nui('nt','line','delta')} / {nui('nn','line','delta')}</td></tr>
-      </tbody></table></div>
-    Nuisance-linked at the level, cancelling in the difference, and genotype explains essentially
-    none of it at either &mdash; the same cancellation label noise shows in section 05 and the three
-    wild-type strata show in section 01. So the het-enrichment does not reach PPI++ through the
-    model, and this is the one place a DERM arm on a pool-level environment could have helped.</div>
-  </div>
+    <p>The implementation was audited against the formula it claims
+    (<code>test_derm.py</code>): the weights match
+    <math><mrow><mi>Var</mi><mo>(</mo><mi>Y</mi><mo>|</mo><mi>E</mi><mo>)</mo><mo>/</mo>
+    <mi>P</mi><mo>(</mo><mi>Y</mi><mo>,</mo><mi>E</mi><mo>)</mo></mrow></math> to 1e&minus;7,
+    positives and negatives end up with equal mass inside every environment, the mean weight is
+    exactly 1 so the step size is unchanged against ERM, each behaviour gets its own correction,
+    and the phase map reproduces the protocol's own 30/15/15-minute split. vREx is a different
+    thing and does not help: four arms, best +0.008, worst &minus;0.094.</p>
+
+    <div class="note"><b>One thing to change before the next DERM arm.</b> The saved checkpoint is
+    the epoch with the highest <em>unweighted</em> validation AP, so selection rewards exactly the
+    prior-exploitation the objective removes. It is small here &mdash; the best epoch is 21&ndash;24
+    of 30 and AP moves by under 0.04 across the last ten &mdash; but a shared fixed epoch budget, or
+    selection on the DERM-weighted criterion, would remove the ambiguity for free.</div>
+    </div>
+  </details>
 
 </div></section>
 
@@ -1068,19 +910,16 @@ BODY = f'''
         <td>{xf['f1_nt']:.3f} / {xf['f1_nn']:.3f}</td><td>{xf['rd_nt']:.3f}</td>
         <td>{xf['rd_nn']:.3f}</td></tr>
     </tbody></table></div>
-  <p class="defn"><b>Read the last row differently.</b> The first four are scored on the standing
-  4-pool split &mdash; 24 observations, too few to separate close models, which is why r&Delta;
-  cannot rank them. The last row is the <b>cross-fitted</b> deployment, and that needs defining.</p>
-  <div class="note"><b>Cross-fitting.</b> Split the 24 annotated pools into three folds of 8; train
-  on the other 16 and score only that fold. Every annotated pool ends up scored by a model that
-  never saw it &mdash; a harder split than the standing one, hence the lower AP.
-  <br><br><b>PPI++ is what makes it necessary.</b> Its rectifier is the gap between predictions on
-  annotated pools and the truth there. A model trained on those pools predicts them too well, so
-  the gap it measures is not the gap that applies to the 48 pools it corrects.
-  <br><br><b>It is not needed to predict the unannotated pools</b> &mdash; no label is involved, so
-  any model can. Their predictions are averaged over the three folds only so both sides of PPI++
-  share one expectation. <b>PPCI uses no labels at all, so it is not bound by this</b> and would be
-  better served by the single strongest model.</div>
+  <div class="note"><b>Read the last row differently.</b> The first four are scored on the standing
+  4-pool split, 24 observations &mdash; too few to separate close models. The last is
+  <b>cross-fitted</b>: the 24 annotated pools split into three folds of 8, each fold scored by a
+  model trained on the other 16, so every pool is scored by a model that never saw it. A harder
+  split, hence the lower AP.
+  <br><br><b>PPI++ is what makes it necessary</b> &mdash; its rectifier is the gap between
+  prediction and truth on annotated pools, and a model trained on those pools predicts them too
+  well, so the gap it measures is not the one that applies to the 48 it corrects. <b>PPCI uses no
+  labels anywhere, so it is not bound by this</b> and would be better served by the single
+  strongest model.</div>
   <div class="note warnbox"><b>The deployed configuration is not the strongest one measured.</b>
   Cross-fitting ran on the SSL-adapted frozen encoder with a plain 5.03 M head, not on BitFit-6,
   which leads on every accuracy axis. That choice bought label-free adaptation covering v2 as well,
@@ -1097,19 +936,15 @@ BODY = f'''
 </div>
   <div class="figwrap">{EXAMPLES}</div>
 <div class="measure">
-  <div class="note warnbox"><b>The errors are not mostly boundary disagreements.</b> A natural
-  reading of a confident false positive is that the model fired a frame or two outside a real bout.
-  The figure's <b>d</b> column tests that directly &mdash; frames to the nearest scored bout in the
-  same recording &mdash; and it does not hold: only <b>{dist('nn','FP','le2'):.0f}%</b> of
-  nose-to-nose false positives and <b>{dist('nt','FP','le2'):.0f}%</b> of nose-to-tail ones sit
-  within two frames of one, and the median is <b>{dist('nn','FP','median')}</b> and
-  <b>{dist('nt','FP','median')}</b> frames respectively &mdash;
-  {dist('nn','FP','median')/5:.0f} and {dist('nt','FP','median')/5:.0f} seconds from any scored
-  behaviour. Most confident false positives are frames the model reads as contact where the
-  annotator scored none, not mistimed edges. False negatives behave the same way
-  ({dist('nn','FN','le2'):.0f}% and {dist('nt','FN','le2'):.0f}% within two frames of a detection),
-  so a confidently missed bout is one the model saw nothing in anywhere nearby. That is a
-  detection problem, and only double-annotation can say how much of it is genuine model error
+  <div class="note warnbox"><b>The errors are not mostly boundary disagreements.</b> The obvious
+  reading of a confident false positive is a frame or two fired outside a real bout. The figure's
+  <b>d</b> column tests it &mdash; distance to the nearest scored bout in the same recording &mdash;
+  and it does not hold: only {dist('nn','FP','le2'):.0f}% of nose-to-nose false positives and
+  {dist('nt','FP','le2'):.0f}% of nose-to-tail ones sit within two frames of one, with medians of
+  {dist('nn','FP','median')} and {dist('nt','FP','median')} frames
+  ({dist('nn','FP','median')/5:.0f} and {dist('nt','FP','median')/5:.0f} seconds). False negatives
+  behave the same way. So these are frames the model reads as contact where the annotator scored
+  none &mdash; a detection problem, and only double-annotation can say how much of it is model error
   rather than label disagreement.</div>
   <p>What does hold: the confident detections on v2 &mdash; a cohort recorded months later with no
   annotations anywhere &mdash; do show genuine contact.</p>
@@ -1265,7 +1100,7 @@ BODY = f'''
       <tr><td>1</td><td>annotate ~20 more v1 pools</td><td>+0.076 AP per doubling and no plateau &mdash; worth more than every modelling change combined, and it raises CI's own precision rather than only PPI++'s</td></tr>
       <tr><td>2</td><td>annotate 4&ndash;6 v2 pools</td><td>the only way v2 gets a CI or a PPI++ estimate at all; today it has PPCI and nothing to check it against</td></tr>
       <tr><td>3</td><td>fix the observation window on biological grounds</td><td>largest single lever on the headline number; currently inherited, not chosen</td></tr>
-      <tr><td>4</td><td class="hi">mask the bag's corner, and cross-fit the DERM / ERM pair</td><td class="hi">the treatment is readable from a quiet frame at {pb('O_vs_rest')} balanced accuracy, so the shortcut is available and ERM has no term against it. Masking removes the cue at the input and is verifiable without training; cross-fitting the pair over the three folds measures a<sub>O</sub>&minus;a<sub>H</sub> on 24 pools instead of 4, which is what it takes to resolve {eb('nt','ERM')} from zero. Today it is {eb('nt','ERM','share')} the pooled true effect with an interval spanning zero</td></tr>
+      <tr><td>4</td><td class="hi">cross-fit the DERM / ERM pair over the three folds</td><td class="hi">launched. A bag in the cage corner makes the exposure phase visible, and ERM's objective has no term that discourages using it, so a<sub>O</sub>&minus;a<sub>H</sub> is a live threat to PPCI: {eb('nt','ERM')} bouts/min on nose-to-tail, {eb('nt','ERM','share')} the pooled true effect and opposite in sign. On 4 pools it does not resolve; on 24 it should</td></tr>
       <tr><td>5</td><td>run BitFit-6 over the three folds and the unannotated pools</td><td class="hi">launched &mdash; ~18 GPU-h to move every estimate onto the configuration that leads on accuracy (macro AP 0.541 against the deployed 0.382)</td></tr>
       <tr><td>6</td><td>per-animal crops from the 2060 px source</td><td>the only resolution lever left, and a prerequisite for any per-animal outcome</td></tr>
       <tr><td>7</td><td>record which animal in each v2 cage is the heterozygote</td><td>without it the within-pool genotype contrast is not identified no matter how good the vision gets</td></tr>
@@ -1274,9 +1109,9 @@ BODY = f'''
   <div class="note warnbox"><b>Closed.</b> Scaling the SSL corpus (2&times; the frames at matched
   compute is neutral; six adapted blocks is harmful). vREx (four arms, two environment definitions,
   best +0.008). Head capacity (five heads across an 11&times; parameter range, whole span inside the
-  seed band). <b>DERM is NOT closed</b> &mdash; see 04.6: the shortcut it targets is measurably
-  available, ERM has no term against it, and four validation pools cannot say whether it is being
-  used. Everything else above is open.</div>
+  seed band). <b>DERM is NOT closed</b> &mdash; see 04.6: the shortcut it targets is real, ERM has
+  no term against it, and four validation pools cannot say whether it is being used. Everything else
+  above is open.</div>
 </div></section>
 
 <div class="measure"><footer>

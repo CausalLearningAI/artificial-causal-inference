@@ -294,7 +294,10 @@
       div.appendChild(panel(b, dom)); panels.appendChild(div);
     });
 
-    $('dec-note').innerHTML =
+    $('dec-note').innerHTML = 'The x axis is the whole protocol laid end to end \u2014 a '
+      + 'LAYOUT, not one recording. The six videos are separate, minutes apart, and each phase '
+      + 'restarts at its own elapsed zero, so no line is joined across a boundary.';
+    if (0) $('dec-note').innerHTML =
       'The x axis is the whole protocol laid end to end &mdash; (30 + 15 + 15) &times; 2 = '
       + `${TOT} minutes &mdash; in the order it was run, social session first (19 of the `
       + `${M.n_pools} annotated pools). It is a LAYOUT, not one recording: the six videos are `

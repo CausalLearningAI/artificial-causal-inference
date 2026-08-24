@@ -89,6 +89,18 @@ code{font-family:var(--mono);font-size:.85em;background:var(--surface-2);padding
      border-radius:2px;color:var(--ink-2)}
 footer{border-top:1px solid var(--line);padding-top:30px;font-family:var(--mono);font-size:.75rem;
        color:var(--ink-3);line-height:1.75}
+/* Collapsible subsections. <details>/<summary> is native: no JS, keyboard-accessible, and it
+   still prints and Ctrl-Fs when closed in every browser that matters. */
+details.sub{display:block;margin-top:14px;padding-top:0;border-top:1px solid var(--line)}
+details.sub>summary{list-style:none;cursor:pointer;padding:18px 0 4px;display:flex;
+                    flex-direction:column;gap:8px}
+details.sub>summary::-webkit-details-marker{display:none}
+details.sub>summary::after{content:"open \203A";font-family:var(--mono);font-size:.62rem;
+                           letter-spacing:.13em;text-transform:uppercase;color:var(--accent)}
+details.sub[open]>summary::after{content:"close \2039"}
+details.sub>summary:hover h3{color:var(--accent)}
+details.sub>.body{display:flex;flex-direction:column;gap:14px;padding-bottom:20px}
+details.sub>summary h3{pointer-events:none}
 /* Display maths. MathML, not an image and not a CDN: the page is self-contained and a formula
    has to stay selectable, scalable and readable in both themes. */
 .eqn{display:block;overflow-x:auto;text-align:center;padding:6px 0 2px;color:var(--ink)}
