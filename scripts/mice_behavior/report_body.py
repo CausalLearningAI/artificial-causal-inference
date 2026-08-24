@@ -1198,8 +1198,8 @@ BODY = f'''
 
 <section><div class="measure">
   <div class="sechead"><p class="eyebrow">06 &middot; Next</p><h2>What to do next</h2></div>
-  <p>In priority order. <b>Nothing is in the queue any more</b> &mdash; every run this list was
-  waiting on has landed, so each row below needs a decision or an annotator, not compute.</p>
+  <p>In priority order. <span class="run"><b>Amber is in the queue</b></span> &mdash; that one needs
+  the GPU, not a decision; every other row needs a decision or an annotator.</p>
   <div class="scroll"><table>
     <thead><tr><th></th><th>action</th><th>status</th><th>what it changes</th></tr></thead>
     <tbody>
@@ -1215,16 +1215,17 @@ BODY = f'''
         {eb24('nn','ERM')} bouts/min or {eb24('nn','ERM','share')} the effect, and DERM cuts it by
         36% (p = {eb24p('nn','p')}). On nose-to-tail it overshoots past zero. The open question is
         no longer whether DERM works but whether to apply it per behaviour</td></tr>
-      <tr><td>3</td><td>the exposure-split PPCI test, both directions</td>
-        <td>all 4 models trained; <b>the measurement was never taken</b></td>
-        <td>trains on one exposure session and tests on the other, so the phase shortcut shows as a
-        bias that <em>reverses sign</em> when the direction reverses &mdash; which a plain
-        generalisation gap cannot do. The test session was to come from a dense pass, but
-        <code>predict_dense.py</code> scores the UNANNOTATED pools and admits labelled ones only
-        from a run's held-out <em>pools</em>; this design holds out an <em>exposure</em>, so all
-        four passes scored 288 unannotated observations and none of the held-out exposure that
-        carries the truth. Needs an exposure-aware selection, then ~24 observations per arm &mdash;
-        a twelfth of the compute already spent on it</td></tr>
+      <tr><td>3</td><td class="run">the exposure-split PPCI test, both directions</td>
+        <td class="run">all 4 models trained; the test session is being scored now</td>
+        <td class="run">trains on one exposure session and tests on the other, so the phase shortcut
+        shows as a bias that <em>reverses sign</em> when the direction reverses &mdash; which a
+        plain generalisation gap cannot do. The first attempt measured nothing:
+        <code>predict_dense.py</code> scores the UNANNOTATED pools and admitted labelled ones only
+        from a run's held-out <em>pools</em>, while this design holds out an <em>exposure</em>, so
+        all four passes scored 288 unannotated observations and none of the test session that
+        carries the truth. <code>--held-out-odour</code> now selects by exposure &mdash; 72
+        observations, 24 pools, 3 phases per arm, a quarter of the work and on cached frames.
+        24 units of a<sub>O</sub>&minus;a<sub>H</sub> per direction when it lands</td></tr>
       <tr><td>4</td><td>annotate ~20 more v1 pools</td><td>needs annotator time</td>
         <td>+0.076 AP per doubling and no plateau, worth more than every modelling change combined
         &mdash; and it raises CI's own precision, not only PPI++'s</td></tr>

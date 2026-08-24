@@ -47,7 +47,16 @@
 #
 # Early stopping never touches the test session: --train-odour keeps the monitor set inside the
 # TRAINING exposure (the four held-out pools' same-odour recordings). The test session is scored
-# afterwards by predict_dense.py, which dumps every v1 observation.
+# afterwards by predict_dense.py --held-out-odour, which takes every ANNOTATED observation whose
+# exposure is not the training one: 24 pools x 3 phases = 72 per arm.
+#
+# THAT FLAG EXISTS BECAUSE THIS SCRIPT GOT IT WRONG ONCE (2026-08-24). The line above used to read
+# "predict_dense.py, which dumps every v1 observation". It does not: it dumps the UNANNOTATED
+# pools, and admits labelled ones only behind --labelled-too, gated on the run's held-out POOLS.
+# This design holds out an EXPOSURE, so the first four passes scored 288 unannotated observations
+# each and none of the test session that carries the truth -- four trained models, ~10 GPU-hours
+# of inference, and derm.json's odour_split stuck at n_obs 0. The annotated-only pass is a quarter
+# of that work and hits the prebuilt JPEG cache, which the unannotated one could not.
 #
 # Usage:
 #     bash scripts/mice_behavior/xfit_odour.sh                    # 4 trainings
@@ -116,16 +125,23 @@ for arm in ${ARMS:-$ORDER}; do
 done
 
 # The TEST session comes from a dense pass, because the trainer only ever scores its own monitor
-# set. predict_dense dumps every v1 observation, so both exposures land in one file and the
-# analysis picks the held-out one.
+# set. --held-out-odour selects it by EXPOSURE (see the note at the top of this file), and the
+# _heldout suffix keeps it clear of the unannotated dump the first attempt wrote to the plain name.
 if [ "${STAGE:-all}" = "predict" ]; then
   for arm in ${ARMS:-$ORDER}; do
     tag="${ARM_TAG[$arm]}"
     [ -e "results/vision/mice/frame/$tag/config.json" ] || { echo "SKIP  $tag not landed"; continue; }
-    if [ -n "${DRY:-}" ]; then echo "[dry] predict_dense $tag v1"; continue; fi
-    jid=$(env TAG="$tag" VERSION=v1 sbatch --job-name="pd_${tag}" \
-              --parsable scripts/mice_behavior/predict_dense.sh)
-    echo "submitted $jid  predict_dense $tag v1"
+    if [ -e "results/vision/mice/frame/$tag/pred_dense_v1_heldout.csv" ]; then
+        echo "SKIP  $tag already has its test session"; continue
+    fi
+    if squeue -u "$USER" -h -o '%j' 2>/dev/null | grep -qx "pd_${tag}"; then
+        echo "SKIP  pd_${tag} already queued or running"; continue
+    fi
+    if [ -n "${DRY:-}" ]; then echo "[dry] predict_dense --held-out-odour $tag v1"; continue; fi
+    jid=$(env TAG="$tag" VERSION=v1 \
+              EXTRA="--held-out-odour --out-suffix _heldout" \
+              sbatch --job-name="pd_${tag}" --parsable scripts/mice_behavior/predict_dense.sh)
+    echo "submitted $jid  predict_dense --held-out-odour $tag v1"
   done
 fi
 

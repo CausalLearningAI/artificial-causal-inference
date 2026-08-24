@@ -155,6 +155,14 @@ def main():
                    help='score ONLY the held-out labelled observations, not the unlabelled ones. '
                         'Used to validate this path against the val_probs.npz the training code '
                         'wrote for the same model and the same frames.')
+    p.add_argument('--held-out-odour', action='store_true',
+                   help='score the ANNOTATED observations of the EXPOSURE the run did not train '
+                        'on -- all 24 pools, one exposure, 72 observations. For xfit_odour.sh, '
+                        'whose held-out axis is the exposure and not the pool: --labelled-too '
+                        'gates on val_pools and so admits only the 4 monitor pools, which is the '
+                        'wrong axis for this design and scores none of the test session. Refuses '
+                        'unless the run records a train_odour, so it cannot be pointed at a '
+                        'pool-split model, where every labelled frame would be in-sample.')
     p.add_argument('--out-suffix', default='',
                    help='appended to the output filenames, so a validation pass cannot overwrite '
                         'a real deployment dump.')
@@ -180,8 +188,32 @@ def main():
                       low_memory=False).reset_index().rename(columns={'index': 'gi'})
     exp = pd.read_csv(ROOT / 'data' / 'mice' / args.version / 'experiment.csv')
     unann = set(exp.loc[exp.annotator.isna(), 'observation_id'])
-    targets = [] if args.only_labelled else sorted(unann)
-    if args.labelled_too or args.only_labelled:
+    targets = [] if (args.only_labelled or args.held_out_odour) else sorted(unann)
+    if args.held_out_odour:
+        # THE HELD-OUT AXIS HERE IS THE EXPOSURE, NOT THE POOL. Every pool is filmed twice, fear
+        # and social, through the same three phases; xfit_odour.sh trains on one session and the
+        # other is the test. So the admissible set is every ANNOTATED observation whose exposure
+        # is not the training one -- all 24 pools, the monitor four included, because for PPCI
+        # that is fine: it uses no labels anywhere, and the labels here are only the truth the
+        # bias is measured against afterwards.
+        #
+        # This is NOT a deployment estimate and cannot feed PPI++: the model has seen the other
+        # exposure of the same cage and the same animals, so its bias here is a LOWER BOUND on
+        # what it suffers on a pool it has never seen. xfit_odour.sh's header says so at length.
+        if args.labelled_too or args.only_labelled:
+            raise SystemExit('--held-out-odour selects the labelled set by exposure; do not also '
+                             'pass --labelled-too/--only-labelled, which select it by pool.')
+        if args.version != 'v1':
+            raise SystemExit('--held-out-odour needs annotations, which only v1 has.')
+        train_od = cfg.get('train_odour')
+        if not train_od:
+            raise SystemExit(f'{args.tag} records no train_odour, so it is not an exposure-split '
+                             'run and every annotated frame would be in-sample. Refusing.')
+        held = exp[exp.annotator.notna() & (exp.odor != train_od)]
+        print(f'  trained on exposure {train_od}; scoring the {len(held)} annotated observations '
+              f'of exposure {sorted(set(held.odor))} over {held.pool.nunique()} pools', flush=True)
+        targets += sorted(held.observation_id)
+    elif args.labelled_too or args.only_labelled:
         val_pools = set(cfg.get('val_pools') or [])
         if not val_pools:
             raise SystemExit(f'{args.tag} records no val_pools; refusing to score labelled data '
@@ -230,13 +262,39 @@ def main():
     out = pd.DataFrame(rows).merge(
         exp[['observation_id', 'pool', 'phase', 'odor', 'line', 'sex', 'genotype', 'annotator']],
         on='observation_id')
-    # Same guard as predict_unannotated: a load/preprocessing mismatch shows up as a predicted
-    # rate an order of magnitude off the ~1-3% labelled prior, and that is a bug, not a finding.
+    # WHAT THIS GUARD IS FOR, and what it is NOT for. It catches a load/preprocessing mismatch,
+    # which shows up as a predicted rate wildly unlike what the SAME WEIGHTS produce on frames the
+    # trainer scored itself. That reference is `val_probs.npz` -- not the ~1-3pp labelled prior.
+    #
+    # It used to be the prior, with an absolute 25pp ceiling, and that conflated MISCALIBRATION
+    # with a BUG. A model can be honestly inflated and still be reading the frames correctly:
+    # DERM reweights its environments, so the weight ratio is the prior odds and its probabilities
+    # come out high BY CONSTRUCTION. On the exposure-split arms the old rule refused
+    # odour_trS_derm at 27.1pp while passing three equally inflated arms at 10.9 / 12.9 / 16.3 --
+    # it fired on the tail of a systematic effect instead of on a fault. Relative to each model's
+    # own monitor output, all four are consistent and all four are admitted.
+    #
+    # The absolute ceiling survives, moved far out, for the case the relative check cannot see:
+    # a load fault so complete that the training-time scoring was wrong the same way.
+    GUARD_FACTOR, GUARD_CEIL = 3.0, 60.0
+    vp = run_dir / 'val_probs.npz'
+    ref = None
+    if vp.exists():
+        _d = np.load(vp, allow_pickle=True)
+        ref = {lab: float(_d['probs'][:, j].mean() * 100) for j, lab in enumerate(('nt', 'nn'))}
     for lab in ('nt', 'nn'):
         m = out['po_' + lab].mean()
-        if m > 25:
-            raise SystemExit(f'!! po_{lab} mean {m:.1f}% -- labelled v1 prior is ~1-3%. '
-                             'Load/preprocessing mismatch; refusing to write.')
+        r = None if ref is None else ref[lab]
+        print(f'  po_{lab}: {m:.1f}pp here, {"n/a" if r is None else f"{r:.1f}pp"} on this '
+              f'model\'s own monitor set', flush=True)
+        if r is not None and r > 0 and not 1 / GUARD_FACTOR <= m / r <= GUARD_FACTOR:
+            raise SystemExit(
+                f'!! po_{lab} mean {m:.1f}pp against {r:.1f}pp for the same weights on their own '
+                f'monitor set ({m / r:.1f}x, tolerance {GUARD_FACTOR:g}x). That is a '
+                'load/preprocessing mismatch, not miscalibration; refusing to write.')
+        if m > GUARD_CEIL:
+            raise SystemExit(f'!! po_{lab} mean {m:.1f}pp exceeds the {GUARD_CEIL:g}pp ceiling on '
+                             'any reading of this task; refusing to write.')
     csv = run_dir / f'pred_dense_{args.version}{args.out_suffix}.csv'
     out.to_csv(csv, index=False)
     np.savez_compressed(run_dir / f'pred_dense_{args.version}{args.out_suffix}.npz',

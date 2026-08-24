@@ -611,8 +611,11 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
                    'on the deployment bias, and PPI++ cannot use it',
            'arms': {}, 'landed': [], 'absent': []}
     for key, (tag, train_od) in ODOUR_ARMS.items():
-        csv = FRAME / tag / 'pred_dense_v1.csv'
-        npz = FRAME / tag / 'pred_dense_v1.npz'
+        # `_heldout` ONLY. The plain pred_dense_v1.csv on these arms is the first attempt's dump of
+        # the 48 UNANNOTATED pools -- no truth to compare against, zero overlap with the labelled
+        # 24, and it is what left this block reading n_obs 0. Reading it again would silently
+        # reintroduce that. See predict_dense.py --held-out-odour.
+        csv = FRAME / tag / 'pred_dense_v1_heldout.csv'
         if not csv.exists():
             out['absent'].append(tag)
             continue
