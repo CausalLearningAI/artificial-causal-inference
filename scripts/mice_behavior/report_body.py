@@ -40,9 +40,37 @@ def rr(tag):
 
 
 
+# WHICH PREDICTOR THE PROSE SPEAKS FOR. estimates.json carries one full grid PER predictor, so
+# every cell lookup below must pin one or `next()` silently returns whichever predictor happens to
+# be first in the payload, and a count over cells double-counts once a second predictor lands.
+# The prose speaks for the DEPLOYED predictor; the figure's predictor control is where a reader
+# changes it. CI cells do not depend on the model at all, but they are emitted once per predictor,
+# so they need the same pin.
+PRIME = 'xfit_dense'
+
+
+def narrowing(model, unit):
+    """MEASURED PPI++ narrowing against the human-only interval, mean over a unit's `all` cells.
+
+    Section 03's bound predicts this from r-delta alone; this reads what actually happened, so the
+    two can be compared instead of the prediction standing in for the result. CI is the same
+    interval for every predictor -- it uses no model -- so the ratio isolates what the predictor
+    buys. Cells whose CI does not exist (a stratum of two pools) are skipped by both sides.
+    """
+    ci = {(c['behav'], c['odour'], c['trans']): c for c in E['cells']
+          if c['exp'] == 'v1' and c['unit'] == unit and c['stratum'] == 'all'
+          and c['model'] == model and c['method'] == 'ci' and c['lo'] is not None}
+    r = [1 - (c['hi'] - c['lo']) / (k['hi'] - k['lo']) for c in E['cells']
+         if c['exp'] == 'v1' and c['unit'] == unit and c['stratum'] == 'all'
+         and c['model'] == model and c['method'] == 'ppi' and c['lo'] is not None
+         for k in [ci.get((c['behav'], c['odour'], c['trans']))] if k]
+    return f'{100 * sum(r) / len(r):.1f}%'
+
+
 def lvl(behav, odour, trans='H->O', method='ci'):
     """One LEVEL estimate (bouts/min) from estimates.json, with a proper minus sign."""
     c = next(c for c in E['cells'] if c['exp'] == 'v1' and c['unit'] == 'events'
+             and c['model'] == PRIME
              and c['stratum'] == 'all' and c['behav'] == behav and c['odour'] == odour
              and c['trans'] == trans and c['method'] == method)
     return f"{c['est']:+.2f}".replace('-', '&minus;')
@@ -56,6 +84,7 @@ def ddecay(behav, odour, trans, method='ci'):
     exactly when its interval excludes zero, so it cannot drift.
     """
     c = next(c for c in E['cells'] if c['exp'] == 'v1' and c['unit'] == 'decay'
+             and c['model'] == PRIME
              and c['stratum'] == 'all' and c['behav'] == behav and c['odour'] == odour
              and c['trans'] == trans and c['method'] == method)
     hit = c['lo'] is not None and c['lo'] * c['hi'] > 0
@@ -66,6 +95,7 @@ def ddecay(behav, odour, trans, method='ci'):
 def _n_resolved(method):
     return sum(1 for c in E['cells']
                if c['exp'] == 'v1' and c['unit'] == 'decay' and c['stratum'] == 'all'
+               and c['model'] == PRIME
                and c['method'] == method and c['lo'] is not None and c['lo'] * c['hi'] > 0)
 
 
@@ -1080,8 +1110,21 @@ BODY = f'''
   <b>complete</b>: macro AP {xfb['ap']:.3f} against {xf['ap']:.3f}, and &mdash; the one that matters
   &mdash; r&Delta; nose-to-tail {xfb['rd_nt']:.3f} against {xf['rd_nt']:.3f}. Section 03's bound
   turns that into a predicted PPI++ narrowing of <b>17.5% against 11.6%</b>, so it is worth roughly
-  half again as much as the deployed model. The estimates move onto it once its dense pass over the
-  unannotated pools finishes; the effects figure will then carry a <b>predictor</b> control.</div>
+  half again as much as the deployed model. <b>The dense passes have now landed on both cohorts</b>,
+  so the effects figure carries a <b>predictor</b> control and every estimate can be read against a
+  change of model.
+  <br><br><b>What the swap actually bought, measured rather than predicted.</b> Mean PPI++
+  narrowing against the human-only interval, over the eight all-pool cells of each outcome:
+  on the <em>level</em> {narrowing('xfit_bit6_dense', 'events')} against
+  {narrowing('xfit_dense', 'events')}, on the <em>timing</em>
+  {narrowing('xfit_bit6_dense', 'decay')} against {narrowing('xfit_dense', 'decay')}, on occupancy
+  {narrowing('xfit_bit6_dense', 'time')} against {narrowing('xfit_dense', 'time')}. So the bound's
+  17.5%-against-11.6% <b>over-promised on the level and badly under-promised on the timing</b> --
+  where BitFit-6 roughly doubles what the deployed model buys, on the strength of r&Delta; there
+  rather than on macro AP. A model +{xfb['ap'] - xf['ap']:.3f} AP ahead is worth a couple of points
+  of interval on the outcome section 02a chose and several times that on the one 02b added:
+  <b>the accuracy gap and the estimator gap are neither the same size nor in the same place</b>. The prose below still speaks for the deployed predictor; promoting BitFit-6 to the
+  headline is a separate decision, because it moves every number in section 03.</div>
 
   <div class="sub"><p class="q">05.2 &middot; where it fails</p>
   <h3>Where it is right, where it is wrong, and what it sees on the pools nobody scored</h3></div>
@@ -1155,26 +1198,33 @@ BODY = f'''
 
 <section><div class="measure">
   <div class="sechead"><p class="eyebrow">06 &middot; Next</p><h2>What to do next</h2></div>
-  <p>In priority order. <span class="run"><b>Amber is already running</b></span> &mdash; those need
-  no action, they need the queue.</p>
+  <p>In priority order. <b>Nothing is in the queue any more</b> &mdash; every run this list was
+  waiting on has landed, so each row below needs a decision or an annotator, not compute.</p>
   <div class="scroll"><table>
     <thead><tr><th></th><th>action</th><th>status</th><th>what it changes</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td class="run">move every estimate onto the cross-fitted BitFit-6</td>
-        <td class="run">all 3 folds trained; dense pass running</td>
-        <td class="run">macro AP {xfb['ap']:.3f} against {xf['ap']:.3f} and r&Delta; nt
-        {xfb['rd_nt']:.3f} against {xf['rd_nt']:.3f}, which the bound turns into a 17.5% predicted
-        narrowing against 11.6%</td></tr>
+      <tr><td>1</td><td>promote the cross-fitted BitFit-6 to the headline predictor</td>
+        <td>landed &mdash; it is <em>in</em> the figure, not yet <em>in front of</em> it</td>
+        <td>all 3 folds and both dense passes are in, so section 03 carries a predictor control and
+        the prose still reads the deployed model. Measured PPI++ narrowing
+        {narrowing('xfit_bit6_dense', 'events')} against {narrowing('xfit_dense', 'events')} on the
+        level and {narrowing('xfit_bit6_dense', 'decay')} against {narrowing('xfit_dense', 'decay')}
+        on the timing &mdash; a decision, not a build step, because it moves every number in 03</td></tr>
       <tr><td>2</td><td>decide whether to deploy DERM, per behaviour</td><td>answered &mdash; see 04.6</td>
         <td>on 24 pools ERM carries a <em>resolved</em> estimand bias on nose-to-nose,
         {eb24('nn','ERM')} bouts/min or {eb24('nn','ERM','share')} the effect, and DERM cuts it by
         36% (p = {eb24p('nn','p')}). On nose-to-tail it overshoots past zero. The open question is
         no longer whether DERM works but whether to apply it per behaviour</td></tr>
-      <tr><td>3</td><td class="run">the exposure-split PPCI test, both directions</td>
-        <td class="run">running</td>
-        <td class="run">trains on one exposure session and tests on the other, so the phase
-        shortcut shows as a bias that <em>reverses sign</em> when the direction reverses &mdash;
-        which a plain generalisation gap cannot do</td></tr>
+      <tr><td>3</td><td>the exposure-split PPCI test, both directions</td>
+        <td>all 4 models trained; <b>the measurement was never taken</b></td>
+        <td>trains on one exposure session and tests on the other, so the phase shortcut shows as a
+        bias that <em>reverses sign</em> when the direction reverses &mdash; which a plain
+        generalisation gap cannot do. The test session was to come from a dense pass, but
+        <code>predict_dense.py</code> scores the UNANNOTATED pools and admits labelled ones only
+        from a run's held-out <em>pools</em>; this design holds out an <em>exposure</em>, so all
+        four passes scored 288 unannotated observations and none of the held-out exposure that
+        carries the truth. Needs an exposure-aware selection, then ~24 observations per arm &mdash;
+        a twelfth of the compute already spent on it</td></tr>
       <tr><td>4</td><td>annotate ~20 more v1 pools</td><td>needs annotator time</td>
         <td>+0.076 AP per doubling and no plateau, worth more than every modelling change combined
         &mdash; and it raises CI's own precision, not only PPI++'s</td></tr>

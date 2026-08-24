@@ -92,16 +92,19 @@
     exp: 'v1', unit: 'events', behav: 'nn', model: null, view: 'all', trans: 'H->O', table: false,
   };
   const uniq = (k) => [...new Set(cells.map(c => c[k]))];
-  state.model = uniq('model')[0] || 'xfit_dense';
-  /* One entry per predictor that supplies f. Only one exists today; the control is here because
-     which model carries the estimate is a choice the reader should see being made, and because a
-     second one is in training. Unknown tags fall back to the raw tag rather than vanishing. */
-  // Names come from the payload when it carries them, so a new predictor never shows up as a
-  // bare directory name.
-  const MODEL_NICE = Object.assign({
+  /* The default predictor is the DEPLOYED one, named rather than positional: the report's prose
+     speaks for it (report_body.py's PRIME), so a figure that opened on a different one would
+     disagree with the text beside it. Falls back to whatever is present if it is ever dropped. */
+  state.model = uniq('model').includes('xfit_dense') ? 'xfit_dense' : uniq('model')[0];
+  /* One entry per predictor that supplies f. The control is here because which model carries the
+     estimate is a choice the reader should see being made. SHORT names win: these are button
+     labels in a segmented control, and meta.predictors carries sentence-length descriptions that
+     would blow out the toolbar. The payload is the fallback, so a predictor nobody named here
+     still shows up as prose rather than as a bare directory name. */
+  const MODEL_NICE = Object.assign({}, DATA.meta.predictors || {}, {
     xfit_dense: 'SSL encoder, 3 folds',
     xfit_bit6_dense: 'BitFit-6, 3 folds',
-  }, DATA.meta.predictors || {});
+  });
   const modelName = (m) => MODEL_NICE[m] || m;
 
   const $ = (id) => document.getElementById(id);
