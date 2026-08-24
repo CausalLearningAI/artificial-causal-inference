@@ -1015,7 +1015,9 @@ def plot_prediction_examples(
     Layout is two rows per outcome — ``pred=1`` then ``pred=0`` — with
     ``n_per_class`` example frames each.  Row labels carry the predicted positive
     rate, which is the number to sanity-check first on a new experiment: a rate
-    far from the annotated versions' is the loudest sign the model is off.
+    far from the annotated versions' is the loudest sign the model is off.  Each
+    outcome's row pair gets a probability-distribution panel on the right, with
+    a rug tick per picked example marking where it falls in the distribution.
 
     Args:
         dataset:        PPCIDataset with add_predictions() already called.
@@ -1161,11 +1163,52 @@ def plot_prediction_examples(
         return
 
     n_rows, n_cols = len(rows), n_per_class
-    fig, axes = plt.subplots(
-        n_rows, n_cols,
-        figsize=(n_cols * 2.1 + 1.2, n_rows * 2.35),
-        squeeze=False,
+    col_w, dist_w = 2.1, 2.6
+    # constrained (not tight) layout: the p-distribution panels span two rows
+    # each, which tight_layout cannot handle -- it warns and ignores the figure.
+    fig = plt.figure(figsize=(n_cols * col_w + 1.2 + dist_w, n_rows * 2.35),
+                     layout="constrained")
+    fig.get_layout_engine().set(w_pad=0.01, h_pad=0.01, wspace=0.01, hspace=0.03)
+    gs = fig.add_gridspec(
+        n_rows, n_cols + 1,
+        width_ratios=[col_w] * n_cols + [dist_w],
     )
+    axes = [[fig.add_subplot(gs[r, c]) for c in range(n_cols)] for r in range(n_rows)]
+
+    # One distribution-of-p panel per outcome, spanning its pred=1/pred=0 row pair.
+    for j, label in enumerate(labels):
+        dist_ax = fig.add_subplot(gs[2 * j:2 * j + 2, n_cols])
+        p_j = Yhat[:, j].numpy()[keep]
+        bins = np.linspace(0.0, 1.0, 41)
+        for is_pos, color in ((False, _COLOR_NEG), (True, _COLOR_POS)):
+            vals = p_j[(p_j >= threshold) if is_pos else (p_j < threshold)]
+            if len(vals):
+                dist_ax.hist(vals, bins=bins, range=(0.0, 1.0), density=True,
+                             orientation="horizontal", color=color, alpha=0.85,
+                             label=f"pred={int(is_pos)}")
+        dist_ax.axhline(threshold, color="#555555", linewidth=0.8, linestyle="--", zorder=3)
+
+        # Rug ticks at the exact p of each picked example, in axes-fraction x
+        # so they land at a fixed offset regardless of the histogram's scale.
+        trans = dist_ax.get_yaxis_transform()
+        for row in rows[2 * j:2 * j + 2]:
+            row_color = _COLOR_POS if row is rows[2 * j] else _COLOR_NEG
+            for _, prob in row["picks"]:
+                dist_ax.plot([1.0, 1.08], [prob, prob], transform=trans,
+                             color=row_color, linewidth=1.1, clip_on=False)
+
+        dist_ax.set_xlim(left=0)
+        dist_ax.set_ylim(0.0, 1.0)
+        dist_ax.set_xticks([])
+        dist_ax.yaxis.tick_right()
+        dist_ax.set_yticks([0.0, threshold, 1.0])
+        dist_ax.set_yticklabels(["0", f"{threshold:g}", "1"], fontsize=6)
+        for spine in ("top", "left", "bottom"):
+            dist_ax.spines[spine].set_visible(False)
+        dist_ax.set_title(f"{label}\np distribution", fontsize=7.5, pad=4)
+        if j == 0:
+            dist_ax.legend(fontsize=6, frameon=False, loc="upper left",
+                            handlelength=1.2, borderaxespad=0.2)
 
     n_ann = int((ann & keep).sum())
     filter_desc = ""
@@ -1178,7 +1221,7 @@ def plot_prediction_examples(
     fig.suptitle(
         f"Prediction examples — {mode} sampling, threshold={threshold:g}, "
         f"frames={frame_type}{filter_desc}\n{ann_desc}",
-        fontsize=12, y=0.997,
+        fontsize=12,
     )
 
     def _load(glob_pattern: str):
@@ -1229,7 +1272,6 @@ def plot_prediction_examples(
                     title += f"   Y={int(y_true)} {'✓' if ok else '✗'}"
             ax.set_title(title, fontsize=6.5, pad=2)
 
-    plt.tight_layout(rect=(0, 0, 1, 0.985))
     if save and save_path:
         os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
         fig.savefig(save_path, dpi=150, bbox_inches="tight")

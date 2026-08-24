@@ -276,6 +276,7 @@ def _eval_version(
                 save_path=pred_path,
                 frame_type=frame_type,
                 treatment_filter=error_treatment_filter,
+                mode="confident",
             )
             print(f"  ✓ plot_pred_examples saved: {pred_path}")
         except Exception as exc:
