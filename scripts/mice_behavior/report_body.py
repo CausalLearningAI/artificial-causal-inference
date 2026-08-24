@@ -263,7 +263,7 @@ BODY = f'''
         two-frame gap becomes two</td></tr>
       <tr><td>over what WINDOW</td><td>the <b>first 15 minutes</b> of every phase</td>
         <td>H runs 30 minutes, so half of it is discarded &mdash; 02b. The estimate grid is still
-        cut on the full window; re-cutting it is next-step 3</td></tr>
+        cut on the full window, and re-cutting it is the first unblocked item in section 06</td></tr>
       <tr><td>what you MEASURE</td>
         <td><b>a level</b> &mdash; how often a bout starts<br>
             <b>a timing</b> &mdash; when in the phase bouts start</td>
@@ -344,7 +344,7 @@ BODY = f'''
   <b>nose-to-nose under fear</b> holds its sign under all three windows (+0.45 matched), so it is the
   H&rarr;O number to quote, while <b>nose-to-nose under social</b> runs +0.47 to &minus;0.03 and
   changes sign, so it is not reportable as it stands. The figure above is still cut on the full
-  window &mdash; re-cutting the grid is next-step 3.</div>
+  window; re-cutting it is the first unblocked item in section 06.</div>
 
   <div class="bound">
     <p class="t">the metric &middot; decay</p>
@@ -468,7 +468,7 @@ BODY = f'''
   <p>Two things follow. <b>r&Delta; is the ranking metric</b> because it is the only free variable
   in the bound. And <b>annotating more pools raises the ceiling itself</b>: the floor is
   &radic;(n/(n+N)), so moving 20 pools from unlabelled to labelled changes what a perfect model
-  could ever be worth &mdash; which is next-step 1, and why it beats every modelling change in section 04.</p>
+  could ever be worth &mdash; which is why more annotation beats every modelling change in section 04.</p>
   <div class="note"><b>The second ceiling is the labels &mdash; and the estimand is largely
   protected from it.</b> No observation in v1 was scored twice, so agreement cannot be measured
   directly; the design bounds it instead, because within a genotype group the six pools are
@@ -1087,24 +1087,45 @@ BODY = f'''
 
 <section><div class="measure">
   <div class="sechead"><p class="eyebrow">06 &middot; Next</p><h2>What to do next</h2></div>
+  <p>In priority order. <span class="hi"><b>Green is already running</b></span> &mdash; those need
+  no action, they need the queue.</p>
   <div class="scroll"><table>
-    <thead><tr><th></th><th>action</th><th>why now</th></tr></thead>
+    <thead><tr><th></th><th>action</th><th>status</th><th>what it changes</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td>annotate ~20 more v1 pools</td><td>+0.076 AP per doubling and no plateau &mdash; worth more than every modelling change combined, and it raises CI's own precision rather than only PPI++'s</td></tr>
-      <tr><td>2</td><td>annotate 4&ndash;6 v2 pools</td><td>the only way v2 gets a CI or a PPI++ estimate at all; today it has PPCI and nothing to check it against</td></tr>
-      <tr><td>3</td><td>re-cut the estimate grid on the matched 15-minute window</td><td>02b chose the window but the figure is still cut on the full one, and it is the largest single lever on the headline number &mdash; nose-to-nose under social changes sign between the two</td></tr>
-      <tr><td>4</td><td class="hi">cross-fit the DERM / ERM pair over the three folds</td><td class="hi">launched. A bag in the cage corner makes the exposure phase visible, and ERM's objective has no term that discourages using it, so a<sub>O</sub>&minus;a<sub>H</sub> is a live threat to PPCI: {eb('nt','ERM')} bouts/min on nose-to-tail, {eb('nt','ERM','share')} the pooled true effect and opposite in sign. On 4 pools it does not resolve; on 24 it should</td></tr>
-      <tr><td>5</td><td>run BitFit-6 over the three folds and the unannotated pools</td><td class="hi">launched &mdash; ~18 GPU-h to move every estimate onto the configuration that leads on accuracy (macro AP 0.541 against the deployed 0.382)</td></tr>
-      <tr><td>6</td><td>per-animal crops from the 2060 px source</td><td>the only resolution lever left, and a prerequisite for any per-animal outcome</td></tr>
-      <tr><td>7</td><td>record which animal in each v2 cage is the heterozygote</td><td>without it the within-pool genotype contrast is not identified no matter how good the vision gets</td></tr>
-      <tr><td>8</td><td>double-annotate 15&ndash;20 observations, <b>nose-to-tail first</b></td><td>the annotator bound above is inferred from the design, not measured, and it is aliased with cage; nose-to-tail is where it binds (best possible r &le; 0.65)</td></tr>
+      <tr><td>1</td><td class="hi">cross-fit BitFit-6 and move every estimate onto it</td>
+        <td class="hi">running &mdash; 2 of 3 folds in</td>
+        <td class="hi">macro AP 0.50 and 0.55 against the deployed 0.382, so every number on the
+        page rests on a better model the moment fold 3 lands</td></tr>
+      <tr><td>2</td><td>re-cut the estimate grid on the matched 15-minute window</td>
+        <td>ready &mdash; compute only</td>
+        <td>02b chose the window; the grid is still cut on the full one. Largest single lever on
+        the headline number, and nose-to-nose under social changes sign between the two</td></tr>
+      <tr><td>3</td><td class="hi">cross-fit the DERM / ERM pair</td><td class="hi">running</td>
+        <td class="hi">resolves the largest open threat to PPCI: a<sub>O</sub>&minus;a<sub>H</sub>
+        is {eb('nt','ERM')} bouts/min on nose-to-tail, {eb('nt','ERM','share')} the pooled true
+        effect and opposite in sign. On 4 pools it does not resolve; on 24 it should</td></tr>
+      <tr><td>4</td><td class="hi">the exposure-split PPCI test, both directions</td>
+        <td class="hi">running</td>
+        <td class="hi">trains on one exposure session and tests on the other, so the phase
+        shortcut shows as a bias that <em>reverses sign</em> when the direction reverses &mdash;
+        which a plain generalisation gap cannot do</td></tr>
+      <tr><td>5</td><td>annotate ~20 more v1 pools</td><td>needs annotator time</td>
+        <td>+0.076 AP per doubling and no plateau, worth more than every modelling change combined
+        &mdash; and it raises CI's own precision, not only PPI++'s</td></tr>
+      <tr><td>6</td><td>annotate 4&ndash;6 v2 pools</td><td>needs annotator time</td>
+        <td>the only way v2 gets a CI or a PPI++ estimate at all; today it has PPCI and nothing to
+        check it against</td></tr>
+      <tr><td>7</td><td>double-annotate 15&ndash;20 observations, nose-to-tail first</td>
+        <td>needs annotator time</td>
+        <td>the label ceiling is currently inferred from the design, not measured, and it is
+        aliased with cage. Nose-to-tail is where it binds</td></tr>
+      <tr><td>8</td><td>record which animal in each v2 cage is the heterozygote</td>
+        <td>lab metadata</td>
+        <td>without it the within-pool genotype contrast &mdash; the programme's actual question
+        &mdash; is not identified however good the vision gets</td></tr>
+      <tr><td>9</td><td>per-animal crops from the 2060 px source</td><td>engineering</td>
+        <td>the only resolution lever left, and a prerequisite for any per-animal outcome</td></tr>
     </tbody></table></div>
-  <div class="note warnbox"><b>Closed.</b> Scaling the SSL corpus (2&times; the frames at matched
-  compute is neutral; six adapted blocks is harmful). vREx (four arms, two environment definitions,
-  best +0.008). Head capacity (five heads across an 11&times; parameter range, whole span inside the
-  seed band). <b>DERM is NOT closed</b> &mdash; see 04.6: the shortcut it targets is real, ERM has
-  no term against it, and four validation pools cannot say whether it is being used. Everything else
-  above is open.</div>
 </div></section>
 
 <div class="measure"><footer>
