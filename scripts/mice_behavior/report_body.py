@@ -637,6 +637,35 @@ BODY = f'''
 </div>
 
 <div class="measure">
+  <h3 style="margin-top:26px">Is PPCI reading the behaviour or the model?</h3>
+  <p>PPCI is uncalibrated, so it claims sign and pattern rather than magnitude. That claim is only
+  worth something if sign and pattern survive changing the model &mdash; so they were recomputed on
+  a second predictor, with the pools held fixed so the model is the only thing that varies.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>predictor</th><th>trained on</th><th>macro AP</th><th>predicted/true occupancy</th></tr></thead>
+    <tbody>
+      <tr><td>deployed 3-fold mean</td><td>16 pools each, SSL encoder, 5.03 M head</td>
+        <td>0.382</td><td class="lo">{R['meta']['calibration']['deployed']['nt']}&times; nt,
+        {R['meta']['calibration']['deployed']['nn']}&times; nn</td></tr>
+      <tr><td>single accuracy leader</td><td>20 pools, BitFit-6 on stock, 0.52 M head</td>
+        <td class="hi">0.541</td><td class="hi">{R['meta']['calibration']['single']['nt']}&times; nt,
+        {R['meta']['calibration']['single']['nn']}&times; nn</td></tr>
+    </tbody></table></div>
+  <p><b>On bouts per minute the two agree in
+  {R['meta']['sign_agreement']['events']['agree']} of
+  {R['meta']['sign_agreement']['events']['of']} cells &mdash; every one.</b> On occupancy they agree
+  in {R['meta']['sign_agreement']['time']['agree']} of
+  {R['meta']['sign_agreement']['time']['of']}, and both disagreements are cells where the deployed
+  value is within 0.5 pp of zero. So PPCI's sign and pattern are a property of the behaviour, not of
+  the predictor, across a change that nearly halves the calibration error and adds 0.16 macro AP.
+  Magnitudes do move &mdash; which is exactly why the report never quotes one.</p>
+  <div class="note"><b>Both predictors are out-of-sample on the same 52 pools</b> &mdash; the 48
+  unannotated ones plus the 4 the single model held out &mdash; because the single model trained on
+  the other 20. That is the largest set on which the comparison is a model comparison rather than a
+  comparison of samples. The single model is also better on the causal quantity (r&Delta;
+  {rr('res448_k2_bit6_d4')} against the deployment's {xf['rd_nt']:.3f} / {xf['rd_nn']:.3f}), so
+  nothing is being traded here; the cross-fitted version of it is running.</div>
+
   <h3 style="margin-top:26px">How much is there left to win?</h3>
   <p>Two ceilings bound everything above, and both are computable rather than rhetorical.</p>
   <div class="scroll"><table>

@@ -72,11 +72,15 @@ def main():
 
     head = (Path(__file__).parent / 'report_head.html').read_text()
     body = (Path(__file__).parent / 'report_body.py')
+    rob_p = FIG / 'ppci_robustness.json'
+    if not rob_p.exists():
+        raise SystemExit(f'{rob_p} missing -- run build_ppci_robustness.py first')
     out_p = FIG / 'outcome.json'
     if not out_p.exists():
         raise SystemExit(f'{out_p} missing -- run scripts/mice_behavior/build_outcome.py first')
     ns = {'img': img, 'CHART': chart, 'DECAY': decay, 'MODELS': models, 'EXAMPLES': examples,
-          'E': est, 'M': json.load(open(mod_p)), 'O': json.load(open(out_p)), 'X': ex}
+          'E': est, 'M': json.load(open(mod_p)), 'O': json.load(open(out_p)), 'X': ex,
+          'R': json.load(open(rob_p))}
     exec(compile(body.read_text(), str(body), 'exec'), ns)
     Path(a.out).write_text(head + ns['BODY'])
     mb = Path(a.out).stat().st_size / 1024 / 1024
