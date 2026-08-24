@@ -40,12 +40,18 @@ def rr(tag):
 
 
 def ddecay(behav, odour, trans, method='ci'):
-    """One Delta-decay cell from estimates.json, plus a resolution star. Source as the figure."""
+    """One Delta-decay cell as a full <td>, with the star AND the highlight computed.
+
+    The highlight used to be hard-coded in the table, so it had to be re-checked by hand whenever
+    the unit changed -- and it silently encoded the OLD sign convention. Now a cell is marked
+    exactly when its interval excludes zero, so it cannot drift.
+    """
     c = next(c for c in E['cells'] if c['exp'] == 'v1' and c['unit'] == 'decay'
              and c['stratum'] == 'all' and c['behav'] == behav and c['odour'] == odour
              and c['trans'] == trans and c['method'] == method)
-    star = '*' if (c['lo'] is not None and c['lo'] * c['hi'] > 0) else ''
-    return f"{c['est']:+.2f}{star}"
+    hit = c['lo'] is not None and c['lo'] * c['hi'] > 0
+    val = f"{c['est']:+.2f}".replace('-', '&minus;')
+    return '<td%s>%s%s</td>' % (CLS if hit else '', val, '*' if hit else '')
 
 
 def _n_resolved(method):
@@ -109,6 +115,7 @@ def nui(behav, fac, which):
 
 # The PPI++ bound, read off derm.json's grid rather than retyped. `_bw(r)` is the width ratio at
 # a given r-delta; the floor is its r=1 limit.
+CLS = " class='hi'"
 _BG = {round(g['r'], 2): g['ratio'] for g in D['ppi_bound']['grid']}
 _bw = lambda r: _BG[round(r, 2)]
 _PB = D['ppi_bound']
@@ -363,8 +370,10 @@ BODY = f'''
 <section><div class="measure">
   <div class="sechead"><p class="eyebrow">03 &middot; Effects</p>
   <h2>Every estimate, in one figure</h2></div>
-  <p>Pick a cohort, an outcome unit, a behaviour and a breakdown. One panel per exposure, both
-  phase transitions in each, and <b>three estimators</b>:</p>
+  <p>Both outcomes section 02 settled on &mdash; <b>the level</b> (bouts per minute) and <b>the
+  timing</b> (decay, mean onset in minutes) &mdash; for every cohort, behaviour and breakdown.
+  Occupancy is there too, as the alternative 02a rejected, so the pattern can be checked against it.
+  One panel per exposure, both phase transitions in each, and <b>three estimators</b>:</p>
   <div class="scroll"><table>
     <thead><tr><th>estimator</th><th>annotations it uses</th><th>cohorts</th><th>reads as</th></tr></thead>
     <tbody>
@@ -376,43 +385,29 @@ BODY = f'''
         <td class="hi">v1 (72) and v2 (36)</td>
         <td class="lo">sign and pattern only &mdash; it is on the model's scale</td></tr>
     </tbody></table></div>
-  <p><b>Start on CI</b> and read the other two against it. PPCI is the only one that needs no
-  annotation anywhere, which is why it is the only estimator that exists on v2. Sections 04 and 05
-  say how far that model can be trusted.</p>
+  <p>PPCI needs no annotation anywhere, which is why it is the only estimator that exists on v2 at
+  all. Sections 04 and 05 say how far that model can be trusted.</p>
 </div>
   <div class="figwrap">{CHART}</div>
 <div class="measure">
-  <p><b>The two exposures act differently, and one of them acts in opposite directions on the two
-  behaviours.</b> Nose-to-nose rises on exposure under both (+0.65 fear, +0.47 social) and falls
-  when it is withdrawn. Nose-to-tail rises under fear (+0.35) and <em>falls</em> under social
-  (&minus;0.36). Each exposure is reported separately throughout.</p>
-</div>
-<div class="measure">
-  <div class="sub">
-    <p class="q">the second effect</p>
-    <h3>Decay, as its own unit
-      <span class="verdict v-yes">in the figure above, selectable</span></h3>
-    <p>The exposure changes <em>when</em> in a phase behaviour happens as well as how
-    much of it there is. Section 02 defines the measure; here is what it estimates to.</p>
-    <div class="scroll"><table>
-      <thead><tr><th>&Delta;decay, human labels</th><th>nt &middot; fear</th><th>nt &middot; social</th><th>nn &middot; fear</th><th>nn &middot; social</th></tr></thead>
-      <tbody>
-        <tr><td>H &rarr; O &nbsp;(odour ON)</td>
-          <td class="hi">{ddecay('nt','fear','H->O')}</td><td>{ddecay('nt','social','H->O')}</td>
-          <td class="hi">{ddecay('nn','fear','H->O')}</td><td class="hi">{ddecay('nn','social','H->O')}</td></tr>
-        <tr><td>O &rarr; P &nbsp;(odour OFF)</td>
-          <td>{ddecay('nt','fear','O->P')}</td><td class="hi">{ddecay('nt','social','O->P')}</td>
-          <td>{ddecay('nn','fear','O->P')}</td><td class="hi">{ddecay('nn','social','O->P')}</td></tr>
-      </tbody></table></div>
-    <p><b>Every sign is positive turning the odour on and negative turning it off</b> (* =
-    resolves; {n_dec} of 8 do on human labels alone, {n_dec_ppi} of 8 with PPI++). Bouts start
-    <b>1.0&ndash;2.2 minutes later</b> into the phase once the odour is on, and up to 3.3 minutes
-    earlier once it is withdrawn: the exposure flattens the habituation curve and withdrawing it
-    restores fast habituation. This is not how much behaviour the odour triggers but how long it
-    holds attention. Decay is undefined where a recording has no bout in the window, so n falls to
-    13&ndash;24 by cell, which is why the model buys more here than it does on the level.</p>
-  </div>
-
+  <p><b>The level: the two exposures act differently, and one acts in opposite directions on the two
+  behaviours.</b> Nose-to-nose rises on exposure under both (+0.65 fear, +0.47 social) and falls when
+  it is withdrawn. Nose-to-tail rises under fear (+0.35) and <em>falls</em> under social
+  (&minus;0.36). Each exposure is reported separately throughout, never pooled.</p>
+  <p><b>The timing: every sign is positive turning the odour on and negative turning it off.</b>
+  Bouts start <b>1.0&ndash;2.2 minutes later</b> into the phase once the odour is on, and up to 3.3
+  minutes earlier once it is withdrawn &mdash; the exposure flattens the habituation curve and
+  withdrawing it restores fast habituation. Not how much behaviour the odour triggers, but how long
+  it holds attention.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>&Delta;decay, minutes, human labels</th><th>nt &middot; fear</th><th>nt &middot; social</th><th>nn &middot; fear</th><th>nn &middot; social</th></tr></thead>
+    <tbody>
+      <tr><td>H &rarr; O &nbsp;(odour ON)</td>{ddecay('nt','fear','H->O')}{ddecay('nt','social','H->O')}{ddecay('nn','fear','H->O')}{ddecay('nn','social','H->O')}</tr>
+      <tr><td>O &rarr; P &nbsp;(odour OFF)</td>{ddecay('nt','fear','O->P')}{ddecay('nt','social','O->P')}{ddecay('nn','fear','O->P')}{ddecay('nn','social','O->P')}</tr>
+    </tbody></table></div>
+  <p class="defn">* = resolves; {n_dec} of 8 do on human labels alone, {n_dec_ppi} of 8 with PPI++.
+  Decay is undefined where a recording has no bout in the window, so n falls to 13&ndash;24 by cell
+  &mdash; which is why the model buys more on the timing than it does on the level.</p>
 </div></section>
 
 <section><div class="measure">

@@ -128,8 +128,11 @@
     const bar = $('ate-bar'); bar.textContent = '';
     bar.append(
       seg('experiment', 'exp', [['v1', 'v1  · 72 pools'], ['v2', 'v2  · 36 pools']]),
-      seg('unit', 'unit', [['events', 'number of events'], ['time', 'mean time'],
-        ['decay', 'decay within phase']]),
+      // Section 02's language, and its ordering: the LEVEL and the TIMING are the two chosen
+      // outcomes; occupancy is the alternative 02a rejected, kept last so the pattern can be
+      // checked against it without reading as a peer.
+      seg('outcome', 'unit', [['events', 'level · bouts/min'],
+        ['decay', 'timing · decay, min'], ['time', 'occupancy · the alternative']]),
       seg('behaviour', 'behav', [['nn', 'nose-to-nose'], ['nt', 'nose-to-tail']]),
       seg('breakdown', 'view', [['all', 'all pools'],
         ['strata', state.exp === 'v1' ? 'by line × genotype' : 'by line']]),
