@@ -103,6 +103,19 @@ ALL_UNITS = ('events', 'time', 'decay')
 #     mean has an ordinary standard error.
 # A Delta on this unit reads directly: "the exposure pushes bouts X minutes later into the phase".
 # Both are undefined when a recording has no bout in the window, which is unavoidable.
+#
+# THE MEDIAN ONSET WAS TESTED AND IS WORSE, on every axis this report decides units by:
+#
+#                    within-cell CV nt / nn   mean rDelta   worst-cell rDelta   CI width
+#     mean onset           0.511 / 0.375          0.502           0.293           3.096
+#     median onset         0.590 / 0.542          0.483           0.174           3.463
+#
+# Not because the median is coarse -- it takes 130 of 144 distinct values here, since onsets are
+# frame indices -- but because the tail it discards is SIGNAL, not noise. A flatter habituation
+# curve shows up precisely as more late onsets, so trimming them costs sensitivity, which is what
+# the worst-cell rDelta drop from 0.293 to 0.174 is. The median wins only on resolved contrasts
+# (6/8 against 5/8), which this report explicitly refuses to choose on. Median robustness would be
+# worth having if late onsets were measurement error; here they are the phenomenon.
 WIN15 = int(15 * 60 * FPS)
 
 

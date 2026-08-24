@@ -369,7 +369,14 @@ BODY = f'''
     0.5), so the number did not interpret itself. It collapsed every bout to which side of minute 5
     it fell on. And it was a ratio of two correlated counts, where a mean has an ordinary standard
     error. <b>The sign convention is the reverse of the old one</b>: a higher fraction meant more
-    front-loaded, a higher mean onset means <em>less</em>.</div>
+    front-loaded, a higher mean onset means <em>less</em>.
+    <br><br>The <b>median</b> onset was tested too and is worse on every axis this report decides
+    units by &mdash; within-cell CV 0.59&nbsp;/&nbsp;0.54 against 0.51&nbsp;/&nbsp;0.38, mean
+    r&Delta; 0.483 against 0.502, and worst-cell r&Delta; 0.174 against 0.293. Not because it is
+    coarse (it takes 130 of 144 distinct values, since onsets are frame indices) but because the
+    tail it discards is <em>signal</em>: a flatter habituation curve shows up precisely as more late
+    onsets. Median robustness would be worth having if late onsets were measurement error; here they
+    are the phenomenon.</div>
   </div>
 </div></section>
 
