@@ -1,105 +1,95 @@
 #!/usr/bin/env python3
-"""Why DERM does not beat ERM here, measured on the axis that decides -- one JSON out.
+"""Does the frame classifier read the treatment, and does DERM stop it? One JSON out.
 
-WHAT QUESTION THIS ANSWERS
-==========================
-The status report's DERM section previously said "costs a little AP, buys nothing" and left the
-mechanism as an inference: "whatever route DERM closes, this model was not using it enough for the
-closing to show". That is an argument from a null on the WRONG metric. AP cannot see what DERM
-targets, and neither can r-delta on a 4-pool split. This script measures the thing itself.
+THE MECHANISM AT ISSUE
+======================
+The phase is VISIBLE. The experimenter opens the cage and the odour port is present in O and gone
+in P, so a frame carries the phase whether or not it carries behaviour. Prevalence also moves with
+the phase. So a classifier can score a frame by which phase it LOOKS like instead of by what the
+mice are doing, and ERM's objective contains nothing that penalises it: the ERM optimum is
+P(Y=1|x), which INCLUDES the phase-conditional prior. DERM's optimum divides that prior out. The
+prior on DERM helping here is therefore high, and this script tests it in three steps.
 
-THE ONLY PART OF MODEL ERROR THAT REACHES THE ESTIMAND
-======================================================
-The estimand is a WITHIN-POOL difference between two phases. Write the model's expected output in
-phase p as
+STEP 1 -- IS THE SHORTCUT AVAILABLE?  (`probe`)
+===============================================
+Measured, not assumed. A leave-one-pool-out linear probe on a 24x24 grey thumbnail of a QUIET frame
+-- no scored behaviour, >=25 frames (5 s) from any bout, where the model has nothing legitimate to
+go on. Result: phase at 0.75 balanced accuracy against 0.333 chance, with O recalled at 0.94.
+EXPOSURE (fear vs social) is probed alongside as a negative control and sits at chance, which says
+the probe reads the PROTOCOL -- port present, handling -- and not the cage, the animal or the time
+of day. If 592 downsampled pixels carry the phase, DINOv2 at 1024 tokens certainly does.
 
-    E[f | p] = a_p + b * E[Y | p]
+STEP 2 -- WHAT THE SHORTCUT WOULD COST  (`estimand_bias`)
+=========================================================
+The estimand is a WITHIN-POOL difference. Write the model's expected output in phase p as
 
-Then the plug-in (PPCI) target is
+    E[f | p] = a_p + b * E[Y | p]      ->      E[D_f] = b * E[D_Y] + (a_O - a_H)
 
-    E[D_f] = b * E[D_Y] + (a_O - a_H)
+  * `b` is a SCALE: absorbed by PPI++'s lambda, and uncalibrated PPCI never quotes a magnitude.
+  * `a_O - a_H` is a BIAS IN THE ESTIMAND, non-zero exactly when the model's error moves WITH the
+    phase. It is the only term that can flip a sign or manufacture an effect.
 
-  * `b` is a SCALE. One free parameter, absorbed by PPI++'s lambda and declined outright by
-    uncalibrated PPCI, which reports sign and pattern only. Harmless.
-  * `a_O - a_H` is a BIAS IN THE ESTIMAND. It is non-zero exactly when the model's error moves
-    WITH the phase, and it is the only term that can flip a sign or manufacture an effect.
+So `a_O - a_H` is the whole question. Measured in bouts per minute at the RATE-MATCHED threshold,
+which spends the one scale the estimand allows, per (pool x exposure) -- the estimand's own unit,
+giving 8 of them. The ATE is a MEAN over pools, so only the MEAN of this biases the answer;
+per-unit scatter costs variance instead and is reported apart. Seeds are averaged within a unit
+before the interval, because seed noise is not sampling error.
 
-So the question "does DERM help" is the question "does DERM shrink a_O - a_H", and nothing else.
+STEP 3 -- THE OUTPUT-SIDE LEAK, AND WHY IT IS ONLY CORROBORATIVE  (`leak`, `summary_*`)
+=======================================================================================
+An AUC separating two phases from the model's output at fixed ground truth. It is reported because
+it is scale-free -- no threshold, no calibration -- and because DERM's shift shows up in it cleanly.
 
-THE MEASUREMENT: A LEAK AUC, NOT A BIAS IN UNITS
-================================================
-Measuring a_p directly in bouts per minute confounds it with the global scale and with the
-threshold each run happens to pick. DERM also raises the overall output level (it upweights
-positives in low-prevalence environments), so any absolute comparison flatters ERM by construction.
+    READ IT AS A DIRECTION, NEVER AS A TEST FOR ABSENCE. Two reasons, both fatal to that use:
 
-The scale-free version is a rank statistic. Among frames with the SAME ground truth, ask how well
-the model's own output separates one phase from another:
+    (a) WRONG PART OF THE DISTRIBUTION. The estimand is a count of threshold crossings at
+        tau ~ 0.90-0.98. It lives entirely in the far upper tail. An AUC weights the whole
+        distribution, so a tail shift big enough to move bout counts barely moves it.
+    (b) NO BASELINE. "At fixed truth" frames are not exchangeable across phases -- the quiet
+        stretches of O are not the quiet stretches of H. So 0.5 is NOT the no-shortcut baseline
+        and a deviation from it cannot be read in either direction.
 
-    leak(p, q | y) = AUC( f on {Y = y, phase q} vs f on {Y = y, phase p} )
+    An earlier version of this file read leak ~= 0.5 under ERM as "the shortcut is not open". That
+    was wrong on both counts, and it also had the sign backwards: DERM deflates the
+    high-prevalence environment BY CONSTRUCTION (see below), so DERM moving O downward relative to
+    ERM is the correction operating as designed, not an artefact.
 
-0.5 means the output carries no phase information beyond the behaviour. Any monotone rescaling of
-f -- including the level shift DERM introduces -- leaves it untouched. Bootstrapped over the four
-validation POOLS, because frames within a recording are anything but independent.
-
-WHAT IT FINDS, AND WHY IT IS NOT A NULL
-=======================================
-DERM does not shrink the leak. It ENLARGES it, in the direction its own weights predict.
-
+WHY THE ENVIRONMENT MUST BE THE PHASE, AND WHAT THAT COSTS  (`pool_constant`)
+============================================================================
 DERM's weights are w(y=1,e) = (1-p_e)/P(e) and w(y=0,e) = p_e/P(e). The 1/P(e) cancels in the
-ratio, so the only thing DERM does to environment e's operating point is shift it by the prior
-odds:
+ratio, so its entire effect on environment e's operating point is a shift by that environment's
+prior odds, w(0,e)/w(1,e) = p_e/(1-p_e) -- exactly the prior a prevalence shortcut would exploit.
 
-    w(y=0,e) / w(y=1,e) = p_e / (1 - p_e)
+That shift reaches a within-pool contrast only if the environment VARIES within a pool. Measured:
+phase 0/24 pools constant, odor 0/24, line/sex/genotype 24/24, annotator 22/24, date 21/24. So
 
-A high-prevalence environment therefore has its NEGATIVES upweighted -- it is pushed toward
-predicting negative -- and a low-prevalence one is pushed toward positive. That is the intended
-deconfounding: divide out the prior. But here the environments ARE the phases, so the shift DERM
-installs is itself a function of the treatment. This script tests the resulting prediction:
+    --env-key phase        the ONLY version that can touch a phase shortcut -- and therefore also
+                           the only one that can create one, if it overshoots. Validate it on the
+                           estimand, never on AP.
+    --env-key annotator    cancels in every within-pool difference. Free, and no substitute: it
+                           cannot reach this shortcut at all.
 
-    the more DERM's weights push phase q toward negative relative to phase p,
-    the LOWER q's held-out scores should sit relative to p's, at fixed truth.
+THE OTHER CHANNEL: NUISANCE-LINKED BIAS  (`nuisance`)
+=====================================================
+PPI++ is unbiased for any predictor, so a treatment-linked bias costs it variance rather than
+validity. What CAN break its validity on v1 is that the 24 labelled pools are not a random sample
+-- annotation is 3:1 het-enriched -- so the rectifier has to transport to 48 wt-enriched pools.
+That needs the model's bias not to depend on genotype. Decomposed on the DEPLOYED cross-fitted
+predictions over all 24 annotated pools (144 observations, a real denominator), at the LEVEL and in
+the WITHIN-POOL DIFFERENCE.
 
-i.e. ΔAUC (DERM minus ERM) should run OPPOSITE to log[ odds(p_q) / odds(p_p) ], the log odds
-ratio computed from the TRAINING pools. Two environment definitions give two tests:
+WHAT IS NOT CLAIMED
+===================
+Steps 2 and 3 rest on FOUR validation pools. On nt the mean a_O - a_H runs +0.163 under ERM against
++0.100 under DERM -- both positive, DERM nearer zero, the direction the mechanism predicts, and
+2.6x against 1.6x the size of the pooled true effect. But the 95% intervals are +-0.29 and the
+paired test gives p = 0.44, so NONE of it is resolved. This script does not show that DERM helps
+and it does not show that it does not.
 
-    env = the 3 phases                -> 4 predictions (behaviour x transition)
-    env = the 6 phase x exposure cells -> 8 predictions (behaviour x exposure x transition)
-
-The second is the sharper test: every cell gets its own odds ratio, so the prediction varies
-across all eight points rather than four.
-
-THE SECOND CHANNEL: NUISANCE-LINKED BIAS, WHICH IS WHAT PPI++ WOULD ACTUALLY NEED HELP WITH
-==========================================================================================
-PPI++ is algebraically unbiased for any predictor, so a treatment-linked bias costs it variance
-rather than validity. The one thing that CAN break its validity on v1 is that the 24 labelled
-pools are not a random sample -- annotation is 3:1 het-enriched -- so the rectifier measured there
-has to transport to 48 wt-enriched pools. That needs the model's bias not to depend on genotype.
-
-So the same decomposition is run on the DEPLOYED cross-fitted predictions over all 24 annotated
-pools (144 observations, a real denominator rather than four pools), asking how much of the model's
-bias is explained by each pool-level factor, at the LEVEL and in the WITHIN-POOL DIFFERENCE. This
-is the analogue for MODEL bias of the annotator decomposition the report already runs on LABEL
-noise, and it is what decides whether DERM on nuisance environments has a job.
-
-WHICH ENVIRONMENTS ARE SAFE, AND WHY IT IS STRUCTURAL
-====================================================
-DERM's correction is a per-environment shift of the decision logit. Whether that shift is free or
-fatal is decided by one property of the environment variable, which this script measures rather
-than assumes (`pool_constant`):
-
-  varies WITHIN a pool   (phase, exposure) -- the shift differs between the two sides of the
-                         contrast, so it lands in the estimand. Guaranteed to bias.
-  constant WITHIN a pool (line, sex, genotype, cage, and annotator for 22 of 24 pools) -- the
-                         shift is identical on both sides of every within-pool difference and
-                         cancels. Free.
-
-WHAT IS *NOT* CLAIMED
-=====================
-The leak comparison rests on 4 validation pools. The correlations below carry n = 4 and n = 8 and
-are reported with their p-values, which are not small. The claim is a DIRECTION with a mechanism
-behind it, not an effect size. The experiment that would settle it is cross-fitted DERM over all
-24 annotated pools -- which also happens to be the only way to compute a real PPI++ interval under
-either objective.
+The experiment that settles it is cross-fitting the matched pair -- DERM-on-phases and its ERM
+control -- over the three deployment folds. That measures a_O - a_H on 24 pools instead of 4,
+shrinking the SE about 2.4x, and it is also the only way to get real PPI++ intervals and PPCI point
+estimates under both objectives with CI as ground truth.
 
     python scripts/mice_behavior/build_derm.py
 """
@@ -264,6 +254,245 @@ def match_threshold(tag: str, l: str, exp: pd.DataFrame):
     b = {p: float(ph.loc[p, 'pred'] - ph.loc[p, 'true']) for p in 'HOP'}
     return th, b
 
+
+
+# ------------------------------------------------------------------ is the shortcut AVAILABLE?
+# Everything else in this file measures whether the model's output moves with the phase. That is
+# downstream of a prior question: CAN it? If the phase is invisible in a frame there is no shortcut
+# to learn and no reason to expect DERM to do anything. So probe it directly, and probe it on the
+# frames where a shortcut would do damage -- the QUIET ones, carrying no scored behaviour and far
+# from any bout, where the model has nothing legitimate to go on.
+#
+# Descriptor: a 24x24 grayscale thumbnail plus a 16-bin intensity histogram. Deliberately crude --
+# if a 592-dimensional linear probe on downsampled pixels can read the phase, DINOv2 at 1024 tokens
+# certainly can, and the argument does not depend on what the encoder does with it.
+#
+# Held out by POOL, so the probe cannot win by memorising a cage.
+#
+# The EXPOSURE (fear vs social) is probed alongside as a negative control. Both exposures use the
+# same port and the same handling, and the odour itself is not visible, so a probe that reads phase
+# but not exposure is reading the protocol rather than the cage, the animal or the time of day.
+PROBE_DIST = 25          # frames from the nearest scored bout -- 5 s at 5 fps
+PROBE_PER_CELL = 120     # frames per pool x phase x exposure, so the design is balanced
+PROBE_THUMB = 32         # fine enough that one corner is resolvable
+
+
+def _probe_frames(exp: pd.DataFrame, tag: str):
+    """Balanced sample of QUIET frames as small grey thumbnails, with their pool and phase."""
+    import io
+    from PIL import Image
+    ix = np.load(ROOT / 'dataset' / 'mice' / 'v1' / 'jpegcache_k2.npz')
+    keys, offs = ix['all_needed'], ix['offsets']
+    blob = np.memmap(ROOT / 'dataset' / 'mice' / 'v1' / 'jpegcache_k2.bin', dtype=np.uint8, mode='r')
+    pos = {int(k): i for i, k in enumerate(keys)}
+    d = np.load(FRAME / tag / 'val_probs.npz', allow_pickle=True)
+    df = pd.DataFrame({'obs': d['obs'], 'gi': d['gi'],
+                       'y': (d['labels'][:, 0] > 0.5) | (d['labels'][:, 1] > 0.5)}
+                      ).sort_values(['obs', 'gi'])
+    df = df.merge(exp, left_on='obs', right_on='observation_id')
+    dist = []
+    for _, g in df.groupby('obs', sort=False):
+        y = g.y.to_numpy(); q = np.arange(len(y))
+        dist.append(pd.Series(np.abs(q[:, None] - np.flatnonzero(y)[None, :]).min(1)
+                              if y.any() else np.full(len(y), 10 ** 6), index=g.index))
+    df['dist'] = pd.concat(dist)
+    quiet = df[(~df.y) & (df.dist >= PROBE_DIST)]
+    rng = np.random.default_rng(0)
+    samp = pd.concat([g.iloc[rng.choice(len(g), min(len(g), PROBE_PER_CELL), replace=False)]
+                      for _, g in quiet.groupby(['pool', 'phase', 'odor'], sort=True)]
+                     ).reset_index(drop=True)
+    T, keep = [], []
+    for k, gi in enumerate(samp.gi.to_numpy()):
+        i = pos.get(int(gi))
+        if i is None:
+            continue
+        im = Image.open(io.BytesIO(blob[offs[i]:offs[i + 1]].tobytes())).convert('L')
+        T.append(np.asarray(im.resize((PROBE_THUMB, PROBE_THUMB), Image.BILINEAR),
+                            dtype=np.float32) / 255.0)
+        keep.append(k)
+    return np.stack(T), samp.iloc[keep].reset_index(drop=True), int(len(quiet))
+
+
+def phase_probe(exp: pd.DataFrame, tag: str = 'res448_k2_frozen_d4photo_ermH5M') -> dict:
+    """Can the PHASE be read off a QUIET frame -- and if so, from where?
+
+    Everything else in this file measures whether the model's output moves with the phase. That is
+    downstream of a prior question: CAN it? A physical bag is placed in a corner of the cage during
+    the O phase, so a frame carries the phase whether or not it carries behaviour. This measures how
+    freely.
+
+    Deliberately crude: a leave-one-POOL-out linear probe on a 32x32 grey thumbnail. If 1024
+    downsampled pixels carry the phase, DINOv2 at 1024 tokens at 448 px certainly does, and the
+    argument does not depend on what the encoder does with it.
+
+    Four things are reported, and the last two are the ones with a fix attached:
+
+      phase / exposure    3-way and 2-way. EXPOSURE is the NEGATIVE CONTROL: both exposures use the
+                          same bag and the same handling, so a probe that reads phase but not
+                          exposure is reading the PROTOCOL, not the cage, the animal or the hour.
+      O vs not-O, H vs P  the bag is present in O only, so the first should be much the easier.
+      region              the same probe restricted to one part of the frame. Localises the cue.
+      mask               the probe with the bag's corner blanked. The residual is NOT failure: the
+                          bag also changes WHERE THE ANIMALS ARE, which is real behaviour and must
+                          not be removed. Masking removes the non-behavioural cue and leaves that.
+    """
+    try:
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.metrics import balanced_accuracy_score, confusion_matrix
+        from sklearn.pipeline import make_pipeline
+        from sklearn.preprocessing import StandardScaler
+        from PIL import Image                                              # noqa: F401
+    except ImportError as e:
+        return {'note': f'probe skipped: {e}'}
+    if not (ROOT / 'dataset' / 'mice' / 'v1' / 'jpegcache_k2.bin').exists():
+        return {'note': 'probe skipped: no jpeg cache on disk'}
+
+    T, samp, n_quiet = _probe_frames(exp, tag)
+    S = PROBE_THUMB
+    pool, ph = samp['pool'].to_numpy(), samp.phase.to_numpy()
+
+    def fit(X, tgt, sub=None):
+        """Leave-one-pool-out balanced accuracy, plus the pooled confusion matrix."""
+        labs = sorted(set(tgt if sub is None else tgt[sub]))
+        accs, cms = [], []
+        for pl in sorted(set(pool)):
+            tr, te = pool != pl, pool == pl
+            if sub is not None:
+                tr, te = tr & sub, te & sub
+            if len(set(tgt[tr])) < 2 or not te.any():
+                continue
+            m = make_pipeline(StandardScaler(), LogisticRegression(max_iter=3000, C=0.1))
+            m.fit(X[tr], tgt[tr]); pr = m.predict(X[te])
+            accs.append(balanced_accuracy_score(tgt[te], pr))
+            cms.append(confusion_matrix(tgt[te], pr, labels=labs))
+        cm = np.sum(cms, axis=0)
+        return {'labels': [str(x) for x in labs], 'chance': round(1 / len(labs), 4),
+                'bal_acc': round(float(np.mean(accs)), 4),
+                'per_pool': [round(float(a), 4) for a in accs],
+                'confusion': cm.tolist(),
+                'recall': {str(l): round(float(cm[i, i] / max(cm[i].sum(), 1)), 4)
+                           for i, l in enumerate(labs)}}
+
+    flat = T.reshape(len(T), -1)
+    yO = (ph == 'O').astype(int)
+    out = {'n_frames': int(len(T)), 'thumb': S, 'dim': int(flat.shape[1]),
+           'dist_frames': PROBE_DIST, 'quiet_available': n_quiet,
+           'n_pools': int(len(set(pool))),
+           'targets': {'phase': fit(flat, ph),
+                       'exposure': fit(flat, samp.odor.to_numpy()),
+                       'O_vs_rest': fit(flat, yO),
+                       'H_vs_P': fit(flat, ph, sub=(ph != 'O'))}}
+
+    # --- where is it? one region at a time, O vs not-O
+    reg = {'top-left': (slice(0, S // 2), slice(0, S // 2)),
+           'top-right': (slice(0, S // 2), slice(S // 2, S)),
+           'bottom-left': (slice(S // 2, S), slice(0, S // 2)),
+           'bottom-right': (slice(S // 2, S), slice(S // 2, S))}
+    out['region'] = {k: fit(T[:, r, c].reshape(len(T), -1), yO)['bal_acc']
+                     for k, (r, c) in reg.items()}
+    out['region']['centre'] = fit(
+        T[:, S // 4:3 * S // 4, S // 4:3 * S // 4].reshape(len(T), -1), yO)['bal_acc']
+    bor = T.copy(); bor[:, S // 4:3 * S // 4, S // 4:3 * S // 4] = 0
+    out['region']['border'] = fit(bor.reshape(len(T), -1), yO)['bal_acc']
+
+    # --- the same corner in every pool? mean(O) - mean(not-O) says where without any fitting
+    out['corner'] = {}
+    for pl in sorted(set(pool)):
+        m = pool == pl
+        dm = np.abs(T[m & (ph == 'O')].mean(0) - T[m & (ph != 'O')].mean(0))
+        r, c = np.unravel_index(dm.argmax(), dm.shape)
+        r0, c0 = S // 4 * (r // (S // 4)), S // 4 * (c // (S // 4))
+        out['corner'][str(pl)] = {
+            'peak': round(float(dm.max()), 4), 'row': int(r), 'col': int(c),
+            'quadrant': ('top' if r < S / 2 else 'bottom') + '-' + ('left' if c < S / 2 else 'right'),
+            'share_in_cell': round(float(dm[r0:r0 + S // 4, c0:c0 + S // 4].sum() / dm.sum()), 4)}
+
+    # --- does masking it work? no training needed to answer this
+    out['mask'] = {'unmasked': out['targets']['O_vs_rest']['bal_acc']}
+    for frac in (0.125, 0.1875, 0.25):
+        k = int(round(S * frac))
+        M = T.copy(); M[:, S - k:, :k] = 0
+        out['mask'][f'bottom_left_{frac:g}'] = {
+            'bal_acc': fit(M.reshape(len(M), -1), yO)['bal_acc'],
+            'frame_share': round(k * k / S / S, 4)}
+    k = int(round(S * 0.25))
+    M = T.copy()
+    for r in (slice(0, k), slice(S - k, S)):
+        for c in (slice(0, k), slice(S - k, S)):
+            M[:, r, c] = 0
+    out['mask']['four_corners_0.25'] = {'bal_acc': fit(M.reshape(len(M), -1), yO)['bal_acc'],
+                                       'frame_share': round(4 * k * k / S / S, 4)}
+    return out
+
+
+# ------------------------------------------------- the estimand-level bias, with an interval
+# a_O - a_H in the unit the report estimates on, per (pool x exposure) -- the estimand's own unit
+# of analysis, which gives 8 of them instead of 1. The ATE is a MEAN over pools, so it is the MEAN
+# of this that biases the answer; per-unit scatter costs variance instead and is reported apart.
+# Seeds are averaged WITHIN a unit before the interval, because seed noise is not sampling error.
+def estimand_bias(exp: pd.DataFrame, families: dict) -> dict:
+    def units(tag, l):
+        j = LABELS.index(l)
+        d = np.load(FRAME / tag / 'val_probs.npz', allow_pickle=True)
+        df = pd.DataFrame({'obs': d['obs'], 'gi': d['gi'], 'p': d['probs'][:, j],
+                           'y': d['labels'][:, j]}).sort_values(['obs', 'gi'])
+        gs = [(o, g) for o, g in df.groupby('obs', sort=False)]
+        T = sum(len(runs(g['y'].to_numpy() > 0.5)) for _, g in gs)
+        best = (float('nan'), 1e9)
+        for th in np.round(np.arange(0.05, 1.0, 0.005), 3):
+            P = sum(len(runs(postprocess(g['p'].to_numpy() >= th, 1, 1))) for _, g in gs)
+            if abs(P - T) < best[1]:
+                best = (float(th), abs(P - T))
+        th = best[0]
+        po = pd.DataFrame([
+            {'observation_id': o,
+             'true': len(runs(g['y'].to_numpy() > 0.5)) / (len(g) / FPS / 60),
+             'pred': len(runs(postprocess(g['p'].to_numpy() >= th, 1, 1))) / (len(g) / FPS / 60)}
+            for o, g in gs]).merge(exp, on='observation_id')
+        rows = []
+        for (pool, od), g in po.groupby(['pool', 'odor']):
+            m = g.drop_duplicates('phase').set_index('phase')
+            if not {'H', 'O'} <= set(m.index):
+                continue
+            rows.append({'pool': pool, 'odor': od,
+                         'bias': (m.loc['O', 'pred'] - m.loc['O', 'true'])
+                                 - (m.loc['H', 'pred'] - m.loc['H', 'true']),
+                         'dY': m.loc['O', 'true'] - m.loc['H', 'true']})
+        return pd.DataFrame(rows).set_index(['pool', 'odor']), th
+
+    out = {'unit': 'bouts per minute, H->O', 'thresholds': {}, 'truth': {}, 'families': {}}
+    for l in LABELS:
+        ref, _ = units(families['ERM'][0], l)
+        out['truth'][l] = {'pooled': round(float(ref.dY.mean()), 4),
+                           'fear': round(float(ref.dY.xs('F', level='odor').mean()), 4),
+                           'social': round(float(ref.dY.xs('S', level='odor').mean()), 4)}
+        vals = {}
+        for fam, tags in families.items():
+            fr = []
+            for t in tags:
+                u, th = units(t, l)
+                out['thresholds'].setdefault(l, {})[t] = th
+                fr.append(u.bias)
+            v = (sum(fr) / len(fr))
+            vals[fam] = v
+            a = v.to_numpy(); n = len(a)
+            se = a.std(ddof=1) / np.sqrt(n)
+            q = float(stats.t.ppf(0.975, n - 1))
+            out['families'].setdefault(l, {})[fam] = {
+                'n_units': n, 'n_seeds': len(tags),
+                'mean': round(float(a.mean()), 4),
+                'lo': round(float(a.mean() - q * se), 4),
+                'hi': round(float(a.mean() + q * se), 4),
+                'mean_abs': round(float(np.abs(a).mean()), 4),
+                'positive': int((a > 0).sum()),
+                'share_of_truth': (round(abs(float(a.mean() / out['truth'][l]['pooled'])), 2)
+                                   if out['truth'][l]['pooled'] else None)}
+        e, d = vals['ERM'].to_numpy(), vals['DERM'].to_numpy()
+        pr = stats.ttest_rel(e, d)
+        out['families'][l]['paired_erm_minus_derm'] = {
+            'diff': round(float(np.mean(e - d)), 4), 'p': round(float(pr.pvalue), 4),
+            'shrunk_units': int((np.abs(d) < np.abs(e)).sum()), 'n_units': len(e)}
+    return out
 
 # ------------------------------------------------------------------ nuisance-linked model bias
 def pool_constant(exp: pd.DataFrame, annotated: pd.DataFrame) -> dict:
@@ -454,6 +683,48 @@ def main():
         print(f"  {r['arm']:14s} s{r['seed']:<3d} {r['behav']}  thr {r['thr']:.2f}  "
               f"a_O-a_H {r['b_HO']:+.3f}   a_P-a_O {r['b_OP']:+.3f}")
 
+    # ---- is the shortcut available at all? --------------------------------------------------
+    probe = phase_probe(exp)
+    if 'note' in probe:
+        print('\n' + probe['note'])
+    else:
+        print(f"\nphase probe: {probe['n_frames']} quiet frames "
+              f"(no scored behaviour, >={probe['dist_frames']} frames from any bout), "
+              f"{probe['thumb']}x{probe['thumb']} grey + histogram, leave-one-pool-out")
+        for k, v in probe['targets'].items():
+            print(f"  {k:11s} balanced acc {v['bal_acc']:.3f}  (chance {v['chance']:.3f})  "
+                  f"recall " + ', '.join(f'{a} {b:.2f}' for a, b in v['recall'].items()))
+        print('  where the O cue is (O-vs-rest accuracy from one region): '
+              + ', '.join(f'{k} {v:.3f}' for k, v in probe['region'].items()))
+        print('  bag corner per pool: ' + ', '.join(
+            f"{k} {v['quadrant']} (peak {v['peak']:.2f}, {v['share_in_cell']:.0%} of the diff)"
+            for k, v in probe['corner'].items()))
+        print('  masking it: ' + ', '.join(
+            f"{k} -> {v['bal_acc']:.3f} ({v['frame_share']:.1%} of frame)"
+            for k, v in probe['mask'].items() if isinstance(v, dict)))
+
+    # ---- the estimand-level bias, with an interval ------------------------------------------
+    FAMS = {'ERM': ['res448_k2_frozen_d4photo_ermH5M', 'res448_k2_frozen_d4photo_ermH5M_s1'],
+            'DERM': ['res448_k2_frozen_d4photo_dermPhase',
+                     'res448_k2_frozen_d4photo_dermPhase_s1'],
+            'DERM-cells': ['res448_k2_frozen_d4photo_dermCond']}
+    FAMS = {k: [t for t in v if (FRAME / t / 'val_probs.npz').exists()] for k, v in FAMS.items()}
+    eb = estimand_bias(exp, {k: v for k, v in FAMS.items() if v})
+    print('\nmean a_O - a_H over the 8 (pool x exposure) units -- the ATE-relevant component')
+    for l in LABELS:
+        print(f"  {l}: true D_Y pooled {eb['truth'][l]['pooled']:+.3f} "
+              f"(fear {eb['truth'][l]['fear']:+.3f}, social {eb['truth'][l]['social']:+.3f})")
+        for fam in FAMS:
+            if fam not in eb['families'][l]:
+                continue
+            r = eb['families'][l][fam]
+            print(f"    {fam:11s} {r['mean']:+.3f}  95% CI [{r['lo']:+.3f}, {r['hi']:+.3f}]  "
+                  f"{'RESOLVED' if r['lo'] * r['hi'] > 0 else 'not resolved'}  "
+                  f"|mean| = {r['share_of_truth']}x the pooled true effect")
+        pr = eb['families'][l]['paired_erm_minus_derm']
+        print(f"    paired ERM-DERM {pr['diff']:+.3f}  p = {pr['p']:.3f}  "
+              f"shrunk in {pr['shrunk_units']}/{pr['n_units']} units")
+
     # ---- which environments are pool-level constants, and the nuisance-bias channel ---------
     pc = pool_constant(exp_full, exp_full[exp_full.annotation_file.notna()])
     print('\nconstant within a pool, on the 24 annotated pools:')
@@ -487,7 +758,7 @@ def main():
                                 'move it. 95% interval bootstrapped over the 4 validation pools.'},
                'prevalence': prev, 'leak': leak, 'summary_phase': summ_phase,
                'summary_cond': summ_cond, 'corr': corrs, 'estimand': est, 'ppi_bound': bound,
-               'pool_constant': pc, 'nuisance': nb}
+               'pool_constant': pc, 'nuisance': nb, 'probe': probe, 'estimand_bias': eb}
     OUT.mkdir(parents=True, exist_ok=True)
     json.dump(payload, open(OUT / 'derm.json', 'w'), indent=1)
     print(f"\nwrote {OUT / 'derm.json'}  ({len(present)} arms, {len(leak)} leak AUCs)")

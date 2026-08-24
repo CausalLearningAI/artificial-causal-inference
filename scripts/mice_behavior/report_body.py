@@ -177,6 +177,63 @@ def dcorr(which):
 _rp, _pp = dcorr('phase')
 _rc, _pc = dcorr('cond')
 
+
+# ---------------------------------------------------------------- probe + estimand-bias readers
+# Section 04.6's load-bearing fact: a physical bag sits in a corner of the cage during O, so the
+# treatment is legible in a frame that carries no behaviour at all. Read from derm.json.
+_P = D['probe']
+_R = _P['region']
+
+
+def pb(target, field='bal_acc'):
+    return f"{_P['targets'][target][field]:.3f}"
+
+
+def pbch(target):
+    return f"{_P['targets'][target]['chance']:.3f}"
+
+
+def rg(name):
+    return f"{_R[name]:.3f}"
+
+
+def mask(key):
+    m = _P['mask'][key]
+    return f"{m['bal_acc']:.3f}", f"{100 * m['frame_share']:.1f}%"
+
+
+_bag = sorted({v['quadrant'] for v in _P['corner'].values()})
+bag_quadrant = _bag[0] if len(_bag) == 1 else ' / '.join(_bag)
+bag_pools = f"{len(_P['corner'])}"
+bag_peak = (f"{min(v['peak'] for v in _P['corner'].values()):.2f}"
+            f"&ndash;{max(v['peak'] for v in _P['corner'].values()):.2f}")
+
+
+def eb(behav, fam, what='mean'):
+    r = D['estimand_bias']['families'][behav][fam]
+    if what == 'ci':
+        return f"[{r['lo']:+.2f}, {r['hi']:+.2f}]".replace('-', '&minus;')
+    if what == 'share':
+        k = r['share_of_truth']
+        return f"{k:.1f}&times;" if k is not None else '&mdash;'
+    if what == 'mean_abs':                       # a magnitude: a leading + would read as a sign
+        return f"{r[what]:.3f}"
+    return f"{r[what]:+.3f}".replace('-', '&minus;')
+
+
+def ebp(behav, field):
+    v = D['estimand_bias']['families'][behav]['paired_erm_minus_derm'][field]
+    if field == 'diff':
+        return f"{v:+.3f}".replace('-', '&minus;')
+    if field == 'p':
+        return f"{v:.2f}"
+    return v
+
+
+def dY(behav, which='pooled'):
+    return f"{D['estimand_bias']['truth'][behav][which]:+.3f}".replace('-', '&minus;')
+
+
 # Section 05's bound table: every row computed from derm.json's grid, so the printed percentages
 # and the formula in the box next to them cannot disagree.
 _BROWS = [(0.50, ''), (0.60, 'roughly where we are: <b>&minus;12% measured</b>, averaged over the '
@@ -569,8 +626,8 @@ BODY = f'''
       <tr><td>04.6</td><td><b>objective</b></td><td>vREx</td>
         <td class="lo">+0.008 at best, &minus;0.094 at &beta;=100</td><td class="lo">no help, and harmful when pushed</td></tr>
       <tr><td>04.6</td><td><b>objective</b></td><td>DERM &mdash; deconfound against phase</td>
-        <td class="lo">&minus;0.02 against a matched control</td>
-        <td class="lo">costs a little, and <em>installs</em> the bias it targets</td></tr>
+        <td>&minus;0.02 against a matched control<br><span style="opacity:.65">the expected price, not a cost</span></td>
+        <td class="lo">unresolved on 4 pools &mdash; and AP is the wrong scoreboard for it</td></tr>
     </tbody></table></div>
   <div class="note warnbox"><b>One structural limit, before any of it.</b> The regime overfits
   &mdash; training loss falls monotonically while validation AP plateaus near epoch 24. That is why
@@ -579,7 +636,10 @@ BODY = f'''
   <br><br><b>Read every &Delta; against 0.015, not 0.009.</b> Seed noise is not one number: across
   the <b>seven</b> configurations now run at two seeds it spans 0.004 to 0.016, and the two widest
   are fine-tuned arms (BitFit-6 on the SSL encoder 0.014, DERM on phases 0.016). 04.3, 04.5 and the
-  vREx row sit inside that; 04.1, 04.2 and 04.4 clear it comfortably.</div>
+  vREx row sit inside that; 04.1, 04.2 and 04.4 clear it comfortably. <b>The DERM row is the one
+  &Delta; on this page that should not be read against a seed band at all</b> &mdash; it buys
+  prior-independence by giving up frame accuracy, so a small AP loss is what success looks like.
+  04.6 measures it on the estimand instead.</div>
 </div>
 
 <div class="measure">
@@ -756,14 +816,61 @@ BODY = f'''
 
   <div class="sub">
     <p class="q">04.6 &middot; objective</p>
-    <h3>vREx and DERM
-      <span class="verdict v-no">neither helps &mdash; and DERM writes its own bias in</span></h3>
-    <p><b>What an objective change could buy, exactly.</b> The estimand is a within-pool difference,
-    so write the model's expected output in phase <math><mi>p</mi></math> as
+    <h3>Does the model read the treatment?
+      <span class="verdict v-part">it can, very easily &mdash; 4 pools cannot say whether it does</span></h3>
+    <p><b>The shortcut is physical.</b> A bag is placed in a corner of the cage for the exposure
+    phase. So the treatment is <em>legible in the frame</em>, and legible in frames that carry no
+    behaviour at all &mdash; which means a classifier can score a frame by which phase it
+    <em>looks like</em> instead of by what the mice are doing. Prevalence moves with the phase too
+    (nose-to-tail 0.89% in H against 1.22% in O on the training pools), and <b>ERM's objective
+    contains nothing that penalises the shortcut</b>: the ERM optimum is
+    <math><mrow><mi>P</mi><mo>(</mo><mi>Y</mi><mo>=</mo><mn>1</mn><mo>|</mo><mi>x</mi>
+    <mo>)</mo></mrow></math>, which <em>includes</em> the phase-conditional prior. DERM's optimum
+    divides that prior out. So the question is not whether DERM has a job in principle. It does.</p>
+
+    <p><b>How freely legible?</b> Measured rather than assumed, and measured where a shortcut would
+    do damage: a leave-one-<em>pool</em>-out linear probe on a {_P['thumb']}&times;{_P['thumb']}
+    grey thumbnail of a <b>quiet</b> frame &mdash; no scored behaviour, at least
+    {_P['dist_frames']} frames ({_P['dist_frames'] // 5}&nbsp;s) from any bout, so the probe has
+    nothing legitimate to go on. {_P['n_frames']:,} frames, balanced across pool, phase and
+    exposure.</p>
+    <div class="scroll"><table>
+      <thead><tr><th>can a quiet frame tell you&hellip;</th><th>balanced accuracy</th><th>chance</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><b>&hellip;whether the bag is in the cage</b> (O against H and P)</td>
+          <td class="lo">{pb('O_vs_rest')}</td><td>{pbch('O_vs_rest')}</td>
+          <td class="lo">the treatment indicator, essentially free</td></tr>
+        <tr><td>&hellip;which of the three phases it is</td>
+          <td class="lo">{pb('phase')}</td><td>{pbch('phase')}</td>
+          <td>O recalled at {_P['targets']['phase']['recall']['O']:.2f}</td></tr>
+        <tr><td>&hellip;H from P &mdash; both bag-free</td>
+          <td>{pb('H_vs_P')}</td><td>{pbch('H_vs_P')}</td>
+          <td>weaker, and this is what is left once the bag is gone</td></tr>
+        <tr><td>&hellip;<b>which exposure</b> &mdash; fear or social</td>
+          <td class="hi">{pb('exposure')}</td><td>{pbch('exposure')}</td>
+          <td class="hi">the negative control: near chance, so the probe reads the
+          <em>protocol</em>, not the cage, the animal or the hour</td></tr>
+      </tbody></table></div>
+    <p>A thousand downsampled pixels identify the treatment at <b>{pb('O_vs_rest')}</b>. DINOv2 at
+    1024 tokens and 448&nbsp;px sees it far better. And the cue is where the bag is: restricted to
+    one region of the frame, O-against-the-rest reads {rg('bottom-left')} from the
+    <b>{bag_quadrant}</b> quadrant against {rg('top-right')}, {rg('top-left')} and
+    {rg('bottom-right')} from the other three, {rg('border')} from the border alone and
+    {rg('centre')} from the centre where the animals are. The same corner in all {bag_pools} pools,
+    with the mean O-minus-not-O difference peaking at {bag_peak} of full intensity there.</p>
+
+    <div class="note warnbox"><b>The &minus;0.02 macro AP is the price of the correction, not
+    evidence against it.</b> A model that has stopped using the phase prior <em>must</em> be
+    slightly worse at frame classification, because the prior is genuinely informative for that
+    task. Scoring DERM on AP scores it on exactly the thing it is designed to give up. The same goes
+    for r&Delta;&nbsp;nt, whose two same-configuration seeds differ by 0.67. Neither can arbitrate
+    this, and the report previously let one of them do so.</div>
+
+    <p><b>What the shortcut would cost, and where it shows.</b> The estimand is a within-pool
+    difference, so write the model's expected output in phase <math><mi>p</mi></math> as
     <math><mrow><mi>E</mi><mo>[</mo><mi>f</mi><mo>|</mo><mi>p</mi><mo>]</mo><mo>=</mo>
     <msub><mi>a</mi><mi>p</mi></msub><mo>+</mo><mi>b</mi><mspace width="0.15em"/><mi>E</mi>
-    <mo>[</mo><mi>Y</mi><mo>|</mo><mi>p</mi><mo>]</mo></mrow></math>. Then the plug-in target for
-    the transition <math><mrow><mi>H</mi><mo>&#x2192;</mo><mi>O</mi></mrow></math> is</p>
+    <mo>[</mo><mi>Y</mi><mo>|</mo><mi>p</mi><mo>]</mo></mrow></math>. Then</p>
     <div class="eqn"><math display="block"><mrow>
       <mi>E</mi><mo>[</mo><msub><mi>D</mi><mi>f</mi></msub><mo>]</mo><mo>=</mo>
       <munder><munder><mrow><mi>b</mi><mspace width="0.15em"/><mi>E</mi><mo>[</mo>
@@ -772,150 +879,113 @@ BODY = f'''
       <mo>+</mo>
       <munder><munder><mrow><mo>(</mo><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo>
         <msub><mi>a</mi><mi>H</mi></msub><mo>)</mo></mrow>
-        <mo>&#x23DF;</mo></munder><mtext>a bias in the estimand</mtext></munder>
+        <mo>&#x23DF;</mo></munder><mtext>what the shortcut becomes</mtext></munder>
     </mrow></math></div>
-    <p>The scale <math><mi>b</mi></math> is absorbed by PPI++'s
-    <math><mi>&#x3BB;</mi></math> and declined outright by uncalibrated PPCI, which never quotes a
-    magnitude. <math><mrow><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo>
-    <msub><mi>a</mi><mi>H</mi></msub></mrow></math> is the whole problem: it is non-zero exactly
-    when the model's error moves <em>with</em> the phase, and it is the only term that can flip a
-    sign or manufacture an effect. So an objective change earns its keep only by shrinking it &mdash;
-    which is a quantity neither AP nor a 16-point r&Delta; can see. It was measured directly.</p>
-
-    <p><b>The measurement: a phase leak.</b> Among frames with the <em>same</em> ground truth, how
-    well does the model's own output separate one phase from another?</p>
-    <div class="eqn"><math display="block"><mrow>
-      <mi>leak</mi><mo>(</mo><mi>x</mi><mo>&#x2192;</mo><mi>y</mi><mo>)</mo><mo>=</mo>
-      <mi>AUC</mi><mrow><mo>(</mo><mi>f</mi><mo>|</mo><mi>phase</mi><mo>=</mo><mi>y</mi>
-      <mspace width="0.5em"/><mtext>versus</mtext><mspace width="0.5em"/>
-      <mi>f</mi><mo>|</mo><mi>phase</mi><mo>=</mo><mi>x</mi><mo>)</mo></mrow>
-      <mo>,</mo><mspace width="1em"/><mtext>both at</mtext><mspace width="0.4em"/>
-      <mi>Y</mi><mo>=</mo><mn>0</mn></mrow></math></div>
-    <p>0.5 means the output carries no phase information beyond the behaviour. It is a rank
-    statistic, so it is untouched by any monotone rescaling &mdash; including the level shift DERM
-    itself introduces, which is what makes every absolute comparison of the two unfair. Frames
-    within a recording are anything but independent, so the interval is bootstrapped over the four
-    validation <em>pools</em>. Negatives are the frames that matter: the model over-predicts
-    occupancy about fivefold, so almost all of its error lives there.</p>
+    <p>The scale is absorbed by PPI++'s <math><mi>&#x3BB;</mi></math> and never quoted by
+    uncalibrated PPCI. <math><mrow><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo>
+    <msub><mi>a</mi><mi>H</mi></msub></mrow></math> is the whole risk. Measured in bouts per minute
+    at the <b>rate-matched threshold</b> &mdash; which spends the one scale the estimand allows, so
+    nothing here is calibration &mdash; per (pool &times; exposure), the estimand's own unit, giving
+    eight of them. Seeds averaged within a unit first, because seed noise is not sampling error.</p>
     <div class="scroll"><table>
-      <thead><tr><th>objective</th><th>nt &nbsp;H&rarr;O</th><th>nt &nbsp;O&rarr;P</th>
-        <th>nn &nbsp;H&rarr;O</th><th>nn &nbsp;O&rarr;P</th>
-        <th>mean |AUC&minus;0.5|</th><th>cells resolved of 4</th></tr></thead>
+      <thead><tr><th></th><th>mean a<sub>O</sub>&minus;a<sub>H</sub></th><th>95% CI</th>
+        <th>against the pooled true effect</th><th>true effect, H&rarr;O</th></tr></thead>
       <tbody>
-        <tr><td><b>ERM</b>, 2 seeds</td>
-          <td>{lk('erm','nt','H->O')}</td><td>{lk('erm','nt','O->P')}</td>
-          <td>{lk('erm','nn','H->O')}</td><td>{lk('erm','nn','O->P')}</td>
-          <td class="hi">{lkdev('erm')}</td><td class="hi">{lkres('erm')}</td></tr>
-        <tr><td>ERM on BitFit-6 &mdash; the accuracy leader, 2 seeds</td>
-          <td>{lk('bit_erm','nt','H->O')}</td><td>{lk('bit_erm','nt','O->P')}</td>
-          <td>{lk('bit_erm','nn','H->O')}</td><td>{lk('bit_erm','nn','O->P')}</td>
-          <td class="hi">{lkdev('bit_erm')}</td><td class="hi">{lkres('bit_erm')}</td></tr>
-        <tr><td>DERM, environments = the 3 <b>phases</b>, 2 seeds</td>
-          <td>{lk('derm','nt','H->O')}</td><td>{lk('derm','nt','O->P')}</td>
-          <td>{lk('derm','nn','H->O')}</td><td>{lk('derm','nn','O->P')}</td>
-          <td class="lo">{lkdev('derm')}</td><td class="lo">{lkres('derm')}</td></tr>
-        <tr><td>DERM, environments = the 6 <b>phase &times; exposure cells</b>, 1 seed</td>
-          <td>{lk('cond','nt','H->O')}</td><td>{lk('cond','nt','O->P')}</td>
-          <td>{lk('cond','nn','H->O')}</td><td>{lk('cond','nn','O->P')}</td>
-          <td class="lo">{lkdev('cond')}</td><td class="lo">{lkres('cond')}</td></tr>
+        <tr><td>nose-to-tail &middot; <b>ERM</b></td><td class="lo">{eb('nt','ERM')}</td>
+          <td>{eb('nt','ERM','ci')}</td><td class="lo">{eb('nt','ERM','share')} its size</td>
+          <td rowspan="3">{dY('nt')} pooled<br>
+            <span style="opacity:.65">fear {dY('nt','fear')}, social {dY('nt','social')}</span></td></tr>
+        <tr><td>nose-to-tail &middot; <b>DERM</b>, phases</td><td>{eb('nt','DERM')}</td>
+          <td>{eb('nt','DERM','ci')}</td><td>{eb('nt','DERM','share')}</td></tr>
+        <tr><td>nose-to-tail &middot; DERM, 6 cells</td><td>{eb('nt','DERM-cells')}</td>
+          <td>{eb('nt','DERM-cells','ci')}</td><td>{eb('nt','DERM-cells','share')}</td></tr>
+        <tr><td>nose-to-nose &middot; <b>ERM</b></td><td>{eb('nn','ERM')}</td>
+          <td>{eb('nn','ERM','ci')}</td><td>{eb('nn','ERM','share')}</td>
+          <td rowspan="3">{dY('nn')} pooled<br>
+            <span style="opacity:.65">fear {dY('nn','fear')}, social {dY('nn','social')}</span></td></tr>
+        <tr><td>nose-to-nose &middot; <b>DERM</b>, phases</td><td>{eb('nn','DERM')}</td>
+          <td>{eb('nn','DERM','ci')}</td><td>{eb('nn','DERM','share')}</td></tr>
+        <tr><td>nose-to-nose &middot; DERM, 6 cells</td><td>{eb('nn','DERM-cells')}</td>
+          <td>{eb('nn','DERM-cells','ci')}</td><td>{eb('nn','DERM-cells','share')}</td></tr>
       </tbody></table></div>
+    <p><b>On nose-to-tail everything points the way the mechanism predicts.</b> ERM's bias is
+    <b>{eb('nt','ERM')}</b> against a pooled true effect of {dY('nt')} &mdash;
+    {eb('nt','ERM','share')} the size of the thing being estimated, and of the opposite sign. DERM's
+    is {eb('nt','DERM')}, {eb('nt','DERM','share')}. Both positive with DERM nearer zero, which is
+    correction rather than overshoot. On nose-to-nose there is nothing to see: ERM reads
+    {eb('nn','ERM')} and the sign flips between seeds under both objectives.</p>
+    <div class="note warnbox"><b>And none of it resolves.</b> The intervals are
+    {eb('nt','ERM','ci')} and {eb('nt','DERM','ci')}; the paired ERM-minus-DERM difference is
+    {ebp('nt','diff')} at p&nbsp;=&nbsp;{ebp('nt','p')} on nose-to-tail and
+    {ebp('nn','diff')} at p&nbsp;=&nbsp;{ebp('nn','p')} on nose-to-nose, shrinking in
+    {ebp('nt','shrunk_units')} and {ebp('nn','shrunk_units')} of {ebp('nt','n_units')} units. <b>Four
+    validation pools cannot answer this question</b> &mdash; and note what does <em>not</em> shrink:
+    the per-unit <em>scatter</em> is flat ({eb('nt','ERM','mean_abs')} against
+    {eb('nt','DERM','mean_abs')} in mean absolute terms), which is expected, because DERM applies one
+    shift per environment and can only move a mean. This section reports a mechanism, a measured
+    opportunity for it, and a point estimate in the predicted direction. It does not report an
+    effect.</div>
 
-    <div class="note"><b>The shortcut is not open, and that is the useful result on this page.</b>
-    Under ERM the model's output carries essentially no phase information at fixed truth &mdash;
-    mean deviation <b>{lkdev('erm')}</b> AUC, and <b>not one</b> of the four cells has an interval
-    excluding 0.5 (nt&nbsp;H&rarr;O {lkci('erm','nt','H->O')}, nn&nbsp;H&rarr;O
-    {lkci('erm','nn','H->O')}). The same holds for the accuracy leader, BitFit-6 at macro AP
-    {run('res448_k2_bit6_d4')['ap']:.3f}: {lkdev('bit_erm')}, {lkres('bit_erm')} of 4. So
-    <math><mrow><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo>
-    <msub><mi>a</mi><mi>H</mi></msub></mrow></math> was already near zero and DERM had nothing to
-    remove. Section 04 used to <em>infer</em> that from a null on AP; this measures it. It is also
-    the first direct evidence that PPCI's uncalibrated plug-in is not being driven by a
-    treatment-linked model artefact &mdash; the load-bearing assumption behind every v2 number on
-    this page.</div>
-
-    <div class="note warnbox"><b>DERM installs a leak of its own, pointing where its own weights
-    point.</b> DERM's weights are
+    <div class="note"><b>What was wrong here before, and it mattered.</b> The previous version
+    measured this leak as an <em>AUC</em> separating two phases from the model's output at fixed
+    ground truth, read the ERM value of about 0.5 as &ldquo;the shortcut is not open&rdquo;, and
+    concluded DERM had nothing to remove. Three errors.
+    <br><br>&#8203;<b>1.</b> An AUC weights the whole output distribution, but the estimand is a
+    <em>count of threshold crossings</em> at &tau;&nbsp;&asymp;&nbsp;0.90&ndash;0.98. It lives
+    entirely in the far upper tail, and a tail shift large enough to move bout counts barely moves
+    an AUC.
+    <br>&#8203;<b>2.</b> Frames at fixed truth are not exchangeable across phases &mdash; the quiet
+    stretches of O are not the quiet stretches of H. So 0.5 is not the no-shortcut baseline, and a
+    deviation from it cannot be read in either direction.
+    <br>&#8203;<b>3.</b> DERM deflates the high-prevalence environment <em>by construction</em>: its
+    weights are
     <math><mrow><mi>w</mi><mo>(</mo><mi>Y</mi><mo>=</mo><mn>1</mn><mo>,</mo><mi>e</mi><mo>)</mo>
     <mo>=</mo><mo>(</mo><mn>1</mn><mo>&#x2212;</mo><msub><mi>p</mi><mi>e</mi></msub><mo>)</mo>
     <mo>/</mo><mi>P</mi><mo>(</mo><mi>e</mi><mo>)</mo></mrow></math> and
     <math><mrow><mi>w</mi><mo>(</mo><mi>Y</mi><mo>=</mo><mn>0</mn><mo>,</mo><mi>e</mi><mo>)</mo>
     <mo>=</mo><msub><mi>p</mi><mi>e</mi></msub><mo>/</mo><mi>P</mi><mo>(</mo><mi>e</mi>
-    <mo>)</mo></mrow></math>. The <math><mrow><mn>1</mn><mo>/</mo><mi>P</mi><mo>(</mo><mi>e</mi>
-    <mo>)</mo></mrow></math> cancels in the ratio, so the entire effect on an environment's
-    operating point is a shift by that environment's <em>prior odds</em>:
-    <div class="eqn"><math display="block"><mrow>
-      <mfrac><mrow><mi>w</mi><mo>(</mo><mi>Y</mi><mo>=</mo><mn>0</mn><mo>,</mo><mi>e</mi>
-        <mo>)</mo></mrow>
-        <mrow><mi>w</mi><mo>(</mo><mi>Y</mi><mo>=</mo><mn>1</mn><mo>,</mo><mi>e</mi>
-        <mo>)</mo></mrow></mfrac>
-      <mo>=</mo>
-      <mfrac><msub><mi>p</mi><mi>e</mi></msub>
-        <mrow><mn>1</mn><mo>&#x2212;</mo><msub><mi>p</mi><mi>e</mi></msub></mrow></mfrac>
-    </mrow></math></div>
-    A <em>high</em>-prevalence environment has its negatives upweighted, so it is pushed toward
-    predicting negative. That is the intended deconfounding &mdash; divide the prior out. But here
-    the environments <em>are</em> the phases, so the shift DERM installs is itself a function of the
-    treatment. The prediction that follows: &Delta;AUC (DERM minus ERM) should run <em>opposite</em>
-    to the log odds ratio between the two phases, computed on the training pools. Measured:
-    <b>r = {_rp}</b> over the four phase cells (p = {_pp}), <b>r = {_rc}</b> over the eight
-    phase&nbsp;&times;&nbsp;exposure cells (p = {_pc}). The two cells carrying a real prediction &mdash; nt and nn under
-    fear at H&rarr;O, log odds ratio +1.29 and +0.90 &mdash; both agree; the cells that disagree are
-    the ones where the predicted shift is about zero.</div>
+    <mo>)</mo></mrow></math>, whose ratio is the prior odds
+    <math><mrow><msub><mi>p</mi><mi>e</mi></msub><mo>/</mo><mo>(</mo><mn>1</mn><mo>&#x2212;</mo>
+    <msub><mi>p</mi><mi>e</mi></msub><mo>)</mo></mrow></math> &mdash; exactly the prior a prevalence
+    shortcut exploits. So DERM moving O downward relative to ERM is <em>the correction working</em>.
+    Calling it &ldquo;DERM installs its own bias&rdquo; had the sign of the argument backwards.</div>
 
-    <p><b>So when is DERM favourable? One property of the environment decides it.</b> DERM's
-    correction is a per-environment shift of the decision logit. Whether that shift reaches the
-    estimand depends only on whether the environment varies <em>within</em> a pool &mdash; measured
-    on the 24 annotated pools, not assumed:</p>
+    <p><b>Two things would settle it, and the first needs no GPU at all.</b></p>
     <div class="scroll"><table>
-      <thead><tr><th>environments</th><th>constant within a pool</th><th>what its shift does to a within-pool contrast</th></tr></thead>
+      <thead><tr><th></th><th>what</th><th>why it is the stronger move</th></tr></thead>
       <tbody>
-        <tr><td><b>phase</b>, <b>phase &times; exposure</b> &mdash; what was run</td>
-          <td class="lo">{D['pool_constant']['phase']['constant_pools']} of {D['pool_constant']['phase']['n_pools']}</td>
-          <td class="lo">differs between the two sides of the contrast, so it lands in the estimand.
-          <b>Guaranteed to bias.</b></td></tr>
-        <tr><td>line, sex, genotype, cage</td>
-          <td class="hi">{D['pool_constant']['genotype']['constant_pools']} of {D['pool_constant']['genotype']['n_pools']}</td>
-          <td class="hi">identical on both sides, so it cancels exactly. <b>Free</b> &mdash; but it
-          targets a nuisance, not the treatment.</td></tr>
-        <tr><td>annotator</td>
-          <td>{D['pool_constant']['annotator']['constant_pools']} of {D['pool_constant']['annotator']['n_pools']}</td>
-          <td>cancels for those, and annotator is exactly balanced across H / O / P overall</td></tr>
+        <tr><td>1</td><td><b>mask the bag's corner at the input</b></td>
+          <td>removes the cue rather than asking the model to unlearn it, costs nothing at
+          inference, and is <em>verifiable without training</em>: blanking the {bag_quadrant}
+          {mask('bottom_left_0.25')[1]} of the frame drops the treatment probe from
+          {mask('unmasked')[0] if isinstance(_P['mask']['unmasked'], str) else f"{_P['mask']['unmasked']:.3f}"}
+          to {mask('bottom_left_0.25')[0]}</td></tr>
+        <tr><td>2</td><td>cross-fit the matched pair &mdash; DERM-on-phases and its ERM control
+          &mdash; over the three deployment folds</td>
+          <td>measures a<sub>O</sub>&minus;a<sub>H</sub> on <b>24 pools instead of 4</b>, cutting the
+          standard error about 2.4&times;, which is what it takes to resolve
+          {eb('nt','ERM')} from zero. It is also the only way to get real PPI++ intervals and PPCI
+          point estimates under both objectives, with CI as ground truth</td></tr>
       </tbody></table></div>
-    <p><b>That leaves no configuration that protects the estimand against a treatment-linked
-    leak.</b> Phase environments target it but write their own version of it into the answer, and
-    the estimand cannot tell the two apart &mdash; so a partial success is not a partial
-    improvement, and you come out ahead only when the leak you remove is larger than the leak you
-    install ({lkdev('erm')} against {lkdev('derm')} here). Pool-level environments are free but aim
-    at something else. What actually removes
-    <math><mrow><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo>
-    <msub><mi>a</mi><mi>H</mi></msub></mrow></math>, whatever it is, is PPI++'s rectifier &mdash;
-    which is why v1 is safe, and why v2, having no rectifier, needs annotation rather than a
-    different objective.</p>
+    <div class="note"><b>Why masking does not reach chance, and why that is right.</b> The residual
+    after blanking the corner is {mask('bottom_left_0.25')[0]}, not 0.500 &mdash; and the centre of
+    the frame alone already reads {rg('centre')}. The bag does not only sit in the cage; it changes
+    <em>where the animals are</em>. That is real behaviour and it must not be removed. Masking takes
+    out the non-behavioural cue and leaves the behavioural one, which is exactly the split you want.
+    <b>D4 augmentation is not a substitute</b>: it randomises which corner the bag appears in, so the
+    model cannot use its <em>position</em> &mdash; but presence anywhere on the border still reads
+    {rg('border')}, and presence is all it needs.</div>
 
-    <div class="note"><b>The other channel, and it is null too.</b> PPI++ is unbiased for any
-    predictor, so a treatment-linked bias costs it variance rather than validity. The one thing that
-    <em>can</em> break its validity here is that the 24 labelled pools are not a random sample
-    &mdash; annotation is 3:1 het-enriched &mdash; so the rectifier measured on them has to
-    transport to 48 wt-enriched pools. That needs the model's bias not to depend on genotype. On all
-    24 annotated pools, with out-of-fold predictions:
-    <div class="scroll" style="margin-top:11px"><table>
-      <thead><tr><th>share of the model's bias explained by</th><th>at the LEVEL &mdash; nt / nn</th>
-        <th>in the WITHIN-POOL DIFFERENCE &mdash; nt / nn</th></tr></thead>
-      <tbody>
-        <tr><td><b>genotype</b></td>
-          <td class="hi">{nui('nt','genotype','level')} / {nui('nn','genotype','level')}</td>
-          <td class="hi">{nui('nt','genotype','delta')} / {nui('nn','genotype','delta')}</td></tr>
-        <tr><td>annotator</td>
-          <td class="lo">{nui('nt','annotator','level')} / {nui('nn','annotator','level')}</td>
-          <td>{nui('nt','annotator','delta')} / {nui('nn','annotator','delta')}</td></tr>
-        <tr><td>line</td>
-          <td class="lo">{nui('nt','line','level')} / {nui('nn','line','level')}</td>
-          <td>{nui('nt','line','delta')} / {nui('nn','line','delta')}</td></tr>
-      </tbody></table></div>
-    <b>The model's bias is nuisance-linked at the level and cancels in the difference</b>, and
-    genotype explains essentially none of it at either. Same cancellation the annotator effect shows
-    on label noise in section 05 and the three wild-type strata show in section 01. So PPI++ on v1 is
-    not exposed on this route either.</div>
+    <p><b>The one structural constraint, restated correctly.</b> DERM's correction is a
+    per-environment shift of the decision logit, so it reaches a within-pool contrast only when the
+    environment varies within a pool. Measured on the 24 annotated pools: phase constant in
+    {D['pool_constant']['phase']['constant_pools']} of {D['pool_constant']['phase']['n_pools']},
+    annotator in {D['pool_constant']['annotator']['constant_pools']}, line, sex and genotype in
+    {D['pool_constant']['genotype']['constant_pools']}. So <code>--env-key phase</code> is the
+    <em>only</em> setting that can reach this shortcut &mdash; and therefore also the only one that
+    could overshoot it, which is why it has to be validated on the estimand and not on AP.
+    <code>--env-key annotator</code> cancels in every within-pool difference: free, and no
+    substitute.</p>
 
     <p><b>The arms, as run.</b> Same head, augmentation, split and schedule as their controls; only
     the objective differs. vREx changes the loss (a penalty on risk spread across environments);
@@ -951,24 +1021,29 @@ BODY = f'''
           <td>{rr2('res448_k2_frozen_d4photo_vrexAnn_b100','nt')}</td>
           <td class="lo">{rr2('res448_k2_frozen_d4photo_vrexAnn_b100','nn')}</td></tr>
       </tbody></table></div>
-    <p>On AP, DERM averages 0.398 with phase environments against 0.418 unweighted &mdash; about
-    &minus;0.02, inside the seed band on one reading and just outside it on another &mdash; and
-    0.386 on the finer cells. vREx's best arm is +0.008 and its worst is &minus;0.094. On
-    r&Delta;&nbsp;nn, the stable axis, DERM and its control are identical: 0.786 against 0.788.</p>
-    <div class="note warnbox"><b>And r&Delta;&nbsp;nt cannot arbitrate any of this &mdash; the
-    control proves it.</b> Two runs of the <em>unweighted</em> control differing only in seed give
-    r&Delta;&nbsp;nt of <b>{rr2('res448_k2_frozen_d4photo_ermH5M','nt')}</b> and
-    <b>{rr2('res448_k2_frozen_d4photo_ermH5M_s1','nt')}</b>. A spread of 0.67 between two runs of
-    the same configuration is larger than the entire range across every arm in this section, so on
-    the standing 4-pool split this metric measures the seed, not the method. That is why the leak
-    above is measured instead, and why nothing in section 05 is chosen on r&Delta;&nbsp;nt.</div>
-    <div class="note"><b>What would change the answer, and a screening rule.</b> The leak rests on
-    four validation pools and the two correlations above carry p &asymp; 0.12&ndash;0.15: this is a
-    direction with a mechanism behind it, not an effect size. The conclusion that generalises is a
-    <b>screening rule</b> &mdash; measure the leak first, and run DERM only where it resolves. On
-    that rule the two DERM-on-BitFit-6 arms now training are predicted <em>not</em> to help, because
-    BitFit-6's own leak is {lkdev('bit_erm')} and {lkres('bit_erm')} of 4 cells resolve. That
-    prediction is falsifiable as soon as they land.</div>
+    <div class="note"><b>The other channel, and it is genuinely null.</b> PPI++ is unbiased for any
+    predictor, so a treatment-linked bias costs it variance rather than validity. What
+    <em>can</em> break its validity is that the 24 labelled pools are not a random sample &mdash;
+    annotation is 3:1 het-enriched &mdash; so the rectifier has to transport to 48 wt-enriched pools.
+    That needs the model's bias not to depend on genotype. On all 24 annotated pools, out-of-fold:
+    <div class="scroll" style="margin-top:11px"><table>
+      <thead><tr><th>share of the model's bias explained by</th><th>at the LEVEL &mdash; nt / nn</th>
+        <th>in the WITHIN-POOL DIFFERENCE &mdash; nt / nn</th></tr></thead>
+      <tbody>
+        <tr><td><b>genotype</b></td>
+          <td class="hi">{nui('nt','genotype','level')} / {nui('nn','genotype','level')}</td>
+          <td class="hi">{nui('nt','genotype','delta')} / {nui('nn','genotype','delta')}</td></tr>
+        <tr><td>annotator</td>
+          <td class="lo">{nui('nt','annotator','level')} / {nui('nn','annotator','level')}</td>
+          <td>{nui('nt','annotator','delta')} / {nui('nn','annotator','delta')}</td></tr>
+        <tr><td>line</td>
+          <td class="lo">{nui('nt','line','level')} / {nui('nn','line','level')}</td>
+          <td>{nui('nt','line','delta')} / {nui('nn','line','delta')}</td></tr>
+      </tbody></table></div>
+    Nuisance-linked at the level, cancelling in the difference, and genotype explains essentially
+    none of it at either &mdash; the same cancellation label noise shows in section 05 and the three
+    wild-type strata show in section 01. So the het-enrichment does not reach PPI++ through the
+    model, and this is the one place a DERM arm on a pool-level environment could have helped.</div>
   </div>
 
 </div></section>
@@ -1051,10 +1126,11 @@ BODY = f'''
   so these must never be read as behaviour rates directly. For PPI++ that costs nothing, because
   &lambda; absorbs the scale. <b>For PPCI it is the whole caveat</b>: PPCI reports this scale rather
   than the behaviour's, which is why it is drawn hollow in the effects figure and why nothing on
-  this page reads a PPCI magnitude as a rate. What a fivefold offset does <em>not</em> do is bias
-  the contrast, and that is not an assumption here but a measurement: an offset only survives a
-  within-pool difference if it moves with the phase, and section 04.6 puts that at
-  {lkdev('erm')} AUC with {lkres('erm')} of four cells resolved.</p>
+  this page reads a PPCI magnitude as a rate. A fivefold offset that is the <em>same</em> in every
+  phase would still cancel in a within-pool difference; what would not cancel is the part that moves
+  with the phase, and section 04.6 measures that part at {eb('nt','ERM')} bouts/min on nose-to-tail
+  &mdash; {eb('nt','ERM','share')} the pooled true effect, on an interval too wide to resolve. It is
+  the largest open threat to PPCI on this page.</p>
 </div>
 
 <div class="measure">
@@ -1189,7 +1265,7 @@ BODY = f'''
       <tr><td>1</td><td>annotate ~20 more v1 pools</td><td>+0.076 AP per doubling and no plateau &mdash; worth more than every modelling change combined, and it raises CI's own precision rather than only PPI++'s</td></tr>
       <tr><td>2</td><td>annotate 4&ndash;6 v2 pools</td><td>the only way v2 gets a CI or a PPI++ estimate at all; today it has PPCI and nothing to check it against</td></tr>
       <tr><td>3</td><td>fix the observation window on biological grounds</td><td>largest single lever on the headline number; currently inherited, not chosen</td></tr>
-      <tr><td>4</td><td>screen the phase leak before running any more DERM</td><td>the matched ERM controls landed and the leak is now measured directly: {lkdev('erm')} AUC, {lkres('erm')} of 4 cells resolved, so there is no treatment-linked shortcut on this model to close. Run DERM only where the leak resolves &mdash; and never with the treatment as the environment, which writes its own shift into the estimand</td></tr>
+      <tr><td>4</td><td class="hi">mask the bag's corner, and cross-fit the DERM / ERM pair</td><td class="hi">the treatment is readable from a quiet frame at {pb('O_vs_rest')} balanced accuracy, so the shortcut is available and ERM has no term against it. Masking removes the cue at the input and is verifiable without training; cross-fitting the pair over the three folds measures a<sub>O</sub>&minus;a<sub>H</sub> on 24 pools instead of 4, which is what it takes to resolve {eb('nt','ERM')} from zero. Today it is {eb('nt','ERM','share')} the pooled true effect with an interval spanning zero</td></tr>
       <tr><td>5</td><td>run BitFit-6 over the three folds and the unannotated pools</td><td class="hi">launched &mdash; ~18 GPU-h to move every estimate onto the configuration that leads on accuracy (macro AP 0.541 against the deployed 0.382)</td></tr>
       <tr><td>6</td><td>per-animal crops from the 2060 px source</td><td>the only resolution lever left, and a prerequisite for any per-animal outcome</td></tr>
       <tr><td>7</td><td>record which animal in each v2 cage is the heterozygote</td><td>without it the within-pool genotype contrast is not identified no matter how good the vision gets</td></tr>
@@ -1198,10 +1274,9 @@ BODY = f'''
   <div class="note warnbox"><b>Closed.</b> Scaling the SSL corpus (2&times; the frames at matched
   compute is neutral; six adapted blocks is harmful). vREx (four arms, two environment definitions,
   best +0.008). Head capacity (five heads across an 11&times; parameter range, whole span inside the
-  seed band). And <b>DERM against the treatment</b> &mdash; not on a null but on a mechanism: its
-  correction is a per-environment shift of the decision logit, so with the phases as environments it
-  necessarily lands in a within-phase contrast, and measured it does. Everything else above is
-  open.</div>
+  seed band). <b>DERM is NOT closed</b> &mdash; see 04.6: the shortcut it targets is measurably
+  available, ERM has no term against it, and four validation pools cannot say whether it is being
+  used. Everything else above is open.</div>
 </div></section>
 
 <div class="measure"><footer>
