@@ -108,6 +108,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from event_eval import runs, postprocess                                    # noqa: E402
+from build_estimates import labelled_truth                                 # noqa: E402
 
 FRAME = ROOT / 'results' / 'vision' / 'mice' / 'frame'
 OUT = FRAME / '_figures'
@@ -567,6 +568,98 @@ def nuisance_bias(exp_full: pd.DataFrame) -> dict:
     return out
 
 
+
+# ------------------------------------------------------ the exposure-split (odour) experiment
+# `xfit_odour.sh` trains on one exposure session and leaves the other as the test session, holding
+# the cage, the animals, the annotator and the lighting fixed. The test session is NOT in the run's
+# val_probs.npz -- that holds the monitor set, which stays inside the TRAINING exposure so early
+# stopping never touches the test -- so it comes from the dense pass instead.
+#
+# WHAT MAKES THIS A TEST RATHER THAN A MEASUREMENT. The two exposures carry opposite true effects on
+# nose-to-tail (H->O is +0.18 bouts/min under fear, -0.31 under social). A model that has learnt its
+# training session's phase prior imports that session's prevalence gap into the test session, so
+#
+#     bias on test T  ~  (gap in training session S) - (gap in T)
+#
+# which FLIPS SIGN when the direction flips. A plain generalisation gap -- the model simply being
+# worse on an exposure it never saw -- cannot produce a sign flip tied to which session trained.
+# So the reported quantity is the PAIR of biases, one per direction, and the prediction is
+# ERM: opposite signs, large; DERM: both nearer zero.
+#
+# NOT a deployment estimate: the model has seen every test pool, so its bias there is a LOWER BOUND
+# on what PPCI suffers on the 48 unannotated pools. And PPI++ cannot use it at all -- the rectifier
+# would sit on pools the model trained on.
+ODOUR_ARMS = {'trF_erm': ('odour_trF_erm', 'F'), 'trF_derm': ('odour_trF_derm', 'F'),
+              'trS_erm': ('odour_trS_erm', 'S'), 'trS_derm': ('odour_trS_derm', 'S')}
+
+
+def odour_split(exp_full: pd.DataFrame) -> dict:
+    """a_O - a_H on the HELD-OUT exposure, per pool, for each arm. Empty until the runs land."""
+    out = {'note': 'mechanism split: the model has seen every test pool, so this is a LOWER bound '
+                   'on the deployment bias, and PPI++ cannot use it',
+           'arms': {}, 'landed': [], 'absent': []}
+    for key, (tag, train_od) in ODOUR_ARMS.items():
+        csv = FRAME / tag / 'pred_dense_v1.csv'
+        npz = FRAME / tag / 'pred_dense_v1.npz'
+        if not csv.exists():
+            out['absent'].append(tag)
+            continue
+        out['landed'].append(tag)
+        test_od = 'S' if train_od == 'F' else 'F'
+        d = pd.read_csv(csv)
+        # bout counts at the threshold nearest the one the rest of the report uses
+        rec = d[['observation_id', 'pool', 'phase', 'odor']].copy()
+        for lab in LABELS:
+            cands = [c for c in d.columns if c.startswith(f'p_{lab}_t')]
+            if not cands:
+                continue
+            col = min(cands, key=lambda c: abs(float(c.split('_t')[1]) - 0.90))
+            rec[f'f_{lab}'] = d[col]
+        tr = labelled_truth()
+        m = rec.merge(tr, on='observation_id', how='inner')
+        m = m[m.odor == test_od]
+        arm = {'tag': tag, 'train_odour': train_od, 'test_odour': test_od,
+               'n_obs': int(len(m)), 'n_pools': int(m.pool.nunique()), 'behav': {}}
+        for lab in LABELS:
+            if f'f_{lab}' not in m.columns:
+                continue
+            rows = []
+            for pool, g in m.groupby('pool'):
+                q = g.drop_duplicates('phase').set_index('phase')
+                if not {'H', 'O'} <= set(q.index):
+                    continue
+                rows.append({
+                    'bias': (q.loc['O', f'f_{lab}'] - q.loc['O', f't_events_{lab}'])
+                            - (q.loc['H', f'f_{lab}'] - q.loc['H', f't_events_{lab}']),
+                    'dY': q.loc['O', f't_events_{lab}'] - q.loc['H', f't_events_{lab}'],
+                    'dF': q.loc['O', f'f_{lab}'] - q.loc['H', f'f_{lab}']})
+            if len(rows) < 3:
+                continue
+            r = pd.DataFrame(rows)
+            v = r.bias.to_numpy()
+            se = v.std(ddof=1) / np.sqrt(len(v))
+            qt = float(stats.t.ppf(0.975, len(v) - 1))
+            arm['behav'][lab] = {
+                'n_pools': len(v), 'mean': round(float(v.mean()), 4),
+                'lo': round(float(v.mean() - qt * se), 4),
+                'hi': round(float(v.mean() + qt * se), 4),
+                'true_dY': round(float(r.dY.mean()), 4),
+                'pred_dF': round(float(r.dF.mean()), 4),
+                'r_delta': (round(float(np.corrcoef(r.dY, r.dF)[0, 1]), 4)
+                            if r.dY.std() > 0 and r.dF.std() > 0 else None)}
+        out['arms'][key] = arm
+    # the sign test: ERM's bias should reverse between directions, DERM's should sit nearer zero
+    for obj in ('erm', 'derm'):
+        a, b = out['arms'].get(f'trF_{obj}'), out['arms'].get(f'trS_{obj}')
+        if not (a and b):
+            continue
+        out.setdefault('sign_test', {})[obj] = {
+            lab: {'train_fear': a['behav'][lab]['mean'], 'train_social': b['behav'][lab]['mean'],
+                  'reverses': bool(a['behav'][lab]['mean'] * b['behav'][lab]['mean'] < 0)}
+            for lab in LABELS if lab in a['behav'] and lab in b['behav']}
+    return out
+
+
 def main():
     exp = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')[
         ['observation_id', 'pool', 'phase', 'odor']]
@@ -758,6 +851,22 @@ def main():
             fmt = lambda x: 'n/a' if x is None else f"eta2 {x['eta2']:.1%} (p {x['p']:.3f})"
             print(f"  {l} ~ {f:10s}  LEVEL {fmt(a):24s}  DELTA(H->O) {fmt(b)}")
 
+    # ---- the exposure-split experiment, once its dense passes land --------------------------
+    od = odour_split(exp_full)
+    if od['absent']:
+        print(f"\nexposure split: not landed yet -- {', '.join(od['absent'])}")
+    for key, arm in od['arms'].items():
+        print(f"\nexposure split {key}: trained on {arm['train_odour']}, tested on "
+              f"{arm['test_odour']} ({arm['n_obs']} obs, {arm['n_pools']} pools)")
+        for lab, r in arm['behav'].items():
+            print(f"    {lab}  a_O-a_H {r['mean']:+.3f}  95% CI [{r['lo']:+.3f}, {r['hi']:+.3f}]"
+                  f"  over {r['n_pools']} pools   true D_Y {r['true_dY']:+.3f}  "
+                  f"pred D_f {r['pred_dF']:+.3f}  rd {r['r_delta']}")
+    for obj, d in od.get('sign_test', {}).items():
+        for lab, r in d.items():
+            print(f"  SIGN TEST {obj} {lab}: train-fear {r['train_fear']:+.3f} vs train-social "
+                  f"{r['train_social']:+.3f}  -> {'REVERSES' if r['reverses'] else 'same sign'}")
+
     # ---- the PPI++ bound, for the report's box ----------------------------------------------
     n, N = 24, 48
     grid = [{'r': round(r, 2), 'ratio': round(float(np.sqrt(1 - r ** 2 * N / (n + N))), 4)}
@@ -776,7 +885,8 @@ def main():
                                 'move it. 95% interval bootstrapped over the 4 validation pools.'},
                'prevalence': prev, 'leak': leak, 'summary_phase': summ_phase,
                'summary_cond': summ_cond, 'corr': corrs, 'estimand': est, 'ppi_bound': bound,
-               'pool_constant': pc, 'nuisance': nb, 'probe': probe, 'estimand_bias': eb}
+               'pool_constant': pc, 'nuisance': nb, 'probe': probe, 'estimand_bias': eb,
+               'odour_split': od}
     OUT.mkdir(parents=True, exist_ok=True)
     json.dump(payload, open(OUT / 'derm.json', 'w'), indent=1)
     print(f"\nwrote {OUT / 'derm.json'}  ({len(present)} arms, {len(leak)} leak AUCs)")
