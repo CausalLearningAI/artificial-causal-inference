@@ -39,6 +39,15 @@ def rr(tag):
     return f"{r['rd_nt']:.3f} / {r['rd_nn']:.3f}"
 
 
+
+def lvl(behav, odour, trans='H->O', method='ci'):
+    """One LEVEL estimate (bouts/min) from estimates.json, with a proper minus sign."""
+    c = next(c for c in E['cells'] if c['exp'] == 'v1' and c['unit'] == 'events'
+             and c['stratum'] == 'all' and c['behav'] == behav and c['odour'] == odour
+             and c['trans'] == trans and c['method'] == method)
+    return f"{c['est']:+.2f}".replace('-', '&minus;')
+
+
 def ddecay(behav, odour, trans, method='ci'):
     """One Delta-decay cell as a full <td>, with the star AND the highlight computed.
 
@@ -262,8 +271,7 @@ BODY = f'''
         annotated frames</td><td>the run is defined at 5&nbsp;fps, so a real bout split by a
         two-frame gap becomes two</td></tr>
       <tr><td>over what WINDOW</td><td>the <b>first 15 minutes</b> of every phase</td>
-        <td>H runs 30 minutes, so half of it is discarded &mdash; 02b. The estimate grid is still
-        cut on the full window, and re-cutting it is the first unblocked item in section 06</td></tr>
+        <td>H runs 30 minutes, so half of it is discarded &mdash; 02b</td></tr>
       <tr><td>what you MEASURE</td>
         <td><b>a level</b> &mdash; how often a bout starts<br>
             <b>a timing</b> &mdash; when in the phase bouts start</td>
@@ -343,8 +351,10 @@ BODY = f'''
   puts it on both sides of every contrast, where it cancels. Two readings follow from the table:
   <b>nose-to-nose under fear</b> holds its sign under all three windows (+0.45 matched), so it is the
   H&rarr;O number to quote, while <b>nose-to-nose under social</b> runs +0.47 to &minus;0.03 and
-  changes sign, so it is not reportable as it stands. The figure above is still cut on the full
-  window; re-cutting it is the first unblocked item in section 06.</div>
+  changes sign, so its full-window value was mostly the H mean
+  being pulled down by fifteen extra minutes of decay that O never gets. <b>Every estimate in this
+  report is now cut on the matched window</b>, so &ldquo;first 15&rdquo; is the column the figures
+  and tables report and the other two are the sensitivity around it.</div>
 
   <div class="bound">
     <p class="t">the metric &middot; decay</p>
@@ -392,9 +402,11 @@ BODY = f'''
   <div class="figwrap">{CHART}</div>
 <div class="measure">
   <p><b>The level: the two exposures act differently, and one acts in opposite directions on the two
-  behaviours.</b> Nose-to-nose rises on exposure under both (+0.65 fear, +0.47 social) and falls when
-  it is withdrawn. Nose-to-tail rises under fear (+0.35) and <em>falls</em> under social
-  (&minus;0.36). Each exposure is reported separately throughout, never pooled.</p>
+  behaviours.</b> Turning the odour on, nose-to-nose rises under fear ({lvl('nn','fear')}) and is
+  flat under social ({lvl('nn','social')}), while nose-to-tail rises under fear
+  ({lvl('nt','fear')}) and <em>falls</em> under social ({lvl('nt','social')}). Withdrawing it
+  reverses nose-to-nose under both ({lvl('nn','fear','O->P')} and {lvl('nn','social','O->P')}).
+  Each exposure is reported separately throughout, never pooled.</p>
   <p><b>The timing: every sign is positive turning the odour on and negative turning it off.</b>
   Bouts start <b>1.0&ndash;2.2 minutes later</b> into the phase once the odour is on, and up to 3.3
   minutes earlier once it is withdrawn &mdash; the exposure flattens the habituation curve and
@@ -1039,8 +1051,10 @@ BODY = f'''
       <tr><td>v1 unlabelled</td><td>48</td><td>288</td><td>3.9&ndash;10.1%</td><td>5.5&ndash;8.5%</td><td>plausible</td></tr>
       <tr><td>v2 (target cohort)</td><td>36</td><td>216</td><td>5.8&ndash;11.4%</td><td>8.1&ndash;12.1%</td><td>plausible, shifted up</td></tr>
     </tbody></table></div>
-  <p>Ranges are over the six phase &times; exposure cells. Nothing collapses or saturates, and the
-  v2 detections show genuine contact. Predicted occupancy runs about <b>5&times; above truth</b>
+  <p>Ranges are over the six phase &times; exposure cells, and over the <em>whole</em> recording
+  rather than 02b's matched window &mdash; these describe the model's output, not an estimate, and
+  the estimates in section 03 are all windowed. Nothing collapses or saturates, and the v2
+  detections show genuine contact. Predicted occupancy runs about <b>5&times; above truth</b>
   throughout &mdash; part calibration offset, part the deliberate prior shift in training &mdash;
   so these must never be read as behaviour rates directly. For PPI++ that costs nothing, because
   &lambda; absorbs the scale. <b>For PPCI it is the whole caveat</b>: PPCI reports this scale rather
@@ -1076,54 +1090,44 @@ BODY = f'''
   value is within 0.5 pp of zero. So PPCI's sign and pattern are a property of the behaviour, not of
   the predictor, across a change that nearly halves the calibration error and adds 0.16 macro AP.
   Magnitudes do move &mdash; which is exactly why the report never quotes one.</p>
-  <div class="note"><b>Both predictors are out-of-sample on the same 52 pools</b> &mdash; the 48
-  unannotated ones plus the 4 the single model held out &mdash; because the single model trained on
-  the other 20. That is the largest set on which the comparison is a model comparison rather than a
-  comparison of samples. The single model is also better on the causal quantity (r&Delta;
-  {rr('res448_k2_bit6_d4')} against the deployment's {xf['rd_nt']:.3f} / {xf['rd_nn']:.3f}), so
-  nothing is being traded here.</div>
 </div></section>
 
 
 <section><div class="measure">
   <div class="sechead"><p class="eyebrow">06 &middot; Next</p><h2>What to do next</h2></div>
-  <p>In priority order. <span class="hi"><b>Green is already running</b></span> &mdash; those need
+  <p>In priority order. <span class="run"><b>Amber is already running</b></span> &mdash; those need
   no action, they need the queue.</p>
   <div class="scroll"><table>
     <thead><tr><th></th><th>action</th><th>status</th><th>what it changes</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td class="hi">cross-fit BitFit-6 and move every estimate onto it</td>
-        <td class="hi">running &mdash; 2 of 3 folds in</td>
-        <td class="hi">macro AP 0.50 and 0.55 against the deployed 0.382, so every number on the
+      <tr><td>1</td><td class="run">cross-fit BitFit-6 and move every estimate onto it</td>
+        <td class="run">running &mdash; 2 of 3 folds in</td>
+        <td class="run">macro AP 0.50 and 0.55 against the deployed 0.382, so every number on the
         page rests on a better model the moment fold 3 lands</td></tr>
-      <tr><td>2</td><td>re-cut the estimate grid on the matched 15-minute window</td>
-        <td>ready &mdash; compute only</td>
-        <td>02b chose the window; the grid is still cut on the full one. Largest single lever on
-        the headline number, and nose-to-nose under social changes sign between the two</td></tr>
-      <tr><td>3</td><td class="hi">cross-fit the DERM / ERM pair</td><td class="hi">running</td>
-        <td class="hi">resolves the largest open threat to PPCI: a<sub>O</sub>&minus;a<sub>H</sub>
+      <tr><td>2</td><td class="run">cross-fit the DERM / ERM pair</td><td class="run">running</td>
+        <td class="run">resolves the largest open threat to PPCI: a<sub>O</sub>&minus;a<sub>H</sub>
         is {eb('nt','ERM')} bouts/min on nose-to-tail, {eb('nt','ERM','share')} the pooled true
         effect and opposite in sign. On 4 pools it does not resolve; on 24 it should</td></tr>
-      <tr><td>4</td><td class="hi">the exposure-split PPCI test, both directions</td>
-        <td class="hi">running</td>
-        <td class="hi">trains on one exposure session and tests on the other, so the phase
+      <tr><td>3</td><td class="run">the exposure-split PPCI test, both directions</td>
+        <td class="run">running</td>
+        <td class="run">trains on one exposure session and tests on the other, so the phase
         shortcut shows as a bias that <em>reverses sign</em> when the direction reverses &mdash;
         which a plain generalisation gap cannot do</td></tr>
-      <tr><td>5</td><td>annotate ~20 more v1 pools</td><td>needs annotator time</td>
+      <tr><td>4</td><td>annotate ~20 more v1 pools</td><td>needs annotator time</td>
         <td>+0.076 AP per doubling and no plateau, worth more than every modelling change combined
         &mdash; and it raises CI's own precision, not only PPI++'s</td></tr>
-      <tr><td>6</td><td>annotate 4&ndash;6 v2 pools</td><td>needs annotator time</td>
+      <tr><td>5</td><td>annotate 4&ndash;6 v2 pools</td><td>needs annotator time</td>
         <td>the only way v2 gets a CI or a PPI++ estimate at all; today it has PPCI and nothing to
         check it against</td></tr>
-      <tr><td>7</td><td>double-annotate 15&ndash;20 observations, nose-to-tail first</td>
+      <tr><td>6</td><td>double-annotate 15&ndash;20 observations, nose-to-tail first</td>
         <td>needs annotator time</td>
         <td>the label ceiling is currently inferred from the design, not measured, and it is
         aliased with cage. Nose-to-tail is where it binds</td></tr>
-      <tr><td>8</td><td>record which animal in each v2 cage is the heterozygote</td>
+      <tr><td>7</td><td>record which animal in each v2 cage is the heterozygote</td>
         <td>lab metadata</td>
         <td>without it the within-pool genotype contrast &mdash; the programme's actual question
         &mdash; is not identified however good the vision gets</td></tr>
-      <tr><td>9</td><td>per-animal crops from the 2060 px source</td><td>engineering</td>
+      <tr><td>8</td><td>per-animal crops from the 2060 px source</td><td>engineering</td>
         <td>the only resolution lever left, and a prerequisite for any per-animal outcome</td></tr>
     </tbody></table></div>
 </div></section>

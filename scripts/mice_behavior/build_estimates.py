@@ -118,6 +118,27 @@ ALL_UNITS = ('events', 'time', 'decay')
 # worth having if late onsets were measurement error; here they are the phenomenon.
 WIN15 = int(15 * 60 * FPS)
 
+# THE OBSERVATION WINDOW, and it applies to every unit.
+# ====================================================
+# Section 02b's decision: match the first 15 minutes of EVERY phase. H is 9,000 frames (30 min at
+# 5 fps), O and P are 4,500 (15 min), so capping at WIN15 truncates H alone and leaves O and P
+# bit-for-bit identical -- which is why O->P is unaffected by the choice and only H->O moves.
+#
+# The reason is a confound, not tidiness: every phase is a separate recording the experimenter
+# starts by opening the cage, and the onset spike that follows is LARGEST in P, where the odour is
+# removed. A response peaking when the odour is taken away is handling, not odour, so matching
+# onset position puts it on both sides of every contrast, where it cancels.
+#
+# The grid used to be cut on the full recording while 02b said otherwise. It no longer is. `decay`
+# was always windowed (mean_onset caps at WIN15); events and time now are too, which is what makes
+# the three units describe the same stretch of tape.
+WINDOW = WIN15
+
+
+def in_window(frame_idx) -> np.ndarray:
+    """Boolean mask for the matched window. Frame indices are 0-based within an observation."""
+    return np.asarray(frame_idx) < WINDOW
+
 
 def mean_onset(starts) -> float:
     """Mean bout-onset minute inside the first 15 minutes. NaN, not 0, when there are none."""
@@ -135,6 +156,7 @@ def labelled_truth() -> pd.DataFrame:
     a = a.sort_values(['observation_id', 'frame_idx'])
     rows = []
     for oid, g in a.groupby('observation_id', sort=False):
+        g = g[in_window(g['frame_idx'].to_numpy())]          # 02b's matched window
         n = len(g); rec = {'observation_id': oid}
         fi = g['frame_idx'].to_numpy()
         for lab in LABELS:
@@ -191,6 +213,7 @@ def out_of_fold_predictions():
     rows = []
     for k in FOLDS:
         for oid, g in frames[k].groupby('obs', sort=False):
+            g = g.iloc[:WINDOW]                              # frames are stride 1, sorted by gi
             n = len(g); mins = n / FPS / 60
             rec = {'observation_id': oid, 'fold': k}
             for lab in LABELS:
@@ -224,26 +247,37 @@ def dense_predictions(version: str, mean_tau: dict):
             continue
         d = pd.read_csv(p)
         rec = d[['observation_id', 'pool', 'phase', 'odor', 'line', 'sex', 'genotype']].copy()
-        for lab in LABELS:
-            rec[f'f_time_{lab}'] = d['po_' + lab]
-            col = f'p_{lab}_t{mean_tau[lab]:.2f}'
-            if col not in d.columns:                       # nearest available threshold
-                cands = [c for c in d.columns if c.startswith(f'p_{lab}_t')]
-                col = min(cands, key=lambda c: abs(float(c.split('_t')[1]) - mean_tau[lab]))
-            rec[f'f_events_{lab}'] = d[col]
         npz = FRAME / t / f'pred_dense_{version}.npz'
         if npz.exists():
+            # ALL THREE UNITS come from the .npz, not from the CSV's `po_*` and `p_*_t*` columns.
+            # Those are aggregates over the WHOLE recording, and 02b's window has to be applied
+            # before aggregating, which cannot be undone afterwards. The npz carries the per-frame
+            # probability at stride 1 keyed by observation_id, so the cap is a slice.
             z = np.load(npz, allow_pickle=True)
+            for lab in LABELS:
+                j = LABELS.index(lab)
+                time_, ev = [], []
+                for o in rec.observation_id:
+                    if o not in z.files:
+                        time_.append(np.nan); ev.append(np.nan); continue
+                    q = z[o][:WINDOW, j].astype(np.float32)
+                    time_.append(float(q.mean()) * 100)
+                    ev.append(len(runs(postprocess(q >= mean_tau[lab], 1, 1)))
+                              / (len(q) / FPS / 60))
+                rec[f'f_time_{lab}'] = time_
+                rec[f'f_events_{lab}'] = ev
             for lab in LABELS:
                 j = LABELS.index(lab)
                 rec[f'f_decay_{lab}'] = [
                     mean_onset([b[0] for b in runs(postprocess(
-                        z[o][:, j].astype(np.float32) >= mean_tau[lab], 1, 1))])
+                        z[o][:WINDOW, j].astype(np.float32) >= mean_tau[lab], 1, 1))])
                     if o in z.files else np.nan for o in rec.observation_id]
         else:
-            print(f'  [no npz] {npz.name}: F unavailable for this fold', flush=True)
-            for lab in LABELS:
-                rec[f'f_decay_{lab}'] = np.nan
+            # Without the npz the window cannot be applied, and an unwindowed number would be
+            # silently inconsistent with every other estimate. Refuse rather than mix.
+            print(f'  [no npz] {npz.name}: SKIPPING this fold -- the window needs per-frame '
+                  f'probabilities, and the CSV only has whole-recording aggregates', flush=True)
+            continue
         rec['fold'] = t
         parts.append(rec)
     if not parts:
