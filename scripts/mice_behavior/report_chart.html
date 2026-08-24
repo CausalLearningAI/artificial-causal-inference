@@ -96,11 +96,12 @@
   /* One entry per predictor that supplies f. Only one exists today; the control is here because
      which model carries the estimate is a choice the reader should see being made, and because a
      second one is in training. Unknown tags fall back to the raw tag rather than vanishing. */
-  const MODEL_NICE = {
-    xfit_dense: 'cross-fitted, 3 folds (SSL encoder)',
-    xfit_bit6_dense: 'cross-fitted, 3 folds (BitFit-6)',
-    bit6_single: 'single model (BitFit-6)',
-  };
+  // Names come from the payload when it carries them, so a new predictor never shows up as a
+  // bare directory name.
+  const MODEL_NICE = Object.assign({
+    xfit_dense: 'SSL encoder, 3 folds',
+    xfit_bit6_dense: 'BitFit-6, 3 folds',
+  }, DATA.meta.predictors || {});
   const modelName = (m) => MODEL_NICE[m] || m;
 
   const $ = (id) => document.getElementById(id);
@@ -136,7 +137,11 @@
       seg('behaviour', 'behav', [['nn', 'nose-to-nose'], ['nt', 'nose-to-tail']]),
       seg('breakdown', 'view', [['all', 'all pools'],
         ['strata', state.exp === 'v1' ? 'by line × genotype' : 'by line']]),
-      seg('model', 'model', uniq('model').map(m => [m, modelName(m)])),
+      // A one-option segmented control is a control that lies about there being a choice, so
+      // the predictor picker only appears once a second predictor is in the payload. It arrives
+      // on its own: build_estimates.py emits every cross-fitted set whose folds have all landed.
+      ...(uniq('model').length > 1
+          ? [seg('predictor', 'model', uniq('model').map(m => [m, modelName(m)]))] : []),
     );
     if (state.view === 'strata') {
       bar.append(seg('transition', 'trans', TRANS.map(([k, n]) => [k, n.replace(/\s+/g, ' ')])));

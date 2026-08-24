@@ -382,7 +382,9 @@ BODY = f'''
         <td class="lo">sign and pattern only &mdash; it is on the model's scale</td></tr>
     </tbody></table></div>
   <p>PPCI needs no annotation anywhere, which is why it is the only estimator that exists on v2 at
-  all. Sections 04 and 05 say how far that model can be trusted.</p>
+  all. Sections 04 and 05 say how far that model can be trusted &mdash; and where more than one
+  cross-fitted predictor is available the figure gains a <b>predictor</b> control, so the same
+  estimate can be read against a change of model rather than resting on one.</p>
 </div>
   <div class="figwrap">{CHART}</div>
 <div class="measure">

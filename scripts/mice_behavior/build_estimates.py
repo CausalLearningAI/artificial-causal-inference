@@ -80,6 +80,37 @@ FRAME = ROOT / 'results' / 'vision' / 'mice' / 'frame'
 OUT = FRAME / '_figures'
 FPS = 5.0
 FOLDS = ('xfit_f1', 'xfit_f2', 'xfit_f3')
+
+# EVERY PREDICTOR THE GRID IS BUILT FOR, so the effects figure can be read against a change of
+# model rather than resting on one. `model` on each cell is the key below.
+#
+#   folds   the runs whose predictions are averaged. Three folds of 8 tile all 24 annotated pools,
+#           so each labelled pool is scored by a model that never saw it.
+#   human   whether CI and PPI++ are admissible. They need OUT-OF-FOLD predictions on the labelled
+#           pools: an in-sample f is shrunk toward the labels, the rectifier under-corrects and the
+#           interval undercovers. Only a complete cross-fitted set earns this.
+#
+# A predictor whose runs have not all landed is SKIPPED, not partially built -- two folds of three
+# would leave eight annotated pools with no out-of-fold prediction and quietly invalidate PPI++.
+PREDICTORS = {
+    'xfit_dense': {'folds': FOLDS, 'human': True,
+                   'nice': 'cross-fitted, 3 folds (SSL encoder) -- deployed'},
+    'xfit_bit6_dense': {'folds': ('xfit_bit6_f1', 'xfit_bit6_f2', 'xfit_bit6_f3'), 'human': True,
+                        'nice': 'cross-fitted, 3 folds (BitFit-6) -- the accuracy leader'},
+}
+
+# WHY A SINGLE, NON-CROSS-FITTED MODEL IS NOT IN THIS FIGURE, even though PPCI needs no labels and
+# could in principle use one. `predict_dense.py` dumps only the UNANNOTATED pools, and a single
+# model has no out-of-fold predictions on the annotated 24 -- it trained on 20 of them. So its
+# PPCI would average over 48 pools while the deployed one averages over 72: a different
+# population, silently, on the same axis. The model-vs-model comparison that IS honest holds the
+# pool set fixed, and section 05.3 does it that way (build_ppci_robustness.py) on the 52 pools
+# both predictors are out of sample on.
+
+
+def predictor_ready(spec) -> bool:
+    return all((FRAME / t / 'pred_dense_v1.csv').exists()
+               and (FRAME / t / 'val_probs.npz').exists() for t in spec['folds'])
 THRESHOLDS = np.round(np.arange(0.05, 1.0, 0.05), 2)
 LABELS = ('nt', 'nn')
 BEHAV_NICE = {'nt': 'nose-to-tail', 'nn': 'nose-to-nose'}
@@ -198,20 +229,20 @@ def best_f1_threshold_events(frames: pd.DataFrame, lab: str) -> float:
     return best_th
 
 
-def out_of_fold_predictions():
+def out_of_fold_predictions(folds=FOLDS):
     """Per-observation out-of-fold f on all 24 labelled pools, plus the per-fold thresholds.
 
     Thresholds are LEAVE-ONE-FOLD-OUT: tau applied to fold k comes from folds != k.
     """
-    frames = {t: fold_frames(t) for t in FOLDS}
+    frames = {t: fold_frames(t) for t in folds}
     taus = {}
-    for k in FOLDS:
-        others = pd.concat([frames[j] for j in FOLDS if j != k])
+    for k in folds:
+        others = pd.concat([frames[j] for j in folds if j != k]) if len(folds) > 1 else frames[k]
         taus[k] = {lab: best_f1_threshold_events(others, lab) for lab in LABELS}
         print(f'  {k}: threshold from the other two folds -> '
               + ', '.join(f'{lab} {taus[k][lab]:.2f}' for lab in LABELS), flush=True)
     rows = []
-    for k in FOLDS:
+    for k in folds:
         for oid, g in frames[k].groupby('obs', sort=False):
             g = g.iloc[:WINDOW]                              # frames are stride 1, sorted by gi
             n = len(g); mins = n / FPS / 60
@@ -225,12 +256,12 @@ def out_of_fold_predictions():
                 # frame_idx and a run's start index is its frame number
                 rec[f'f_decay_{lab}'] = mean_onset([b[0] for b in bouts])
             rows.append(rec)
-    mean_tau = {lab: float(np.mean([taus[k][lab] for k in FOLDS])) for lab in LABELS}
+    mean_tau = {lab: float(np.mean([taus[k][lab] for k in folds])) for lab in LABELS}
     return pd.DataFrame(rows), taus, mean_tau
 
 
 # ------------------------------------------------------------------- f on the unlabelled pools
-def dense_predictions(version: str, mean_tau: dict):
+def dense_predictions(version: str, mean_tau: dict, folds=FOLDS):
     """Cross-prediction: average the K fold models' per-observation predictions.
 
     Occupancy and bout counts come from the per-fold CSV, which already holds them. The decay
@@ -240,7 +271,7 @@ def dense_predictions(version: str, mean_tau: dict):
     labelled side does, rather than on the frame probabilities.
     """
     parts = []
-    for t in FOLDS:
+    for t in folds:
         p = FRAME / t / f'pred_dense_{version}.csv'
         if not p.exists():
             print(f'  [missing] {p.relative_to(ROOT)}', flush=True)
@@ -311,22 +342,43 @@ def main():
     ap.add_argument('--out', default=str(OUT / 'estimates.json'))
     a = ap.parse_args()
 
-    print('out-of-fold predictions on the 24 labelled pools:')
-    oof, taus, mean_tau = out_of_fold_predictions()
     truth = labelled_truth()
     exp1 = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')
-    lab1 = (truth.merge(oof, on='observation_id')
-            .merge(exp1[['observation_id', 'pool', 'phase', 'odor', 'line', 'sex',
-                         'genotype', 'annotator']], on='observation_id'))
-    print(f'  labelled: {lab1.pool.nunique()} pools, {len(lab1)} observations')
-    print(f'  mean threshold for the unlabelled dumps: '
-          + ', '.join(f'{k} {v:.2f}' for k, v in mean_tau.items()))
+    META1 = ['observation_id', 'pool', 'phase', 'odor', 'line', 'sex', 'genotype', 'annotator']
 
-    unl1 = dense_predictions('v1', mean_tau)
-    v2 = dense_predictions('v2', mean_tau)
-    for nm, d in (('v1 unlabelled', unl1), ('v2', v2)):
-        print(f'  {nm}: ' + (f'{d.pool.nunique()} pools, {len(d)} observations'
-                             if d is not None else 'NOT AVAILABLE (dense inference pending)'))
+    ready = {k: v for k, v in PREDICTORS.items() if predictor_ready(v)}
+    skipped = [k for k in PREDICTORS if k not in ready]
+    if skipped:
+        print('predictors not yet complete, skipped: ' + ', '.join(skipped))
+    if not ready:
+        raise SystemExit('no predictor has all of its dense passes on disk')
+
+    per_pred = {}
+    for pkey, spec in ready.items():
+        print(f"\n=== {pkey}: {spec['nice']}")
+        folds = spec['folds']
+        oof, taus, mean_tau = out_of_fold_predictions(folds)
+        if spec['human']:
+            lab = (truth.merge(oof, on='observation_id')
+                   .merge(exp1[META1], on='observation_id'))
+            print(f'  labelled: {lab.pool.nunique()} pools, {len(lab)} observations')
+        else:
+            # Truth is WITHHELD on purpose. This predictor trained on 20 of the 24 annotated
+            # pools, so any r or rectifier computed against it would be in sample. PPCI needs no
+            # label anywhere, so it is the only estimator this frame can support.
+            lab = None
+            print('  no out-of-fold predictions: CI and PPI++ withheld, PPCI only')
+        print(f'  threshold: ' + ', '.join(f'{k} {v:.2f}' for k, v in mean_tau.items()))
+        u1 = dense_predictions('v1', mean_tau, folds)
+        u2 = dense_predictions('v2', mean_tau, folds)
+        for nm, d in (('v1 unlabelled', u1), ('v2', u2)):
+            print(f'  {nm}: ' + (f'{d.pool.nunique()} pools, {len(d)} observations'
+                                 if d is not None else 'NOT AVAILABLE'))
+        per_pred[pkey] = dict(spec=spec, lab=lab, u1=u1, u2=u2, taus=taus, mean_tau=mean_tau)
+
+    prime = per_pred.get('xfit_dense') or next(iter(per_pred.values()))
+    lab1, unl1, v2 = prime['lab'], prime['u1'], prime['u2']
+    taus, mean_tau = prime['taus'], prime['mean_tau']
 
     if a.report_mismatch and unl1 is not None:
         print('\nE[f] mismatch check -- occupancy (pp), mean over observations:')
@@ -339,14 +391,19 @@ def main():
                     print(f'      single fold {t}: {pd.read_csv(p)["po_" + lab].mean():7.3f}')
 
     cells, missing = [], []
-    for version, labdf, unldf in (('v1', lab1, unl1), ('v2', None, v2)):
-        if version == 'v2' and v2 is None:
-            missing.append('v2'); continue
+    for pkey, P in per_pred.items():
+      human = P['spec']['human']
+      for version, labdf, unldf in (('v1', P['lab'], P['u1']), ('v2', None, P['u2'])):
+        if unldf is None and version == 'v2':
+            missing.append(f'{pkey} v2'); continue
         exp_df = pd.read_csv(ROOT / 'data' / 'mice' / version / 'experiment.csv')
         # one frame carrying truth (NaN where unlabelled) and f for every pool of the cohort
         if version == 'v1':
             if unldf is None:
-                missing.append('v1 unlabelled'); frame = labdf.copy()
+                missing.append(f'{pkey} v1 unlabelled'); frame = labdf.copy()
+            elif labdf is None:
+                # no truth anywhere for this predictor: every pool is an unlabelled pool
+                frame = unldf.copy()
             else:
                 frame = pd.concat([labdf, unldf], ignore_index=True)
         else:
@@ -370,10 +427,10 @@ def main():
                             d = pool_deltas(sub, tcol if tcol in sub else None, fcol, od, tr)
                             base = dict(exp=version, unit=unit, behav=lab, stratum=sid,
                                         stratum_label=snice, odour=odn,
-                                        trans=f'{tr[0]}->{tr[1]}', model='xfit_dense',
+                                        trans=f'{tr[0]}->{tr[1]}', model=pkey,
                                         r=None if not np.isfinite(d.r()) else round(d.r(), 4))
                             ests = []
-                            if version == 'v1':
+                            if version == 'v1' and human:
                                 # CI  -- human annotations only, on the 24 annotated pools
                                 e = classical(d); e.method = 'ci'; ests.append(e)
                                 # PPI++ -- human annotations rectify the model on all 72
@@ -386,7 +443,8 @@ def main():
                                 if e is None:
                                     continue
                                 cells.append({**base, **e.as_dict()})
-        print(f'  {version}: built {sum(1 for c in cells if c["exp"] == version)} estimates')
+        n = sum(1 for c in cells if c['exp'] == version and c['model'] == pkey)
+        print(f'  {pkey} {version}: built {n} estimates')
 
     payload = {
         'meta': {
@@ -395,6 +453,7 @@ def main():
             'thresholds_per_fold': taus,
             'threshold_unlabelled': mean_tau,
             'folds': list(FOLDS),
+            'predictors': {k: v['nice'] for k, v in ready.items()},
             'design': {
                 'v1': {'pools': 72, 'per_line_genotype': 12, 'annotated_pools': 24,
                        'strata': 'line x genotype (6)'},
