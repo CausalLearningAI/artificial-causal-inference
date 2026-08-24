@@ -67,6 +67,7 @@ ROLE = {
     'res448_k2_frozen_d4photo_dermPhase': 'objective', 'res448_k2_frozen_d4photo_dermPhase_s1': 'objective',
     'res448_k2_frozen_d4photo_dermCond': 'objective', 'res448_k2_frozen_d4photo_dermAnn': 'objective',
     'res448_k2_frozen_d4photo_ermH5M': 'objective', 'res448_k2_frozen_d4photo_ermH5M_s1': 'objective',
+    'res448_k2_bit6_d4_dermPhase': 'objective', 'res448_k2_bit6_d4_dermPhase_s1': 'objective',
     'xfit_f1': 'deployment fold', 'xfit_f2': 'deployment fold', 'xfit_f3': 'deployment fold',
 }
 

@@ -357,13 +357,16 @@ BODY = f'''
         <td class="hi">the ranking. PPI++'s variance reduction is a function of r&Delta; and
         nothing else. It is <em>not</em> what training selects on.</td></tr>
     </tbody></table></div>
-  <div class="note warnbox"><b>r&Delta; is the ranking key and also the noisiest number here.</b>
-  On the standing 4-pool split it rests on <b>16 points</b> (4 pools &times; 2 exposures &times; 2
-  transitions) at a threshold fitted to those same pools &mdash; a screen, not a measurement: enough
-  to reject an arm, not to crown one. Only the cross-fitted folds in section 05, which hold out all
-  24 annotated pools, give it an honest denominator. So every table below reports AP <em>and</em>
-  r&Delta;, and the Spearman correlation between them across the
-  {M['meta']['n_candidates']} candidate runs is only
+  <div class="note warnbox"><b>r&Delta; is the ranking key, and on the standing split its
+  nose-to-tail value is unusable.</b> It rests on <b>16 points</b> there (4 pools &times; 2 exposures
+  &times; 2 transitions) at a threshold fitted to those same pools. How bad that is has been
+  measured: two runs of one configuration differing only in <em>seed</em> give
+  r&Delta;&nbsp;nt of {rr2('res448_k2_frozen_d4photo_ermH5M','nt')} and
+  {rr2('res448_k2_frozen_d4photo_ermH5M_s1','nt')} &mdash; a spread wider than the range across
+  every arm in section 04. Nose-to-nose is far steadier (0.77&ndash;0.80 across the same pairs).
+  Only the cross-fitted folds, which hold out all 24 annotated pools, give either an honest
+  denominator. So every table below reports AP <em>and</em> r&Delta;, and their Spearman correlation
+  across the {M['meta']['n_candidates']} candidates is only
   <b>{M['meta']['spearman_ap_vs_rdelta']:+.2f}</b>.</div>
 
   <h3 style="margin-top:28px">What actually moves the number</h3>
@@ -376,7 +379,7 @@ BODY = f'''
       <tr><td>3</td><td>SSL on unlabelled frames</td><td>encoder, label-free</td><td class="hi">+0.033</td><td class="hi">what we deploy; also reaches v2</td></tr>
       <tr><td>4</td><td>224 &rarr; 448 px input</td><td>input</td><td class="hi">+0.132</td><td>real, and now saturated</td></tr>
       <tr><td>5</td><td>vREx</td><td>objective</td><td class="lo">+0.008 at best, &minus;0.094 at &beta;=100</td><td class="lo">no help, and harmful when pushed</td></tr>
-      <tr><td>6</td><td>DERM</td><td>objective</td><td class="lo">&minus;0.02 to &minus;0.04, head-confounded</td><td class="lo">no effect the screen can resolve</td></tr>
+      <tr><td>6</td><td>DERM</td><td>objective</td><td class="lo">&minus;0.02 against a matched control</td><td class="lo">costs a little, buys nothing measurable</td></tr>
       <tr><td>&mdash;</td><td>head capacity (self-attn, multi-query)</td><td>head</td><td>&minus;0.003 to +0.014</td><td class="lo">flat</td></tr>
     </tbody></table></div>
   <div class="note warnbox"><b>One structural limit, before any of it.</b> The regime overfits
@@ -506,7 +509,7 @@ BODY = f'''
 
   <div class="sub">
     <p class="q">ablation &middot; deconfounding</p>
-    <h3>DERM <span class="verdict v-no">no effect the screen can see</span></h3>
+    <h3>DERM <span class="verdict v-no">no help on this base model</span></h3>
     <p><b>The problem it targets.</b> Phase predicts <em>prevalence</em> here &mdash; the odour port
     visibly changes the scene &mdash; so a classifier can score a frame by which phase it
     <em>looks like</em> rather than by what the mice are doing. A bias that moves with the treatment
@@ -520,38 +523,42 @@ BODY = f'''
     be invariant to phase, only to stop the label carrying information about which phase it came
     from.</p>
     <div class="scroll"><table>
-      <thead><tr><th>arm</th><th>environments</th><th>macro AP</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
+      <thead><tr><th>arm</th><th>environments</th><th>seed</th><th>macro AP</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
       <tbody>
-        <tr><td>DERM</td><td>the 3 <b>phases</b></td><td>0.4060</td>
-          <td class="lo">{rr2('res448_k2_frozen_d4photo_dermPhase','nt')}</td>
+        <tr><td><b>control</b> (unweighted)</td><td>&mdash;</td><td>42</td><td>0.4163</td>
+          <td>{rr2('res448_k2_frozen_d4photo_ermH5M','nt')}</td>
+          <td>{rr2('res448_k2_frozen_d4photo_ermH5M','nn')}</td></tr>
+        <tr><td><b>control</b> (unweighted)</td><td>&mdash;</td><td>1</td><td>0.4202</td>
+          <td>{rr2('res448_k2_frozen_d4photo_ermH5M_s1','nt')}</td>
+          <td>{rr2('res448_k2_frozen_d4photo_ermH5M_s1','nn')}</td></tr>
+        <tr><td>DERM</td><td>the 3 <b>phases</b></td><td>42</td><td>0.4060</td>
+          <td>{rr2('res448_k2_frozen_d4photo_dermPhase','nt')}</td>
           <td>{rr2('res448_k2_frozen_d4photo_dermPhase','nn')}</td></tr>
-        <tr><td>DERM, seed replicate</td><td>the 3 <b>phases</b></td><td>0.3902</td>
-          <td class="lo">{rr2('res448_k2_frozen_d4photo_dermPhase_s1','nt')}</td>
+        <tr><td>DERM</td><td>the 3 <b>phases</b></td><td>1</td><td>0.3902</td>
+          <td>{rr2('res448_k2_frozen_d4photo_dermPhase_s1','nt')}</td>
           <td>{rr2('res448_k2_frozen_d4photo_dermPhase_s1','nn')}</td></tr>
-        <tr><td>DERM</td><td>the 6 phase &times; exposure cells</td><td>0.3863</td>
+        <tr><td>DERM</td><td>the 6 phase &times; exposure cells</td><td>42</td><td>0.3863</td>
           <td>{rr2('res448_k2_frozen_d4photo_dermCond','nt')}</td>
           <td>{rr2('res448_k2_frozen_d4photo_dermCond','nn')}</td></tr>
-        <tr><td>DERM</td><td>annotator</td><td colspan="3" class="lo">cancelled &mdash; a falsification test has nothing to falsify while the screen is this noisy</td></tr>
-        <tr><td>matched control, 2 seeds</td><td>none (unweighted)</td>
-          <td colspan="3" class="v-part">running &mdash; see below</td></tr>
       </tbody></table></div>
-    <div class="note warnbox"><b>The seed replicate is the result.</b> Two runs of the same
-    phase-environment arm, differing only in seed, give
-    r&Delta;&nbsp;nt of <b>{rr2('res448_k2_frozen_d4photo_dermPhase','nt')}</b> and
-    <b>{rr2('res448_k2_frozen_d4photo_dermPhase_s1','nt')}</b> &mdash; a spread of
-    {abs(float(rr2('res448_k2_frozen_d4photo_dermPhase','nt'))-float(rr2('res448_k2_frozen_d4photo_dermPhase_s1','nt'))):.2f},
-    far larger than any method effect could plausibly be. On the stable behaviour, r&Delta;&nbsp;nn,
-    all three arms sit at 0.78&ndash;0.80 against a control's 0.77: unmoved. So the standing 4-pool
-    split cannot answer this question at all, which is the caveat above made concrete rather than a
-    result about DERM.</div>
-    <div class="note warnbox"><b>And these arms are not yet comparable to their controls.</b> The
-    launcher that submitted them does not set the head configuration, so every DERM arm carries the
-    plain <b>5.03 M</b> head while the controls quoted throughout this section carry the 0.52 M
-    cross-attention head. The AP gap of about &minus;0.02 to &minus;0.04 is therefore a head
-    difference and an objective difference together. Two matched ERM controls &mdash; same head,
-    same everything, deconfounding off &mdash; are training now; until they land no AP claim about
-    DERM is worth making. Judged on r&Delta;&nbsp;nn, which is the stable axis, there is nothing to
-    find either way.</div>
+    <p><b>Against a matched control, DERM costs a little accuracy and buys nothing.</b> Macro AP
+    averages 0.418 unweighted against 0.398 with phase environments &mdash; about
+    &minus;0.02 &mdash; and 0.386 with the finer phase&nbsp;&times;&nbsp;exposure cells. On
+    r&Delta;&nbsp;nn, the stable axis, the two are identical: 0.786 unweighted against 0.788
+    deconfounded. Whatever route DERM closes, this model was not using it enough for the closing to
+    show.</p>
+    <div class="note warnbox"><b>And r&Delta;&nbsp;nt cannot arbitrate any of this &mdash; the
+    control proves it.</b> Two runs of the <em>unweighted</em> control differing only in seed give
+    r&Delta;&nbsp;nt of <b>{rr2('res448_k2_frozen_d4photo_ermH5M','nt')}</b> and
+    <b>{rr2('res448_k2_frozen_d4photo_ermH5M_s1','nt')}</b>. A spread of 0.67 between two runs of
+    the same configuration is larger than the entire range across every arm in this section, so on
+    the standing 4-pool split this metric measures the seed, not the method. That is why nothing in
+    section 05 is chosen on it, and why a real answer needs cross-fitting.</div>
+    <div class="note"><b>Still open: DERM on the accuracy leader.</b> Everything above sits on a
+    frozen stock encoder at macro AP ~0.42. Two arms applying the same phase-environment
+    deconfounding to BitFit-6 (AP 0.5409) are queued, with controls already in hand at both seeds.
+    If DERM helps anywhere it should help there, where the model is good enough for a
+    treatment-linked shortcut to be worth closing.</div>
   </div>
 </div></section>
 
