@@ -468,6 +468,8 @@ def estimand_bias(exp: pd.DataFrame, families: dict) -> dict:
                            'social': round(float(ref.dY.xs('S', level='odor').mean()), 4)}
         vals = {}
         for fam, tags in families.items():
+            if not tags:
+                continue
             fr = []
             for t in tags:
                 u, th = units(t, l)
@@ -487,11 +489,16 @@ def estimand_bias(exp: pd.DataFrame, families: dict) -> dict:
                 'positive': int((a > 0).sum()),
                 'share_of_truth': (round(abs(float(a.mean() / out['truth'][l]['pooled'])), 2)
                                    if out['truth'][l]['pooled'] else None)}
-        e, d = vals['ERM'].to_numpy(), vals['DERM'].to_numpy()
-        pr = stats.ttest_rel(e, d)
-        out['families'][l]['paired_erm_minus_derm'] = {
-            'diff': round(float(np.mean(e - d)), 4), 'p': round(float(pr.pvalue), 4),
-            'shrunk_units': int((np.abs(d) < np.abs(e)).sum()), 'n_units': len(e)}
+        for key, (ke, kd) in {'paired_erm_minus_derm': ('ERM', 'DERM'),
+                              'paired_xfit': ('ERM · 24 pools', 'DERM · 24 pools')}.items():
+            if ke not in vals or kd not in vals:
+                continue
+            e, d = vals[ke].align(vals[kd], join='inner')
+            e, d = e.to_numpy(), d.to_numpy()
+            pr = stats.ttest_rel(e, d)
+            out['families'][l][key] = {
+                'diff': round(float(np.mean(e - d)), 4), 'p': round(float(pr.pvalue), 4),
+                'shrunk_units': int((np.abs(d) < np.abs(e)).sum()), 'n_units': len(e)}
     return out
 
 # ------------------------------------------------------------------ nuisance-linked model bias
@@ -652,14 +659,19 @@ def main():
     corrs = {'phase': corr(summ_phase), 'phase_sampled': corr(summ_phase, 'log_or_sampled'),
              'cond': corr(summ_cond), 'cond_sampled': corr(summ_cond, 'log_or_sampled')}
 
-    print('\nenv = 3 phases   (prediction: delta runs OPPOSITE to log OR)')
+    # This is NOT a bug test. DERM shifts each environment's operating point by its prior odds, so
+    # delta running opposite to the log odds ratio is the correction OPERATING, and the sign
+    # agreement below is a check that the implementation does what the weights say. An earlier
+    # version of this file read it as evidence that DERM had installed a bias of its own.
+    print('\nenv = 3 phases   (DERM shifts each environment by its prior odds, so delta should run')
+    print('                  OPPOSITE to the log OR -- this checks the mechanism, not a fault)')
     for r in summ_phase:
         print(f"  {r['behav']} {r['trans']:6s} logOR {r['log_or']:+.3f}  ERM {r['erm']:.3f} -> "
               f"DERM {r['derm']:.3f}   delta {r['delta']:+.3f}  {'OK' if r['agree'] else '--'}")
     print(f"  Pearson r = {corrs['phase']['r']} (p = {corrs['phase']['p']}, "
           f"n = {corrs['phase']['n']}), signs agree {corrs['phase']['agree']}/"
           f"{corrs['phase']['n']}")
-    print('\nenv = 6 phase x exposure cells')
+    print('\nenv = 6 phase x exposure cells   (same check, one odds ratio per cell)')
     for r in summ_cond:
         print(f"  {r['behav']} {r['odour']} {r['trans']:6s} logOR {r['log_or']:+.3f}  "
               f"ERM {r['erm']:.3f} -> DERM {r['derm']:.3f}   delta {r['delta']:+.3f}  "
@@ -704,10 +716,16 @@ def main():
             for k, v in probe['mask'].items() if isinstance(v, dict)))
 
     # ---- the estimand-level bias, with an interval ------------------------------------------
+    # The 4-pool families are the standing split (plain 5.03 M head). The xfit_* families are the
+    # SAME comparison over the three deployment folds, so a_O - a_H lands on 24 pools instead of 4
+    # -- but on the 0.52 M cross-attention head, so the two are separate families on purpose and
+    # must not be read as one series. They appear as soon as their runs land; nothing to edit.
     FAMS = {'ERM': ['res448_k2_frozen_d4photo_ermH5M', 'res448_k2_frozen_d4photo_ermH5M_s1'],
             'DERM': ['res448_k2_frozen_d4photo_dermPhase',
                      'res448_k2_frozen_d4photo_dermPhase_s1'],
-            'DERM-cells': ['res448_k2_frozen_d4photo_dermCond']}
+            'DERM-cells': ['res448_k2_frozen_d4photo_dermCond'],
+            'ERM · 24 pools': [f'xfit_erm_f{k}' for k in (1, 2, 3)],
+            'DERM · 24 pools': [f'xfit_derm_f{k}' for k in (1, 2, 3)]}
     FAMS = {k: [t for t in v if (FRAME / t / 'val_probs.npz').exists()] for k, v in FAMS.items()}
     eb = estimand_bias(exp, {k: v for k, v in FAMS.items() if v})
     print('\nmean a_O - a_H over the 8 (pool x exposure) units -- the ATE-relevant component')

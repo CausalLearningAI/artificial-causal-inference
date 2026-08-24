@@ -72,15 +72,34 @@ cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 export PATH=/opt/slurm/bin:$PATH
 mkdir -p logs
 
-# Exactly the config the standing DERM/ERM arms used, so the 4-pool numbers and the 24-pool numbers
-# are the same measurement at two sample sizes. CROSS_ATTN_DIM/PATCH_POOL_DIM are left at 0, which
-# is the plain 5.03 M head those arms carry -- deliberately, not by omission. It is the weakest of
-# the five heads (04.5), but changing it here would break the comparison this script exists for.
+# WHICH HEAD, AND WHY IT IS NOT THE ONE THE STANDING ARMS USE
+# ===========================================================
+# The comparison this script exists for is DERM against ERM at 24 pools. That stays valid for any
+# head, as long as BOTH arms carry the SAME one -- and it is a paired comparison over the same three
+# folds, so the head is held fixed by construction.
+#
+# So use the better head. `ablate_derm.sh` never set CROSS_ATTN_DIM/PATCH_POOL_DIM, which left every
+# standing DERM/vREx arm on the plain 5.03 M head -- an accident of that launcher, and the weakest of
+# the five heads measured in 04.5 (macro AP 0.4163/0.4202 against 0.4289/0.4200 for the 0.52 M
+# cross-attention head at 10x fewer parameters). The 0.52 M head is also what every accuracy-leading
+# run in the pipeline uses: BitFit-6, the head-vs-encoder family, and the xfit_bit6 folds. Matching
+# it means this result composes with those instead of sitting on an island.
+#
+# WHAT THAT GIVES UP, stated so nobody trips on it: the 24-pool numbers from this script are NOT
+# stackable against the 4-pool numbers already in section 04.6, because the head moves at the same
+# time as the sample size. Nothing is lost for the question at hand -- xfit_erm IS the matched
+# control for xfit_derm -- but do not read a 4-pool value and a 24-pool value as one series.
+#
+# Encoder stays FROZEN STOCK: it keeps the single variable the objective, it fits on an L40S, and it
+# does not contend for the A100s the BitFit folds are already holding. The probe shows 1024
+# downsampled pixels carry the treatment at 0.946, so a frozen DINOv2's features certainly do -- the
+# shortcut is available to this model too.
 export INPUT_SIZE=448 CONTEXT_K=2 STRIDE=1 AUGMENT=d4_photo PHOTO_STRENGTH=1.0
 export OPTIMIZER=adamw LR=3e-4 WEIGHT_DECAY=0.05 DROPOUT=0.4
 export WARMUP_EPOCHS=3 LR_DECAY_EPOCHS=30 N_EPOCHS=30 PATIENCE=10
 export BATCH_SIZE=64 NEG_RATIO=1 MAX_TRAIN_FRAMES=300000
 export UNFREEZE_BLOCKS=0
+export CROSS_ATTN_DIM=64 PATCH_POOL_DIM=256      # the 0.52 M head, not the launcher's 5.03 M default
 export JPEG_CACHE_FILE=dataset/mice/v1/jpegcache_k2
 export WANDB=1
 
@@ -99,7 +118,7 @@ declare -A ARM_ENV=(
   [derm]="ENV_KEY=phase DERM=1 VREX_BETA=0"
   [mask]="ENV_KEY=none MASK_CORNER=bottom-left MASK_FRAC=0.25"
 )
-declare -A ARM_TAG=([erm]="xfit_erm5m" [derm]="xfit_derm5m" [mask]="xfit_ermMask")
+declare -A ARM_TAG=([erm]="xfit_erm" [derm]="xfit_derm" [mask]="xfit_ermMask")
 
 # L40S is right for a frozen encoder; MEM high because the cgroup charges the mapped pages of
 # jpegcache_k2 to every job sharing the node (two arms were OOM-killed at 100G).
