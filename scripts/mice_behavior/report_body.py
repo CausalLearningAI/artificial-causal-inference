@@ -346,8 +346,9 @@ BODY = f'''
     <tbody>
       <tr><td><b>macro AP</b></td><td>frame-level average precision, mean over the two
         behaviours, threshold-free. What training monitors.</td>
-        <td>shortlisting only. Seed-noise floor <b>0.0089</b> from two identical runs, so a gap
-        under ~0.01 is not a gap.</td></tr>
+        <td>shortlisting only. Seed noise measured on <b>six</b> configurations spans
+        <b>0.004&ndash;0.016</b> (median 0.007) and is widest on the fine-tuned arms, so a gap under
+        ~0.015 is not a gap.</td></tr>
       <tr><td><b>event F1</b></td><td>bout-level: a predicted run of frames counts as a hit if it
         overlaps a true bout <em>at all</em>. The right resolution when {nnf}% of nn bouts last one
         frame.</td>
@@ -385,7 +386,11 @@ BODY = f'''
   <div class="note warnbox"><b>One structural limit, before any of it.</b> The regime overfits
   &mdash; training loss falls monotonically while validation AP plateaus near epoch 24. That is why
   longer schedules and extra head capacity do nothing (row 4's saturation and the last row), and
-  why the leverage sits in rows 1 and 2.</div>
+  why the leverage sits in rows 1 and 2.
+  <br><br><b>Read every &Delta; against 0.015, not 0.009.</b> Seed noise is not one number: across
+  the six configurations now run at two seeds it spans 0.004 to 0.016, and the two widest are
+  fine-tuned arms (BitFit-6 on the SSL encoder 0.014, DERM on phases 0.016). Rows 3 and 5 sit inside
+  that; rows 1, 2 and 4 clear it comfortably.</div>
 </div>
 
 <div class="measure">
@@ -417,7 +422,8 @@ BODY = f'''
     <p class="q">ablation &middot; encoder</p>
     <h3>Adapting the encoder <span class="verdict v-yes">yes &mdash; +0.11 AP, for 70k params</span></h3>
     <p>Unfreezing the last DINOv2 blocks is the largest modelling gain measured: macro AP 0.4289
-    frozen &rarr; 0.4889 at two blocks &rarr; 0.5243 at six, against a 0.0089 seed floor.</p>
+    frozen &rarr; 0.4889 at two blocks &rarr; 0.5243 at six &mdash; a +0.095 span against a seed
+    spread of at most 0.016.</p>
     <p><b>What it is doing is recalibration, not new computation.</b> BitFit &mdash; training only
     biases, LayerNorm gains and LayerScale gains, and nothing that can form a new function of two
     patch features &mdash; matches and then beats full fine-tuning: <b>{run('res448_k2_bit6_d4')['ap']:.4f}
@@ -473,9 +479,10 @@ BODY = f'''
     fine-tuning <em>stock</em> reaches higher still (0.5409 against 0.5127), and the SSL start is
     behind on three of the five metrics. Event F1 is the exception, where the two are level.</p>
     <div class="note warnbox"><b>Two caveats of unequal strength.</b> That SSL and BitFit do not
-    <em>stack</em> rests on a single pair, 0.5127 against 0.5409, one draw each &mdash; suggestive
-    that both buy the same domain recalibration and therefore substitute, but not established. Seed
-    replicates of both are training now, which is the whole cost of settling it. What <em>is</em>
+    <em>stack</em> is now a two-seed claim on one side: BitFit-6 on the SSL encoder reads 0.5127 and
+    0.4989, mean <b>0.5058</b> with a 0.014 seed spread, against 0.5409 for BitFit-6 on stock. The
+    gap of about 0.035 is roughly 2.5&times; that spread, so it is real unless the stock arm's own
+    replicate lands unusually low &mdash; it is still training. What <em>is</em>
     established, each a clean single-variable change: 2&times; the corpus at matched compute is
     neutral, and six adapted blocks is clearly harmful. So <em>scaling</em> the corpus is closed;
     SSL itself is not.</div>
