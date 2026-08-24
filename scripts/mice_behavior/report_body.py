@@ -1,6 +1,8 @@
-# Consumed by build_report.py via exec(). Expects `img` (data URIs), the three interactive
-# figures already JSON-injected (`CHART`, `DECAY`, `MODELS`) and the three JSON payloads they are
-# views over, for inline numbers: `E` (estimates), `M` (models), `O` (outcome units).
+# Consumed by build_report.py via exec(). Expects `img` (data URIs), the five interactive figures
+# already JSON-injected (`CHART`, `DECAY`, `MODELS`, `EXAMPLES`, `UNITS`) and the JSON payloads
+# they are views over, for inline numbers: `E` (estimates), `M` (models), `O` (outcome units and
+# their distributions), `X` (qualitative examples), `R` (PPCI robustness), `D` (the DERM /
+# treatment-leak analysis, from build_derm.py).
 n_lab = max((c['n_lab'] for c in E['cells'] if c['exp'] == 'v1' and c['method'] == 'ci'),
             default=24)
 
@@ -42,8 +44,8 @@ def rr(tag):
     return f"{r['rd_nt']:.3f} / {r['rd_nn']:.3f}"
 
 
-def dF(behav, odour, trans, method='ci'):
-    """One Delta-F cell from estimates.json, with a resolution star. Same source as the figure."""
+def ddecay(behav, odour, trans, method='ci'):
+    """One Delta-decay cell from estimates.json, plus a resolution star. Source as the figure."""
     c = next(c for c in E['cells'] if c['exp'] == 'v1' and c['unit'] == 'decay'
              and c['stratum'] == 'all' and c['behav'] == behav and c['odour'] == odour
              and c['trans'] == trans and c['method'] == method)
@@ -57,7 +59,7 @@ def _n_resolved(method):
                and c['method'] == method and c['lo'] is not None and c['lo'] * c['hi'] > 0)
 
 
-nF, nFp = _n_resolved('ci'), _n_resolved('ppi')
+n_dec, n_dec_ppi = _n_resolved('ci'), _n_resolved('ppi')
 
 
 def rr2(tag, which):
@@ -103,11 +105,93 @@ _folds = [r for r in M['runs'] if r['role'] == 'deployment fold']
 xf = {k: sum(r[k] for r in _folds) / len(_folds)
       for k in ('ap', 'f1_nt', 'f1_nn', 'rd_nt', 'rd_nn')}
 
+
+# ---------------------------------------------------------------- derm.json readers
+# Section 04's objective subsection quotes a phase LEAK -- how well the model's own output
+# separates two phases at fixed ground truth. Every number below is read from derm.json so the
+# prose, the table and the verdict cannot disagree.
+_DL = [r for r in D['leak'] if r['odour'] == 'both' and r['truth'] == 0]
+
+
+def _leak(fam, behav=None, trans=None):
+    return [r for r in _DL if r['family'] == fam
+            and (behav is None or r['behav'] == behav)
+            and (trans is None or r['trans'] == trans)]
+
+
+def lk(fam, behav, trans):
+    """Mean leak AUC over seeds, as the table prints it."""
+    v = _leak(fam, behav, trans)
+    return f"{sum(r['auc'] for r in v) / len(v):.3f}" if v else '&mdash;'
+
+
+def lkci(fam, behav, trans):
+    """The pool-bootstrap interval, averaged over seeds. Marked when it excludes 0.5."""
+    v = _leak(fam, behav, trans)
+    if not v:
+        return '&mdash;'
+    lo = sum(r['lo'] for r in v) / len(v)
+    hi = sum(r['hi'] for r in v) / len(v)
+    star = '*' if (lo - 0.5) * (hi - 0.5) > 0 else ''
+    return f'[{lo:.3f}, {hi:.3f}]{star}'
+
+
+def lkdev(fam):
+    """Mean |AUC - 0.5| over the four behaviour x transition cells."""
+    v = _leak(fam)
+    return f"{sum(abs(r['auc'] - 0.5) for r in v) / len(v):.3f}" if v else '&mdash;'
+
+
+def lkres(fam):
+    """How many of the four cells have an interval that excludes 0.5."""
+    out, v = 0, _leak(fam)
+    for b in ('nt', 'nn'):
+        for t in ('H->O', 'O->P'):
+            g = [r for r in v if r['behav'] == b and r['trans'] == t]
+            if g and (sum(r['lo'] for r in g) / len(g) - 0.5) * \
+                     (sum(r['hi'] for r in g) / len(g) - 0.5) > 0:
+                out += 1
+    return out
+
+
+def nui(behav, fac, which):
+    """eta-squared and p for a pool-level factor's share of the model's bias."""
+    d = D['nuisance'][which][behav][fac]
+    return f"{100 * d['eta2']:.1f}% (p {d['p']:.2f})"
+
+
+# The PPI++ bound, read off derm.json's grid rather than retyped. `_bw(r)` is the width ratio at
+# a given r-delta; the floor is its r=1 limit.
+_BG = {round(g['r'], 2): g['ratio'] for g in D['ppi_bound']['grid']}
+_bw = lambda r: _BG[round(r, 2)]
+_PB = D['ppi_bound']
+
+
+
+def dcorr(which):
+    """One correlation from derm.json, with a real minus sign and a 2-dp p."""
+    c = D['corr'][which]
+    return f"{c['r']:+.2f}".replace('-', '&minus;'), f"{c['p']:.2f}"
+
+
+_rp, _pp = dcorr('phase')
+_rc, _pc = dcorr('cond')
+
+# Section 05's bound table: every row computed from derm.json's grid, so the printed percentages
+# and the formula in the box next to them cannot disagree.
+_BROWS = [(0.50, ''), (0.60, 'roughly where we are: <b>&minus;12% measured</b>, averaged over the '
+                            'eight cells'), (0.70, ''), (0.80, ''),
+          (1.00, 'a perfect model &mdash; the variance of all 72 pools labelled')]
+_HI = ' class="hi"'
+bound_rows = '\n      '.join(
+    '<tr><td{0}>{1:.2f}</td><td{0}>&minus;{2:.0f}%</td><td{0}>{3}</td></tr>'.format(
+        _HI if r == 1.0 else '', r, 100 * (1 - _bw(r)), note) for r, note in _BROWS)
+
 BODY = f'''
 <div class="wrap">
 
 <header class="top"><div class="measure">
-  <p class="eyebrow">Mice v1 / v2 &middot; status &middot; 23 August 2026</p>
+  <p class="eyebrow">Mice v1 / v2 &middot; status &middot; 24 August 2026</p>
   <h1>Genotype under hormonal exposure</h1>
   <p class="lede">Three ASD-associated mouse lines, wild-type against heterozygous carriers of the
   same knockout, filmed in cages of four before, during and after two hormonal exposures. The
@@ -121,8 +205,12 @@ BODY = f'''
   <h2>Two cohorts, one recording protocol</h2></div>
   <p>Both cohorts run the same six recordings per cage of four animals: three phases in fixed
   order &mdash; <b>H</b>abituation (30 min) &rarr; <b>O</b> exposure (15 min) &rarr; <b>P</b>ost
-  (15 min) &mdash; crossed with two hormonal exposures, <b>fear</b> and <b>social</b>. All six
-  share a cage, a day and an annotator. Video is 2060&sup2; at 30 fps, stored 512&sup2; at 5 fps.
+  (15 min) &mdash; crossed with two hormonal exposures, <b>fear</b> and <b>social</b>. All six share
+  a cage by construction, and among the annotated pools
+  {D['pool_constant']['annotator']['constant_pools']} of
+  {D['pool_constant']['annotator']['n_pools']} also share a single annotator and
+  {D['pool_constant']['date']['constant_pools']} a single day. Video is 2060&sup2; at 30 fps, stored
+  512&sup2; at 5 fps.
   Throughout, <b>pool</b> means the cage of four; they share a line and a sex, and in v1 a
   genotype.</p>
   <div class="defn"><b>Two scored behaviours, from three codes.</b> <b>Nose-to-nose</b> is scored
@@ -205,30 +293,42 @@ BODY = f'''
   close to counts &times; duration, so it is not a third independent choice so much as the product
   of the other two &mdash; and it inherits both of their noise sources.</p>
   <div class="scroll"><table>
-    <thead><tr><th></th><th>counts</th><th>occupancy</th><th>duration</th></tr></thead>
+    <thead><tr><th>unit</th><th>what it measures</th><th>noise<br><span style="opacity:.65">CV, nn / nt</span></th>
+      <th>can the model track it<br><span style="opacity:.65">r&Delta;, nn / nt</span></th><th>verdict</th></tr></thead>
     <tbody>
-      <tr><td>within-cell CV &mdash; nn / nt</td>
-        <td>{cv('counts')}</td><td>{cv('occupancy')}</td><td class="hi">{cv('duration')}</td></tr>
-      <tr><td>r&Delta; against the model &mdash; nn / nt</td>
-        <td class="hi">{rd('counts')}</td><td>{rd('occupancy')}</td><td>&mdash; no model head</td></tr>
-      <tr><td>treatment-linked bias (max/min ratio across phases)</td>
-        <td>{bs('counts')}</td><td>{bs('occupancy')}</td><td>&mdash;</td></tr>
-      <tr><td>contrasts resolved of 8 &nbsp;<i>(reported, not the reason)</i></td>
-        <td>{O['units']['counts']['resolves']}</td><td>{O['units']['occupancy']['resolves']}</td>
-        <td>{O['units']['duration']['resolves']}</td></tr>
+      <tr><td><b>counts</b><br><span style="opacity:.65">bouts per minute</span></td>
+        <td>how often it starts</td><td>{cv('counts')}</td>
+        <td class="hi">{rd('counts')}</td><td class="hi">chosen</td></tr>
+      <tr><td><b>occupancy</b><br><span style="opacity:.65">% of frames in it</span></td>
+        <td>how much time it fills</td><td class="lo">{cv('occupancy')}</td>
+        <td class="lo">{rd('occupancy')}</td><td>noisier, and the model tracks it half as well</td></tr>
+      <tr><td><b>duration</b><br><span style="opacity:.65">mean bout length</span></td>
+        <td>how long one bout lasts</td><td class="hi">{cv('duration')}</td>
+        <td>no model head</td><td>no dynamic range left &mdash; see the figure</td></tr>
     </tbody></table></div>
-  <p><b>Counts win on measurability.</b> At 5&nbsp;fps
-  {nnf}% of nose-to-nose bouts and {ntf}% of nose-to-tail bouts last a <em>single frame</em>, so
-  their length is set by sub-frame timing the pipeline introduced rather than by the animals
-  &mdash; duration has almost no dynamic range to carry an effect. Occupancy is dominated by its
-  tail: the longest 10% of bouts carry {nnt}% of all nose-to-nose behaviour time and {ntt}% of
-  nose-to-tail, so a single long huddle moves the number more than ten short contacts. And on the
-  quantity the vision model has to reproduce, counts are the clearly better target &mdash; the
-  correlation between true and predicted <em>within-pool phase differences</em> is about twice as
-  high on counts as on occupancy.</p>
-  <p class="defn">The resolved-contrast count is reported because a reader will ask for it, but it
-  is not the reason for the choice &mdash; picking the outcome that yields the most rejections of
-  the null is selection on significance. Measurability is the reason.</p>
+  <p>Two columns, and they are not the same column. <b>Noise</b> is the within-cell coefficient of
+  variation &mdash; how much the measurement scatters across pools that had the same treatment, so
+  lower is better. <b>r&Delta;</b> is how well the vision model reproduces a pool's
+  <em>within-pool phase difference</em>, which is the only thing the model is asked to do. Counts
+  lose the noise column to duration and win the one that matters by roughly two to one.</p>
+</div>
+  <div class="figwrap">{UNITS}</div>
+<div class="measure">
+  <p><b>Counts win on measurability, and the figure is the argument.</b> At 5&nbsp;fps {nnf}% of
+  nose-to-nose bouts and {ntf}% of nose-to-tail bouts last a <em>single frame</em> &mdash; their
+  length is set by sub-frame timing the pipeline introduced rather than by the animals, so mean
+  duration has almost nothing left to vary with. Occupancy has the opposite problem: the longest
+  10% of bouts carry {nnt}% of all nose-to-nose behaviour time and {ntt}% of nose-to-tail, so one
+  long huddle moves it more than ten short contacts. Counts sit between the two and are what the
+  model tracks best.</p>
+  <p class="defn"><b>What is deliberately not an argument.</b> Counts also resolve more contrasts
+  than the alternatives ({O['units']['counts']['resolves']} of 8, against
+  {O['units']['occupancy']['resolves']} for occupancy and {O['units']['duration']['resolves']} for
+  duration), and that is <em>not</em> why they were chosen: picking the outcome that yields the most
+  rejections of the null is selection on significance. It is recorded here because a reader will
+  ask. The treatment-linked component of the model's error is also no argument between the two
+  &mdash; it is the same size on both ({bs('counts')} against {bs('occupancy')} as a max/min ratio
+  across phases) and is measured properly in section 04.</p>
 </div></section>
 
 <section><div class="measure">
@@ -266,13 +366,13 @@ BODY = f'''
   <h3 style="margin-top:26px">Nothing is stationary inside a phase</h3>
   <p>Rates fall several-fold across every recording: half-life <b>4&ndash;14 minutes</b>, and P
   decays fastest in every cell. One cell rises instead &mdash; nose-to-tail under social exposure
-  during O &mdash; so the exposure sustains investigation while everything else habituates. That
-  makes a phase <em>mean</em> an average over whichever stretch of a decaying curve the schedule
-  happened to sample, and the two phases being compared do not sample the same stretch.</p>
-  <p><b>The damage is confined to one of the two transitions.</b> O and P are both 15 minutes, so
-  any window rule applied to both leaves O&rarr;P bit-for-bit unchanged &mdash; verified identical
-  in all four cells. Only H&rarr;O moves, because habituation runs 30 minutes. Across the three
-  defensible windows for it:</p>
+  during O &mdash; so the exposure sustains investigation while everything else habituates. A phase
+  <em>mean</em> is therefore an average over whichever stretch of a decaying curve the schedule
+  happened to sample, and <b>because habituation runs 30 minutes against O and P's 15, the two
+  sides of H&rarr;O do not sample the same stretch</b>. O&rarr;P is unaffected: both phases are the
+  same length, so any window rule applied to both leaves it bit-for-bit identical &mdash; checked
+  in all four cells. So the window question is a question about H&rarr;O alone, and here is what it
+  is worth:</p>
   <div class="scroll"><table>
     <thead><tr><th>H &rarr; O</th><th>full H (30 min)</th><th>first 15</th><th>last 15</th><th>spread</th></tr></thead>
     <tbody>
@@ -281,45 +381,51 @@ BODY = f'''
       <tr><td>nn &middot; fear</td><td class="hi">+0.66</td><td class="hi">+0.45</td><td class="hi">+0.86</td><td>0.42</td></tr>
       <tr><td>nn &middot; social</td><td>+0.47</td><td>&minus;0.03</td><td>+0.97</td><td class="lo">1.01 &mdash; changes sign</td></tr>
     </tbody></table></div>
-  <div class="note"><b>Decision: match the first 15 minutes of every phase.</b> The choice is
-  settled by a confound. Every phase is a separate recording the experimenter starts by opening the
-  cage, and <b>P &mdash; where the odour is <em>removed</em> &mdash; has the largest onset spike of
-  the three in 3 of 4 cells</b> (first-2-min over last-2-min rate,
-  nn&nbsp;&middot;&nbsp;fear: H 7.6, O 6.7, <b>P 12.3</b>). A response that peaks when the odour is
-  taken away is handling, not odour; matching onset position puts it on both sides, where it
-  cancels. The cost &mdash; contrasting cage-novelty with odour-novelty instead of a settled
-  baseline &mdash; is the smaller of the two errors.
-  <br><br>Two consequences. <b>Nose-to-nose under fear is the H&rarr;O effect to quote</b>: +0.45
-  matched, positive and resolving under all three windows. <b>Nose-to-nose under social is not
-  reportable</b>: it runs +0.47 &rarr; &minus;0.03 and changes sign, so its full-window value is the
-  H mean being dragged down by fifteen extra minutes of decay that O never gets. O&rarr;P is
-  unaffected either way. The figure above is still cut on the full window; re-cutting the grid is
-  next-step 3.</div>
+  <div class="note"><b>Decision: match the first 15 minutes of every phase.</b> Every phase is a
+  separate recording the experimenter starts by opening the cage, and the onset spike that follows
+  is largest in <b>P</b> &mdash; the phase where the odour is <em>removed</em> &mdash; in 3 of 4
+  cells (first-2-min over last-2-min rate, nn&nbsp;&middot;&nbsp;fear: H 7.6, O 6.7,
+  <b>P 12.3</b>). A response that peaks when the odour is taken away is handling, not odour, so
+  matching onset position puts it on both sides of every contrast, where it cancels. The cost is
+  contrasting cage-novelty against odour-novelty rather than against a settled baseline, and that
+  is the smaller of the two errors.
+  <br><br>Read off the table, that leaves one effect quotable and one not. <b>Nose-to-nose under
+  fear</b> holds its sign and resolves under all three windows (+0.45 matched), so it is the
+  H&rarr;O number to quote. <b>Nose-to-nose under social</b> runs +0.47 to &minus;0.03 and changes
+  sign, so its full-window value is mostly the H mean being pulled down by fifteen extra minutes of
+  decay that O never gets; it is not reportable as it stands. The figure above is still cut on the
+  full window &mdash; re-cutting the grid is next-step 3.</div>
   <div class="sub">
     <p class="q">outcome design</p>
     <h3>The decay is a second effect
       <span class="verdict v-yes">in the figure, as its own unit</span></h3>
-    <p>Measure it with a <b>front-loading fraction</b> F = bouts in the first 5 minutes / bouts in
-    the first 15 &mdash; bounded, model-free, length-invariant, per-observation, and needing no
-    exponential (a fitted slope or time constant does not survive: log-linearity is rejected in 7 of
-    12 cells, and &tau; reaches &minus;27&nbsp;min on the one rising cell). Flat process &rarr; 0.33.
-    <b>Select &ldquo;decay within phase&rdquo; as the unit in the figure above</b> to read it with
-    all three estimators, the same way as the level.</p>
+    <p>Measure it with a <b>front-loading fraction</b>, called <b>decay</b> throughout &mdash;
+    the share of a phase's bouts that start in its first third:</p>
+    <div class="eqn"><math display="block"><mrow><mi>decay</mi><mo>=</mo>
+      <mfrac><mtext>bouts starting in minutes&#xA0;0&#x2013;5</mtext>
+             <mtext>bouts starting in minutes&#xA0;0&#x2013;15</mtext></mfrac>
+      <mo>,</mo><mspace width="1.4em"/>
+      <mtext>flat process</mtext><mo>&#x21D2;</mo><mn>0.33</mn></mrow></math></div>
+    <p>Bounded, model-free, length-invariant, per-observation, and needing no exponential &mdash; a
+    fitted slope or time constant does not survive here: log-linearity is rejected in 7 of 12 cells
+    and &tau; reaches &minus;27&nbsp;min on the one rising cell. <b>Select &ldquo;decay within
+    phase&rdquo; as the unit in the figure above</b> to read it with all three estimators, the same
+    way as the level.</p>
     <div class="scroll"><table>
-      <thead><tr><th>&Delta;F, human labels</th><th>nt &middot; fear</th><th>nt &middot; social</th><th>nn &middot; fear</th><th>nn &middot; social</th></tr></thead>
+      <thead><tr><th>&Delta;decay, human labels</th><th>nt &middot; fear</th><th>nt &middot; social</th><th>nn &middot; fear</th><th>nn &middot; social</th></tr></thead>
       <tbody>
         <tr><td>H &rarr; O &nbsp;(odour ON)</td>
-          <td class="hi">{dF('nt','fear','H->O')}</td><td>{dF('nt','social','H->O')}</td>
-          <td class="hi">{dF('nn','fear','H->O')}</td><td class="hi">{dF('nn','social','H->O')}</td></tr>
+          <td class="hi">{ddecay('nt','fear','H->O')}</td><td>{ddecay('nt','social','H->O')}</td>
+          <td class="hi">{ddecay('nn','fear','H->O')}</td><td class="hi">{ddecay('nn','social','H->O')}</td></tr>
         <tr><td>O &rarr; P &nbsp;(odour OFF)</td>
-          <td>{dF('nt','fear','O->P')}</td><td class="hi">{dF('nt','social','O->P')}</td>
-          <td>{dF('nn','fear','O->P')}</td><td class="hi">{dF('nn','social','O->P')}</td></tr>
+          <td>{ddecay('nt','fear','O->P')}</td><td class="hi">{ddecay('nt','social','O->P')}</td>
+          <td>{ddecay('nn','fear','O->P')}</td><td class="hi">{ddecay('nn','social','O->P')}</td></tr>
       </tbody></table></div>
     <p><b>Every sign is negative turning the odour on and positive turning it off</b> (* = resolves;
-    {nF} of 8 do on human labels alone, {nFp} of 8 with PPI++). The exposure flattens the
+    {n_dec} of 8 do on human labels alone, {n_dec_ppi} of 8 with PPI++). The exposure flattens the
     habituation curve and withdrawing it restores fast habituation &mdash; not how much behaviour
-    the odour triggers, but how long it holds attention. F is undefined where a recording has no
-    bout in the window, so n falls to 13&ndash;24 by cell, which is why the model buys more here
+    the odour triggers, but how long it holds attention. Decay is undefined where a recording has
+    no bout in the window, so n falls to 13&ndash;24 by cell, which is why the model buys more here
     than it does on the level.</p>
   </div>
 </div></section>
@@ -349,23 +455,86 @@ BODY = f'''
 
   <h3 style="margin-top:28px">Three metrics, and what each one is allowed to decide</h3>
   <p>Everything below is a comparison, so the measuring stick comes first. The three are not
-  interchangeable, and the easiest one to compute is not the one that decides.</p>
+  interchangeable, and the easiest one to compute is not the one that decides. Written out:</p>
+  <div class="mdef">
+    <p class="w"><b>macro AP</b> &mdash; frame-level average precision, the area under the
+    precision&ndash;recall curve, averaged over the two behaviours. Threshold-free; what training
+    monitors and what early stopping selects on.</p>
+    <div class="eqn"><math display="block"><mrow>
+      <mi>AP</mi><mo>=</mo><mfrac><mn>1</mn><mn>2</mn></mfrac>
+      <munder><mo>&#x2211;</mo><mrow><mi>b</mi><mo>&#x2208;</mo><mo>{{</mo><mtext>nt</mtext>
+        <mo>,</mo><mtext>nn</mtext><mo>}}</mo></mrow></munder>
+      <msub><mi>AP</mi><mi>b</mi></msub>
+      <mo>,</mo><mspace width="1.6em"/>
+      <msub><mi>AP</mi><mi>b</mi></msub><mo>=</mo>
+      <munder><mo>&#x2211;</mo><mi>k</mi></munder>
+      <mrow><mo>(</mo><msub><mi>R</mi><mi>k</mi></msub><mo>&#x2212;</mo>
+        <msub><mi>R</mi><mrow><mi>k</mi><mo>&#x2212;</mo><mn>1</mn></mrow></msub><mo>)</mo></mrow>
+      <mspace width="0.2em"/><msub><mi>P</mi><mi>k</mi></msub>
+    </mrow></math></div>
+    <p class="w"><b>event F1</b> &mdash; bout-level, with <em>any-overlap</em> matching. Write
+    <math><mi>B</mi></math> for the true bouts of one recording and
+    <math><mover accent="true"><mi>B</mi><mo>^</mo></mover></math> for the predicted ones (maximal
+    runs of frames over threshold). A bout counts as found if it overlaps one on the other side
+    <em>at all</em> &mdash; the right resolution when {nnf}% of nose-to-nose bouts last one frame.</p>
+    <div class="eqn"><math display="block"><mrow>
+      <mi>R</mi><mo>=</mo>
+      <mfrac>
+        <mrow><mo>|</mo><mo>{{</mo><mi>b</mi><mo>&#x2208;</mo><mi>B</mi><mo>:</mo>
+          <mi>b</mi><mo>&#x2229;</mo><mover accent="true"><mi>B</mi><mo>^</mo></mover>
+          <mo>&#x2260;</mo><mo>&#x2205;</mo><mo>}}</mo><mo>|</mo></mrow>
+        <mrow><mo>|</mo><mi>B</mi><mo>|</mo></mrow></mfrac>
+      <mo>,</mo><mspace width="1.2em"/>
+      <mi>P</mi><mo>=</mo>
+      <mfrac>
+        <mrow><mo>|</mo><mo>{{</mo><mover accent="true"><mi>b</mi><mo>^</mo></mover>
+          <mo>&#x2208;</mo><mover accent="true"><mi>B</mi><mo>^</mo></mover><mo>:</mo>
+          <mover accent="true"><mi>b</mi><mo>^</mo></mover><mo>&#x2229;</mo><mi>B</mi>
+          <mo>&#x2260;</mo><mo>&#x2205;</mo><mo>}}</mo><mo>|</mo></mrow>
+        <mrow><mo>|</mo><mover accent="true"><mi>B</mi><mo>^</mo></mover><mo>|</mo></mrow></mfrac>
+      <mo>,</mo><mspace width="1.2em"/>
+      <msub><mi>F</mi><mn>1</mn></msub><mo>=</mo>
+      <mfrac><mrow><mn>2</mn><mi>P</mi><mi>R</mi></mrow>
+             <mrow><mi>P</mi><mo>+</mo><mi>R</mi></mrow></mfrac>
+    </mrow></math></div>
+    <p class="w"><b>r&Delta;</b> &mdash; the correlation between true and predicted
+    <em>within-pool phase differences</em>. For pool <math><mi>p</mi></math> and transition
+    <math><mrow><mi>x</mi><mo>&#x2192;</mo><mi>y</mi></mrow></math>, with
+    <math><mi>Y</mi></math> the human score and <math><mi>f</mi></math> the model's:</p>
+    <div class="eqn"><math display="block"><mrow>
+      <msubsup><mi>D</mi><mi>Y</mi><mrow><mo>(</mo><mi>p</mi><mo>)</mo></mrow></msubsup>
+      <mo>=</mo><msub><mi>Y</mi><mi>p</mi></msub><mo>(</mo><mi>y</mi><mo>)</mo>
+      <mo>&#x2212;</mo><msub><mi>Y</mi><mi>p</mi></msub><mo>(</mo><mi>x</mi><mo>)</mo>
+      <mo>,</mo><mspace width="1em"/>
+      <msubsup><mi>D</mi><mi>f</mi><mrow><mo>(</mo><mi>p</mi><mo>)</mo></mrow></msubsup>
+      <mo>=</mo><msub><mi>f</mi><mi>p</mi></msub><mo>(</mo><mi>y</mi><mo>)</mo>
+      <mo>&#x2212;</mo><msub><mi>f</mi><mi>p</mi></msub><mo>(</mo><mi>x</mi><mo>)</mo>
+      <mo>,</mo><mspace width="1.6em"/>
+      <mi>r</mi><mi>&#x394;</mi><mo>=</mo>
+      <mfrac>
+        <mrow><mi>Cov</mi><mo>(</mo><msub><mi>D</mi><mi>Y</mi></msub><mo>,</mo>
+          <msub><mi>D</mi><mi>f</mi></msub><mo>)</mo></mrow>
+        <mrow><mi>sd</mi><mo>(</mo><msub><mi>D</mi><mi>Y</mi></msub><mo>)</mo>
+          <mspace width="0.15em"/>
+          <mi>sd</mi><mo>(</mo><msub><mi>D</mi><mi>f</mi></msub><mo>)</mo></mrow></mfrac>
+    </mrow></math></div>
+    <p class="w">The same two differences appear again in section 05: PPI++'s entire variance
+    reduction is a function of <math><mrow><mi>r</mi><mi>&#x394;</mi></mrow></math> and of nothing
+    else, which is why it &mdash; and not AP &mdash; is the ranking key.</p>
+  </div>
   <div class="scroll"><table>
-    <thead><tr><th>metric</th><th>what it measures</th><th>what it may decide</th></tr></thead>
+    <thead><tr><th>metric</th><th>what it is allowed to decide</th></tr></thead>
     <tbody>
-      <tr><td><b>macro AP</b></td><td>frame-level average precision, mean over the two
-        behaviours, threshold-free. What training monitors.</td>
+      <tr><td><b>macro AP</b></td>
         <td>shortlisting only. Seed noise measured on <b>seven</b> configurations spans
         <b>0.004&ndash;0.016</b> (median 0.007) and is widest on the fine-tuned arms, so a gap under
         ~0.015 is not a gap.</td></tr>
-      <tr><td><b>event F1</b></td><td>bout-level: a predicted run of frames counts as a hit if it
-        overlaps a true bout <em>at all</em>. The right resolution when {nnf}% of nn bouts last one
-        frame.</td>
+      <tr><td><b>event F1</b></td>
         <td>whether the detector finds the right <em>events</em> rather than the right frames.</td></tr>
-      <tr><td><b>r&Delta;</b></td><td>correlation between true and predicted <em>within-pool phase
-        differences</em>.</td>
+      <tr><td><b>r&Delta;</b></td>
         <td class="hi">the ranking. PPI++'s variance reduction is a function of r&Delta; and
-        nothing else. It is <em>not</em> what training selects on.</td></tr>
+        nothing else &mdash; the bound in section 05 says so exactly. It is <em>not</em> what
+        training selects on.</td></tr>
     </tbody></table></div>
   <div class="note warnbox"><b>r&Delta; is the ranking key, and on the standing split its
   nose-to-tail value is unusable.</b> It rests on <b>16 points</b> there (4 pools &times; 2 exposures
@@ -380,31 +549,42 @@ BODY = f'''
   <b>{M['meta']['spearman_ap_vs_rdelta']:+.2f}</b>.</div>
 
   <h3 style="margin-top:28px">What actually moves the number</h3>
-  <p>Every lever tried, in the order the subsections take them.</p>
+  <p>Every lever tried, grouped by the one thing it changes. The subsections below run in this
+  order, and each holds everything else fixed.</p>
   <div class="scroll"><table>
-    <thead><tr><th>#</th><th>lever</th><th>what varies</th><th>&Delta; macro AP</th><th>verdict</th></tr></thead>
+    <thead><tr><th></th><th>what varies</th><th>lever</th><th>&Delta; macro AP</th><th>verdict</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td>annotate more pools</td><td>data</td><td class="hi">+0.076 per doubling</td><td class="hi">the binding constraint, no plateau</td></tr>
-      <tr><td>2</td><td>adapt the encoder (BitFit)</td><td>encoder</td><td class="hi">+0.112</td><td class="hi">recalibration, at 1/602nd the params</td></tr>
-      <tr><td>3</td><td>SSL on unlabelled frames</td><td>encoder, label-free</td><td class="hi">+0.033</td><td class="hi">what we deploy; also reaches v2</td></tr>
-      <tr><td>4</td><td>224 &rarr; 448 px input</td><td>input</td><td class="hi">+0.132</td><td>real, and now saturated</td></tr>
-      <tr><td>5</td><td>vREx</td><td>objective</td><td class="lo">+0.008 at best, &minus;0.094 at &beta;=100</td><td class="lo">no help, and harmful when pushed</td></tr>
-      <tr><td>6</td><td>DERM</td><td>objective</td><td class="lo">&minus;0.02 against a matched control</td><td class="lo">costs a little, buys nothing measurable</td></tr>
-      <tr><td>&mdash;</td><td>head capacity (self-attn, multi-query)</td><td>head</td><td>&minus;0.003 to +0.014</td><td class="lo">flat</td></tr>
+      <tr><td>04.1</td><td><b>data</b></td><td>annotate more pools</td>
+        <td class="hi">+0.076 per doubling</td><td class="hi">the binding constraint, no plateau</td></tr>
+      <tr><td>04.2</td><td><b>encoder</b><br><span style="opacity:.65">fine-tuning</span></td>
+        <td>unfreeze the last blocks &mdash; BitFit</td>
+        <td class="hi">+0.112</td><td class="hi">recalibration, at 1/602nd the params</td></tr>
+      <tr><td>04.3</td><td><b>encoder</b><br><span style="opacity:.65">label-free</span></td>
+        <td>self-supervised on unlabelled frames</td>
+        <td class="hi">+0.033</td><td class="hi">what we deploy; the only lever that reaches v2</td></tr>
+      <tr><td>04.4</td><td><b>input</b></td><td>224 &rarr; 448 px, and the token count under it</td>
+        <td class="hi">+0.132</td><td>real, and now saturated</td></tr>
+      <tr><td>04.5</td><td><b>head</b></td><td>capacity: 0.44 M to 5.03 M, self-attention, multi-query</td>
+        <td>&minus;0.013 to +0.014</td><td class="lo">flat across an 11&times; parameter range</td></tr>
+      <tr><td>04.6</td><td><b>objective</b></td><td>vREx</td>
+        <td class="lo">+0.008 at best, &minus;0.094 at &beta;=100</td><td class="lo">no help, and harmful when pushed</td></tr>
+      <tr><td>04.6</td><td><b>objective</b></td><td>DERM &mdash; deconfound against phase</td>
+        <td class="lo">&minus;0.02 against a matched control</td>
+        <td class="lo">costs a little, and <em>installs</em> the bias it targets</td></tr>
     </tbody></table></div>
   <div class="note warnbox"><b>One structural limit, before any of it.</b> The regime overfits
   &mdash; training loss falls monotonically while validation AP plateaus near epoch 24. That is why
-  longer schedules and extra head capacity do nothing (row 4's saturation and the last row), and
-  why the leverage sits in rows 1 and 2.
+  longer schedules and extra head capacity do nothing (04.4's saturation and 04.5 entirely), and
+  why the leverage sits in 04.1 and 04.2.
   <br><br><b>Read every &Delta; against 0.015, not 0.009.</b> Seed noise is not one number: across
   the <b>seven</b> configurations now run at two seeds it spans 0.004 to 0.016, and the two widest
-  are fine-tuned arms (BitFit-6 on the SSL encoder 0.014, DERM on phases 0.016). Rows 3 and 5 sit
-  inside that; rows 1, 2 and 4 clear it comfortably.</div>
+  are fine-tuned arms (BitFit-6 on the SSL encoder 0.014, DERM on phases 0.016). 04.3, 04.5 and the
+  vREx row sit inside that; 04.1, 04.2 and 04.4 clear it comfortably.</div>
 </div>
 
 <div class="measure">
   <div class="sub">
-    <p class="q">ablation &middot; data</p>
+    <p class="q">04.1 &middot; data</p>
     <h3>The scaling law of annotation <span class="verdict v-yes">the binding constraint</span></h3>
     <p>Nested subsets of the labelled pools, so each point differs from the last for exactly one
     reason.</p>
@@ -428,7 +608,7 @@ BODY = f'''
   +0.033 &mdash; so twenty more annotated pools would beat all of them combined.</div>
 
   <div class="sub">
-    <p class="q">ablation &middot; encoder</p>
+    <p class="q">04.2 &middot; encoder &mdash; fine-tuning</p>
     <h3>Adapting the encoder <span class="verdict v-yes">yes &mdash; +0.11 AP, for 70k params</span></h3>
     <p>Unfreezing the last DINOv2 blocks is the largest modelling gain measured: macro AP 0.4289
     frozen &rarr; 0.4889 at two blocks &rarr; 0.5243 at six &mdash; a +0.095 span against a seed
@@ -436,9 +616,9 @@ BODY = f'''
     <p><b>What it is doing is recalibration, not new computation.</b> BitFit &mdash; training only
     biases, LayerNorm gains and LayerScale gains, and nothing that can form a new function of two
     patch features &mdash; matches and then beats full fine-tuning: <b>{run('res448_k2_bit6_d4')['ap']:.4f}
-    with 70,656 trainable encoder parameters against 0.5243 with 42.5 M</b>, a 602&times; cut. Two
-    head-capacity arms (patch self-attention, multi-query pooling) were flat. It also carries the
-    best r&Delta; of any arm on nose-to-tail apart from full fine-tuning
+    with 70,656 trainable encoder parameters against 0.5243 with 42.5 M</b>, a 602&times; cut. So
+    the gain is not extra capacity: adding capacity to the <em>head</em> instead does nothing at all
+    (04.5). It also carries the best r&Delta; of any arm on nose-to-tail apart from full fine-tuning
     ({run('res448_k2_bit6_d4')['rd_nt']:.3f}), so this is not an AP-only win.</p>
     <div class="note"><b>Two checks on that comparison.</b> The BitFit arms ran with
     <code>d4</code> augmentation against a <code>d4_photo</code> control; against the
@@ -448,7 +628,7 @@ BODY = f'''
   </div>
 
   <div class="sub">
-    <p class="q">ablation &middot; unlabelled frames</p>
+    <p class="q">04.3 &middot; encoder &mdash; unlabelled frames</p>
     <h3>Self-supervised adaptation <span class="verdict v-yes">yes &mdash; and it is what we deploy</span></h3>
     <p>data2vec-style masked patch-feature regression against an EMA teacher, on <b>374,400</b>
     unlabelled frames over 104 pools spanning v1 and v2 &mdash; including the 216 v2 observations no
@@ -508,7 +688,7 @@ BODY = f'''
   </div>
 
   <div class="sub">
-    <p class="q">ablation &middot; input</p>
+    <p class="q">04.4 &middot; input</p>
     <h3>Resolution against tokens <span class="verdict v-part">token-bound, now saturated</span></h3>
     <p>Going from 224 px to 448 px changes tokens and pixel detail at once. Capping the source
     pixels while holding the token count separates them: <b>tokens carried most of it</b>.</p>
@@ -534,27 +714,219 @@ BODY = f'''
   </div>
 
   <div class="sub">
-    <p class="q">ablation &middot; deconfounding</p>
-    <h3>DERM <span class="verdict v-no">no help on this base model</span></h3>
-    <p><b>The problem it targets.</b> Phase predicts <em>prevalence</em> here &mdash; the odour port
-    visibly changes the scene &mdash; so a classifier can score a frame by which phase it
-    <em>looks like</em> rather than by what the mice are doing. A bias that moves with the treatment
-    is what corrupts an effect estimated without a rectifier, which is the situation on v2.</p>
-    <p><b>What it does.</b> Reweight every sample by
-    Var(<i>Y</i>|<i>E</i>)&thinsp;/&thinsp;P(<i>Y</i>,<i>E</i>) over a set of environments &mdash;
-    for a binary label, <code>(1&minus;p<sub>e</sub>)/P(e)</code> on positives and
-    <code>p<sub>e</sub>/P(e)</code> on negatives. Positives and negatives then carry <b>equal mass
-    inside every environment</b>: a raw prevalence spread of 3.5&times; becomes exactly 0.5 in each,
-    with the mean weight normalised to 1 so the step size is unchanged. It never asks the model to
-    be invariant to phase, only to stop the label carrying information about which phase it came
-    from.</p>
+    <p class="q">04.5 &middot; head</p>
+    <h3>Head capacity <span class="verdict v-no">flat across an 11&times; parameter range</span></h3>
+    <p>Everything else held fixed &mdash; frozen stock DINOv2, 448&nbsp;px, D4 + photometric
+    augmentation, 30 epochs, seed&nbsp;42 &mdash; and only the pooling head changed.</p>
+    <div class="scroll"><table>
+      <thead><tr><th>head</th><th>params</th><th>what it adds</th><th>macro AP</th><th>&Delta;</th><th>r&Delta; nt / nn</th></tr></thead>
+      <tbody>
+        <tr><td>plain, no cross-attention</td><td>5.03 M</td><td>mean-pool the 1024 tokens, then an MLP</td>
+          <td class="lo">{run('res448_k2_frozen_d4photo_ermH5M')['ap']:.4f}</td><td class="lo">&minus;0.013</td>
+          <td>{rr('res448_k2_frozen_d4photo_ermH5M')}</td></tr>
+        <tr><td><b>cross-attention, 1 query</b> &mdash; the control</td><td>0.52 M</td>
+          <td>one learned query attends over the 1024 tokens</td><td>0.4289</td><td>&mdash;</td>
+          <td>{rr('res448_k2_frozen_d4photo_decay30_seed1')}</td></tr>
+        <tr><td>4 learned queries</td><td>0.57 M</td><td>four pooling queries instead of one</td>
+          <td>{run('res448_k2_frozen_q4_d4photo')['ap']:.4f}</td><td>&minus;0.003</td>
+          <td>{rr('res448_k2_frozen_q4_d4photo')}</td></tr>
+        <tr><td>+ 4&times;4 region grid</td><td class="hi">0.44 M</td>
+          <td>keeps <em>where</em> in the cage a token came from</td>
+          <td>{run('res448_k2_frozen_d4photo_rgrid4')['ap']:.4f}</td><td>+0.004</td>
+          <td class="hi">{rr('res448_k2_frozen_d4photo_rgrid4')}</td></tr>
+        <tr><td>+ patch self-attention (d = 128)</td><td>0.79 M</td>
+          <td>tokens attend to each other before pooling</td>
+          <td class="hi">0.4431</td><td>+0.014</td><td>&mdash; not scored</td></tr>
+      </tbody></table></div>
+    <p>Across an <b>11&times;</b> span in head parameters every arm lands within 0.014 of the
+    control &mdash; inside the 0.015 seed band &mdash; though the two extremes are 0.027 apart. The
+    one arm that reaches the band's edge, patch self-attention at +0.014, has a single seed and no
+    held-out predictions, so it has no r&Delta; and cannot be promoted on AP alone. Two things do
+    follow. The <b>region-preserving head matches the 5.03 M plain one at under a tenth of the
+    size</b> and carries a better r&Delta;,
+    which is why it appears in section 05's shortlist. And the head the objective arms and the
+    deployment folds all use is the <em>plain</em> 5.03 M one, the weakest of the five &mdash;
+    a legacy of the launcher, and the reason those arms are only ever compared to their own matched
+    controls.</p>
+    <div class="note">Two caveats a reader should not have to find. The region-grid arm also raises
+    the cross-attention width from 64 to 128, so it moves two things rather than one. And the
+    control's own second seed reads 0.4200, which is 0.009 below the 0.4289 every &Delta; in this
+    table is taken against &mdash; another way of saying that nothing here is resolved.</div>
+  </div>
+
+  <div class="sub">
+    <p class="q">04.6 &middot; objective</p>
+    <h3>vREx and DERM
+      <span class="verdict v-no">neither helps &mdash; and DERM writes its own bias in</span></h3>
+    <p><b>What an objective change could buy, exactly.</b> The estimand is a within-pool difference,
+    so write the model's expected output in phase <math><mi>p</mi></math> as
+    <math><mrow><mi>E</mi><mo>[</mo><mi>f</mi><mo>|</mo><mi>p</mi><mo>]</mo><mo>=</mo>
+    <msub><mi>a</mi><mi>p</mi></msub><mo>+</mo><mi>b</mi><mspace width="0.15em"/><mi>E</mi>
+    <mo>[</mo><mi>Y</mi><mo>|</mo><mi>p</mi><mo>]</mo></mrow></math>. Then the plug-in target for
+    the transition <math><mrow><mi>H</mi><mo>&#x2192;</mo><mi>O</mi></mrow></math> is</p>
+    <div class="eqn"><math display="block"><mrow>
+      <mi>E</mi><mo>[</mo><msub><mi>D</mi><mi>f</mi></msub><mo>]</mo><mo>=</mo>
+      <munder><munder><mrow><mi>b</mi><mspace width="0.15em"/><mi>E</mi><mo>[</mo>
+        <msub><mi>D</mi><mi>Y</mi></msub><mo>]</mo></mrow>
+        <mo>&#x23DF;</mo></munder><mtext>a scale &#x2014; harmless</mtext></munder>
+      <mo>+</mo>
+      <munder><munder><mrow><mo>(</mo><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo>
+        <msub><mi>a</mi><mi>H</mi></msub><mo>)</mo></mrow>
+        <mo>&#x23DF;</mo></munder><mtext>a bias in the estimand</mtext></munder>
+    </mrow></math></div>
+    <p>The scale <math><mi>b</mi></math> is absorbed by PPI++'s
+    <math><mi>&#x3BB;</mi></math> and declined outright by uncalibrated PPCI, which never quotes a
+    magnitude. <math><mrow><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo>
+    <msub><mi>a</mi><mi>H</mi></msub></mrow></math> is the whole problem: it is non-zero exactly
+    when the model's error moves <em>with</em> the phase, and it is the only term that can flip a
+    sign or manufacture an effect. So an objective change earns its keep only by shrinking it &mdash;
+    which is a quantity neither AP nor a 16-point r&Delta; can see. It was measured directly.</p>
+
+    <p><b>The measurement: a phase leak.</b> Among frames with the <em>same</em> ground truth, how
+    well does the model's own output separate one phase from another?</p>
+    <div class="eqn"><math display="block"><mrow>
+      <mi>leak</mi><mo>(</mo><mi>x</mi><mo>&#x2192;</mo><mi>y</mi><mo>)</mo><mo>=</mo>
+      <mi>AUC</mi><mrow><mo>(</mo><mi>f</mi><mo>|</mo><mi>phase</mi><mo>=</mo><mi>y</mi>
+      <mspace width="0.5em"/><mtext>versus</mtext><mspace width="0.5em"/>
+      <mi>f</mi><mo>|</mo><mi>phase</mi><mo>=</mo><mi>x</mi><mo>)</mo></mrow>
+      <mo>,</mo><mspace width="1em"/><mtext>both at</mtext><mspace width="0.4em"/>
+      <mi>Y</mi><mo>=</mo><mn>0</mn></mrow></math></div>
+    <p>0.5 means the output carries no phase information beyond the behaviour. It is a rank
+    statistic, so it is untouched by any monotone rescaling &mdash; including the level shift DERM
+    itself introduces, which is what makes every absolute comparison of the two unfair. Frames
+    within a recording are anything but independent, so the interval is bootstrapped over the four
+    validation <em>pools</em>. Negatives are the frames that matter: the model over-predicts
+    occupancy about fivefold, so almost all of its error lives there.</p>
+    <div class="scroll"><table>
+      <thead><tr><th>objective</th><th>nt &nbsp;H&rarr;O</th><th>nt &nbsp;O&rarr;P</th>
+        <th>nn &nbsp;H&rarr;O</th><th>nn &nbsp;O&rarr;P</th>
+        <th>mean |AUC&minus;0.5|</th><th>cells resolved of 4</th></tr></thead>
+      <tbody>
+        <tr><td><b>ERM</b>, 2 seeds</td>
+          <td>{lk('erm','nt','H->O')}</td><td>{lk('erm','nt','O->P')}</td>
+          <td>{lk('erm','nn','H->O')}</td><td>{lk('erm','nn','O->P')}</td>
+          <td class="hi">{lkdev('erm')}</td><td class="hi">{lkres('erm')}</td></tr>
+        <tr><td>ERM on BitFit-6 &mdash; the accuracy leader, 2 seeds</td>
+          <td>{lk('bit_erm','nt','H->O')}</td><td>{lk('bit_erm','nt','O->P')}</td>
+          <td>{lk('bit_erm','nn','H->O')}</td><td>{lk('bit_erm','nn','O->P')}</td>
+          <td class="hi">{lkdev('bit_erm')}</td><td class="hi">{lkres('bit_erm')}</td></tr>
+        <tr><td>DERM, environments = the 3 <b>phases</b>, 2 seeds</td>
+          <td>{lk('derm','nt','H->O')}</td><td>{lk('derm','nt','O->P')}</td>
+          <td>{lk('derm','nn','H->O')}</td><td>{lk('derm','nn','O->P')}</td>
+          <td class="lo">{lkdev('derm')}</td><td class="lo">{lkres('derm')}</td></tr>
+        <tr><td>DERM, environments = the 6 <b>phase &times; exposure cells</b>, 1 seed</td>
+          <td>{lk('cond','nt','H->O')}</td><td>{lk('cond','nt','O->P')}</td>
+          <td>{lk('cond','nn','H->O')}</td><td>{lk('cond','nn','O->P')}</td>
+          <td class="lo">{lkdev('cond')}</td><td class="lo">{lkres('cond')}</td></tr>
+      </tbody></table></div>
+
+    <div class="note"><b>The shortcut is not open, and that is the useful result on this page.</b>
+    Under ERM the model's output carries essentially no phase information at fixed truth &mdash;
+    mean deviation <b>{lkdev('erm')}</b> AUC, and <b>not one</b> of the four cells has an interval
+    excluding 0.5 (nt&nbsp;H&rarr;O {lkci('erm','nt','H->O')}, nn&nbsp;H&rarr;O
+    {lkci('erm','nn','H->O')}). The same holds for the accuracy leader, BitFit-6 at macro AP
+    {run('res448_k2_bit6_d4')['ap']:.3f}: {lkdev('bit_erm')}, {lkres('bit_erm')} of 4. So
+    <math><mrow><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo>
+    <msub><mi>a</mi><mi>H</mi></msub></mrow></math> was already near zero and DERM had nothing to
+    remove. Section 04 used to <em>infer</em> that from a null on AP; this measures it. It is also
+    the first direct evidence that PPCI's uncalibrated plug-in is not being driven by a
+    treatment-linked model artefact &mdash; the load-bearing assumption behind every v2 number on
+    this page.</div>
+
+    <div class="note warnbox"><b>DERM installs a leak of its own, pointing where its own weights
+    point.</b> DERM's weights are
+    <math><mrow><mi>w</mi><mo>(</mo><mi>Y</mi><mo>=</mo><mn>1</mn><mo>,</mo><mi>e</mi><mo>)</mo>
+    <mo>=</mo><mo>(</mo><mn>1</mn><mo>&#x2212;</mo><msub><mi>p</mi><mi>e</mi></msub><mo>)</mo>
+    <mo>/</mo><mi>P</mi><mo>(</mo><mi>e</mi><mo>)</mo></mrow></math> and
+    <math><mrow><mi>w</mi><mo>(</mo><mi>Y</mi><mo>=</mo><mn>0</mn><mo>,</mo><mi>e</mi><mo>)</mo>
+    <mo>=</mo><msub><mi>p</mi><mi>e</mi></msub><mo>/</mo><mi>P</mi><mo>(</mo><mi>e</mi>
+    <mo>)</mo></mrow></math>. The <math><mrow><mn>1</mn><mo>/</mo><mi>P</mi><mo>(</mo><mi>e</mi>
+    <mo>)</mo></mrow></math> cancels in the ratio, so the entire effect on an environment's
+    operating point is a shift by that environment's <em>prior odds</em>:
+    <div class="eqn"><math display="block"><mrow>
+      <mfrac><mrow><mi>w</mi><mo>(</mo><mi>Y</mi><mo>=</mo><mn>0</mn><mo>,</mo><mi>e</mi>
+        <mo>)</mo></mrow>
+        <mrow><mi>w</mi><mo>(</mo><mi>Y</mi><mo>=</mo><mn>1</mn><mo>,</mo><mi>e</mi>
+        <mo>)</mo></mrow></mfrac>
+      <mo>=</mo>
+      <mfrac><msub><mi>p</mi><mi>e</mi></msub>
+        <mrow><mn>1</mn><mo>&#x2212;</mo><msub><mi>p</mi><mi>e</mi></msub></mrow></mfrac>
+    </mrow></math></div>
+    A <em>high</em>-prevalence environment has its negatives upweighted, so it is pushed toward
+    predicting negative. That is the intended deconfounding &mdash; divide the prior out. But here
+    the environments <em>are</em> the phases, so the shift DERM installs is itself a function of the
+    treatment. The prediction that follows: &Delta;AUC (DERM minus ERM) should run <em>opposite</em>
+    to the log odds ratio between the two phases, computed on the training pools. Measured:
+    <b>r = {_rp}</b> over the four phase cells (p = {_pp}), <b>r = {_rc}</b> over the eight
+    phase&nbsp;&times;&nbsp;exposure cells (p = {_pc}). The two cells carrying a real prediction &mdash; nt and nn under
+    fear at H&rarr;O, log odds ratio +1.29 and +0.90 &mdash; both agree; the cells that disagree are
+    the ones where the predicted shift is about zero.</div>
+
+    <p><b>So when is DERM favourable? One property of the environment decides it.</b> DERM's
+    correction is a per-environment shift of the decision logit. Whether that shift reaches the
+    estimand depends only on whether the environment varies <em>within</em> a pool &mdash; measured
+    on the 24 annotated pools, not assumed:</p>
+    <div class="scroll"><table>
+      <thead><tr><th>environments</th><th>constant within a pool</th><th>what its shift does to a within-pool contrast</th></tr></thead>
+      <tbody>
+        <tr><td><b>phase</b>, <b>phase &times; exposure</b> &mdash; what was run</td>
+          <td class="lo">{D['pool_constant']['phase']['constant_pools']} of {D['pool_constant']['phase']['n_pools']}</td>
+          <td class="lo">differs between the two sides of the contrast, so it lands in the estimand.
+          <b>Guaranteed to bias.</b></td></tr>
+        <tr><td>line, sex, genotype, cage</td>
+          <td class="hi">{D['pool_constant']['genotype']['constant_pools']} of {D['pool_constant']['genotype']['n_pools']}</td>
+          <td class="hi">identical on both sides, so it cancels exactly. <b>Free</b> &mdash; but it
+          targets a nuisance, not the treatment.</td></tr>
+        <tr><td>annotator</td>
+          <td>{D['pool_constant']['annotator']['constant_pools']} of {D['pool_constant']['annotator']['n_pools']}</td>
+          <td>cancels for those, and annotator is exactly balanced across H / O / P overall</td></tr>
+      </tbody></table></div>
+    <p><b>That leaves no configuration that protects the estimand against a treatment-linked
+    leak.</b> Phase environments target it but write their own version of it into the answer, and
+    the estimand cannot tell the two apart &mdash; so a partial success is not a partial
+    improvement, and you come out ahead only when the leak you remove is larger than the leak you
+    install ({lkdev('erm')} against {lkdev('derm')} here). Pool-level environments are free but aim
+    at something else. What actually removes
+    <math><mrow><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo>
+    <msub><mi>a</mi><mi>H</mi></msub></mrow></math>, whatever it is, is PPI++'s rectifier &mdash;
+    which is why v1 is safe, and why v2, having no rectifier, needs annotation rather than a
+    different objective.</p>
+
+    <div class="note"><b>The other channel, and it is null too.</b> PPI++ is unbiased for any
+    predictor, so a treatment-linked bias costs it variance rather than validity. The one thing that
+    <em>can</em> break its validity here is that the 24 labelled pools are not a random sample
+    &mdash; annotation is 3:1 het-enriched &mdash; so the rectifier measured on them has to
+    transport to 48 wt-enriched pools. That needs the model's bias not to depend on genotype. On all
+    24 annotated pools, with out-of-fold predictions:
+    <div class="scroll" style="margin-top:11px"><table>
+      <thead><tr><th>share of the model's bias explained by</th><th>at the LEVEL &mdash; nt / nn</th>
+        <th>in the WITHIN-POOL DIFFERENCE &mdash; nt / nn</th></tr></thead>
+      <tbody>
+        <tr><td><b>genotype</b></td>
+          <td class="hi">{nui('nt','genotype','level')} / {nui('nn','genotype','level')}</td>
+          <td class="hi">{nui('nt','genotype','delta')} / {nui('nn','genotype','delta')}</td></tr>
+        <tr><td>annotator</td>
+          <td class="lo">{nui('nt','annotator','level')} / {nui('nn','annotator','level')}</td>
+          <td>{nui('nt','annotator','delta')} / {nui('nn','annotator','delta')}</td></tr>
+        <tr><td>line</td>
+          <td class="lo">{nui('nt','line','level')} / {nui('nn','line','level')}</td>
+          <td>{nui('nt','line','delta')} / {nui('nn','line','delta')}</td></tr>
+      </tbody></table></div>
+    <b>The model's bias is nuisance-linked at the level and cancels in the difference</b>, and
+    genotype explains essentially none of it at either. Same cancellation the annotator effect shows
+    on label noise in section 05 and the three wild-type strata show in section 01. So PPI++ on v1 is
+    not exposed on this route either.</div>
+
+    <p><b>The arms, as run.</b> Same head, augmentation, split and schedule as their controls; only
+    the objective differs. vREx changes the loss (a penalty on risk spread across environments);
+    DERM changes the distribution the risk is averaged over.</p>
     <div class="scroll"><table>
       <thead><tr><th>arm</th><th>environments</th><th>seed</th><th>macro AP</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
       <tbody>
-        <tr><td><b>control</b> (unweighted)</td><td>&mdash;</td><td>42</td><td>0.4163</td>
+        <tr><td><b>control</b> (unweighted ERM)</td><td>&mdash;</td><td>42</td><td>0.4163</td>
           <td>{rr2('res448_k2_frozen_d4photo_ermH5M','nt')}</td>
           <td>{rr2('res448_k2_frozen_d4photo_ermH5M','nn')}</td></tr>
-        <tr><td><b>control</b> (unweighted)</td><td>&mdash;</td><td>1</td><td>0.4202</td>
+        <tr><td><b>control</b> (unweighted ERM)</td><td>&mdash;</td><td>1</td><td>0.4202</td>
           <td>{rr2('res448_k2_frozen_d4photo_ermH5M_s1','nt')}</td>
           <td>{rr2('res448_k2_frozen_d4photo_ermH5M_s1','nn')}</td></tr>
         <tr><td>DERM</td><td>the 3 <b>phases</b></td><td>42</td><td>0.4060</td>
@@ -566,26 +938,39 @@ BODY = f'''
         <tr><td>DERM</td><td>the 6 phase &times; exposure cells</td><td>42</td><td>0.3863</td>
           <td>{rr2('res448_k2_frozen_d4photo_dermCond','nt')}</td>
           <td>{rr2('res448_k2_frozen_d4photo_dermCond','nn')}</td></tr>
+        <tr><td>vREx, &beta; = 1</td><td>the 6 phase &times; exposure cells</td><td>42</td>
+          <td>{run('res448_k2_frozen_d4photo_vrexCond_b1')['ap']:.4f}</td>
+          <td>{rr2('res448_k2_frozen_d4photo_vrexCond_b1','nt')}</td>
+          <td>{rr2('res448_k2_frozen_d4photo_vrexCond_b1','nn')}</td></tr>
+        <tr><td>vREx, &beta; = 10</td><td>annotator</td><td>42</td>
+          <td>{run('res448_k2_frozen_d4photo_vrexAnn_b10')['ap']:.4f}</td>
+          <td>{rr2('res448_k2_frozen_d4photo_vrexAnn_b10','nt')}</td>
+          <td>{rr2('res448_k2_frozen_d4photo_vrexAnn_b10','nn')}</td></tr>
+        <tr><td>vREx, &beta; = 100</td><td>annotator</td><td>42</td>
+          <td class="lo">{run('res448_k2_frozen_d4photo_vrexAnn_b100')['ap']:.4f}</td>
+          <td>{rr2('res448_k2_frozen_d4photo_vrexAnn_b100','nt')}</td>
+          <td class="lo">{rr2('res448_k2_frozen_d4photo_vrexAnn_b100','nn')}</td></tr>
       </tbody></table></div>
-    <p><b>Against a matched control, DERM costs a little accuracy and buys nothing.</b> Macro AP
-    averages 0.418 unweighted against 0.398 with phase environments &mdash; about
-    &minus;0.02 &mdash; and 0.386 with the finer phase&nbsp;&times;&nbsp;exposure cells. On
-    r&Delta;&nbsp;nn, the stable axis, the two are identical: 0.786 unweighted against 0.788
-    deconfounded. Whatever route DERM closes, this model was not using it enough for the closing to
-    show.</p>
+    <p>On AP, DERM averages 0.398 with phase environments against 0.418 unweighted &mdash; about
+    &minus;0.02, inside the seed band on one reading and just outside it on another &mdash; and
+    0.386 on the finer cells. vREx's best arm is +0.008 and its worst is &minus;0.094. On
+    r&Delta;&nbsp;nn, the stable axis, DERM and its control are identical: 0.786 against 0.788.</p>
     <div class="note warnbox"><b>And r&Delta;&nbsp;nt cannot arbitrate any of this &mdash; the
     control proves it.</b> Two runs of the <em>unweighted</em> control differing only in seed give
     r&Delta;&nbsp;nt of <b>{rr2('res448_k2_frozen_d4photo_ermH5M','nt')}</b> and
     <b>{rr2('res448_k2_frozen_d4photo_ermH5M_s1','nt')}</b>. A spread of 0.67 between two runs of
     the same configuration is larger than the entire range across every arm in this section, so on
-    the standing 4-pool split this metric measures the seed, not the method. That is why nothing in
-    section 05 is chosen on it, and why a real answer needs cross-fitting.</div>
-    <div class="note"><b>Still open: DERM on the accuracy leader.</b> Everything above sits on a
-    frozen stock encoder at macro AP ~0.42. Two arms applying the same phase-environment
-    deconfounding to BitFit-6 (AP 0.5409) are queued, with controls already in hand at both seeds.
-    If DERM helps anywhere it should help there, where the model is good enough for a
-    treatment-linked shortcut to be worth closing.</div>
+    the standing 4-pool split this metric measures the seed, not the method. That is why the leak
+    above is measured instead, and why nothing in section 05 is chosen on r&Delta;&nbsp;nt.</div>
+    <div class="note"><b>What would change the answer, and a screening rule.</b> The leak rests on
+    four validation pools and the two correlations above carry p &asymp; 0.12&ndash;0.15: this is a
+    direction with a mechanism behind it, not an effect size. The conclusion that generalises is a
+    <b>screening rule</b> &mdash; measure the leak first, and run DERM only where it resolves. On
+    that rule the two DERM-on-BitFit-6 arms now training are predicted <em>not</em> to help, because
+    BitFit-6's own leak is {lkdev('bit_erm')} and {lkres('bit_erm')} of 4 cells resolve. That
+    prediction is falsifiable as soon as they land.</div>
   </div>
+
 </div></section>
 
 <section><div class="measure">
@@ -666,7 +1051,10 @@ BODY = f'''
   so these must never be read as behaviour rates directly. For PPI++ that costs nothing, because
   &lambda; absorbs the scale. <b>For PPCI it is the whole caveat</b>: PPCI reports this scale rather
   than the behaviour's, which is why it is drawn hollow in the effects figure and why nothing on
-  this page reads a PPCI magnitude as a rate.</p>
+  this page reads a PPCI magnitude as a rate. What a fivefold offset does <em>not</em> do is bias
+  the contrast, and that is not an assumption here but a measurement: an offset only survives a
+  within-pool difference if it moves with the phase, and section 04.6 puts that at
+  {lkdev('erm')} AUC with {lkres('erm')} of four cells resolved.</p>
 </div>
 
 <div class="measure">
@@ -700,24 +1088,67 @@ BODY = f'''
   nothing is being traded here; the cross-fitted version of it is running.</div>
 
   <h3 style="margin-top:26px">How much is there left to win?</h3>
-  <p>Two ceilings bound everything above, and both are computable rather than rhetorical.</p>
+  <p>Two ceilings bound everything above, and both are computable rather than rhetorical. The first
+  is exact and worth writing down, because it says that most of what a better model could buy on v1
+  is already spent.</p>
+
+  <div class="bound">
+    <p class="t">bound &middot; PPI++ on v1</p>
+    <p>Let <math><mi>n</mi><mo>=</mo><mn>{_PB['n']}</mn></math> be the labelled pools,
+    <math><mi>N</mi><mo>=</mo><mn>{_PB['N']}</mn></math> the unlabelled ones, and
+    <math><mrow><mi>r</mi><mi>&#x394;</mi><mo>=</mo><mi>corr</mi><mo>(</mo>
+    <msub><mi>D</mi><mi>Y</mi></msub><mo>,</mo><msub><mi>D</mi><mi>f</mi></msub>
+    <mo>)</mo></mrow></math>. At the power-tuned
+    <math><mrow><mi>&#x3BB;</mi><mo>=</mo><mi>Cov</mi><mo>(</mo><msub><mi>D</mi><mi>Y</mi></msub>
+    <mo>,</mo><msub><mi>D</mi><mi>f</mi></msub><mo>)</mo><mo>/</mo><mo>[</mo>
+    <mi>Var</mi><mo>(</mo><msub><mi>D</mi><mi>f</mi></msub><mo>)</mo>
+    <mo>(</mo><mn>1</mn><mo>+</mo><mi>n</mi><mo>/</mo><mi>N</mi><mo>)</mo><mo>]</mo></mrow></math>
+    the estimator's variance is</p>
+    <div class="eqn"><math display="block"><mrow>
+      <mi>Var</mi><mo>(</mo><msub><mover accent="true"><mi>&#x3B8;</mi><mo>^</mo></mover>
+        <mtext>PPI++</mtext></msub><mo>)</mo><mo>=</mo>
+      <mfrac><mrow><mi>Var</mi><mo>(</mo><msub><mi>D</mi><mi>Y</mi></msub><mo>)</mo></mrow>
+             <mi>n</mi></mfrac>
+      <mrow><mo>[</mo><mn>1</mn><mo>&#x2212;</mo>
+        <msup><mrow><mo>(</mo><mi>r</mi><mi>&#x394;</mi><mo>)</mo></mrow><mn>2</mn></msup>
+        <mfrac><mi>N</mi><mrow><mi>n</mi><mo>+</mo><mi>N</mi></mrow></mfrac><mo>]</mo></mrow>
+    </mrow></math></div>
+    <p>so the interval scales as</p>
+    <div class="eqn"><math display="block"><mrow>
+      <mfrac><msub><mi>SE</mi><mtext>PPI++</mtext></msub>
+             <msub><mi>SE</mi><mtext>CI</mtext></msub></mfrac>
+      <mo>=</mo>
+      <msqrt><mrow><mn>1</mn><mo>&#x2212;</mo>
+        <mfrac><mn>2</mn><mn>3</mn></mfrac>
+        <msup><mrow><mo>(</mo><mi>r</mi><mi>&#x394;</mi><mo>)</mo></mrow><mn>2</mn></msup>
+      </mrow></msqrt>
+      <mspace width="1.2em"/><mo>&#x2265;</mo><mspace width="0.6em"/>
+      <msqrt><mfrac><mi>n</mi><mrow><mi>n</mi><mo>+</mo><mi>N</mi></mrow></mfrac></msqrt>
+      <mo>=</mo>
+      <msqrt><mfrac><mn>1</mn><mn>3</mn></mfrac></msqrt>
+      <mo>=</mo><mn>{_PB['floor']:.3f}</mn>
+    </mrow></math></div>
+    <p><b>So no model can narrow the interval by more than {100 * (1 - _PB['floor']):.1f}%.</b>
+    Equality holds only at <math><mrow><mi>r</mi><mi>&#x394;</mi><mo>=</mo><mn>1</mn></mrow></math>,
+    where the variance collapses to
+    <math><mrow><mi>Var</mi><mo>(</mo><msub><mi>D</mi><mi>Y</mi></msub><mo>)</mo><mo>/</mo>
+    <mo>(</mo><mi>n</mi><mo>+</mo><mi>N</mi><mo>)</mo></mrow></math> &mdash; precisely the variance
+    of having annotated all {_PB['n'] + _PB['N']} pools. The bound depends on the <em>design</em>
+    only: 24 of 72, and nothing about the model. Measured today the mean narrowing is <b>12%</b>,
+    best cell 22%, so about a third of the available ceiling is in hand and the rest is entirely
+    r&Delta;.</p>
+  </div>
+
   <div class="scroll"><table>
-    <thead><tr><th>r&Delta;</th><th>predicted CI width vs CI</th><th>where that is</th></tr></thead>
+    <thead><tr><th>r&Delta;</th><th>predicted PPI++ width vs CI</th><th>where that is</th></tr></thead>
     <tbody>
-      <tr><td>0.50</td><td>&minus;9%</td><td></td></tr>
-      <tr><td>0.60</td><td>&minus;13%</td><td>roughly where we are: <b>&minus;12% measured</b>,
-        averaged over the eight cells</td></tr>
-      <tr><td>0.70</td><td>&minus;18%</td><td></td></tr>
-      <tr><td>0.80</td><td>&minus;24%</td><td></td></tr>
-      <tr><td class="hi">1.00</td><td class="hi">&minus;42%</td><td class="hi">a perfect model
-        &mdash; the variance of all 72 pools labelled</td></tr>
+      {bound_rows}
     </tbody></table></div>
-  <p><b>PPI++'s ceiling on v1 is a 42% narrower interval</b>, and the reason is exact: with
-  D<sub>f</sub>&nbsp;=&nbsp;D<sub>Y</sub> the estimator's variance collapses to
-  Var(D<sub>Y</sub>)/(n+N), which is what you would get by annotating all 72 pools. So the SE
-  ratio is &radic;(24/72) = 0.577 no matter how good the model gets. Measured today the mean
-  narrowing is <b>12%</b>, best cell 22%. The gap is entirely r&Delta;, which is why r&Delta; is
-  the ranking metric.</p>
+  <p>Two things follow. <b>r&Delta; is the ranking metric</b> because it is the only free variable
+  in the bound. And <b>annotating more pools raises the ceiling itself</b>: the floor is
+  &radic;(n/(n+N)), so moving 20 pools from unlabelled to labelled changes what a perfect model
+  could ever be worth &mdash; which is next-step 1, and why it beats every modelling change on this
+  page.</p>
   <div class="note"><b>The second ceiling is the labels &mdash; and the estimand is largely
   protected from it.</b> No observation in v1 was scored twice, so agreement cannot be measured
   directly; the design bounds it instead, because within a genotype group the six pools are
@@ -758,25 +1189,33 @@ BODY = f'''
       <tr><td>1</td><td>annotate ~20 more v1 pools</td><td>+0.076 AP per doubling and no plateau &mdash; worth more than every modelling change combined, and it raises CI's own precision rather than only PPI++'s</td></tr>
       <tr><td>2</td><td>annotate 4&ndash;6 v2 pools</td><td>the only way v2 gets a CI or a PPI++ estimate at all; today it has PPCI and nothing to check it against</td></tr>
       <tr><td>3</td><td>fix the observation window on biological grounds</td><td>largest single lever on the headline number; currently inherited, not chosen</td></tr>
-      <tr><td>4</td><td>finish the matched ERM controls for DERM</td><td>launched; without them the DERM arms differ from their controls in the head as well as the objective, so no AP claim about them is readable</td></tr>
+      <tr><td>4</td><td>screen the phase leak before running any more DERM</td><td>the matched ERM controls landed and the leak is now measured directly: {lkdev('erm')} AUC, {lkres('erm')} of 4 cells resolved, so there is no treatment-linked shortcut on this model to close. Run DERM only where the leak resolves &mdash; and never with the treatment as the environment, which writes its own shift into the estimand</td></tr>
       <tr><td>5</td><td>run BitFit-6 over the three folds and the unannotated pools</td><td class="hi">launched &mdash; ~18 GPU-h to move every estimate onto the configuration that leads on accuracy (macro AP 0.541 against the deployed 0.382)</td></tr>
       <tr><td>6</td><td>per-animal crops from the 2060 px source</td><td>the only resolution lever left, and a prerequisite for any per-animal outcome</td></tr>
       <tr><td>7</td><td>record which animal in each v2 cage is the heterozygote</td><td>without it the within-pool genotype contrast is not identified no matter how good the vision gets</td></tr>
       <tr><td>8</td><td>double-annotate 15&ndash;20 observations, <b>nose-to-tail first</b></td><td>the annotator bound above is inferred from the design, not measured, and it is aliased with cage; nose-to-tail is where it binds (best possible r &le; 0.65)</td></tr>
     </tbody></table></div>
   <div class="note warnbox"><b>Closed.</b> Scaling the SSL corpus (2&times; the frames at matched
-  compute is neutral; six adapted blocks is harmful) and vREx (four arms across two environment
-  definitions, best +0.008). Everything else above is open.</div>
+  compute is neutral; six adapted blocks is harmful). vREx (four arms, two environment definitions,
+  best +0.008). Head capacity (five heads across an 11&times; parameter range, whole span inside the
+  seed band). And <b>DERM against the treatment</b> &mdash; not on a null but on a mechanism: its
+  correction is a per-environment shift of the decision logit, so with the phases as environments it
+  necessarily lands in a within-phase contrast, and measured it does. Everything else above is
+  open.</div>
 </div></section>
 
 <div class="measure"><footer>
   All intervals 95%, clustered on pool (n = 24 labelled + 48 unlabelled on v1, 36 on v2). Built by
-  <code>build_report.py</code> from four JSON payloads regenerated from the runs and the labels at
+  <code>build_report.py</code> from seven JSON payloads regenerated from the runs and the labels at
   build time &mdash; <code>build_estimates.py</code> (every effect), <code>build_models.py</code>
-  (every scored run and its recipe), <code>build_outcome.py</code> (the outcome-unit numbers) and
-  <code>build_decay.py</code> (the within-phase curves). Numbers quoted in the prose are read from
-  those same payloads, so the text cannot drift from the tables. One static figure, the annotation
-  scaling curve, is still pre-rendered by <code>story_figures.py</code>.
+  (every scored run and its recipe), <code>build_outcome.py</code> (the outcome units and their
+  distributions), <code>build_decay.py</code> (the within-phase curves),
+  <code>build_examples.py</code> (the error thumbnails),
+  <code>build_ppci_robustness.py</code> (PPCI under a second predictor) and
+  <code>build_derm.py</code> (the phase leak, the nuisance-bias decomposition and the PPI++ bound).
+  Numbers quoted in the prose are read from those same payloads, so the text cannot drift from the
+  tables. One static figure, the annotation scaling curve, is still pre-rendered by
+  <code>story_figures.py</code>.
 </footer></div>
 
 </div>

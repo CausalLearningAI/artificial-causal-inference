@@ -8,7 +8,7 @@ the selectors just choose which slice to draw.
 THE GRID
 ========
     experiment  v1 (72 pools, 24 annotated) | v2 (36 pools, 0 annotated)
-    unit        events (bouts per minute) | time (occupancy, pp) | decay (front-loading F)
+    unit        events (bouts per minute) | time (occupancy, pp) | decay (front-loading)
     behaviour   nn (nose-to-nose)           | nt (nose-to-tail)
     model       which predictor supplies f
     stratum     all | v1: line x genotype (6) | v2: line (3)
@@ -85,9 +85,9 @@ LABELS = ('nt', 'nn')
 BEHAV_NICE = {'nt': 'nose-to-tail', 'nn': 'nose-to-nose'}
 ODOURS = (('F', 'fear'), ('S', 'social'))
 UNITS = {'events': 'bouts per minute', 'time': 'occupancy (pp)',
-         'decay': 'front-loading fraction F'}
+         'decay': 'decay (front-loading fraction)'}
 ALL_UNITS = ('events', 'time', 'decay')
-# F = bouts starting in the first 5 minutes / bouts starting in the first 15. Flat process -> 0.33,
+# decay = bouts starting in the first 5 minutes / bouts starting in the first 15. Flat -> 0.33,
 # strong decay -> higher. O and P run exactly 15 minutes so their whole recording is the window;
 # only H (30 min) is truncated by it, which is what makes F comparable across phases at all.
 WIN5, WIN15 = int(5 * 60 * FPS), int(15 * 60 * FPS)
@@ -185,7 +185,7 @@ def dense_predictions(version: str, mean_tau: dict):
     """Cross-prediction: average the K fold models' per-observation predictions.
 
     Occupancy and bout counts come from the per-fold CSV, which already holds them. The decay
-    fraction F does not -- it needs bout START times, so it is computed from the companion .npz,
+    the decay fraction does not -- it needs bout START times, so it comes from the companion .npz,
     which carries the per-frame probability at stride 1 keyed by observation_id with array index
     equal to frame_idx. Averaging happens on the per-observation summaries, matching what the
     labelled side does, rather than on the frame probabilities.

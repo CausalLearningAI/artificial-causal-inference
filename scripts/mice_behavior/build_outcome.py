@@ -36,6 +36,9 @@ For each unit this prints:
   bias_spread   max/min of the predicted/true ratio across the three phases: how much of the
                 model's error moves WITH the treatment
 
+It also emits `dist`, the two DISTRIBUTIONS the section argues from -- events per recording and
+bout length -- binned so the figure can show their shape instead of quoting a percentile from it.
+
 THE CAVEAT THAT HAS TO TRAVEL WITH `resolves`
 =============================================
 Picking the outcome that yields the most rejections of the null is selection on significance. It
@@ -109,11 +112,67 @@ def contrast(d, col, x, y):
     return m, m - q * se, m + q * se
 
 
+# ------------------------------------------------------------------ distributions for the figure
+# The outcome section argues about MEASURABILITY, and the two facts it argues from are both
+# distributional: how many events a recording contains, and how long one event lasts. Both were
+# quoted as single numbers and are now emitted in full so the figure can show the shape rather
+# than the summary. Nothing here is a new measurement -- it is the same bouts `per_observation`
+# already walks, binned.
+LEN_MAX = 15                      # lengths 1..LEN_MAX individually, then one tail bucket
+
+
+def distributions(t: pd.DataFrame, lens: dict) -> dict:
+    """Per-observation event counts and pooled bout lengths, binned for the section-02 figure."""
+    dur = t.phase.map({'H': 30.0, 'O': 15.0, 'P': 15.0})
+    out = {'meta': {'fps': FPS, 'n_obs': int(len(t)), 'n_pools': int(t.pool.nunique()),
+                    'len_max': LEN_MAX,
+                    'phase_minutes': {'H': 30, 'O': 15, 'P': 15}},
+           'counts': {}, 'lengths': {}}
+    for l in LABELS:
+        per_min = t[f'counts_{l}'].to_numpy(float)
+        per_rec = np.rint(per_min * dur.to_numpy(float)).astype(int)
+        rec = {}
+        for key, v, step in (('per_min', per_min, 0.2), ('per_rec', per_rec.astype(float), 5.0)):
+            hi = step * (np.floor(v.max() / step) + 1)
+            edges = np.arange(0, hi + step / 2, step)
+            h, _ = np.histogram(v, bins=edges)
+            by = {}
+            for ph, g in t.assign(_v=v).groupby('phase'):
+                by[ph] = {'median': round(float(g._v.median()), 4),
+                          'mean': round(float(g._v.mean()), 4), 'n': int(len(g))}
+            rec[key] = {'step': step, 'edges': [round(float(x), 4) for x in edges],
+                        'hist': [int(x) for x in h],
+                        'median': round(float(np.median(v)), 4),
+                        'mean': round(float(v.mean()), 4),
+                        'max': round(float(v.max()), 4),
+                        'zero': int((v == 0).sum()), 'by_phase': by}
+        out['counts'][l] = rec
+
+        L = np.asarray(lens[l], dtype=int)
+        buckets = list(range(1, LEN_MAX + 1))
+        n_b = [int((L == k).sum()) for k in buckets] + [int((L > LEN_MAX).sum())]
+        t_b = [int(L[L == k].sum()) for k in buckets] + [int(L[L > LEN_MAX].sum())]
+        tot_b, tot_t = sum(n_b), sum(t_b)
+        srt = np.sort(L)[::-1]
+        k10 = max(1, int(round(0.10 * len(L))))
+        out['lengths'][l] = {
+            'buckets': [str(k) for k in buckets] + [f'{LEN_MAX + 1}+'],
+            'n_bouts': n_b, 'time_frames': t_b,
+            'share_bouts': [round(x / tot_b, 5) for x in n_b],
+            'share_time': [round(x / tot_t, 5) for x in t_b],
+            'cum_time': [round(float(x), 5) for x in np.cumsum(t_b) / tot_t],
+            'n': int(len(L)), 'total_frames': int(L.sum()),
+            'median': float(np.median(L)), 'p90': float(np.percentile(L, 90)),
+            'max': int(L.max()), 'one_frame': round(float((L == 1).mean()), 4),
+            'tail10_time': round(float(srt[:k10].sum() / L.sum()), 4)}
+    return out
+
+
 def main():
     t, lens = per_observation()
     print(f'{t.observation_id.nunique()} observations, {t.pool.nunique()} pools')
 
-    out = {'units': {}, 'bouts': {}}
+    out = {'units': {}, 'bouts': {}, 'dist': distributions(t, lens)}
     for l in LABELS:
         L = np.array(lens[l]); s = np.sort(L)[::-1]
         k = max(1, int(round(0.10 * len(L))))

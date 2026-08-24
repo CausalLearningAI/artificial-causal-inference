@@ -70,17 +70,30 @@ def main():
     examples = examples.replace('__EXAMPLES_JSON__', ex_p.read_text().strip())
     ex = json.load(open(ex_p))
 
+    # The outcome-unit figure is a VIEW over outcome.json's `dist` block: the two distributions
+    # section 02 argues from -- events per recording, and bout length as a share of bouts against
+    # a share of time -- so the shape is on the page rather than a percentile quoted from it.
+    out_p = FIG / 'outcome.json'
+    if not out_p.exists():
+        raise SystemExit(f'{out_p} missing -- run scripts/mice_behavior/build_outcome.py first')
+    O_ = json.load(open(out_p))
+    if 'dist' not in O_:
+        raise SystemExit(f'{out_p} predates the `dist` block -- rerun build_outcome.py')
+    units = (Path(__file__).parent / 'report_units.html').read_text()
+    units = units.replace('__UNITS_JSON__', json.dumps(O_['dist'], separators=(',', ':')))
+
     head = (Path(__file__).parent / 'report_head.html').read_text()
     body = (Path(__file__).parent / 'report_body.py')
     rob_p = FIG / 'ppci_robustness.json'
     if not rob_p.exists():
         raise SystemExit(f'{rob_p} missing -- run build_ppci_robustness.py first')
-    out_p = FIG / 'outcome.json'
-    if not out_p.exists():
-        raise SystemExit(f'{out_p} missing -- run scripts/mice_behavior/build_outcome.py first')
+    derm_p = FIG / 'derm.json'
+    if not derm_p.exists():
+        raise SystemExit(f'{derm_p} missing -- run scripts/mice_behavior/build_derm.py first')
     ns = {'img': img, 'CHART': chart, 'DECAY': decay, 'MODELS': models, 'EXAMPLES': examples,
-          'E': est, 'M': json.load(open(mod_p)), 'O': json.load(open(out_p)), 'X': ex,
-          'R': json.load(open(rob_p))}
+          'UNITS': units,
+          'E': est, 'M': json.load(open(mod_p)), 'O': O_, 'X': ex,
+          'R': json.load(open(rob_p)), 'D': json.load(open(derm_p))}
     exec(compile(body.read_text(), str(body), 'exec'), ns)
     Path(a.out).write_text(head + ns['BODY'])
     mb = Path(a.out).stat().st_size / 1024 / 1024
