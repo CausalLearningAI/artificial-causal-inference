@@ -262,35 +262,61 @@ BODY = f'''
   <div class="sechead"><p class="eyebrow">02 &middot; Outcome</p>
   <h2>What is one unit of behaviour?</h2></div>
   <p>Behaviour is a continuous stream. Turning it into a number takes three decisions and the
-  biology supplies none of them &mdash; and the answer is not one number but <b>two</b>: how much
-  behaviour there is, and <em>when</em> in the phase it happens. Both are estimated throughout.</p>
+  biology supplies none of them &mdash; and the answer is <b>two</b> numbers, not one: how much
+  behaviour there is, and <em>when</em> in the phase it happens.</p>
   <div class="scroll"><table>
-    <thead><tr><th>decision</th><th>what this report chose</th><th>what it costs</th></tr></thead>
+    <thead><tr><th>decision</th><th>what this report chose</th><th>where</th></tr></thead>
     <tbody>
       <tr><td>what counts as ONE event</td><td>a <b>bout</b> &mdash; one uninterrupted run of
-        annotated frames</td><td>the run is defined at 5&nbsp;fps, so a real bout split by a
-        two-frame gap becomes two</td></tr>
-      <tr><td>over what WINDOW</td><td>the <b>first 15 minutes</b> of every phase</td>
-        <td>H runs 30 minutes, so half of it is discarded &mdash; 02b</td></tr>
-      <tr><td>what you MEASURE</td>
-        <td><b>a level</b> &mdash; how often a bout starts<br>
-            <b>a timing</b> &mdash; when in the phase bouts start</td>
-        <td>two outcomes, chosen separately in 02a and 02b</td></tr>
+        annotated frames. Defined at 5&nbsp;fps, so a real bout split by a two-frame gap becomes
+        two</td><td>&mdash;</td></tr>
+      <tr><td>over what WINDOW</td><td>the <b>first 15 minutes</b> of every phase, matched. H runs
+        30 minutes, so half of it is discarded</td><td>next</td></tr>
+      <tr><td>what you MEASURE</td><td><b>a level</b>, how often a bout starts, and <b>a
+        timing</b>, when in the phase they start</td><td>02a, 02b</td></tr>
     </tbody></table></div>
+  <p>The window comes first because it applies to both outcomes. Start by looking at the whole
+  protocol laid end to end &mdash; six recordings, 120 minutes, both behaviours.</p>
 </div>
-
+  <div class="figwrap">{DECAY}</div>
 <div class="measure">
+  <p><b>Nothing is stationary inside a phase.</b> Rates fall several-fold across every recording
+  &mdash; half-life <b>4&ndash;14 minutes</b>, P fastest in every cell, and one cell rises instead
+  (nose-to-tail under social exposure during O, where the exposure sustains investigation while
+  everything else habituates). So a phase <em>mean</em> averages over whichever stretch of a
+  decaying curve the schedule happened to sample, and because H runs 30 minutes against O and P's
+  15, <b>the two sides of H&rarr;O do not sample the same stretch</b>. O&rarr;P is unaffected:
+  equal lengths, so any window rule leaves it bit-for-bit identical, checked in all four cells.
+  What the choice is worth on H&rarr;O:</p>
+  <div class="scroll"><table>
+    <thead><tr><th>H &rarr; O</th><th>full H (30 min)</th><th>first 15</th><th>last 15</th><th>spread</th></tr></thead>
+    <tbody>
+      <tr><td>nt &middot; fear</td><td>+0.36</td><td>+0.22</td><td>+0.49</td><td>0.28</td></tr>
+      <tr><td>nt &middot; social</td><td>&minus;0.37</td><td>&minus;0.67</td><td>&minus;0.07</td><td>0.60</td></tr>
+      <tr><td>nn &middot; fear</td><td>+0.66</td><td>+0.45</td><td>+0.86</td><td>0.42</td></tr>
+      <tr><td>nn &middot; social</td><td>+0.47</td><td>&minus;0.03</td><td>+0.97</td><td class="lo">1.01 &mdash; changes sign</td></tr>
+    </tbody></table></div>
+  <p><b>Matching the first 15 minutes settles a confound, not just an inconsistency.</b> Every
+  phase is a separate recording the experimenter starts by opening the cage, and the onset spike
+  that follows is largest in <b>P</b> &mdash; where the odour is <em>removed</em> &mdash; in 3 of 4
+  cells (first-2-min over last-2-min rate, nn&nbsp;&middot;&nbsp;fear: H 7.6, O 6.7, <b>P 12.3</b>).
+  A response peaking when the odour is taken away is handling, not odour, so matching onset position
+  puts it on both sides of every contrast, where it cancels. Every estimate in this report is cut
+  that way, so <b>&ldquo;first 15&rdquo; is the column the figures report</b> and the other two are
+  the sensitivity around it. Nose-to-nose under social is the cell that depended on it: +0.47 on the
+  full window against &minus;0.03 matched.</p>
+
   <div class="sub">
     <p class="q">02a &middot; the level</p>
     <h3>How much behaviour &mdash; and which of three ways to count it</h3>
     <p><b>Counts</b> (bouts per minute) measure how often the behaviour is initiated,
-    <b>occupancy</b> (percent of frames in it) how much of the recording it fills, <b>duration</b>
-    (mean bout length) how long one bout lasts. Occupancy is close to counts&nbsp;&times;&nbsp;duration,
-    so it inherits the noise of both rather than being a third independent choice. Two columns
-    decide it, and they are not the same column: <b>noise</b> is the within-cell coefficient of
-    variation, how much the measurement scatters across pools that had the same treatment; <b>r&Delta;</b>
-    is how well the vision model reproduces a pool's <em>within-pool phase difference</em>, the only
-    thing the model is asked to do.</p>
+    <b>occupancy</b> (percent of frames in it) how much of the window it fills, <b>duration</b>
+    (mean bout length) how long one bout lasts. Occupancy is close to
+    counts&nbsp;&times;&nbsp;duration, so it inherits the noise of both rather than being a third
+    independent choice. Two columns decide it: <b>noise</b> is how much the measurement scatters
+    across pools that had the same treatment, and <b>r&Delta;</b> is how well the vision model
+    reproduces a pool's within-pool phase difference &mdash; the only thing the model is asked to
+    do.</p>
   </div>
   <div class="scroll"><table>
     <thead><tr><th>unit</th><th>what it measures</th><th>noise<br><span style="opacity:.65">CV, nn / nt &mdash; lower better</span></th>
@@ -310,72 +336,31 @@ BODY = f'''
   <div class="figwrap">{UNITS}</div>
 <div class="measure">
   <p><b>Counts win on measurability.</b> At 5&nbsp;fps {nnf}% of nose-to-nose bouts and {ntf}% of
-  nose-to-tail bouts last a <em>single frame</em> &mdash; their length is set by sub-frame timing the
-  pipeline introduced, not by the animals, so duration has almost nothing left to vary with.
+  nose-to-tail bouts last a <em>single frame</em>, so duration has almost nothing left to vary with
+  &mdash; its length is set by sub-frame timing the pipeline introduced, not by the animals.
   Occupancy has the opposite problem: the longest 10% of bouts carry {nnt}% of all nose-to-nose
   behaviour time and {ntt}% of nose-to-tail, so one long huddle moves it more than ten short
-  contacts. Counts sit between the two and are what the model tracks best.</p>
-</div>
+  contacts. Counts sit between the two, and are what the model tracks best.</p>
 
-<div class="measure">
   <div class="sub">
     <p class="q">02b &middot; the timing</p>
     <h3>When in the phase behaviour happens</h3>
-    <p>Before choosing anything, look at the whole protocol laid end to end &mdash; six recordings,
-    120 minutes, both behaviours.</p>
-  </div>
-</div>
-  <div class="figwrap">{DECAY}</div>
-<div class="measure">
-  <p><b>Nothing is stationary inside a phase.</b> Rates fall several-fold across every recording
-  &mdash; half-life <b>4&ndash;14 minutes</b>, and P decays fastest in every cell. One cell rises
-  instead, nose-to-tail under social exposure during O, so the exposure sustains investigation while
-  everything else habituates. A phase <em>mean</em> is therefore an average over whichever stretch
-  of a decaying curve the schedule happened to sample &mdash; and because H runs 30 minutes against
-  O and P's 15, <b>the two sides of H&rarr;O do not sample the same stretch</b>. O&rarr;P is
-  unaffected: equal lengths, so any window rule leaves it bit-for-bit identical, checked in all four
-  cells. Here is what the choice is worth on H&rarr;O:</p>
-  <div class="scroll"><table>
-    <thead><tr><th>H &rarr; O</th><th>full H (30 min)</th><th>first 15</th><th>last 15</th><th>spread</th></tr></thead>
-    <tbody>
-      <tr><td>nt &middot; fear</td><td>+0.36</td><td>+0.22</td><td>+0.49</td><td>0.28</td></tr>
-      <tr><td>nt &middot; social</td><td>&minus;0.37</td><td>&minus;0.67</td><td>&minus;0.07</td><td>0.60</td></tr>
-      <tr><td>nn &middot; fear</td><td class="hi">+0.66</td><td class="hi">+0.45</td><td class="hi">+0.86</td><td>0.42</td></tr>
-      <tr><td>nn &middot; social</td><td>+0.47</td><td>&minus;0.03</td><td>+0.97</td><td class="lo">1.01 &mdash; changes sign</td></tr>
-    </tbody></table></div>
-  <div class="note"><b>Decision: match the first 15 minutes of every phase.</b> Every phase is a
-  separate recording the experimenter starts by opening the cage, and the onset spike that follows is
-  largest in <b>P</b> &mdash; where the odour is <em>removed</em> &mdash; in 3 of 4 cells
-  (first-2-min over last-2-min rate, nn&nbsp;&middot;&nbsp;fear: H 7.6, O 6.7, <b>P 12.3</b>). A
-  response peaking when the odour is taken away is handling, not odour, so matching onset position
-  puts it on both sides of every contrast, where it cancels. Two readings follow from the table:
-  <b>nose-to-nose under fear</b> holds its sign under all three windows (+0.45 matched), so it is the
-  H&rarr;O number to quote, while <b>nose-to-nose under social</b> runs +0.47 to &minus;0.03 and
-  changes sign, so its full-window value was mostly the H mean
-  being pulled down by fifteen extra minutes of decay that O never gets. <b>Every estimate in this
-  report is now cut on the matched window</b>, so &ldquo;first 15&rdquo; is the column the figures
-  and tables report and the other two are the sensitivity around it.</div>
-
-  <div class="bound">
-    <p class="t">the metric &middot; decay</p>
     <p>The same non-stationarity makes <em>when</em> a bout starts an outcome in its own right.
-    Measured as the <b>mean onset time</b> of a phase's bouts, inside the matched 15-minute
-    window:</p>
-    <div class="eqn"><math display="block"><mrow><mi>decay</mi><mo>=</mo>
-      <mfrac><mn>1</mn><mrow><mo>|</mo><mi>B</mi><mo>|</mo></mrow></mfrac>
-      <munder><mo>&#x2211;</mo><mrow><mi>b</mi><mo>&#x2208;</mo><mi>B</mi></mrow></munder>
-      <mi>onset</mi><mo>(</mo><mi>b</mi><mo>)</mo>
-      <mo>,</mo><mspace width="1.2em"/>
-      <mi>B</mi><mo>=</mo><mrow><mo>{{</mo><mtext>bouts starting in minutes&#xA0;0&#x2013;15</mtext>
-      <mo>}}</mo></mrow></mrow></math></div>
-    <p>In minutes, so it interprets itself: a <b>flat process gives 7.5</b>, half the window.
-    A difference reads as <em>&ldquo;the exposure pushes bouts X minutes later into the
-    phase&rdquo;</em>. Model-free, per-observation, and needing no exponential &mdash; a fitted
-    slope does not survive here, with log-linearity rejected in 7 of 12 cells. Beats a
-    front-loading fraction (whose null was an artefact of its own nesting) and the median (which
-    discards the late tail, where a flatter curve actually shows). <b>Pick &ldquo;timing&rdquo; as the outcome in section 03&rsquo;s figure</b> to read it with all
-    three estimators.</p>
+    Measured as the <b>mean onset time</b> of a phase's bouts, inside the same matched window:</p>
   </div>
+  <div class="eqn"><math display="block"><mrow><mi>decay</mi><mo>=</mo>
+    <mfrac><mn>1</mn><mrow><mo>|</mo><mi>B</mi><mo>|</mo></mrow></mfrac>
+    <munder><mo>&#x2211;</mo><mrow><mi>b</mi><mo>&#x2208;</mo><mi>B</mi></mrow></munder>
+    <mi>onset</mi><mo>(</mo><mi>b</mi><mo>)</mo>
+    <mo>,</mo><mspace width="1.2em"/>
+    <mi>B</mi><mo>=</mo><mrow><mo>{{</mo><mtext>bouts starting in minutes&#xA0;0&#x2013;15</mtext>
+    <mo>}}</mo></mrow></mrow></math></div>
+  <p>In minutes, so it interprets itself: a <b>flat process gives 7.5</b>, half the window, and a
+  difference reads as <em>&ldquo;the exposure pushes bouts X minutes later into the phase&rdquo;</em>.
+  Model-free, per-observation, and needing no exponential &mdash; a fitted slope does not survive
+  here, with log-linearity rejected in 7 of 12 cells. It beats a front-loading fraction, whose null
+  was an artefact of its own nesting, and the median, which discards the late tail where a flatter
+  curve actually shows.</p>
 </div></section>
 
 <section><div class="measure">
