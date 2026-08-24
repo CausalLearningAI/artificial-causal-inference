@@ -643,17 +643,11 @@ BODY = f'''
         <td>&minus;0.02 against a matched control<br><span style="opacity:.65">the expected price, not a cost</span></td>
         <td class="lo">open &mdash; judge it on the estimand, not on AP</td></tr>
     </tbody></table></div>
-  <div class="note warnbox"><b>One structural limit, before any of it.</b> The regime overfits
-  &mdash; training loss falls monotonically while validation AP plateaus near epoch 24. That is why
-  longer schedules and extra head capacity do nothing (04.4's saturation and 04.5 entirely), and
-  why the leverage sits in 04.1 and 04.2.
-  <br><br><b>Read every &Delta; against 0.015, not 0.009.</b> Seed noise is not one number: across
-  the <b>seven</b> configurations now run at two seeds it spans 0.004 to 0.016, and the two widest
-  are fine-tuned arms (BitFit-6 on the SSL encoder 0.014, DERM on phases 0.016). 04.3, 04.5 and the
-  vREx row sit inside that; 04.1, 04.2 and 04.4 clear it comfortably. <b>The DERM row is the one
-  &Delta; on this page that should not be read against a seed band at all</b> &mdash; it buys
-  prior-independence by giving up frame accuracy, so a small AP loss is what success looks like.
-  04.6 measures it on the estimand instead.</div>
+  <p class="defn"><b>Read every &Delta; against 0.015.</b> Seed noise spans 0.004&ndash;0.016
+  across the seven configurations now run at two seeds, so 04.1, 04.2 and 04.4 clear it and 04.3,
+  04.5 and vREx sit inside it. DERM is the one exception on this page: it buys prior-independence
+  by giving up frame accuracy, so a small AP loss is what success looks like there, and 04.6 judges
+  it on the estimand instead.</p>
 </div>
 
 <div class="measure">
@@ -835,7 +829,8 @@ BODY = f'''
           <td>{run('res448_k2_frozen_q4_d4photo')['ap']:.4f}</td><td>&minus;0.003</td>
           <td>{rr('res448_k2_frozen_q4_d4photo')}</td></tr>
         <tr><td>+ 4&times;4 region grid</td><td class="hi">0.44 M</td>
-          <td>keeps <em>where</em> in the cage a token came from</td>
+          <td>keeps <em>where</em> in the cage a token came from &mdash; and is the one row that
+          moves two things, since it also widens cross-attention from 64 to 128</td>
           <td>{run('res448_k2_frozen_d4photo_rgrid4')['ap']:.4f}</td><td>+0.004</td>
           <td class="hi">{rr('res448_k2_frozen_d4photo_rgrid4')}</td></tr>
         <tr><td>+ patch self-attention (d = 128)</td><td>0.79 M</td>
@@ -852,10 +847,6 @@ BODY = f'''
     deployment folds all use is the <em>plain</em> 5.03 M one, the weakest of the five &mdash;
     a legacy of the launcher, and the reason those arms are only ever compared to their own matched
     controls.</p>
-    <div class="note">Two caveats a reader should not have to find. The region-grid arm also raises
-    the cross-attention width from 64 to 128, so it moves two things rather than one. And the
-    control's own second seed reads 0.4200, which is 0.009 below the 0.4289 every &Delta; in this
-    table is taken against &mdash; another way of saying that nothing here is resolved.</div>
 
   </div>
   </details>
@@ -1003,16 +994,22 @@ BODY = f'''
   <b>cross-fitted</b>: the 24 annotated pools split into three folds of 8, each fold scored by a
   model trained on the other 16, so every pool is scored by a model that never saw it. A harder
   split, hence the lower AP.
-  <br><br><b>PPI++ is what makes it necessary</b> &mdash; its rectifier is the gap between
-  prediction and truth on annotated pools, and a model trained on those pools predicts them too
-  well, so the gap it measures is not the one that applies to the 48 it corrects. <b>PPCI uses no
-  labels anywhere, so it is not bound by this</b> and would be better served by the single
-  strongest model.</div>
-  <div class="note warnbox"><b>The deployed configuration is not the strongest one measured.</b>
-  Cross-fitting ran on the SSL-adapted frozen encoder with a plain 5.03 M head, not on BitFit-6,
-  which leads on every accuracy axis. That choice bought label-free adaptation covering v2 as well,
-  and every estimate here rests on it. Running BitFit-6 over the same three folds is the cheapest
-  outstanding improvement to every number on this page, and it is next-step 5.</div>
+  <br><br><b>Two separate things make it necessary.</b> PPI++'s validity: its rectifier is the gap
+  between prediction and truth on annotated pools, and a model trained on those pools predicts them
+  too well, so the gap it measures is not the one that applies to the 48 it corrects. And
+  <b>r&Delta; itself</b> &mdash; which section 03's bound says is the only thing that matters
+  &mdash; cannot be estimated any other way: in sample it is inflated by the model having seen the
+  labels, and on the standing 4-pool split it rests on 16 points, where two seeds of one
+  configuration give 0.183 and 0.853. So cross-fitting is not PPI++ hygiene that model ranking
+  happens to inherit; <b>it is what makes ranking possible at all</b>. <b>PPCI uses no labels
+  anywhere, so it is bound by neither</b> and would be better served by the single strongest
+  model.</div>
+  <div class="note"><b>The deployed configuration is not the strongest one measured, and its
+  replacement is running.</b> Cross-fitting ran on the SSL-adapted frozen encoder with a plain
+  5.03 M head, not on BitFit-6, which leads on every accuracy axis &mdash; that choice bought
+  label-free adaptation covering v2 as well. The BitFit-6 cross-fit is now <b>2 of 3 folds in, at
+  macro AP 0.50 and 0.55 against the deployed 0.382</b>, with the third training. Every estimate on
+  this page moves onto it when that fold lands.</div>
 
   <div class="sub"><p class="q">05.2 &middot; where it fails</p>
   <h3>Where it is right, where it is wrong, and what it sees on the pools nobody scored</h3></div>
