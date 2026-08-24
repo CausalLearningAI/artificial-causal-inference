@@ -88,6 +88,15 @@ cand_rows = '\n      '.join(
     f'<td>{r["f1_nt"]:.3f} / {r["f1_nn"]:.3f}</td>'
     f'{_td(r, "rd_nt", ".3f")}{_td(r, "rd_nn", ".3f")}</tr>' for nice, r in _c)
 
+# Where the AP leader and the rDelta leader sit in each other's ranking. Computed, because these
+# two integers move every time a candidate lands and a stale rank reads as a claim.
+_cand = [r for r in M['runs'] if r['role'] == 'model candidate']
+_by_ap = sorted(_cand, key=lambda r: -r['ap'])
+_by_rd = sorted(_cand, key=lambda r: -(r['rd_nt'] + r['rd_nn']) / 2)
+_ord = lambda i: f'{i}{"th" if 11 <= i % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(i % 10, "th")}'
+rk_ap_on_rd = _ord(_by_rd.index(_by_ap[0]) + 1)
+rk_rd_on_ap = _ord(_by_ap.index(_by_rd[0]) + 1)
+
 # The deployment row is the mean over the three cross-fitting folds, which between them hold out
 # all 24 annotated pools. Averaged here rather than transcribed.
 _folds = [r for r in M['runs'] if r['role'] == 'deployment fold']
@@ -346,7 +355,7 @@ BODY = f'''
     <tbody>
       <tr><td><b>macro AP</b></td><td>frame-level average precision, mean over the two
         behaviours, threshold-free. What training monitors.</td>
-        <td>shortlisting only. Seed noise measured on <b>six</b> configurations spans
+        <td>shortlisting only. Seed noise measured on <b>seven</b> configurations spans
         <b>0.004&ndash;0.016</b> (median 0.007) and is widest on the fine-tuned arms, so a gap under
         ~0.015 is not a gap.</td></tr>
       <tr><td><b>event F1</b></td><td>bout-level: a predicted run of frames counts as a hit if it
@@ -388,9 +397,9 @@ BODY = f'''
   longer schedules and extra head capacity do nothing (row 4's saturation and the last row), and
   why the leverage sits in rows 1 and 2.
   <br><br><b>Read every &Delta; against 0.015, not 0.009.</b> Seed noise is not one number: across
-  the six configurations now run at two seeds it spans 0.004 to 0.016, and the two widest are
-  fine-tuned arms (BitFit-6 on the SSL encoder 0.014, DERM on phases 0.016). Rows 3 and 5 sit inside
-  that; rows 1, 2 and 4 clear it comfortably.</div>
+  the <b>seven</b> configurations now run at two seeds it spans 0.004 to 0.016, and the two widest
+  are fine-tuned arms (BitFit-6 on the SSL encoder 0.014, DERM on phases 0.016). Rows 3 and 5 sit
+  inside that; rows 1, 2 and 4 clear it comfortably.</div>
 </div>
 
 <div class="measure">
@@ -478,11 +487,21 @@ BODY = f'''
     every number in section 05 rests on. Fine-tuning on top of it is worth a further +0.051 AP. But
     fine-tuning <em>stock</em> reaches higher still (0.5409 against 0.5127), and the SSL start is
     behind on three of the five metrics. Event F1 is the exception, where the two are level.</p>
-    <div class="note warnbox"><b>Two caveats of unequal strength.</b> That SSL and BitFit do not
-    <em>stack</em> is now a two-seed claim on one side: BitFit-6 on the SSL encoder reads 0.5127 and
-    0.4989, mean <b>0.5058</b> with a 0.014 seed spread, against 0.5409 for BitFit-6 on stock. The
-    gap of about 0.035 is roughly 2.5&times; that spread, so it is real unless the stock arm's own
-    replicate lands unusually low &mdash; it is still training. What <em>is</em>
+    <div class="note"><b>Settled: SSL and BitFit do not stack on AP, and it does not matter for the
+    estimate.</b> Both arms now have two seeds.
+    <div class="scroll" style="margin-top:11px"><table>
+      <thead><tr><th>BitFit-6 starting from</th><th>macro AP (2 seeds)</th><th>event F1 nt / nn</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
+      <tbody>
+        <tr><td>stock DINOv2</td><td class="hi">0.5365 &nbsp;<span style="opacity:.6">(0.5409, 0.5321)</span></td>
+          <td>0.446 / <b>0.545</b></td><td>0.641</td><td><b>0.826</b></td></tr>
+        <tr><td>the SSL encoder</td><td>0.5058 &nbsp;<span style="opacity:.6">(0.5127, 0.4989)</span></td>
+          <td><b>0.473</b> / 0.521</td><td><b>0.649</b></td><td>0.804</td></tr>
+      </tbody></table></div>
+    On macro AP the gap is <b>+0.031</b> for stock, about 2.2&times; the widest seed spread, so it
+    clears noise: the two interventions substitute rather than compose. <b>On every other metric
+    they are a wash</b> &mdash; each leads on one of the two event F1s and one of the two r&Delta;s.
+    Since r&Delta; is what decides whether a model helps the estimate, the deployed SSL encoder is
+    <em>not</em> penalised on the axis that matters, only on the one that shortlists. What <em>is</em>
     established, each a clean single-variable change: 2&times; the corpus at matched compute is
     neutral, and six adapted blocks is clearly harmful. So <em>scaling</em> the corpus is closed;
     SSL itself is not.</div>
@@ -574,9 +593,9 @@ BODY = f'''
   <h2>The model we run, and what it buys</h2></div>
   <p><b>Shortlist on frame AP; choose on the causal quantity.</b> Across the
   {M['meta']['n_candidates']} candidates the two rank models only loosely together (Spearman
-  {M['meta']['spearman_ap_vs_rdelta']:+.2f}): the best-AP arm ranks 5th of
-  {M['meta']['n_candidates']} on r&Delta;, and the r&Delta; leader ranks 4th on AP. AP is a usable
-  filter, not the decision. <b>Hover a point for the whole recipe behind it</b> &mdash; encoder,
+  {M['meta']['spearman_ap_vs_rdelta']:+.2f}): the best-AP arm ranks {rk_ap_on_rd} of
+  {M['meta']['n_candidates']} on r&Delta;, and the r&Delta; leader ranks {rk_rd_on_ap} on AP. AP is a
+  usable filter, not the decision. <b>Hover a point for the whole recipe behind it</b> &mdash; encoder,
   unlabelled-frame adaptation, fine-tuning, head and parameter count, augmentation, objective.</p>
 </div>
   <div class="figwrap">{MODELS}</div>
