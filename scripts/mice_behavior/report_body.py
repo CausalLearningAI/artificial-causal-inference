@@ -42,6 +42,24 @@ def rr(tag):
     return f"{r['rd_nt']:.3f} / {r['rd_nn']:.3f}"
 
 
+def dF(behav, odour, trans, method='ci'):
+    """One Delta-F cell from estimates.json, with a resolution star. Same source as the figure."""
+    c = next(c for c in E['cells'] if c['exp'] == 'v1' and c['unit'] == 'decay'
+             and c['stratum'] == 'all' and c['behav'] == behav and c['odour'] == odour
+             and c['trans'] == trans and c['method'] == method)
+    star = '*' if (c['lo'] is not None and c['lo'] * c['hi'] > 0) else ''
+    return f"{c['est']:+.2f}{star}"
+
+
+def _n_resolved(method):
+    return sum(1 for c in E['cells']
+               if c['exp'] == 'v1' and c['unit'] == 'decay' and c['stratum'] == 'all'
+               and c['method'] == method and c['lo'] is not None and c['lo'] * c['hi'] > 0)
+
+
+nF, nFp = _n_resolved('ci'), _n_resolved('ppi')
+
+
 def rr2(tag, which):
     """One r-delta value, so a table cell can carry its own highlight class."""
     return f"{run(tag)['rd_' + which]:.3f}"
@@ -84,9 +102,9 @@ BODY = f'''
   <h1>Genotype under hormonal exposure</h1>
   <p class="lede">Three ASD-associated mouse lines, wild-type against heterozygous carriers of the
   same knockout, filmed in cages of four before, during and after two hormonal exposures. The
-  programme asks how the genotype changes social behaviour. This report covers the step in front
-  of that: the <b>average</b> effect of the exposure itself, pooled over genotypes &mdash; and the
-  vision model that has to carry it to the 84 pools nobody has annotated.</p>
+  programme asks how the genotype changes social behaviour. This report covers the step in front of
+  that: <b>the effect of the exposure</b> &mdash; overall and broken down by line &times; genotype
+  &mdash; and the vision model that has to carry it to the 84 pools nobody has annotated.</p>
 </div></header>
 
 <section><div class="measure">
@@ -98,6 +116,11 @@ BODY = f'''
   share a cage, a day and an annotator. Video is 2060&sup2; at 30 fps, stored 512&sup2; at 5 fps.
   Throughout, <b>pool</b> means the cage of four; they share a line and a sex, and in v1 a
   genotype.</p>
+  <div class="defn"><b>Two scored behaviours, from three codes.</b> <b>Nose-to-nose</b> is scored
+  either mutual (<code>nn</code>) or directional (<code>np</code> &mdash; one animal sniffs, the
+  other does not reciprocate); the two are reported together throughout. <b>Nose-to-tail</b> is
+  <code>nt</code>. Every label is a <em>directed pair</em>, so a mutual bout counts for both animals
+  and a one-sided bout only for the initiator.</div>
 </div>
   <div class="figwrap"><div class="scroll"><table>
     <thead><tr><th></th><th>v1</th><th>v2</th></tr></thead>
@@ -110,31 +133,45 @@ BODY = f'''
       <tr><td>annotated pools</td><td class="hi">24 of 72</td><td class="lo">0 of 36</td></tr>
       <tr><td>annotated observations</td><td class="hi">144 of 432</td><td class="lo">0 of 216</td></tr>
       <tr><td>annotated frames</td><td>864k of 2.59 M</td><td>0 of 1.30 M</td></tr>
-      <tr><td>annotators</td><td>6 &middot; 22 of 24 pools single-scored</td><td>&mdash;</td></tr>
+      <tr><td>annotators</td><td>6</td><td>&mdash;</td></tr>
+      <tr><td>pools scored twice</td><td class="lo">0 of 24</td><td>&mdash;</td></tr>
       <tr><td>pools with no labels</td><td>48</td><td>36</td></tr>
       <tr><td>where genotype lives</td><td>between pools</td><td>within a pool</td></tr>
       <tr><td>estimators available</td><td>CI, PPI++, PPCI</td><td class="lo">PPCI only</td></tr>
     </tbody></table></div></div>
 <div class="measure">
-  <p><b>Why this report is about the exposure and not the genotype.</b> Each cohort blocks the
-  genotype contrast for a different reason, and neither reason touches the exposure.</p>
-  <ul>
-    <li><b>v1 puts genotype between cages, and annotation is not balanced across it.</b> 18 of the
-    24 annotated pools are heterozygous, and annotator is confounded with genotype &mdash; MF scored
-    18 het observations and no wild-type, CP scored 3 wild-type and no het. A genotype contrast here
-    compares animals <em>and</em> the people who scored them.</li>
-    <li><b>v2 puts genotype inside the cage, and nothing records which animal carries it.</b>
-    <code>genotype</code> is the string <code>mixed</code> on all 216 observations, the per-frame
-    labels drop the annotator's own animal indices, and the model emits one label per frame rather
-    than per animal. This is a missing-record problem before it is a computer-vision one.</li>
-  </ul>
-  <p>The exposure contrast is untouched by both: taken <em>within</em> a pool, it cancels cage,
-  genotype, sex and annotator by construction.</p>
-  <div class="note"><b>Estimand.</b> The unit of analysis is the <b>pool</b>, clustered. The mean
-  <em>within-pool</em> change in behaviour across one phase transition, per exposure. Consecutive
-  transitions only &mdash; H&rarr;O and O&rarr;P. P&minus;H is their sum, not an independent
-  contrast. The two exposures are separate treatments with opposite signs on nose-to-tail and are
-  never pooled. Genotype-specific effects are the next layer, not this one.</div>
+  <p><b>What is identified here, and what is not.</b> The programme's question is the genotype. This
+  report reports the exposure &mdash; overall and within each line &times; genotype stratum &mdash;
+  because that is the contrast the design identifies cleanly, and because the genotype contrast is
+  currently limited by annotation rather than by biology.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>contrast</th><th>how it is taken</th><th>status</th></tr></thead>
+    <tbody>
+      <tr><td><b>exposure</b>, per stratum</td><td><em>within</em> a pool, across phases</td>
+        <td class="hi">identified &mdash; cage, genotype, sex, annotator and line background all
+        cancel, because the same four animals scored by the same person supply both sides</td></tr>
+      <tr><td><b>genotype</b>, on v1</td><td>between cages</td>
+        <td class="lo">weak: annotation is 3:1 het-enriched (18 het / 6 wt) and annotator is
+        confounded with genotype &mdash; one scorer took 18 het observations and no wild-type,
+        another 3 wild-type and no het. Each wild-type stratum has 2 pools.</td></tr>
+      <tr><td><b>genotype</b>, on v2</td><td>within a cage</td>
+        <td class="lo">not identified at all: <code>genotype</code> is the string
+        <code>mixed</code> on all 216 observations, the per-frame labels drop the annotator's animal
+        indices, and the model emits one label per frame rather than per animal</td></tr>
+    </tbody></table></div>
+  <div class="note"><b>A negative control the design provides for free.</b> The three wild-type
+  strata are three different lines' <em>unmutated</em> animals, so they should behave alike. On raw
+  rates they do not quite: nose-to-tail differs across the three (0.22 / 0.50 / 0.59 bouts per
+  minute, one-way ANOVA p = 0.04), while nose-to-nose is flat (p = 0.88). On the estimand &mdash;
+  the within-pool H&rarr;O difference &mdash; they agree closely for both behaviours (nt p = 0.99,
+  nn p = 0.28). Line background shifts the <em>level</em> and cancels in the <em>contrast</em>,
+  which is the same pattern the annotator effect shows in section 05. With 2 annotated pools per
+  wild-type stratum this is the weakest test on the page in both directions: neither result would
+  survive much scrutiny, and it is the first thing more annotation would fix.</div>
+  <div class="note"><b>Estimand.</b> The mean <em>within-pool</em> change in behaviour across one
+  phase transition, per exposure, per stratum. The unit of analysis is the <b>pool</b>, clustered.
+  Consecutive transitions only &mdash; H&rarr;O and O&rarr;P; P&minus;H is their sum, not an
+  independent contrast.</div>
 </div></section>
 
 <section><div class="measure">
@@ -167,7 +204,7 @@ BODY = f'''
         <td class="hi">{rd('counts')}</td><td>{rd('occupancy')}</td><td>&mdash; no model head</td></tr>
       <tr><td>treatment-linked bias (max/min ratio across phases)</td>
         <td>{bs('counts')}</td><td>{bs('occupancy')}</td><td>&mdash;</td></tr>
-      <tr><td>contrasts resolved of 8 &nbsp;<i>(not an argument &mdash; see below)</i></td>
+      <tr><td>contrasts resolved of 8 &nbsp;<i>(reported, not the reason)</i></td>
         <td>{O['units']['counts']['resolves']}</td><td>{O['units']['occupancy']['resolves']}</td>
         <td>{O['units']['duration']['resolves']}</td></tr>
     </tbody></table></div>
@@ -180,14 +217,9 @@ BODY = f'''
   quantity the vision model has to reproduce, counts are the clearly better target &mdash; the
   correlation between true and predicted <em>within-pool phase differences</em> is about twice as
   high on counts as on occupancy.</p>
-  <div class="note warnbox"><b>Two things the resolved-contrast count does not license.</b>
-  Choosing the outcome that yields the most rejections of the null is selection on significance, so
-  it is reported above but is not the reason for the choice. And it is not simply a noise story
-  either: duration has the <b>lowest</b> CV of the three units and still resolves
-  {O['units']['duration']['resolves']} of 8. Nor does the choice of unit fix the model's
-  treatment-linked bias &mdash; the predicted/true ratio moves by the same <em>factor</em> on both
-  ({bs('counts')} against {bs('occupancy')}). That bias is real, and it is what DERM targets in
-  section 04.</div>
+  <p class="defn">The resolved-contrast count is reported because a reader will ask for it, but it
+  is not the reason for the choice &mdash; picking the outcome that yields the most rejections of
+  the null is selection on significance. Measurability is the reason.</p>
 </div></section>
 
 <section><div class="measure">
@@ -212,20 +244,10 @@ BODY = f'''
 </div>
   <div class="figwrap">{CHART}</div>
 <div class="measure">
-  <p><b>The two exposures are different treatments and are never pooled.</b> Nose-to-nose rises on
-  exposure under both (+0.65 fear, +0.47 social) and falls when it is withdrawn, but nose-to-tail
-  runs in <em>opposite</em> directions (+0.35 fear, &minus;0.36 social) &mdash; averaging over
-  exposures would cancel that effect outright.</p>
-  <div class="note"><b>Two behaviours, not three.</b> The <code>behavior_type</code> column carries
-  three codes, but <code>np</code> is not a third behaviour: cross-tabulated against the annotation
-  files' own <code>Behavior</code> column over all 144 files, <code>nn</code> is nose-to-nose
-  <b>mutual</b> and <code>np</code> is nose-to-nose <b>directional</b> (one animal sniffs, the other
-  does not reciprocate). Labels are DIRECTED pairs, so the <code>nn</code> head predicts their union
-  and the two cannot be reported separately.</div>
-  <p><b>Switch the breakdown to the strata</b> and the reason for everything that follows is
-  visible: annotation gave the wild-type strata <b>2 pools each</b> against the heterozygous
-  strata's 6, so a stratified CI there has one degree of freedom and runs off the
-  axis &mdash; and those are exactly the cells with 10 unlabelled pools apiece to borrow from.</p>
+  <p><b>The two exposures act differently, and one of them acts in opposite directions on the two
+  behaviours.</b> Nose-to-nose rises on exposure under both (+0.65 fear, +0.47 social) and falls
+  when it is withdrawn. Nose-to-tail rises under fear (+0.35) and <em>falls</em> under social
+  (&minus;0.36). Each exposure is reported separately throughout.</p>
 </div>
   <div class="figwrap">{DECAY}
     <p class="deccap">Pick a unit; both behaviours redraw. Hover any minute for its value and
@@ -250,40 +272,46 @@ BODY = f'''
       <tr><td>nn &middot; fear</td><td class="hi">+0.66</td><td class="hi">+0.45</td><td class="hi">+0.86</td><td>0.42</td></tr>
       <tr><td>nn &middot; social</td><td>+0.47</td><td>&minus;0.03</td><td>+0.97</td><td class="lo">1.01 &mdash; changes sign</td></tr>
     </tbody></table></div>
-  <p><b>So nose-to-nose under social exposure cannot be a headline number.</b> It runs from
-  &minus;0.03 to +0.97 across three defensible choices and changes sign; its full-window +0.47 is
-  the H mean being dragged down by fifteen extra minutes of decay that O never gets.
-  <b>nose-to-nose under fear is the one H&rarr;O effect that survives every window</b>, and all
-  four O&rarr;P contrasts are window-invariant by construction.</p>
-  <div class="note warnbox"><b>Which window to prefer turns on a confound: the phase-onset spike is
-  not the treatment.</b> Every phase is a separate recording the experimenter starts by opening the
+  <div class="note"><b>Decision: match the first 15 minutes of every phase.</b> The choice is
+  settled by a confound. Every phase is a separate recording the experimenter starts by opening the
   cage, and <b>P &mdash; where the odour is <em>removed</em> &mdash; has the largest onset spike of
-  the three in 3 of 4 cells</b> (first-2-min over last-2-min rate, nn&nbsp;&middot;&nbsp;fear: H 7.6,
-  O 6.7, <b>P 12.3</b>). A response that peaks when the odour is taken away is handling. So the
-  <b>first</b> 15 min of H matches onset position and cancels it, at the cost of contrasting
-  cage-novelty with odour-novelty; the <b>last</b> 15 gives the truer baseline but charges the
-  handling spike to the odour. Neither is clean &mdash; the choice has to be stated, not
-  inherited.</div>
-
+  the three in 3 of 4 cells</b> (first-2-min over last-2-min rate,
+  nn&nbsp;&middot;&nbsp;fear: H 7.6, O 6.7, <b>P 12.3</b>). A response that peaks when the odour is
+  taken away is handling, not odour; matching onset position puts it on both sides, where it
+  cancels. The cost &mdash; contrasting cage-novelty with odour-novelty instead of a settled
+  baseline &mdash; is the smaller of the two errors.
+  <br><br>Two consequences. <b>Nose-to-nose under fear is the H&rarr;O effect to quote</b>: +0.45
+  matched, positive and resolving under all three windows. <b>Nose-to-nose under social is not
+  reportable</b>: it runs +0.47 &rarr; &minus;0.03 and changes sign, so its full-window value is the
+  H mean being dragged down by fifteen extra minutes of decay that O never gets. O&rarr;P is
+  unaffected either way. The figure above is still cut on the full window; re-cutting the grid is
+  next-step 3.</div>
   <div class="sub">
     <p class="q">outcome design</p>
-    <h3>The decay is a second effect, not a nuisance
-      <span class="verdict v-part">report both</span></h3>
+    <h3>The decay is a second effect
+      <span class="verdict v-yes">in the figure, as its own unit</span></h3>
     <p>Measure it with a <b>front-loading fraction</b> F = bouts in the first 5 minutes / bouts in
-    the first 15 &mdash; bounded, model-free, length-invariant, per-observation, and it needs no
-    exponential (a fitted slope or time constant does not survive: log-linearity is rejected in 7
-    of 12 cells, and &tau; reaches &minus;27 min on the one rising cell). Flat &rarr; 0.33.</p>
+    the first 15 &mdash; bounded, model-free, length-invariant, per-observation, and needing no
+    exponential (a fitted slope or time constant does not survive: log-linearity is rejected in 7 of
+    12 cells, and &tau; reaches &minus;27&nbsp;min on the one rising cell). Flat process &rarr; 0.33.
+    <b>Select &ldquo;decay within phase&rdquo; as the unit in the figure above</b> to read it with
+    all three estimators, the same way as the level.</p>
     <div class="scroll"><table>
-      <thead><tr><th>&Delta;F</th><th>nt &middot; fear</th><th>nt &middot; social</th><th>nn &middot; fear</th><th>nn &middot; social</th></tr></thead>
+      <thead><tr><th>&Delta;F, human labels</th><th>nt &middot; fear</th><th>nt &middot; social</th><th>nn &middot; fear</th><th>nn &middot; social</th></tr></thead>
       <tbody>
-        <tr><td>H &rarr; O &nbsp;(odour ON)</td><td class="hi">&minus;0.40*</td><td>&minus;0.12</td><td class="hi">&minus;0.19*</td><td class="hi">&minus;0.11*</td></tr>
-        <tr><td>O &rarr; P &nbsp;(odour OFF)</td><td>+0.19</td><td class="hi">+0.31*</td><td>+0.04</td><td class="hi">+0.27*</td></tr>
+        <tr><td>H &rarr; O &nbsp;(odour ON)</td>
+          <td class="hi">{dF('nt','fear','H->O')}</td><td>{dF('nt','social','H->O')}</td>
+          <td class="hi">{dF('nn','fear','H->O')}</td><td class="hi">{dF('nn','social','H->O')}</td></tr>
+        <tr><td>O &rarr; P &nbsp;(odour OFF)</td>
+          <td>{dF('nt','fear','O->P')}</td><td class="hi">{dF('nt','social','O->P')}</td>
+          <td>{dF('nn','fear','O->P')}</td><td class="hi">{dF('nn','social','O->P')}</td></tr>
       </tbody></table></div>
     <p><b>Every sign is negative turning the odour on and positive turning it off</b> (* = resolves;
-    5 of 8 do). The exposure flattens the habituation curve and withdrawing it restores fast
-    habituation &mdash; not how much behaviour the odour triggers, but how long it holds attention.
-    <b>Report both</b>: the level on a stated matched window, and &Delta;F as the decay effect. F is
-    undefined where an observation has no bouts in the window, so n falls to 17&ndash;24 by cell.</p>
+    {nF} of 8 do on human labels alone, {nFp} of 8 with PPI++). The exposure flattens the
+    habituation curve and withdrawing it restores fast habituation &mdash; not how much behaviour
+    the odour triggers, but how long it holds attention. F is undefined where a recording has no
+    bout in the window, so n falls to 13&ndash;24 by cell, which is why the model buys more here
+    than it does on the level.</p>
   </div>
 </div></section>
 
@@ -483,14 +511,14 @@ BODY = f'''
     visibly changes the scene &mdash; so a classifier can score a frame by which phase it
     <em>looks like</em> rather than by what the mice are doing. A bias that moves with the treatment
     is what corrupts an effect estimated without a rectifier, which is the situation on v2.</p>
-    <p><b>What it does.</b> Reweight every training sample by
-    Var(<i>Y</i>|<i>E</i>)&thinsp;/&thinsp;P(<i>Y</i>,<i>E</i>) over a set of environments. For a
-    binary label that is <code>w(y=1,&nbsp;e) = (1&minus;p<sub>e</sub>)/P(e)</code> and
-    <code>w(y=0,&nbsp;e) = p<sub>e</sub>/P(e)</code>, which gives positives and negatives
-    <b>equal mass inside every environment</b>: a raw prevalence spread of 3.5&times; becomes
-    exactly 0.5 in each. Mean weight is normalised to 1, so the step size is unchanged. It never
-    asks the model to be invariant to phase &mdash; only to stop the label carrying information
-    about which phase it came from.</p>
+    <p><b>What it does.</b> Reweight every sample by
+    Var(<i>Y</i>|<i>E</i>)&thinsp;/&thinsp;P(<i>Y</i>,<i>E</i>) over a set of environments &mdash;
+    for a binary label, <code>(1&minus;p<sub>e</sub>)/P(e)</code> on positives and
+    <code>p<sub>e</sub>/P(e)</code> on negatives. Positives and negatives then carry <b>equal mass
+    inside every environment</b>: a raw prevalence spread of 3.5&times; becomes exactly 0.5 in each,
+    with the mean weight normalised to 1 so the step size is unchanged. It never asks the model to
+    be invariant to phase, only to stop the label carrying information about which phase it came
+    from.</p>
     <div class="scroll"><table>
       <thead><tr><th>arm</th><th>environments</th><th>macro AP</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
       <tbody>
@@ -642,16 +670,12 @@ BODY = f'''
       <tr><td><b>within-pool difference &mdash; nn</b></td><td class="hi">40.3%</td><td>35.7%</td><td class="hi">0.38</td></tr>
     </tbody></table></div>
   <b>Who scored a recording moves its measured rate, and stops mattering once the rate is
-  differenced within a pool.</b> On levels the annotator effect is 2&ndash;4&times; chance and
-  significant; on the within-pool phase difference &mdash; the estimand's own quantity, where the
-  same person scored both phases &mdash; it is indistinguishable from a random grouping. The
-  cancellation the design was built for is real, and now measured rather than asserted.
-  <br><br>The consequence for model selection: a label-noise ceiling computed on <em>rates</em>
-  (best attainable r &le; 0.65 on nose-to-tail) constrains level correlations, <b>not r&Delta;</b>.
-  What bounds r&Delta; is within-annotator noise &mdash; the same scorer's inconsistency between
-  two phases &mdash; and no design without replication can separate that from real between-phase
-  change. Double-scoring 15&ndash;20 observations is the only way to get it, and it is the one
-  number that would tell us how much of the model's remaining error is even addressable.</div>
+  differenced within a pool</b> &mdash; the same cancellation the three wild-type strata show in
+  section 01. So a label-noise ceiling computed on <em>rates</em> (best attainable r &le; 0.65 on
+  nose-to-tail) constrains level correlations, <b>not r&Delta;</b>. What bounds r&Delta; is
+  <em>within</em>-annotator inconsistency between two phases, which no design without replication
+  can separate from real change. Double-scoring 15&ndash;20 observations is the only way to get it,
+  and the only way to know how much of the model's remaining error is addressable.</div>
   <div class="note warnbox"><b>CI and PPI++ do not target quite the same population.</b>
   Annotation is <b>3:1 het-enriched</b> (18 het / 6 wt against a 36/36 design), so CI estimates the
   effect <em>in the annotated pools</em> while PPI++ pulls in 48 unannotated ones that are

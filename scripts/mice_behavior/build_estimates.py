@@ -8,7 +8,7 @@ the selectors just choose which slice to draw.
 THE GRID
 ========
     experiment  v1 (72 pools, 24 annotated) | v2 (36 pools, 0 annotated)
-    unit        events (bouts per minute)   | time (occupancy, pp)
+    unit        events (bouts per minute) | time (occupancy, pp) | decay (front-loading F)
     behaviour   nn (nose-to-nose)           | nt (nose-to-tail)
     model       which predictor supplies f
     stratum     all | v1: line x genotype (6) | v2: line (3)
@@ -84,7 +84,20 @@ THRESHOLDS = np.round(np.arange(0.05, 1.0, 0.05), 2)
 LABELS = ('nt', 'nn')
 BEHAV_NICE = {'nt': 'nose-to-tail', 'nn': 'nose-to-nose'}
 ODOURS = (('F', 'fear'), ('S', 'social'))
-UNITS = {'events': 'bouts per minute', 'time': 'occupancy (pp)'}
+UNITS = {'events': 'bouts per minute', 'time': 'occupancy (pp)',
+         'decay': 'front-loading fraction F'}
+ALL_UNITS = ('events', 'time', 'decay')
+# F = bouts starting in the first 5 minutes / bouts starting in the first 15. Flat process -> 0.33,
+# strong decay -> higher. O and P run exactly 15 minutes so their whole recording is the window;
+# only H (30 min) is truncated by it, which is what makes F comparable across phases at all.
+WIN5, WIN15 = int(5 * 60 * FPS), int(15 * 60 * FPS)
+
+
+def front_load(starts) -> float:
+    """Undefined, not zero, when a recording has no bout in the 15-minute window."""
+    s = np.asarray(starts)
+    n15 = int((s < WIN15).sum())
+    return (int((s < WIN5).sum()) / n15) if n15 else np.nan
 
 
 # --------------------------------------------------------------------------- labelled v1 truth
@@ -97,10 +110,13 @@ def labelled_truth() -> pd.DataFrame:
     rows = []
     for oid, g in a.groupby('observation_id', sort=False):
         n = len(g); rec = {'observation_id': oid}
+        fi = g['frame_idx'].to_numpy()
         for lab in LABELS:
             v = g['Y_' + lab].to_numpy()
             rec[f't_time_{lab}'] = v.mean() * 100
-            rec[f't_events_{lab}'] = int(((v == 1) & (np.r_[0, v[:-1]] == 0)).sum()) / (n / FPS / 60)
+            starts = (v == 1) & (np.r_[0, v[:-1]] == 0)
+            rec[f't_events_{lab}'] = int(starts.sum()) / (n / FPS / 60)
+            rec[f't_decay_{lab}'] = front_load(fi[starts])
         rows.append(rec)
     return pd.DataFrame(rows)
 
@@ -154,7 +170,11 @@ def out_of_fold_predictions():
             for lab in LABELS:
                 p = g['p_' + lab].to_numpy()
                 rec[f'f_time_{lab}'] = p.mean() * 100
-                rec[f'f_events_{lab}'] = len(runs(postprocess(p >= taus[k][lab], 1, 1))) / mins
+                bouts = runs(postprocess(p >= taus[k][lab], 1, 1))
+                rec[f'f_events_{lab}'] = len(bouts) / mins
+                # gi is sorted within an observation and every frame is present, so position ==
+                # frame_idx and a run's start index is its frame number
+                rec[f'f_decay_{lab}'] = front_load([b[0] for b in bouts])
             rows.append(rec)
     mean_tau = {lab: float(np.mean([taus[k][lab] for k in FOLDS])) for lab in LABELS}
     return pd.DataFrame(rows), taus, mean_tau
@@ -162,7 +182,14 @@ def out_of_fold_predictions():
 
 # ------------------------------------------------------------------- f on the unlabelled pools
 def dense_predictions(version: str, mean_tau: dict):
-    """Cross-prediction: average the K fold models' per-observation predictions."""
+    """Cross-prediction: average the K fold models' per-observation predictions.
+
+    Occupancy and bout counts come from the per-fold CSV, which already holds them. The decay
+    fraction F does not -- it needs bout START times, so it is computed from the companion .npz,
+    which carries the per-frame probability at stride 1 keyed by observation_id with array index
+    equal to frame_idx. Averaging happens on the per-observation summaries, matching what the
+    labelled side does, rather than on the frame probabilities.
+    """
     parts = []
     for t in FOLDS:
         p = FRAME / t / f'pred_dense_{version}.csv'
@@ -178,14 +205,27 @@ def dense_predictions(version: str, mean_tau: dict):
                 cands = [c for c in d.columns if c.startswith(f'p_{lab}_t')]
                 col = min(cands, key=lambda c: abs(float(c.split('_t')[1]) - mean_tau[lab]))
             rec[f'f_events_{lab}'] = d[col]
+        npz = FRAME / t / f'pred_dense_{version}.npz'
+        if npz.exists():
+            z = np.load(npz, allow_pickle=True)
+            for lab in LABELS:
+                j = LABELS.index(lab)
+                rec[f'f_decay_{lab}'] = [
+                    front_load([b[0] for b in runs(postprocess(
+                        z[o][:, j].astype(np.float32) >= mean_tau[lab], 1, 1))])
+                    if o in z.files else np.nan for o in rec.observation_id]
+        else:
+            print(f'  [no npz] {npz.name}: F unavailable for this fold', flush=True)
+            for lab in LABELS:
+                rec[f'f_decay_{lab}'] = np.nan
         rec['fold'] = t
         parts.append(rec)
     if not parts:
         return None
     allf = pd.concat(parts)
     keys = ['observation_id', 'pool', 'phase', 'odor', 'line', 'sex', 'genotype']
-    return allf.groupby(keys, as_index=False)[
-        [f'f_{u}_{l}' for u in ('time', 'events') for l in LABELS]].mean()
+    vals = [f'f_{u}_{l}' for u in ALL_UNITS for l in LABELS]
+    return allf.groupby(keys, as_index=False)[vals].mean()
 
 
 # ------------------------------------------------------------------------------------ the grid
@@ -252,7 +292,7 @@ def main():
         else:
             frame = unldf.copy()
             for lab in LABELS:
-                for u in ('time', 'events'):
+                for u in ALL_UNITS:
                     frame[f't_{u}_{lab}'] = np.nan
         for sid, snice, _ in strata_of(exp_df.drop_duplicates('pool'), version):
             if sid == 'all':
@@ -262,7 +302,7 @@ def main():
                 sub = frame[(frame.line == line) & (frame.genotype == g)]
             else:
                 sub = frame[frame.line == sid]
-            for unit in ('events', 'time'):
+            for unit in ALL_UNITS:
                 for lab in LABELS:
                     tcol, fcol = f't_{unit}_{lab}', f'f_{unit}_{lab}'
                     for od, odn in ODOURS:

@@ -84,7 +84,8 @@
            + 'On the model’s scale: read its sign and its pattern, not its magnitude.' },
   ];
   const M = Object.fromEntries(METHODS.map(m => [m.key, m]));
-  const AXIS = { events: 'change in bouts per minute', time: 'change in occupancy (pp)' };
+  const AXIS = { events: 'change in bouts per minute', time: 'change in occupancy (pp)',
+                 decay: 'change in front-loading fraction F' };
   const ODOURS = [['fear', 'FEAR exposure'], ['social', 'SOCIAL exposure']];
   const TRANS = [['H->O', 'exposure ON   H → O'], ['O->P', 'exposure OFF   O → P']];
   const state = {
@@ -92,6 +93,15 @@
   };
   const uniq = (k) => [...new Set(cells.map(c => c[k]))];
   state.model = uniq('model')[0] || 'xfit_dense';
+  /* One entry per predictor that supplies f. Only one exists today; the control is here because
+     which model carries the estimate is a choice the reader should see being made, and because a
+     second one is in training. Unknown tags fall back to the raw tag rather than vanishing. */
+  const MODEL_NICE = {
+    xfit_dense: 'cross-fitted, 3 folds (SSL encoder)',
+    xfit_bit6_dense: 'cross-fitted, 3 folds (BitFit-6)',
+    bit6_single: 'single model (BitFit-6)',
+  };
+  const modelName = (m) => MODEL_NICE[m] || m;
 
   const $ = (id) => document.getElementById(id);
   const css = (n) => getComputedStyle($('ate')).getPropertyValue(n).trim();
@@ -118,10 +128,12 @@
     const bar = $('ate-bar'); bar.textContent = '';
     bar.append(
       seg('experiment', 'exp', [['v1', 'v1  · 72 pools'], ['v2', 'v2  · 36 pools']]),
-      seg('unit', 'unit', [['events', 'number of events'], ['time', 'mean time']]),
+      seg('unit', 'unit', [['events', 'number of events'], ['time', 'mean time'],
+        ['decay', 'decay within phase']]),
       seg('behaviour', 'behav', [['nn', 'nose-to-nose'], ['nt', 'nose-to-tail']]),
       seg('breakdown', 'view', [['all', 'all pools'],
         ['strata', state.exp === 'v1' ? 'by line × genotype' : 'by line']]),
+      seg('model', 'model', uniq('model').map(m => [m, modelName(m)])),
     );
     if (state.view === 'strata') {
       bar.append(seg('transition', 'trans', TRANS.map(([k, n]) => [k, n.replace(/\s+/g, ' ')])));

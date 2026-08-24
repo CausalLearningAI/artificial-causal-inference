@@ -144,9 +144,12 @@ def pool_deltas(df, true_col, pred_col, odour, transition) -> PoolDeltas:
         m = g.drop_duplicates('phase').set_index('phase')
         if x not in m.index or y not in m.index:
             continue
+        d_p = (m.loc[y, pred_col] - m.loc[x, pred_col]) if pred_col else np.nan
+        if pred_col and not np.isfinite(d_p):
+            continue                  # no prediction for this pool: it cannot enter any mean
         keys.append(pool)
         dy.append(m.loc[y, true_col] - m.loc[x, true_col] if true_col else np.nan)
-        dp.append(m.loc[y, pred_col] - m.loc[x, pred_col] if pred_col else np.nan)
+        dp.append(d_p)
     return PoolDeltas(np.array(keys, dtype=object), np.array(dy, float), np.array(dp, float))
 
 
