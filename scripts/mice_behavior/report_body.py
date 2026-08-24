@@ -250,27 +250,40 @@ BODY = f'''
 <section><div class="measure">
   <div class="sechead"><p class="eyebrow">02 &middot; Outcome</p>
   <h2>What is one unit of behaviour?</h2></div>
-  <p>Behaviour is a continuous stream. Turning it into a number needs three decisions, and the
-  biology supplies none of them.</p>
+  <p>Behaviour is a continuous stream. Turning it into a number takes three decisions and the
+  biology supplies none of them &mdash; and the answer is not one number but <b>two</b>: how much
+  behaviour there is, and <em>when</em> in the phase it happens. Both are estimated throughout.</p>
   <div class="scroll"><table>
     <thead><tr><th>decision</th><th>what this report chose</th><th>what it costs</th></tr></thead>
     <tbody>
       <tr><td>what counts as ONE event</td><td>a <b>bout</b> &mdash; one uninterrupted run of
         annotated frames</td><td>the run is defined at 5&nbsp;fps, so a real bout split by a
         two-frame gap becomes two</td></tr>
-      <tr><td>what the DENOMINATOR is</td><td>per <b>minute of recording</b></td>
-        <td>a rate that decays inside a phase depends on how long you watch &mdash; section 03</td></tr>
-      <tr><td>what you MEASURE</td><td><b>how often</b> it starts</td>
-        <td>says nothing about how long it lasts, which is a separate effect</td></tr>
+      <tr><td>over what WINDOW</td><td>the <b>first 15 minutes</b> of every phase</td>
+        <td>H runs 30 minutes, so half of it is discarded &mdash; 02b</td></tr>
+      <tr><td>what you MEASURE</td>
+        <td><b>a level</b> &mdash; how often a bout starts<br>
+            <b>a timing</b> &mdash; when in the phase bouts start</td>
+        <td>two outcomes, chosen separately in 02a and 02b</td></tr>
     </tbody></table></div>
-  <p>The third decision is the one with real alternatives. <b>Counts</b> (bouts per minute) measure
-  how often the behaviour is initiated; <b>occupancy</b> (percentage of frames in it) how much of
-  the recording it fills; <b>duration</b> (mean bout length) how long one bout lasts. Occupancy is
-  close to counts &times; duration, so it is not a third independent choice so much as the product
-  of the other two &mdash; and it inherits both of their noise sources.</p>
+</div>
+
+<div class="measure">
+  <div class="sub">
+    <p class="q">02a &middot; the level</p>
+    <h3>How much behaviour &mdash; and which of three ways to count it</h3>
+    <p><b>Counts</b> (bouts per minute) measure how often the behaviour is initiated,
+    <b>occupancy</b> (percent of frames in it) how much of the recording it fills, <b>duration</b>
+    (mean bout length) how long one bout lasts. Occupancy is close to counts&nbsp;&times;&nbsp;duration,
+    so it inherits the noise of both rather than being a third independent choice. Two columns
+    decide it, and they are not the same column: <b>noise</b> is the within-cell coefficient of
+    variation, how much the measurement scatters across pools that had the same treatment; <b>r&Delta;</b>
+    is how well the vision model reproduces a pool's <em>within-pool phase difference</em>, the only
+    thing the model is asked to do.</p>
+  </div>
   <div class="scroll"><table>
-    <thead><tr><th>unit</th><th>what it measures</th><th>noise<br><span style="opacity:.65">CV, nn / nt</span></th>
-      <th>can the model track it<br><span style="opacity:.65">r&Delta;, nn / nt</span></th><th>verdict</th></tr></thead>
+    <thead><tr><th>unit</th><th>what it measures</th><th>noise<br><span style="opacity:.65">CV, nn / nt &mdash; lower better</span></th>
+      <th>model tracks it<br><span style="opacity:.65">r&Delta;, nn / nt &mdash; higher better</span></th><th>verdict</th></tr></thead>
     <tbody>
       <tr><td><b>counts</b><br><span style="opacity:.65">bouts per minute</span></td>
         <td>how often it starts</td><td>{cv('counts')}</td>
@@ -280,45 +293,44 @@ BODY = f'''
         <td class="lo">{rd('occupancy')}</td><td>noisier, and the model tracks it half as well</td></tr>
       <tr><td><b>duration</b><br><span style="opacity:.65">mean bout length</span></td>
         <td>how long one bout lasts</td><td class="hi">{cv('duration')}</td>
-        <td>no model head</td><td>no dynamic range left &mdash; see the figure</td></tr>
+        <td>no model head</td><td>quietest, but nothing left to vary with</td></tr>
     </tbody></table></div>
-  <p>Two columns, and they are not the same column. <b>Noise</b> is the within-cell coefficient of
-  variation &mdash; how much the measurement scatters across pools that had the same treatment, so
-  lower is better. <b>r&Delta;</b> is how well the vision model reproduces a pool's
-  <em>within-pool phase difference</em>, which is the only thing the model is asked to do. Counts
-  lose the noise column to duration and win the one that matters by roughly two to one.</p>
 </div>
   <div class="figwrap">{UNITS}</div>
 <div class="measure">
-  <p><b>Counts win on measurability, and the figure is the argument.</b> At 5&nbsp;fps {nnf}% of
-  nose-to-nose bouts and {ntf}% of nose-to-tail bouts last a <em>single frame</em> &mdash; their
-  length is set by sub-frame timing the pipeline introduced rather than by the animals, so mean
-  duration has almost nothing left to vary with. Occupancy has the opposite problem: the longest
-  10% of bouts carry {nnt}% of all nose-to-nose behaviour time and {ntt}% of nose-to-tail, so one
-  long huddle moves it more than ten short contacts. Counts sit between the two and are what the
-  model tracks best.</p>
-  <p class="defn"><b>What is deliberately not an argument.</b> Counts also resolve more contrasts
-  than the alternatives ({O['units']['counts']['resolves']} of 8, against
+  <p><b>Counts win on measurability.</b> At 5&nbsp;fps {nnf}% of nose-to-nose bouts and {ntf}% of
+  nose-to-tail bouts last a <em>single frame</em> &mdash; their length is set by sub-frame timing the
+  pipeline introduced, not by the animals, so duration has almost nothing left to vary with.
+  Occupancy has the opposite problem: the longest 10% of bouts carry {nnt}% of all nose-to-nose
+  behaviour time and {ntt}% of nose-to-tail, so one long huddle moves it more than ten short
+  contacts. Counts sit between the two and are what the model tracks best.</p>
+  <p class="defn"><b>Not an argument, but a reader will ask.</b> Counts also resolve more contrasts
+  than the alternatives &mdash; {O['units']['counts']['resolves']} of 8 against
   {O['units']['occupancy']['resolves']} for occupancy and {O['units']['duration']['resolves']} for
-  duration), and that is <em>not</em> why they were chosen: picking the outcome that yields the most
-  rejections of the null is selection on significance. It is recorded here because a reader will
-  ask. The treatment-linked component of the model's error is also no argument between the two
-  &mdash; it is the same size on both ({bs('counts')} against {bs('occupancy')} as a max/min ratio
-  across phases) and is measured properly in section 04.</p>
+  duration. That is <em>not</em> why they were chosen: picking the outcome that yields the most
+  rejections of the null is selection on significance. The treatment-linked part of the model's
+  error is no argument either &mdash; it is the same size on both ({bs('counts')} against
+  {bs('occupancy')} as a max/min ratio across phases) and is measured properly in 04.6.</p>
+</div>
 
+<div class="measure">
+  <div class="sub">
+    <p class="q">02b &middot; the timing</p>
+    <h3>Nothing is stationary inside a phase</h3>
+    <p>Rates fall several-fold across every recording &mdash; half-life <b>4&ndash;14 minutes</b>,
+    and P decays fastest in every cell. One cell rises instead, nose-to-tail under social exposure
+    during O, so the exposure sustains investigation while everything else habituates. Two things
+    follow, and the rest of this section is those two things: a phase <em>mean</em> needs a window
+    rule, and <b>the timing is an outcome in its own right</b>.</p>
+  </div>
 </div>
   <div class="figwrap">{DECAY}</div>
 <div class="measure">
-  <h3 style="margin-top:26px">Nothing is stationary inside a phase</h3>
-  <p>Rates fall several-fold across every recording: half-life <b>4&ndash;14 minutes</b>, and P
-  decays fastest in every cell. One cell rises instead &mdash; nose-to-tail under social exposure
-  during O &mdash; so the exposure sustains investigation while everything else habituates. A phase
-  <em>mean</em> is therefore an average over whichever stretch of a decaying curve the schedule
-  happened to sample, and <b>because habituation runs 30 minutes against O and P's 15, the two
-  sides of H&rarr;O do not sample the same stretch</b>. O&rarr;P is unaffected: both phases are the
-  same length, so any window rule applied to both leaves it bit-for-bit identical &mdash; checked
-  in all four cells. So the window question is a question about H&rarr;O alone, and here is what it
-  is worth:</p>
+  <h3 style="margin-top:22px">Consequence 1 &mdash; the window for the level</h3>
+  <p>Because habituation runs 30 minutes against O and P's 15, the two sides of H&rarr;O do not
+  sample the same stretch of a decaying curve. O&rarr;P is unaffected: both phases are the same
+  length, so any window rule applied to both leaves it bit-for-bit identical, checked in all four
+  cells. So this is a question about H&rarr;O alone.</p>
   <div class="scroll"><table>
     <thead><tr><th>H &rarr; O</th><th>full H (30 min)</th><th>first 15</th><th>last 15</th><th>spread</th></tr></thead>
     <tbody>
@@ -329,55 +341,44 @@ BODY = f'''
     </tbody></table></div>
   <div class="note"><b>Decision: match the first 15 minutes of every phase.</b> Every phase is a
   separate recording the experimenter starts by opening the cage, and the onset spike that follows
-  is largest in <b>P</b> &mdash; the phase where the odour is <em>removed</em> &mdash; in 3 of 4
-  cells (first-2-min over last-2-min rate, nn&nbsp;&middot;&nbsp;fear: H 7.6, O 6.7,
-  <b>P 12.3</b>). A response that peaks when the odour is taken away is handling, not odour, so
-  matching onset position puts it on both sides of every contrast, where it cancels. The cost is
-  contrasting cage-novelty against odour-novelty rather than against a settled baseline, and that
-  is the smaller of the two errors.
-  <br><br>Read off the table, that leaves one effect quotable and one not. <b>Nose-to-nose under
-  fear</b> holds its sign and resolves under all three windows (+0.45 matched), so it is the
-  H&rarr;O number to quote. <b>Nose-to-nose under social</b> runs +0.47 to &minus;0.03 and changes
-  sign, so its full-window value is mostly the H mean being pulled down by fifteen extra minutes of
-  decay that O never gets; it is not reportable as it stands. The figure above is still cut on the
-  full window &mdash; re-cutting the grid is next-step 3.</div>
-  
-<div class="sub">
-    <p class="q">outcome design</p>
-    <h3>The decay is a second effect
-      <span class="verdict v-yes">in the figure, as its own unit</span></h3>
-    <p>Measure it with the <b>mean onset time</b> of a phase's bouts, inside a common
-    15-minute window &mdash; called <b>decay</b> throughout:</p>
-    <div class="eqn"><math display="block"><mrow><mi>decay</mi><mo>=</mo>
-      <mfrac><mn>1</mn><mrow><mo>|</mo><mi>B</mi><mo>|</mo></mrow></mfrac>
-      <munder><mo>&#x2211;</mo><mrow><mi>b</mi><mo>&#x2208;</mo><mi>B</mi></mrow></munder>
-      <mi>onset</mi><mo>(</mo><mi>b</mi><mo>)</mo>
-      <mo>,</mo><mspace width="1.2em"/>
-      <mi>B</mi><mo>=</mo><mrow><mo>{{</mo><mtext>bouts starting in minutes&#xA0;0&#x2013;15</mtext>
-      <mo>}}</mo></mrow></mrow></math></div>
-    <p>In minutes, so it interprets itself: a <b>flat process gives 7.5</b>, half the window;
-    front-loaded gives less, back-loaded more. A difference reads directly as <em>&ldquo;the
-    exposure pushes bouts X minutes later into the phase&rdquo;</em>. Model-free, per-observation,
-    and needing no exponential &mdash; a fitted slope or time constant does not survive here:
-    log-linearity is rejected in 7 of 12 cells and &tau; reaches &minus;27&nbsp;min on the one
-    rising cell. Only H is truncated by the window, which is what makes the three phases
-    comparable at all. <b>Select &ldquo;decay within phase&rdquo; as the unit in section
-    03&rsquo;s figure</b> to read it with all three estimators, the same way as the level.</p>
-    <div class="note">This replaced a <b>front-loading fraction</b> &mdash; bouts in minutes
-    0&ndash;5 over bouts in minutes 0&ndash;15, flat&nbsp;&rarr;&nbsp;0.33 &mdash; on three counts.
-    Its null was an artefact of the nesting (a 0&ndash;5 over 0&ndash;10 split would have nulled at
-    0.5), so the number did not interpret itself. It collapsed every bout to which side of minute 5
-    it fell on. And it was a ratio of two correlated counts, where a mean has an ordinary standard
-    error. <b>The sign convention is the reverse of the old one</b>: a higher fraction meant more
-    front-loaded, a higher mean onset means <em>less</em>.
-    <br><br>The <b>median</b> onset was tested too and is worse on every axis this report decides
-    units by &mdash; within-cell CV 0.59&nbsp;/&nbsp;0.54 against 0.51&nbsp;/&nbsp;0.38, mean
-    r&Delta; 0.483 against 0.502, and worst-cell r&Delta; 0.174 against 0.293. Not because it is
-    coarse (it takes 130 of 144 distinct values, since onsets are frame indices) but because the
-    tail it discards is <em>signal</em>: a flatter habituation curve shows up precisely as more late
-    onsets. Median robustness would be worth having if late onsets were measurement error; here they
-    are the phenomenon.</div>
-  </div>
+  is largest in <b>P</b> &mdash; where the odour is <em>removed</em> &mdash; in 3 of 4 cells
+  (first-2-min over last-2-min rate, nn&nbsp;&middot;&nbsp;fear: H 7.6, O 6.7, <b>P 12.3</b>). A
+  response peaking when the odour is taken away is handling, not odour, so matching onset position
+  puts it on both sides of every contrast where it cancels. The cost is contrasting cage-novelty
+  against odour-novelty rather than a settled baseline, the smaller of the two errors.
+  <br><br>That leaves one effect quotable and one not. <b>Nose-to-nose under fear</b> holds its sign
+  under all three windows (+0.45 matched), so it is the H&rarr;O number to quote. <b>Nose-to-nose
+  under social</b> runs +0.47 to &minus;0.03 and changes sign, so its full-window value is mostly
+  the H mean being pulled down by fifteen extra minutes of decay that O never gets. The figure above
+  is still cut on the full window &mdash; re-cutting the grid is next-step 3.</div>
+
+  <h3 style="margin-top:26px">Consequence 2 &mdash; the timing as its own outcome</h3>
+  <p>Measure it with the <b>mean onset time</b> of a phase's bouts inside the same 15-minute window
+  &mdash; called <b>decay</b> throughout:</p>
+  <div class="eqn"><math display="block"><mrow><mi>decay</mi><mo>=</mo>
+    <mfrac><mn>1</mn><mrow><mo>|</mo><mi>B</mi><mo>|</mo></mrow></mfrac>
+    <munder><mo>&#x2211;</mo><mrow><mi>b</mi><mo>&#x2208;</mo><mi>B</mi></mrow></munder>
+    <mi>onset</mi><mo>(</mo><mi>b</mi><mo>)</mo>
+    <mo>,</mo><mspace width="1.2em"/>
+    <mi>B</mi><mo>=</mo><mrow><mo>{{</mo><mtext>bouts starting in minutes&#xA0;0&#x2013;15</mtext>
+    <mo>}}</mo></mrow></mrow></math></div>
+  <p>In minutes, so it interprets itself: a <b>flat process gives 7.5</b>, half the window;
+  front-loaded gives less, back-loaded more. A difference reads as <em>&ldquo;the exposure pushes
+  bouts X minutes later into the phase&rdquo;</em>. Model-free, per-observation, and needing no
+  exponential &mdash; a fitted slope does not survive here (log-linearity is rejected in 7 of 12
+  cells and &tau; reaches &minus;27&nbsp;min on the one rising cell). Only H is truncated by the
+  window, which is what makes the three phases comparable at all. <b>Select &ldquo;decay within
+  phase&rdquo; in section 03&rsquo;s figure</b> to read it with all three estimators.</p>
+  <div class="defn"><b>Two measures this replaced.</b> A <b>front-loading fraction</b> &mdash; bouts
+  in minutes 0&ndash;5 over bouts in minutes 0&ndash;15, flat&nbsp;&rarr;&nbsp;0.33 &mdash; whose
+  null was an artefact of the nesting, which collapsed every bout to which side of minute 5 it fell
+  on, and which was a ratio of two correlated counts where a mean has an ordinary standard error.
+  <b>Note the sign convention is the reverse of that one</b>: a higher fraction meant more
+  front-loaded, a higher mean onset means less. And the <b>median</b> onset, which is worse on every
+  axis used above &mdash; CV 0.59&nbsp;/&nbsp;0.54 against 0.51&nbsp;/&nbsp;0.38, mean r&Delta; 0.483
+  against 0.502, worst-cell r&Delta; 0.174 against 0.293. Not because it is coarse (130 of 144
+  distinct values, since onsets are frame indices) but because the tail it discards is
+  <em>signal</em>: a flatter habituation curve is precisely more late onsets.</div>
 </div></section>
 
 <section><div class="measure">
