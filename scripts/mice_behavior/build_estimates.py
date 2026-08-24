@@ -8,7 +8,7 @@ the selectors just choose which slice to draw.
 THE GRID
 ========
     experiment  v1 (72 pools, 24 annotated) | v2 (36 pools, 0 annotated)
-    unit        events (bouts per minute) | time (occupancy, pp) | decay (front-loading)
+    unit        events (bouts per minute) | time (occupancy, pp) | decay (mean onset, min)
     behaviour   nn (nose-to-nose)           | nt (nose-to-tail)
     model       which predictor supplies f
     stratum     all | v1: line x genotype (6) | v2: line (3)
@@ -85,19 +85,32 @@ LABELS = ('nt', 'nn')
 BEHAV_NICE = {'nt': 'nose-to-tail', 'nn': 'nose-to-nose'}
 ODOURS = (('F', 'fear'), ('S', 'social'))
 UNITS = {'events': 'bouts per minute', 'time': 'occupancy (pp)',
-         'decay': 'decay (front-loading fraction)'}
+         'decay': 'decay (mean onset, min)'}
 ALL_UNITS = ('events', 'time', 'decay')
-# decay = bouts starting in the first 5 minutes / bouts starting in the first 15. Flat -> 0.33,
-# strong decay -> higher. O and P run exactly 15 minutes so their whole recording is the window;
-# only H (30 min) is truncated by it, which is what makes F comparable across phases at all.
-WIN5, WIN15 = int(5 * 60 * FPS), int(15 * 60 * FPS)
+
+# DECAY = the mean START TIME of a phase's bouts, in minutes, inside a common 15-minute window.
+# Flat process -> 7.5; front-loaded -> lower; back-loaded -> higher. O and P run exactly 15
+# minutes so their whole recording is the window; only H (30 min) is truncated by it, which is
+# what makes the three phases comparable at all.
+#
+# THIS REPLACED A FRONT-LOADING FRACTION (bouts in minutes 0-5 / bouts in minutes 0-15, flat ->
+# 0.33) on 2026-08-24, for three reasons:
+#   * that null was an artefact of the nesting -- a 0-5 / 0-10 split would have nulled at 0.5 --
+#     so the number did not interpret itself, whereas 7.5 minutes is half the window and says so;
+#   * it collapsed every bout to which side of minute 5 it fell on, discarding the rest of the
+#     information in the onset times;
+#   * it was a ratio of two correlated counts, so its sampling distribution was awkward, where a
+#     mean has an ordinary standard error.
+# A Delta on this unit reads directly: "the exposure pushes bouts X minutes later into the phase".
+# Both are undefined when a recording has no bout in the window, which is unavoidable.
+WIN15 = int(15 * 60 * FPS)
 
 
-def front_load(starts) -> float:
-    """Undefined, not zero, when a recording has no bout in the 15-minute window."""
-    s = np.asarray(starts)
-    n15 = int((s < WIN15).sum())
-    return (int((s < WIN5).sum()) / n15) if n15 else np.nan
+def mean_onset(starts) -> float:
+    """Mean bout-onset minute inside the first 15 minutes. NaN, not 0, when there are none."""
+    s = np.asarray(starts, dtype=float)
+    s = s[s < WIN15]
+    return float(s.mean() / FPS / 60.0) if len(s) else np.nan
 
 
 # --------------------------------------------------------------------------- labelled v1 truth
@@ -116,7 +129,7 @@ def labelled_truth() -> pd.DataFrame:
             rec[f't_time_{lab}'] = v.mean() * 100
             starts = (v == 1) & (np.r_[0, v[:-1]] == 0)
             rec[f't_events_{lab}'] = int(starts.sum()) / (n / FPS / 60)
-            rec[f't_decay_{lab}'] = front_load(fi[starts])
+            rec[f't_decay_{lab}'] = mean_onset(fi[starts])
         rows.append(rec)
     return pd.DataFrame(rows)
 
@@ -174,7 +187,7 @@ def out_of_fold_predictions():
                 rec[f'f_events_{lab}'] = len(bouts) / mins
                 # gi is sorted within an observation and every frame is present, so position ==
                 # frame_idx and a run's start index is its frame number
-                rec[f'f_decay_{lab}'] = front_load([b[0] for b in bouts])
+                rec[f'f_decay_{lab}'] = mean_onset([b[0] for b in bouts])
             rows.append(rec)
     mean_tau = {lab: float(np.mean([taus[k][lab] for k in FOLDS])) for lab in LABELS}
     return pd.DataFrame(rows), taus, mean_tau
@@ -185,7 +198,7 @@ def dense_predictions(version: str, mean_tau: dict):
     """Cross-prediction: average the K fold models' per-observation predictions.
 
     Occupancy and bout counts come from the per-fold CSV, which already holds them. The decay
-    the decay fraction does not -- it needs bout START times, so it comes from the companion .npz,
+    the decay unit does not -- it needs bout START times, so it comes from the companion .npz,
     which carries the per-frame probability at stride 1 keyed by observation_id with array index
     equal to frame_idx. Averaging happens on the per-observation summaries, matching what the
     labelled side does, rather than on the frame probabilities.
@@ -211,7 +224,7 @@ def dense_predictions(version: str, mean_tau: dict):
             for lab in LABELS:
                 j = LABELS.index(lab)
                 rec[f'f_decay_{lab}'] = [
-                    front_load([b[0] for b in runs(postprocess(
+                    mean_onset([b[0] for b in runs(postprocess(
                         z[o][:, j].astype(np.float32) >= mean_tau[lab], 1, 1))])
                     if o in z.files else np.nan for o in rec.observation_id]
         else:

@@ -346,18 +346,30 @@ BODY = f'''
     <p class="q">outcome design</p>
     <h3>The decay is a second effect
       <span class="verdict v-yes">in the figure, as its own unit</span></h3>
-    <p>Measure it with a <b>front-loading fraction</b>, called <b>decay</b> throughout &mdash;
-    the share of a phase's bouts that start in its first third:</p>
+    <p>Measure it with the <b>mean onset time</b> of a phase's bouts, inside a common
+    15-minute window &mdash; called <b>decay</b> throughout:</p>
     <div class="eqn"><math display="block"><mrow><mi>decay</mi><mo>=</mo>
-      <mfrac><mtext>bouts starting in minutes&#xA0;0&#x2013;5</mtext>
-             <mtext>bouts starting in minutes&#xA0;0&#x2013;15</mtext></mfrac>
-      <mo>,</mo><mspace width="1.4em"/>
-      <mtext>flat process</mtext><mo>&#x21D2;</mo><mn>0.33</mn></mrow></math></div>
-    <p>Bounded, model-free, length-invariant, per-observation, and needing no exponential &mdash; a
-    fitted slope or time constant does not survive here: log-linearity is rejected in 7 of 12 cells
-    and &tau; reaches &minus;27&nbsp;min on the one rising cell. <b>Select &ldquo;decay within
-    phase&rdquo; as the unit in section 03&rsquo;s figure</b> to read it with all three estimators, the same way
-    as the level.</p>
+      <mfrac><mn>1</mn><mrow><mo>|</mo><mi>B</mi><mo>|</mo></mrow></mfrac>
+      <munder><mo>&#x2211;</mo><mrow><mi>b</mi><mo>&#x2208;</mo><mi>B</mi></mrow></munder>
+      <mi>onset</mi><mo>(</mo><mi>b</mi><mo>)</mo>
+      <mo>,</mo><mspace width="1.2em"/>
+      <mi>B</mi><mo>=</mo><mrow><mo>{{</mo><mtext>bouts starting in minutes&#xA0;0&#x2013;15</mtext>
+      <mo>}}</mo></mrow></mrow></math></div>
+    <p>In minutes, so it interprets itself: a <b>flat process gives 7.5</b>, half the window;
+    front-loaded gives less, back-loaded more. A difference reads directly as <em>&ldquo;the
+    exposure pushes bouts X minutes later into the phase&rdquo;</em>. Model-free, per-observation,
+    and needing no exponential &mdash; a fitted slope or time constant does not survive here:
+    log-linearity is rejected in 7 of 12 cells and &tau; reaches &minus;27&nbsp;min on the one
+    rising cell. Only H is truncated by the window, which is what makes the three phases
+    comparable at all. <b>Select &ldquo;decay within phase&rdquo; as the unit in section
+    03&rsquo;s figure</b> to read it with all three estimators, the same way as the level.</p>
+    <div class="note">This replaced a <b>front-loading fraction</b> &mdash; bouts in minutes
+    0&ndash;5 over bouts in minutes 0&ndash;15, flat&nbsp;&rarr;&nbsp;0.33 &mdash; on three counts.
+    Its null was an artefact of the nesting (a 0&ndash;5 over 0&ndash;10 split would have nulled at
+    0.5), so the number did not interpret itself. It collapsed every bout to which side of minute 5
+    it fell on. And it was a ratio of two correlated counts, where a mean has an ordinary standard
+    error. <b>The sign convention is the reverse of the old one</b>: a higher fraction meant more
+    front-loaded, a higher mean onset means <em>less</em>.</div>
   </div>
 </div></section>
 
@@ -405,12 +417,13 @@ BODY = f'''
           <td>{ddecay('nt','fear','O->P')}</td><td class="hi">{ddecay('nt','social','O->P')}</td>
           <td>{ddecay('nn','fear','O->P')}</td><td class="hi">{ddecay('nn','social','O->P')}</td></tr>
       </tbody></table></div>
-    <p><b>Every sign is negative turning the odour on and positive turning it off</b> (* = resolves;
-    {n_dec} of 8 do on human labels alone, {n_dec_ppi} of 8 with PPI++). The exposure flattens the
-    habituation curve and withdrawing it restores fast habituation &mdash; not how much behaviour
-    the odour triggers, but how long it holds attention. Decay is undefined where a recording has
-    no bout in the window, so n falls to 13&ndash;24 by cell, which is why the model buys more here
-    than it does on the level.</p>
+    <p><b>Every sign is positive turning the odour on and negative turning it off</b> (* =
+    resolves; {n_dec} of 8 do on human labels alone, {n_dec_ppi} of 8 with PPI++). Bouts start
+    <b>1.0&ndash;2.2 minutes later</b> into the phase once the odour is on, and up to 3.3 minutes
+    earlier once it is withdrawn: the exposure flattens the habituation curve and withdrawing it
+    restores fast habituation. This is not how much behaviour the odour triggers but how long it
+    holds attention. Decay is undefined where a recording has no bout in the window, so n falls to
+    13&ndash;24 by cell, which is why the model buys more here than it does on the level.</p>
   </div>
 
 </div></section>

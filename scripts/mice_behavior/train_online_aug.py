@@ -296,6 +296,20 @@ def main():
                          'the JPEG-bytes cache at ~45 KB/frame: 300k -> ~19 GiB, 900k -> ~45 GiB, '
                          'unbounded (2.59M) -> ~114 GiB, plus the one-time NFS read of each frame.')
     p.add_argument('--input-size', type=int, default=224)
+    p.add_argument('--train-odour', default='', choices=['', 'F', 'S'],
+                   help="Restrict TRAINING to one exposure session and evaluate on the other. "
+                        "Each pool is filmed twice -- fear and social -- through the same three "
+                        "phases, so this holds the cage, the animals, the annotator and the "
+                        "lighting fixed and varies only the exposure. It is a MECHANISM split, "
+                        "not a deployment split: the model has seen every test pool, so its bias "
+                        "there is smaller than on a genuinely unseen pool, and PPI++ cannot use it "
+                        "(the rectifier would sit on trained-on pools). What it buys is that the "
+                        "two exposures carry OPPOSITE true effects on nose-to-tail, so a model "
+                        "importing its training session's phase prior biases the test session in a "
+                        "direction that flips when the split direction flips -- which a plain "
+                        "generalisation gap cannot do. The monitor set stays inside the TRAINING "
+                        "exposure (the held-out pools' same-odour recordings) so early stopping "
+                        "never touches the test session.")
     p.add_argument('--val-pools', default=None,
                     help='comma-separated pool ids to hold out, overriding the standing split. '
                          'Used for cross-fitting: several runs whose val sets tile all 24 '
@@ -551,6 +565,22 @@ def main():
         train_obs = [o for o in train_obs if o2p[o] in keep]
         print(f'  learning-curve point: {args.n_train_pools}/{len(tp)} train pools '
               f'({len(train_obs)} obs) -> {sorted(keep)}', flush=True)
+    if args.train_odour:
+        # Both sides keep the SAME exposure. train = that odour on the training pools; monitor =
+        # that odour on the held-out pools, so early stopping is honest and never sees the test
+        # session. The test session itself is not scored here -- run predict_dense.py afterwards,
+        # which dumps every v1 observation including the other odour's.
+        o2o = dict(zip(*[pd.read_csv(gsf.DATA_DIR / 'mice' / 'v1' / 'experiment.csv')[c]
+                         for c in ('observation_id', 'odor')]))
+        n0, v0 = len(train_obs), len(val_obs)
+        train_obs = [o for o in train_obs if o2o.get(o) == args.train_odour]
+        val_obs = [o for o in val_obs if o2o.get(o) == args.train_odour]
+        if not train_obs or not val_obs:
+            raise SystemExit(f'--train-odour {args.train_odour} left '
+                             f'{len(train_obs)} train / {len(val_obs)} monitor observations')
+        print(f'  --train-odour {args.train_odour}: train {n0} -> {len(train_obs)} obs, '
+              f'monitor {v0} -> {len(val_obs)} obs. The other exposure is the TEST session and is '
+              f'not scored here; use predict_dense.py.', flush=True)
     if args.smoke:
         # val is 144k frames and dominates the read phase, so cap it too or "smoke" isn't smoke
         train_obs, val_obs = train_obs[:2], val_obs[:1]
@@ -992,6 +1022,7 @@ def main():
                'warmup_epochs': args.warmup_epochs, 'lr': lr, 'weight_decay': wd, 'dropout': dropout,
                'n_epochs': args.n_epochs, 'batch_size': args.batch_size,
                'max_train_frames': args.max_train_frames, 'val_pools': sorted(val_pools),
+               'train_odour': args.train_odour or None,
                'jpeg_cache_gib': sum(len(b) for b in jpeg_cache.values())/1024**3,
                'jpeg_cache_frames': len(jpeg_cache), 'ap_report': apr, 'rate_report': rr,
                'best_ap': apr['macro/tol0']['ap'], 'history': hist},

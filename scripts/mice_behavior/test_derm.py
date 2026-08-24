@@ -45,6 +45,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 FRAME = ROOT / 'results' / 'vision' / 'mice' / 'frame'
 TOL = 1e-5
+LABELS = ('nt', 'nn')
 FAIL: list[str] = []
 
 
@@ -160,6 +161,88 @@ def test_floor(derm_table) -> None:
           'derm_w_raw = 1.09 inverts to a mean sampled p_e of ~0.24, the 1:1 regime')
 
 
+def test_sampler_composition(derm_table) -> None:
+    """Does DERM compose correctly with the 1:1 negative subsampling? Yes -- and here is why.
+
+    The pipeline changes the class balance TWICE: the sampler keeps every any-label positive and
+    thins the all-negative frames to 1:1, and DERM then reweights the loss. The order matters.
+
+    DERM computes p_e on `order` -- the exact index set that epoch's loss averages over -- and
+    rebuilds it every epoch because the negatives are resampled. So it equalises the distribution
+    the gradient actually sees, whatever the sampler did. That is the correct composition, and it
+    is why the invariants above hold on the real sampled order and not only on synthetic data.
+
+    But the sampler DOES decide how much correction is needed, and it is not label-aware. A frame
+    is kept if it is positive for EITHER behaviour, so one label's NEGATIVE class is a mixture:
+    all-negative frames (thinned) plus the other label's positives (kept whole). That mixture's
+    proportion varies by phase, so the sampled per-label phase gradient is not the population one.
+
+    Measured on the training pools, log odds ratio O against H:
+
+        nose-to-tail   population +0.31  ->  sampled +0.28    largely preserved
+        nose-to-nose   population +0.11  ->  sampled -0.01    collapsed
+
+    That is not an error -- the model only ever trains on the sampled distribution, so a gradient
+    that is not there is a prior it cannot learn. It is a PREDICTION, and it holds: the measured
+    a_O - a_H under ERM is +0.163 on nose-to-tail, where a gradient survives, and -0.002 on
+    nose-to-nose, where it does not. What it means practically is that the STRENGTH of DERM's
+    correction per label is a side effect of the sampler rather than a choice, so it should be
+    logged rather than left implicit.
+    """
+    print('\n8. composition with the 1:1 negative subsampling')
+    cfg_p = FRAME / 'res448_k2_frozen_d4photo_dermPhase' / 'config.json'
+    if not cfg_p.exists():
+        print('     [skip] no dermPhase config on disk')
+        return
+    val = set(json.load(open(cfg_p))['val_pools'])
+    exp = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')
+    ann = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
+                      usecols=['observation_id', 'Y_nt', 'Y_nn'],
+                      low_memory=False).dropna(subset=['Y_nt'])
+    ann = ann.merge(exp[['observation_id', 'pool', 'phase']], on='observation_id')
+    tr = ann[~ann.pool.isin(val)]
+    Y = {l: (tr['Y_' + l] > 0.5).to_numpy() for l in LABELS}
+    anyp = Y['nt'] | Y['nn']
+    ph = tr.phase.to_numpy()
+    rng = np.random.default_rng(0)
+    neg, pos = np.flatnonzero(~anyp), np.flatnonzero(anyp)
+    order = np.concatenate([pos, rng.choice(neg, size=min(len(neg), len(pos)), replace=False)])
+    lo = lambda p: float(np.log(p / (1 - p)))
+
+    names, ev = np.unique(ph[order], return_inverse=True)
+    Ysamp = np.stack([Y[l][order] for l in LABELS], axis=1).astype(np.float32)
+    tab, m_raw = derm_table(Ysamp, ev.astype(np.int64), np.arange(len(order)), len(names))
+    w = tab[ev[:, None], np.arange(len(LABELS))[None, :], (Ysamp > 0.5).astype(np.int64)]
+    worst = 0.0
+    for li in range(len(LABELS)):
+        for i in range(len(names)):
+            m = ev == i
+            mp = w[m & (Ysamp[:, li] > 0.5), li].sum()
+            mn = w[m & (Ysamp[:, li] <= 0.5), li].sum()
+            worst = max(worst, abs(mp / mn - 1.0))
+    check('invariants hold on the REAL 1:1-sampled order, per label', worst < 1e-3,
+          f'worst pos/neg mass deviation {worst:.2e}; derm_w_raw {m_raw:.2f} vs 1.09 logged')
+
+    print('     log odds ratio, O against H -- what DERM is actually removing:')
+    for l in LABELS:
+        P = {k: Y[l][ph == k].mean() for k in 'HOP'}
+        S = {k: Y[l][order[ph[order] == k]].mean() for k in 'HOP'}
+        print(f'       {l}: population {lo(P["O"]) - lo(P["H"]):+.3f}  ->  '
+              f'sampled {lo(S["O"]) - lo(S["H"]):+.3f}')
+    print('     the sampler is label-AGNOSTIC (keeps a frame positive for EITHER behaviour) while')
+    print('     DERM is per label, so each label\'s negatives are contaminated by the other\'s')
+    print('     positives at a phase-varying rate:')
+    for l, o in (('nt', 'nn'), ('nn', 'nt')):
+        row = []
+        for k in 'HOP':
+            m = order[ph[order] == k]
+            row.append(f'{k} {100 * Y[o][m[~Y[l][m]]].mean():5.2f}%')
+        print(f'       {l} negatives that are {o} positives: ' + '  '.join(row))
+    print('     Not an error: the model trains on the sampled distribution, so a gradient that is')
+    print('     not there is a prior it cannot learn. It PREDICTS the measured a_O-a_H pattern')
+    print('     (+0.163 on nt where a gradient survives, -0.002 on nn where it does not).')
+
+
 def test_env_mapping() -> None:
     """The sample -> phase map, and the assumption that makes it exact."""
     print('\n7. environment mapping')
@@ -190,6 +273,7 @@ def main() -> None:
     derm_table = load_derm_table()
     test_formula(derm_table)
     test_floor(derm_table)
+    test_sampler_composition(derm_table)
     test_env_mapping()
     print('\n' + ('FAILED: ' + '; '.join(FAIL) if FAIL else 'all checks passed'))
     sys.exit(1 if FAIL else 0)

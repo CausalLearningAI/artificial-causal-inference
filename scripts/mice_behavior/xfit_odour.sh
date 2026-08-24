@@ -1,0 +1,141 @@
+#!/bin/bash
+#
+# Train on one exposure session, test on the other, as pure PPCI. ERM against DERM.
+#
+# WHY THIS SPLIT, AND WHY IT IS SHARPER THAN HOLDING OUT POOLS
+# ===========================================================
+# Every pool is filmed twice -- fear and social -- through the same three phases. Splitting on the
+# EXPOSURE therefore holds the cage, the animals, the annotator, the lighting and the camera fixed
+# and varies only the treatment episode. Under a pool-held-out split the model's error on a test
+# pool mixes "it has never seen this cage" with "it reads the phase"; here the cage is known, so
+# what is left is much more purely the phase channel.
+#
+# It also gives 24 units of a_O - a_H from ONE training run (24 pools x 1 exposure) against 16 per
+# cross-fitting fold -- the standing 4-pool split gives 8.
+#
+# THE SIGN TEST, which is the real reason for four arms
+# ====================================================
+# The two exposures carry OPPOSITE true effects on nose-to-tail: H->O reads +0.18 bouts/min under
+# fear and -0.31 under social. A model that has learnt its training session's phase prior imports
+# that session's prevalence gap into the test session, so the bias it produces is
+#
+#     bias on test T  ~  (prevalence gap in S) - (prevalence gap in T)
+#
+# which FLIPS SIGN when the direction flips. Train on fear and the social estimate is pushed
+# positive; train on social and the fear estimate is pushed negative. A plain generalisation gap --
+# "the model is simply worse on an exposure it never saw" -- cannot produce a sign flip tied to
+# which session was trained on. That is the control, and it is what makes the result attributable
+# to the prior rather than to difficulty. Hence 2 directions x 2 objectives:
+#
+#     odourF_erm    train fear,   test social    ERM
+#     odourF_derm   train fear,   test social    DERM, environments = the 3 phases
+#     odourS_erm    train social, test fear      ERM
+#     odourS_derm   train social, test fear      DERM
+#
+# Drop to one direction with ARMS="odourF_erm odourF_derm" if the queue is tight; the comparison
+# still works, it just loses the control.
+#
+# WHAT THIS IS NOT
+# ================
+# NOT a deployment estimate. The model has seen every test pool's cage and animals, so its bias
+# there is SMALLER than on a genuinely unseen pool -- this is a lower bound on what PPCI suffers on
+# the 48 unannotated pools, useful precisely because a large lower bound is a strong statement, but
+# it must never be quoted as the deployment number. `xfit_derm.sh` is the deployment-valid version.
+#
+# NOT usable by PPI++. Its rectifier would sit on pools the model trained on, which is the exact
+# failure cross-fitting exists to prevent. PPCI uses no labels anywhere and is not bound by it.
+#
+# Early stopping never touches the test session: --train-odour keeps the monitor set inside the
+# TRAINING exposure (the four held-out pools' same-odour recordings). The test session is scored
+# afterwards by predict_dense.py, which dumps every v1 observation.
+#
+# Usage:
+#     bash scripts/mice_behavior/xfit_odour.sh                    # 4 trainings
+#     ARMS="odourF_erm odourF_derm" bash scripts/mice_behavior/xfit_odour.sh
+#     DRY=1 bash scripts/mice_behavior/xfit_odour.sh
+#     STAGE=predict bash scripts/mice_behavior/xfit_odour.sh      # dense passes for what landed
+set -euo pipefail
+cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
+export PATH=/opt/slurm/bin:$PATH
+mkdir -p logs
+
+# Same recipe as xfit_derm.sh, so the two experiments are one comparison at two split designs:
+# frozen stock DINOv2, 448 px, the 0.52 M cross-attention head, D4 + photometric augmentation.
+export INPUT_SIZE=448 CONTEXT_K=2 STRIDE=1 AUGMENT=d4_photo PHOTO_STRENGTH=1.0
+export OPTIMIZER=adamw LR=3e-4 WEIGHT_DECAY=0.05 DROPOUT=0.4
+export WARMUP_EPOCHS=3 LR_DECAY_EPOCHS=30 N_EPOCHS=30 PATIENCE=10
+export BATCH_SIZE=64 NEG_RATIO=1 MAX_TRAIN_FRAMES=300000
+export UNFREEZE_BLOCKS=0
+export CROSS_ATTN_DIM=64 PATCH_POOL_DIM=256
+export JPEG_CACHE_FILE=dataset/mice/v1/jpegcache_k2
+export WANDB=1
+
+# Fold 3's pools are the monitor set, for one reason only: they are the four the standing split
+# already uses, so the monitor is the same cages every other arm on this page was early-stopped on.
+# The remaining 20 pools train. All 24 are then scored on the OTHER exposure, monitor pools
+# included -- for PPCI that is admissible, since it uses no labels anywhere.
+MONITOR="rd11_2,rd13,rd14,rd18"
+
+declare -A ARM_ENV=(
+  [odourF_erm]="TRAIN_ODOUR=F ENV_KEY=none"
+  [odourF_derm]="TRAIN_ODOUR=F ENV_KEY=phase DERM=1 VREX_BETA=0"
+  [odourS_erm]="TRAIN_ODOUR=S ENV_KEY=none"
+  [odourS_derm]="TRAIN_ODOUR=S ENV_KEY=phase DERM=1 VREX_BETA=0"
+)
+declare -A ARM_TAG=(
+  [odourF_erm]="odour_trF_erm"   [odourF_derm]="odour_trF_derm"
+  [odourS_erm]="odour_trS_erm"   [odourS_derm]="odour_trS_derm"
+)
+ORDER="odourF_erm odourF_derm odourS_erm odourS_derm"
+
+if ! grep -q 'train-odour' scripts/mice_behavior/train_online_aug.sh; then
+  echo "REFUSING: train_online_aug.sh does not forward --train-odour." >&2; exit 1
+fi
+
+# Frozen encoder -> L40S, and it does not contend for the A100s the BitFit folds hold.
+SB=(--partition="${PARTITION:-gpu}" --gres="${GRES:-gpu:L40S:1}" --time="${TIME:-10:00:00}"
+    --mem="${MEM:-180G}" --cpus-per-task=32)
+
+for arm in ${ARMS:-$ORDER}; do
+    tag="${ARM_TAG[$arm]:-}"
+    [ -n "$tag" ] || { echo "unknown arm '$arm'" >&2; exit 1; }
+    if [ -e "results/vision/mice/frame/$tag/config.json" ]; then
+        echo "SKIP  $tag already has results"; continue
+    fi
+    if squeue -u "$USER" -h -o '%j' 2>/dev/null | grep -qx "$tag"; then
+        echo "SKIP  $tag already queued or running"; continue
+    fi
+    if [ "${STAGE:-all}" = "predict" ]; then continue; fi
+    if [ -n "${DRY:-}" ]; then
+        echo "[dry] $tag  ${ARM_ENV[$arm]}  MONITOR=$MONITOR"; continue
+    fi
+    jid=$(env ${ARM_ENV[$arm]} VAL_POOLS="$MONITOR" TAG="$tag" SEED=42 sbatch "${SB[@]}" \
+              --job-name="$tag" --output="logs/${tag}_%j.out" --error="logs/${tag}_%j.err" \
+              --parsable scripts/mice_behavior/train_online_aug.sh)
+    echo "submitted $jid  $tag  (${ARM_ENV[$arm]})"
+done
+
+# The TEST session comes from a dense pass, because the trainer only ever scores its own monitor
+# set. predict_dense dumps every v1 observation, so both exposures land in one file and the
+# analysis picks the held-out one.
+if [ "${STAGE:-all}" = "predict" ]; then
+  for arm in ${ARMS:-$ORDER}; do
+    tag="${ARM_TAG[$arm]}"
+    [ -e "results/vision/mice/frame/$tag/config.json" ] || { echo "SKIP  $tag not landed"; continue; }
+    if [ -n "${DRY:-}" ]; then echo "[dry] predict_dense $tag v1"; continue; fi
+    jid=$(env TAG="$tag" VERSION=v1 sbatch --job-name="pd_${tag}" \
+              --parsable scripts/mice_behavior/predict_dense.sh)
+    echo "submitted $jid  predict_dense $tag v1"
+  done
+fi
+
+cat <<'EOF'
+
+When the four trainings have landed:
+    STAGE=predict bash scripts/mice_behavior/xfit_odour.sh   # dense pass, the TEST session
+    python scripts/mice_behavior/build_derm.py               # add the odour_* tags to FAMS
+
+Read a_O - a_H on the HELD-OUT exposure, per direction. The prediction under a phase-prior
+shortcut is that ERM's bias flips sign between the two directions and DERM's is closer to zero in
+both. Do NOT judge this on macro AP: dropping the phase prior costs frame accuracy by construction.
+EOF
