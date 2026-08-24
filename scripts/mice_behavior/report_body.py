@@ -262,7 +262,8 @@ BODY = f'''
         annotated frames</td><td>the run is defined at 5&nbsp;fps, so a real bout split by a
         two-frame gap becomes two</td></tr>
       <tr><td>over what WINDOW</td><td>the <b>first 15 minutes</b> of every phase</td>
-        <td>H runs 30 minutes, so half of it is discarded &mdash; 02b</td></tr>
+        <td>H runs 30 minutes, so half of it is discarded &mdash; 02b. The estimate grid is still
+        cut on the full window; re-cutting it is next-step 3</td></tr>
       <tr><td>what you MEASURE</td>
         <td><b>a level</b> &mdash; how often a bout starts<br>
             <b>a timing</b> &mdash; when in the phase bouts start</td>
@@ -362,8 +363,8 @@ BODY = f'''
     phase&rdquo;</em>. Model-free, per-observation, and needing no exponential &mdash; a fitted
     slope does not survive here, with log-linearity rejected in 7 of 12 cells. Beats a
     front-loading fraction (whose null was an artefact of its own nesting) and the median (which
-    discards the late tail, where a flatter curve actually shows). <b>Select &ldquo;decay within
-    phase&rdquo; in section 03&rsquo;s figure</b> to read it with all three estimators.</p>
+    discards the late tail, where a flatter curve actually shows). <b>Pick &ldquo;timing&rdquo; as the outcome in section 03&rsquo;s figure</b> to read it with all
+    three estimators.</p>
   </div>
 </div></section>
 
@@ -408,6 +409,95 @@ BODY = f'''
   <p class="defn">* = resolves; {n_dec} of 8 do on human labels alone, {n_dec_ppi} of 8 with PPI++.
   Decay is undefined where a recording has no bout in the window, so n falls to 13&ndash;24 by cell
   &mdash; which is why the model buys more on the timing than it does on the level.</p>
+
+  <h3 style="margin-top:26px">What a better model could buy, at most</h3>
+  <p>Two things cap it, and both are computable rather than rhetorical.</p>
+
+  <div class="bound">
+    <p class="t">bound &middot; PPI++ on v1</p>
+    <p>Let <math><mi>n</mi><mo>=</mo><mn>{_PB['n']}</mn></math> be the labelled pools,
+    <math><mi>N</mi><mo>=</mo><mn>{_PB['N']}</mn></math> the unlabelled ones, and
+    <math><mrow><mi>r</mi><mi>&#x394;</mi><mo>=</mo><mi>corr</mi><mo>(</mo>
+    <msub><mi>D</mi><mi>Y</mi></msub><mo>,</mo><msub><mi>D</mi><mi>f</mi></msub>
+    <mo>)</mo></mrow></math>. At the power-tuned
+    <math><mrow><mi>&#x3BB;</mi><mo>=</mo><mi>Cov</mi><mo>(</mo><msub><mi>D</mi><mi>Y</mi></msub>
+    <mo>,</mo><msub><mi>D</mi><mi>f</mi></msub><mo>)</mo><mo>/</mo><mo>[</mo>
+    <mi>Var</mi><mo>(</mo><msub><mi>D</mi><mi>f</mi></msub><mo>)</mo>
+    <mo>(</mo><mn>1</mn><mo>+</mo><mi>n</mi><mo>/</mo><mi>N</mi><mo>)</mo><mo>]</mo></mrow></math>
+    the estimator's variance is</p>
+    <div class="eqn"><math display="block"><mrow>
+      <mi>Var</mi><mo>(</mo><msub><mover accent="true"><mi>&#x3B8;</mi><mo>^</mo></mover>
+        <mtext>PPI++</mtext></msub><mo>)</mo><mo>=</mo>
+      <mfrac><mrow><mi>Var</mi><mo>(</mo><msub><mi>D</mi><mi>Y</mi></msub><mo>)</mo></mrow>
+             <mi>n</mi></mfrac>
+      <mrow><mo>[</mo><mn>1</mn><mo>&#x2212;</mo>
+        <msup><mrow><mo>(</mo><mi>r</mi><mi>&#x394;</mi><mo>)</mo></mrow><mn>2</mn></msup>
+        <mfrac><mi>N</mi><mrow><mi>n</mi><mo>+</mo><mi>N</mi></mrow></mfrac><mo>]</mo></mrow>
+    </mrow></math></div>
+    <p>so the interval scales as</p>
+    <div class="eqn"><math display="block"><mrow>
+      <mfrac><msub><mi>SE</mi><mtext>PPI++</mtext></msub>
+             <msub><mi>SE</mi><mtext>CI</mtext></msub></mfrac>
+      <mo>=</mo>
+      <msqrt><mrow><mn>1</mn><mo>&#x2212;</mo>
+        <mfrac><mn>2</mn><mn>3</mn></mfrac>
+        <msup><mrow><mo>(</mo><mi>r</mi><mi>&#x394;</mi><mo>)</mo></mrow><mn>2</mn></msup>
+      </mrow></msqrt>
+      <mspace width="1.2em"/><mo>&#x2265;</mo><mspace width="0.6em"/>
+      <msqrt><mfrac><mi>n</mi><mrow><mi>n</mi><mo>+</mo><mi>N</mi></mrow></mfrac></msqrt>
+      <mo>=</mo>
+      <msqrt><mfrac><mn>1</mn><mn>3</mn></mfrac></msqrt>
+      <mo>=</mo><mn>{_PB['floor']:.3f}</mn>
+    </mrow></math></div>
+    <p><b>So no model can narrow the interval by more than {100 * (1 - _PB['floor']):.1f}%.</b>
+    Equality holds only at <math><mrow><mi>r</mi><mi>&#x394;</mi><mo>=</mo><mn>1</mn></mrow></math>,
+    where the variance collapses to
+    <math><mrow><mi>Var</mi><mo>(</mo><msub><mi>D</mi><mi>Y</mi></msub><mo>)</mo><mo>/</mo>
+    <mo>(</mo><mi>n</mi><mo>+</mo><mi>N</mi><mo>)</mo></mrow></math> &mdash; precisely the variance
+    of having annotated all {_PB['n'] + _PB['N']} pools. The bound depends on the <em>design</em>
+    only: 24 of 72, and nothing about the model. Measured today the mean narrowing is <b>12%</b>,
+    best cell 22%, so about a third of the available ceiling is in hand and the rest is entirely
+    r&Delta;.</p>
+  </div>
+
+  <div class="scroll"><table>
+    <thead><tr><th>r&Delta;</th><th>predicted PPI++ width vs CI</th><th>where that is</th></tr></thead>
+    <tbody>
+      {bound_rows}
+    </tbody></table></div>
+  <p>Two things follow. <b>r&Delta; is the ranking metric</b> because it is the only free variable
+  in the bound. And <b>annotating more pools raises the ceiling itself</b>: the floor is
+  &radic;(n/(n+N)), so moving 20 pools from unlabelled to labelled changes what a perfect model
+  could ever be worth &mdash; which is next-step 1, and why it beats every modelling change in section 04.</p>
+  <div class="note"><b>The second ceiling is the labels &mdash; and the estimand is largely
+  protected from it.</b> No observation in v1 was scored twice, so agreement cannot be measured
+  directly; the design bounds it instead, because within a genotype group the six pools are
+  exchangeable yet different people scored them. Decomposing variance with annotator as the factor,
+  against a permutation null of the same shape:
+  <div class="scroll" style="margin-top:11px"><table>
+    <thead><tr><th>quantity</th><th>annotator share of within-cell variance</th><th>chance</th><th>p</th></tr></thead>
+    <tbody>
+      <tr><td>rate, per observation &mdash; nt</td><td class="lo">31.7%</td><td>8.2%</td><td class="lo">&lt;0.001</td></tr>
+      <tr><td>rate, per observation &mdash; nn</td><td class="lo">17.8%</td><td>7.6%</td><td class="lo">0.010</td></tr>
+      <tr><td><b>within-pool difference &mdash; nt</b></td><td class="hi">26.1%</td><td>32.4%</td><td class="hi">0.59</td></tr>
+      <tr><td><b>within-pool difference &mdash; nn</b></td><td class="hi">40.3%</td><td>35.7%</td><td class="hi">0.38</td></tr>
+    </tbody></table></div>
+  <b>Who scored a recording moves its measured rate, and stops mattering once the rate is
+  differenced within a pool</b> &mdash; the same cancellation the three wild-type strata show in
+  section 01. So a label-noise ceiling computed on <em>rates</em> (best attainable r &le; 0.65 on
+  nose-to-tail) constrains level correlations, <b>not r&Delta;</b>. What bounds r&Delta; is
+  <em>within</em>-annotator inconsistency between two phases, which no design without replication
+  can separate from real change. Double-scoring 15&ndash;20 observations is the only way to get it,
+  and the only way to know how much of the model's remaining error is addressable.</div>
+  <div class="note warnbox"><b>Not a ceiling, but the last thing to know about these three:
+  CI and PPI++ do not target quite the same population.</b> Annotation is <b>3:1 het-enriched</b> (18 het / 6 wt against a 36/36 design), so CI estimates the
+  effect <em>in the annotated pools</em> while PPI++ pulls in 48 unannotated ones that are
+  wt-enriched (30 wt / 18 het) and targets the full 72. They coincide only if the phase effect does
+  not vary with genotype, and it varies a little: nose-to-nose under fear reads about +0.79 across
+  the wt strata against +0.60 across the het strata, moving the target roughly +0.05 (~7%). Small
+  next to these intervals, but it is a difference in <em>estimand</em> rather than precision, so it
+  does not shrink with more data. The fix is to estimate within stratum and recombine with design
+  weights.</div>
 </div></section>
 
 <section><div class="measure">
@@ -498,9 +588,10 @@ BODY = f'''
           <mspace width="0.15em"/>
           <mi>sd</mi><mo>(</mo><msub><mi>D</mi><mi>f</mi></msub><mo>)</mo></mrow></mfrac>
     </mrow></math></div>
-    <p class="w">The same two differences appear again in section 05: PPI++'s entire variance
-    reduction is a function of <math><mrow><mi>r</mi><mi>&#x394;</mi></mrow></math> and of nothing
-    else, which is why it &mdash; and not AP &mdash; is the ranking key.</p>
+    <p class="w">These are the two differences the bound at the end of section 03 is written in:
+    PPI++'s entire variance reduction is a function of
+    <math><mrow><mi>r</mi><mi>&#x394;</mi></mrow></math> and of nothing else, which is why it
+    &mdash; and not AP &mdash; is the ranking key here.</p>
   </div>
   <div class="scroll"><table>
     <thead><tr><th>metric</th><th>what it is allowed to decide</th></tr></thead>
@@ -513,7 +604,7 @@ BODY = f'''
         <td>whether the detector finds the right <em>events</em> rather than the right frames.</td></tr>
       <tr><td><b>r&Delta;</b></td>
         <td class="hi">the ranking. PPI++'s variance reduction is a function of r&Delta; and
-        nothing else &mdash; the bound in section 05 says so exactly. It is <em>not</em> what
+        nothing else, exactly as the bound at the end of section 03 says. It is <em>not</em> what
         training selects on.</td></tr>
     </tbody></table></div>
   <div class="note warnbox"><b>r&Delta; is the ranking key, and on the standing split its
@@ -522,7 +613,7 @@ BODY = f'''
   measured: two runs of one configuration differing only in <em>seed</em> give
   r&Delta;&nbsp;nt of {rr2('res448_k2_frozen_d4photo_ermH5M','nt')} and
   {rr2('res448_k2_frozen_d4photo_ermH5M_s1','nt')} &mdash; a spread wider than the range across
-  every arm in section 04. Nose-to-nose is far steadier (0.77&ndash;0.80 across the same pairs).
+  every arm below. Nose-to-nose is far steadier (0.77&ndash;0.80 across the same pairs).
   Only the cross-fitted folds, which hold out all 24 annotated pools, give either an honest
   denominator. So every table below reports AP <em>and</em> r&Delta;, and their Spearman correlation
   across the {M['meta']['n_candidates']} candidates is only
@@ -888,7 +979,9 @@ BODY = f'''
 <section><div class="measure">
   <div class="sechead"><p class="eyebrow">05 &middot; Results</p>
   <h2>The model we run, and what it buys</h2></div>
-  <p><b>Shortlist on frame AP; choose on the causal quantity.</b> Across the
+  <div class="sub" style="border-top:0;margin-top:0;padding-top:0"><p class="q">05.1 &middot; the model</p>
+  <h3>Shortlist on AP, choose on the causal quantity</h3></div>
+  <p>Across the
   {M['meta']['n_candidates']} candidates the two rank models only loosely together (Spearman
   {M['meta']['spearman_ap_vs_rdelta']:+.2f}): the best-AP arm ranks {rk_ap_on_rd} of
   {M['meta']['n_candidates']} on r&Delta;, and the r&Delta; leader ranks {rk_rd_on_ap} on AP. AP is a
@@ -918,12 +1011,11 @@ BODY = f'''
   <div class="note warnbox"><b>The deployed configuration is not the strongest one measured.</b>
   Cross-fitting ran on the SSL-adapted frozen encoder with a plain 5.03 M head, not on BitFit-6,
   which leads on every accuracy axis. That choice bought label-free adaptation covering v2 as well,
-  and every estimate here rests on it &mdash; but running BitFit-6 over the three folds, and over the
-  unannotated pools for PPCI, is the cheapest outstanding improvement to the estimate at roughly
-  18 GPU-hours.</div>
+  and every estimate here rests on it. Running BitFit-6 over the same three folds is the cheapest
+  outstanding improvement to every number on this page, and it is next-step 5.</div>
 
-  <h3 style="margin-top:26px">Where it is right, where it is wrong, and what it sees on the
-  pools nobody scored</h3>
+  <div class="sub"><p class="q">05.2 &middot; where it fails</p>
+  <h3>Where it is right, where it is wrong, and what it sees on the pools nobody scored</h3></div>
   <p>Pick a model, a set of frames and a behaviour. On the annotated pools every frame has a ground
   truth, so the four confusion buckets are meaningful and carry their counts. On the 84 unannotated
   pools there is no ground truth at all, so the only honest buckets are <em>confident yes</em> and
@@ -964,7 +1056,8 @@ BODY = f'''
 </div>
 
 <div class="measure">
-  <h3 style="margin-top:26px">Is PPCI reading the behaviour or the model?</h3>
+  <div class="sub"><p class="q">05.3 &middot; robustness</p>
+  <h3>Is PPCI reading the behaviour, or the model?</h3></div>
   <p>PPCI is uncalibrated, so it claims sign and pattern rather than magnitude. That claim is only
   worth something if sign and pattern survive changing the model &mdash; so they were recomputed on
   a second predictor, with the pools held fixed so the model is the only thing that varies.</p>
@@ -991,99 +1084,7 @@ BODY = f'''
   the other 20. That is the largest set on which the comparison is a model comparison rather than a
   comparison of samples. The single model is also better on the causal quantity (r&Delta;
   {rr('res448_k2_bit6_d4')} against the deployment's {xf['rd_nt']:.3f} / {xf['rd_nn']:.3f}), so
-  nothing is being traded here; the cross-fitted version of it is running.</div>
-
-  <h3 style="margin-top:26px">How much is there left to win?</h3>
-  <p>Two ceilings bound everything above, and both are computable rather than rhetorical. The first
-  is exact and worth writing down, because it says that most of what a better model could buy on v1
-  is already spent.</p>
-
-  <div class="bound">
-    <p class="t">bound &middot; PPI++ on v1</p>
-    <p>Let <math><mi>n</mi><mo>=</mo><mn>{_PB['n']}</mn></math> be the labelled pools,
-    <math><mi>N</mi><mo>=</mo><mn>{_PB['N']}</mn></math> the unlabelled ones, and
-    <math><mrow><mi>r</mi><mi>&#x394;</mi><mo>=</mo><mi>corr</mi><mo>(</mo>
-    <msub><mi>D</mi><mi>Y</mi></msub><mo>,</mo><msub><mi>D</mi><mi>f</mi></msub>
-    <mo>)</mo></mrow></math>. At the power-tuned
-    <math><mrow><mi>&#x3BB;</mi><mo>=</mo><mi>Cov</mi><mo>(</mo><msub><mi>D</mi><mi>Y</mi></msub>
-    <mo>,</mo><msub><mi>D</mi><mi>f</mi></msub><mo>)</mo><mo>/</mo><mo>[</mo>
-    <mi>Var</mi><mo>(</mo><msub><mi>D</mi><mi>f</mi></msub><mo>)</mo>
-    <mo>(</mo><mn>1</mn><mo>+</mo><mi>n</mi><mo>/</mo><mi>N</mi><mo>)</mo><mo>]</mo></mrow></math>
-    the estimator's variance is</p>
-    <div class="eqn"><math display="block"><mrow>
-      <mi>Var</mi><mo>(</mo><msub><mover accent="true"><mi>&#x3B8;</mi><mo>^</mo></mover>
-        <mtext>PPI++</mtext></msub><mo>)</mo><mo>=</mo>
-      <mfrac><mrow><mi>Var</mi><mo>(</mo><msub><mi>D</mi><mi>Y</mi></msub><mo>)</mo></mrow>
-             <mi>n</mi></mfrac>
-      <mrow><mo>[</mo><mn>1</mn><mo>&#x2212;</mo>
-        <msup><mrow><mo>(</mo><mi>r</mi><mi>&#x394;</mi><mo>)</mo></mrow><mn>2</mn></msup>
-        <mfrac><mi>N</mi><mrow><mi>n</mi><mo>+</mo><mi>N</mi></mrow></mfrac><mo>]</mo></mrow>
-    </mrow></math></div>
-    <p>so the interval scales as</p>
-    <div class="eqn"><math display="block"><mrow>
-      <mfrac><msub><mi>SE</mi><mtext>PPI++</mtext></msub>
-             <msub><mi>SE</mi><mtext>CI</mtext></msub></mfrac>
-      <mo>=</mo>
-      <msqrt><mrow><mn>1</mn><mo>&#x2212;</mo>
-        <mfrac><mn>2</mn><mn>3</mn></mfrac>
-        <msup><mrow><mo>(</mo><mi>r</mi><mi>&#x394;</mi><mo>)</mo></mrow><mn>2</mn></msup>
-      </mrow></msqrt>
-      <mspace width="1.2em"/><mo>&#x2265;</mo><mspace width="0.6em"/>
-      <msqrt><mfrac><mi>n</mi><mrow><mi>n</mi><mo>+</mo><mi>N</mi></mrow></mfrac></msqrt>
-      <mo>=</mo>
-      <msqrt><mfrac><mn>1</mn><mn>3</mn></mfrac></msqrt>
-      <mo>=</mo><mn>{_PB['floor']:.3f}</mn>
-    </mrow></math></div>
-    <p><b>So no model can narrow the interval by more than {100 * (1 - _PB['floor']):.1f}%.</b>
-    Equality holds only at <math><mrow><mi>r</mi><mi>&#x394;</mi><mo>=</mo><mn>1</mn></mrow></math>,
-    where the variance collapses to
-    <math><mrow><mi>Var</mi><mo>(</mo><msub><mi>D</mi><mi>Y</mi></msub><mo>)</mo><mo>/</mo>
-    <mo>(</mo><mi>n</mi><mo>+</mo><mi>N</mi><mo>)</mo></mrow></math> &mdash; precisely the variance
-    of having annotated all {_PB['n'] + _PB['N']} pools. The bound depends on the <em>design</em>
-    only: 24 of 72, and nothing about the model. Measured today the mean narrowing is <b>12%</b>,
-    best cell 22%, so about a third of the available ceiling is in hand and the rest is entirely
-    r&Delta;.</p>
-  </div>
-
-  <div class="scroll"><table>
-    <thead><tr><th>r&Delta;</th><th>predicted PPI++ width vs CI</th><th>where that is</th></tr></thead>
-    <tbody>
-      {bound_rows}
-    </tbody></table></div>
-  <p>Two things follow. <b>r&Delta; is the ranking metric</b> because it is the only free variable
-  in the bound. And <b>annotating more pools raises the ceiling itself</b>: the floor is
-  &radic;(n/(n+N)), so moving 20 pools from unlabelled to labelled changes what a perfect model
-  could ever be worth &mdash; which is next-step 1, and why it beats every modelling change on this
-  page.</p>
-  <div class="note"><b>The second ceiling is the labels &mdash; and the estimand is largely
-  protected from it.</b> No observation in v1 was scored twice, so agreement cannot be measured
-  directly; the design bounds it instead, because within a genotype group the six pools are
-  exchangeable yet different people scored them. Decomposing variance with annotator as the factor,
-  against a permutation null of the same shape:
-  <div class="scroll" style="margin-top:11px"><table>
-    <thead><tr><th>quantity</th><th>annotator share of within-cell variance</th><th>chance</th><th>p</th></tr></thead>
-    <tbody>
-      <tr><td>rate, per observation &mdash; nt</td><td class="lo">31.7%</td><td>8.2%</td><td class="lo">&lt;0.001</td></tr>
-      <tr><td>rate, per observation &mdash; nn</td><td class="lo">17.8%</td><td>7.6%</td><td class="lo">0.010</td></tr>
-      <tr><td><b>within-pool difference &mdash; nt</b></td><td class="hi">26.1%</td><td>32.4%</td><td class="hi">0.59</td></tr>
-      <tr><td><b>within-pool difference &mdash; nn</b></td><td class="hi">40.3%</td><td>35.7%</td><td class="hi">0.38</td></tr>
-    </tbody></table></div>
-  <b>Who scored a recording moves its measured rate, and stops mattering once the rate is
-  differenced within a pool</b> &mdash; the same cancellation the three wild-type strata show in
-  section 01. So a label-noise ceiling computed on <em>rates</em> (best attainable r &le; 0.65 on
-  nose-to-tail) constrains level correlations, <b>not r&Delta;</b>. What bounds r&Delta; is
-  <em>within</em>-annotator inconsistency between two phases, which no design without replication
-  can separate from real change. Double-scoring 15&ndash;20 observations is the only way to get it,
-  and the only way to know how much of the model's remaining error is addressable.</div>
-  <div class="note warnbox"><b>CI and PPI++ do not target quite the same population.</b>
-  Annotation is <b>3:1 het-enriched</b> (18 het / 6 wt against a 36/36 design), so CI estimates the
-  effect <em>in the annotated pools</em> while PPI++ pulls in 48 unannotated ones that are
-  wt-enriched (30 wt / 18 het) and targets the full 72. They coincide only if the phase effect does
-  not vary with genotype, and it varies a little: nose-to-nose under fear reads about +0.79 across
-  the wt strata against +0.60 across the het strata, moving the target roughly +0.05 (~7%). Small
-  next to these intervals, but it is a difference in <em>estimand</em> rather than precision, so it
-  does not shrink with more data. The fix is to estimate within stratum and recombine with design
-  weights.</div>
+  nothing is being traded here.</div>
 </div></section>
 
 
@@ -1094,7 +1095,7 @@ BODY = f'''
     <tbody>
       <tr><td>1</td><td>annotate ~20 more v1 pools</td><td>+0.076 AP per doubling and no plateau &mdash; worth more than every modelling change combined, and it raises CI's own precision rather than only PPI++'s</td></tr>
       <tr><td>2</td><td>annotate 4&ndash;6 v2 pools</td><td>the only way v2 gets a CI or a PPI++ estimate at all; today it has PPCI and nothing to check it against</td></tr>
-      <tr><td>3</td><td>fix the observation window on biological grounds</td><td>largest single lever on the headline number; currently inherited, not chosen</td></tr>
+      <tr><td>3</td><td>re-cut the estimate grid on the matched 15-minute window</td><td>02b chose the window but the figure is still cut on the full one, and it is the largest single lever on the headline number &mdash; nose-to-nose under social changes sign between the two</td></tr>
       <tr><td>4</td><td class="hi">cross-fit the DERM / ERM pair over the three folds</td><td class="hi">launched. A bag in the cage corner makes the exposure phase visible, and ERM's objective has no term that discourages using it, so a<sub>O</sub>&minus;a<sub>H</sub> is a live threat to PPCI: {eb('nt','ERM')} bouts/min on nose-to-tail, {eb('nt','ERM','share')} the pooled true effect and opposite in sign. On 4 pools it does not resolve; on 24 it should</td></tr>
       <tr><td>5</td><td>run BitFit-6 over the three folds and the unannotated pools</td><td class="hi">launched &mdash; ~18 GPU-h to move every estimate onto the configuration that leads on accuracy (macro AP 0.541 against the deployed 0.382)</td></tr>
       <tr><td>6</td><td>per-animal crops from the 2060 px source</td><td>the only resolution lever left, and a prerequisite for any per-animal outcome</td></tr>
