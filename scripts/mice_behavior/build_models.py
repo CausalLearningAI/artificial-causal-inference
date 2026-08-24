@@ -69,6 +69,18 @@ ROLE = {
     'res448_k2_frozen_d4photo_ermH5M': 'objective', 'res448_k2_frozen_d4photo_ermH5M_s1': 'objective',
     'res448_k2_bit6_d4_dermPhase': 'objective', 'res448_k2_bit6_d4_dermPhase_s1': 'objective',
     'xfit_f1': 'deployment fold', 'xfit_f2': 'deployment fold', 'xfit_f3': 'deployment fold',
+    # The BitFit-6 cross-fit is a SECOND deployment over the SAME three folds, so it gets its own
+    # role rather than joining the first: averaging all six would produce a mean of two different
+    # models and report it as one deployment.
+    'xfit_bit6_f1': 'deployment fold (bitfit)', 'xfit_bit6_f2': 'deployment fold (bitfit)',
+    'xfit_bit6_f3': 'deployment fold (bitfit)',
+    # The 24-pool DERM/ERM cross-fit: an OBJECTIVE comparison over the three folds, not a
+    # deployment and not a candidate. Six more arms in the candidate pool would move the
+    # AP-vs-rDelta Spearman the report quotes without any of them being a candidate for anything.
+    **{f'xfit_{o}_f{k}': 'objective cross-fit' for o in ('erm', 'derm') for k in (1, 2, 3)},
+    # And the exposure-split arms: trained on ONE exposure session, so they are not comparable to
+    # anything trained on both.
+    **{f'odour_tr{d}_{o}': 'exposure split' for d in ('F', 'S') for o in ('erm', 'derm')},
 }
 
 

@@ -111,9 +111,13 @@ rk_rd_on_ap = _ord(_by_ap.index(_by_rd[0]) + 1)
 
 # The deployment row is the mean over the three cross-fitting folds, which between them hold out
 # all 24 annotated pools. Averaged here rather than transcribed.
+_KM = ('ap', 'f1_nt', 'f1_nn', 'rd_nt', 'rd_nn')
 _folds = [r for r in M['runs'] if r['role'] == 'deployment fold']
-xf = {k: sum(r[k] for r in _folds) / len(_folds)
-      for k in ('ap', 'f1_nt', 'f1_nn', 'rd_nt', 'rd_nn')}
+xf = {k: sum(r[k] for r in _folds) / len(_folds) for k in _KM}
+# the second cross-fitted deployment, over the SAME folds. Averaged separately on purpose: one
+# mean over both would be a mean of two different models reported as one deployment.
+_fb = [r for r in M['runs'] if r['role'] == 'deployment fold (bitfit)']
+xfb = ({k: sum(r[k] for r in _fb) / len(_fb) for k in _KM} if len(_fb) == 3 else None)
 
 
 def nui(behav, fac, which):
@@ -137,6 +141,28 @@ _PB = D['ppi_bound']
 # treatment is legible in a frame that carries no behaviour at all. Read from derm.json.
 _P = D['probe']
 _R = _P['region']
+
+
+
+def eb24(behav, fam, what='mean'):
+    """The 24-pool cross-fit's estimand bias. `fam` is 'ERM' or 'DERM'."""
+    r = D['estimand_bias']['families'][behav][f'{fam} &middot; 24 pools'.replace('&middot;', '·')]
+    if what == 'ci':
+        return f"[{r['lo']:+.2f}, {r['hi']:+.2f}]".replace('-', '&minus;')
+    if what == 'share':
+        return f"{r['share_of_truth']:.2f}&times;"
+    if what == 'resolved':
+        return r['lo'] * r['hi'] > 0
+    return f"{r[what]:+.3f}".replace('-', '&minus;')
+
+
+def eb24p(behav, field):
+    r = D['estimand_bias']['families'][behav]['paired_xfit']
+    if field == 'diff':
+        return f"{r['diff']:+.3f}".replace('-', '&minus;')
+    if field == 'p':
+        return f"{r['p']:.4f}".rstrip('0')
+    return r[field]
 
 
 def eb(behav, fam, what='mean'):
@@ -640,7 +666,8 @@ BODY = f'''
         <td class="lo">+0.008 at best, &minus;0.094 at &beta;=100</td><td class="lo">no help, and harmful when pushed</td></tr>
       <tr><td>04.6</td><td><b>objective</b></td><td>DERM &mdash; deconfound against phase</td>
         <td>&minus;0.02 against a matched control<br><span style="opacity:.65">the expected price, not a cost</span></td>
-        <td class="lo">open &mdash; judge it on the estimand, not on AP</td></tr>
+        <td class="hi">cuts a resolved estimand bias by 36% on nose-to-nose (p = 0.008); overshoots
+        on nose-to-tail</td></tr>
     </tbody></table></div>
   <p class="defn"><b>Read every &Delta; against 0.015.</b> Seed noise spans 0.004&ndash;0.016
   across the seven configurations now run at two seeds, so 04.1, 04.2 and 04.4 clear it and 04.3,
@@ -853,7 +880,7 @@ BODY = f'''
     <summary>
     <p class="q">04.6 &middot; objective</p>
     <h3>Does the model read the treatment?
-      <span class="verdict v-part">open &mdash; 4 pools cannot answer it</span></h3>
+      <span class="verdict v-yes">yes &mdash; and DERM removes a third of it</span></h3>
     </summary>
     <div class="body">
     <p><b>The shortcut, and why ERM would take it.</b> A bag is placed in a corner of the cage for
@@ -905,12 +932,52 @@ BODY = f'''
         <tr><td>nose-to-nose &middot; <b>DERM</b></td><td>{eb('nn','DERM')}</td>
           <td>{eb('nn','DERM','ci')}</td></tr>
       </tbody></table></div>
-    <p>On nose-to-tail both values are positive with DERM nearer zero, which is what a correction
-    looks like rather than an overshoot. But the paired ERM-minus-DERM difference is
-    {ebp('nt','diff')} at p&nbsp;=&nbsp;{ebp('nt','p')}, so <b>four validation pools cannot answer
-    this</b>. What is running now is the same comparison cross-fitted over the three deployment
-    folds: 24 pools instead of 4, cutting the standard error about 2.4&times;, which is what it
-    takes to separate {eb('nt','ERM')} from zero.</p>
+    <p>On four pools nose-to-tail looked like the signal and nose-to-nose like noise. <b>On
+    twenty-four it is the other way round</b>, which is the first thing to know about the numbers
+    above: the standing split was too small to say which behaviour carried the bias.</p>
+
+    <p><b>The cross-fit answers it.</b> The same comparison over the three deployment folds &mdash;
+    every annotated pool scored by a model that never saw it, 48 (pool&nbsp;&times;&nbsp;exposure)
+    units instead of 8:</p>
+    <div class="scroll"><table>
+      <thead><tr><th></th><th>mean a<sub>O</sub>&minus;a<sub>H</sub></th><th>95% CI</th>
+        <th>against the true effect</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>nose-to-nose &middot; <b>ERM</b></td><td class="lo">{eb24('nn','ERM')}</td>
+          <td class="lo">{eb24('nn','ERM','ci')}</td><td class="lo">{eb24('nn','ERM','share')}</td>
+          <td class="lo">resolved &mdash; a real bias, larger than the effect</td></tr>
+        <tr><td>nose-to-nose &middot; <b>DERM</b></td><td>{eb24('nn','DERM')}</td>
+          <td>{eb24('nn','DERM','ci')}</td><td>{eb24('nn','DERM','share')}</td>
+          <td class="hi">still resolved, but 36% smaller</td></tr>
+        <tr><td>nose-to-tail &middot; <b>ERM</b></td><td>{eb24('nt','ERM')}</td>
+          <td>{eb24('nt','ERM','ci')}</td><td>{eb24('nt','ERM','share')}</td>
+          <td>not resolved</td></tr>
+        <tr><td>nose-to-tail &middot; <b>DERM</b></td><td>{eb24('nt','DERM')}</td>
+          <td>{eb24('nt','DERM','ci')}</td><td>{eb24('nt','DERM','share')}</td>
+          <td>not resolved &mdash; and it has crossed zero</td></tr>
+      </tbody></table></div>
+    <p><b>On nose-to-nose the shortcut is real and DERM removes a third of it.</b> ERM's bias is
+    {eb24('nn','ERM')} bouts per minute with an interval that excludes zero, and it is
+    {eb24('nn','ERM','share')} the size of the effect being estimated. DERM cuts it to
+    {eb24('nn','DERM')}; paired over the 48 units the reduction is {eb24p('nn','diff')} at
+    <b>p = {eb24p('nn','p')}</b>, shrinking in {eb24p('nn','shrunk_units')} of
+    {eb24p('nn','n_units')}. That is the mechanism working, measured on the quantity that reaches
+    the estimand rather than on AP.</p>
+    <p><b>On nose-to-tail it overshoots.</b> ERM's bias is small and unresolved
+    ({eb24('nt','ERM')}), and DERM moves it significantly &mdash; {eb24p('nt','diff')} at
+    p = {eb24p('nt','p')} &mdash; but <em>past</em> zero, to {eb24('nt','DERM')}. The magnitude is
+    unchanged ({eb24('nt','ERM','share')} against {eb24('nt','DERM','share')} of the true effect).
+    So DERM is not a shrinkage: it applies a correction of roughly fixed size, which is right for
+    nose-to-nose and too large for nose-to-tail. Where the bias is small to begin with, applying it
+    costs rather than helps &mdash; which is an argument for measuring the bias first and
+    correcting only where it resolves.</p>
+    <div class="note"><b>What this comparison is and is not.</b> Both arms are cross-fitted over the
+    same three folds with the same 0.52 M head, so it is a clean single-variable change and it is
+    paired. It is <em>not</em> continuous with the four-pool numbers above, which carry the plain
+    5.03 M head &mdash; the head moves at the same time as the sample size, so do not read the two
+    as one series. One seed per fold. And the thresholds differ by construction: DERM raises the
+    output level, so its rate-matched thresholds sit at 0.95&ndash;0.99 against ERM's
+    0.84&ndash;0.95, which is exactly what the rate-matching is there to absorb.</div>
 
     <div class="note"><b>Do not read the AP column as a verdict.</b> A model that has stopped using
     the phase prior is <em>necessarily</em> a little worse at frame classification, because the
@@ -984,9 +1051,13 @@ BODY = f'''
     <thead><tr><th>candidate</th><th>macro AP</th><th>event F1 nt / nn</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
     <tbody>
       {cand_rows}
-      <tr><td><b>cross-fitted deployment</b> (mean of 3 folds)</td><td>{xf['ap']:.3f}</td>
+      <tr><td><b>cross-fitted deployment</b> &mdash; SSL encoder, mean of 3 folds</td><td>{xf['ap']:.3f}</td>
         <td>{xf['f1_nt']:.3f} / {xf['f1_nn']:.3f}</td><td>{xf['rd_nt']:.3f}</td>
         <td>{xf['rd_nn']:.3f}</td></tr>
+      <tr><td class="hi"><b>cross-fitted BitFit-6</b> &mdash; mean of the same 3 folds</td>
+        <td class="hi">{xfb['ap']:.3f}</td>
+        <td class="hi">{xfb['f1_nt']:.3f} / {xfb['f1_nn']:.3f}</td>
+        <td class="hi">{xfb['rd_nt']:.3f}</td><td class="hi">{xfb['rd_nn']:.3f}</td></tr>
     </tbody></table></div>
   <div class="note"><b>Read the last row differently.</b> The first four are scored on the standing
   4-pool split, 24 observations &mdash; too few to separate close models. The last is
@@ -1003,12 +1074,14 @@ BODY = f'''
   happens to inherit; <b>it is what makes ranking possible at all</b>. <b>PPCI uses no labels
   anywhere, so it is bound by neither</b> and would be better served by the single strongest
   model.</div>
-  <div class="note"><b>The deployed configuration is not the strongest one measured, and its
-  replacement is running.</b> Cross-fitting ran on the SSL-adapted frozen encoder with a plain
-  5.03 M head, not on BitFit-6, which leads on every accuracy axis &mdash; that choice bought
-  label-free adaptation covering v2 as well. The BitFit-6 cross-fit is now <b>2 of 3 folds in, at
-  macro AP 0.50 and 0.55 against the deployed 0.382</b>, with the third training. Every estimate on
-  this page moves onto it when that fold lands.</div>
+  <div class="note"><b>The replacement deployment has landed, and it is better on both axes.</b>
+  Cross-fitting first ran on the SSL-adapted frozen encoder with a plain 5.03 M head, which bought
+  label-free adaptation covering v2. The BitFit-6 cross-fit over the same three folds is now
+  <b>complete</b>: macro AP {xfb['ap']:.3f} against {xf['ap']:.3f}, and &mdash; the one that matters
+  &mdash; r&Delta; nose-to-tail {xfb['rd_nt']:.3f} against {xf['rd_nt']:.3f}. Section 03's bound
+  turns that into a predicted PPI++ narrowing of <b>17.5% against 11.6%</b>, so it is worth roughly
+  half again as much as the deployed model. The estimates move onto it once its dense pass over the
+  unannotated pools finishes; the effects figure will then carry a <b>predictor</b> control.</div>
 
   <div class="sub"><p class="q">05.2 &middot; where it fails</p>
   <h3>Where it is right, where it is wrong, and what it sees on the pools nobody scored</h3></div>
@@ -1087,14 +1160,16 @@ BODY = f'''
   <div class="scroll"><table>
     <thead><tr><th></th><th>action</th><th>status</th><th>what it changes</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td class="run">cross-fit BitFit-6 and move every estimate onto it</td>
-        <td class="run">running &mdash; 2 of 3 folds in</td>
-        <td class="run">macro AP 0.50 and 0.55 against the deployed 0.382, so every number on the
-        page rests on a better model the moment fold 3 lands</td></tr>
-      <tr><td>2</td><td class="run">cross-fit the DERM / ERM pair</td><td class="run">running</td>
-        <td class="run">resolves the largest open threat to PPCI: a<sub>O</sub>&minus;a<sub>H</sub>
-        is {eb('nt','ERM')} bouts/min on nose-to-tail, {eb('nt','ERM','share')} the pooled true
-        effect and opposite in sign. On 4 pools it does not resolve; on 24 it should</td></tr>
+      <tr><td>1</td><td class="run">move every estimate onto the cross-fitted BitFit-6</td>
+        <td class="run">all 3 folds trained; dense pass running</td>
+        <td class="run">macro AP {xfb['ap']:.3f} against {xf['ap']:.3f} and r&Delta; nt
+        {xfb['rd_nt']:.3f} against {xf['rd_nt']:.3f}, which the bound turns into a 17.5% predicted
+        narrowing against 11.6%</td></tr>
+      <tr><td>2</td><td>decide whether to deploy DERM, per behaviour</td><td>answered &mdash; see 04.6</td>
+        <td>on 24 pools ERM carries a <em>resolved</em> estimand bias on nose-to-nose,
+        {eb24('nn','ERM')} bouts/min or {eb24('nn','ERM','share')} the effect, and DERM cuts it by
+        36% (p = {eb24p('nn','p')}). On nose-to-tail it overshoots past zero. The open question is
+        no longer whether DERM works but whether to apply it per behaviour</td></tr>
       <tr><td>3</td><td class="run">the exposure-split PPCI test, both directions</td>
         <td class="run">running</td>
         <td class="run">trains on one exposure session and tests on the other, so the phase

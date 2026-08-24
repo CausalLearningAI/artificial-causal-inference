@@ -461,6 +461,23 @@ def estimand_bias(exp: pd.DataFrame, families: dict) -> dict:
                          'dY': m.loc['O', 'true'] - m.loc['H', 'true']})
         return pd.DataFrame(rows).set_index(['pool', 'odor']), th
 
+    # A family is either SEEDS of one split -- average per unit, seed noise is not sampling error
+    # -- or FOLDS of a cross-fit, which cover DISJOINT pools and must be concatenated. Averaging
+    # folds gives NaN, because no (pool, exposure) unit appears in more than one of them.
+    def combine(tags, l):
+        frames = []
+        for t in tags:
+            u, th = units(t, l)
+            out['thresholds'].setdefault(l, {})[t] = th
+            frames.append(u.bias)
+        if len(frames) == 1:
+            return frames[0]
+        idx = set(frames[0].index)
+        disjoint = all(not (idx & set(f.index)) for f in frames[1:])
+        if disjoint:
+            return pd.concat(frames)                     # cross-fitted folds: tile the pools
+        return sum(frames) / len(frames)                 # seeds of one split: average
+
     out = {'unit': 'bouts per minute, H->O', 'thresholds': {}, 'truth': {}, 'families': {}}
     for l in LABELS:
         ref, _ = units(families['ERM'][0], l)
@@ -471,12 +488,7 @@ def estimand_bias(exp: pd.DataFrame, families: dict) -> dict:
         for fam, tags in families.items():
             if not tags:
                 continue
-            fr = []
-            for t in tags:
-                u, th = units(t, l)
-                out['thresholds'].setdefault(l, {})[t] = th
-                fr.append(u.bias)
-            v = (sum(fr) / len(fr))
+            v = combine(tags, l)
             vals[fam] = v
             a = v.to_numpy(); n = len(a)
             se = a.std(ddof=1) / np.sqrt(n)
