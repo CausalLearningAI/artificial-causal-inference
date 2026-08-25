@@ -660,8 +660,18 @@ def nuisance_bias(exp_full: pd.DataFrame) -> dict:
 # objective exists to remove -- so the selection rule pulls against the objective and the ERM
 # comparison inherits that. The `_last` tags use a fixed epoch budget, identical for both arms,
 # which takes selection out of the contrast entirely. Absent arms are simply skipped.
+# variant -> (ERM tag suffix, DERM tag suffix). Three comparisons, each INTERNALLY matched:
+#   ''       the original pair: selection on unweighted monitor AP, DERM weights from the
+#            1:1-subsampled epoch and a frame-share P(E).
+#   '_last'  fixed epoch budget for both arms, so the selection rule is out of the contrast.
+#   '_popw'  same fixed budget, plus DERM's weights computed for the POPULATION (undoing the
+#            subsampling attenuation) with a duration-neutral P(E). ERM is untouched by those
+#            flags, so this variant REUSES the _last ERM leg rather than retraining it.
+ODOUR_VARIANTS = {'': ('', ''), '_last': ('_last', '_last'), '_popw': ('_last', '_last_popw')}
 ODOUR_ARMS = {f'tr{d}_{o}{sfx}': (f'odour_tr{d}_{o}{sfx}', d)
-              for d in ('F', 'S') for o in ('erm', 'derm') for sfx in ('', '_last')}
+              for d in ('F', 'S')
+              for o, sfx in {('erm', es) for es, _ in ODOUR_VARIANTS.values()}
+              | {('derm', ds) for _, ds in ODOUR_VARIANTS.values()}}
 
 
 def odour_split(exp_full: pd.DataFrame) -> dict:
@@ -762,10 +772,17 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
                     arm['behav'][lab] = cell            # the ON leg keeps its old key
         out['arms'][key] = arm
     # the sign test: ERM's bias should reverse between directions, DERM's should sit nearer zero
-    for obj in ('erm', 'derm', 'erm_last', 'derm_last'):
-        a, b = out['arms'].get(f'trF_{obj}'), out['arms'].get(f'trS_{obj}')
-        if not (a and b):
-            continue
+    seen_sign = set()
+    for v, (es, ds) in ODOUR_VARIANTS.items():
+        for obj, sfx in (('erm', es), ('derm', ds)):
+            key = f'{obj}{sfx}'
+            if key in seen_sign:
+                continue
+            seen_sign.add(key)
+            a, b = out['arms'].get(f'trF_{obj}{sfx}'), out['arms'].get(f'trS_{obj}{sfx}')
+            if not (a and b):
+                continue
+            obj = key                                   # label the row by the tag it came from
         for lab in LABELS:
             for x, y in TRANS:
                 tr = f'{x}->{y}'
@@ -779,10 +796,11 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
     # PAIRED, because the design's whole advantage is that both objectives are scored on the SAME
     # 24 pools of the SAME held-out exposure. Comparing two independent CIs throws that away: the
     # between-pool variance is common to both arms and cancels in the difference.
-    for direction, key, sfx in (('train_fear', 'trF', ''), ('train_social', 'trS', ''),
-                               ('train_fear_last', 'trF', '_last'),
-                               ('train_social_last', 'trS', '_last')):
-        a, b = out['arms'].get(f'{key}_erm{sfx}'), out['arms'].get(f'{key}_derm{sfx}')
+    pairs = [(f'train_{n}{v}', k, es, ds)
+             for v, (es, ds) in ODOUR_VARIANTS.items()
+             for n, k in (('fear', 'trF'), ('social', 'trS'))]
+    for direction, key, es, ds in pairs:
+        a, b = out['arms'].get(f'{key}_erm{es}'), out['arms'].get(f'{key}_derm{ds}')
         if not (a and b):
             continue
         for lab in LABELS:

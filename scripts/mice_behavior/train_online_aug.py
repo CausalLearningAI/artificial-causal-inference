@@ -203,7 +203,8 @@ class _SampleDataset(Dataset):
 
 
 def derm_table(labels: np.ndarray, envs: np.ndarray, idx: np.ndarray, n_env: int,
-               floor: float = 0.02):
+               floor: float = 0.02, pop_idx=None, env_prior: str = 'frames',
+               neg_keep_rate: float | None = None):
     """DERM per-sample weights w = Var(Y | E) / P(Y, E), as a lookup table [env, label, y].
 
     This is Deconfounded ERM (ours), NOT vREx, and the distinction is mechanical rather than
@@ -253,16 +254,54 @@ def derm_table(labels: np.ndarray, envs: np.ndarray, idx: np.ndarray, n_env: int
     y = labels[idx]
     e = envs[idx].astype(np.int64)
     n, L = y.shape
+
+    # ------------------------------------------------------------------ P(E): DURATION-NEUTRAL
+    # 'frames' is the environment's share of anchors, and for --env-key phase that is PURE PHASE
+    # DURATION: H runs 30 minutes against O and P's 15, so P_e comes out 0.50 / 0.25 / 0.25 and the
+    # positive weights (1-p_e)/P_e vary across environments by 1.99x -- exactly the duration ratio,
+    # carrying no prevalence information at all. Duration is a protocol choice, not part of the
+    # confound, so 'uniform' counts each environment once and lets prevalence set the weights.
     cnt = np.bincount(e, minlength=n_env).astype(np.float64)
-    P_e = cnt / max(n, 1)
+    if env_prior == 'uniform':
+        P_e = np.full(n_env, 1.0 / max(n_env, 1), dtype=np.float64)
+    else:
+        P_e = cnt / max(n, 1)
+
+    # -------------------------------------------------- P(Y|E): the POPULATION rate, not the batch
+    # The epoch is subsampled 1:1 (neg_ratio), which pushes every p_e from ~0.5-1.4% up to 16-39%,
+    # where the (1-p) factor saturates and COMPRESSES the Var(Y|E) ratio the correction keys on:
+    # measured, 3.56x -> 1.58x on nose-to-tail in the fear session, i.e. 77% of the confound gone.
+    # DERM's formula is derived for the population, and the negative subsampling is a compute
+    # convenience rather than part of the causal model, so p_e is estimated over `pop_idx` -- every
+    # anchor, before subsampling -- when it is supplied.
+    src = pop_idx if pop_idx is not None else idx
+    ys, es = labels[src], envs[src].astype(np.int64)
+    cnt_p = np.bincount(es, minlength=n_env).astype(np.float64)
+
     tab = np.ones((n_env, L, 2), dtype=np.float64)
     for l in range(L):
-        pos = np.bincount(e, weights=(y[:, l] > 0.5).astype(np.float64), minlength=n_env)
-        p_e = np.divide(pos, cnt, out=np.full(n_env, 0.5, dtype=np.float64), where=cnt > 0)
+        pos = np.bincount(es, weights=(ys[:, l] > 0.5).astype(np.float64), minlength=n_env)
+        p_e = np.divide(pos, cnt_p, out=np.full(n_env, 0.5, dtype=np.float64), where=cnt_p > 0)
+        if np.any((p_e < floor) | (p_e > 1.0 - floor)):
+            n_hit = int(np.sum((p_e < floor) | (p_e > 1.0 - floor)))
+            print(f'  !! DERM floor {floor:g} BINDS on {n_hit}/{n_env} environments for label {l} '
+                  f'(p_e {np.array2string(p_e, precision=5)}) -- the correction is being flattened '
+                  f'toward a no-op there. Lower --derm-floor.', flush=True)
         p_e = np.clip(p_e, floor, 1.0 - floor)
         safe = np.maximum(P_e, 1e-12)
         tab[:, l, 1] = (1.0 - p_e) / safe
         tab[:, l, 0] = p_e / safe
+
+    # ------------------------------------------- undo the subsampling, not just correct for it
+    # Positives are kept with probability 1 and negatives with probability r, so the reweighted
+    # SAMPLED loss estimates the POPULATION objective only if each negative also carries 1/r. This
+    # is the standard inverse-sampling weight; without it the population p_e above would describe a
+    # distribution the loss is not actually averaged over.
+    if neg_keep_rate:
+        tab[:, :, 0] /= max(neg_keep_rate, 1e-12)
+
+    # Normalised over the sampled set so the mean weight is exactly 1: the effective learning rate
+    # and gradient scale stay identical to ERM, which is what keeps DERM-vs-ERM unconfounded.
     w = tab[e[:, None], np.arange(L)[None, :], (y > 0.5).astype(np.int64)]
     m = float(w.mean())
     if m > 0:
@@ -349,9 +388,29 @@ def main():
                          'predictions. Requires --env-key. Composes with --vrex-beta (the '
                          'weights are applied inside each per-environment risk), but the '
                          'motivated arm is DERM alone: --env-key phase --derm --vrex-beta 0.')
-    p.add_argument('--derm-floor', type=float, default=0.02,
+    p.add_argument('--derm-prevalence', choices=['sampled', 'population'], default='sampled',
+                   help="which P(Y|E) the DERM weights use. 'sampled' (default, and what every "
+                        'arm before 2026-08-25 used) estimates it on the 1:1-subsampled epoch, '
+                        'where every p_e is pushed to 16-39% and the Var(Y|E) ratio the correction '
+                        'keys on is compressed 3.56x -> 1.58x, i.e. 77% of the confound is gone. '
+                        "'population' estimates it over every anchor before subsampling and adds "
+                        'the inverse-sampling weight 1/r on negatives, so the reweighted sampled '
+                        'loss estimates the population objective DERM is derived for.')
+    p.add_argument('--derm-env-prior', choices=['frames', 'uniform'], default='frames',
+                   help="P(E) in the weight formula. 'frames' is the environment's share of "
+                        'anchors, which for --env-key phase is pure DURATION: H is 30 min against '
+                        "O and P's 15, so P_e = 0.50/0.25/0.25 and the positive weights vary by "
+                        "1.99x on duration alone, carrying no prevalence signal. 'uniform' counts "
+                        'each environment once, so the longer phase is not overweighted.')
+    p.add_argument('--derm-floor', type=float, default=None,
                     help='clip P(Y=1|E) into [floor, 1-floor] so an environment with no '
-                         'positives for one label is downweighted, not deleted.')
+                         'positives for one label is downweighted, not deleted. DEFAULT DEPENDS '
+                         'ON --derm-prevalence, and it has to: 0.02 is safe against the SAMPLED '
+                         'rate (1:1 subsampling puts every p_e at 16-39%, so it never binds) and '
+                         'is CATASTROPHIC against the population rate (0.4-1.4%), where it clips '
+                         'every environment to the floor, makes p_e identical everywhere and turns '
+                         'the whole correction into an exact no-op -- verified, weight spread '
+                         '1.00x. So: 0.02 for sampled, 1e-4 for population. A binding clip warns.')
     p.add_argument('--vrex-beta', type=float, default=0.0,
                     help='weight on the across-environment RISK VARIANCE. 0 = ERM even when '
                          '--env-key is set (useful as the exact-same-code control).')
@@ -534,6 +593,8 @@ def main():
     OUT = gsf.FRAME_DIR / args.tag
     OUT.mkdir(parents=True, exist_ok=True)
     best_cfg = get_head_cfg()
+    if args.derm_floor is None:
+        args.derm_floor = 1e-4 if args.derm_prevalence == 'population' else 0.02
     dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'context_k={args.context_k} (T={2*args.context_k+1}, stride={args.stride}, '
           f'reach +-{args.context_k*args.stride} frames)  input_size={args.input_size} '
@@ -841,9 +902,26 @@ def main():
         # different one computed once at startup.
         derm_tab, derm_raw_mean = (None, None)
         if args.derm:
+            _pop = (np.concatenate([pos_idx, neg_idx])
+                    if args.derm_prevalence == 'population' else None)
+            _r = (len(order) - len(pos_idx)) / max(len(neg_idx), 1) \
+                if args.derm_prevalence == 'population' else None
             _tab, derm_raw_mean = derm_table(tm.labels, train_envs, order, len(env_names),
-                                             args.derm_floor)
+                                             args.derm_floor, pop_idx=_pop,
+                                             env_prior=args.derm_env_prior, neg_keep_rate=_r)
             derm_tab = torch.from_numpy(_tab).to(dev)
+            if ep == 1:
+                # Print the table once. A DERM arm that is silently a no-op is the failure mode
+                # worth spending six lines on: the ratio below is what the correction actually has.
+                for li, ln in enumerate(('nt', 'nn')):
+                    w1, w0 = _tab[:, li, 1], _tab[:, li, 0]
+                    print(f'  DERM[{ln}] prevalence={args.derm_prevalence} '
+                          f'env_prior={args.derm_env_prior} neg_keep_rate='
+                          f'{"n/a" if _r is None else f"{_r:.5f}"}', flush=True)
+                    print(f'      w(y=1) ' + ' '.join(f'{n}:{v:.3f}' for n, v in zip(env_names, w1))
+                          + f'   spread {w1.max() / max(w1.min(), 1e-9):.2f}x', flush=True)
+                    print(f'      w(y=0) ' + ' '.join(f'{n}:{v:.3f}' for n, v in zip(env_names, w0))
+                          + f'   spread {w0.max() / max(w0.min(), 1e-9):.2f}x', flush=True)
         for imgs, offs, lbl, mask, env in make_loader(tm, order, args.augment,
                                                       args.seed * 1000 + ep, envs=train_envs):
             imgs, lbl = imgs.to(dev, non_blocking=True), lbl.to(dev, non_blocking=True)
@@ -1021,6 +1099,8 @@ def main():
                'val_pools': sorted(val_pools),
                'env_key': args.env_key, 'vrex_beta': args.vrex_beta,
                'derm': bool(args.derm), 'derm_floor': args.derm_floor,
+               'derm_prevalence': args.derm_prevalence,
+               'derm_env_prior': args.derm_env_prior,
                'vrex_warmup_epochs': args.vrex_warmup_epochs,
                'n_environments': (len(env_names) if env_names is not None else 0),
                'n_patches': n_patches, 'augment': args.augment, 'neg_ratio': args.neg_ratio,

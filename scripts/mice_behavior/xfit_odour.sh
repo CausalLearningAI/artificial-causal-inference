@@ -112,6 +112,32 @@ if [ "${SELECT:-monitor_ap}" = "last" ]; then
   export SELECT=last
 fi
 
+# WEIGHTS=corrected -- DERM's weight table computed for the POPULATION rather than for the
+# 1:1-subsampled epoch, and with a duration-neutral P(E). Verified on the real labels:
+#
+#                   w(y=0) spread          w(y=1) spread     true Var(Y|E)
+#   fear nt      2.67x -> 3.59x           1.19x -> 1.01x        3.56x
+#   fear nn      1.79x -> 2.45x           1.27x -> 1.00x        2.43x
+#   social nt    2.43x -> 1.30x           2.35x -> 1.00x        1.29x
+#   social nn    1.88x -> 1.78x           2.51x -> 1.01x        1.77x
+#
+# The new table reproduces the true ratios; the old one was attenuated on fear (1:1 subsampling
+# pushes every p_e to 16-39%, where p(1-p) saturates and compresses the ratio) and on social it was
+# reading DURATION -- H is 30 min against O and P's 15, so P_e = 0.50/0.25/0.25 and the positive
+# weights varied 2.5x on phase length alone, carrying no prevalence signal at all.
+#
+# ERM is untouched by these flags, so only the DERM arms are rerun; they pair against the
+# already-trained odour_tr{F,S}_erm_last. Requires SELECT=last so the pairing is within one
+# selection rule.
+#
+#     SELECT=last WEIGHTS=corrected bash scripts/mice_behavior/xfit_odour.sh
+if [ "${WEIGHTS:-}" = "corrected" ]; then
+  [ "${SELECT:-monitor_ap}" = "last" ] || { echo "REFUSING: WEIGHTS=corrected needs SELECT=last, or the ERM leg it pairs against uses a different selection rule." >&2; exit 1; }
+  export DERM_PREVALENCE=population DERM_ENV_PRIOR=uniform
+  ORDER="odourF_derm odourS_derm"
+  for a in $ORDER; do ARM_TAG[$a]="${ARM_TAG[$a]}_popw"; done
+fi
+
 if ! grep -q 'train-odour' scripts/mice_behavior/train_online_aug.sh; then
   echo "REFUSING: train_online_aug.sh does not forward --train-odour." >&2; exit 1
 fi
