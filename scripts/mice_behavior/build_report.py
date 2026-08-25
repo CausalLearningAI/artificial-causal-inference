@@ -90,8 +90,13 @@ def main():
     derm_p = FIG / 'derm.json'
     if not derm_p.exists():
         raise SystemExit(f'{derm_p} missing -- run scripts/mice_behavior/build_derm.py first')
+    # The exposure-split figure is a VIEW over derm.json's odour_split block: every mean, CI,
+    # per-pool bias, paired p and sign test drawn in the browser was computed by build_derm.py.
+    odour = (Path(__file__).parent / 'report_odour.html').read_text()
+    odour = odour.replace('__ODOUR_JSON__', json.dumps(
+        json.load(open(derm_p)).get('odour_split', {}), separators=(',', ':')))
     ns = {'img': img, 'CHART': chart, 'DECAY': decay, 'MODELS': models, 'EXAMPLES': examples,
-          'UNITS': units,
+          'UNITS': units, 'ODOUR': odour,
           'E': est, 'M': json.load(open(mod_p)), 'O': O_, 'X': ex,
           'R': json.load(open(rob_p)), 'D': json.load(open(derm_p))}
     exec(compile(body.read_text(), str(body), 'exec'), ns)

@@ -208,10 +208,21 @@ def os_pair(direction, behav, what, trans='H->O'):
     if r is None:
         return '&mdash;'
     if what == 'p':
-        return f"{r['p']:.4f}".rstrip('0').rstrip('.')
+        # build_derm stores a permutation p of exactly 0.0 when no resample beats the observed
+        # difference; "p 0" would be a claim no test can make, so print the resolution instead.
+        return '&lt; 0.0001' if r['p'] < 1e-4 else f"{r['p']:.4f}".rstrip('0').rstrip('.')
     if what == 'toward':
         return f"{r['toward_zero']}/{r['n_pools']}"
     return f"{r['erm_minus_derm']:+.3f}".replace('-', '&minus;')
+
+
+# Whether the seed replicates of the fear-trained pair have landed decides a sentence in 04.6;
+# read it off derm.json's landed list so a rebuild flips the text the moment they arrive.
+os_seed_note = (
+    'seed replicates of the fear-trained pair are in the variant control.'
+    if any(t.endswith(('_s1', '_s2')) for t in _OS.get('landed', [])) else
+    'two seed replicates of the fear-trained pair are training now and will appear in the '
+    'variant control when they land.')
 
 
 def nui(behav, fac, which):
@@ -767,8 +778,9 @@ BODY = f'''
         <td class="lo">+0.008 at best, &minus;0.094 at &beta;=100</td><td class="lo">no help, and harmful when pushed</td></tr>
       <tr><td>04.6</td><td><b>objective</b></td><td>DERM &mdash; deconfound against phase</td>
         <td>&minus;0.02 against a matched control<br><span style="opacity:.65">the expected price, not a cost</span></td>
-        <td class="hi">cuts a resolved estimand bias by {eb24cut('nn')} on nose-to-nose (p = {eb24p('nn','p')}8); overshoots
-        on nose-to-tail</td></tr>
+        <td class="hi">cuts a resolved estimand bias by {eb24cut('nn')} on nose-to-nose
+        (p = {eb24p('nn','p')}); on the exposure split, corrected weights close the imported
+        bias on both behaviours</td></tr>
     </tbody></table></div>
   <p class="defn"><b>Read every &Delta; against 0.015.</b> Seed noise spans 0.004&ndash;0.016
   across the seven configurations now run at two seeds, so 04.1, 04.2 and 04.4 clear it and 04.3,
@@ -981,7 +993,7 @@ BODY = f'''
     <summary>
     <p class="q">04.6 &middot; objective</p>
     <h3>Does the model read the treatment?
-      <span class="verdict v-yes">yes &mdash; and DERM removes a third of it</span></h3>
+      <span class="verdict v-yes">yes &mdash; and DERM removes it where it is generated</span></h3>
     </summary>
     <div class="body">
     <p><b>The shortcut, and why ERM would take it.</b> A bag is placed in a corner of the cage for
@@ -1124,106 +1136,67 @@ BODY = f'''
     and the phase map reproduces the protocol's own 30/15/15-minute split. vREx is a different
     thing and does not help: four arms, best +0.008, worst &minus;0.094.</p>
 
-    <h3>The exposure split &mdash; both behaviours, both legs of the protocol</h3>
+    <h3>The exposure split &mdash; the mechanism, isolated</h3>
     <p>Train on one exposure session's three phases, test on the other's. That holds the cage, the
-    animals, the annotator and the lighting fixed and varies only the treatment episode. The odour
-    goes <b>on</b> at H&rarr;O and <b>off</b> again at O&rarr;P, and a phase-prior shortcut has no
-    reason to respect that asymmetry &mdash; so both legs are reported, for both behaviours, in
-    both training directions. Eight cells per objective.</p>
-    <div class="scroll"><table>
-      <thead><tr><th>objective</th><th>behaviour</th><th>leg</th>
-        <th>train fear &rarr; test social</th><th>train social &rarr; test fear</th>
-        <th>reverses?</th></tr></thead>
-      <tbody>
-        <tr><td rowspan="4">ERM</td><td rowspan="2">nose-to-tail</td><td>ON &nbsp;H&rarr;O</td>
-          {os_cell('trF_erm','nt')}{os_cell('trS_erm','nt')}<td><b>yes</b></td></tr>
-        <tr><td>OFF O&rarr;P</td>{os_cell('trF_erm','nt','O->P')}
-          {os_cell('trS_erm','nt','O->P')}<td><b>yes</b></td></tr>
-        <tr><td rowspan="2">nose-to-nose</td><td>ON &nbsp;H&rarr;O</td>
-          {os_cell('trF_erm','nn')}{os_cell('trS_erm','nn')}<td><b>yes</b></td></tr>
-        <tr><td>OFF O&rarr;P</td>{os_cell('trF_erm','nn','O->P')}
-          {os_cell('trS_erm','nn','O->P')}<td><b>yes</b></td></tr>
-        <tr><td rowspan="4">DERM</td><td rowspan="2">nose-to-tail</td><td>ON &nbsp;H&rarr;O</td>
-          {os_cell('trF_derm','nt')}{os_cell('trS_derm','nt')}<td>yes</td></tr>
-        <tr><td>OFF O&rarr;P</td>{os_cell('trF_derm','nt','O->P')}
-          {os_cell('trS_derm','nt','O->P')}<td>yes</td></tr>
-        <tr><td rowspan="2">nose-to-nose</td><td>ON &nbsp;H&rarr;O</td>
-          {os_cell('trF_derm','nn')}{os_cell('trS_derm','nn')}<td>yes</td></tr>
-        <tr><td>OFF O&rarr;P</td>{os_cell('trF_derm','nn','O->P')}
-          {os_cell('trS_derm','nn','O->P')}<td>yes</td></tr>
-      </tbody></table></div>
+    animals, the annotator and the lighting fixed and varies only the treatment episode; the odour
+    goes <b>on</b> at H&rarr;O and <b>off</b> again at O&rarr;P, and the two sessions carry
+    opposite true effects &mdash; so an imported phase prior must flip sign with the training
+    direction, which a plain "worse on a session it never saw" cannot do. The <b>arms</b> control
+    walks the two fixes in order: the original pair; a fixed 30-epoch budget for both objectives
+    (checkpoint selection on unweighted AP had rewarded exactly the prior DERM removes); and
+    DERM's weights computed for the population rather than the 1:1-balanced training subsample,
+    which had collapsed the environment-variance ratio the objective is built on (fear
+    nose-to-tail: 1.55&times; where the population says 3.56&times;).</p>
+    {ODOUR}
     <p class="defn">Bias in the transition, bouts per minute, on the held-out exposure.
     {os_('trF_erm','nt',what='n_pools')} pools per direction, 72 observations per arm, inside 02b's
-    15-minute window, threshold rate-matched <b>in rank space</b>. * = interval excludes zero.</p>
+    15-minute window. Zero bias means raw PPCI reproduces the human-annotation effect on a
+    session the model never trained on.</p>
 
     <div class="note"><b>The bias is a single offset sitting on the O phase &mdash; which is where
-    the bag is.</b> In <b>8 of 8</b> arm &times; behaviour combinations the ON and OFF legs carry
-    <em>opposite</em> signs. That is the arithmetic signature of one constant error on O: it enters
+    the bag is.</b> In <b>8 of 8</b> arm &times; behaviour combinations of the uncorrected arms
+    the ON and OFF legs carry <em>opposite</em> signs. That is the arithmetic signature of one constant error on O: it enters
     a<sub>O</sub>&minus;a<sub>H</sub> as +&delta; and a<sub>P</sub>&minus;a<sub>O</sub> as
     &minus;&delta;. Combined with ERM reversing in all four cells when the training direction
-    flips, the shortcut is not just real, it is <b>localised on the treatment phase</b>.</div>
+    flips, the shortcut is not just real, it is <b>localised on the treatment phase</b>. And the
+    signature reads in reverse: under the corrected weights the fear-trained legs stop mirroring
+    ({os_('trF_derm_last_popw','nt')} and {os_('trF_derm_last_popw','nt','O->P')} share a sign)
+    &mdash; the offset is gone, not redistributed.</div>
 
-    <p><b>DERM's correction is set by the training exposure, not by the behaviour &mdash; which is
-    exactly what one constant per environment should do.</b> DERM minus ERM on the ON leg:</p>
-    <div class="scroll"><table>
-      <thead><tr><th>trained on</th><th>behaviour</th><th>training O/H prevalence</th>
-        <th>ERM bias</th><th>DERM&minus;ERM correction</th><th>DERM bias</th></tr></thead>
-      <tbody>
-        <tr><td rowspan="2">fear</td><td>nose-to-tail</td><td>3.1&times;</td>
-          <td>{os_('trF_erm','nt')}</td><td class="hi">{os_corr('trF_derm','trF_erm','nt')}</td>
-          <td class="hi">{os_('trF_derm','nt')}</td></tr>
-        <tr><td>nose-to-nose</td><td>2.5&times;</td>
-          <td>{os_('trF_erm','nn')}</td><td class="hi">{os_corr('trF_derm','trF_erm','nn')}</td>
-          <td class="lo">{os_('trF_derm','nn')}</td></tr>
-        <tr><td rowspan="2">social</td><td>nose-to-tail</td><td>0.8&times;</td>
-          <td>{os_('trS_erm','nt')}</td><td>{os_corr('trS_derm','trS_erm','nt')}</td>
-          <td class="hi">{os_('trS_derm','nt')}</td></tr>
-        <tr><td>nose-to-nose</td><td>0.8&times;</td>
-          <td>{os_('trS_erm','nn')}</td><td>{os_corr('trS_derm','trS_erm','nn')}</td>
-          <td class="lo">{os_('trS_derm','nn')}</td></tr>
-      </tbody></table></div>
-    <p>Trained on fear, where O carries 2.5&ndash;3.1&times; the prevalence, DERM pushes O
-    <em>down</em> by {os_corr('trF_derm','trF_erm','nt')} on nose-to-tail and
-    {os_corr('trF_derm','trF_erm','nn')} on nose-to-nose &mdash; <b>the same correction, to within
-    0.02, for two different behaviours</b>. Trained on social, where O is under-represented, it
-    pushes <em>up</em>. Sign and size track the training prevalence gradient and nothing else.
-    <b>DERM is doing precisely what it is specified to do.</b></p>
+    <p><b>Trained on fear &mdash; where the O phase carries 2.5&ndash;3.1&times; the prevalence
+    &mdash; the corrected weights close the imported bias.</b> On nose-to-tail's ON leg ERM is
+    biased by {os_('trF_erm_last','nt')}: the truth is
+    {os_('trF_erm_last','nt','H->O','true_dY')} bouts per minute and it estimates
+    {os_('trF_erm_last','nt','H->O','pred_dF')}, half the effect. Corrected DERM is biased by
+    {os_('trF_derm_last_popw','nt')}, estimating
+    {os_('trF_derm_last_popw','nt','H->O','pred_dF')} &mdash; the human-annotation effect,
+    reproduced by raw PPCI on a session the model never trained on. Paired on the same 24 pools
+    the difference is {os_pair('train_fear_popw','nt','d')} at
+    p {os_pair('train_fear_popw','nt','p')}. The OFF leg improves too
+    ({os_('trF_erm_last','nt','O->P')}, resolved on its own interval, to
+    {os_('trF_derm_last_popw','nt','O->P')}) but the paired difference does not resolve
+    (p {os_pair('train_fear_popw','nt','p','O->P')}).</p>
 
-    <div class="note"><b>So whether it helps turns on one question: was ERM's bias generated by that
-    gradient?</b>
-    <br><br><b>On nose-to-tail, yes, and the cancellation is near-perfect.</b> ERM
-    {os_('trF_erm','nt')} against a correction of {os_corr('trF_derm','trF_erm','nt')} leaves
-    {os_('trF_derm','nt')}. Across all four cells mean |bias| falls from {os_absmean('erm','nt')} to
-    {os_absmean('derm','nt')} &mdash; smaller in <b>{os_beats('nt')} cells</b>, and the per-phase
-    biases shrink too, so it is a correction rather than two errors cancelling. Paired on the same
-    pools, {os_pair('train_fear','nt','d')} (p {os_pair('train_fear','nt','p')}) trained on fear.
-    <br><br><b>On nose-to-nose, no &mdash; and the tell is a sign.</b> Trained on social the
-    prevalence gradient is 0.8&times;, so a prior-driven bias would be <em>negative</em>; ERM's is
-    {os_('trS_erm','nn')}. The correction therefore pushes the <em>wrong way</em> and the bias grows
-    to {os_('trS_derm','nn')}. And trained on fear ERM is already unbiased
-    ({os_('trF_erm','nn')}, per-phase &minus;0.03 H and &minus;0.04 O), so there is nothing to
-    cancel and the correction simply <em>becomes</em> the bias, {os_('trF_derm','nn')}. Mean |bias|
-    over the four cells rises from {os_absmean('erm','nn')} to {os_absmean('derm','nn')}, smaller in
-    <b>{os_beats('nn')} cells</b>.
-    <br><br><b>What nose-to-nose looks like instead is a slope error, and an offset cannot fix a
-    slope.</b> Predicted against true transition size on the ON leg: nose-to-nose
-    {os_('trS_erm','nn','H->O','pred_dF')} against a truth of
-    {os_('trS_erm','nn','H->O','true_dY')} and {os_('trF_erm','nn','H->O','pred_dF')} against
-    {os_('trF_erm','nn','H->O','true_dY')} &mdash; it over-responds to phase by about half again.
-    Nose-to-tail under-responds, {os_('trF_erm','nt','H->O','pred_dF')} against
-    {os_('trF_erm','nt','H->O','true_dY')}. DERM adds one constant per environment; it has no term
-    that touches the gain. <b>That is the boundary of the method as built, not evidence against
-    it</b> &mdash; and it says what nose-to-nose needs is a scale correction, which is what the
-    rectifier in PPI++ already is.</div>
+    <div class="note"><b>The nose-to-nose harm was the weight estimate, not the method.</b> Under
+    the subsample's weights DERM <em>introduced</em> {os_('trF_derm_last','nn')} of bias where ERM
+    sat at {os_('trF_erm_last','nn')} &mdash; the finding an earlier version of this section
+    rested on. The population weights take it to {os_('trF_derm_last_popw','nn')}
+    (paired against ERM, p {os_pair('train_fear_popw','nn','p')}). What survives on nose-to-nose
+    is a gain error, not an offset: trained on social it estimates
+    {os_('trS_erm_last','nn','H->O','pred_dF')} where the truth is
+    {os_('trS_erm_last','nn','H->O','true_dY')}, over-responding by half again. DERM adds one
+    constant per environment and has no term that touches the gain &mdash; that correction is
+    what the rectifier in PPI++ already is.</div>
 
-    <div class="note"><b>Two caveats that both cut in DERM's favour.</b> The checkpoint is still the
-    epoch with the highest <em>unweighted</em> monitor AP, which asks for the epoch that best
-    exploits the prior DERM removes &mdash; four fixed-epoch arms
-    (<code>odour_tr*_last</code>, <code>--select last</code>, identical budget for both objectives)
-    are training now and will appear beside these. And this design is a <b>lower bound</b>: the
-    model has seen the other exposure of the same cage and animals, so its bias here is smaller
-    than on a pool it has never seen. It cannot feed PPI++ either &mdash; the rectifier would sit
-    on pools the model trained on.</div>
+    <p><b>Trained on social every paired cell is null &mdash; and that is the mechanism's own
+    negative control.</b> The social session's O/H prevalence is 0.8&times;, so its training
+    distribution carries almost nothing to correct, and DERM correctly corrects almost nothing
+    (nose-to-tail ON: {os_('trS_erm_last','nt')} against {os_('trS_derm_last_popw','nt')}). The
+    correction is <b>confound-specific, not a blanket regulariser</b> &mdash; it appears exactly
+    where the confound sits in the training distribution and nowhere else. ERM's residual bias in
+    this direction (OFF leg {os_('trS_erm_last','nt','O->P')}, resolved) is the fear session's
+    larger effects not being tracked, which no reweighting of the training distribution can
+    supply.</p>
 
     <div class="note"><b>Why an earlier version of this table read the opposite way, and it was the
     instrument.</b> Both this block and the cross-fit turn a score into a bout count at a
@@ -1238,11 +1211,12 @@ BODY = f'''
     both arms. Every arm now matches within 1.2%. That one change is what turned nose-to-tail from
     an apparent overshoot into a clean repair.</div>
 
-    <div class="note"><b>One thing to change before the next DERM arm.</b> The saved checkpoint is
-    the epoch with the highest <em>unweighted</em> validation AP, so selection rewards exactly the
-    prior-exploitation the objective removes. It is small here &mdash; the best epoch is 21&ndash;24
-    of 30 and AP moves by under 0.04 across the last ten &mdash; but a shared fixed epoch budget, or
-    selection on the DERM-weighted criterion, would remove the ambiguity for free.</div>
+    <div class="note"><b>What this design is, and is not.</b> A <b>lower bound</b>: the model has
+    seen the other exposure of the same cage and animals, so its bias here is smaller than on a
+    pool it has never seen &mdash; useful precisely because a large lower bound is a strong
+    statement. It cannot feed PPI++ &mdash; the rectifier would sit on pools the model trained on;
+    the deployment-valid comparison is the cross-fit above, which agrees in direction. And one
+    seed per arm so far: {os_seed_note}</div>
     </div>
   </details>
 
