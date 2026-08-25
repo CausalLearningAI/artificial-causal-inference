@@ -97,6 +97,8 @@ PREDICTORS = {
                    'nice': 'cross-fitted, 3 folds (SSL encoder) -- deployed'},
     'xfit_bit6_dense': {'folds': ('xfit_bit6_f1', 'xfit_bit6_f2', 'xfit_bit6_f3'), 'human': True,
                         'nice': 'cross-fitted, 3 folds (BitFit-6) -- the accuracy leader'},
+    'xfit_derm_dense': {'folds': ('xfit_derm_f1', 'xfit_derm_f2', 'xfit_derm_f3'), 'human': True,
+                        'nice': 'cross-fitted, 3 folds (DERM, phase environments)'},
 }
 
 # WHY A SINGLE, NON-CROSS-FITTED MODEL IS NOT IN THIS FIGURE, even though PPCI needs no labels and
@@ -111,7 +113,13 @@ PREDICTORS = {
 def predictor_ready(spec) -> bool:
     return all((FRAME / t / 'pred_dense_v1.csv').exists()
                and (FRAME / t / 'val_probs.npz').exists() for t in spec['folds'])
-THRESHOLDS = np.round(np.arange(0.05, 1.0, 0.05), 2)
+# The coarse 0.05 grid, plus fine steps above 0.95. DERM reweights environments, so its scores
+# pile up against 1 and its max-F1 operating point sits at 0.95-0.995 -- past the coarse grid's
+# last candidate, where the bout count moves 25-35% per 0.01 of threshold. The ERM predictors'
+# optima are interior (0.85-0.90), so the extra candidates cannot move them; this is the same
+# resolution fix build_derm.py's rate_match() made, applied to the max-F1 search.
+THRESHOLDS = np.round(np.concatenate([np.arange(0.05, 1.0, 0.05),
+                                      np.arange(0.955, 1.0, 0.005)]), 3)
 LABELS = ('nt', 'nn')
 BEHAV_NICE = {'nt': 'nose-to-tail', 'nn': 'nose-to-nose'}
 ODOURS = (('F', 'fear'), ('S', 'social'))

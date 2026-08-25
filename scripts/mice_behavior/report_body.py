@@ -216,6 +216,21 @@ def os_pair(direction, behav, what, trans='H->O'):
     return f"{r['erm_minus_derm']:+.3f}".replace('-', '&minus;')
 
 
+# Whether the effects grid already carries a DERM predictor decides how 04.6's closing block
+# reads; keyed off estimates.json's own predictor list so the text cannot claim what the grid
+# does not hold.
+derm_pred_note = (
+    'It does now: the effects figure in section 03 carries the cross-fitted DERM predictor '
+    'alongside the two ERM ones &mdash; select it in the predictor control.'
+    if any('derm' in k for k in E['meta']['predictors']) else
+    'Not yet. Both predictors in the effects grid &mdash; the deployed SSL cross-fit and '
+    'BitFit-6 &mdash; train with plain ERM. The cross-fitted DERM folds exist; their dense '
+    'passes over the 84 unlabelled pools are running, and the grid’s threshold search has '
+    'been extended into DERM’s compressed score range (its rate-matched thresholds sit at '
+    '0.95–0.99, past the old grid’s last point), so the predictor joins the effects '
+    'figure when the passes land. Retraining the cross-fit with the population weights is the '
+    'step after, gated on the seed replicates.')
+
 # Whether the seed replicates of the fear-trained pair have landed decides a sentence in 04.6;
 # read it off derm.json's landed list so a rebuild flips the text the moment they arrive.
 os_seed_note = (
@@ -658,6 +673,10 @@ BODY = f'''
       <tr><td>schedule</td><td>3 warmup, cosine</td><td>negatives</td><td>1 per positive</td></tr>
       <tr><td>dropout</td><td>0.4</td><td>train / val</td><td>20 / 4 pools</td></tr>
       <tr><td>augmentation</td><td colspan="3">D4 dihedral (exact &mdash; the cage is filmed top-down) + brightness / contrast / gamma</td></tr>
+      <tr><td>objective</td><td colspan="3">weighted BCE. Uniform weights = ERM, the baseline;
+        <b>DERM</b> reweights by Var(Y|E)/P(Y,E) over the three phase environments, dividing the
+        phase prior out of the optimum &mdash; 04.6 shows this is what makes the estimate
+        transportable across sessions</td></tr>
     </tbody></table></div>
 
   <h3 style="margin-top:28px">Three metrics, and what each one is allowed to decide</h3>
@@ -774,8 +793,6 @@ BODY = f'''
         <td class="hi">+0.132</td><td>real, and now saturated</td></tr>
       <tr><td>04.5</td><td><b>head</b></td><td>capacity: 0.44 M to 5.03 M, self-attention, multi-query</td>
         <td>&minus;0.013 to +0.014</td><td class="lo">flat across an 11&times; parameter range</td></tr>
-      <tr><td>04.6</td><td><b>objective</b></td><td>vREx</td>
-        <td class="lo">+0.008 at best, &minus;0.094 at &beta;=100</td><td class="lo">no help, and harmful when pushed</td></tr>
       <tr><td>04.6</td><td><b>objective</b></td><td>DERM &mdash; deconfound against phase</td>
         <td>&minus;0.02 against a matched control<br><span style="opacity:.65">the expected price, not a cost</span></td>
         <td class="hi">cuts a resolved estimand bias by {eb24cut('nn')} on nose-to-nose
@@ -783,10 +800,12 @@ BODY = f'''
         bias on both behaviours</td></tr>
     </tbody></table></div>
   <p class="defn"><b>Read every &Delta; against 0.015.</b> Seed noise spans 0.004&ndash;0.016
-  across the seven configurations now run at two seeds, so 04.1, 04.2 and 04.4 clear it and 04.3,
-  04.5 and vREx sit inside it. DERM is the one exception on this page: it buys prior-independence
+  across the seven configurations now run at two seeds, so 04.1, 04.2 and 04.4 clear it and 04.3
+  and 04.5 sit inside it. DERM is the one exception on this page: it buys prior-independence
   by giving up frame accuracy, so a small AP loss is what success looks like there, and 04.6 judges
-  it on the estimand instead.</p>
+  it on the estimand instead. (vREx, the other environment-aware objective tried, is a baseline in
+  04.6, not a row here: four arms all inside seed noise at best and &minus;0.094 at
+  &beta;&nbsp;=&nbsp;100.)</p>
 </div>
 
 <div class="measure">
@@ -1025,33 +1044,10 @@ BODY = f'''
     <p>The scale is absorbed by PPI++'s <math><mi>&#x3BB;</mi></math> and never quoted by
     uncalibrated PPCI. <math><mrow><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo>
     <msub><mi>a</mi><mi>H</mi></msub></mrow></math> is the whole risk, and it is what an objective
-    change has to be judged on. Measured in bouts per minute at the rate-matched threshold &mdash;
-    which spends the one scale the estimand allows &mdash; per (pool &times; exposure), eight units,
-    seeds averaged within a unit:</p>
-    <div class="scroll"><table>
-      <thead><tr><th></th><th>mean a<sub>O</sub>&minus;a<sub>H</sub></th><th>95% CI</th>
-        <th>true effect, H&rarr;O</th></tr></thead>
-      <tbody>
-        <tr><td>nose-to-tail &middot; <b>ERM</b></td><td class="lo">{eb('nt','ERM')}</td>
-          <td>{eb('nt','ERM','ci')}</td>
-          <td rowspan="2">{dY('nt')} pooled &mdash; so the bias is
-          <b>{eb('nt','ERM','share')}</b> its size, and opposite in sign</td></tr>
-        <tr><td>nose-to-tail &middot; <b>DERM</b></td><td>{eb('nt','DERM')}</td>
-          <td>{eb('nt','DERM','ci')}</td></tr>
-        <tr><td>nose-to-nose &middot; <b>ERM</b></td><td>{eb('nn','ERM')}</td>
-          <td>{eb('nn','ERM','ci')}</td>
-          <td rowspan="2">{dY('nn')} pooled &mdash; nothing to see, and the sign flips
-          between seeds under both objectives</td></tr>
-        <tr><td>nose-to-nose &middot; <b>DERM</b></td><td>{eb('nn','DERM')}</td>
-          <td>{eb('nn','DERM','ci')}</td></tr>
-      </tbody></table></div>
-    <p>On four pools nose-to-tail looked like the signal and nose-to-nose like noise. <b>On
-    twenty-four it is the other way round</b>, which is the first thing to know about the numbers
-    above: the standing split was too small to say which behaviour carried the bias.</p>
-
-    <p><b>The cross-fit answers it.</b> The same comparison over the three deployment folds &mdash;
-    every annotated pool scored by a model that never saw it, 48 (pool&nbsp;&times;&nbsp;exposure)
-    units instead of 8:</p>
+    change has to be judged on &mdash; in bouts per minute at the rate-matched threshold, never on
+    AP. Two designs measure it. The <b>deployment cross-fit</b>: every annotated pool scored by a
+    fold that never saw it, 48 (pool&nbsp;&times;&nbsp;exposure) units, both objectives on the
+    same three folds:</p>
     <div class="scroll"><table>
       <thead><tr><th></th><th>mean a<sub>O</sub>&minus;a<sub>H</sub></th><th>95% CI</th>
         <th>against the true effect</th><th></th></tr></thead>
@@ -1069,72 +1065,40 @@ BODY = f'''
           <td>{eb24('nt','DERM','ci')}</td><td>{eb24('nt','DERM','share')}</td>
           <td>not resolved &mdash; and it has crossed zero</td></tr>
       </tbody></table></div>
-    <p><b>On nose-to-nose the shortcut is real and DERM removes a third of it.</b> ERM's bias is
-    {eb24('nn','ERM')} bouts per minute with an interval that excludes zero, and it is
-    {eb24('nn','ERM','share')} the size of the effect being estimated. DERM cuts it to
-    {eb24('nn','DERM')}; paired over the 48 units the reduction is {eb24p('nn','diff')} at
-    <b>p = {eb24p('nn','p')}</b>, shrinking in {eb24p('nn','shrunk_units')} of
-    {eb24p('nn','n_units')}. That is the mechanism working, measured on the quantity that reaches
-    the estimand rather than on AP.</p>
-    <p><b>On nose-to-tail it overshoots.</b> ERM's bias is small and unresolved
-    ({eb24('nt','ERM')}), and DERM moves it significantly &mdash; {eb24p('nt','diff')} at
-    p = {eb24p('nt','p')} &mdash; but <em>past</em> zero, to {eb24('nt','DERM')}. The magnitude is
-    unchanged ({eb24('nt','ERM','share')} against {eb24('nt','DERM','share')} of the true effect).
-    So DERM is not a shrinkage: it applies a correction of roughly fixed size, which is right for
-    nose-to-nose and too large for nose-to-tail. Where the bias is small to begin with, applying it
-    costs rather than helps &mdash; which is an argument for measuring the bias first and
-    correcting only where it resolves.</p>
-    <div class="note"><b>What this comparison is and is not.</b> Both arms are cross-fitted over the
-    same three folds with the same 0.52 M head, so it is a clean single-variable change and it is
-    paired. It is <em>not</em> continuous with the four-pool numbers above, which carry the plain
-    5.03 M head &mdash; the head moves at the same time as the sample size, so do not read the two
-    as one series. One seed per fold. And the thresholds differ by construction: DERM raises the
-    output level, so its rate-matched thresholds sit at 0.95&ndash;0.99 against ERM's
-    0.84&ndash;0.95, which is exactly what the rate-matching is there to absorb.</div>
+    <p><b>DERM reduces the estimand bias on both behaviours, paired over the same 48 units.</b>
+    On nose-to-nose ERM's bias is {eb24('nn','ERM')} bouts per minute &mdash; resolved on its own
+    interval and {eb24('nn','ERM','share')} the size of the effect being estimated &mdash; and
+    DERM cuts it to {eb24('nn','DERM')} ({eb24p('nn','diff')}, p = {eb24p('nn','p')}, shrinking in
+    {eb24p('nn','shrunk_units')} of {eb24p('nn','n_units')} units). On nose-to-tail the bias is
+    small to begin with and the paired reduction is {eb24p('nt','diff')} at
+    p = {eb24p('nt','p')}, DERM's mean sitting just past zero &mdash; the correction is an offset
+    of the confound's size, so where the imported bias is small the residual is small too. Same
+    three folds, same 0.52&nbsp;M head, one seed per fold.</p>
 
-    <div class="note"><b>Do not read the AP column as a verdict.</b> A model that has stopped using
-    the phase prior is <em>necessarily</em> a little worse at frame classification, because the
-    prior is genuinely informative for that task &mdash; so the &minus;0.02 macro AP below is the
-    expected price of the correction, not evidence against it. r&Delta;&nbsp;nt cannot arbitrate
-    either: two seeds of the same unweighted control give
-    {rr2('res448_k2_frozen_d4photo_ermH5M','nt')} and
-    {rr2('res448_k2_frozen_d4photo_ermH5M_s1','nt')}.</div>
+    <div class="note"><b>Do not judge DERM on AP.</b> A model that has stopped using the phase
+    prior is <em>necessarily</em> a little worse at frame classification, because the prior is
+    genuinely informative for that task &mdash; so DERM's &minus;0.02 macro AP against its matched
+    control is the expected price of the correction, not evidence against it. vREx, the other
+    environment-aware objective tried, is just a baseline: four arms, best +0.008 (inside seed
+    noise), &minus;0.094 at &beta;&nbsp;=&nbsp;100.</div>
 
-    <div class="scroll"><table>
-      <thead><tr><th>arm</th><th>environments</th><th>seed</th><th>macro AP</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
-      <tbody>
-        <tr><td><b>control</b> (unweighted ERM)</td><td>&mdash;</td><td>42</td><td>0.4163</td>
-          <td>{rr2('res448_k2_frozen_d4photo_ermH5M','nt')}</td>
-          <td>{rr2('res448_k2_frozen_d4photo_ermH5M','nn')}</td></tr>
-        <tr><td><b>control</b> (unweighted ERM)</td><td>&mdash;</td><td>1</td><td>0.4202</td>
-          <td>{rr2('res448_k2_frozen_d4photo_ermH5M_s1','nt')}</td>
-          <td>{rr2('res448_k2_frozen_d4photo_ermH5M_s1','nn')}</td></tr>
-        <tr><td>DERM</td><td>the 3 <b>phases</b></td><td>42</td><td>0.4060</td>
-          <td>{rr2('res448_k2_frozen_d4photo_dermPhase','nt')}</td>
-          <td>{rr2('res448_k2_frozen_d4photo_dermPhase','nn')}</td></tr>
-        <tr><td>DERM</td><td>the 3 <b>phases</b></td><td>1</td><td>0.3902</td>
-          <td>{rr2('res448_k2_frozen_d4photo_dermPhase_s1','nt')}</td>
-          <td>{rr2('res448_k2_frozen_d4photo_dermPhase_s1','nn')}</td></tr>
-        <tr><td>DERM</td><td>the 6 phase &times; exposure cells</td><td>42</td><td>0.3863</td>
-          <td>{rr2('res448_k2_frozen_d4photo_dermCond','nt')}</td>
-          <td>{rr2('res448_k2_frozen_d4photo_dermCond','nn')}</td></tr>
-        <tr><td>vREx, &beta; = 1</td><td>the 6 phase &times; exposure cells</td><td>42</td>
-          <td>{run('res448_k2_frozen_d4photo_vrexCond_b1')['ap']:.4f}</td>
-          <td>{rr2('res448_k2_frozen_d4photo_vrexCond_b1','nt')}</td>
-          <td>{rr2('res448_k2_frozen_d4photo_vrexCond_b1','nn')}</td></tr>
-        <tr><td>vREx, &beta; = 100</td><td>annotator</td><td>42</td>
-          <td class="lo">{run('res448_k2_frozen_d4photo_vrexAnn_b100')['ap']:.4f}</td>
-          <td>{rr2('res448_k2_frozen_d4photo_vrexAnn_b100','nt')}</td>
-          <td class="lo">{rr2('res448_k2_frozen_d4photo_vrexAnn_b100','nn')}</td></tr>
-      </tbody></table></div>
-    <p>The implementation was audited against the formula it claims
-    (<code>test_derm.py</code>): the weights match
+    <div class="note"><b>How the weights survive the subsampling &mdash; and how we know the
+    implementation is right.</b> Training subsamples twice: a 300k-frame cap that keeps positives
+    preferentially, then one negative per positive. That lifts the in-batch positive rate from
+    0.4&ndash;1.4% to where p(1&minus;p) saturates, so Var(Y|E) estimated on the <em>subsample</em>
+    collapses the across-environment ratio the objective is built on &mdash; fear nose-to-tail
+    1.55&times; where the population says 3.56&times;: the correction was being trained at half
+    strength, which is what the "corrected weights" arm in the figure fixes. The fix estimates
+    Var(Y|E) and P(E) on the <b>population</b> of frames (P(E) duration-neutral, so H's 30 minutes
+    buy it no extra mass) and applies them to the subsampled batches. Verified end to end:
+    <code>test_derm.py</code> audits the weights against
     <math><mrow><mi>Var</mi><mo>(</mo><mi>Y</mi><mo>|</mo><mi>E</mi><mo>)</mo><mo>/</mo>
-    <mi>P</mi><mo>(</mo><mi>Y</mi><mo>,</mo><mi>E</mi><mo>)</mo></mrow></math> to 1e&minus;7,
-    positives and negatives end up with equal mass inside every environment, the mean weight is
-    exactly 1 so the step size is unchanged against ERM, each behaviour gets its own correction,
-    and the phase map reproduces the protocol's own 30/15/15-minute split. vREx is a different
-    thing and does not help: four arms, best +0.008, worst &minus;0.094.</p>
+    <mi>P</mi><mo>(</mo><mi>Y</mi><mo>,</mo><mi>E</mi><mo>)</mo></mrow></math> to 1e&minus;7 with
+    mean weight exactly 1 (step size unchanged against ERM) and positive/negative mass balanced
+    inside every environment; the launcher logs the achieved environment mass against its target
+    (3.56&times;/2.43&times; trained on fear, 1.29&times;/1.77&times; on social &mdash; matched
+    exactly); and the trainer <em>refuses</em> any arm whose variance floor would clip every
+    environment, the failure that once made a DERM arm an exact no-op.</div>
 
     <h3>The exposure split &mdash; the mechanism, isolated</h3>
     <p>Train on one exposure session's three phases, test on the other's. That holds the cage, the
@@ -1217,6 +1181,8 @@ BODY = f'''
     statement. It cannot feed PPI++ &mdash; the rectifier would sit on pools the model trained on;
     the deployment-valid comparison is the cross-fit above, which agrees in direction. And one
     seed per arm so far: {os_seed_note}</div>
+
+    <p><b>Does the model behind section 03's estimates use DERM, then?</b> {derm_pred_note}</p>
     </div>
   </details>
 
