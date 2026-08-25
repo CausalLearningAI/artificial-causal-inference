@@ -47,8 +47,11 @@ export WANDB=1
 # this experiment measures.
 export SELECT=last
 
+# 180G, not 80G. The JPEG cache is held in RAM (config.json records jpeg_cache_gib), so an arm
+# peaks near 84 GB and all six of these died OUT_OF_MEMORY at a hardcoded 80G ceiling on the first
+# attempt. Every other launcher on this page asks for 180G; match it and keep it overridable.
 SB=(--partition="${PARTITION:-gpu}" --gres="${GRES:-gpu:L40S:1}" --time="${TIME:-12:00:00}"
-    --mem=80G --cpus-per-task=32)
+    --mem="${MEM:-180G}" --cpus-per-task=32)
 
 # arm -> "PIXEL_SOURCE objective"
 # BOTH objectives at EVERY pixel budget, all six under SELECT=last. The existing
