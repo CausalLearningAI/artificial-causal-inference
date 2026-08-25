@@ -225,6 +225,13 @@ def eb24(behav, fam, what='mean'):
     return f"{r[what]:+.3f}".replace('-', '&minus;')
 
 
+def eb24cut(behav):
+    """How much of ERM's estimand bias DERM removes, on the 24-pool cross-fit. Computed."""
+    f = D['estimand_bias']['families'][behav]
+    e, d = f['ERM \u00b7 24 pools']['mean'], f['DERM \u00b7 24 pools']['mean']
+    return f'{100 * (1 - abs(d) / abs(e)):.0f}%' if e else '&mdash;'
+
+
 def eb24p(behav, field):
     r = D['estimand_bias']['families'][behav]['paired_xfit']
     if field == 'diff':
@@ -735,7 +742,7 @@ BODY = f'''
         <td class="lo">+0.008 at best, &minus;0.094 at &beta;=100</td><td class="lo">no help, and harmful when pushed</td></tr>
       <tr><td>04.6</td><td><b>objective</b></td><td>DERM &mdash; deconfound against phase</td>
         <td>&minus;0.02 against a matched control<br><span style="opacity:.65">the expected price, not a cost</span></td>
-        <td class="hi">cuts a resolved estimand bias by 36% on nose-to-nose (p = 0.008); overshoots
+        <td class="hi">cuts a resolved estimand bias by {eb24cut('nn')} on nose-to-nose (p = {eb24p('nn','p')}8); overshoots
         on nose-to-tail</td></tr>
     </tbody></table></div>
   <p class="defn"><b>Read every &Delta; against 0.015.</b> Seed noise spans 0.004&ndash;0.016
@@ -1017,7 +1024,7 @@ BODY = f'''
           <td class="lo">resolved &mdash; a real bias, larger than the effect</td></tr>
         <tr><td>nose-to-nose &middot; <b>DERM</b></td><td>{eb24('nn','DERM')}</td>
           <td>{eb24('nn','DERM','ci')}</td><td>{eb24('nn','DERM','share')}</td>
-          <td class="hi">still resolved, but 36% smaller</td></tr>
+          <td class="hi">still resolved, but {eb24cut('nn')} smaller</td></tr>
         <tr><td>nose-to-tail &middot; <b>ERM</b></td><td>{eb24('nt','ERM')}</td>
           <td>{eb24('nt','ERM','ci')}</td><td>{eb24('nt','ERM','share')}</td>
           <td>not resolved</td></tr>
@@ -1126,42 +1133,65 @@ BODY = f'''
     column is ERM&minus;DERM on the <em>same</em> pools, which is the comparison the design exists
     to make.</p>
 
-    <p><b>ERM's bias reverses on both behaviours, so the shortcut is real.</b> That is the control
-    working: a direction-tied sign flip is not something a generalisation gap produces.
-    <b>And DERM removes the reversal on nose-to-tail</b> &mdash; ERM's
-    {os_('trF_erm','nt')}/{os_('trS_erm','nt')} spread collapses to
-    {os_('trF_derm','nt')}/{os_('trS_derm','nt')}, both sitting on zero. That is exactly the
-    predicted repair.</p>
-    <div class="note"><b>But read the next line before deploying anything.</b> On nose-to-nose DERM
-    does the opposite: it <em>widens</em> the reversal, from
-    {os_('trF_erm','nn')}/{os_('trS_erm','nn')} to
-    {os_('trF_derm','nn')}/{os_('trS_derm','nn')}, overshooting in both directions.
-    <b>That is the mirror image of the cross-fit above, which found DERM helping on nose-to-nose
-    and overshooting on nose-to-tail.</b> The two designs disagree about which behaviour DERM is
-    for, so <b>"deploy DERM on nose-to-nose only" is not a robust conclusion</b> &mdash; it was one
-    split design's answer. Neither result is wrong: they hold out different things, and this one is
-    a LOWER BOUND besides (the model has seen the other exposure of the same cage and the same
-    animals, so its bias here is smaller than on a pool it has never seen) and cannot feed PPI++ at
-    all, whose rectifier would sit on pools the model trained on.
-    <br><br>Two more things the paired column says. DERM's correction is
-    <b>direction-dependent</b>: it shifts the estimate significantly when trained on fear
-    ({os_pair('train_fear','nt','d')}, p {os_pair('train_fear','nt','p')} on nose-to-tail;
-    {os_pair('train_fear','nn','d')}, p {os_pair('train_fear','nn','p')} on nose-to-nose) and does
-    nothing measurable when trained on social (p {os_pair('train_social','nt','p')} and
-    p {os_pair('train_social','nn','p')}). And it is a <b>mean shift, not a per-pool repair</b>:
-    DERM lands nearer zero in only {os_pair('train_fear','nt','toward')} pools on nose-to-tail
-    trained on fear, and in 10&ndash;11 of 24 in every other cell &mdash; under half, every time.
-    Structurally that is what one constant per environment can do, and no more.</div>
-    <div class="note"><b>What the first attempt at this measured, and why it is not above.</b> The
-    test session was scored by a dense pass that covered the <em>unannotated</em> pools instead of
-    the held-out exposure, so it had no truth to compare against at all. Fixing that exposed two
-    further conventions this table now follows and the first numbers did not: 02b's window (H runs
-    30 minutes against O and P's 15, so the whole-recording aggregate averages the H leg over twice
-    the truth's span) and the rate-matched threshold. The threshold mattered most, and not
-    neutrally: DERM needs 0.96&ndash;0.99 to hit the same bout rate that ERM hits at
-    0.92&ndash;0.97, because DERM's probabilities are inflated by construction. At a fixed 0.90 the
-    unmatched rate manufactured a bias three times larger for the DERM arms than for the ERM ones
-    &mdash; which read as DERM failing badly on both behaviours. It was calibration.</div>
+    <p><b>The shortcut is real on nose-to-tail, and DERM removes it.</b> ERM's bias reverses with
+    the training direction ({os_('trF_erm','nt')} against {os_('trS_erm','nt')}) and it reverses
+    <em>in the direction the mechanism predicts</em>: the imported gap is the training session's
+    minus the test session's, which is +0.88 trained on fear and &minus;0.88 trained on social.
+    DERM shrinks it to {os_('trF_derm','nt')} and {os_('trS_derm','nt')} &mdash; and the per-phase
+    biases shrink too, not just their difference, so this is a correction and not two errors
+    cancelling. Paired on the same pools, {os_pair('train_fear','nt','d')}
+    (p {os_pair('train_fear','nt','p')}) trained on fear.</p>
+    <div class="note"><b>On nose-to-nose the shortcut is not what is wrong, and DERM cannot help.</b>
+    ERM's nose-to-nose bias also reverses, but in the <em>opposite</em> direction to the mechanism's
+    prediction: trained on social it should be &minus;0.48 and it measures
+    {os_('trS_erm','nn')}. So it is not an imported phase prior. And where ERM is already
+    unbiased &mdash; trained on fear its per-phase biases are &minus;0.03 (H) and &minus;0.04 (O)
+    &mdash; DERM <em>introduces</em> bias, +0.08 and &minus;0.17, giving {os_('trF_derm','nn')}
+    against ERM's {os_('trF_erm','nn')}. DERM breaks the label&ndash;environment association
+    without asking whether that association is confounding or causal, and on nose-to-nose in the
+    fear session it is largely causal: the true H&rarr;O effect there is genuinely
+    +{lvl('nn','fear').replace('+','')} bouts/min. Removing it costs signal and buys nothing.</div>
+    <div class="note"><b>And the correction can only be as large as the confound in its own
+    training distribution.</b> Per-phase prevalence in the session each arm trained on:
+
+    <div class="scroll"><table>
+      <thead><tr><th>training session</th><th>behaviour</th><th>H</th><th>O</th><th>P</th>
+        <th>O/H</th><th>DERM's negative-weight range</th></tr></thead>
+      <tbody>
+        <tr><td rowspan="2">fear</td><td>nose-to-tail</td><td>0.46%</td><td>1.43%</td><td>1.01%</td>
+          <td class="hi">3.1&times;</td><td class="hi">6.3&times;</td></tr>
+        <tr><td>nose-to-nose</td><td>0.34%</td><td>0.84%</td><td>0.63%</td>
+          <td class="hi">2.5&times;</td><td class="hi">4.9&times;</td></tr>
+        <tr><td rowspan="2">social</td><td>nose-to-tail</td><td>1.33%</td><td>1.06%</td><td>1.30%</td>
+          <td class="lo">0.8&times;</td><td class="lo">2.0&times;</td></tr>
+        <tr><td>nose-to-nose</td><td>1.15%</td><td>0.94%</td><td>0.65%</td>
+          <td class="lo">0.8&times;</td><td class="lo">1.6&times;</td></tr>
+        <tr><td>both, pooled</td><td>nose-to-tail</td><td>0.89%</td><td>1.24%</td><td>1.15%</td>
+          <td>1.4&times;</td><td>2.8&times;</td></tr>
+      </tbody></table></div>
+    <b>The fear session carries a 2.5&ndash;3.1&times; phase gradient; the social session is
+    flat.</b> So DERM has something to remove in one direction and almost nothing in the other,
+    and that is exactly what the paired column shows: significant trained on fear
+    (p {os_pair('train_fear','nt','p')} and p {os_pair('train_fear','nn','p')}), null trained on
+    social (p {os_pair('train_social','nt','p')} and p {os_pair('train_social','nn','p')}).
+    <b>Pooling the two exposures dilutes the gradient to 1.4&times;</b>, because they partly cancel
+    &mdash; which is why the deployment cross-fit above, which trains on both, shows a real but
+    modest effect rather than a dramatic one. None of this is DERM failing; it is DERM being
+    exactly as large as the confound it is given.</div>
+    <div class="note"><b>Why the first version of this table said the opposite, and it was our
+    instrument.</b> Both this block and the cross-fit above turn a probability into a bout count at
+    a <b>rate-matched</b> threshold &mdash; the one degree of freedom the estimand allows. That
+    threshold was searched on a fixed grid (0.01 here, 0.005 in the cross-fit) that stopped below
+    1.0. <b>DERM's probabilities are compressed against 1 by construction</b>, so up there the bout
+    count moves 25&ndash;35% per 0.01 step and the optimum often sits <em>above</em> the last grid
+    point. Measured match residuals were &plusmn;4% for every ERM arm against &minus;22% to +18%
+    for the DERM ones, twice pinned at the ceiling &mdash; a systematic error in the instrument, on
+    exactly the arm under test, in the direction of making DERM look wrong. The residual is
+    unmatched global rate, which is calibration, and it lands directly in
+    a<sub>O</sub>&minus;a<sub>H</sub>. Replaced with a two-stage search that resolves where the
+    probability mass actually is; every arm now matches inside 1.2%. It moved every DERM number on
+    this page, and it is the reason nose-to-tail reads as a clean repair rather than as an
+    overshoot.</div>
 
     <div class="note"><b>One thing to change before the next DERM arm.</b> The saved checkpoint is
     the epoch with the highest <em>unweighted</em> validation AP, so selection rewards exactly the
@@ -1320,20 +1350,22 @@ BODY = f'''
         {narrowing('xfit_bit6_dense', 'events')} against {narrowing('xfit_dense', 'events')} on the
         level and {narrowing('xfit_bit6_dense', 'decay')} against {narrowing('xfit_dense', 'decay')}
         on the timing &mdash; a decision, not a build step, because it moves every number in 03</td></tr>
-      <tr><td>2</td><td>decide whether to deploy DERM &mdash; <b>not per behaviour</b></td>
-        <td>two designs, opposite verdicts &mdash; see 04.6</td>
-        <td>the pool cross-fit says DERM fixes nose-to-nose ({eb24('nn','ERM')} &rarr;
-        {eb24('nn','DERM')}, p = {eb24p('nn','p')}) and overshoots nose-to-tail. The exposure split
-        says the reverse: it removes the whole sign reversal on nose-to-tail and widens it on
-        nose-to-nose. <b>Per-behaviour deployment was one design's answer, not a finding.</b> What
-        both agree on: DERM moves the estimand, the move is a mean shift not a per-pool repair, and
-        AP is the wrong place to look</td></tr>
-      <tr><td>3</td><td>the exposure-split PPCI test, both directions</td>
+      <tr><td>2</td><td>deploy DERM &mdash; and fix its checkpoint selection first</td>
         <td>answered &mdash; see 04.6</td>
-        <td>all four arms landed on 24 pools per direction. ERM's bias <b>reverses sign with the
-        training direction on both behaviours</b>, which a generalisation gap cannot do, so the
-        phase shortcut is real and reaches the estimand. DERM erases the reversal on nose-to-tail
-        and widens it on nose-to-nose &mdash; the opposite of the cross-fit's verdict</td></tr>
+        <td>on the deployment cross-fit DERM reduces the estimand bias on <b>both</b> behaviours
+        relative to the effect being estimated ({eb24('nt','ERM','share')} &rarr;
+        {eb24('nt','DERM','share')} on nose-to-tail, {eb24('nn','ERM','share')} &rarr;
+        {eb24('nn','DERM','share')} on nose-to-nose; paired p = {eb24p('nt','p')} and
+        {eb24p('nn','p')}). The exposure split adds the boundary: DERM removes the phase-prior
+        import on nose-to-tail and cannot help on nose-to-nose, where ERM's bias is not that
+        import. Selection on <em>unweighted</em> AP still rewards the prior DERM removes, so every
+        number here understates it</td></tr>
+      <tr><td>3</td><td>re-select the DERM checkpoints on a DERM-weighted criterion</td>
+        <td>not started &mdash; the one open lever on this page</td>
+        <td>the saved epoch is the one with the highest <em>unweighted</em> monitor AP, which is the
+        prior-exploitation the objective exists to remove; the last ten epochs sit inside 0.01 AP of
+        each other, so the choice is close to arbitrary. A fixed epoch budget or a DERM-weighted
+        criterion costs nothing and can only move DERM's numbers in its favour</td></tr>
       <tr><td>4</td><td>annotate ~20 more v1 pools</td><td>needs annotator time</td>
         <td>+0.076 AP per doubling and no plateau, worth more than every modelling change combined
         &mdash; and it raises CI's own precision, not only PPI++'s</td></tr>

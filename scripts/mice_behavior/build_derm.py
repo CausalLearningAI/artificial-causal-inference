@@ -225,6 +225,53 @@ def auc_ci(H, pools, sel, x, y, reps=400, seed=0):
     return point, float(lo), float(hi), n
 
 
+# ------------------------------------------------------------------ rate matching, done properly
+COARSE = np.round(np.arange(0.05, 1.0, 0.01), 2)
+
+
+def rate_match(count, T, hi=0.99995):
+    """The threshold whose TOTAL predicted bout count is closest to T. Returns (thr, count).
+
+    `count(t)` -> total bouts at threshold t. Not assumed monotone: postprocess() with
+    merge_gap=1 can SPLIT one bout into two as the threshold rises, so this searches rather
+    than bisects.
+
+    WHY THIS REPLACED A FIXED 0.01 GRID (2026-08-25). The old search was
+    `np.arange(0.05, 1.0, 0.01)`, and that grid cannot resolve a DERM arm. DERM reweights its
+    environments, so the weight ratio is the prior odds and its probabilities are compressed
+    against 1 BY CONSTRUCTION -- up there the bout count moves 25-35% per 0.01 step, and the
+    optimum frequently sits ABOVE 0.99, off the end of the grid entirely. Measured residuals:
+
+        every ERM arm        -4% .. +5%
+        DERM, exposure split  trF nt +17.8% (PINNED at 0.99)   trS nn +15.1%
+        DERM, cross-fit       f1 nt -22.2% (PINNED at 0.99)    f3 nt -8.8%
+
+    So the instrument was systematically wrong on exactly the arm under test, and the residual
+    is unmatched global rate -- i.e. calibration -- leaking straight into a_O - a_H. It made
+    DERM look like it was failing when what failed was the measurement. Anything comparing an
+    ERM arm to a DERM arm through a threshold MUST use this.
+
+    Two stages: the coarse grid to bracket, then a fine sweep. When the coarse optimum sits at
+    the ceiling the fine sweep runs all the way to `hi` instead of a symmetric window, which is
+    the case that was silently clipped before.
+    """
+    seen = {}
+
+    def at(t):
+        t = float(round(t, 6))
+        if t not in seen:
+            seen[t] = count(t)
+        return seen[t]
+
+    th = min(COARSE, key=lambda t: (abs(at(t) - T), t))
+    lo_w = max(0.01, th - 0.01)
+    hi_w = hi if th >= COARSE[-1] - 1e-9 else min(hi, th + 0.01)
+    for t in np.linspace(lo_w, hi_w, 120):
+        at(t)
+    best = min(seen, key=lambda t: (abs(seen[t] - T), t))
+    return best, seen[best]
+
+
 # ------------------------------------------------------------------ the estimand-level bias
 def match_threshold(tag: str, l: str, exp: pd.DataFrame):
     """The one threshold whose TOTAL predicted bout count matches the total true count.
@@ -238,12 +285,11 @@ def match_threshold(tag: str, l: str, exp: pd.DataFrame):
     df = pd.DataFrame({'obs': d['obs'], 'p': d['probs'][:, j], 'y': d['labels'][:, j]})
     gs = [g for _, g in df.groupby('obs', sort=False)]
     T = sum(len(runs(g['y'].to_numpy() > 0.5)) for g in gs)
-    best = (np.nan, np.inf)
-    for th in np.round(np.arange(0.05, 1.0, 0.01), 2):
-        P = sum(len(runs(postprocess(g['p'].to_numpy() >= th, 1, 1))) for g in gs)
-        if abs(P - T) < best[1]:
-            best = (float(th), abs(P - T))
-    th = best[0]
+    arrs = [g['p'].to_numpy() for g in gs]
+    th, P = rate_match(lambda t: sum(len(runs(postprocess(a >= t, 1, 1))) for a in arrs), T)
+    if T and abs(P - T) / T > 0.05:
+        print(f'  !! {tag} {l}: rate match off by {100 * (P - T) / T:+.1f}% at thr {th:.4f} '
+              f'-- the estimand bias below carries that as calibration', flush=True)
     rows = []
     for oid, g in df.groupby('obs', sort=False):
         mins = len(g) / FPS / 60
@@ -439,12 +485,17 @@ def estimand_bias(exp: pd.DataFrame, families: dict) -> dict:
                            'y': d['labels'][:, j]}).sort_values(['obs', 'gi'])
         gs = [(o, g) for o, g in df.groupby('obs', sort=False)]
         T = sum(len(runs(g['y'].to_numpy() > 0.5)) for _, g in gs)
-        best = (float('nan'), 1e9)
-        for th in np.round(np.arange(0.05, 1.0, 0.005), 3):
-            P = sum(len(runs(postprocess(g['p'].to_numpy() >= th, 1, 1))) for _, g in gs)
-            if abs(P - T) < best[1]:
-                best = (float(th), abs(P - T))
-        th = best[0]
+        # rate_match(), NOT a fixed grid. This path had its own 0.005 grid capped below 1.0, which
+        # is finer than match_threshold()'s but fails the same way on a DERM arm whose probability
+        # mass is compressed against 1: xfit_derm_f1 nt pinned at the ceiling and under-counted
+        # bouts by 22% while every ERM arm matched inside 6%. The residual is calibration, and it
+        # lands straight in a_O - a_H -- against DERM specifically. See rate_match()'s docstring.
+        arrs = [g['p'].to_numpy() for _, g in gs]
+        th, P = rate_match(lambda t: sum(len(runs(postprocess(a >= t, 1, 1))) for a in arrs), T)
+        out['match_resid'].setdefault(l, {})[tag] = round((P - T) / T, 4) if T else None
+        if T and abs(P - T) / T > 0.05:
+            print(f'  !! {tag} {l}: rate match off by {100 * (P - T) / T:+.1f}% '
+                  f'at thr {th:.4f}', flush=True)
         po = pd.DataFrame([
             {'observation_id': o,
              'true': len(runs(g['y'].to_numpy() > 0.5)) / (len(g) / FPS / 60),
@@ -478,7 +529,8 @@ def estimand_bias(exp: pd.DataFrame, families: dict) -> dict:
             return pd.concat(frames)                     # cross-fitted folds: tile the pools
         return sum(frames) / len(frames)                 # seeds of one split: average
 
-    out = {'unit': 'bouts per minute, H->O', 'thresholds': {}, 'truth': {}, 'families': {}}
+    out = {'unit': 'bouts per minute, H->O', 'thresholds': {}, 'match_resid': {},
+           'truth': {}, 'families': {}}
     for l in LABELS:
         ref, _ = units(families['ERM'][0], l)
         out['truth'][l] = {'pooled': round(float(ref.dY.mean()), 4),
@@ -657,12 +709,12 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
                 continue
             keep = m[m.observation_id.isin(have)]
             total_true = float(keep[f't_events_{lab}'].sum() * mins)
-            th, gap = float('nan'), float('inf')
-            for cand in np.round(np.arange(0.05, 1.0, 0.01), 2):
-                n = sum(len(runs(postprocess(seq[o][:, j] >= cand, 1, 1))) for o in have)
-                if abs(n - total_true) < gap:
-                    th, gap = float(cand), abs(n - total_true)
-            arm['thr'][lab] = th
+            th, n_at = rate_match(
+                lambda t: sum(len(runs(postprocess(seq[o][:, j] >= t, 1, 1))) for o in have),
+                total_true)
+            arm['thr'][lab] = round(th, 5)
+            arm.setdefault('match_resid', {})[lab] = round(
+                (n_at - total_true) / total_true, 4) if total_true else None
             f = {o: len(runs(postprocess(seq[o][:, j] >= th, 1, 1))) / mins for o in have}
             rows = []
             for pool, g in keep.groupby('pool'):
