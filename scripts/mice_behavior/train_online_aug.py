@@ -1163,7 +1163,6 @@ def main():
                'env_key': args.env_key, 'vrex_beta': args.vrex_beta,
                'derm': bool(args.derm), 'derm_floor': args.derm_floor,
                'derm_prevalence': args.derm_prevalence,
-               'derm_env_prior': args.derm_env_prior,
                'vrex_warmup_epochs': args.vrex_warmup_epochs,
                'n_environments': (len(env_names) if env_names is not None else 0),
                'n_patches': n_patches, 'augment': args.augment, 'neg_ratio': args.neg_ratio,
