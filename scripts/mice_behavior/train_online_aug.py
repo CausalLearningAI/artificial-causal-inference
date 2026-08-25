@@ -952,7 +952,12 @@ def main():
                 # A DERM arm that is silently a no-op is the failure worth logging against.
                 mass = derm_mass(_tab, tm.labels, train_envs, order, len(env_names))
                 for li, ln in enumerate(('nt', 'nn')):
-                    tot = mass[:, li, :].sum(1)
+                    # `emass`, NOT `tot`: `tot` is the epoch's loss accumulator, initialised just
+                    # above this block, and shadowing it with a per-environment vector made
+                    # `tot += loss.item() * B` accumulate into a 3-array. Training was unaffected
+                    # (the gradient uses `loss`) but the logged loss was nonsense and the print
+                    # raised. Cost two launches; the [types] line below is what found it.
+                    emass = mass[:, li, :].sum(1)
                     tgt = derm_var_pop[:, li] if derm_var_pop is not None else None
                     print(f'  DERM[{ln}] Var(Y|E) from {args.derm_prevalence}'
                           + ('' if tgt is None else '  target ratio '
@@ -961,8 +966,8 @@ def main():
                         f'{n}: y1 {mass[k, li, 1]:.4f} y0 {mass[k, li, 0]:.4f}'
                         for k, n in enumerate(env_names)), flush=True)
                     print(f'      env mass share ' + ' '.join(
-                        f'{n}:{v:.3f}' for n, v in zip(env_names, tot / max(tot.sum(), 1e-12)))
-                        + f'   ratio {tot.max() / max(tot.min(), 1e-12):.2f}x', flush=True)
+                        f'{n}:{v:.3f}' for n, v in zip(env_names, emass / max(emass.sum(), 1e-12)))
+                        + f'   ratio {emass.max() / max(emass.min(), 1e-12):.2f}x', flush=True)
         for imgs, offs, lbl, mask, env in make_loader(tm, order, args.augment,
                                                       args.seed * 1000 + ep, envs=train_envs):
             imgs, lbl = imgs.to(dev, non_blocking=True), lbl.to(dev, non_blocking=True)
