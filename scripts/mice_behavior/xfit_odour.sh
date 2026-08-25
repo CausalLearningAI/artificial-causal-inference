@@ -142,6 +142,17 @@ if ! grep -q 'train-odour' scripts/mice_behavior/train_online_aug.sh; then
   echo "REFUSING: train_online_aug.sh does not forward --train-odour." >&2; exit 1
 fi
 
+# SEED=n replicates an arm under a different seed, tagged `_s{n}`. The headline paired test rests
+# on one seed per arm otherwise, and this project has already seen a metric move 0.18 -> 0.85
+# between two seeds of the same config. SEED pairs WITHIN seed only: an ERM_s1 leg pairs against
+# a DERM_s1 leg, never across. 42 is the original and keeps the unsuffixed tags.
+#
+#     SELECT=last SEED=1 ARMS=odourF_erm bash scripts/mice_behavior/xfit_odour.sh
+#     SELECT=last WEIGHTS=corrected SEED=1 ARMS=odourF_derm bash scripts/mice_behavior/xfit_odour.sh
+if [ -n "${SEED:-}" ] && [ "$SEED" != 42 ]; then
+  for a in $ORDER; do ARM_TAG[$a]="${ARM_TAG[$a]}_s${SEED}"; done
+fi
+
 # Frozen encoder -> L40S, and it does not contend for the A100s the BitFit folds hold.
 SB=(--partition="${PARTITION:-gpu}" --gres="${GRES:-gpu:L40S:1}" --time="${TIME:-10:00:00}"
     --mem="${MEM:-180G}" --cpus-per-task=32)
@@ -159,7 +170,7 @@ for arm in ${ARMS:-$ORDER}; do
     if [ -n "${DRY:-}" ]; then
         echo "[dry] $tag  ${ARM_ENV[$arm]}  MONITOR=$MONITOR"; continue
     fi
-    jid=$(env ${ARM_ENV[$arm]} VAL_POOLS="$MONITOR" TAG="$tag" SEED=42 sbatch "${SB[@]}" \
+    jid=$(env ${ARM_ENV[$arm]} VAL_POOLS="$MONITOR" TAG="$tag" SEED="${SEED:-42}" sbatch "${SB[@]}" \
               --job-name="$tag" --output="logs/${tag}_%j.out" --error="logs/${tag}_%j.err" \
               --parsable scripts/mice_behavior/train_online_aug.sh)
     echo "submitted $jid  $tag  (${ARM_ENV[$arm]})"

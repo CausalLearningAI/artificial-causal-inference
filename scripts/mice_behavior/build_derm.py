@@ -667,7 +667,12 @@ def nuisance_bias(exp_full: pd.DataFrame) -> dict:
 #   '_popw'  same fixed budget, plus DERM's weights computed for the POPULATION (undoing the
 #            subsampling attenuation) with a duration-neutral P(E). ERM is untouched by those
 #            flags, so this variant REUSES the _last ERM leg rather than retraining it.
-ODOUR_VARIANTS = {'': ('', ''), '_last': ('_last', '_last'), '_popw': ('_last', '_last_popw')}
+#   '_popw_s1'/'_popw_s2'  seed replicates of the decisive pair (fear direction): the headline
+#            paired test otherwise rests on seed 42 alone, and this project has already seen a
+#            metric move 0.18 -> 0.85 between two seeds of one config. Paired WITHIN seed.
+ODOUR_VARIANTS = {'': ('', ''), '_last': ('_last', '_last'), '_popw': ('_last', '_last_popw'),
+                  '_popw_s1': ('_last_s1', '_last_popw_s1'),
+                  '_popw_s2': ('_last_s2', '_last_popw_s2')}
 ODOUR_ARMS = {f'tr{d}_{o}{sfx}': (f'odour_tr{d}_{o}{sfx}', d)
               for d in ('F', 'S')
               for o, sfx in {('erm', es) for es, _ in ODOUR_VARIANTS.values()}
