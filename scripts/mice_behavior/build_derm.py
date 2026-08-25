@@ -225,51 +225,51 @@ def auc_ci(H, pools, sel, x, y, reps=400, seed=0):
     return point, float(lo), float(hi), n
 
 
-# ------------------------------------------------------------------ rate matching, done properly
-COARSE = np.round(np.arange(0.05, 1.0, 0.01), 2)
+# ------------------------------------------------------------------ rate matching, in RANK space
+# THE PROBABILITY SCALE IS NOT COMPARABLE BETWEEN OBJECTIVES; THE RANK OF A FRAME IS.
+#
+# Every ERM-vs-DERM number here turns a score into a bout count at a threshold chosen so the total
+# predicted rate matches the total true rate -- the one degree of freedom the estimand allows.
+# Searching that threshold in PROBABILITY space is the mistake. DERM reweights environments, so its
+# weight ratio is the prior odds and its scores pile up against 1: a grid in probability space has
+# almost no resolution where all of DERM's mass sits and plenty where none of it does. Measured, the
+# old fixed grids (0.01 / 0.005, both stopping below 1.0) missed the target rate by -22% to +18% on
+# DERM arms -- twice pinned at the last grid point -- against +-6% for every ERM arm. That residual
+# IS unmatched rate, i.e. calibration, and it lands straight in a_O - a_H, against the arm under
+# test.
+#
+# So parameterise by WHAT FRACTION OF FRAMES IS CALLED POSITIVE and read the threshold off as a
+# quantile of the score distribution. That fraction is uniformly resolvable for ANY score
+# distribution, however compressed, and it is the same question for both objectives. Log-spaced,
+# because the positive rate is ~1-3%.
+FRAC_GRID = np.geomspace(1e-4, 0.5, 160)
 
 
-def rate_match(count, T, hi=0.99995):
-    """The threshold whose TOTAL predicted bout count is closest to T. Returns (thr, count).
+def rate_match(count_at, T, scores):
+    """(threshold, count) whose total bout count is closest to T, searched in rank space.
 
-    `count(t)` -> total bouts at threshold t. Not assumed monotone: postprocess() with
-    merge_gap=1 can SPLIT one bout into two as the threshold rises, so this searches rather
-    than bisects.
-
-    WHY THIS REPLACED A FIXED 0.01 GRID (2026-08-25). The old search was
-    `np.arange(0.05, 1.0, 0.01)`, and that grid cannot resolve a DERM arm. DERM reweights its
-    environments, so the weight ratio is the prior odds and its probabilities are compressed
-    against 1 BY CONSTRUCTION -- up there the bout count moves 25-35% per 0.01 step, and the
-    optimum frequently sits ABOVE 0.99, off the end of the grid entirely. Measured residuals:
-
-        every ERM arm        -4% .. +5%
-        DERM, exposure split  trF nt +17.8% (PINNED at 0.99)   trS nn +15.1%
-        DERM, cross-fit       f1 nt -22.2% (PINNED at 0.99)    f3 nt -8.8%
-
-    So the instrument was systematically wrong on exactly the arm under test, and the residual
-    is unmatched global rate -- i.e. calibration -- leaking straight into a_O - a_H. It made
-    DERM look like it was failing when what failed was the measurement. Anything comparing an
-    ERM arm to a DERM arm through a threshold MUST use this.
-
-    Two stages: the coarse grid to bracket, then a fine sweep. When the coarse optimum sits at
-    the ceiling the fine sweep runs all the way to `hi` instead of a symmetric window, which is
-    the case that was silently clipped before.
+    `count_at(t)` -> total bouts at threshold t. `scores` is the pooled per-frame score vector the
+    threshold will be applied to. Not assumed monotone: postprocess() with merge_gap=1 can split
+    one bout into two as the threshold rises, so this searches rather than bisects.
     """
+    q = np.asarray(scores, dtype=np.float64)
     seen = {}
 
-    def at(t):
-        t = float(round(t, 6))
-        if t not in seen:
-            seen[t] = count(t)
-        return seen[t]
+    def at(frac):
+        frac = float(min(max(frac, 1e-6), 0.9))
+        if frac not in seen:
+            th = float(np.quantile(q, 1.0 - frac))
+            seen[frac] = (th, count_at(th))
+        return seen[frac]
 
-    th = min(COARSE, key=lambda t: (abs(at(t) - T), t))
-    lo_w = max(0.01, th - 0.01)
-    hi_w = hi if th >= COARSE[-1] - 1e-9 else min(hi, th + 0.01)
-    for t in np.linspace(lo_w, hi_w, 120):
-        at(t)
-    best = min(seen, key=lambda t: (abs(seen[t] - T), t))
-    return best, seen[best]
+    for f in FRAC_GRID:
+        at(f)
+    best = min(seen, key=lambda f: (abs(seen[f][1] - T), f))
+    lo, hi = best * 0.7, best * 1.45                     # local refine, still in rank space
+    for f in np.linspace(lo, hi, 60):
+        at(f)
+    best = min(seen, key=lambda f: (abs(seen[f][1] - T), f))
+    return seen[best]
 
 
 # ------------------------------------------------------------------ the estimand-level bias
@@ -286,7 +286,8 @@ def match_threshold(tag: str, l: str, exp: pd.DataFrame):
     gs = [g for _, g in df.groupby('obs', sort=False)]
     T = sum(len(runs(g['y'].to_numpy() > 0.5)) for g in gs)
     arrs = [g['p'].to_numpy() for g in gs]
-    th, P = rate_match(lambda t: sum(len(runs(postprocess(a >= t, 1, 1))) for a in arrs), T)
+    th, P = rate_match(lambda t: sum(len(runs(postprocess(a >= t, 1, 1))) for a in arrs), T,
+                       np.concatenate(arrs))
     if T and abs(P - T) / T > 0.05:
         print(f'  !! {tag} {l}: rate match off by {100 * (P - T) / T:+.1f}% at thr {th:.4f} '
               f'-- the estimand bias below carries that as calibration', flush=True)
@@ -491,7 +492,8 @@ def estimand_bias(exp: pd.DataFrame, families: dict) -> dict:
         # bouts by 22% while every ERM arm matched inside 6%. The residual is calibration, and it
         # lands straight in a_O - a_H -- against DERM specifically. See rate_match()'s docstring.
         arrs = [g['p'].to_numpy() for _, g in gs]
-        th, P = rate_match(lambda t: sum(len(runs(postprocess(a >= t, 1, 1))) for a in arrs), T)
+        th, P = rate_match(lambda t: sum(len(runs(postprocess(a >= t, 1, 1))) for a in arrs), T,
+                           np.concatenate(arrs))
         out['match_resid'].setdefault(l, {})[tag] = round((P - T) / T, 4) if T else None
         if T and abs(P - T) / T > 0.05:
             print(f'  !! {tag} {l}: rate match off by {100 * (P - T) / T:+.1f}% '
@@ -653,8 +655,13 @@ def nuisance_bias(exp_full: pd.DataFrame) -> dict:
 # NOT a deployment estimate: the model has seen every test pool, so its bias there is a LOWER BOUND
 # on what PPCI suffers on the 48 unannotated pools. And PPI++ cannot use it at all -- the rectifier
 # would sit on pools the model trained on.
-ODOUR_ARMS = {'trF_erm': ('odour_trF_erm', 'F'), 'trF_derm': ('odour_trF_derm', 'F'),
-              'trS_erm': ('odour_trS_erm', 'S'), 'trS_derm': ('odour_trS_derm', 'S')}
+# Both SELECTION RULES, side by side. The bare tags keep the epoch with the highest UNWEIGHTED
+# monitor AP, which for a DERM arm asks for the epoch that best exploits the phase prior the
+# objective exists to remove -- so the selection rule pulls against the objective and the ERM
+# comparison inherits that. The `_last` tags use a fixed epoch budget, identical for both arms,
+# which takes selection out of the contrast entirely. Absent arms are simply skipped.
+ODOUR_ARMS = {f'tr{d}_{o}{sfx}': (f'odour_tr{d}_{o}{sfx}', d)
+              for d in ('F', 'S') for o in ('erm', 'derm') for sfx in ('', '_last')}
 
 
 def odour_split(exp_full: pd.DataFrame) -> dict:
@@ -711,69 +718,89 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
             total_true = float(keep[f't_events_{lab}'].sum() * mins)
             th, n_at = rate_match(
                 lambda t: sum(len(runs(postprocess(seq[o][:, j] >= t, 1, 1))) for o in have),
-                total_true)
+                total_true, np.concatenate([seq[o][:, j] for o in have]))
             arm['thr'][lab] = round(th, 5)
             arm.setdefault('match_resid', {})[lab] = round(
                 (n_at - total_true) / total_true, 4) if total_true else None
             f = {o: len(runs(postprocess(seq[o][:, j] >= th, 1, 1))) / mins for o in have}
-            rows = []
-            for pool, g in keep.groupby('pool'):
-                q = g.drop_duplicates('phase').set_index('phase')
-                if not {'H', 'O'} <= set(q.index):
+            # BOTH transitions. The protocol turns the odour ON at H->O and OFF again at O->P, and
+            # a phase-prior shortcut has no reason to respect that asymmetry -- so an objective
+            # that removes it should show up on both, and one that only appears on the ON leg is
+            # not the shortcut. Riccardo asked for both legs for exactly this reason.
+            for x, y in TRANS:
+                rows = []
+                for pool, g in keep.groupby('pool'):
+                    q = g.drop_duplicates('phase').set_index('phase')
+                    if not {x, y} <= set(q.index):
+                        continue
+                    fy, fx = f[q.loc[y, 'observation_id']], f[q.loc[x, 'observation_id']]
+                    rows.append({
+                        'pool': pool,
+                        'bias': (fy - q.loc[y, f't_events_{lab}'])
+                                - (fx - q.loc[x, f't_events_{lab}']),
+                        'dY': q.loc[y, f't_events_{lab}'] - q.loc[x, f't_events_{lab}'],
+                        'dF': fy - fx})
+                if len(rows) < 3:
                     continue
-                fO, fH = f[q.loc['O', 'observation_id']], f[q.loc['H', 'observation_id']]
-                rows.append({
-                    'pool': pool,
-                    'bias': (fO - q.loc['O', f't_events_{lab}'])
-                            - (fH - q.loc['H', f't_events_{lab}']),
-                    'dY': q.loc['O', f't_events_{lab}'] - q.loc['H', f't_events_{lab}'],
-                    'dF': fO - fH})
-            if len(rows) < 3:
-                continue
-            r = pd.DataFrame(rows)
-            v = r.bias.to_numpy()
-            se = v.std(ddof=1) / np.sqrt(len(v))
-            qt = float(stats.t.ppf(0.975, len(v) - 1))
-            arm.setdefault('per_pool', {})[lab] = {
-                str(k): round(float(x), 4) for k, x in zip(r['pool'], v)}
-            arm['behav'][lab] = {
-                'n_pools': len(v), 'mean': round(float(v.mean()), 4),
-                'lo': round(float(v.mean() - qt * se), 4),
-                'hi': round(float(v.mean() + qt * se), 4),
-                'true_dY': round(float(r.dY.mean()), 4),
-                'pred_dF': round(float(r.dF.mean()), 4),
-                'r_delta': (round(float(np.corrcoef(r.dY, r.dF)[0, 1]), 4)
-                            if r.dY.std() > 0 and r.dF.std() > 0 else None)}
+                r = pd.DataFrame(rows)
+                v = r.bias.to_numpy()
+                se = v.std(ddof=1) / np.sqrt(len(v))
+                qt = float(stats.t.ppf(0.975, len(v) - 1))
+                trans = f'{x}->{y}'
+                arm.setdefault('per_pool', {}).setdefault(lab, {})[trans] = {
+                    str(k): round(float(xx), 4) for k, xx in zip(r['pool'], v)}
+                cell = {
+                    'n_pools': len(v), 'mean': round(float(v.mean()), 4),
+                    'lo': round(float(v.mean() - qt * se), 4),
+                    'hi': round(float(v.mean() + qt * se), 4),
+                    'true_dY': round(float(r.dY.mean()), 4),
+                    'pred_dF': round(float(r.dF.mean()), 4),
+                    'r_delta': (round(float(np.corrcoef(r.dY, r.dF)[0, 1]), 4)
+                                if r.dY.std() > 0 and r.dF.std() > 0 else None)}
+                arm.setdefault('cells', {}).setdefault(lab, {})[trans] = cell
+                if trans == 'H->O':
+                    arm['behav'][lab] = cell            # the ON leg keeps its old key
         out['arms'][key] = arm
     # the sign test: ERM's bias should reverse between directions, DERM's should sit nearer zero
-    for obj in ('erm', 'derm'):
+    for obj in ('erm', 'derm', 'erm_last', 'derm_last'):
         a, b = out['arms'].get(f'trF_{obj}'), out['arms'].get(f'trS_{obj}')
         if not (a and b):
             continue
-        out.setdefault('sign_test', {})[obj] = {
-            lab: {'train_fear': a['behav'][lab]['mean'], 'train_social': b['behav'][lab]['mean'],
-                  'reverses': bool(a['behav'][lab]['mean'] * b['behav'][lab]['mean'] < 0)}
-            for lab in LABELS if lab in a['behav'] and lab in b['behav']}
+        for lab in LABELS:
+            for x, y in TRANS:
+                tr = f'{x}->{y}'
+                ca = a.get('cells', {}).get(lab, {}).get(tr)
+                cb = b.get('cells', {}).get(lab, {}).get(tr)
+                if not (ca and cb):
+                    continue
+                out.setdefault('sign_test', {}).setdefault(obj, {}).setdefault(lab, {})[tr] = {
+                    'train_fear': ca['mean'], 'train_social': cb['mean'],
+                    'reverses': bool(ca['mean'] * cb['mean'] < 0)}
     # PAIRED, because the design's whole advantage is that both objectives are scored on the SAME
     # 24 pools of the SAME held-out exposure. Comparing two independent CIs throws that away: the
     # between-pool variance is common to both arms and cancels in the difference.
-    for direction, key in (('train_fear', 'trF'), ('train_social', 'trS')):
-        a, b = out['arms'].get(f'{key}_erm'), out['arms'].get(f'{key}_derm')
+    for direction, key, sfx in (('train_fear', 'trF', ''), ('train_social', 'trS', ''),
+                               ('train_fear_last', 'trF', '_last'),
+                               ('train_social_last', 'trS', '_last')):
+        a, b = out['arms'].get(f'{key}_erm{sfx}'), out['arms'].get(f'{key}_derm{sfx}')
         if not (a and b):
             continue
         for lab in LABELS:
-            pa, pb = a.get('per_pool', {}).get(lab), b.get('per_pool', {}).get(lab)
-            if not (pa and pb):
-                continue
-            shared = sorted(set(pa) & set(pb))
-            if len(shared) < 3:
-                continue
-            dv = np.array([pa[k] - pb[k] for k in shared])
-            t, pv = stats.ttest_1samp(dv, 0.0)
-            out.setdefault('paired', {}).setdefault(direction, {})[lab] = {
-                'n_pools': len(shared), 'erm_minus_derm': round(float(dv.mean()), 4),
-                'p': round(float(pv), 4),
-                'toward_zero': int(sum(abs(pb[k]) < abs(pa[k]) for k in shared))}
+            for x, y in TRANS:
+                tr = f'{x}->{y}'
+                pa = a.get('per_pool', {}).get(lab, {}).get(tr)
+                pb = b.get('per_pool', {}).get(lab, {}).get(tr)
+                if not (pa and pb):
+                    continue
+                shared = sorted(set(pa) & set(pb))
+                if len(shared) < 3:
+                    continue
+                dv = np.array([pa[k] - pb[k] for k in shared])
+                _, pv = stats.ttest_1samp(dv, 0.0)
+                out.setdefault('paired', {}).setdefault(direction, {}).setdefault(lab, {})[tr] = {
+                    'n_pools': len(shared), 'erm_minus_derm': round(float(dv.mean()), 4),
+                    'p': round(float(pv), 4),
+                    'toward_zero': int(sum(abs(pb[k]) < abs(pa[k]) for k in shared))}
     return out
 
 
@@ -975,14 +1002,26 @@ def main():
     for key, arm in od['arms'].items():
         print(f"\nexposure split {key}: trained on {arm['train_odour']}, tested on "
               f"{arm['test_odour']} ({arm['n_obs']} obs, {arm['n_pools']} pools)")
-        for lab, r in arm['behav'].items():
-            print(f"    {lab}  a_O-a_H {r['mean']:+.3f}  95% CI [{r['lo']:+.3f}, {r['hi']:+.3f}]"
-                  f"  over {r['n_pools']} pools   true D_Y {r['true_dY']:+.3f}  "
-                  f"pred D_f {r['pred_dF']:+.3f}  rd {r['r_delta']}")
+        for lab, byt in arm.get('cells', {}).items():
+            for tr, r in byt.items():
+                leg = 'ON ' if tr == 'H->O' else 'OFF'
+                print(f"    {lab} {tr:5s} [{leg}]  bias {r['mean']:+.3f}  "
+                      f"CI [{r['lo']:+.3f}, {r['hi']:+.3f}]  n={r['n_pools']}   "
+                      f"true D_Y {r['true_dY']:+.3f}  pred D_f {r['pred_dF']:+.3f}  "
+                      f"rd {r['r_delta']}  resid {arm.get('match_resid', {}).get(lab)}")
+    print('\n  SIGN TEST -- does the bias reverse with the training direction?')
     for obj, d in od.get('sign_test', {}).items():
-        for lab, r in d.items():
-            print(f"  SIGN TEST {obj} {lab}: train-fear {r['train_fear']:+.3f} vs train-social "
-                  f"{r['train_social']:+.3f}  -> {'REVERSES' if r['reverses'] else 'same sign'}")
+        for lab, byt in d.items():
+            for tr, r in byt.items():
+                print(f"    {obj:4s} {lab} {tr:5s}: train-fear {r['train_fear']:+.3f} vs "
+                      f"train-social {r['train_social']:+.3f}  -> "
+                      f"{'REVERSES' if r['reverses'] else 'same sign'}")
+    print('\n  PAIRED ERM-DERM on the same pools')
+    for direction, d in od.get('paired', {}).items():
+        for lab, byt in d.items():
+            for tr, r in byt.items():
+                print(f"    {direction:12s} {lab} {tr:5s}: {r['erm_minus_derm']:+.3f}  "
+                      f"p={r['p']:.4f}  DERM nearer zero {r['toward_zero']}/{r['n_pools']}")
 
     # ---- the PPI++ bound, for the report's box ----------------------------------------------
     n, N = 24, 48

@@ -86,6 +86,7 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --patch-pool-dim "${PATCH_POOL_DIM:-0}" \
     --n-train-pools "${N_TRAIN_POOLS:-0}" \
     --env-key "${ENV_KEY:-none}" \
+    --select "${SELECT:-monitor_ap}" \
     --derm-floor "${DERM_FLOOR:-0.02}" \
     --vrex-beta "${VREX_BETA:-0}" \
     --vrex-warmup-epochs "${VREX_WARMUP_EPOCHS:-5}" \

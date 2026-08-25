@@ -97,6 +97,21 @@ declare -A ARM_TAG=(
 )
 ORDER="odourF_erm odourF_derm odourS_erm odourS_derm"
 
+# SELECT=last gives every arm a FIXED EPOCH BUDGET, which takes the selection rule out of the
+# ERM-vs-DERM contrast. The default keeps the epoch with the highest UNWEIGHTED monitor AP -- for a
+# DERM arm that is a request for the epoch that best exploits the phase prior, i.e. the selection
+# rule pulls against the objective and the comparison inherits it. The last ten epochs of all four
+# arms sit inside 0.01 AP of each other, so nothing is being given up by fixing the budget.
+#
+#     SELECT=last bash scripts/mice_behavior/xfit_odour.sh
+#
+# Separate tags, so the two selection rules can be read side by side rather than one overwriting
+# the other.
+if [ "${SELECT:-monitor_ap}" = "last" ]; then
+  for a in $ORDER; do ARM_TAG[$a]="${ARM_TAG[$a]}_last"; done
+  export SELECT=last
+fi
+
 if ! grep -q 'train-odour' scripts/mice_behavior/train_online_aug.sh; then
   echo "REFUSING: train_online_aug.sh does not forward --train-odour." >&2; exit 1
 fi

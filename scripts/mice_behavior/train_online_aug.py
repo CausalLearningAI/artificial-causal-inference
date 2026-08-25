@@ -382,6 +382,15 @@ def main():
                          '[0.83, 1.20].')
     p.add_argument('--n-epochs', type=int, default=20)
     p.add_argument('--patience', type=int, default=8)
+    p.add_argument('--select', choices=['monitor_ap', 'last'], default='monitor_ap',
+                   help="which epoch to keep. 'monitor_ap' (default) keeps the highest UNWEIGHTED "
+                        'validation AP -- which for a DERM or vREx arm rewards exactly the '
+                        'prior-exploitation the objective exists to remove, so the selection rule '
+                        'and the objective pull against each other and the comparison against ERM '
+                        "is confounded by it. 'last' keeps the final epoch and disables early "
+                        'stopping: a fixed epoch budget, identical for both arms, so a DERM-vs-ERM '
+                        'difference is attributable to the objective and to nothing else. Use it '
+                        'for any arm whose point is a comparison across objectives.')
     p.add_argument('--batch-size', type=int, default=128)
     p.add_argument('--read-workers', type=int, default=32, help='NFS reads: latency-bound, use many')
     p.add_argument('--decode-workers', type=int, default=16, help='decode+augment: CPU-bound, ~= n_cpus')
@@ -909,8 +918,12 @@ def main():
               f'{f"derm_w_raw={derm_raw_mean:.2f}  " if derm_tab is not None else ""}'
               f'lr={opt.param_groups[0]["lr"]:.2e}  ({time.time()-t0:.1f}s compute'
               f'{f", {read_s:.0f}s new-frame read" if read_s > 1 else ""})', flush=True)
-        if ap > best:
-            best, since = ap, 0
+        # --select last: a FIXED EPOCH BUDGET. Keep every epoch (so the last one survives) and
+        # never early-stop, which takes the selection rule out of the ERM-vs-DERM contrast
+        # entirely. Motivated rather than merely different: selecting on unweighted AP asks for
+        # the epoch that best uses the phase prior, which is the thing DERM removes.
+        if args.select == 'last' or ap > best:
+            best, since = max(ap, best), 0
             torch.save(model.state_dict(), OUT / 'best_model.pt')
             if finetune:
                 # The head alone is not a usable checkpoint once the encoder has moved -- but
@@ -923,7 +936,7 @@ def main():
                 train_keys = {n for n, p in encoder.named_parameters() if p.requires_grad}
                 torch.save({k: v for k, v in encoder.state_dict().items() if k in train_keys},
                            OUT / 'best_encoder.pt')
-        else:
+        elif args.select != 'last':
             since += 1
             if since >= args.patience:
                 print(f'early stopping (no improvement for {args.patience})', flush=True)
@@ -1022,7 +1035,7 @@ def main():
                'warmup_epochs': args.warmup_epochs, 'lr': lr, 'weight_decay': wd, 'dropout': dropout,
                'n_epochs': args.n_epochs, 'batch_size': args.batch_size,
                'max_train_frames': args.max_train_frames, 'val_pools': sorted(val_pools),
-               'train_odour': args.train_odour or None,
+               'train_odour': args.train_odour or None, 'select': args.select,
                'jpeg_cache_gib': sum(len(b) for b in jpeg_cache.values())/1024**3,
                'jpeg_cache_frames': len(jpeg_cache), 'ap_report': apr, 'rate_report': rr,
                'best_ap': apr['macro/tol0']['ap'], 'history': hist},
