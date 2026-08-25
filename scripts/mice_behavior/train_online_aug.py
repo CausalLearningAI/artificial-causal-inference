@@ -728,6 +728,16 @@ def main():
         print('  population Var(Y|E): ' + '  '.join(
             f'{n} nt {derm_var_pop[i, 0]:.5f} nn {derm_var_pop[i, 1]:.5f}'
             for i, n in enumerate(env_names)), flush=True)
+        # REFUSE, do not warn. A floor that clips every environment makes the target mass uniform
+        # and the whole objective an exact no-op, and a warning after submission is a wasted run --
+        # this had already cost two launches. Checked here, before anything is trained.
+        _vf = args.derm_floor * (1.0 - args.derm_floor)
+        if (derm_var_pop < _vf).all():
+            raise SystemExit(
+                f'--derm-floor {args.derm_floor:g} gives a variance floor of {_vf:.2e}, which is '
+                f'above EVERY population Var(Y|E) here (max {derm_var_pop.max():.5f}). That clips '
+                'all environments to one value, makes the target mass uniform and turns DERM into '
+                'an exact no-op. Pass a smaller --derm-floor.')
 
     pos_idx = np.where(tm.labels.sum(1) > 0)[0]
     neg_idx = np.where(tm.labels.sum(1) == 0)[0]

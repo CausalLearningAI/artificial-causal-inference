@@ -46,6 +46,16 @@ if [ "${DERM:-0}" = "1" ]; then
     DERM_ARGS="--derm"
 fi
 
+# --derm-floor is only forwarded when it is actually set. It used to be passed
+# unconditionally as "${DERM_FLOOR:-0.02}", which silently overrode the mode-dependent
+# default in the trainer -- 0.02 is safe against the SAMPLED variance and clips EVERY
+# environment against the population one, turning the whole DERM correction into an exact
+# no-op. That cost two launches before the tripwire caught it.
+DERM_FLOOR_ARGS=""
+if [ -n "${DERM_FLOOR:-}" ]; then
+    DERM_FLOOR_ARGS="--derm-floor ${DERM_FLOOR}"
+fi
+
 WANDB_ARGS=""
 if [ "${WANDB:-0}" = "1" ]; then
     WANDB_ARGS="--wandb"
@@ -87,7 +97,7 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --n-train-pools "${N_TRAIN_POOLS:-0}" \
     --env-key "${ENV_KEY:-none}" \
     --select "${SELECT:-monitor_ap}" \
-    --derm-floor "${DERM_FLOOR:-0.02}" \
+    ${DERM_FLOOR_ARGS} \
     --derm-prevalence "${DERM_PREVALENCE:-sampled}" \
     --vrex-beta "${VREX_BETA:-0}" \
     --vrex-warmup-epochs "${VREX_WARMUP_EPOCHS:-5}" \
