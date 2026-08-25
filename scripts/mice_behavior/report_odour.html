@@ -96,8 +96,8 @@
   const variant = () => VARIANTS.find(v => v.id === state.variant) || VARIANTS[0];
   const armE = () => ARMS['tr' + state.dir + '_erm' + variant().e];
   const armD = () => ARMS['tr' + state.dir + '_derm' + variant().d];
-  const cell = (arm, r) => ((arm.cells || {})[r.lab] || {})[r.tr];
-  const pools = (arm, r) => ((arm.per_pool || {})[r.lab] || {})[r.tr] || {};
+  const cell = (arm, r) => (((arm || {}).cells || {})[r.lab] || {})[r.tr];
+  const pools = (arm, r) => (((arm || {}).per_pool || {})[r.lab] || {})[r.tr] || {};
   const paired = (r) => (((OS.paired || {})[DIRS[state.dir].paired + state.variant]
     || {})[r.lab] || {})[r.tr];
 
@@ -271,6 +271,13 @@
 
   // ------------------------------------------------------------------ render
   function render() {
+    // self-heal: if the state names a direction x variant pair that was never trained (the seed
+    // replicates cover the fear direction only), keep the direction and snap the variant to one
+    // that exists there, rather than trusting the disabled buttons to have made this unreachable.
+    if (!has(state.dir, variant())) {
+      const v = VARIANTS.find(v2 => has(state.dir, v2));
+      if (v) state.variant = v.id;
+    }
     const bar = $('osf-bar'); bar.textContent = '';
     bar.append(
       seg('trained on', 'dir', Object.entries(DIRS).map(([k, d]) =>

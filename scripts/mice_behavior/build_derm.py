@@ -824,6 +824,38 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
                     'n_pools': len(shared), 'erm_minus_derm': round(float(dv.mean()), 4),
                     'p': round(float(pv), 4),
                     'toward_zero': int(sum(abs(pb[k]) < abs(pa[k]) for k in shared))}
+    # SEED-AVERAGED paired test over the replicate arms: per-pool bias averaged across seeds
+    # WITHIN arm first (the report's standing "seeds averaged within a unit" convention), then
+    # ERM-DERM paired over the same pools. This is the seed-robust headline; the per-seed rows in
+    # `paired` show the spread it averages over -- ERM's imported bias varies with seed while
+    # DERM's stays near zero, so single-seed paired p values range from <1e-4 to 0.39 on the same
+    # comparison.
+    SEED_SETS = {'train_fear_popw_seedavg':
+                 ('trF', ['_last', '_last_s1', '_last_s2'],
+                  ['_last_popw', '_last_popw_s1', '_last_popw_s2'])}
+    for key, (kdir, es_l, ds_l) in SEED_SETS.items():
+        E_ = [out['arms'].get(f'{kdir}_erm{s}') for s in es_l]
+        D_ = [out['arms'].get(f'{kdir}_derm{s}') for s in ds_l]
+        if not (all(E_) and all(D_)):
+            continue
+        for lab in LABELS:
+            for x, y in TRANS:
+                tr = f'{x}->{y}'
+                pp = [a.get('per_pool', {}).get(lab, {}).get(tr) for a in E_ + D_]
+                if not all(pp):
+                    continue
+                pools = sorted(set.intersection(*[set(p) for p in pp]))
+                if len(pools) < 3:
+                    continue
+                ev = np.array([np.mean([p[q] for p in pp[:len(E_)]]) for q in pools])
+                dm = np.array([np.mean([p[q] for p in pp[len(E_):]]) for q in pools])
+                diff = ev - dm
+                _, pv = stats.ttest_1samp(diff, 0.0)
+                out.setdefault('seed_avg', {}).setdefault(key, {}).setdefault(lab, {})[tr] = {
+                    'n_seeds': len(E_), 'n_pools': len(pools),
+                    'erm_mean': round(float(ev.mean()), 4),
+                    'derm_mean': round(float(dm.mean()), 4),
+                    'erm_minus_derm': round(float(diff.mean()), 4), 'p': round(float(pv), 4)}
     return out
 
 

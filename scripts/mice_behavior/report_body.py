@@ -216,6 +216,29 @@ def os_pair(direction, behav, what, trans='H->O'):
     return f"{r['erm_minus_derm']:+.3f}".replace('-', '&minus;')
 
 
+def os_savg(lab, trans='H->O', what='erm_minus_derm', key='train_fear_popw_seedavg'):
+    """The seed-averaged paired block: per-pool bias averaged across seeds within arm first."""
+    r = _OS.get('seed_avg', {}).get(key, {}).get(lab, {}).get(trans)
+    if r is None:
+        return '&mdash;'
+    if what == 'p':
+        return '&lt; 0.0001' if r['p'] < 1e-4 else f"{r['p']:.4f}".rstrip('0').rstrip('.')
+    if what in ('n_seeds', 'n_pools'):
+        return r[what]
+    return f"{r[what]:+.3f}".replace('-', '&minus;')
+
+
+# The largest |bias| any corrected-DERM cell reaches across the seed replicates -- computed, so
+# the prose claim "stays near zero in every cell" cannot outlive the data it described.
+try:
+    os_popw_max = '{:.2f}'.format(max(
+        abs(_OS['arms'][t]['cells'][lab][tr]['mean'])
+        for t in ('trF_derm_last_popw', 'trF_derm_last_popw_s1', 'trF_derm_last_popw_s2')
+        for lab in ('nt', 'nn') for tr in _TR))
+except KeyError:
+    os_popw_max = '&mdash;'
+
+
 # Whether the effects grid already carries a DERM predictor decides how 04.6's closing block
 # reads; keyed off estimates.json's own predictor list so the text cannot claim what the grid
 # does not hold.
@@ -1141,11 +1164,23 @@ BODY = f'''
     {os_('trF_derm_last_popw','nt','O->P')}) but the paired difference does not resolve
     (p {os_pair('train_fear_popw','nt','p','O->P')}).</p>
 
+    <p><b>And it replicates across seeds.</b> Over three seeds of the same pair, corrected DERM's
+    bias stays near zero in every cell (largest |mean| {os_popw_max}, every interval covering
+    zero), while ERM's imported bias is itself a draw of the seed &mdash;
+    {os_('trF_erm_last','nt')}, {os_('trF_erm_last_s1','nt')}, {os_('trF_erm_last_s2','nt')} on
+    the headline cell. How much of the shortcut ERM picks up is luck; DERM removes the channel
+    rather than the draw. Averaging each pool over the three seeds first, the paired difference on
+    that cell is {os_savg('nt')} (ERM {os_savg('nt','H->O','erm_mean')} against DERM
+    {os_savg('nt','H->O','derm_mean')}) at p = {os_savg('nt','H->O','p')}; the other three cells,
+    where ERM's average bias is already small, do not resolve. The per-seed arms are in the
+    figure's variant control.</p>
+
     <div class="note"><b>The nose-to-nose harm was the weight estimate, not the method.</b> Under
     the subsample's weights DERM <em>introduced</em> {os_('trF_derm_last','nn')} of bias where ERM
     sat at {os_('trF_erm_last','nn')} &mdash; the finding an earlier version of this section
-    rested on. The population weights take it to {os_('trF_derm_last_popw','nn')}
-    (paired against ERM, p {os_pair('train_fear_popw','nn','p')}). What survives on nose-to-nose
+    rested on. The population weights take it to {os_('trF_derm_last_popw','nn')}, and it stays
+    near zero in both seed replicates ({os_('trF_derm_last_popw_s1','nn')},
+    {os_('trF_derm_last_popw_s2','nn')}). What survives on nose-to-nose
     is a gain error, not an offset: trained on social it estimates
     {os_('trS_erm_last','nn','H->O','pred_dF')} where the truth is
     {os_('trS_erm_last','nn','H->O','true_dY')}, over-responding by half again. DERM adds one
