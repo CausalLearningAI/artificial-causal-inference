@@ -89,7 +89,6 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --select "${SELECT:-monitor_ap}" \
     --derm-floor "${DERM_FLOOR:-0.02}" \
     --derm-prevalence "${DERM_PREVALENCE:-sampled}" \
-    --derm-env-prior "${DERM_ENV_PRIOR:-frames}" \
     --vrex-beta "${VREX_BETA:-0}" \
     --vrex-warmup-epochs "${VREX_WARMUP_EPOCHS:-5}" \
     --batch-size "${BATCH_SIZE:-64}" \
