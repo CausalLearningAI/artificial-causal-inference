@@ -150,6 +150,45 @@ _fb = [r for r in M['runs'] if r['role'] == 'deployment fold (bitfit)']
 xfb = ({k: sum(r[k] for r in _fb) / len(_fb) for k in _KM} if len(_fb) == 3 else None)
 
 
+_OS = D.get('odour_split', {})
+
+
+def os_(arm, behav, what='mean'):
+    """One exposure-split cell. `arm` is trF_erm / trF_derm / trS_erm / trS_derm."""
+    r = _OS.get('arms', {}).get(arm, {}).get('behav', {}).get(behav)
+    if r is None:
+        return '&mdash;'
+    if what == 'ci':
+        return f"[{r['lo']:+.2f}, {r['hi']:+.2f}]".replace('-', '&minus;')
+    if what == 'resolved':
+        return r['lo'] * r['hi'] > 0
+    if what in ('mean', 'true_dY', 'pred_dF'):
+        return f"{r[what]:+.3f}".replace('-', '&minus;')
+    return r[what]
+
+
+def os_cell(arm, behav):
+    """The estimate as a <td>, marked when its interval excludes zero."""
+    return '<td%s>%s%s</td>' % (CLS if os_(arm, behav, 'resolved') else '',
+                               os_(arm, behav), '*' if os_(arm, behav, 'resolved') else '')
+
+
+def os_rev(obj, behav):
+    r = _OS.get('sign_test', {}).get(obj, {}).get(behav)
+    return '&mdash;' if r is None else ('<b>reverses</b>' if r['reverses'] else 'same sign')
+
+
+def os_pair(direction, behav, what):
+    r = _OS.get('paired', {}).get(direction, {}).get(behav)
+    if r is None:
+        return '&mdash;'
+    if what == 'p':
+        return f"{r['p']:.4f}".rstrip('0').rstrip('.')
+    if what == 'toward':
+        return f"{r['toward_zero']}/{r['n_pools']}"
+    return f"{r['erm_minus_derm']:+.3f}".replace('-', '&minus;')
+
+
 def nui(behav, fac, which):
     """eta-squared and p for a pool-level factor's share of the model's bias."""
     d = D['nuisance'][which][behav][fac]
@@ -1053,6 +1092,77 @@ BODY = f'''
     and the phase map reproduces the protocol's own 30/15/15-minute split. vREx is a different
     thing and does not help: four arms, best +0.008, worst &minus;0.094.</p>
 
+    <h3>The exposure split &mdash; and it does not agree with the cross-fit</h3>
+    <p>The cross-fit above holds out <em>pools</em>. This holds out an <em>exposure</em>: every pool
+    is filmed twice, fear and social, through the same three phases, so training on one session and
+    testing on the other holds the cage, the animals, the annotator and the lighting fixed and
+    varies only the treatment episode. That buys a <b>control the pool split cannot give</b>. The
+    two sessions carry <em>opposite</em> true effects on nose-to-tail
+    ({os_('trS_erm','nt','true_dY')} bouts/min tested on fear against
+    {os_('trF_erm','nt','true_dY')} tested on social), so a model that has learnt its training
+    session's phase prior imports that session's gap and its bias must <b>reverse sign when the
+    training direction reverses</b>. A model that is merely worse on an exposure it never saw
+    cannot do that.</p>
+    <div class="scroll"><table>
+      <thead><tr><th>objective</th><th>behaviour</th><th>train fear &rarr; test social</th>
+        <th>train social &rarr; test fear</th><th>sign</th><th>paired ERM&minus;DERM</th></tr></thead>
+      <tbody>
+        <tr><td rowspan="2">ERM</td><td>nose-to-tail</td>{os_cell('trF_erm','nt')}
+          {os_cell('trS_erm','nt')}<td>{os_rev('erm','nt')}</td><td rowspan="2">&mdash;</td></tr>
+        <tr><td>nose-to-nose</td>{os_cell('trF_erm','nn')}{os_cell('trS_erm','nn')}
+          <td>{os_rev('erm','nn')}</td></tr>
+        <tr><td rowspan="2">DERM</td><td>nose-to-tail</td>{os_cell('trF_derm','nt')}
+          {os_cell('trS_derm','nt')}<td>{os_rev('derm','nt')}</td>
+          <td>{os_pair('train_fear','nt','d')} (p {os_pair('train_fear','nt','p')}) /
+              {os_pair('train_social','nt','d')} (p {os_pair('train_social','nt','p')})</td></tr>
+        <tr><td>nose-to-nose</td>{os_cell('trF_derm','nn')}{os_cell('trS_derm','nn')}
+          <td>{os_rev('derm','nn')}</td>
+          <td>{os_pair('train_fear','nn','d')} (p {os_pair('train_fear','nn','p')}) /
+              {os_pair('train_social','nn','d')} (p {os_pair('train_social','nn','p')})</td></tr>
+      </tbody></table></div>
+    <p class="defn">a<sub>O</sub>&minus;a<sub>H</sub> in bouts per minute on the held-out exposure,
+    {os_('trF_erm','nt','n_pools')} pools per direction, 72 observations per arm, inside 02b's
+    15-minute window at the <b>rate-matched</b> threshold. * = interval excludes zero. The paired
+    column is ERM&minus;DERM on the <em>same</em> pools, which is the comparison the design exists
+    to make.</p>
+
+    <p><b>ERM's bias reverses on both behaviours, so the shortcut is real.</b> That is the control
+    working: a direction-tied sign flip is not something a generalisation gap produces.
+    <b>And DERM removes the reversal on nose-to-tail</b> &mdash; ERM's
+    {os_('trF_erm','nt')}/{os_('trS_erm','nt')} spread collapses to
+    {os_('trF_derm','nt')}/{os_('trS_derm','nt')}, both sitting on zero. That is exactly the
+    predicted repair.</p>
+    <div class="note"><b>But read the next line before deploying anything.</b> On nose-to-nose DERM
+    does the opposite: it <em>widens</em> the reversal, from
+    {os_('trF_erm','nn')}/{os_('trS_erm','nn')} to
+    {os_('trF_derm','nn')}/{os_('trS_derm','nn')}, overshooting in both directions.
+    <b>That is the mirror image of the cross-fit above, which found DERM helping on nose-to-nose
+    and overshooting on nose-to-tail.</b> The two designs disagree about which behaviour DERM is
+    for, so <b>"deploy DERM on nose-to-nose only" is not a robust conclusion</b> &mdash; it was one
+    split design's answer. Neither result is wrong: they hold out different things, and this one is
+    a LOWER BOUND besides (the model has seen the other exposure of the same cage and the same
+    animals, so its bias here is smaller than on a pool it has never seen) and cannot feed PPI++ at
+    all, whose rectifier would sit on pools the model trained on.
+    <br><br>Two more things the paired column says. DERM's correction is
+    <b>direction-dependent</b>: it shifts the estimate significantly when trained on fear
+    ({os_pair('train_fear','nt','d')}, p {os_pair('train_fear','nt','p')} on nose-to-tail;
+    {os_pair('train_fear','nn','d')}, p {os_pair('train_fear','nn','p')} on nose-to-nose) and does
+    nothing measurable when trained on social (p {os_pair('train_social','nt','p')} and
+    p {os_pair('train_social','nn','p')}). And it is a <b>mean shift, not a per-pool repair</b>:
+    DERM lands nearer zero in only {os_pair('train_fear','nt','toward')} pools on nose-to-tail
+    trained on fear, and in 10&ndash;11 of 24 in every other cell &mdash; under half, every time.
+    Structurally that is what one constant per environment can do, and no more.</div>
+    <div class="note"><b>What the first attempt at this measured, and why it is not above.</b> The
+    test session was scored by a dense pass that covered the <em>unannotated</em> pools instead of
+    the held-out exposure, so it had no truth to compare against at all. Fixing that exposed two
+    further conventions this table now follows and the first numbers did not: 02b's window (H runs
+    30 minutes against O and P's 15, so the whole-recording aggregate averages the H leg over twice
+    the truth's span) and the rate-matched threshold. The threshold mattered most, and not
+    neutrally: DERM needs 0.96&ndash;0.99 to hit the same bout rate that ERM hits at
+    0.92&ndash;0.97, because DERM's probabilities are inflated by construction. At a fixed 0.90 the
+    unmatched rate manufactured a bias three times larger for the DERM arms than for the ERM ones
+    &mdash; which read as DERM failing badly on both behaviours. It was calibration.</div>
+
     <div class="note"><b>One thing to change before the next DERM arm.</b> The saved checkpoint is
     the epoch with the highest <em>unweighted</em> validation AP, so selection rewards exactly the
     prior-exploitation the objective removes. It is small here &mdash; the best epoch is 21&ndash;24
@@ -1198,8 +1308,8 @@ BODY = f'''
 
 <section><div class="measure">
   <div class="sechead"><p class="eyebrow">06 &middot; Next</p><h2>What to do next</h2></div>
-  <p>In priority order. <span class="run"><b>Amber is in the queue</b></span> &mdash; that one needs
-  the GPU, not a decision; every other row needs a decision or an annotator.</p>
+  <p>In priority order. <b>Nothing is in the queue</b> &mdash; every row below needs a decision or
+  an annotator, not compute.</p>
   <div class="scroll"><table>
     <thead><tr><th></th><th>action</th><th>status</th><th>what it changes</th></tr></thead>
     <tbody>
@@ -1210,22 +1320,20 @@ BODY = f'''
         {narrowing('xfit_bit6_dense', 'events')} against {narrowing('xfit_dense', 'events')} on the
         level and {narrowing('xfit_bit6_dense', 'decay')} against {narrowing('xfit_dense', 'decay')}
         on the timing &mdash; a decision, not a build step, because it moves every number in 03</td></tr>
-      <tr><td>2</td><td>decide whether to deploy DERM, per behaviour</td><td>answered &mdash; see 04.6</td>
-        <td>on 24 pools ERM carries a <em>resolved</em> estimand bias on nose-to-nose,
-        {eb24('nn','ERM')} bouts/min or {eb24('nn','ERM','share')} the effect, and DERM cuts it by
-        36% (p = {eb24p('nn','p')}). On nose-to-tail it overshoots past zero. The open question is
-        no longer whether DERM works but whether to apply it per behaviour</td></tr>
-      <tr><td>3</td><td class="run">the exposure-split PPCI test, both directions</td>
-        <td class="run">all 4 models trained; the test session is being scored now</td>
-        <td class="run">trains on one exposure session and tests on the other, so the phase shortcut
-        shows as a bias that <em>reverses sign</em> when the direction reverses &mdash; which a
-        plain generalisation gap cannot do. The first attempt measured nothing:
-        <code>predict_dense.py</code> scores the UNANNOTATED pools and admitted labelled ones only
-        from a run's held-out <em>pools</em>, while this design holds out an <em>exposure</em>, so
-        all four passes scored 288 unannotated observations and none of the test session that
-        carries the truth. <code>--held-out-odour</code> now selects by exposure &mdash; 72
-        observations, 24 pools, 3 phases per arm, a quarter of the work and on cached frames.
-        24 units of a<sub>O</sub>&minus;a<sub>H</sub> per direction when it lands</td></tr>
+      <tr><td>2</td><td>decide whether to deploy DERM &mdash; <b>not per behaviour</b></td>
+        <td>two designs, opposite verdicts &mdash; see 04.6</td>
+        <td>the pool cross-fit says DERM fixes nose-to-nose ({eb24('nn','ERM')} &rarr;
+        {eb24('nn','DERM')}, p = {eb24p('nn','p')}) and overshoots nose-to-tail. The exposure split
+        says the reverse: it removes the whole sign reversal on nose-to-tail and widens it on
+        nose-to-nose. <b>Per-behaviour deployment was one design's answer, not a finding.</b> What
+        both agree on: DERM moves the estimand, the move is a mean shift not a per-pool repair, and
+        AP is the wrong place to look</td></tr>
+      <tr><td>3</td><td>the exposure-split PPCI test, both directions</td>
+        <td>answered &mdash; see 04.6</td>
+        <td>all four arms landed on 24 pools per direction. ERM's bias <b>reverses sign with the
+        training direction on both behaviours</b>, which a generalisation gap cannot do, so the
+        phase shortcut is real and reaches the estimand. DERM erases the reversal on nose-to-tail
+        and widens it on nose-to-nose &mdash; the opposite of the cross-fit's verdict</td></tr>
       <tr><td>4</td><td>annotate ~20 more v1 pools</td><td>needs annotator time</td>
         <td>+0.076 AP per doubling and no plateau, worth more than every modelling change combined
         &mdash; and it raises CI's own precision, not only PPI++'s</td></tr>

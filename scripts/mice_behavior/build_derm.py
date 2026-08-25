@@ -108,7 +108,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from event_eval import runs, postprocess                                    # noqa: E402
-from build_estimates import labelled_truth                                 # noqa: E402
+from build_estimates import WINDOW, labelled_truth                          # noqa: E402
 
 FRAME = ROOT / 'results' / 'vision' / 'mice' / 'frame'
 OUT = FRAME / '_figures'
@@ -616,44 +616,74 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
         # 24, and it is what left this block reading n_obs 0. Reading it again would silently
         # reintroduce that. See predict_dense.py --held-out-odour.
         csv = FRAME / tag / 'pred_dense_v1_heldout.csv'
-        if not csv.exists():
+        npz = FRAME / tag / 'pred_dense_v1_heldout.npz'
+        if not (csv.exists() and npz.exists()):
             out['absent'].append(tag)
             continue
         out['landed'].append(tag)
         test_od = 'S' if train_od == 'F' else 'F'
         d = pd.read_csv(csv)
-        # bout counts at the threshold nearest the one the rest of the report uses
         rec = d[['observation_id', 'pool', 'phase', 'odor']].copy()
-        for lab in LABELS:
-            cands = [c for c in d.columns if c.startswith(f'p_{lab}_t')]
-            if not cands:
-                continue
-            col = min(cands, key=lambda c: abs(float(c.split('_t')[1]) - 0.90))
-            rec[f'f_{lab}'] = d[col]
-        tr = labelled_truth()
-        m = rec.merge(tr, on='observation_id', how='inner')
-        m = m[m.odor == test_od]
+        m = rec.merge(labelled_truth(), on='observation_id', how='inner')
+        m = m[m.odor == test_od].reset_index(drop=True)
         arm = {'tag': tag, 'train_odour': train_od, 'test_odour': test_od,
-               'n_obs': int(len(m)), 'n_pools': int(m.pool.nunique()), 'behav': {}}
+               'n_obs': int(len(m)), 'n_pools': int(m.pool.nunique()),
+               'window_min': round(WINDOW / FPS / 60, 1), 'thr': {}, 'behav': {}}
+        # TWO CONVENTIONS THIS BLOCK GOT WRONG ONCE, both of which corrupt a_O - a_H:
+        #
+        # (1) THE WINDOW. It read the CSV's `p_*_t*` columns, which aggregate over the WHOLE
+        #     recording -- and H is 30 minutes while O and P are 15, so the H term was averaged
+        #     over twice the span the truth uses. Behaviour decays inside a phase (that is what
+        #     section 02b measures), so this is not a wash: it biases the H leg specifically.
+        #     build_estimates.py says it outright -- the window has to be applied BEFORE
+        #     aggregating and cannot be undone afterwards. So read the npz and slice.
+        #
+        # (2) THE THRESHOLD. It took the column nearest 0.90, fixed. These single-exposure models
+        #     run 3-8x hot in occupancy, so a fixed threshold leaves the global bout RATE
+        #     unmatched and what gets measured is mostly calibration. Worse, it is not neutral
+        #     between the arms being compared: DERM's probabilities are inflated BY CONSTRUCTION
+        #     (the weight ratio is the prior odds), so a fixed threshold manufactures a larger
+        #     apparent bias for DERM than for ERM and would have been read as DERM failing.
+        #     Rate-match instead, exactly as match_threshold() does for the deployment folds:
+        #     spend the one degree of freedom the estimand allows -- the global scale -- and
+        #     whatever phase-dependence survives cannot be explained away as calibration.
+        z = np.load(npz, allow_pickle=True)
+        seq = {o: z[o][:WINDOW].astype(np.float32) for o in m.observation_id if o in z.files}
+        mins = WINDOW / FPS / 60
         for lab in LABELS:
-            if f'f_{lab}' not in m.columns:
+            j = LABELS.index(lab)
+            have = [o for o in m.observation_id if o in seq]
+            if len(have) < 3:
                 continue
+            keep = m[m.observation_id.isin(have)]
+            total_true = float(keep[f't_events_{lab}'].sum() * mins)
+            th, gap = float('nan'), float('inf')
+            for cand in np.round(np.arange(0.05, 1.0, 0.01), 2):
+                n = sum(len(runs(postprocess(seq[o][:, j] >= cand, 1, 1))) for o in have)
+                if abs(n - total_true) < gap:
+                    th, gap = float(cand), abs(n - total_true)
+            arm['thr'][lab] = th
+            f = {o: len(runs(postprocess(seq[o][:, j] >= th, 1, 1))) / mins for o in have}
             rows = []
-            for pool, g in m.groupby('pool'):
+            for pool, g in keep.groupby('pool'):
                 q = g.drop_duplicates('phase').set_index('phase')
                 if not {'H', 'O'} <= set(q.index):
                     continue
+                fO, fH = f[q.loc['O', 'observation_id']], f[q.loc['H', 'observation_id']]
                 rows.append({
-                    'bias': (q.loc['O', f'f_{lab}'] - q.loc['O', f't_events_{lab}'])
-                            - (q.loc['H', f'f_{lab}'] - q.loc['H', f't_events_{lab}']),
+                    'pool': pool,
+                    'bias': (fO - q.loc['O', f't_events_{lab}'])
+                            - (fH - q.loc['H', f't_events_{lab}']),
                     'dY': q.loc['O', f't_events_{lab}'] - q.loc['H', f't_events_{lab}'],
-                    'dF': q.loc['O', f'f_{lab}'] - q.loc['H', f'f_{lab}']})
+                    'dF': fO - fH})
             if len(rows) < 3:
                 continue
             r = pd.DataFrame(rows)
             v = r.bias.to_numpy()
             se = v.std(ddof=1) / np.sqrt(len(v))
             qt = float(stats.t.ppf(0.975, len(v) - 1))
+            arm.setdefault('per_pool', {})[lab] = {
+                str(k): round(float(x), 4) for k, x in zip(r['pool'], v)}
             arm['behav'][lab] = {
                 'n_pools': len(v), 'mean': round(float(v.mean()), 4),
                 'lo': round(float(v.mean() - qt * se), 4),
@@ -672,6 +702,26 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
             lab: {'train_fear': a['behav'][lab]['mean'], 'train_social': b['behav'][lab]['mean'],
                   'reverses': bool(a['behav'][lab]['mean'] * b['behav'][lab]['mean'] < 0)}
             for lab in LABELS if lab in a['behav'] and lab in b['behav']}
+    # PAIRED, because the design's whole advantage is that both objectives are scored on the SAME
+    # 24 pools of the SAME held-out exposure. Comparing two independent CIs throws that away: the
+    # between-pool variance is common to both arms and cancels in the difference.
+    for direction, key in (('train_fear', 'trF'), ('train_social', 'trS')):
+        a, b = out['arms'].get(f'{key}_erm'), out['arms'].get(f'{key}_derm')
+        if not (a and b):
+            continue
+        for lab in LABELS:
+            pa, pb = a.get('per_pool', {}).get(lab), b.get('per_pool', {}).get(lab)
+            if not (pa and pb):
+                continue
+            shared = sorted(set(pa) & set(pb))
+            if len(shared) < 3:
+                continue
+            dv = np.array([pa[k] - pb[k] for k in shared])
+            t, pv = stats.ttest_1samp(dv, 0.0)
+            out.setdefault('paired', {}).setdefault(direction, {})[lab] = {
+                'n_pools': len(shared), 'erm_minus_derm': round(float(dv.mean()), 4),
+                'p': round(float(pv), 4),
+                'toward_zero': int(sum(abs(pb[k]) < abs(pa[k]) for k in shared))}
     return out
 
 
