@@ -783,16 +783,16 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
             if not (a and b):
                 continue
             obj = key                                   # label the row by the tag it came from
-        for lab in LABELS:
-            for x, y in TRANS:
-                tr = f'{x}->{y}'
-                ca = a.get('cells', {}).get(lab, {}).get(tr)
-                cb = b.get('cells', {}).get(lab, {}).get(tr)
-                if not (ca and cb):
-                    continue
-                out.setdefault('sign_test', {}).setdefault(obj, {}).setdefault(lab, {})[tr] = {
-                    'train_fear': ca['mean'], 'train_social': cb['mean'],
-                    'reverses': bool(ca['mean'] * cb['mean'] < 0)}
+            for lab in LABELS:
+                for x, y in TRANS:
+                    tr = f'{x}->{y}'
+                    ca = a.get('cells', {}).get(lab, {}).get(tr)
+                    cb = b.get('cells', {}).get(lab, {}).get(tr)
+                    if not (ca and cb):
+                        continue
+                    out.setdefault('sign_test', {}).setdefault(obj, {}).setdefault(lab, {})[tr] = {
+                        'train_fear': ca['mean'], 'train_social': cb['mean'],
+                        'reverses': bool(ca['mean'] * cb['mean'] < 0)}
     # PAIRED, because the design's whole advantage is that both objectives are scored on the SAME
     # 24 pools of the SAME held-out exposure. Comparing two independent CIs throws that away: the
     # between-pool variance is common to both arms and cancels in the difference.
