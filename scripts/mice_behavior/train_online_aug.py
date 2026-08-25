@@ -1030,13 +1030,30 @@ def main():
                 run.log(row, step=ep)
             except Exception:
                 pass
-        print(f'epoch {ep:3d}/{args.n_epochs}  loss={tot/seen:.4f}  val_loss={val_loss:.4f}  '
-              f'monitor_ap={ap:.4f}  nt={per_ap[0]:.4f}  nn={per_ap[1]:.4f}  '
-              f'auc_nt={per_auc[0]:.4f}  auc_nn={per_auc[1]:.4f}  '
-              f'{f"vrex_pen={ep_pen/max(ep_pen_n,1):.3e} (b={beta_ep:g})  " if beta_ep else ""}'
-              f'{f"derm_w_raw={derm_raw_mean:.2f}  " if derm_tab is not None else ""}'
-              f'lr={opt.param_groups[0]["lr"]:.2e}  ({time.time()-t0:.1f}s compute'
-              f'{f", {read_s:.0f}s new-frame read" if read_s > 1 else ""})', flush=True)
+        # Every number is coerced through float() before formatting. A LENGTH-1 numpy array
+        # raises TypeError from __format__ (numpy scalars and 0-d arrays do not), and one of these
+        # was arriving that way and killing the run AFTER a full epoch of compute -- an epoch of
+        # GPU thrown away by a log line. On epoch 1 anything that is not already a plain float is
+        # named, so the next occurrence is diagnosed from the log instead of by bisection.
+        _f = {'loss': tot / seen, 'val_loss': val_loss, 'monitor_ap': ap,
+              'ap_nt': per_ap[0], 'ap_nn': per_ap[1], 'auc_nt': per_auc[0], 'auc_nn': per_auc[1],
+              'lr': opt.param_groups[0]['lr'], 'read_s': read_s,
+              'derm_w_raw': derm_raw_mean if derm_tab is not None else 0.0}
+        if ep == 1:
+            odd = {k: type(v).__name__ + (f'{getattr(v, "shape", "")}' or '')
+                   for k, v in _f.items() if not isinstance(v, float)}
+            if odd:
+                print(f'  [types] not plain float: {odd}', flush=True)
+        _f = {k: float(v) for k, v in _f.items()}
+        _dw, _rs = _f['derm_w_raw'], _f['read_s']
+        print(f'epoch {ep:3d}/{args.n_epochs}  loss={_f["loss"]:.4f}  '
+              f'val_loss={_f["val_loss"]:.4f}  monitor_ap={_f["monitor_ap"]:.4f}  '
+              f'nt={_f["ap_nt"]:.4f}  nn={_f["ap_nn"]:.4f}  '
+              f'auc_nt={_f["auc_nt"]:.4f}  auc_nn={_f["auc_nn"]:.4f}  '
+              f'{f"vrex_pen={float(ep_pen)/max(ep_pen_n,1):.3e} (b={float(beta_ep):g})  " if beta_ep else ""}'
+              f'{f"derm_w_raw={_dw:.2f}  " if derm_tab is not None else ""}'
+              f'lr={_f["lr"]:.2e}  ({time.time()-t0:.1f}s compute'
+              f'{f", {_rs:.0f}s new-frame read" if read_s > 1 else ""})', flush=True)
         # --select last: a FIXED EPOCH BUDGET. Keep every epoch (so the last one survives) and
         # never early-stop, which takes the selection rule out of the ERM-vs-DERM contrast
         # entirely. Motivated rather than merely different: selecting on unweighted AP asks for
