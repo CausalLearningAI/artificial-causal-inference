@@ -108,18 +108,29 @@ def _n_resolved(method):
 n_dec, n_dec_ppi = _n_resolved('ci'), _n_resolved('ppi')
 
 
-def decay_n(model=None, what='range'):
-    """How many annotated pools actually enter a decay cell, and for WHICH predictor.
+def decay_n(what='range'):
+    """How many annotated pools actually enter a decay cell. The answer is not 24 -- and IS model-free.
 
-    Worth its own helper because the answer is not 24 and is not model-free. `pool_deltas` drops
-    a pool whose PREDICTED onset is undefined -- the model called no bout in one of the two
-    phases -- so even the classical decay estimate is computed on a pool set the predictor
-    selects. It is the only unit on the page where that is true; events and occupancy are always
-    defined, so their CI is identical for every predictor (checked: n = 24 throughout).
+    Worth its own helper because `decay` is the only unit whose n moves at all: the mean bout
+    onset is undefined for a phase with no bout in the 15-minute window, so a pool the annotator
+    recorded no bout in has no difference to contribute. Events and occupancy are defined for
+    every recording, so their classical n is 24 throughout.
+
+    IT TAKES NO PREDICTOR ARGUMENT, on purpose. `classical` runs on the pools with a defined
+    HUMAN difference, so these counts are a property of the annotations alone. An earlier grid
+    ALSO required the model to have an onset, which quietly made a human-only number move when
+    the predictor changed; the assertion below is what stops that coming back unnoticed, rather
+    than a comment asking the next reader to remember.
     """
-    n = [c['n_lab'] for c in E['cells']
-         if c['exp'] == 'v1' and c['unit'] == 'decay' and c['stratum'] == 'all'
-         and c['model'] == (model or PRIME) and c['method'] == 'ci']
+    per_model = {}
+    for c in E['cells']:
+        if (c['exp'] == 'v1' and c['unit'] == 'decay' and c['stratum'] == 'all'
+                and c['method'] == 'ci'):
+            per_model.setdefault(c['model'], {})[(c['behav'], c['odour'], c['trans'])] = c['n_lab']
+    assert len({tuple(sorted(v.items())) for v in per_model.values()}) == 1, (
+        'the classical decay n differs by predictor, which means a model-free estimate is being '
+        f'computed on a model-selected pool set: {per_model}')
+    n = list(per_model[PRIME].values())
     return f'{min(n)}&ndash;{max(n)}' if what == 'range' else n
 
 
@@ -483,13 +494,29 @@ def ppci_sign_stable_v2():
 def n_null(model, method=None):
     """Cells the grid refuses to fill for this predictor -- a guard firing, not a gap.
 
-    Every refusal on this page is the decay outcome on a genotype substratum where too few
-    recordings have a defined onset: a small-sample guard build_estimates.py applies to all three
-    predictors identically. Counted rather than asserted, because "the grid is complete" is a
-    claim that has to survive the next predictor landing.
+    Every refusal on this page is the decay outcome under PPI++ on a genotype substratum where
+    too few recordings have a defined onset: a small-sample guard build_estimates.py applies to
+    all three predictors identically. Counted rather than asserted, because "the grid is
+    complete" is a claim that has to survive the next predictor landing.
+
+    The COUNT still varies by predictor (and only PPI++ can make it), which is not a leak: the
+    rectifier needs a pool where the annotator AND the model both give an onset, so how many
+    two-pool substrata clear that bar is genuinely a fact about the model. The classical estimate
+    refuses nothing on any grid -- `n_null_ci_all` is the standing check on that.
     """
     return sum(1 for c in E['cells'] if c['model'] == model and c['est'] is None
                and (method is None or c['method'] == method))
+
+
+def n_null_ci_all():
+    """Cells where the CLASSICAL estimate itself is refused, summed over every predictor.
+
+    It is zero, and it is COMPUTED rather than asserted. Zero because `classical` runs on the
+    pools with a defined human difference, so a cell is refused only when no annotated recording
+    in the stratum has an onset at all -- and on the full design none is that empty. If a future
+    predictor made this non-zero, something would have put a model back into a model-free number.
+    """
+    return sum(n_null(m, 'ci') for m in E['meta']['predictors'])
 
 
 def n_cells(model):
@@ -895,14 +922,13 @@ BODY = f'''
       <tr><td>O &rarr; P &nbsp;(odour OFF)</td>{ddecay('nt','fear','O->P')}{ddecay('nt','social','O->P')}{ddecay('nn','fear','O->P')}{ddecay('nn','social','O->P')}</tr>
     </tbody></table></div>
   <p class="defn">* = resolves; {n_dec} of 8 do on human labels alone, {n_dec_ppi} of 8 with PPI++.
-  Decay is undefined where a recording has no bout in the window, so n falls to {decay_n()} pools by
-  cell &mdash; which is why the model buys more on the timing than it does on the level.
-  <b>These eight numbers are the only ones on the page that move when the predictor does, even
-  though they use human labels alone</b>: a pool enters a decay cell only if <em>both</em> the
-  annotator and the model give it a defined onset, so the predictor selects the pool set even for
-  the classical estimate. Under the ERM cross-fit the same cells rest on {decay_n(ERM_REF)} pools.
-  The level and occupancy carry no such dependence &mdash; their classical estimates are identical
-  for every predictor, on all 24 pools.</p>
+  Decay is undefined where a recording has no bout in the window, so the classical n falls to
+  {decay_n()} pools by cell &mdash; a property of the <em>annotations</em>, not of the model, and
+  the reason the model buys more on the timing than it does on the level.
+  <b>These eight numbers are model-free</b>: a pool enters this table whenever the annotator gives
+  it a defined onset in both phases, whatever the predictor makes of it, so the table is bit-for-bit
+  identical under all three predictors. The level and occupancy carry no dependence either, and
+  lose no pools at all: every recording has a defined rate, so their n is 24 throughout.</p>
 
   <h3 style="margin-top:26px">What a better model could buy, at most</h3>
   <p>Two things cap it, and both are computable rather than rhetorical.</p>
@@ -1631,9 +1657,12 @@ BODY = f'''
     {n_null(PRIME)} are the same guarded refusal: the decay outcome under PPI++ on the two-pool
     genotype substrata ({null_strata(PRIME)}), where a single annotated recording has a defined
     onset. That guard is applied identically to all three predictors &mdash; the ERM grid refuses
-    {n_null(ERM_REF)} cells, {n_null(ERM_REF,'ppi')} of them the same PPI++ case and the rest cells
-    where the classical estimate itself has no recording with an onset to average. A guarded
-    refusal is a decision the builder made and logged, not a hole in the grid.</p>
+    {n_null(ERM_REF)} cells, all {n_null(ERM_REF,'ppi')} of them that same PPI++ case. It refuses
+    more of them than DERM does because PPI++ needs a pool the annotator <em>and</em> the model
+    both give an onset for, and which pools those are is the one thing about a refusal a predictor
+    can move; summed over all three predictors the number of cells where the <b>classical</b>
+    estimate is refused is {n_null_ci_all()}. A guarded refusal is a decision the builder made and
+    logged, not a hole in the grid.</p>
 
     <div class="note"><b>The flip changed magnitudes and not one sign.</b> Switching section 03's
     deployed predictor from the ERM cross-fit to DERM leaves the PPCI sign unchanged in
@@ -1862,7 +1891,11 @@ BODY = f'''
 </div></section>
 
 <div class="measure"><footer>
-  All intervals 95%, clustered on pool (n = 24 labelled + 48 unlabelled on v1, 36 on v2). Built by
+  All intervals 95%, clustered on pool (n = 24 labelled + 48 unlabelled on v1, 36 on v2 &mdash;
+  except on <b>decay</b>, where a phase with no bout has no onset. There the labelled side of a
+  cell is {decay_n()} pools, and PPI++&rsquo;s &ldquo;unlabelled&rdquo; side is not the same thing
+  as the unannotated ones: it counts every pool with a <em>predicted</em> onset and no human one,
+  so a few annotated pools whose annotator recorded no bout land on it too.) Built by
   <code>build_report.py</code> from seven JSON payloads regenerated from the runs and the labels at
   build time &mdash; <code>build_estimates.py</code> (every effect), <code>build_models.py</code>
   (every scored run and its recipe), <code>build_outcome.py</code> (the outcome units and their

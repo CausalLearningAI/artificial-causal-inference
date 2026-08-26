@@ -16,9 +16,11 @@ THREE ESTIMATORS, AND WHAT EACH ONE COSTS
 =========================================
 Write D_Y for a pool's true phase difference and D_f for its predicted one.
 
-  classical   mean(D_Y) over the labelled pools. No model. Unbiased, and the only one of the
-              three that needs no assumption beyond the design. Limited to 24 of v1's 72 pools
-              and unavailable on v2, which has no labels at all.
+  classical   mean(D_Y) over every pool whose HUMAN difference is defined. No model. Unbiased,
+              and the only one of the three that needs no assumption beyond the design. Limited
+              to 24 of v1's 72 pools -- fewer on `decay`, where a phase with no bout has no
+              onset -- and unavailable on v2, which has no labels at all.
+              Its pool set NEVER depends on the predictor: see PoolDeltas.
 
   PPI++       lam * mean_N(D_f)  +  mean_n(D_Y - lam * D_f)
               Unbiased for ANY predictor: whatever lam is and however wrong f is, the second
@@ -80,23 +82,63 @@ TRANSITIONS = (('H', 'O'), ('O', 'P'))
 
 @dataclass
 class PoolDeltas:
-    """One row per pool: its true and/or predicted phase difference for one cell."""
+    """One row per pool: its true and/or predicted phase difference for one cell.
+
+    TWO POOL SETS, AND WHY THEY ARE NOT INTERCHANGEABLE
+    ===================================================
+    A difference can be missing on either side independently. On the `decay` unit -- the mean
+    bout-onset minute -- a phase with no bout in the window has NO defined onset, so a pool can
+    carry a human difference and no predicted one, or the reverse. Every pool that has both
+    phases of the transition gets a row here, NaN and all, and each estimator selects the set
+    its own arithmetic needs:
+
+        has_true      the human difference is defined     -> `classical`, and nothing else
+        paired        BOTH are defined                    -> PPI's rectifier, r, PPCI's scale k
+        has_pred      the predicted difference is defined -> PPCI's plug-in mean
+        unlabelled    predicted defined, human not        -> PPI's unlabelled arm
+
+    An earlier version dropped a pool inside `pool_deltas` whenever the PREDICTION was
+    undefined, which silently handed `classical` the `paired` set -- making a HUMAN-ONLY,
+    model-free number move when the loaded predictor changed. There is deliberately no single
+    `labelled` mask left to reach for by accident: pick the one the estimator actually needs.
+    """
     pools: np.ndarray
-    d_true: np.ndarray          # NaN where the pool is unlabelled
-    d_pred: np.ndarray
+    d_true: np.ndarray          # NaN where the pool is unlabelled OR the difference is undefined
+    d_pred: np.ndarray          # NaN where the model gives no defined difference
 
     @property
-    def labelled(self):
+    def has_true(self):
+        """Pools with a defined HUMAN difference. The classical estimator's set."""
         return np.isfinite(self.d_true)
 
+    @property
+    def has_pred(self):
+        """Pools with a defined PREDICTED difference. PPCI's plug-in set."""
+        return np.isfinite(self.d_pred)
+
+    @property
+    def paired(self):
+        """Pools where both sides are defined. Anything comparing f to Y needs this one."""
+        return self.has_true & self.has_pred
+
+    @property
+    def unlabelled(self):
+        """Predicted difference defined, human one not. PPI's unlabelled arm.
+
+        On `decay` this is NOT the same thing as "never annotated": an annotated pool whose
+        annotator recorded no bout in one of the two phases has no defined human onset, so it
+        lands here too.
+        """
+        return self.has_pred & ~self.has_true
+
     def r(self) -> float:
-        """Within-cell correlation of true and predicted differences on the labelled pools.
+        """Within-cell correlation of true and predicted differences on the PAIRED pools.
 
         This -- not frame AP -- is what PPI's variance reduction is a function of. It is also
         much lower than the value obtained by pooling cells together, because pooling adds
         between-cell signal that a single-cell estimate cannot use.
         """
-        m = self.labelled
+        m = self.paired
         if m.sum() < 3 or np.ptp(self.d_pred[m]) == 0 or np.ptp(self.d_true[m]) == 0:
             return float('nan')
         return float(np.corrcoef(self.d_true[m], self.d_pred[m])[0, 1])
@@ -134,8 +176,14 @@ def _t(n: int) -> float:
 def pool_deltas(df, true_col, pred_col, odour, transition) -> PoolDeltas:
     """Collapse per-observation rows to one difference per pool, for ONE exposure cell.
 
-    `df` needs columns pool, phase, odor and the two value columns. A pool contributes only if
-    it has BOTH phases of the transition; `true_col=None` marks the frame as unlabelled.
+    `df` needs columns pool, phase, odor and the two value columns. A pool contributes a row
+    only if it has BOTH phases of the transition; `true_col=None` marks the frame as unlabelled.
+
+    EITHER difference may come back NaN -- on `decay`, a phase with no bout has no onset -- and
+    NOTHING is filtered on that here, on purpose. Which side has to be defined is a property of
+    the estimator, not of the data, so the masks on PoolDeltas decide it. Filtering here instead
+    would impose the strictest estimator's requirement on all of them, and in particular would
+    make the model-free `classical` estimate depend on the predictor.
     """
     x, y = transition
     sub = df[df.odor == odour]
@@ -144,18 +192,20 @@ def pool_deltas(df, true_col, pred_col, odour, transition) -> PoolDeltas:
         m = g.drop_duplicates('phase').set_index('phase')
         if x not in m.index or y not in m.index:
             continue
-        d_p = (m.loc[y, pred_col] - m.loc[x, pred_col]) if pred_col else np.nan
-        if pred_col and not np.isfinite(d_p):
-            continue                  # no prediction for this pool: it cannot enter any mean
         keys.append(pool)
         dy.append(m.loc[y, true_col] - m.loc[x, true_col] if true_col else np.nan)
-        dp.append(d_p)
+        dp.append((m.loc[y, pred_col] - m.loc[x, pred_col]) if pred_col else np.nan)
     return PoolDeltas(np.array(keys, dtype=object), np.array(dy, float), np.array(dp, float))
 
 
 def classical(d: PoolDeltas) -> Estimate:
-    """Mean of within-pool differences on labelled pools only. No model anywhere."""
-    v = d.d_true[d.labelled]
+    """Mean of within-pool differences over every pool with a HUMAN difference. No model anywhere.
+
+    The set is `has_true`, never `paired`. Whether the predictor happens to define a difference
+    for a pool is irrelevant to a human-only estimate, and conditioning on it would make this
+    number move when the model does -- which is exactly what it used to do on `decay`.
+    """
+    v = d.d_true[d.has_true]
     n = len(v)
     if n < 2:
         return Estimate('classical', float(v.mean()) if n else float('nan'),
@@ -167,9 +217,14 @@ def classical(d: PoolDeltas) -> Estimate:
 
 
 def ppi(d: PoolDeltas) -> Estimate:
-    """PPI++ with power-tuned lambda. Unbiased for any predictor; f moves only the variance."""
-    lab = d.labelled
-    dy, fl, fu = d.d_true[lab], d.d_pred[lab], d.d_pred[~lab]
+    """PPI++ with power-tuned lambda. Unbiased for any predictor; f moves only the variance.
+
+    BOTH arms need a defined prediction, and that is correct rather than a limitation: the
+    rectifier subtracts a PAIR (D_Y - lam D_f) on the labelled side, so a pool with no predicted
+    difference has nothing to subtract and cannot enter either term.
+    """
+    lab, unl = d.paired, d.unlabelled
+    dy, fl, fu = d.d_true[lab], d.d_pred[lab], d.d_pred[unl]
     n, N = len(dy), len(fu)
     if n < 2 or N < 2:
         return Estimate('ppi', float('nan'), float('nan'), float('nan'), n, N,
@@ -218,9 +273,9 @@ def ppci(d: PoolDeltas, k: float = None, k_boot=None, reps: int = 4000,
     when the denominator is not separated from zero, rather than returned as a large number.
     """
     rng = np.random.default_rng(seed)
-    lab = d.labelled
+    lab = d.paired                  # k relates the two sides, so it needs them both
     dy, fl = d.d_true[lab], d.d_pred[lab]
-    f_all = d.d_pred[np.isfinite(d.d_pred)]
+    f_all = d.d_pred[d.has_pred]    # the plug-in mean needs only a prediction
     if len(f_all) < 2:
         return Estimate('ppci', float('nan'), float('nan'), float('nan'),
                         int(lab.sum()), len(f_all), {'note': 'no predictions'})
@@ -267,7 +322,7 @@ def ppci(d: PoolDeltas, k: float = None, k_boot=None, reps: int = 4000,
 def scale_bootstrap(d: PoolDeltas, reps: int = 4000, seed: int = 0) -> np.ndarray:
     """Bootstrap sample of the ratio-of-means calibration k, for transporting it to a cohort."""
     rng = np.random.default_rng(seed)
-    lab = d.labelled
+    lab = d.paired
     dy, fl = d.d_true[lab], d.d_pred[lab]
     out = []
     for _ in range(reps):

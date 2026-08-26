@@ -219,7 +219,9 @@ def main():
                 for od in ('F', 'S'):
                     for tr in TRANSITIONS:
                         d = pool_deltas(lab, f't_{p}_{l}', f'f_{p}_{l}', od, tr)
-                        dy += list(d.d_true[d.labelled]); df += list(d.d_pred[d.labelled])
+                        # PAIRED pools only: a correlation between the two sides needs both of
+                        # them, and on `decay` either one can be undefined.
+                        dy += list(d.d_true[d.paired]); df += list(d.d_pred[d.paired])
                 rec['r_delta'][l] = round(float(np.corrcoef(dy, df)[0, 1]), 3)
                 r = [lab[lab.phase == ph][f'f_{p}_{l}'].mean()
                      / lab[lab.phase == ph][f't_{p}_{l}'].mean() for ph in ('H', 'O', 'P')]

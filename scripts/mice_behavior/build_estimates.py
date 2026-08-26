@@ -443,6 +443,11 @@ def main():
                     tcol, fcol = f't_{unit}_{lab}', f'f_{unit}_{lab}'
                     for od, odn in ODOURS:
                         for tr in TRANSITIONS:
+                            # One call, three pool sets: `pool_deltas` keeps every pool with
+                            # both phases and each estimator masks for what it needs. On `decay`
+                            # a phase with no bout has no onset, so CI runs on the pools with a
+                            # HUMAN difference (model-free, and identical across predictors)
+                            # while PPI++ needs the pairs and PPCI the predictions.
                             d = pool_deltas(sub, tcol if tcol in sub else None, fcol, od, tr)
                             base = dict(exp=version, unit=unit, behav=lab, stratum=sid,
                                         stratum_label=snice, odour=odn,
