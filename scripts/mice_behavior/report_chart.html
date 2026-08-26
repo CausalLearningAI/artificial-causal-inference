@@ -104,6 +104,7 @@
   const MODEL_NICE = Object.assign({}, DATA.meta.predictors || {}, {
     xfit_dense: 'SSL encoder, 3 folds',
     xfit_bit6_dense: 'BitFit-6, 3 folds',
+    xfit_derm_dense: 'DERM, 3 folds',
   });
   const modelName = (m) => MODEL_NICE[m] || m;
 
