@@ -188,6 +188,12 @@ xfd = ({k: sum(r[k] for r in _fd) / len(_fd) for k in _KM} if len(_fd) == 3 else
 _fe = [r for r in M['runs'] if r['tag'] in ('xfit_erm_f1', 'xfit_erm_f2', 'xfit_erm_f3')]
 xfe = ({k: sum(r[k] for r in _fe) / len(_fe) for k in _KM} if len(_fe) == 3 else None)
 
+# Which of the three cross-fit rows the leaderboard highlights: the DEPLOYED one, read from meta.
+# It used to be hard-coded onto BitFit-6, which was right only until DERM was promoted -- after
+# that the green row pointed at the accuracy leader while the report ran on a different model.
+_hi = lambda k: ' class="hi"' if k == PRIME else ''
+_h_erm, _h_bit, _h_derm = _hi('xfit_dense'), _hi('xfit_bit6_dense'), _hi('xfit_derm_dense')
+
 
 _OS = D.get('odour_split', {})
 _TR = ('H->O', 'O->P')
@@ -1697,21 +1703,22 @@ BODY = f'''
     <thead><tr><th>candidate</th><th>macro AP</th><th>event F1 nt / nn</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
     <tbody>
       {cand_rows}
-      <tr><td><b>cross-fitted ERM</b> &mdash; SSL encoder, mean of 3 folds</td><td>{xf['ap']:.3f}</td>
-        <td>{xf['f1_nt']:.3f} / {xf['f1_nn']:.3f}</td><td>{xf['rd_nt']:.3f}</td>
-        <td>{xf['rd_nn']:.3f}</td></tr>
-      <tr><td class="hi"><b>cross-fitted BitFit-6</b> &mdash; mean of the same 3 folds</td>
-        <td class="hi">{xfb['ap']:.3f}</td>
-        <td class="hi">{xfb['f1_nt']:.3f} / {xfb['f1_nn']:.3f}</td>
-        <td class="hi">{xfb['rd_nt']:.3f}</td><td class="hi">{xfb['rd_nn']:.3f}</td></tr>
-      <tr><td><b>cross-fitted DERM &mdash; deployed</b>, mean of the same 3 folds</td>
-        <td>{xfd['ap']:.3f}</td>
-        <td>{xfd['f1_nt']:.3f} / {xfd['f1_nn']:.3f}</td>
-        <td>{xfd['rd_nt']:.3f}</td><td>{xfd['rd_nn']:.3f}</td></tr>
+      <tr><td{_h_erm}><b>cross-fitted ERM</b> &mdash; SSL encoder, mean of 3 folds</td>
+        <td{_h_erm}>{xf['ap']:.3f}</td>
+        <td{_h_erm}>{xf['f1_nt']:.3f} / {xf['f1_nn']:.3f}</td><td{_h_erm}>{xf['rd_nt']:.3f}</td>
+        <td{_h_erm}>{xf['rd_nn']:.3f}</td></tr>
+      <tr><td{_h_bit}><b>cross-fitted BitFit-6</b> &mdash; mean of the same 3 folds</td>
+        <td{_h_bit}>{xfb['ap']:.3f}</td>
+        <td{_h_bit}>{xfb['f1_nt']:.3f} / {xfb['f1_nn']:.3f}</td>
+        <td{_h_bit}>{xfb['rd_nt']:.3f}</td><td{_h_bit}>{xfb['rd_nn']:.3f}</td></tr>
+      <tr><td{_h_derm}><b>cross-fitted DERM &mdash; deployed</b>, mean of the same 3 folds</td>
+        <td{_h_derm}>{xfd['ap']:.3f}</td>
+        <td{_h_derm}>{xfd['f1_nt']:.3f} / {xfd['f1_nn']:.3f}</td>
+        <td{_h_derm}>{xfd['rd_nt']:.3f}</td><td{_h_derm}>{xfd['rd_nn']:.3f}</td></tr>
     </tbody></table></div>
-  <div class="note"><b>Read the last row differently.</b> The first four are scored on the standing
-  4-pool split, 24 observations &mdash; too few to separate close models. The last is
-  <b>cross-fitted</b>: the 24 annotated pools split into three folds of 8, each fold scored by a
+  <div class="note"><b>Read the last three rows differently.</b> The candidates above them are
+  scored on the standing 4-pool split, 24 observations &mdash; too few to separate close models.
+  The last three are <b>cross-fitted</b>: the 24 annotated pools split into three folds of 8, each fold scored by a
   model trained on the other 16, so every pool is scored by a model that never saw it. A harder
   split, hence the lower AP.
   <br><br><b>Two separate things make it necessary.</b> PPI++'s validity: its rectifier is the gap
@@ -1722,8 +1729,13 @@ BODY = f'''
   labels, and on the standing 4-pool split it rests on 16 points, where two seeds of one
   configuration give 0.183 and 0.853. So cross-fitting is not PPI++ hygiene that model ranking
   happens to inherit; <b>it is what makes ranking possible at all</b>. <b>PPCI uses no labels
-  anywhere, so it is bound by neither</b> and would be better served by the single strongest
-  model.</div>
+  anywhere, so neither of those two constraints binds it</b> &mdash; but that does not make the
+  highest-AP model its best choice. PPCI has no rectifier and no <math><mi>&#x3BB;</mi></math>, so
+  where PPI++ absorbs the predictor&rsquo;s scale, PPCI carries the phase shortcut straight into
+  the estimate as an additive term. That is why the deployed grid is DERM&rsquo;s rather than the
+  accuracy leader&rsquo;s, and why 04.6 judges an objective on
+  <math><mrow><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo><msub><mi>a</mi><mi>H</mi></msub>
+  </mrow></math> in bouts per minute rather than on AP.</div>
   <div class="note"><b>Three cross-fits over the same folds, and the one in front is not the
   accurate one.</b> Cross-fitting first ran on the SSL-adapted frozen encoder with a plain 5.03 M
   head, which bought label-free adaptation covering v2. BitFit-6 over the same three folds is

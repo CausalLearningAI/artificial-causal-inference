@@ -25,9 +25,12 @@ Write D_Y for a pool's true phase difference and D_f for its predicted one.
   PPI++       lam * mean_N(D_f)  +  mean_n(D_Y - lam * D_f)
               Unbiased for ANY predictor: whatever lam is and however wrong f is, the second
               term subtracts exactly what the first added. f moves only the VARIANCE. The
-              power-tuned lam = Cov(D_Y, D_f) / (Var(D_f) * (1 + n/N)) is what makes a
+              power-tuned lam = Cov_n(D_Y, D_f) / (Var_{n+N}(D_f) * (1 + n/N)) is what makes a
               miscalibrated model harmless -- lam absorbs the scale, so calibration happens in
-              the one place where getting it wrong costs variance instead of validity.
+              the one place where getting it wrong costs variance instead of validity. Note the
+              subscripts: the covariance can only be formed on the n LABELLED pools, but the
+              variance is taken over ALL n+N of them, which is both what PPI++ specifies and
+              what stops the ratio exploding at n=2. See `ppi` for the full argument.
               REQUIRES out-of-fold predictions on the labelled pools (see below).
 
   PPCI        b * mean(D_f) over ALL pools, labelled and unlabelled alike, with
@@ -229,8 +232,45 @@ def ppi(d: PoolDeltas) -> Estimate:
     if n < 2 or N < 2:
         return Estimate('ppi', float('nan'), float('nan'), float('nan'), n, N,
                         {'note': 'needs >=2 labelled and >=2 unlabelled pools'})
-    v = fl.var(ddof=1)
-    lam = float(np.cov(dy, fl)[0, 1] / (v * (1 + n / N))) if v > 0 else 0.0
+    # LAMBDA'S DENOMINATOR IS Var(f) OVER ALL n+N POOLS, NOT OVER THE n LABELLED ONES.
+    # That is PPI++'s own plug-in for a mean -- Angelopoulos, Duchi & Zrnic (2023), Example 6.1:
+    # lam_hat = Cov_n(D_Y, D_f) / [(1 + n/N) * Var_{n+N}(D_f)] -- and the pooled variance is what
+    # keeps the ratio stable. A genotype substratum has n=2, where a labelled-only variance is one
+    # squared difference and can be arbitrarily small for reasons that have nothing to do with the
+    # predictor's quality. On kdm6b/wt the two labelled pools had a mathematically IDENTICAL
+    # predicted delta that differed by a single float64 ULP: Var came out 2.5e-32, passed a bare
+    # `> 0`, and drove lambda to 5e14 and the estimate to 2.6e14 bouts per minute. Five further
+    # n=2 cells carried |lambda| of 6-17 the same way, for estimates of +24 and -14 bouts/min.
+    # Pooling the unlabelled pools in makes the denominator a real spread, so a near-tie now
+    # zeroes the COVARIANCE rather than the variance and lambda falls to ~0 -- which is the right
+    # answer, not a patch: two pools the model scores identically carry no information about
+    # lambda, and lambda=0 is exactly the classical estimate.
+    #
+    # THEN PROJECTED TO [0, 1], which is a SEPARATE fix and would NOT have caught the above.
+    # Clipping the old lambda would have returned 1 -- vanilla PPI, importing the model's full
+    # uncalibrated scale -- for an estimate of -0.213 against the classical -0.733, a plausible
+    # wrong number instead of a visibly broken one. Fixing the denominator is what makes the cell
+    # correct; the clip is what bounds everything else.
+    #
+    # Why clip at all, given PPI++ introduces lambda over R (section 2.2) and Example 6.1 says
+    # mean estimation "is always convex for any choice of lambda in R, thus obviating the need for
+    # clipping"? Because that passage is about the OPTIMISATION being well posed, and the paper's
+    # "never worse than classical" result is asymptotic: it holds at the population lambda*, and
+    # reaches finite samples only through lambda_hat -> lambda* (Corollary 4). At n=2 there is no
+    # such convergence -- the covariance is a single 1-df product -- and measured over this grid's
+    # 200 two-pool cells the unclipped plug-in makes the PPI interval on average WIDER than the
+    # classical one it exists to narrow (mean width ratio 1.03, worst 5.4x). Projecting to [0,1]
+    # brings that to 0.80 and 2.7x. At n>=6, where lambda_hat is a real estimate, the clip binds on
+    # 21 of 259 cells and is a wash (mean ratio 0.8836 clipped against 0.8833 unclipped), so it
+    # costs essentially nothing where the asymptotics do apply. Unbiasedness holds at EVERY lambda,
+    # so the clip trades a sliver of asymptotic efficiency for finite-sample robustness and risks
+    # no validity. `ppi.py` clips for the same reason, on its own simulation evidence.
+    f_all = np.concatenate([fl, fu])
+    v = float(f_all.var(ddof=1))
+    lam = (float(np.cov(dy, fl)[0, 1] / (v * (1 + n / N)))
+           if np.isfinite(v) and np.ptp(f_all) > 1e-9 * max(1.0, float(np.abs(f_all).max()))
+           else 0.0)
+    lam = float(np.clip(lam, 0.0, 1.0))
     est = float((lam * fu).mean() + (dy - lam * fl).mean())
     se = float(np.sqrt((dy - lam * fl).var(ddof=1) / n + lam ** 2 * fu.var(ddof=1) / N))
     q = _t(n)
