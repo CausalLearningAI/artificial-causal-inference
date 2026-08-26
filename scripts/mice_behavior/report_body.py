@@ -4,7 +4,7 @@
 # their distributions), `X` (qualitative examples), `R` (PPCI robustness), `D` (the DERM /
 # treatment-leak analysis, from build_derm.py).
 n_lab = max((c['n_lab'] for c in E['cells'] if c['exp'] == 'v1' and c['method'] == 'ci'),
-            default=24)
+            default=24)   # CI's n is model-free, so a max over the per-predictor copies is safe
 
 # Inline formatters. Every number below reads out of a JSON built by a script in this directory,
 # so a rerun cannot leave the prose disagreeing with the tables.
@@ -46,7 +46,13 @@ def rr(tag):
 # The prose speaks for the DEPLOYED predictor; the figure's predictor control is where a reader
 # changes it. CI cells do not depend on the model at all, but they are emitted once per predictor,
 # so they need the same pin.
-PRIME = 'xfit_dense'
+#
+# READ, NOT RETYPED. build_estimates.py names the deployed predictor in meta.deployed, and
+# report_chart.html's default selection reads the same field, so the figure cannot open on a
+# predictor the text beside it does not speak for. Promoting a predictor is one edit, there.
+PRIME = E['meta'].get('deployed') or 'xfit_dense'
+ERM_REF = 'xfit_dense'          # the ERM cross-fit DERM is compared against, on the same folds
+assert PRIME in E['meta']['predictors'], f'meta.deployed={PRIME} is not a predictor in the grid'
 
 
 def narrowing(model, unit):
@@ -102,6 +108,21 @@ def _n_resolved(method):
 n_dec, n_dec_ppi = _n_resolved('ci'), _n_resolved('ppi')
 
 
+def decay_n(model=None, what='range'):
+    """How many annotated pools actually enter a decay cell, and for WHICH predictor.
+
+    Worth its own helper because the answer is not 24 and is not model-free. `pool_deltas` drops
+    a pool whose PREDICTED onset is undefined -- the model called no bout in one of the two
+    phases -- so even the classical decay estimate is computed on a pool set the predictor
+    selects. It is the only unit on the page where that is true; events and occupancy are always
+    defined, so their CI is identical for every predictor (checked: n = 24 throughout).
+    """
+    n = [c['n_lab'] for c in E['cells']
+         if c['exp'] == 'v1' and c['unit'] == 'decay' and c['stratum'] == 'all'
+         and c['model'] == (model or PRIME) and c['method'] == 'ci']
+    return f'{min(n)}&ndash;{max(n)}' if what == 'range' else n
+
+
 def rr2(tag, which):
     """One r-delta value, so a table cell can carry its own highlight class."""
     return f"{run(tag)['rd_' + which]:.3f}"
@@ -148,6 +169,13 @@ xf = {k: sum(r[k] for r in _folds) / len(_folds) for k in _KM}
 # mean over both would be a mean of two different models reported as one deployment.
 _fb = [r for r in M['runs'] if r['role'] == 'deployment fold (bitfit)']
 xfb = ({k: sum(r[k] for r in _fb) / len(_fb) for k in _KM} if len(_fb) == 3 else None)
+# The DERM cross-fit -- the predictor now deployed -- and its matched ERM control, over the same
+# three folds and the same 0.52 M head. build_models.py files both under `objective cross-fit`,
+# so they are picked out by tag rather than by role.
+_fd = [r for r in M['runs'] if r['tag'] in ('xfit_derm_f1', 'xfit_derm_f2', 'xfit_derm_f3')]
+xfd = ({k: sum(r[k] for r in _fd) / len(_fd) for k in _KM} if len(_fd) == 3 else None)
+_fe = [r for r in M['runs'] if r['tag'] in ('xfit_erm_f1', 'xfit_erm_f2', 'xfit_erm_f3')]
+xfe = ({k: sum(r[k] for r in _fe) / len(_fe) for k in _KM} if len(_fe) == 3 else None)
 
 
 _OS = D.get('odour_split', {})
@@ -183,24 +211,12 @@ def os_corr(arm_d, arm_e, behav, trans='H->O'):
     return f"{a['mean'] - b['mean']:+.3f}".replace('-', '&minus;')
 
 
-def os_absmean(obj, behav):
-    """Mean |bias| over the four cells: 2 training directions x 2 transitions."""
-    v = [abs(_OS['arms'][f'tr{d}_{obj}']['cells'][behav][t]['mean'])
-         for d in 'FS' for t in _TR
-         if _OS.get('arms', {}).get(f'tr{d}_{obj}', {}).get('cells', {}).get(behav, {}).get(t)]
-    return f'{sum(v) / len(v):.3f}' if len(v) == 4 else '&mdash;'
-
-
-def os_beats(behav):
-    """In how many of the four cells DERM's |bias| is smaller than ERM's."""
-    n = 0
-    for d in 'FS':
-        for t in _TR:
-            a = _OS.get('arms', {}).get(f'tr{d}_derm', {}).get('cells', {}).get(behav, {}).get(t)
-            b = _OS.get('arms', {}).get(f'tr{d}_erm', {}).get('cells', {}).get(behav, {}).get(t)
-            if a and b and abs(a['mean']) < abs(b['mean']):
-                n += 1
-    return f'{n}/4'
+# os_absmean() and os_beats() lived here. They summarised the ORIGINAL exposure-split arms
+# (tr{F,S}_derm against tr{F,S}_erm) -- AP-selected checkpoints, subsample-estimated DERM
+# weights -- and section 06 used them to say DERM helped nose-to-tail and hurt nose-to-nose.
+# Both fixes since (a fixed epoch budget, population weights) overturned that: the arms the
+# report now reads are the `_last_popw` ones. The helpers are gone rather than left unused,
+# because the next person to reach for them would be summarising the retracted comparison.
 
 
 def os_pair(direction, behav, what, trans='H->O'):
@@ -243,6 +259,11 @@ except KeyError:
 # reads; keyed off estimates.json's own predictor list so the text cannot claim what the grid
 # does not hold.
 derm_pred_note = (
+    '<b>Yes &mdash; since 26 August 2026 it is the deployed predictor.</b> Every PPCI number on '
+    'this page, on both cohorts, is DERM; the two ERM cross-fits stay in the figure&rsquo;s '
+    'predictor control as the comparison. The justification is the table above: DERM wins or ties '
+    'every estimand-based criterion, and none of the criteria is an accuracy metric.'
+    if E['meta'].get('deployed', '').find('derm') >= 0 else
     'It does now: the effects figure in section 03 carries the cross-fitted DERM predictor '
     'alongside the two ERM ones &mdash; select it in the predictor control.'
     if any('derm' in k for k in E['meta']['predictors']) else
@@ -256,8 +277,16 @@ derm_pred_note = (
 
 # Whether the seed replicates of the fear-trained pair have landed decides a sentence in 04.6;
 # read it off derm.json's landed list so a rebuild flips the text the moment they arrive.
+# Section 06's amber row: the social-direction seed replicates. Read off derm.json's own `absent`
+# list so the status line cannot claim a run is queued after it has landed.
+_ABS = [t for t in _OS.get('absent', []) if t.endswith(('_s1', '_s2'))]
+os_absent_note = ('{} of the {} arms are still absent'.format(len(_ABS), 'social-trained')
+                  if _ABS else 'landed &mdash; they are in the variant control')
+
 os_seed_note = (
-    'seed replicates of the fear-trained pair are in the variant control.'
+    ('the fear-trained pair carries three seeds each and its headline is averaged over them; the '
+     'social-trained pair &mdash; the negative control &mdash; still rests on one seed per arm.'
+     if _ABS else 'both training directions carry three seeds each.')
     if any(t.endswith(('_s1', '_s2')) for t in _OS.get('landed', [])) else
     'two seed replicates of the fear-trained pair are training now and will appear in the '
     'variant control when they land.')
@@ -284,6 +313,31 @@ _PB = D['ppi_bound']
 # treatment is legible in a frame that carries no behaviour at all. Read from derm.json.
 _P = D['probe']
 _R = _P['region']
+
+
+def probe(target='O_vs_rest', what='bal_acc'):
+    """The quiet-frame probe: how legible the phase is in a frame carrying no behaviour.
+
+    Reported as BALANCED ACCURACY, which is what build_derm.py computes -- it is often quoted as
+    an AUC in conversation and it is not one.
+    """
+    t = _P['targets'][target]
+    return f"{t[what]:.3f}" if isinstance(t[what], float) else t[what]
+
+
+def des(version, key):
+    """One number from the cohort design block, so the story cannot drift from the experiment."""
+    return E['meta']['design'][version][key]
+
+
+# v1's strata are line x genotype; the LINE count is what the biology bullet needs, and counting
+# the distinct line prefixes is the only place it is derivable without retyping it. Spelled out
+# because section 00 is prose, and "In 3 lines" reads as a table cell that wandered into a
+# sentence.
+_WORD = {1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six'}
+n_lines = len({c['stratum'].rsplit('_', 1)[0] for c in E['cells']
+               if c['exp'] == 'v1' and c['stratum'] != 'all'})
+n_lines_word = _WORD.get(n_lines, str(n_lines))
 
 
 
@@ -340,6 +394,164 @@ def dY(behav, which='pooled'):
     return f"{D['estimand_bias']['truth'][behav][which]:+.3f}".replace('-', '&minus;')
 
 
+# ------------------------------------------------------- 04.6's justification table: ERM vs DERM
+# WHY THIS BLOCK EXISTS. Promoting a predictor to the headline moves every PPCI number in section
+# 03, so it is a decision that has to be defensible on the ESTIMAND, cell by cell, rather than on
+# a single summary. Every figure below is computed here from estimates.json and derm.json, never
+# transcribed, so the table cannot outlive the runs it describes. AP is deliberately absent from
+# the criteria and reported only as context -- see the note beside the table.
+KEY8 = [(b, o, t) for b in ('nt', 'nn') for o in ('fear', 'social') for t in _TR]
+
+
+def _cell(model, method, behav, odour, trans, unit='events'):
+    return next((c for c in E['cells']
+                 if c['exp'] == 'v1' and c['unit'] == unit and c['stratum'] == 'all'
+                 and c['model'] == model and c['method'] == method and c['behav'] == behav
+                 and c['odour'] == odour and c['trans'] == trans), None)
+
+
+def sign_agree(model):
+    """PPCI's sign against the classical estimator's, over the eight v1 key cells.
+
+    CI uses no model, so it is the same target for every predictor; what varies is whether that
+    predictor's label-free PPCI points the same way. This is the only sign check the report can
+    run on the deployed grid itself -- 05.3's is a different, pool-matched design.
+    """
+    n = sum(1 for b, o, t in KEY8
+            for p in [_cell(model, 'ppci', b, o, t)] for k in [_cell(model, 'ci', b, o, t)]
+            if p and k and p['est'] is not None and k['est'] is not None
+            and (p['est'] > 0) == (k['est'] > 0))
+    return f'{n}/{len(KEY8)}'
+
+
+def _widths(model, method, unit='events'):
+    return {(b, o, t): (c['hi'] - c['lo'])
+            for b, o, t in KEY8 for c in [_cell(model, method, b, o, t, unit)]
+            if c and c['lo'] is not None}
+
+
+def ppi_width(model, what='mean', unit='events'):
+    """PPI++ interval width on the eight key cells: the precision the predictor actually buys."""
+    w = _widths(model, 'ppi', unit)
+    if what == 'mean':
+        return f'{sum(w.values()) / len(w):.3f}'
+    e = _widths(ERM_REF, 'ppi', unit)
+    both = [k for k in w if k in e]
+    if what == 'narrower':                       # cells where THIS model's interval is the tighter
+        return f'{sum(1 for k in both if w[k] < e[k])}/{len(both)}'
+    if what == 'delta':                          # mean signed width difference against the ERM ref
+        d = sum(w[k] - e[k] for k in both) / len(both)
+        return f"{d:+.4f}".replace('-', '&minus;')
+    raise KeyError(what)
+
+
+def ppci_sign_stable(exp='v1'):
+    """How many key cells keep their PPCI sign across the prime flip, ERM cross-fit -> DERM.
+
+    The one claim PPCI is licensed to make is sign and pattern, so this -- not a magnitude -- is
+    what has to survive changing the deployed predictor. Counted on both cohorts, because v2 has
+    no labels and PPCI is the only estimator it has.
+    """
+    n = same = 0
+    for b, o, t in KEY8:
+        e, d = _cell(ERM_REF, 'ppci', b, o, t), _cell(PRIME, 'ppci', b, o, t)
+        if not (e and d) or e['est'] is None or d['est'] is None:
+            continue
+        n += 1
+        same += (e['est'] > 0) == (d['est'] > 0)
+    return f'{same}/{n}'
+
+
+def _c2(model, method, b, o, t, exp):
+    return next((c for c in E['cells']
+                 if c['exp'] == exp and c['unit'] == 'events' and c['stratum'] == 'all'
+                 and c['model'] == model and c['method'] == method and c['behav'] == b
+                 and c['odour'] == o and c['trans'] == t), None)
+
+
+def ppci_sign_stable_v2():
+    n = same = 0
+    for b, o, t in KEY8:
+        e, d = _c2(ERM_REF, 'ppci', b, o, t, 'v2'), _c2(PRIME, 'ppci', b, o, t, 'v2')
+        if not (e and d) or e['est'] is None or d['est'] is None:
+            continue
+        n += 1
+        same += (e['est'] > 0) == (d['est'] > 0)
+    return f'{same}/{n}'
+
+
+def n_null(model, method=None):
+    """Cells the grid refuses to fill for this predictor -- a guard firing, not a gap.
+
+    Every refusal on this page is the decay outcome on a genotype substratum where too few
+    recordings have a defined onset: a small-sample guard build_estimates.py applies to all three
+    predictors identically. Counted rather than asserted, because "the grid is complete" is a
+    claim that has to survive the next predictor landing.
+    """
+    return sum(1 for c in E['cells'] if c['model'] == model and c['est'] is None
+               and (method is None or c['method'] == method))
+
+
+def n_cells(model):
+    return sum(1 for c in E['cells'] if c['model'] == model)
+
+
+def null_strata(model):
+    """The substrata the refusals fall in, named, so the reader can check they are the tiny ones."""
+    s = sorted({c['stratum'] for c in E['cells'] if c['model'] == model and c['est'] is None})
+    return ', '.join(x.replace('_wt', '&nbsp;wt').replace('_het', '&nbsp;het') for x in s) or '&mdash;'
+
+
+# The seed spread of the out-of-distribution bias. ERM's imported bias is itself a draw of the
+# seed; the question DERM has to answer is whether removing the channel also removes the spread.
+_SEED_ARMS = {'ERM': ('trF_erm_last', 'trF_erm_last_s1', 'trF_erm_last_s2'),
+              'DERM': ('trF_derm_last_popw', 'trF_derm_last_popw_s1', 'trF_derm_last_popw_s2')}
+
+
+def _seed_means(fam):
+    """mean per-pool bias, per seed, per (behaviour, transition) cell -- from the per-pool dumps."""
+    out = {}
+    for lab in ('nt', 'nn'):
+        for tr in _TR:
+            v = []
+            for tag in _SEED_ARMS[fam]:
+                pp = _OS.get('arms', {}).get(tag, {}).get('per_pool', {}).get(lab, {}).get(tr)
+                if pp:
+                    v.append(sum(pp.values()) / len(pp))
+            if v:
+                out[(lab, tr)] = v
+    return out
+
+
+def seed_sd(fam, what='mean'):
+    """Mean over the four cells of the across-seed standard deviation of the bias."""
+    m = _seed_means(fam)
+    if not m:
+        return '&mdash;'
+    sds = [(sum((x - sum(v) / len(v)) ** 2 for x in v) / (len(v) - 1)) ** 0.5
+           for v in m.values() if len(v) > 1]
+    if what == 'max_abs':
+        return '{:.3f}'.format(max(abs(x) for v in m.values() for x in v))
+    if what == 'n':
+        return sum(len(v) for v in m.values())
+    return '{:.3f}'.format(sum(sds) / len(sds)) if sds else '&mdash;'
+
+
+def ood_absmean(fam):
+    """Mean |seed-averaged bias| over the four out-of-distribution cells."""
+    r = _OS.get('seed_avg', {}).get('train_fear_popw_seedavg', {})
+    k = 'erm_mean' if fam == 'ERM' else 'derm_mean'
+    v = [abs(r[lab][tr][k]) for lab in ('nt', 'nn') for tr in _TR
+         if r.get(lab, {}).get(tr)]
+    return '{:.3f}'.format(sum(v) / len(v)) if len(v) == 4 else '&mdash;'
+
+
+def ap_mean(which):
+    """Macro AP, mean over three cross-fitting folds. CONTEXT ONLY -- never a promotion criterion."""
+    d = {'DERM': xfd, 'ERM': xfe, 'deployed_erm': xf, 'BitFit': xfb}[which]
+    return f"{d['ap']:.3f}" if d else '&mdash;'
+
+
 # Section 05's bound table: every row computed from derm.json's grid, so the printed percentages
 # and the formula in the box next to them cannot disagree.
 _BROWS = [(0.50, ''), (0.60, 'roughly where we are: <b>&minus;12% measured</b>, averaged over the '
@@ -354,7 +566,7 @@ BODY = f'''
 <div class="wrap">
 
 <header class="top"><div class="measure">
-  <p class="eyebrow">Mice v1 / v2 &middot; status &middot; 24 August 2026</p>
+  <p class="eyebrow">Mice v1 / v2 &middot; status &middot; 26 August 2026</p>
   <h1>Genotype under hormonal exposure</h1>
   <p class="lede">Three ASD-associated mouse lines, wild-type against heterozygous carriers of the
   same knockout, filmed in cages of four before, during and after two hormonal exposures. The
@@ -362,6 +574,107 @@ BODY = f'''
   that: <b>the effect of the exposure</b> &mdash; overall and broken down by line &times; genotype
   &mdash; and the vision model that has to carry it to the 84 pools nobody has annotated.</p>
 </div></header>
+
+<section><div class="measure">
+  <div class="sechead"><p class="eyebrow">00 &middot; Story</p>
+  <h2>Story <span class="verdict v-part">draft for iteration &mdash; not final</span></h2>
+  <p class="deccap">journal-paper story &mdash; the argument we would make to a quantitative
+  biology / neuroscience readership (eLife, Nature Methods register). Biology first, method in
+  service of it. Everything below is a claim this report already supports; what is still open is
+  marked.</p></div>
+
+  <ul class="story">
+    <li><b>The question.</b> In {n_lines_word} ASD-associated mutant mouse lines, wild-type against
+    heterozygous carriers of the same knockout, do odour exposures &mdash; a fear odour and a
+    social odour, physically placed in the cage &mdash; causally change social investigation, and
+    does the response differ by line and genotype? The two behaviours scored are nose-to-nose and
+    nose-to-tail sniffing. The obstacle is annotation: {des('v1','annotated_pools')} of
+    {des('v1','pools')} cages are annotated in the first cohort, and
+    {des('v2','annotated_pools')} of {des('v2','pools')} in the replication cohort.</li>
+
+    <li><b>The promise.</b> Take prediction-powered causal inference from proof of concept to a
+    full deployment. Train a frame classifier on the annotated subsample, impute the behaviour
+    everywhere else, and estimate the within-cage phase-transition effect &mdash; habituation to
+    odour, odour to post &mdash; in bouts per minute. PPI++ combines the human and the machine
+    annotations into confidence intervals that stay valid <em>whatever</em> the classifier gets
+    wrong.</li>
+
+    <li><b>The obstacle, and the core methodological contribution.</b> The treatment is literally
+    visible. A scent bag sits in a corner of the cage for the exposure phase, so a single quiet
+    frame &mdash; one with no behaviour in it at all &mdash; already says which phase it came from:
+    a probe reads exposure against not-exposure at {probe()} balanced accuracy. A classifier
+    trained by ordinary empirical risk minimisation absorbs that phase prior and carries it into
+    the causal estimate as a constant offset on the treated phase. Out of distribution it halves
+    the true effect ({os_('trF_erm_last','nt','H->O','pred_dF')} bouts per minute where the human
+    annotations say {os_('trF_erm_last','nt','H->O','true_dY')}), the size of the error is a draw
+    of the random seed, and <b>no accuracy metric shows any of it</b>.</li>
+
+    <li><b>The repair.</b> Population-weighted DERM removes the prior in the training objective
+    rather than after the fact. Out of distribution its bias is indistinguishable from zero in
+    every cell and every seed &mdash; largest {seed_sd('DERM','max_abs')} bouts per minute over
+    {seed_sd('DERM','n')} seed&nbsp;&times;&nbsp;cell combinations, every interval covering zero,
+    against {seed_sd('ERM','max_abs')} for ERM &mdash; and it recovers the human-annotation effect
+    outright ({os_('trF_derm_last_popw','nt','H->O','pred_dF')} against the true
+    {os_('trF_derm_last_popw','nt','H->O','true_dY')}). In distribution the bias falls on both
+    behaviours over the same 48 paired units (p = {eb24p('nt','p')} and {eb24p('nn','p')}). And
+    the negative control is clean: trained in the direction where the confound is absent, DERM and
+    ERM coincide. DERM is the deployed predictor for every effect reported here.</li>
+
+    <li><b>Deployment, in distribution and out.</b> Effects are estimated on the first cohort
+    ({des('v1','annotated_pools')} annotated cages carrying all {des('v1','pools')}) and
+    reproduced on the second ({des('v2','pools')} cages, no labels anywhere), with the
+    exposure split serving as the out-of-distribution stress test. Label-free PPCI agrees in sign
+    with the classical human-only estimator in {sign_agree(PRIME)} of the eight headline cells;
+    the single miss is a cell whose classical value is {lvl('nn','social')} bouts per minute
+    &mdash; indistinguishable from no effect, where a sign is not a claim either estimator is
+    making.</li>
+
+    <li><b>Heterogeneity, and where we stop.</b> Beyond the average exposure effect, every effect
+    is stratified by line, genotype and sex &mdash; conditional effects, not one number for the
+    colony. We frame these as <em>effect modification</em> rather than genotype-as-intervention,
+    because in this dataset annotator identity is confounded with genotype: the contrast we can
+    defend is how the exposure effect varies across groups, not what the knockout does. Stating
+    that boundary is part of the contribution. <span class="run">[open: how hard to push the
+    conditional-effect claim &mdash; a headline result, or a demonstration that the machinery
+    reaches strata the human labels cannot?]</span></li>
+
+    <li><b>Practical guidelines &mdash; the transferable part.</b> Four rules this deployment paid
+    for.
+    <ul>
+      <li><b>Validate on the estimand, not on average precision.</b> Prediction metrics reward the
+      confound: the accuracy leader here is not the predictor we deploy. Decision thresholds must
+      be rate-matched rather than tuned in probability space, and phase means must be
+      time-windowed &mdash; without a matched window a within-phase habituation artefact flips
+      signs.</li>
+      <li><b>A homogeneous annotated subsample scored by heterogeneous annotators is fine</b>
+      &mdash; provided the design cancels the annotator inside the contrast. Here every cage is
+      scored by one annotator across all its phases, so the annotator cancels within the
+      within-cage difference.</li>
+      <li><b>Strongly unbalanced annotations need weighted losses and prevalence-corrected
+      environment weights.</b> Weights estimated on the balanced training subsample actively
+      mislead: they collapsed the environment-variance ratio the objective is built on and
+      trained the correction at half strength.</li>
+      <li><b>Annotation economics.</b> The learning curve is log-linear with no plateau anywhere
+      in the affordable range ({run('res448_k2_frozen_d4photo_lc5p')['ap']:.3f} to
+      {run('res448_k2_frozen_d4photo_lc15p')['ap']:.3f} AP across a threefold budget increase), so
+      the natural unit is a doubling. Doubling the annotated set &mdash; another
+      {des('v1','annotated_pools')} cages on top of today's {des('v1','annotated_pools')} &mdash;
+      buys more than every modelling change tried here, combined. Say it out loud in the paper:
+      the binding constraint was never the architecture.</li>
+    </ul></li>
+
+    <li class="run"><b>[open: what to claim as the single headline contribution]</b> &mdash; the
+    biology (two odours act differently, and oppositely on the two behaviours), the method (the
+    visible-treatment confound and its repair), or the deployment itself (a causal estimate on a
+    cohort with zero annotations). The three are currently weighted about equally, which is
+    usually a sign none of them is being claimed hard enough.</li>
+  </ul>
+
+  <div class="note"><b>What this section is.</b> A working draft of the paper's argument, kept in
+  the report so it moves when the results do &mdash; every number in it is read from the same
+  payloads as the sections below. It is not a summary of the report; it is the case the report
+  would have to support.</div>
+</div></section>
 
 <section><div class="measure">
   <div class="sechead"><p class="eyebrow">01 &middot; Experiments</p>
@@ -582,8 +895,14 @@ BODY = f'''
       <tr><td>O &rarr; P &nbsp;(odour OFF)</td>{ddecay('nt','fear','O->P')}{ddecay('nt','social','O->P')}{ddecay('nn','fear','O->P')}{ddecay('nn','social','O->P')}</tr>
     </tbody></table></div>
   <p class="defn">* = resolves; {n_dec} of 8 do on human labels alone, {n_dec_ppi} of 8 with PPI++.
-  Decay is undefined where a recording has no bout in the window, so n falls to 13&ndash;24 by cell
-  &mdash; which is why the model buys more on the timing than it does on the level.</p>
+  Decay is undefined where a recording has no bout in the window, so n falls to {decay_n()} pools by
+  cell &mdash; which is why the model buys more on the timing than it does on the level.
+  <b>These eight numbers are the only ones on the page that move when the predictor does, even
+  though they use human labels alone</b>: a pool enters a decay cell only if <em>both</em> the
+  annotator and the model give it a defined onset, so the predictor selects the pool set even for
+  the classical estimate. Under the ERM cross-fit the same cells rest on {decay_n(ERM_REF)} pools.
+  The level and occupancy carry no such dependence &mdash; their classical estimates are identical
+  for every predictor, on all 24 pools.</p>
 
   <h3 style="margin-top:26px">What a better model could buy, at most</h3>
   <p>Two things cap it, and both are computable rather than rhetorical.</p>
@@ -811,7 +1130,8 @@ BODY = f'''
         <td class="hi">+0.112</td><td class="hi">recalibration, at 1/602nd the params</td></tr>
       <tr><td>04.3</td><td><b>encoder</b><br><span style="opacity:.65">label-free</span></td>
         <td>self-supervised on unlabelled frames</td>
-        <td class="hi">+0.033</td><td class="hi">what we deploy; the only lever that reaches v2</td></tr>
+        <td class="hi">+0.033</td><td>the only lever that reaches v2 &mdash; but <em>not</em> in the
+        deployed predictor, which trains DERM on the stock encoder</td></tr>
       <tr><td>04.4</td><td><b>input</b></td><td>224 &rarr; 448 px, and the token count under it</td>
         <td class="hi">+0.132</td><td>real, and now saturated</td></tr>
       <tr><td>04.5</td><td><b>head</b></td><td>capacity: 0.44 M to 5.03 M, self-attention, multi-query</td>
@@ -898,7 +1218,7 @@ BODY = f'''
   <details class="sub">
     <summary>
     <p class="q">04.3 &middot; encoder &mdash; unlabelled frames</p>
-    <h3>Self-supervised adaptation <span class="verdict v-yes">yes &mdash; and it is what we deploy</span></h3>
+    <h3>Self-supervised adaptation <span class="verdict v-part">real, and not currently deployed</span></h3>
     </summary>
     <div class="body">
     <p>data2vec-style masked patch-feature regression against an EMA teacher, on <b>374,400</b>
@@ -951,11 +1271,18 @@ BODY = f'''
     On macro AP the gap is <b>+0.031</b> for stock, about 2.2&times; the widest seed spread, so it
     clears noise: the two interventions substitute rather than compose. <b>On every other metric
     they are a wash</b> &mdash; each leads on one of the two event F1s and one of the two r&Delta;s.
-    Since r&Delta; is what decides whether a model helps the estimate, the deployed SSL encoder is
+    Since r&Delta; is what decides whether a model helps the estimate, the SSL encoder is
     <em>not</em> penalised on the axis that matters, only on the one that shortlists. What <em>is</em>
     established, each a clean single-variable change: 2&times; the corpus at matched compute is
     neutral, and six adapted blocks is clearly harmful. So <em>scaling</em> the corpus is closed;
-    SSL itself is not.</div>
+    SSL itself is not.
+    <br><br><b>It is no longer in the deployed model, and that was not a judgement about SSL.</b>
+    The cross-fit this report deploys is DERM on the <em>stock</em> encoder with the 0.52 M head,
+    because that is the arm the objective comparison in 04.6 was run on and the arm whose dense
+    passes exist. It still scores {ap_mean('DERM')} macro AP against the SSL-adapted ERM
+    deployment's {ap_mean('deployed_erm')}, so nothing was given up to drop it &mdash; but
+    <b>SSL adaptation and the DERM objective have never been combined</b>, and no result here says
+    they would not compose. That is the same open experiment section 06 lists for BitFit-6.</div>
 
   </div>
   </details>
@@ -1100,8 +1427,9 @@ BODY = f'''
 
     <div class="note"><b>Do not judge DERM on AP.</b> A model that has stopped using the phase
     prior is <em>necessarily</em> a little worse at frame classification, because the prior is
-    genuinely informative for that task &mdash; so DERM's &minus;0.02 macro AP against its matched
-    control is the expected price of the correction, not evidence against it. vREx, the other
+    genuinely informative for that task &mdash; so DERM's {ap_mean('DERM')} macro AP against its
+    matched control's {ap_mean('ERM')} is the expected price of the correction, not evidence
+    against it. vREx, the other
     environment-aware objective tried, is just a baseline: four arms, best +0.008 (inside seed
     noise), &minus;0.094 at &beta;&nbsp;=&nbsp;100.</div>
 
@@ -1214,8 +1542,107 @@ BODY = f'''
     seen the other exposure of the same cage and animals, so its bias here is smaller than on a
     pool it has never seen &mdash; useful precisely because a large lower bound is a strong
     statement. It cannot feed PPI++ &mdash; the rectifier would sit on pools the model trained on;
-    the deployment-valid comparison is the cross-fit above, which agrees in direction. And one
-    seed per arm so far: {os_seed_note}</div>
+    the deployment-valid comparison is the cross-fit above, which agrees in direction. And the seed
+    coverage is uneven: {os_seed_note}</div>
+
+    <h3>Why DERM is the deployed predictor</h3>
+    <p>Promoting a predictor moves every PPCI number in section 03, so the case for it is made on
+    the <b>estimand</b>, criterion by criterion, and the whole table is computed from the two
+    payloads rather than transcribed. The standing rule was the user&rsquo;s: <em>if ERM still
+    works better, there is an issue to solve first.</em> It does not.</p>
+    <div class="scroll"><table>
+      <thead><tr><th>criterion &mdash; all on the estimand</th><th>ERM</th><th>DERM</th>
+        <th>verdict</th></tr></thead>
+      <tbody>
+        <tr><td>(a) in-distribution bias &middot; nose-to-tail</td>
+          <td>{eb24('nt','ERM')}</td><td>{eb24('nt','DERM')}</td>
+          <td class="hi">DERM &middot; paired p {eb24p('nt','p')}</td></tr>
+        <tr><td>(a) in-distribution bias &middot; nose-to-nose</td>
+          <td>{eb24('nn','ERM')}</td><td>{eb24('nn','DERM')}</td>
+          <td class="hi">DERM &middot; paired p {eb24p('nn','p')}</td></tr>
+        <tr><td>(b) out-of-distribution bias, seed-averaged</td>
+          <td>{ood_absmean('ERM')}</td><td>{ood_absmean('DERM')}</td>
+          <td class="hi">DERM &middot; p {os_savg('nt','H->O','p')} headline</td></tr>
+        <tr><td>(c) PPCI sign agreement with CI</td>
+          <td>{sign_agree(ERM_REF)}</td><td>{sign_agree(PRIME)}</td>
+          <td>tie &middot; same cell missed</td></tr>
+        <tr><td>(d) PPI++ interval width, mean</td>
+          <td>{ppi_width(ERM_REF)}</td><td>{ppi_width(PRIME)}</td>
+          <td class="hi">DERM &middot; narrower in {ppi_width(PRIME,'narrower')}</td></tr>
+        <tr><td>(e) seed SD of the out-of-distribution bias</td>
+          <td>{seed_sd('ERM')}</td><td>{seed_sd('DERM')}</td>
+          <td class="hi">DERM &middot; about half</td></tr>
+        <tr><td class="lo">macro AP &mdash; context, <em>not</em> a criterion</td>
+          <td class="lo">{ap_mean('ERM')}</td><td class="lo">{ap_mean('DERM')}</td>
+          <td class="lo">ERM &mdash; which is the point</td></tr>
+      </tbody></table></div>
+    <p class="defn">(a) mean a<sub>O</sub>&minus;a<sub>H</sub> over 48 pool&nbsp;&times;&nbsp;exposure
+    units, paired across objectives on the same three folds. (b) mean |bias| over the four
+    exposure-split cells, per-pool bias averaged across three seeds first. (c) how many of the
+    eight v1 key cells &mdash; behaviour &times; exposure &times; transition, bouts per minute
+    &mdash; the label-free PPCI signs the same way the human-only estimator does. (d) mean 95%
+    interval width on those same eight cells. (e) mean across-seed SD of the bias over four cells
+    &times; three seeds. Macro AP is the mean over the three cross-fitting folds of the two matched
+    objective arms; the previous deployment sat at {ap_mean('deployed_erm')} and BitFit-6 leads all
+    of them at {ap_mean('BitFit')}.</p>
+    <p><b>Why AP is excluded from the criteria.</b> The phase prior is genuinely predictive of the
+    frame label, so any objective that stops using it must score slightly worse at frame
+    classification &mdash; AP <em>rewards</em> the exact shortcut the promotion is meant to remove,
+    and ranking on it would re-select the model this section spent its length disqualifying. Across
+    the {M['meta']['n_candidates']} candidates AP and r&Delta; correlate at only
+    {M['meta']['spearman_ap_vs_rdelta']:+.2f}, so it is a weak proxy for the estimand even before
+    the confound is counted.</p>
+    <div class="note"><b>Where the case is weakest, stated plainly.</b> Nose-to-tail&rsquo;s
+    in-distribution bias interval covers zero for <em>both</em> objectives
+    ({eb24('nt','ERM','ci')} for ERM, {eb24('nt','DERM','ci')} for DERM), so on that behaviour the
+    paired reduction resolves but neither level does &mdash; DERM is being promoted on a
+    difference, not on a demonstrated ERM failure. Two of the four seed-averaged
+    out-of-distribution cells (both OFF legs) have a nominally smaller ERM bias; both are inside
+    noise (p = {os_savg('nt','O->P','p')} nose-to-tail, {os_savg('nn','O->P','p')} nose-to-nose)
+    and neither reverses the mean over the four cells. And one of the eight PPI++ widths is wider
+    under DERM. No criterion favours ERM outside noise, which is the bar that was set.
+    <br><br><b>One comparison is matched and one is not.</b> Criteria (a), (b) and (e) hold
+    everything but the objective fixed &mdash; same stock encoder, same 0.52&nbsp;M head, same
+    folds, same seeds &mdash; so they isolate DERM. Criteria (c) and (d) compare the deployed DERM
+    grid against the <em>previous deployment</em>, which also carried the SSL-adapted encoder and
+    the 5.03&nbsp;M head, so a change of encoder rides along in them. They are reported because
+    they are what a reader of section 03 actually experiences when the predictor switches, not as
+    evidence about the objective.</div>
+
+    <p><b>Where this leaves the three open threads.</b>
+    <b>(i) Out of distribution the split is decisive and seed-robust.</b> On the fear-trained
+    headline cell the seed-averaged paired difference is {os_savg('nt')} at
+    p = {os_savg('nt','H->O','p')}, and corrected DERM&rsquo;s bias sits within
+    &plusmn;{seed_sd('DERM','max_abs')} bouts per minute in all
+    {seed_sd('DERM','n')} seed&nbsp;&times;&nbsp;cell combinations, every one of the twelve
+    intervals covering zero. The negative control is clean: trained on the social direction, where
+    the O/H prevalence ratio is 0.8&times; and there is nothing to correct, DERM and ERM coincide
+    (nose-to-tail ON {os_('trS_erm_last','nt')} against {os_('trS_derm_last_popw','nt')}).
+    <b>(ii) In distribution the 24-pool cross-fit reduces the bias on both behaviours</b> &mdash;
+    p = {eb24p('nt','p')} nose-to-tail and p = {eb24p('nn','p')} nose-to-nose, paired over the same
+    48 units &mdash; with the caveat above that nose-to-tail&rsquo;s own interval still covers zero.
+    <b>(iii) The DERM grid is deployed on both cohorts.</b> The v2 dense passes landed on
+    26 August 2026, so DERM now supplies every PPCI estimate on v1&rsquo;s 72 pools and v2&rsquo;s
+    36 &mdash; the same coverage the ERM cross-fit had, on the same three folds.</p>
+
+    <p class="defn">The grid is complete for every predictor in the sense that matters: <b>every
+    cell of the design is present and accounted for &mdash; none is missing</b>. Of the DERM
+    predictor&rsquo;s {n_cells(PRIME)} cells, {n_null(PRIME)} carry no estimate, and all
+    {n_null(PRIME)} are the same guarded refusal: the decay outcome under PPI++ on the two-pool
+    genotype substrata ({null_strata(PRIME)}), where a single annotated recording has a defined
+    onset. That guard is applied identically to all three predictors &mdash; the ERM grid refuses
+    {n_null(ERM_REF)} cells, {n_null(ERM_REF,'ppi')} of them the same PPI++ case and the rest cells
+    where the classical estimate itself has no recording with an onset to average. A guarded
+    refusal is a decision the builder made and logged, not a hole in the grid.</p>
+
+    <div class="note"><b>The flip changed magnitudes and not one sign.</b> Switching section 03's
+    deployed predictor from the ERM cross-fit to DERM leaves the PPCI sign unchanged in
+    {ppci_sign_stable()} of the eight v1 key cells and {ppci_sign_stable_v2()} of the eight on v2
+    &mdash; the cohort with no labels at all, where PPCI is the only estimator that exists. Since
+    sign and pattern are the only things PPCI is licensed to claim, the promotion moves what the
+    report says about <em>size</em> without moving anything it says about <em>direction</em>. The
+    magnitudes do move, mostly toward the human-annotation values, but PPCI is on the model's
+    scale and this page never reads one as a rate.</div>
 
     <p><b>Does the model behind section 03's estimates use DERM, then?</b> {derm_pred_note}</p>
     </div>
@@ -1241,13 +1668,17 @@ BODY = f'''
     <thead><tr><th>candidate</th><th>macro AP</th><th>event F1 nt / nn</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
     <tbody>
       {cand_rows}
-      <tr><td><b>cross-fitted deployment</b> &mdash; SSL encoder, mean of 3 folds</td><td>{xf['ap']:.3f}</td>
+      <tr><td><b>cross-fitted ERM</b> &mdash; SSL encoder, mean of 3 folds</td><td>{xf['ap']:.3f}</td>
         <td>{xf['f1_nt']:.3f} / {xf['f1_nn']:.3f}</td><td>{xf['rd_nt']:.3f}</td>
         <td>{xf['rd_nn']:.3f}</td></tr>
       <tr><td class="hi"><b>cross-fitted BitFit-6</b> &mdash; mean of the same 3 folds</td>
         <td class="hi">{xfb['ap']:.3f}</td>
         <td class="hi">{xfb['f1_nt']:.3f} / {xfb['f1_nn']:.3f}</td>
         <td class="hi">{xfb['rd_nt']:.3f}</td><td class="hi">{xfb['rd_nn']:.3f}</td></tr>
+      <tr><td><b>cross-fitted DERM &mdash; deployed</b>, mean of the same 3 folds</td>
+        <td>{xfd['ap']:.3f}</td>
+        <td>{xfd['f1_nt']:.3f} / {xfd['f1_nn']:.3f}</td>
+        <td>{xfd['rd_nt']:.3f}</td><td>{xfd['rd_nn']:.3f}</td></tr>
     </tbody></table></div>
   <div class="note"><b>Read the last row differently.</b> The first four are scored on the standing
   4-pool split, 24 observations &mdash; too few to separate close models. The last is
@@ -1264,27 +1695,33 @@ BODY = f'''
   happens to inherit; <b>it is what makes ranking possible at all</b>. <b>PPCI uses no labels
   anywhere, so it is bound by neither</b> and would be better served by the single strongest
   model.</div>
-  <div class="note"><b>The replacement deployment has landed, and it is better on both axes.</b>
-  Cross-fitting first ran on the SSL-adapted frozen encoder with a plain 5.03 M head, which bought
-  label-free adaptation covering v2. The BitFit-6 cross-fit over the same three folds is now
-  <b>complete</b>: macro AP {xfb['ap']:.3f} against {xf['ap']:.3f}, and &mdash; the one that matters
-  &mdash; r&Delta; nose-to-tail {xfb['rd_nt']:.3f} against {xf['rd_nt']:.3f}. Section 03's bound
-  turns that into a predicted PPI++ narrowing of <b>17.5% against 11.6%</b>, so it is worth roughly
-  half again as much as the deployed model. <b>The dense passes have now landed on both cohorts</b>,
-  so the effects figure carries a <b>predictor</b> control and every estimate can be read against a
-  change of model.
-  <br><br><b>What the swap actually bought, measured rather than predicted.</b> Mean PPI++
+  <div class="note"><b>Three cross-fits over the same folds, and the one in front is not the
+  accurate one.</b> Cross-fitting first ran on the SSL-adapted frozen encoder with a plain 5.03 M
+  head, which bought label-free adaptation covering v2. BitFit-6 over the same three folds is
+  <b>complete</b> and leads on accuracy: macro AP {xfb['ap']:.3f} against {xf['ap']:.3f}, and
+  r&Delta; nose-to-tail {xfb['rd_nt']:.3f} against {xf['rd_nt']:.3f}. Section 03's bound turns that
+  into a predicted PPI++ narrowing of <b>17.5% against 11.6%</b>. <b>But the deployed predictor is
+  the third row &mdash; the DERM cross-fit, at {xfd['ap']:.3f} AP</b>, promoted on 26 August 2026
+  because it is the one that carries the least of the treatment shortcut into the estimate; the
+  case is tabulated in 04.6 and none of its criteria is an accuracy metric. All three have dense
+  passes on both cohorts, so the effects figure carries a <b>predictor</b> control and every
+  estimate can be read against a change of model.
+  <br><br><b>What accuracy actually buys, measured rather than predicted.</b> Mean PPI++
   narrowing against the human-only interval, over the eight all-pool cells of each outcome:
   on the <em>level</em> {narrowing('xfit_bit6_dense', 'events')} against
-  {narrowing('xfit_dense', 'events')}, on the <em>timing</em>
-  {narrowing('xfit_bit6_dense', 'decay')} against {narrowing('xfit_dense', 'decay')}, on occupancy
-  {narrowing('xfit_bit6_dense', 'time')} against {narrowing('xfit_dense', 'time')}. So the bound's
+  {narrowing(ERM_REF, 'events')}, on the <em>timing</em>
+  {narrowing('xfit_bit6_dense', 'decay')} against {narrowing(ERM_REF, 'decay')}, on occupancy
+  {narrowing('xfit_bit6_dense', 'time')} against {narrowing(ERM_REF, 'time')}. So the bound's
   17.5%-against-11.6% <b>over-promised on the level and badly under-promised on the timing</b> --
-  where BitFit-6 roughly doubles what the deployed model buys, on the strength of r&Delta; there
+  where BitFit-6 roughly doubles what the ERM cross-fit buys, on the strength of r&Delta; there
   rather than on macro AP. A model +{xfb['ap'] - xf['ap']:.3f} AP ahead is worth a couple of points
   of interval on the outcome section 02a chose and several times that on the one 02b added:
-  <b>the accuracy gap and the estimator gap are neither the same size nor in the same place</b>. The prose below still speaks for the deployed predictor; promoting BitFit-6 to the
-  headline is a separate decision, because it moves every number in section 03.</div>
+  <b>the accuracy gap and the estimator gap are neither the same size nor in the same place</b>.
+  <br><br><b>And the deployed DERM cross-fit gives none of that up.</b> Despite sitting
+  {abs(xfd['ap'] - xfb['ap']):.3f} AP behind BitFit-6 it narrows by {narrowing(PRIME, 'events')} on the
+  level and {narrowing(PRIME, 'decay')} on the timing, and its PPI++ intervals over the eight key
+  cells are the tighter ones in {ppi_width(PRIME, 'narrower')} against the ERM cross-fit. Precision
+  was never the argument against it; 04.6 gives the argument for it.</div>
 
   <div class="sub"><p class="q">05.2 &middot; where it fails</p>
   <h3>Where it is right, where it is wrong, and what it sees on the pools nobody scored</h3></div>
@@ -1326,7 +1763,14 @@ BODY = f'''
   phase would still cancel in a within-pool difference; what would not cancel is the part that moves
   with the phase, and section 04.6 measures that part at {eb('nt','ERM')} bouts/min on nose-to-tail
   &mdash; {eb('nt','ERM','share')} the pooled true effect, on an interval too wide to resolve. It is
-  the largest open threat to PPCI on this page.</p>
+  the largest open threat to PPCI on this page, and it is the reason the deployed predictor is now
+  the DERM cross-fit rather than an ERM one.</p>
+  <div class="note"><b>This figure has not caught up with the promotion.</b> The thumbnails and the
+  occupancy table above are the <b>ERM</b> cross-fit's, from a payload built before DERM was
+  deployed. They are still the right picture of what a frame classifier of this family gets right
+  and wrong &mdash; the failure modes are shared &mdash; but the confusion counts, the distances and
+  the predicted-occupancy ranges are not the deployed model's. Section 03's effects and 04.6's bias
+  measurements are, and those are the numbers this page rests on.</div>
 </div>
 
 <div class="measure">
@@ -1338,56 +1782,66 @@ BODY = f'''
   <div class="scroll"><table>
     <thead><tr><th>predictor</th><th>trained on</th><th>macro AP</th><th>predicted/true occupancy</th></tr></thead>
     <tbody>
-      <tr><td>deployed 3-fold mean</td><td>16 pools each, SSL encoder, 5.03 M head</td>
-        <td>0.382</td><td class="lo">{R['meta']['calibration']['deployed']['nt']}&times; nt,
+      <tr><td>ERM 3-fold mean</td><td>16 pools each, SSL encoder, 5.03 M head</td>
+        <td>{xf['ap']:.3f}</td><td class="lo">{R['meta']['calibration']['deployed']['nt']}&times; nt,
         {R['meta']['calibration']['deployed']['nn']}&times; nn</td></tr>
       <tr><td>single accuracy leader</td><td>20 pools, BitFit-6 on stock, 0.52 M head</td>
-        <td class="hi">0.541</td><td class="hi">{R['meta']['calibration']['single']['nt']}&times; nt,
+        <td class="hi">{run(R['meta']['single'])['ap']:.3f}</td>
+        <td class="hi">{R['meta']['calibration']['single']['nt']}&times; nt,
         {R['meta']['calibration']['single']['nn']}&times; nn</td></tr>
     </tbody></table></div>
   <p><b>On bouts per minute the two agree in
   {R['meta']['sign_agreement']['events']['agree']} of
   {R['meta']['sign_agreement']['events']['of']} cells &mdash; every one.</b> On occupancy they agree
   in {R['meta']['sign_agreement']['time']['agree']} of
-  {R['meta']['sign_agreement']['time']['of']}, and both disagreements are cells where the deployed
+  {R['meta']['sign_agreement']['time']['of']}, and both disagreements are cells where the ERM
   value is within 0.5 pp of zero. So PPCI's sign and pattern are a property of the behaviour, not of
-  the predictor, across a change that nearly halves the calibration error and adds 0.16 macro AP.
+  the predictor, across a change that nearly halves the calibration error and adds
+  {run(R['meta']['single'])['ap'] - xf['ap']:.2f} macro AP.
   Magnitudes do move &mdash; which is exactly why the report never quotes one.</p>
+  <p class="defn">This check was run on the two <b>ERM</b> predictors and predates the promotion of
+  the DERM cross-fit; it has not been recomputed on it. What it establishes &mdash; that PPCI's
+  sign survives a change of model &mdash; is if anything a weaker demand than 04.6's, where the
+  deployed DERM grid agrees with the classical estimator in {sign_agree(PRIME)} of the eight key
+  cells, the same {sign_agree(ERM_REF)} the ERM grid manages and on the same cell.</p>
 </div></section>
 
 
 <section><div class="measure">
   <div class="sechead"><p class="eyebrow">06 &middot; Next</p><h2>What to do next</h2></div>
-  <p>In priority order. <span class="run"><b>Amber is in the queue</b></span>; every other row
-  needs a decision or an annotator, not compute.</p>
+  <p>In priority order. Rows 1&ndash;3 are the model; nothing is currently queued, so each of them
+  is a decision or a compute request. Rows 4&ndash;6 need annotator time and buy more than any of
+  them.</p>
   <div class="scroll"><table>
     <thead><tr><th></th><th>action</th><th>status</th><th>what it changes</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td>promote the cross-fitted BitFit-6 to the headline predictor</td>
-        <td>landed &mdash; it is <em>in</em> the figure, not yet <em>in front of</em> it</td>
-        <td>all 3 folds and both dense passes are in, so section 03 carries a predictor control and
-        the prose still reads the deployed model. Measured PPI++ narrowing
-        {narrowing('xfit_bit6_dense', 'events')} against {narrowing('xfit_dense', 'events')} on the
-        level and {narrowing('xfit_bit6_dense', 'decay')} against {narrowing('xfit_dense', 'decay')}
-        on the timing &mdash; a decision, not a build step, because it moves every number in 03</td></tr>
-      <tr><td>2</td><td>deploy DERM on the level, per <em>failure mode</em></td>
-        <td>answered &mdash; see 04.6</td>
-        <td>DERM removes the phase-prevalence component of the bias, with sign and size set by the
-        training gradient and nothing else &mdash; the same correction to within 0.02 for two
-        different behaviours. On nose-to-tail that component <em>is</em> the bias: mean |bias| over
-        the four exposure-split cells {os_absmean('erm','nt')} &rarr; {os_absmean('derm','nt')},
-        smaller in {os_beats('nt')}, and on the deployment cross-fit
-        {eb24('nt','ERM','share')} &rarr; {eb24('nt','DERM','share')} of the effect. On
-        nose-to-nose the bias is a <em>slope</em> error, which one constant per environment cannot
-        touch, and DERM makes it worse ({os_beats('nn')} cells). Deploy it where the failure is an
-        offset</td></tr>
-      <tr><td>3</td><td class="run">the four fixed-epoch arms, so selection is neutral</td>
-        <td class="run">training now</td>
-        <td class="run">the saved epoch is the one with the highest <em>unweighted</em> monitor AP
-        &mdash; for a DERM arm that asks for the epoch that best exploits the prior the objective
-        removes, so the ERM comparison inherits it. <code>--select last</code> gives both arms an
-        identical fixed budget; the last ten epochs sit inside 0.01 AP, so nothing is given up. It
-        can only move DERM's numbers in its favour</td></tr>
+      <tr><td>1</td><td>deploy DERM as the headline predictor</td>
+        <td><b>done &mdash; 26 August 2026</b></td>
+        <td>every PPCI estimate on this page, on both cohorts, is now the DERM cross-fit. Promoted
+        on the estimand, not on accuracy: in-distribution bias paired down on both behaviours
+        (p = {eb24p('nt','p')} nose-to-tail, p = {eb24p('nn','p')} nose-to-nose), out-of-distribution
+        mean |bias| {ood_absmean('ERM')} &rarr; {ood_absmean('DERM')}, seed SD
+        {seed_sd('ERM')} &rarr; {seed_sd('DERM')}, PPI++ intervals narrower in
+        {ppi_width(PRIME,'narrower')} of the key cells and PPCI sign agreement unchanged at
+        {sign_agree(PRIME)}. The full table, including where the case is weakest, is in 04.6</td></tr>
+      <tr><td>2</td><td>promote the cross-fitted BitFit-6, or fold DERM into it</td>
+        <td>open &mdash; a decision, not a build step</td>
+        <td>BitFit-6 leads on accuracy ({xfb['ap']:.3f} against {xfd['ap']:.3f}) and on measured
+        PPI++ narrowing ({narrowing('xfit_bit6_dense','events')} against
+        {narrowing(PRIME,'events')} on the level), but it trains with plain ERM, so it carries the
+        phase shortcut 04.6 disqualifies &mdash; the two axes are not comparable and BitFit's win is
+        on the one that does not decide. The honest next move is a <b>BitFit-6 backbone trained
+        with DERM</b>, cross-fitted over the same three folds, which would put the accuracy and the
+        objective on the same model instead of asking which to give up. Compute, not annotator
+        time</td></tr>
+      <tr><td>3</td><td>seed replicates of the <em>social</em>-trained pair</td>
+        <td>{os_absent_note}</td>
+        <td>the fear-trained pair now has three seeds each and 04.6's headline is
+        averaged over them. The social direction &mdash; the negative control, where there is
+        almost nothing to correct and DERM should equal ERM &mdash; still rests on one seed per
+        arm. Replicating it is what turns "the correction is confound-specific" from a single draw
+        into a claim. It can only weaken or confirm; it cannot move the fear-trained
+        result</td></tr>
       <tr><td>4</td><td>annotate ~20 more v1 pools</td><td>needs annotator time</td>
         <td>+0.076 AP per doubling and no plateau, worth more than every modelling change combined
         &mdash; and it raises CI's own precision, not only PPI++'s</td></tr>

@@ -92,21 +92,26 @@
     exp: 'v1', unit: 'events', behav: 'nn', model: null, view: 'all', trans: 'H->O', table: false,
   };
   const uniq = (k) => [...new Set(cells.map(c => c[k]))];
-  /* The default predictor is the DEPLOYED one, named rather than positional: the report's prose
-     speaks for it (report_body.py's PRIME), so a figure that opened on a different one would
-     disagree with the text beside it. Falls back to whatever is present if it is ever dropped. */
-  state.model = uniq('model').includes('xfit_dense') ? 'xfit_dense' : uniq('model')[0];
+  /* The default predictor is the DEPLOYED one, READ FROM THE PAYLOAD rather than named here:
+     build_estimates.py writes meta.deployed and report_body.py's PRIME reads the same field, so
+     promoting a predictor is one edit there and the figure can never open on a model the prose
+     beside it does not speak for. Falls back to whatever is present if the field is missing or
+     names a predictor that did not make it into the grid. */
+  const DEPLOYED = DATA.meta.deployed;
+  state.model = uniq('model').includes(DEPLOYED) ? DEPLOYED : uniq('model')[0];
   /* One entry per predictor that supplies f. The control is here because which model carries the
      estimate is a choice the reader should see being made. SHORT names win: these are button
      labels in a segmented control, and meta.predictors carries sentence-length descriptions that
      would blow out the toolbar. The payload is the fallback, so a predictor nobody named here
      still shows up as prose rather than as a bare directory name. */
   const MODEL_NICE = Object.assign({}, DATA.meta.predictors || {}, {
-    xfit_dense: 'SSL encoder, 3 folds',
-    xfit_bit6_dense: 'BitFit-6, 3 folds',
-    xfit_derm_dense: 'DERM, 3 folds',
+    xfit_dense: 'SSL encoder, ERM',
+    xfit_bit6_dense: 'BitFit-6, ERM',
+    xfit_derm_dense: 'DERM',
   });
-  const modelName = (m) => MODEL_NICE[m] || m;
+  /* The deployed predictor is marked in the control itself, so a reader who has switched away
+     from it can see which button is the one the prose speaks for. */
+  const modelName = (m) => (MODEL_NICE[m] || m) + (m === DEPLOYED ? ' • deployed' : '');
 
   const $ = (id) => document.getElementById(id);
   const css = (n) => getComputedStyle($('ate')).getPropertyValue(n).trim();

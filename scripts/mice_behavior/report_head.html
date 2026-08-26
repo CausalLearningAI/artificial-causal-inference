@@ -86,6 +86,12 @@ td[colspan]{white-space:normal}
 .step span{color:var(--ink-3);line-height:1.45}
 ul{margin:0;padding-left:1.15em;display:flex;flex-direction:column;gap:9px}
 li::marker{color:var(--ink-3)}
+/* Section 00's draft story. Same list mechanics as everywhere else, only more air between the
+   bullets and a rule down the side, so it reads as a standing argument rather than a summary. */
+ul.story{gap:17px;border-left:1px solid var(--line);padding-left:1.6em;margin-left:.15em}
+ul.story>li{color:var(--ink-2)}
+ul.story>li>b:first-child{color:var(--ink)}
+ul.story ul{margin-top:9px;gap:7px;font-size:.95rem}
 code{font-family:var(--mono);font-size:.85em;background:var(--surface-2);padding:1px 5px;
      border-radius:2px;color:var(--ink-2)}
 footer{border-top:1px solid var(--line);padding-top:30px;font-family:var(--mono);font-size:.75rem;

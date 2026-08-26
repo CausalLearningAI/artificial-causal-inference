@@ -94,12 +94,18 @@ FOLDS = ('xfit_f1', 'xfit_f2', 'xfit_f3')
 # would leave eight annotated pools with no out-of-fold prediction and quietly invalidate PPI++.
 PREDICTORS = {
     'xfit_dense': {'folds': FOLDS, 'human': True,
-                   'nice': 'cross-fitted, 3 folds (SSL encoder) -- deployed'},
+                   'nice': 'cross-fitted, 3 folds (SSL encoder, ERM) -- the ERM comparison'},
     'xfit_bit6_dense': {'folds': ('xfit_bit6_f1', 'xfit_bit6_f2', 'xfit_bit6_f3'), 'human': True,
-                        'nice': 'cross-fitted, 3 folds (BitFit-6) -- the accuracy leader'},
+                        'nice': 'cross-fitted, 3 folds (BitFit-6, ERM) -- the accuracy leader'},
     'xfit_derm_dense': {'folds': ('xfit_derm_f1', 'xfit_derm_f2', 'xfit_derm_f3'), 'human': True,
-                        'nice': 'cross-fitted, 3 folds (DERM, phase environments)'},
+                        'nice': 'cross-fitted, 3 folds (DERM, phase environments) -- deployed'},
 }
+
+# WHICH PREDICTOR THE REPORT SPEAKS FOR. Promoted from the ERM cross-fit to DERM on 2026-08-26,
+# on the estimand-based criteria section 04.6 tabulates -- NOT on AP, which the phase shortcut
+# inflates. Written into meta so the prose (report_body.py's PRIME) and the effects figure's
+# predictor control both follow one named key instead of two hard-coded copies of it.
+DEPLOYED = 'xfit_derm_dense'
 
 # WHY A SINGLE, NON-CROSS-FITTED MODEL IS NOT IN THIS FIGURE, even though PPCI needs no labels and
 # could in principle use one. `predict_dense.py` dumps only the UNANNOTATED pools, and a single
@@ -384,16 +390,21 @@ def main():
                                  if d is not None else 'NOT AVAILABLE'))
         per_pred[pkey] = dict(spec=spec, lab=lab, u1=u1, u2=u2, taus=taus, mean_tau=mean_tau)
 
-    prime = per_pred.get('xfit_dense') or next(iter(per_pred.values()))
+    prime_key = DEPLOYED if DEPLOYED in per_pred else next(iter(per_pred))
+    if prime_key != DEPLOYED:
+        print(f'WARNING: deployed predictor {DEPLOYED} is not ready -- meta.deployed falls back '
+              f'to {prime_key}, and the report prose will follow it')
+    prime = per_pred[prime_key]
     lab1, unl1, v2 = prime['lab'], prime['u1'], prime['u2']
     taus, mean_tau = prime['taus'], prime['mean_tau']
+    prime_folds = prime['spec']['folds']
 
     if a.report_mismatch and unl1 is not None:
         print('\nE[f] mismatch check -- occupancy (pp), mean over observations:')
         for lab in LABELS:
             print(f'  {lab}: labelled out-of-fold {lab1[f"f_time_{lab}"].mean():7.3f}   '
                   f'unlabelled cross-predicted {unl1[f"f_time_{lab}"].mean():7.3f}')
-            for t in FOLDS:
+            for t in prime_folds:
                 p = FRAME / t / 'pred_dense_v1.csv'
                 if p.exists():
                     print(f'      single fold {t}: {pd.read_csv(p)["po_" + lab].mean():7.3f}')
@@ -460,8 +471,11 @@ def main():
             'units': UNITS,
             'thresholds_per_fold': taus,
             'threshold_unlabelled': mean_tau,
-            'folds': list(FOLDS),
+            'folds': list(prime_folds),
             'predictors': {k: v['nice'] for k, v in ready.items()},
+            # The deployed predictor, named once. report_body.py's PRIME and report_chart.html's
+            # default selection both read this, so promoting a predictor is one edit here.
+            'deployed': prime_key,
             'design': {
                 'v1': {'pools': 72, 'per_line_genotype': 12, 'annotated_pools': 24,
                        'strata': 'line x genotype (6)'},
