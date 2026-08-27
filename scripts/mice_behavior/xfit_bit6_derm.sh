@@ -110,8 +110,27 @@ export WANDB=1
 # correction into an exact no-op, which is why the wrapper only passes it when it is set.
 export ENV_KEY=phase DERM=1 VREX_BETA=0
 
+# THE L40S ESCAPE HATCH -- opt-in, defaults unchanged
+# ==================================================
+# The COST section above is still the truth about the DEFAULT recipe: BitFit-6 at batch 64 and
+# 448 px stores backprop activations for six unfrozen blocks over 64 x 5 = 320 images of 1025
+# tokens, and that peaks at 42.53 GiB on a 44.42 GiB L40S -- dying in the encoder forward,
+# 1.88 GiB short, before one optimiser step. But there is exactly ONE A100 node on this cluster
+# and nineteen free L40S cards, so the default recipe serialises three folds over ~36 hours
+# while most of the fleet sits idle.
+#
+# GRAD_CHECKPOINT=1 recomputes the six unfrozen blocks in backward instead of storing them,
+# which buys back that memory for roughly one extra encoder forward per step. It changes the
+# arithmetic not at all -- same loss, same gradients, verified A/B -- so a fold trained this way
+# is still paired with xfit_bit6_f*. Both overrides are needed together:
+#
+#     GRES=gpu:L40S:1 GRAD_CHECKPOINT=1 TIME=20:00:00 bash scripts/mice_behavior/xfit_bit6_derm.sh
+#
+# The defaults below stay the A100 recipe, because that is what this script's COST section
+# describes and what the sibling cross-fits ran on.
 SB=(--partition="${PARTITION:-gpu}" --gres="${GRES:-gpu:A100:1}" --time="${TIME:-14:00:00}"
     --mem="${MEM:-180G}" --cpus-per-task=32)
+export GRAD_CHECKPOINT="${GRAD_CHECKPOINT:-0}"
 
 # The three deployment folds, copied verbatim from xfit_bitfit.sh / xfit_derm.sh so all four
 # cross-fitted families share one out-of-fold structure and are directly comparable.
@@ -134,7 +153,8 @@ if [ "${STAGE:-all}" != "predict" ]; then
           echo "SKIP  $tag already queued or running"; continue
       fi
       if [ -n "${DRY:-}" ]; then
-          echo "[dry] $tag  VAL_POOLS=${FOLD[$f]}  ENV_KEY=phase DERM=1 VREX_BETA=0"; continue
+          echo "[dry] $tag  VAL_POOLS=${FOLD[$f]}  ENV_KEY=phase DERM=1 VREX_BETA=0" \
+               "  gres=${GRES:-gpu:A100:1} grad_checkpoint=${GRAD_CHECKPOINT}"; continue
       fi
       jid=$(env VAL_POOLS="${FOLD[$f]}" TAG="$tag" SEED=42 sbatch "${SB[@]}" \
                 --job-name="$tag" --output="logs/${tag}_%j.out" --error="logs/${tag}_%j.err" \

@@ -56,6 +56,15 @@ if [ -n "${DERM_FLOOR:-}" ]; then
     DERM_FLOOR_ARGS="--derm-floor ${DERM_FLOOR}"
 fi
 
+# Recompute the unfrozen encoder blocks in backward instead of storing their activations.
+# A flag, not a value, so it is only forwarded when asked for and every prior run stays
+# byte-identical. This is what lets BitFit-6 at batch 64 / 448 px run on a 44 GiB L40S; the
+# 80 GiB A100 does not need it and should not pay the extra forward.
+GRAD_CHECKPOINT_ARGS=""
+if [ "${GRAD_CHECKPOINT:-0}" = "1" ]; then
+    GRAD_CHECKPOINT_ARGS="--grad-checkpoint"
+fi
+
 WANDB_ARGS=""
 if [ "${WANDB:-0}" = "1" ]; then
     WANDB_ARGS="--wandb"
@@ -118,5 +127,5 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --patch-selfattn-dim "${PATCH_SELFATTN_DIM:-0}" \
     --pool-queries "${POOL_QUERIES:-1}" \
     ${OVERRIDE_ARGS} ${MOTION_ARGS} ${WANDB_ARGS} ${SMOKE_ARGS} ${JPEG_CACHE_ARGS} \
-    ${INIT_ENCODER_ARGS} ${DERM_ARGS} \
+    ${INIT_ENCODER_ARGS} ${DERM_ARGS} ${GRAD_CHECKPOINT_ARGS} \
     --tag "${TAG:-online_aug}"

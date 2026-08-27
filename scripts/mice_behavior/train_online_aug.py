@@ -50,6 +50,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+import torch.utils.checkpoint          # not pulled in by `import torch` alone
 from PIL import Image
 from sklearn.metrics import average_precision_score, roc_auc_score
 from torch.utils.data import DataLoader, Dataset
@@ -330,6 +331,53 @@ def derm_mass(tab, labels, envs, idx, n_env):
     return out / max(n, 1)
 
 
+def checkpoint_blocks(blocks):
+    """Recompute each block's internal activations during backward instead of storing them.
+
+    WHY
+    ---
+    BitFit-6 at 448 px, batch 64, context_k=2 encodes 64 x 5 = 320 images of 1025 tokens per
+    step, and backprop through six unfrozen blocks has to retain every intermediate tensor in
+    each of them. Measured on an L40S that peaks at 42.53 GiB of a 44.42 GiB card and dies in
+    the encoder forward, 1.88 GiB short (the DINOv2 MLP hidden, 320 x 1025 x 3072, fp16) --
+    before a single optimiser step. Checkpointing keeps only each block's INPUT and re-runs the
+    block in backward, trading roughly one extra encoder forward (~30% more step time) for the
+    activation memory of six blocks. The A100 does not need this; the L40S fleet does, and
+    there are nineteen of those against one A100 node.
+
+    WHY use_reentrant=False IS MANDATORY HERE, and must not be "simplified" back
+    ---------------------------------------------------------------------------
+    With --unfreeze-blocks 6, blocks 0-5 are frozen, so the hidden state ARRIVING at the first
+    checkpointed block does NOT require grad. The legacy reentrant implementation decides
+    whether to build a backward graph by looking only at the checkpointed call's INPUTS: if no
+    input requires grad it produces NO GRADIENTS AT ALL for anything inside the block --
+    including the block's own trainable biases -- and it does not raise. The run trains to
+    completion, the loss falls plausibly because the head still learns, and every BitFit tensor
+    stays at its initial value. A silently null encoder fine-tune, seven hours long.
+
+    The non-reentrant implementation tracks the block's own PARAMETERS as well as its inputs,
+    so gradients reach the biases whether or not the incoming activations require grad. The
+    tripwire in the training loop below (`encoder grad: N/M tensors, norm ...`) exists to catch
+    a regression here, and it should stay.
+
+    preserve_rng_state is left at its default True so any stochastic op inside a block
+    (DINOv2-base ships drop_path=0.0 and attention dropout 0.0, but that is a config value, not
+    a guarantee) draws the same numbers on the recomputation as it did on the forward.
+    """
+    for blk in blocks:
+        orig = blk.forward
+
+        def fwd(*a, _orig=orig, **kw):
+            # Under no_grad -- evaluate(), and the full-val pass at the end -- there is no
+            # backward to recompute for, so call straight through and keep eval speed exactly
+            # as it was.
+            if not torch.is_grad_enabled():
+                return _orig(*a, **kw)
+            return torch.utils.checkpoint.checkpoint(_orig, *a, use_reentrant=False, **kw)
+
+        blk.forward = fwd
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--context-k', type=int, default=2)
@@ -546,6 +594,14 @@ def main():
                          "bitfit cannot reproduce it; if it was recalibrating DINOv2's statistics "
                          'for top-down grayscale rodent video, bitfit is sufficient and the '
                          'remaining 14.18M params were never the point.')
+    p.add_argument('--grad-checkpoint', action='store_true',
+                    help='recompute the unfrozen blocks\' activations in backward instead of '
+                         'storing them (see checkpoint_blocks). Costs roughly one extra encoder '
+                         'forward per step; buys back the ~2 GiB that makes BitFit-6 at batch 64 '
+                         'and 448 px die on a 44 GiB L40S but fit on an 80 GiB A100. Default OFF, '
+                         'so every run predating this flag is bit-for-bit unaffected. No effect '
+                         'when --unfreeze-blocks is 0: a frozen encoder runs under no_grad and '
+                         'stores no activations to begin with.')
     p.add_argument('--encoder-lr', type=float, default=1e-5,
                     help='LR for the outermost unfrozen block; deeper blocks are scaled down by '
                          '--layerwise-decay per block. NOTE for --ft-mode bitfit: 1e-5 was chosen '
@@ -861,12 +917,23 @@ def main():
         # in its entirety, so this line is identical in both modes)
         encoder.layernorm.requires_grad_(True)
         groups.append({'params': list(encoder.layernorm.parameters()), 'lr': args.encoder_lr})
+        if args.grad_checkpoint:
+            # ONLY the unfrozen blocks. The frozen ones run inside torch.set_grad_enabled(False)
+            # for the head's sake anyway, so they already store nothing -- checkpointing them
+            # would buy no memory and pay a second forward for it.
+            checkpoint_blocks(blocks[-n:])
+            print(f'grad checkpointing ON for the {n} unfrozen blocks (use_reentrant=False)',
+                  flush=True)
         trainable = sum(p.numel() for p in encoder.parameters() if p.requires_grad)
         print(f'fine-tuning last {n}/{len(blocks)} encoder blocks [{args.ft_mode}]: '
               f'{trainable/1e6:.3f}M params '
               f'({100*trainable/sum(p.numel() for p in encoder.parameters()):.2f}% of the encoder), '
               f'lr {args.encoder_lr:g} decaying x{args.layerwise_decay} per block inward',
               flush=True)
+    elif args.grad_checkpoint:
+        raise SystemExit('--grad-checkpoint with --unfreeze-blocks 0 is a no-op: a frozen '
+                         'encoder already runs under no_grad. Refusing, so a launcher that '
+                         'meant to fine-tune does not quietly train a frozen encoder instead.')
     opt = opt_cls(groups, lr=lr, weight_decay=wd)
     finetune = args.unfreeze_blocks > 0
     eta = 0.01
@@ -923,6 +990,7 @@ def main():
 
     rng = np.random.default_rng(args.seed)
     best, since, hist = -1.0, 0, []
+    grad_checked = False              # the encoder-gradient tripwire fires once, at step 1
     for ep in range(1, args.n_epochs + 1):
         model.train()
         order = (np.concatenate([pos_idx, neg_idx]) if saturated else
@@ -932,6 +1000,7 @@ def main():
         if ep == 1:
             read_s += ensure_cached(needed(vm, val_keep), 'val monitor')
         tot, seen, t0 = 0.0, 0, time.time()
+        step_i, t_step = 0, None
         # vREx penalty is annealed in: applying it from step 0 pins the model at a degenerate
         # solution where every environment is equally badly predicted, which is trivially
         # invariant. Standard practice for IRM/vREx and the reason the ERM phase exists.
@@ -1011,12 +1080,55 @@ def main():
                     loss = per_sample.mean()
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
+            if finetune and not grad_checked:
+                # THE tripwire for gradient checkpointing. torch.utils.checkpoint with the
+                # legacy use_reentrant=True produces NO gradients at all for a block whose
+                # inputs do not require grad -- which is every checkpointed block here, since
+                # the frozen blocks below them emit a non-grad hidden state. It fails silently:
+                # the head still learns, the loss still falls, and the encoder never moves. So
+                # read the encoder's gradients once, out loud, before trusting seven hours of
+                # compute. Read-only: no clipping, no scaling, nothing written back.
+                grad_checked = True
+                enc_p = [q for q in encoder.parameters() if q.requires_grad]
+                withg = [q for q in enc_p if q.grad is not None]
+                gn = float(torch.sqrt(sum((q.grad.float() ** 2).sum() for q in withg))
+                           ) if withg else 0.0
+                print(f'  encoder grad: {len(withg)}/{len(enc_p)} tensors have a gradient, '
+                      f'norm {gn:.6g}', flush=True)
+                if not withg:
+                    raise SystemExit(
+                        'no encoder gradient at the first optimiser step. The encoder is '
+                        'unfrozen, so this cannot be right -- the usual cause is a checkpoint '
+                        'wrapper built with use_reentrant=True. Aborting now rather than '
+                        'training a null fine-tune to completion.')
             torch.nn.utils.clip_grad_norm_(
                 [p for g in opt.param_groups for p in g['params'] if p.grad is not None], 0.5)
             scaler.step(opt); scaler.update()
             tot += loss.item() * B; seen += B
+            # Peak GPU memory is what decides which cards a config can run on at all, and until
+            # now the only way to learn it was to read an OOM traceback: BitFit-6 at batch 64 and
+            # 448 px peaks at 42.5 GiB and dies on a 44 GiB L40S, while fitting an 80 GiB A100
+            # with room to spare, and nobody could see that coming. Timed over steps 5..30 so
+            # the first steps' cuDNN autotuning does not distort the rate.
+            step_i += 1
+            if ep == 1 and dev.type == 'cuda' and step_i in (5, 30):
+                torch.cuda.synchronize()
+                if step_i == 5:
+                    t_step = time.time()
+                else:
+                    print(f'  [mem] train {(time.time()-t_step)/25:.2f} s/step   peak allocated '
+                          f'{torch.cuda.max_memory_allocated()/1024**3:.2f} GiB   peak reserved '
+                          f'{torch.cuda.max_memory_reserved()/1024**3:.2f} GiB   of '
+                          f'{torch.cuda.get_device_properties(0).total_memory/1024**3:.2f} GiB',
+                          flush=True)
         sched.step()
         probs, labs = evaluate(val_keep)
+        if ep == 1 and dev.type == 'cuda':
+            # again AFTER the monitor pass: training is not necessarily where the peak lands, and
+            # a run that survives epoch 1 only to OOM in validation has wasted the whole epoch.
+            print(f'  [mem] after epoch 1 + val: peak allocated '
+                  f'{torch.cuda.max_memory_allocated()/1024**3:.2f} GiB   peak reserved '
+                  f'{torch.cuda.max_memory_reserved()/1024**3:.2f} GiB', flush=True)
         per_ap = [float(average_precision_score(labs[:, i], probs[:, i])) for i in (0, 1)]
         per_auc = [float(roc_auc_score(labs[:, i], probs[:, i])) for i in (0, 1)]
         ap = float(np.mean(per_ap))
@@ -1170,6 +1282,7 @@ def main():
                'cross_attn_dim': args.cross_attn_dim, 'patch_pool_dim': args.patch_pool_dim,
                'patch_selfattn_dim': args.patch_selfattn_dim, 'pool_queries': args.pool_queries,
                'unfreeze_blocks': args.unfreeze_blocks, 'ft_mode': args.ft_mode,
+               'grad_checkpoint': bool(args.grad_checkpoint),
                'encoder_lr': args.encoder_lr, 'layerwise_decay': args.layerwise_decay,
                'n_head_params': sum(p.numel() for p in model.parameters()),
                'n_encoder_trainable': sum(p.numel() for p in encoder.parameters() if p.requires_grad),
