@@ -99,6 +99,16 @@ PREDICTORS = {
                         'nice': 'cross-fitted, 3 folds (BitFit-6, ERM) -- the accuracy leader'},
     'xfit_derm_dense': {'folds': ('xfit_derm_f1', 'xfit_derm_f2', 'xfit_derm_f3'), 'human': True,
                         'nice': 'cross-fitted, 3 folds (DERM, phase environments) -- deployed'},
+    # THE MATCHED COUNTERPART OF `xfit_dense`, and the reason it is worth a fourth arm: when DERM
+    # was promoted on 2026-08-26 the encoder AND the head moved at the same time -- the old
+    # deployment is the SSL-adapted encoder with the plain 5.04 M head, the new one is stock
+    # DINOv2 with the 0.52 M cross-attention head -- so nothing in this grid isolated the
+    # OBJECTIVE. These three folds do: same SSL encoder, same 5.04 M head, same encoder lr, same
+    # seed, same three folds, same val_pools. Only ERM -> DERM differs.
+    'xfit_derm_ssl_dense': {'folds': ('xfit_derm_ssl_f1', 'xfit_derm_ssl_f2', 'xfit_derm_ssl_f3'),
+                            'human': True,
+                            'nice': 'cross-fitted, 3 folds (SSL encoder, DERM on phases) -- the '
+                                    'matched counterpart of the ERM comparison'},
 }
 
 # WHICH PREDICTOR THE REPORT SPEAKS FOR. Promoted from the ERM cross-fit to DERM on 2026-08-26,

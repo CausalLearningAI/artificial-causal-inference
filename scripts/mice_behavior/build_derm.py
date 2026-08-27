@@ -557,7 +557,9 @@ def estimand_bias(exp: pd.DataFrame, families: dict) -> dict:
                 'share_of_truth': (round(abs(float(a.mean() / out['truth'][l]['pooled'])), 2)
                                    if out['truth'][l]['pooled'] else None)}
         for key, (ke, kd) in {'paired_erm_minus_derm': ('ERM', 'DERM'),
-                              'paired_xfit': ('ERM · 24 pools', 'DERM · 24 pools')}.items():
+                              'paired_xfit': ('ERM · 24 pools', 'DERM · 24 pools'),
+                              'paired_xfit_ssl': ('ERM · 24 pools · SSL',
+                                                  'DERM · 24 pools · SSL')}.items():
             if ke not in vals or kd not in vals:
                 continue
             e, d = vals[ke].align(vals[kd], join='inner')
@@ -1012,12 +1014,24 @@ def main():
     # SAME comparison over the three deployment folds, so a_O - a_H lands on 24 pools instead of 4
     # -- but on the 0.52 M cross-attention head, so the two are separate families on purpose and
     # must not be read as one series. They appear as soon as their runs land; nothing to edit.
+    #
+    # THE `· SSL` PAIR IS A SECOND, INDEPENDENT REPLICATION of that same 24-pool comparison, on a
+    # different backbone. `xfit_f{1,2,3}` (the ORIGINAL deployment folds) are SSL-adapted encoder
+    # + plain 5.04 M head under ERM; `xfit_derm_ssl_f{1,2,3}` are the identical recipe -- same
+    # encoder checkpoint, same head, same encoder lr, same seed, same folds, same val_pools --
+    # with the objective switched to DERM on phases. So this pair varies ONE thing, which the
+    # stock-encoder pair also does but on the other backbone. Two backbones agreeing is a
+    # replication; two backbones disagreeing says the correction is backbone-dependent, and
+    # either answer is worth more than one pair alone. Four families, two paired tests, one code
+    # path -- the rate-matched threshold in units() applies to all of them equally.
     FAMS = {'ERM': ['res448_k2_frozen_d4photo_ermH5M', 'res448_k2_frozen_d4photo_ermH5M_s1'],
             'DERM': ['res448_k2_frozen_d4photo_dermPhase',
                      'res448_k2_frozen_d4photo_dermPhase_s1'],
             'DERM-cells': ['res448_k2_frozen_d4photo_dermCond'],
             'ERM · 24 pools': [f'xfit_erm_f{k}' for k in (1, 2, 3)],
-            'DERM · 24 pools': [f'xfit_derm_f{k}' for k in (1, 2, 3)]}
+            'DERM · 24 pools': [f'xfit_derm_f{k}' for k in (1, 2, 3)],
+            'ERM · 24 pools · SSL': [f'xfit_f{k}' for k in (1, 2, 3)],
+            'DERM · 24 pools · SSL': [f'xfit_derm_ssl_f{k}' for k in (1, 2, 3)]}
     FAMS = {k: [t for t in v if (FRAME / t / 'val_probs.npz').exists()] for k, v in FAMS.items()}
     eb = estimand_bias(exp, {k: v for k, v in FAMS.items() if v})
     print('\nmean a_O - a_H over the 8 (pool x exposure) units -- the ATE-relevant component')
@@ -1031,9 +1045,17 @@ def main():
             print(f"    {fam:11s} {r['mean']:+.3f}  95% CI [{r['lo']:+.3f}, {r['hi']:+.3f}]  "
                   f"{'RESOLVED' if r['lo'] * r['hi'] > 0 else 'not resolved'}  "
                   f"|mean| = {r['share_of_truth']}x the pooled true effect")
-        pr = eb['families'][l]['paired_erm_minus_derm']
-        print(f"    paired ERM-DERM {pr['diff']:+.3f}  p = {pr['p']:.3f}  "
-              f"shrunk in {pr['shrunk_units']}/{pr['n_units']} units")
+        # Every paired test that has both of its arms on disk. The 4-pool pair is the original
+        # one; the two 24-pool pairs are the cross-fitted replications, one per backbone, and
+        # they are printed side by side because the interesting question is whether they agree.
+        for key, nice in (('paired_erm_minus_derm', 'paired ERM-DERM  (4 pools)     '),
+                          ('paired_xfit',           'paired ERM-DERM  (24p, stock)  '),
+                          ('paired_xfit_ssl',       'paired ERM-DERM  (24p, SSL)    ')):
+            pr = eb['families'][l].get(key)
+            if pr is None:
+                continue
+            print(f"    {nice} {pr['diff']:+.3f}  p = {pr['p']:.3f}  "
+                  f"shrunk in {pr['shrunk_units']}/{pr['n_units']} units")
 
     # ---- which environments are pool-level constants, and the nuisance-bias channel ---------
     pc = pool_constant(exp_full, exp_full[exp_full.annotation_file.notna()])

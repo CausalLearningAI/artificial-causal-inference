@@ -78,6 +78,13 @@ ROLE = {
     # deployment and not a candidate. Six more arms in the candidate pool would move the
     # AP-vs-rDelta Spearman the report quotes without any of them being a candidate for anything.
     **{f'xfit_{o}_f{k}': 'objective cross-fit' for o in ('erm', 'derm') for k in (1, 2, 3)},
+    # The SAME objective comparison on the OTHER backbone: DERM on the SSL-adapted encoder with
+    # the plain 5.04 M head, whose ERM control is not a sibling of these but `xfit_f{1,2,3}`
+    # themselves -- the original deployment folds. It gets its own role rather than joining
+    # `objective cross-fit`, because that group is the stock-DINOv2 / 0.52 M cross-attention pair
+    # and a mean over all of them would average two different backbones into one number. The
+    # suffix follows `deployment fold (bitfit)`: same comparison, different recipe, separate row.
+    **{f'xfit_derm_ssl_f{k}': 'objective cross-fit (ssl)' for k in (1, 2, 3)},
     # And the exposure-split arms: trained on ONE exposure session, so they are not comparable to
     # anything trained on both.
     **{f'odour_tr{d}_{o}': 'exposure split' for d in ('F', 'S') for o in ('erm', 'derm')},
