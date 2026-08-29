@@ -44,6 +44,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -135,11 +136,33 @@ def permute(cs, reps=5000, seed=0):
     return obs, float(null.mean()), float((null >= obs).mean()) if len(null) else float('nan')
 
 
+def differences(m: pd.DataFrame) -> pd.DataFrame:
+    """The ESTIMAND, one row per pool x exposure: the within-pool H->O change.
+
+    Why this quantity gets the same treatment as the level. A scorer who is simply strict or
+    lenient shifts every observation they touch by roughly the same amount, and the estimand
+    subtracts two observations THE SAME PERSON scored -- so a constant offset cancels and the
+    annotator share should fall to chance. That is a prediction the design can test, and it is
+    the reason a rate-level ceiling does not bound the correlation the report actually needs.
+
+    Cell is the genotype group alone: a pool contributes one difference per exposure, and the
+    six pools of a group are exchangeable.
+    """
+    w = m.pivot_table(index=['pool', 'g4', 'odor', 'annotator'], columns='phase',
+                      values=list(LABELS))
+    d = pd.DataFrame({y: w[(y, 'O')] - w[(y, 'H')] for y in LABELS}).reset_index()
+    return d.dropna(subset=list(LABELS))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--reps', type=int, default=2000)
+    ap.add_argument('--json', type=Path, default=None,
+                    help='also write the decomposition where the status report can read it')
     args = ap.parse_args()
     m = load()
+    payload = {'n_obs': int(len(m)), 'n_pools': int(m.pool.nunique()),
+               'n_annotators': int(m.annotator.nunique()), 'reps': args.reps, 'levels': {}}
 
     # Pool level is the PRIMARY test: annotator is assigned per pool, so the 24 pools are the
     # independent units and the permutation null is exact. The observation-level test has more
@@ -148,13 +171,16 @@ def main():
     # within cells independently generates nulls that break a dependency the real design has.
     # Read the observation-level row for its effect size, not its p-value.
     levels = [
-        ('POOL LEVEL  (n=24 pools, cell = genotype group)  <- PRIMARY: independent units, exact null',
+        ('pool', 'POOL LEVEL  (n=24 pools, cell = genotype group)  <- PRIMARY: independent units, exact null',
          m.groupby(['pool', 'g4', 'annotator'])[list(LABELS)].mean().reset_index(), ['g4']),
-        ('OBSERVATION LEVEL  (n=144, cell = genotype x phase x odor)  <- effect size only, p is anticonservative',
+        ('observation', 'OBSERVATION LEVEL  (n=144, cell = genotype x phase x odor)  <- effect size only, p is anticonservative',
          m, ['g4', 'phase', 'odor']),
+        ('difference', 'WITHIN-POOL DIFFERENCE  (n=48 pool x exposure, cell = genotype group)  <- the ESTIMAND',
+         differences(m), ['g4']),
     ]
-    for title, d, cell in levels:
+    for key, title, d, cell in levels:
         print('=' * 96); print(title); print('=' * 96)
+        payload['levels'][key] = {'n_units': int(len(d)), 'cell': cell}
         for y in LABELS:
             cs = cells(d, y, cell)
             s2a, s2w, eta2, ncell = components(cs)
@@ -162,6 +188,10 @@ def main():
                 print(f'  {NICE[y]}: not estimable'); continue
             rho = s2w / (s2a + s2w)
             obs_e, null_e, p = permute(cs, reps=args.reps)
+            payload['levels'][key][NICE[y]] = {
+                'eta2': round(float(eta2), 4), 'chance': round(float(null_e), 4),
+                'p': round(float(p), 4), 'n_cells': int(ncell),
+                'rho_max': round(float(rho), 4), 'r_max': round(float(np.sqrt(rho)), 4)}
             print(f'  {NICE[y]}:  annotator share of within-cell variance = {eta2:5.1%}   '
                   f'(chance {null_e:5.1%}, permutation p={p:.3f}, {ncell} usable cells)')
             print(f'        reliability rho <= {rho:5.3f}   ->  two annotators would agree at '
@@ -172,7 +202,6 @@ def main():
     print('WHERE THE MODELS ACTUALLY SIT (observation-level r on the 24 val observations)')
     print('=' * 96)
     frame = ROOT / 'results' / 'vision' / 'mice' / 'frame'
-    import json
     rows = []
     for cfg_p in sorted(frame.glob('*/config.json')):
         cfg = json.load(open(cfg_p))
@@ -184,6 +213,10 @@ def main():
     for ap_, tag, rnt, rnn in sorted(rows, reverse=True)[:5]:
         print(f'  {tag:34s} r_nt={rnt:+.3f}  r_nn={rnn:+.3f}')
     print('\nCompare each r against the ceiling above, not against 1.0.')
+    if args.json:
+        args.json.parent.mkdir(parents=True, exist_ok=True)
+        args.json.write_text(json.dumps(payload, indent=1))
+        print(f'\nwrote {args.json}')
 
 
 if __name__ == '__main__':

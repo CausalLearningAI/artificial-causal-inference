@@ -34,6 +34,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).parent))
 
 from src.mice_behavior.truth import read_truth                              # noqa: E402
 OUT = ROOT / 'results' / 'vision' / 'mice' / 'frame' / '_figures' / 'decay.json'
@@ -118,7 +119,118 @@ def build() -> dict:
                           units=[dict(key=k, label=l) for k, l in UNITS],
                           behav=[dict(key=k, label=n) for _, k, n in BEH],
                           segs=segs),
-                series=series)
+                series=series, facts=facts())
+
+
+# --------------------------------------------------------------------------- the section-02 facts
+# WHY THESE LIVE IN THE PAYLOAD. Sections 01 and 02 quoted six groups of numbers about the human
+# labels -- frame prevalence, per-phase half-lives, the H->O window table, the phase-onset spike,
+# the wild-type negative control -- as plain strings typed into the prose. Every one of them went
+# stale when the nose-to-nose truth was corrected to the directed-pair union, and nothing failed.
+# They are computed here, from the same `read_truth()` the figure uses, so the prose reads them.
+#
+# The estimators are `decay_units.py`'s, imported rather than re-implemented: that script is where
+# each choice is argued, and two copies of a Poisson fit is how the two drift apart.
+
+
+def _facts_prevalence() -> dict:
+    """Share of annotated frames carrying each behaviour, and the union -- 04.1's imbalance."""
+    a = read_truth()
+    nt, nn = a.Y_nt > 0.5, a.Y_nn > 0.5
+    n = len(a)
+    return {'n_frames': int(n), 'n_obs': int(a.observation_id.nunique()),
+            'nt': round(float(nt.mean()), 6), 'nn': round(float(nn.mean()), 6),
+            'any': round(float((nt | nn).mean()), 6),
+            'neg': round(float(1 - (nt | nn).mean()), 6)}
+
+
+def _facts_wt() -> dict:
+    """The three wild-type strata: do three lines' unmutated animals behave alike?
+
+    Two questions, deliberately at different units, because that is what each one is about.
+    LEVEL is a property of a pool, so the unit is the pool (2 per line). The ESTIMAND is measured
+    once per pool AND exposure, so the unit is the pool x odour cell (4 per line). Rates are over
+    the whole recording -- this is the raw-level check, before 02's matched window.
+    """
+    import numpy as _np
+    from scipy import stats as _st
+
+    a = read_truth()
+    e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')[
+        ['observation_id', 'pool', 'phase', 'odor', 'line', 'genotype']]
+    a = a.sort_values(['observation_id', 'frame_idx']).merge(e, on='observation_id')
+    rows = []
+    for oid, g in a.groupby('observation_id', sort=False):
+        r = {'observation_id': oid}
+        mins = len(g) / (FPS * 60)
+        for lab, _, _ in BEH:
+            v = g[lab].to_numpy()
+            r[lab] = float(((v == 1) & (_np.r_[0, v[:-1]] == 0)).sum() / mins)
+        rows.append(r)
+    obs = pd.DataFrame(rows).merge(e, on='observation_id')
+    wt = obs[obs.genotype == 'wt']
+    out = {'n_pools': int(wt.pool.nunique()), 'lines': sorted(wt.line.unique()), 'behav': {}}
+    for lab, key, _ in BEH:
+        lv = wt.groupby(['pool', 'line'])[lab].mean().reset_index()
+        gl = [g[lab].to_numpy() for _, g in lv.groupby('line')]
+        w = wt.pivot_table(index=['pool', 'line', 'odor'], columns='phase', values=lab).reset_index()
+        w['d'] = w['O'] - w['H']
+        gd = [g.d.to_numpy() for _, g in w.groupby('line')]
+        out['behav'][key] = {
+            'level': {'means': [round(float(x.mean()), 3) for x in gl],
+                      'p': round(float(_st.f_oneway(*gl).pvalue), 4),
+                      'n_per_line': [int(len(x)) for x in gl]},
+            'ho': {'means': [round(float(x.mean()), 3) for x in gd],
+                   'p': round(float(_st.f_oneway(*gd).pvalue), 4),
+                   'n_per_line': [int(len(x)) for x in gd]}}
+    return out
+
+
+def facts() -> dict:
+    """Everything sections 01, 02 and 04.1 state about the labels, measured rather than typed."""
+    import numpy as _np
+    from decay_units import (BEH as _B, ODOURS, PHASES, TRANS, contrast, fit_slopes,
+                             minute_counts, per_observation)
+
+    mt = minute_counts()
+    fits, ftab = fit_slopes(mt)
+    po = per_observation(mt, fits)
+    # Is a single exponential adequate? LR test on a t^2 term, per cell. 02b cites the count to
+    # justify not fitting a slope, and it moved when the nose-to-nose truth was corrected.
+    curv = {'n_sig': int((ftab.p_curv < 0.05).sum()), 'n_cells': int(len(ftab)),
+            'n_sig_H': int(((ftab.p_curv < 0.05) & (ftab.phase == 'H')).sum()),
+            'n_cells_H': int((ftab.phase == 'H').sum())}
+
+    tau, onset, window = {}, {}, {}
+    for lab, key in _B:
+        tau[key], onset[key], window[key] = {}, {}, {}
+        for od, odn in ODOURS:
+            b = {ph: float(fits[(lab, od, ph)]) for ph in PHASES}
+            tau[key][odn] = {ph: {'b': round(b[ph], 4),
+                                  'tau': round(-1 / b[ph], 2) if b[ph] < 0 else None,
+                                  'half_life': round(-_np.log(2) / b[ph], 2) if b[ph] < 0 else None}
+                             for ph in PHASES}
+            onset[key][odn] = {}
+            for ph in PHASES:
+                d = mt[(mt.odor == od) & (mt.phase == ph)]
+                e0 = float(d[d.minute < 2][lab].mean())
+                l0 = float(d[(d.minute >= 13) & (d.minute < 15)][lab].mean())
+                onset[key][odn][ph] = {'early': round(e0, 3), 'late': round(l0, 3),
+                                       'ratio': round(e0 / max(l0, 1e-9), 2)}
+            vs = [float(contrast(po[po.odor == od], f'{lab}_{u}', 'H', 'O')[0])
+                  for u in ('mean_full', 'mean_first15', 'mean_last15')]
+            window[key][odn] = {'full': round(vs[0], 2), 'first15': round(vs[1], 2),
+                                'last15': round(vs[2], 2), 'spread': round(max(vs) - min(vs), 2),
+                                'spans_zero': bool(min(vs) * max(vs) < 0)}
+    # O->P is immune to the window rule by construction -- both phases are 15 minutes. Asserted
+    # here rather than in the prose, so the claim cannot outlive the schedule it describes.
+    op_same = all(_np.isclose(contrast(po[po.odor == od], f'{lab}_mean_full', 'O', 'P')[0],
+                              contrast(po[po.odor == od], f'{lab}_mean_first15', 'O', 'P')[0])
+                  for lab, _ in _B for od, _ in ODOURS)
+    return {'prevalence': _facts_prevalence(), 'tau': tau, 'onset': onset, 'window': window,
+            'curvature': curv, 'op_window_invariant': bool(op_same), 'wt': _facts_wt(),
+            'n_trans': len(TRANS)}
+
 
 
 if __name__ == '__main__':

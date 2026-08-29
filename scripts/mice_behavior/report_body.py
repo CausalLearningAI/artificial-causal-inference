@@ -34,6 +34,106 @@ nnf, ntf = (round(100 * O['bouts'][l]['one_frame']) for l in ('nn', 'nt'))
 nnt, ntt = (round(100 * O['bouts'][l]['tail10']) for l in ('nn', 'nt'))
 
 
+# ---------------------------------------------------------------- what the HUMAN LABELS say
+# `C` is decay.json's `facts` block. Sections 01, 02 and 04.1 used to state these as literals --
+# frame prevalence, per-phase half-lives, the H->O window table, the phase-onset spike, the
+# wild-type negative control. When the nose-to-nose truth was corrected to the DIRECTED-PAIR
+# UNION of mutual (`nn`) and directional (`np`) contact, six of them went quietly wrong and
+# nothing failed. They are read now, so a rebuild moves the prose with the labels.
+_BNICE = {'nt': 'nose-to-tail', 'nn': 'nose-to-nose'}
+
+
+def prev(k, d=1):
+    """Share of annotated frames carrying a behaviour (or the union, or neither)."""
+    return f"{100 * C['prevalence'][k]:.{d}f}%"
+
+
+def hl(behav, odour, phase):
+    v = C['tau'][behav][odour][phase]['half_life']
+    return 'rising' if v is None else f'{v:.0f}'
+
+
+# The two exceptions are the SAME cell of the design -- the O phase under social exposure, where
+# the exposure sustains investigation instead of letting it habituate. So the span is quoted over
+# the other ten cells and the exception is named, rather than a threshold being invented.
+_HL_MAIN = sorted(v for b, bd in C['tau'].items() for o, od in bd.items() for ph, c in od.items()
+                  if not (o == 'social' and ph == 'O') and (v := c['half_life']) is not None)
+hl_lo, hl_hi = f'{_HL_MAIN[0]:.0f}', f'{_HL_MAIN[-1]:.0f}'
+hl_flat = hl('nn', 'social', 'O')
+# "P decays fastest" is a claim about all four behaviour x exposure cells, so it is counted.
+_n_p_fast = sum(1 for b, bd in C['tau'].items() for o, od in bd.items()
+                if od['P']['tau'] is not None
+                and all(od[ph]['tau'] is None or od[ph]['tau'] > od['P']['tau']
+                        for ph in ('H', 'O')))
+p_fastest = f'{_n_p_fast} of 4' if _n_p_fast < 4 else 'every cell'
+
+
+curv = f"{C['curvature']['n_sig']} of {C['curvature']['n_cells']}"
+
+
+def wrow(behav, odour):
+    """One row of 02's H->O window table: the same contrast under three defensible windows."""
+    w = C['window'][behav][odour]
+    tds = ''.join(f"<td>{w[k]:+.2f}</td>".replace('-', '&minus;')
+                  for k in ('full', 'first15', 'last15'))
+    sp = f"{w['spread']:.2f}" + (' &mdash; changes sign' if w['spans_zero'] else '')
+    return tds + f"<td%s>{sp}</td>" % (" class='lo'" if w['spans_zero'] else '')
+
+
+def wcell(behav, odour, k):
+    return f"{C['window'][behav][odour][k]:+.2f}".replace('-', '&minus;')
+
+
+# THE ONSET SPIKE. The prose quotes one cell as the illustration, and it used to name it by hand
+# -- which is how it came to quote the single cell where P is NOT the largest. The cell is chosen
+# here, by the margin P leads its own phases by, so the example can only ever be one that holds.
+def _onset_lead(b, o):
+    r = C['onset'][b][o]
+    return r['P']['ratio'] - max(r['H']['ratio'], r['O']['ratio'])
+
+
+_ON_CELLS = [(b, o) for b in C['onset'] for o in C['onset'][b]]
+n_onset_p = sum(1 for b, o in _ON_CELLS if _onset_lead(b, o) > 0)
+_ONB, _ONO = max(_ON_CELLS, key=lambda k: _onset_lead(*k))
+onset_cell = {'nt': 'nt', 'nn': 'nn'}[_ONB] + '&nbsp;&middot;&nbsp;' + _ONO
+onset_vals = ', '.join(f"{ph} {C['onset'][_ONB][_ONO][ph]['ratio']:.1f}"
+                       for ph in ('H', 'O')) \
+    + f", <b>P {C['onset'][_ONB][_ONO]['P']['ratio']:.1f}</b>"
+
+
+def ac(level, behav, field):
+    """One cell of section 03's label-ceiling table, from annotation_ceiling.json.
+
+    NOT REPRODUCIBLE BEFORE. The four rows this replaces were computed in a one-off analysis that
+    was never checked in, and no recipe in the repo reproduces them under either reading of the
+    nose-to-nose truth -- their two halves do not even share a permutation null (the rate rows'
+    chance sits near 8%, the difference rows' near 33%, which cannot come from one design). They
+    now come from `annotation_ceiling.py`, which applies ONE estimator to both quantities:
+    variance decomposed on annotator WITHIN an experimental cell, against a permutation that
+    reshuffles annotators inside the same cells.
+    """
+    d = A['levels'][level][behav]
+    if field == 'p':
+        return '&lt;0.001' if d['p'] < 0.001 else f"{d['p']:.2f}"
+    if field in ('eta2', 'chance'):
+        return f"{100 * d[field]:.1f}%"
+    return f"{d[field]:.2f}"
+
+
+def ac_cls(level, behav):
+    """Marked LOW when the annotator explains more than chance, HIGH when it does not."""
+    d = A['levels'][level][behav]
+    return " class='lo'" if d['p'] < 0.05 else " class='hi'"
+
+
+def wt(behav, what, field='p'):
+    """The three wild-type strata: one-way ANOVA across the three lines' unmutated animals."""
+    d = C['wt']['behav'][behav][what]
+    if field == 'means':
+        return ' / '.join(f"{v:.2f}" for v in d['means'])
+    return f"{d['p']:.2f}"
+
+
 def run(tag):
     """One scored run, by directory name, from models.json."""
     return next(r for r in M['runs'] if r['tag'] == tag)
@@ -70,30 +170,111 @@ assert PRIME in E['meta']['predictors'], f'meta.deployed={PRIME} is not a predic
 # this out by hand -- "the two ERM cross-fits", "identical under all three predictors". They are
 # plain strings, so nothing asserts on them, and every one of them silently undercounted the next
 # time a predictor landed. Derived once, here, so that cannot happen again.
-_WORD = {1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six'}
+_WORD = {1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven',
+         8: 'eight', 9: 'nine', 10: 'ten'}
 n_pred = len(E['meta']['predictors'])
 n_pred_word = _WORD.get(n_pred, str(n_pred))
 n_other_word = _WORD.get(n_pred - 1, str(n_pred - 1))
 n_erm = sum(1 for k in E['meta']['predictors'] if 'derm' not in k)
+# The arms whose DERM target mass was set from the POPULATION Var(Y|E) rather than the epoch's
+# subsample. They are the only ones the corrected nose-to-nose truth invalidates a target for --
+# the sampled-weight arms re-estimate it every epoch from the labels they train on -- so 04.6
+# counts them instead of saying "seven" and going stale on the next launch.
+n_popw = sum(1 for r in M['runs'] if 'popw' in r['tag'])
+n_popw_word = _WORD.get(n_popw, str(n_popw))
 n_erm_word = _WORD.get(n_erm, str(n_erm))
+
+
+def _narrow(model, units):
+    """1 - width(PPI++)/width(CI), one number per v1 all-pool cell of `units`.
+
+    CI is the same interval for every predictor -- it uses no model -- so the ratio isolates what
+    the predictor buys. Cells whose CI does not exist (a stratum of two pools) are skipped by both
+    sides.
+    """
+    out = []
+    for unit in units:
+        ci = {(c['behav'], c['odour'], c['trans']): c for c in E['cells']
+              if c['exp'] == 'v1' and c['unit'] == unit and c['stratum'] == 'all'
+              and c['model'] == model and c['method'] == 'ci' and c['lo'] is not None}
+        out += [1 - (c['hi'] - c['lo']) / (k['hi'] - k['lo']) for c in E['cells']
+                if c['exp'] == 'v1' and c['unit'] == unit and c['stratum'] == 'all'
+                and c['model'] == model and c['method'] == 'ppi' and c['lo'] is not None
+                for k in [ci.get((c['behav'], c['odour'], c['trans']))] if k]
+    return out
+
+
+_UNITS3 = ('events', 'time', 'decay')
 
 
 def narrowing(model, unit):
     """MEASURED PPI++ narrowing against the human-only interval, mean over a unit's `all` cells.
 
     Section 03's bound predicts this from r-delta alone; this reads what actually happened, so the
-    two can be compared instead of the prediction standing in for the result. CI is the same
-    interval for every predictor -- it uses no model -- so the ratio isolates what the predictor
-    buys. Cells whose CI does not exist (a stratum of two pools) are skipped by both sides.
+    two can be compared instead of the prediction standing in for the result.
     """
-    ci = {(c['behav'], c['odour'], c['trans']): c for c in E['cells']
-          if c['exp'] == 'v1' and c['unit'] == unit and c['stratum'] == 'all'
-          and c['model'] == model and c['method'] == 'ci' and c['lo'] is not None}
-    r = [1 - (c['hi'] - c['lo']) / (k['hi'] - k['lo']) for c in E['cells']
-         if c['exp'] == 'v1' and c['unit'] == unit and c['stratum'] == 'all'
-         and c['model'] == model and c['method'] == 'ppi' and c['lo'] is not None
-         for k in [ci.get((c['behav'], c['odour'], c['trans']))] if k]
+    r = _narrow(model, [unit])
     return f'{100 * sum(r) / len(r):.1f}%'
+
+
+def narrowing_all(model, what='mean'):
+    """The same thing over ALL THREE outcomes at once -- the bound box's headline.
+
+    RECIPE, stated because the box used to assert "12%, best cell 22%" and no recipe reproduced
+    it: every v1 all-pool cell of the three outcomes (2 behaviours x 2 exposures x 2 transitions
+    x 3 units), for one predictor, PPI++ width against the human-only width.
+    """
+    r = _narrow(model, _UNITS3)
+    if what == 'n':
+        return len(r)
+    v = sum(r) / len(r) if what == 'mean' else max(r)
+    return f'{100 * v:.0f}%'
+
+
+_GENO = {g: [f'{ln}_{g}' for ln in ('ash1l', 'kdm6b', 'kmt5b')] for g in ('wt', 'het')}
+
+
+def _geno_mean(behav, odour, g):
+    v = [c['est'] for c in E['cells']
+         if c['exp'] == 'v1' and c['unit'] == 'events' and c['model'] == PRIME
+         and c['method'] == 'ci' and c['behav'] == behav and c['odour'] == odour
+         and c['trans'] == 'H->O' and c['stratum'] in _GENO[g]]
+    return sum(v) / len(v)
+
+
+def _geno_shift(behav, odour):
+    """How far CI's annotated population sits from PPI++'s full one, in bouts per minute.
+
+    CI weights the annotated pools, 18 het to 6 wt; the design is 36/36. The target therefore
+    moves by 0.25 * (wt mean - het mean). Which cell shows it most is read off the grid: the cell
+    the prose used to name stopped being it when the nose-to-nose truth was corrected, and the
+    sentence went on claiming a genotype difference the numbers no longer had.
+    """
+    return 0.25 * (_geno_mean(behav, odour, 'wt') - _geno_mean(behav, odour, 'het'))
+
+
+_GCELL = max(((b, o) for b in ('nt', 'nn') for o in ('fear', 'social')),
+             key=lambda k: abs(_geno_shift(*k)))
+
+
+def gmix(what):
+    """The worst cell, in bouts per minute. NOT as a share of the estimate: the cell where the
+    shift is largest can be one whose own estimate is near zero, and dividing by it turns a
+    0.04 bouts/min difference into a headline percentage."""
+    b, o = _GCELL
+    if what == 'cell':
+        return f'{_BNICE[b]} under {o}'
+    if what == 'wt':
+        return f"{_geno_mean(b, o, 'wt'):+.2f}".replace('-', '&minus;')
+    if what == 'het':
+        return f"{_geno_mean(b, o, 'het'):+.2f}".replace('-', '&minus;')
+    if what == 'width':
+        c = next(c for c in E['cells']
+                 if c['exp'] == 'v1' and c['unit'] == 'events' and c['model'] == PRIME
+                 and c['method'] == 'ci' and c['behav'] == b and c['odour'] == o
+                 and c['trans'] == 'H->O' and c['stratum'] == 'all')
+        return f"{abs(100 * _geno_shift(b, o) / (c['hi'] - c['lo'])):.0f}%"
+    return f'{abs(_geno_shift(b, o)):.2f}'
 
 
 def lvl(behav, odour, trans='H->O', method='ci'):
@@ -119,6 +300,31 @@ def ddecay(behav, odour, trans, method='ci'):
     hit = c['lo'] is not None and c['lo'] * c['hi'] > 0
     val = f"{c['est']:+.2f}".replace('-', '&minus;')
     return '<td%s>%s%s</td>' % (CLS if hit else '', val, '*' if hit else '')
+
+
+def _dspan(trans):
+    """The eight Delta-decay cells the table below prints, summarised.
+
+    Read off the SAME cells the table renders -- deployed predictor, human labels, all pools --
+    so the sentence and the table can never disagree. It used to be a typed range, and it did.
+    """
+    v = [c['est'] for c in E['cells']
+         if c['exp'] == 'v1' and c['unit'] == 'decay' and c['stratum'] == 'all'
+         and c['model'] == PRIME and c['method'] == 'ci' and c['trans'] == trans]
+    return v
+
+
+def dspan(trans, what='range'):
+    v = sorted(abs(x) for x in _dspan(trans))
+    if what == 'max':
+        return f'{v[-1]:.1f}'
+    return f'{v[0]:.1f}&ndash;{v[-1]:.1f}'
+
+
+# "every sign is positive turning the odour on and negative turning it off" is a claim about all
+# eight cells, so it is checked rather than asserted.
+assert (all(x > 0 for x in _dspan('H->O')) and all(x < 0 for x in _dspan('O->P'))), (
+    'section 03 says every Delta-decay sign is + on H->O and - on O->P; the grid no longer agrees')
 
 
 def _n_resolved(method):
@@ -260,6 +466,64 @@ _OS = D.get('odour_split', {})
 _TR = ('H->O', 'O->P')
 
 
+# ------------------------------------------------- what the TRAINING DISTRIBUTION looks like
+# derm.json's `prevalence` block: the per-frame positive rate in every phase x exposure cell of
+# the 20 training pools, raw and after the 1:1 subsampling. DERM's population weights are set
+# from Var(Y|E) = p(1-p) on the raw column, so the ratio these helpers return is exactly the
+# "target ratio" the launcher prints and matches. Typed by hand until the nose-to-nose truth
+# moved, at which point three of the four were wrong and nothing said so.
+_ODK = {'fear': 'F', 'social': 'S'}
+_var = lambda p: p * (1 - p)
+
+
+def _cond(behav, odour, phase, col='raw'):
+    return D['prevalence']['cond'][f'{phase}\u00b7{_ODK[odour]}'][behav][col]
+
+
+def envratio(behav, odour):
+    """max/min Var(Y|E) across one session's three phases -- DERM's target environment mass."""
+    v = [_var(_cond(behav, odour, ph)) for ph in 'HOP']
+    return f'{max(v) / min(v):.2f}&times;'
+
+
+def ohratio(behav, odour):
+    return _cond(behav, odour, 'O') / _cond(behav, odour, 'H')
+
+
+def oh_span(odour):
+    """The O/H prevalence ratio across the two behaviours -- how much confound a session holds."""
+    v = sorted(ohratio(b, odour) for b in ('nt', 'nn'))
+    lo, hi = f'{v[0]:.1f}', f'{v[-1]:.1f}'
+    return f'{lo}&times;' if lo == hi else f'{lo}&ndash;{hi}&times;'
+
+
+def phase_prev(behav, phase):
+    return f"{100 * D['prevalence']['phase'][phase][behav]['raw']:.2f}%"
+
+
+def raw_span():
+    """The per-frame positive rate across every phase x exposure cell of the training pools."""
+    v = sorted(_cond(b, o, ph) for b in ('nt', 'nn') for o in ('fear', 'social') for ph in 'HOP')
+    return f'{100 * v[0]:.1f}&ndash;{100 * v[-1]:.1f}%'
+
+
+def pos_weight_span():
+    """Per-sample weight a positive carries over a negative inside an environment, = (1-p)/p.
+
+    DERM's denominator is P(y, e), so this is set by the population rate and by nothing else --
+    which is why a binding variance floor leaves it untouched.
+    """
+    v = sorted((1 - q) / q for ph in 'HOP' for b in ('nt', 'nn')
+               for q in [D['prevalence']['phase'][ph][b]['raw']])
+    return f'{v[0]:.0f}&ndash;{v[-1]:.0f}&times;'
+
+
+def varspan(behav):
+    """Population Var(Y|E) across the three phases, pooled over exposures -- what the floor clips."""
+    v = sorted(_var(D['prevalence']['phase'][ph][behav]['raw']) for ph in 'HOP')
+    return f'{v[0]:.4f}&ndash;{v[-1]:.4f}'
+
+
 def os_(arm, behav, trans='H->O', what='mean'):
     """One exposure-split cell. `arm` is trF_erm / trF_derm / trS_erm / trS_derm."""
     r = _OS.get('arms', {}).get(arm, {}).get('cells', {}).get(behav, {}).get(trans)
@@ -272,6 +536,49 @@ def os_(arm, behav, trans='H->O', what='mean'):
     if what in ('mean', 'true_dY', 'pred_dF'):
         return f"{r[what]:+.3f}".replace('-', '&minus;')
     return r[what]
+
+
+def mirror(behav, what='count'):
+    """How often the ON and OFF legs carry OPPOSITE signs, over the uncorrected-weight arms.
+
+    The signature of ONE constant error on the O phase: it enters a_O - a_H as +delta and
+    a_P - a_O as -delta, so the two legs mirror. This note used to assert "8 of 8", a literal.
+    It is 8 of 8 no longer -- correcting the nose-to-nose truth changed that behaviour's biases
+    and the two nose-to-nose legs now agree in sign on most fear-trained arms -- and the split
+    is worth reading rather than hiding, because it says the same thing the gain-error paragraph
+    below says: the offset story is nose-to-tail's, not nose-to-nose's.
+    """
+    n = k = 0
+    for tag, a in _OS.get('arms', {}).items():
+        if 'popw' in tag:                       # corrected weights: the offset is what they remove
+            continue
+        c = a.get('cells', {}).get(behav, {})
+        h, o = c.get('H->O'), c.get('O->P')
+        if not (h and o):
+            continue
+        n += 1
+        k += h['mean'] * o['mean'] < 0
+    return k if what == 'k' else (n if what == 'n' else f'{k} of {n}')
+
+
+def reverses(arm='erm_last'):
+    """How many of an arm's four cells FLIP SIGN when the training direction flips.
+
+    derm.json's sign_test. A plain generalisation gap cannot produce a flip tied to which session
+    trained, so this is the test the exposure split exists for. Counted, not typed: the prose said
+    "all four cells" and the corrected nose-to-nose truth took one of them away.
+    """
+    v = _OS.get('sign_test', {}).get(arm)
+    if not v:
+        return '&mdash;'
+    cells = [c for lab in v for c in v[lab].values()]
+    return f"{sum(bool(c['reverses']) for c in cells)} of {len(cells)}"
+
+
+def os_gain(arm, behav, trans='H->O'):
+    """What the arm estimates as a MULTIPLE of the truth -- a gain error, not an offset."""
+    r = _OS.get('arms', {}).get(arm, {}).get('cells', {}).get(behav, {}).get(trans)
+    return '&mdash;' if r is None else f"{r['pred_dF'] / r['true_dY']:.2f}&times;"
 
 
 def os_cell(arm, behav, trans='H->O'):
@@ -325,12 +632,15 @@ def os_savg(lab, trans='H->O', what='erm_minus_derm', key='train_fear_popw_seeda
 # The largest |bias| any corrected-DERM cell reaches across the seed replicates -- computed, so
 # the prose claim "stays near zero in every cell" cannot outlive the data it described.
 try:
-    os_popw_max = '{:.2f}'.format(max(
-        abs(_OS['arms'][t]['cells'][lab][tr]['mean'])
-        for t in ('trF_derm_last_popw', 'trF_derm_last_popw_s1', 'trF_derm_last_popw_s2')
-        for lab in ('nt', 'nn') for tr in _TR))
+    _pm = max(((abs(_OS['arms'][t]['cells'][lab][tr]['mean']), lab, tr)
+               for t in ('trF_derm_last_popw', 'trF_derm_last_popw_s1', 'trF_derm_last_popw_s2')
+               for lab in ('nt', 'nn') for tr in _TR))
+    os_popw_max = f'{_pm[0]:.2f}'
+    # WHICH cell it is, not a sentence somebody has to re-check: the prose names the leg, and the
+    # largest cell moved to nose-to-nose when that behaviour's truth was corrected.
+    os_popw_max_cell = f"{_BNICE[_pm[1]]}'s {'ON' if _pm[2] == 'H->O' else 'OFF'} leg"
 except KeyError:
-    os_popw_max = '&mdash;'
+    os_popw_max = os_popw_max_cell = '&mdash;'
 
 # HAS THE EXPOSURE SPLIT EVER RUN ON A FINE-TUNED ENCODER? It is the criterion the DERM
 # promotion actually turned on, and every arm in it so far is `odour_tr{F,S}_*` on a frozen
@@ -383,7 +693,8 @@ os_seed_note = (
 def nui(behav, fac, which):
     """eta-squared and p for a pool-level factor's share of the model's bias."""
     d = D['nuisance'][which][behav][fac]
-    return f"{100 * d['eta2']:.1f}% (p {d['p']:.2f})"
+    p_ = f"{d['p']:.3f}" if d['p'] < 0.01 else f"{d['p']:.2f}"
+    return f"{100 * d['eta2']:.1f}% (p {p_})"
 
 
 # The PPI++ bound, read off derm.json's grid rather than retyped. `_bw(r)` is the width ratio at
@@ -490,7 +801,6 @@ _REPS = [('stock DINOv2, 0.52&nbsp;M head &mdash; <b>deployed</b>', '', 'paired_
          ('BitFit-6, 0.52&nbsp;M head &mdash; the accuracy leader', BIT, 'paired_xfit_bit6')]
 _REPS = [r for r in _REPS
          if f'DERM \u00b7 24 pools{r[1]}' in D['estimand_bias']['families']['nt']]
-_BNICE = {'nt': 'nose-to-tail', 'nn': 'nose-to-nose'}
 
 
 def _rep_cls(behav, back):
@@ -725,9 +1035,15 @@ def _seed_means(fam):
     return out
 
 
-def seed_sd(fam, what='mean'):
-    """Mean over the four cells of the across-seed standard deviation of the bias."""
-    m = _seed_means(fam)
+def seed_sd(fam, what='mean', behav=None):
+    """Mean over the four cells of the across-seed standard deviation of the bias.
+
+    `behav` restricts to one behaviour. Section 00 needs that split: the largest |mean| over all
+    twelve seed x cell combinations sits on nose-to-nose's OFF leg for BOTH families, so quoting
+    one number makes the DERM-against-ERM contrast look far thinner than it is on the behaviour
+    the story's own example uses.
+    """
+    m = {k: v for k, v in _seed_means(fam).items() if behav is None or k[0] == behav}
     if not m:
         return '&mdash;'
     sds = [(sum((x - sum(v) / len(v)) ** 2 for x in v) / (len(v) - 1)) ** 0.5
@@ -825,8 +1141,9 @@ BODY = f'''
     <li><b>The question.</b> In {n_lines_word} ASD-associated mutant mouse lines, wild-type against
     heterozygous carriers of the same knockout, do odour exposures &mdash; a fear odour and a
     social odour, physically placed in the cage &mdash; causally change social investigation, and
-    does the response differ by line and genotype? The two behaviours scored are nose-to-nose and
-    nose-to-tail sniffing. The obstacle is annotation: {des('v1','annotated_pools')} of
+    does the response differ by line and genotype? The two behaviours scored are
+    <b>nose-to-nose</b> sniffing &mdash; contact in either direction, reciprocated or one-sided
+    &mdash; and <b>nose-to-tail</b> sniffing. The obstacle is annotation: {des('v1','annotated_pools')} of
     {des('v1','pools')} cages are annotated in the first cohort, and
     {des('v2','annotated_pools')} of {des('v2','pools')} in the replication cohort.</li>
 
@@ -848,10 +1165,12 @@ BODY = f'''
     of the random seed, and <b>no accuracy metric shows any of it</b>.</li>
 
     <li><b>The repair.</b> Population-weighted DERM removes the prior in the training objective
-    rather than after the fact. Out of distribution its bias is indistinguishable from zero in
-    every cell and every seed &mdash; largest {seed_sd('DERM','max_abs')} bouts per minute over
-    {seed_sd('DERM','n')} seed&nbsp;&times;&nbsp;cell combinations, every interval covering zero,
-    against {seed_sd('ERM','max_abs')} for ERM &mdash; and it recovers the human-annotation effect
+    rather than after the fact. Out of distribution every one of its
+    {seed_sd('DERM','n')} seed&nbsp;&times;&nbsp;cell intervals covers zero. On nose-to-tail the
+    means are near zero too, largest {seed_sd('DERM','max_abs','nt')} bouts per minute against
+    ERM's {seed_sd('ERM','max_abs','nt')}; on nose-to-nose both families sit further out
+    ({seed_sd('DERM','max_abs','nn')} against {seed_sd('ERM','max_abs','nn')}), which is the
+    behaviour 04.6 shows the offset story does not fit. It recovers the human-annotation effect
     outright ({os_('trF_derm_last_popw','nt','H->O','pred_dF')} against the true
     {os_('trF_derm_last_popw','nt','H->O','true_dY')}). In distribution the bias falls on both
     behaviours over the same 48 paired units (p = {eb24p('nt','p')} and {eb24p('nn','p')}). And
@@ -972,11 +1291,11 @@ BODY = f'''
     </tbody></table></div>
   <div class="note"><b>A negative control the design provides for free.</b> The three wild-type
   strata are three different lines' <em>unmutated</em> animals, so they should behave alike. On raw
-  rates they do not quite: nose-to-tail differs across the three (0.22 / 0.50 / 0.59 bouts per
-  minute, one-way ANOVA p = 0.04), while nose-to-nose is flat (p = 0.88). On the estimand &mdash;
-  the within-pool H&rarr;O difference &mdash; they agree closely for both behaviours (nt p = 0.99,
-  nn p = 0.28). Line background shifts the <em>level</em> and cancels in the <em>contrast</em>,
-  which is the same pattern the annotator effect shows in section 05. With 2 annotated pools per
+  rates they do not quite: nose-to-tail differs across the three ({wt('nt','level','means')}
+  bouts per minute, one-way ANOVA p = {wt('nt','level')}), while nose-to-nose is flat
+  (p = {wt('nn','level')}). On the estimand &mdash; the within-pool H&rarr;O difference &mdash;
+  they agree closely for both behaviours (nt p = {wt('nt','ho')}, nn p = {wt('nn','ho')}). Line background shifts the <em>level</em> and cancels in the <em>contrast</em>,
+  which is the same pattern the annotator effect shows in section 03. With 2 annotated pools per
   wild-type stratum this is the weakest test on the page in both directions: neither result would
   survive much scrutiny, and it is the first thing more annotation would fix.</div>
   <div class="note"><b>Estimand.</b> The mean <em>within-pool</em> change in behaviour across one
@@ -1007,10 +1326,12 @@ BODY = f'''
 </div>
   <div class="figwrap">{DECAY}</div>
 <div class="measure">
-  <p><b>Nothing is stationary inside a phase.</b> Rates fall several-fold across every recording
-  &mdash; half-life <b>4&ndash;14 minutes</b>, P fastest in every cell, and one cell rises instead
-  (nose-to-tail under social exposure during O, where the exposure sustains investigation while
-  everything else habituates). So a phase <em>mean</em> averages over whichever stretch of a
+  <p><b>Nothing is stationary inside a phase.</b> Rates fall several-fold across almost every
+  recording
+  &mdash; half-life <b>{hl_lo}&ndash;{hl_hi} minutes</b>, P fastest in {p_fastest}. The exception is
+  one cell of the design, O under <em>social</em> exposure, where the exposure sustains
+  investigation while everything else habituates: nose-to-tail rises instead of falling, and
+  nose-to-nose is all but flat ({hl_flat} minutes). So a phase <em>mean</em> averages over whichever stretch of a
   decaying curve the schedule happened to sample, and because H runs 30 minutes against O and P's
   15, <b>the two sides of H&rarr;O do not sample the same stretch</b>. O&rarr;P is unaffected:
   equal lengths, so any window rule leaves it bit-for-bit identical, checked in all four cells.
@@ -1018,20 +1339,21 @@ BODY = f'''
   <div class="scroll"><table>
     <thead><tr><th>H &rarr; O</th><th>full H (30 min)</th><th>first 15</th><th>last 15</th><th>spread</th></tr></thead>
     <tbody>
-      <tr><td>nt &middot; fear</td><td>+0.36</td><td>+0.22</td><td>+0.49</td><td>0.28</td></tr>
-      <tr><td>nt &middot; social</td><td>&minus;0.37</td><td>&minus;0.67</td><td>&minus;0.07</td><td>0.60</td></tr>
-      <tr><td>nn &middot; fear</td><td>+0.66</td><td>+0.45</td><td>+0.86</td><td>0.42</td></tr>
-      <tr><td>nn &middot; social</td><td>+0.47</td><td>&minus;0.03</td><td>+0.97</td><td class="lo">1.01 &mdash; changes sign</td></tr>
+      <tr><td>nt &middot; fear</td>{wrow('nt','fear')}</tr>
+      <tr><td>nt &middot; social</td>{wrow('nt','social')}</tr>
+      <tr><td>nn &middot; fear</td>{wrow('nn','fear')}</tr>
+      <tr><td>nn &middot; social</td>{wrow('nn','social')}</tr>
     </tbody></table></div>
   <p><b>Matching the first 15 minutes settles a confound, not just an inconsistency.</b> Every
   phase is a separate recording the experimenter starts by opening the cage, and the onset spike
-  that follows is largest in <b>P</b> &mdash; where the odour is <em>removed</em> &mdash; in 3 of 4
-  cells (first-2-min over last-2-min rate, nn&nbsp;&middot;&nbsp;fear: H 7.6, O 6.7, <b>P 12.3</b>).
+  that follows is largest in <b>P</b> &mdash; where the odour is <em>removed</em> &mdash; in
+  {n_onset_p} of 4 cells (first-2-min over last-2-min rate, {onset_cell}: {onset_vals}).
   A response peaking when the odour is taken away is handling, not odour, so matching onset position
   puts it on both sides of every contrast, where it cancels. Every estimate in this report is cut
   that way, so <b>&ldquo;first 15&rdquo; is the column the figures report</b> and the other two are
-  the sensitivity around it. Nose-to-nose under social is the cell that depended on it: +0.47 on the
-  full window against &minus;0.03 matched.</p>
+  the sensitivity around it. Nose-to-nose under social is the cell that depended on it:
+  {wcell('nn','social','full')} on the full window against {wcell('nn','social','first15')}
+  matched.</p>
 
   <div class="sub">
     <p class="q">02a &middot; the level</p>
@@ -1086,7 +1408,7 @@ BODY = f'''
   <p>In minutes, so it interprets itself: a <b>flat process gives 7.5</b>, half the window, and a
   difference reads as <em>&ldquo;the exposure pushes bouts X minutes later into the phase&rdquo;</em>.
   Model-free, per-observation, and needing no exponential &mdash; a fitted slope does not survive
-  here, with log-linearity rejected in 7 of 12 cells. It beats a front-loading fraction, whose null
+  here, with log-linearity rejected in {curv} cells. It beats a front-loading fraction, whose null
   was an artefact of its own nesting, and the median, which discards the late tail where a flatter
   curve actually shows.</p>
 </div></section>
@@ -1123,8 +1445,8 @@ BODY = f'''
   reverses nose-to-nose under both ({lvl('nn','fear','O->P')} and {lvl('nn','social','O->P')}).
   Each exposure is reported separately throughout, never pooled.</p>
   <p><b>The timing: every sign is positive turning the odour on and negative turning it off.</b>
-  Bouts start <b>1.0&ndash;2.2 minutes later</b> into the phase once the odour is on, and up to 3.3
-  minutes earlier once it is withdrawn &mdash; the exposure flattens the habituation curve and
+  Bouts start <b>{dspan('H->O')} minutes later</b> into the phase once the odour is on, and up to
+  {dspan('O->P','max')} minutes earlier once it is withdrawn &mdash; the exposure flattens the habituation curve and
   withdrawing it restores fast habituation. Not how much behaviour the odour triggers, but how long
   it holds attention.</p>
   <div class="scroll"><table>
@@ -1187,9 +1509,10 @@ BODY = f'''
     <math><mrow><mi>Var</mi><mo>(</mo><msub><mi>D</mi><mi>Y</mi></msub><mo>)</mo><mo>/</mo>
     <mo>(</mo><mi>n</mi><mo>+</mo><mi>N</mi><mo>)</mo></mrow></math> &mdash; precisely the variance
     of having annotated all {_PB['n'] + _PB['N']} pools. The bound depends on the <em>design</em>
-    only: 24 of 72, and nothing about the model. Measured today the mean narrowing is <b>12%</b>,
-    best cell 22%, so about a third of the available ceiling is in hand and the rest is entirely
-    r&Delta;.</p>
+    only: 24 of 72, and nothing about the model. Measured today across all
+    {narrowing_all(PRIME,'n')} all-pool cells of the three outcomes, the mean narrowing is
+    <b>{narrowing_all(PRIME)}</b>, best cell {narrowing_all(PRIME,'max')} &mdash; so about a third
+    of the available ceiling is in hand and the rest is entirely r&Delta;.</p>
   </div>
 
   <div class="scroll"><table>
@@ -1205,18 +1528,29 @@ BODY = f'''
   protected from it.</b> No observation in v1 was scored twice, so agreement cannot be measured
   directly; the design bounds it instead, because within a genotype group the six pools are
   exchangeable yet different people scored them. Decomposing variance with annotator as the factor,
-  against a permutation null of the same shape:
+  against a permutation that reshuffles annotators inside the same cells &mdash; one estimator,
+  applied to the rate and to the estimand:
   <div class="scroll" style="margin-top:11px"><table>
     <thead><tr><th>quantity</th><th>annotator share of within-cell variance</th><th>chance</th><th>p</th></tr></thead>
     <tbody>
-      <tr><td>rate, per observation &mdash; nt</td><td class="lo">31.7%</td><td>8.2%</td><td class="lo">&lt;0.001</td></tr>
-      <tr><td>rate, per observation &mdash; nn</td><td class="lo">17.8%</td><td>7.6%</td><td class="lo">0.010</td></tr>
-      <tr><td><b>within-pool difference &mdash; nt</b></td><td class="hi">26.1%</td><td>32.4%</td><td class="hi">0.59</td></tr>
-      <tr><td><b>within-pool difference &mdash; nn</b></td><td class="hi">40.3%</td><td>35.7%</td><td class="hi">0.38</td></tr>
+      <tr><td>rate, per observation &mdash; nt</td><td{ac_cls('observation','nt')}>{ac('observation','nt','eta2')}</td>
+        <td>{ac('observation','nt','chance')}</td><td{ac_cls('observation','nt')}>{ac('observation','nt','p')}</td></tr>
+      <tr><td>rate, per observation &mdash; nn</td><td{ac_cls('observation','nn')}>{ac('observation','nn','eta2')}</td>
+        <td>{ac('observation','nn','chance')}</td><td{ac_cls('observation','nn')}>{ac('observation','nn','p')}</td></tr>
+      <tr><td><b>within-pool difference &mdash; nt</b></td><td{ac_cls('difference','nt')}>{ac('difference','nt','eta2')}</td>
+        <td>{ac('difference','nt','chance')}</td><td{ac_cls('difference','nt')}>{ac('difference','nt','p')}</td></tr>
+      <tr><td><b>within-pool difference &mdash; nn</b></td><td{ac_cls('difference','nn')}>{ac('difference','nn','eta2')}</td>
+        <td>{ac('difference','nn','chance')}</td><td{ac_cls('difference','nn')}>{ac('difference','nn','p')}</td></tr>
     </tbody></table></div>
-  <b>Who scored a recording moves its measured rate, and stops mattering once the rate is
-  differenced within a pool</b> &mdash; the same cancellation the three wild-type strata show in
-  section 01. So a label-noise ceiling computed on <em>rates</em> (best attainable r &le; 0.65 on
+  <b>Who scored a recording moves its measured rate on nose-to-tail
+  ({ac('observation','nt','eta2')} against {ac('observation','nt','chance')} chance), and stops
+  mattering once the rate is differenced within a pool &mdash; on both behaviours, both at
+  chance.</b> On nose-to-nose even the level is at chance, so for that behaviour this test bounds
+  nothing. The <em>model's</em> bias splits the same way and more sharply: annotator explains
+  {nui('nn','annotator','level')} of its nose-to-nose <em>level</em> bias against
+  {nui('nn','annotator','delta')} of the phase <em>difference</em>. The three wild-type strata in
+  section 01 cancel the same way. So a label-noise ceiling computed
+  on <em>rates</em> (best attainable r &le; {ac('observation','nt','r_max')} on
   nose-to-tail) constrains level correlations, <b>not r&Delta;</b>. What bounds r&Delta; is
   <em>within</em>-annotator inconsistency between two phases, which no design without replication
   can separate from real change. Double-scoring 15&ndash;20 observations is the only way to get it,
@@ -1225,8 +1559,10 @@ BODY = f'''
   CI and PPI++ do not target quite the same population.</b> Annotation is <b>3:1 het-enriched</b> (18 het / 6 wt against a 36/36 design), so CI estimates the
   effect <em>in the annotated pools</em> while PPI++ pulls in 48 unannotated ones that are
   wt-enriched (30 wt / 18 het) and targets the full 72. They coincide only if the phase effect does
-  not vary with genotype, and it varies a little: nose-to-nose under fear reads about +0.79 across
-  the wt strata against +0.60 across the het strata, moving the target roughly +0.05 (~7%). Small
+  not vary with genotype, and it varies a little. The cell where it varies most is
+  {gmix('cell')}: {gmix('wt')} across the wt strata against {gmix('het')} across the het strata,
+  which moves the target by {gmix('shift')} bouts per minute &mdash; {gmix('width')} of that
+  cell's own interval, and the largest such shift in the grid. Small
   next to these intervals, but it is a difference in <em>estimand</em> rather than precision, so it
   does not shrink with more data. The fix is to estimate within stratum and recombine with design
   weights.</div>
@@ -1416,12 +1752,13 @@ BODY = f'''
   modelling intervention below is worth between &minus;0.09 and +0.11, the best label-free one
   +0.033 &mdash; so twenty more annotated pools would beat all of them combined.</div>
   <div class="note"><b>What &ldquo;more data&rdquo; means here is more POSITIVES, and the
-  imbalance is handled by subsampling.</b> A frame carries nose-to-tail 1.2% of the time and
-  nose-to-nose 0.8%, so an unweighted epoch would be 99% negatives. Every arm on this page
+  imbalance is handled by subsampling.</b> A frame carries nose-to-tail {prev('nt')} of the time
+  and nose-to-nose {prev('nn')}, so an unweighted epoch would be {prev('neg',0)} negatives. Every arm on this page
   therefore trains on <b>all 23,280 positive anchors plus an equal number of negatives drawn fresh
   from the 54,292 available every epoch</b> &mdash; 46,560 samples, 1:1, resampled so the model
   still sees most of the negative pool over 30 epochs without any epoch being swamped by it. Two
-  consequences worth carrying forward. The effective training prevalence is <b>~25%, not ~1%</b>,
+  consequences worth carrying forward. The effective training prevalence is <b>~25%, against the
+  {prev('nt')}&ndash;{prev('nn')} the labels carry</b>,
   which is why predicted occupancy runs about fivefold above truth in section 05 and why no
   prediction on this page may be read as a rate. And the label budget in the table above binds
   through positives: annotating a pool adds ~970 positive anchors, and negatives were never
@@ -1543,7 +1880,8 @@ BODY = f'''
     {eb24('nn','DERM','share',SSL)}, nominally the wrong way and nowhere near resolvable
     (p = {eb24p('nn','p','paired_xfit_ssl')}). That is the behaviour the mechanism predicts when
     there is no shortcut left to take out, and this project has seen it once before: trained on the
-    social exposure, where the O/H prevalence ratio is 0.8&times;, every paired cell came out null.
+    social exposure, where the O/H prevalence ratio is {oh_span('social')}, every paired cell came
+    out null.
     <br><br><b>Two things cut against reading that as a clean story.</b>
     <br><b>(1) Why ERM on the SSL encoder carries so much less nose-to-nose bias than ERM on stock
     &mdash; {eb24('nn','ERM','share',SSL)} against {eb24('nn','ERM','share')}, a
@@ -1655,8 +1993,9 @@ BODY = f'''
     <div class="body">
     <p><b>The shortcut, and why ERM would take it.</b> A bag is placed in a corner of the cage for
     the exposure phase, so the treatment is visible in the frame whether or not any behaviour is.
-    Prevalence moves with the phase too (nose-to-tail 0.89% in H against 1.22% in O on the training
-    pools). ERM's optimum is
+    Prevalence moves with the phase too (nose-to-tail {phase_prev('nt','H')} in H against
+    {phase_prev('nt','O')} in O on the training pools, nose-to-nose {phase_prev('nn','H')} against
+    {phase_prev('nn','O')}). ERM's optimum is
     <math><mrow><mi>P</mi><mo>(</mo><mi>Y</mi><mo>=</mo><mn>1</mn><mo>|</mo><mi>x</mi>
     <mo>)</mo></mrow></math>, which <em>includes</em> that phase-conditional prior, so nothing in
     the objective discourages scoring a frame by which phase it looks like. DERM reweights each
@@ -1759,20 +2098,35 @@ BODY = f'''
     <div class="note"><b>How the weights survive the subsampling &mdash; and how we know the
     implementation is right.</b> Training subsamples twice: a 300k-frame cap that keeps positives
     preferentially, then one negative per positive. That lifts the in-batch positive rate from
-    0.4&ndash;1.4% to where p(1&minus;p) saturates, so Var(Y|E) estimated on the <em>subsample</em>
+    {raw_span()} to where p(1&minus;p) saturates, so Var(Y|E) estimated on the <em>subsample</em>
     collapses the across-environment ratio the objective is built on &mdash; fear nose-to-tail
-    1.55&times; where the population says 3.56&times;: the correction was being trained at half
-    strength, which is what the "corrected weights" arm in the figure fixes. The fix estimates
+    1.55&times; where the population says {envratio('nt','fear')}: the correction was being trained
+    at half strength, which is what the &ldquo;corrected weights&rdquo; arm in the figure fixes. The fix estimates
     Var(Y|E) and P(E) on the <b>population</b> of frames (P(E) duration-neutral, so H's 30 minutes
     buy it no extra mass) and applies them to the subsampled batches. Verified end to end:
     <code>test_derm.py</code> audits the weights against
     <math><mrow><mi>Var</mi><mo>(</mo><mi>Y</mi><mo>|</mo><mi>E</mi><mo>)</mo><mo>/</mo>
     <mi>P</mi><mo>(</mo><mi>Y</mi><mo>,</mo><mi>E</mi><mo>)</mo></mrow></math> to 1e&minus;7 with
     mean weight exactly 1 (step size unchanged against ERM) and positive/negative mass balanced
-    inside every environment; the launcher logs the achieved environment mass against its target
-    (3.56&times;/2.43&times; trained on fear, 1.29&times;/1.77&times; on social &mdash; matched
-    exactly); and the trainer <em>refuses</em> any arm whose variance floor would clip every
-    environment, the failure that once made a DERM arm an exact no-op.</div>
+    inside every environment; and the launcher logs the achieved environment mass against its
+    target, matched exactly in all four cells.
+    <br><br><b>Two of those four targets were computed before the nose-to-nose ground truth was
+    corrected, and the runs still carry them.</b> The {n_popw_word} corrected-weight arms were
+    configured
+    against the mutual-only nose-to-nose column, so they aimed at 2.43&times; on fear and
+    1.77&times; on social; measured on the directed-pair union the model is actually trained for,
+    the same quantities are {envratio('nn','fear')} and {envratio('nn','social')}. The runs hit
+    what they were told to hit; the nose-to-nose targets are simply wider than the corrected data
+    supports, and rerunning those arms is the only way to close it. Nose-to-tail is unaffected
+    ({envratio('nt','fear')} and {envratio('nt','social')}, as configured).
+    <br><br>Finally, the trainer <em>refuses</em> at launch any arm whose variance floor would clip
+    every environment of <em>every</em> label. A binding floor is not the no-op this note used to
+    call it: the denominator P(y,&nbsp;e) is untouched, so positives keep {pos_weight_span()} the
+    per-sample weight of negatives inside each environment, and only the mass <em>across</em>
+    environments goes uniform. It is also per label &mdash; the 0.02 floor clips any Var below
+    0.0196, which nose-to-tail's population Var ({varspan('nt')}) is in all three phases and
+    nose-to-nose's ({varspan('nn')}) is not, so that refusal would no longer fire on this data. The population
+    arms run at a floor of 1e&minus;4 and clip nothing.</div>
 
     <h3>The exposure split &mdash; the mechanism, isolated</h3>
     <p>Train on one exposure session's three phases, test on the other's. That holds the cage, the
@@ -1784,24 +2138,26 @@ BODY = f'''
     (checkpoint selection on unweighted AP had rewarded exactly the prior DERM removes); and
     DERM's weights computed for the population rather than the 1:1-balanced training subsample,
     which had collapsed the environment-variance ratio the objective is built on (fear
-    nose-to-tail: 1.55&times; where the population says 3.56&times;).</p>
+    nose-to-tail: 1.55&times; where the population says {envratio('nt','fear')}).</p>
     {ODOUR}
     <p class="defn">Bias in the transition, bouts per minute, on the held-out exposure.
     {os_('trF_erm','nt',what='n_pools')} pools per direction, 72 observations per arm, inside 02b's
     15-minute window. Zero bias means raw PPCI reproduces the human-annotation effect on a
     session the model never trained on.</p>
 
-    <div class="note"><b>The bias is a single offset sitting on the O phase &mdash; which is where
-    the bag is.</b> In <b>8 of 8</b> arm &times; behaviour combinations of the uncorrected arms
-    the ON and OFF legs carry <em>opposite</em> signs. That is the arithmetic signature of one constant error on O: it enters
-    a<sub>O</sub>&minus;a<sub>H</sub> as +&delta; and a<sub>P</sub>&minus;a<sub>O</sub> as
-    &minus;&delta;. Combined with ERM reversing in all four cells when the training direction
-    flips, the shortcut is not just real, it is <b>localised on the treatment phase</b>. And the
-    signature reads in reverse: under the corrected weights the fear-trained legs stop mirroring
-    ({os_('trF_derm_last_popw','nt')} and {os_('trF_derm_last_popw','nt','O->P')} share a sign)
-    &mdash; the offset is gone, not redistributed.</div>
+    <div class="note"><b>On nose-to-tail the bias is a single offset sitting on the O phase
+    &mdash; which is where the bag is. On nose-to-nose it is not.</b> One constant error on O
+    enters a<sub>O</sub>&minus;a<sub>H</sub> as +&delta; and a<sub>P</sub>&minus;a<sub>O</sub> as
+    &minus;&delta;, so the ON and OFF legs must carry <em>opposite</em> signs. Across the
+    uncorrected-weight arms they do on nose-to-tail in <b>{mirror('nt')}</b> and on nose-to-nose in
+    only {mirror('nn')}. Combined with ERM reversing sign in {reverses()} cells when the training
+    direction flips &mdash; both nose-to-tail cells among them &mdash; the nose-to-tail shortcut is
+    not just real, it is <b>localised on the treatment phase</b> &mdash; and the signature reads in reverse, because under the corrected weights the
+    fear-trained legs stop mirroring ({os_('trF_derm_last_popw','nt')} and
+    {os_('trF_derm_last_popw','nt','O->P')} share a sign). Nose-to-nose's defect is the gain error
+    two paragraphs down, which no per-environment constant can touch.</div>
 
-    <p><b>Trained on fear &mdash; where the O phase carries 2.5&ndash;3.1&times; the prevalence
+    <p><b>Trained on fear &mdash; where the O phase carries {oh_span('fear')} the prevalence of H
     &mdash; the corrected weights close the imported bias.</b> On nose-to-tail's ON leg ERM is
     biased by {os_('trF_erm_last','nt')}: the truth is
     {os_('trF_erm_last','nt','H->O','true_dY')} bouts per minute and it estimates
@@ -1815,9 +2171,10 @@ BODY = f'''
     {os_('trF_derm_last_popw','nt','O->P')}) but the paired difference does not resolve
     (p {os_pair('train_fear_popw','nt','p','O->P')}).</p>
 
-    <p><b>And it replicates across seeds.</b> Over three seeds of the same pair, corrected DERM's
-    bias stays near zero in every cell (largest |mean| {os_popw_max}, every interval covering
-    zero), while ERM's imported bias is itself a draw of the seed &mdash;
+    <p><b>And it replicates across seeds.</b> Over three seeds of the same pair, every corrected
+    DERM interval covers zero, and on nose-to-tail the mean is near zero too; the largest |mean|
+    anywhere is {os_popw_max}, on {os_popw_max_cell}. Meanwhile ERM's imported bias is itself a
+    draw of the seed &mdash;
     {os_('trF_erm_last','nt')}, {os_('trF_erm_last_s1','nt')}, {os_('trF_erm_last_s2','nt')} on
     the headline cell. How much of the shortcut ERM picks up is luck; DERM removes the channel
     rather than the draw. Averaging each pool over the three seeds first, the paired difference on
@@ -1826,21 +2183,26 @@ BODY = f'''
     where ERM's average bias is already small, do not resolve. The per-seed arms are in the
     figure's variant control.</p>
 
-    <div class="note"><b>The nose-to-nose harm was the weight estimate, not the method.</b> Under
-    the subsample's weights DERM <em>introduced</em> {os_('trF_derm_last','nn')} of bias where ERM
-    sat at {os_('trF_erm_last','nn')} &mdash; the finding an earlier version of this section
-    rested on. The population weights take it to {os_('trF_derm_last_popw','nn')}, and it stays
-    near zero in both seed replicates ({os_('trF_derm_last_popw_s1','nn')},
-    {os_('trF_derm_last_popw_s2','nn')}). What survives on nose-to-nose
+    <div class="note"><b>On nose-to-nose the case rests on the seed replicates, not on one arm.</b>
+    Under the subsample's weights DERM read {os_('trF_derm_last','nn')} of bias against ERM's
+    {os_('trF_erm_last','nn')} &mdash; the finding an earlier version of this section rested on,
+    and on the corrected truth <em>neither interval excludes zero</em>
+    ({os_('trF_derm_last','nn',what='ci')} and {os_('trF_erm_last','nn',what='ci')}), so that
+    comparison resolves nothing and the word &ldquo;introduced&rdquo; has been dropped from it.
+    What does survive is that the population weights sit at zero and stay there across three seeds:
+    {os_('trF_derm_last_popw','nn')}, {os_('trF_derm_last_popw_s1','nn')} and
+    {os_('trF_derm_last_popw_s2','nn')}. What survives as a defect on nose-to-nose
     is a gain error, not an offset: trained on social it estimates
     {os_('trS_erm_last','nn','H->O','pred_dF')} where the truth is
-    {os_('trS_erm_last','nn','H->O','true_dY')}, over-responding by half again. DERM adds one
+    {os_('trS_erm_last','nn','H->O','true_dY')} &mdash;
+    {os_gain('trS_erm_last','nn')} the effect. DERM adds one
     constant per environment and has no term that touches the gain &mdash; that correction is
     what the rectifier in PPI++ already is.</div>
 
     <p><b>Trained on social every paired cell is null &mdash; and that is the mechanism's own
-    negative control.</b> The social session's O/H prevalence is 0.8&times;, so its training
-    distribution carries almost nothing to correct, and DERM correctly corrects almost nothing
+    negative control.</b> The social session's O/H prevalence is {oh_span('social')} against fear's
+    {oh_span('fear')}, so its training distribution carries almost nothing to correct, and DERM
+    correctly corrects almost nothing
     (nose-to-tail ON: {os_('trS_erm_last','nt')} against {os_('trS_derm_last_popw','nt')}). The
     correction is <b>confound-specific, not a blanket regulariser</b> &mdash; it appears exactly
     where the confound sits in the training distribution and nowhere else. ERM's residual bias in
@@ -1951,7 +2313,8 @@ BODY = f'''
     &plusmn;{seed_sd('DERM','max_abs')} bouts per minute in all
     {seed_sd('DERM','n')} seed&nbsp;&times;&nbsp;cell combinations, every one of the twelve
     intervals covering zero. The negative control is clean: trained on the social direction, where
-    the O/H prevalence ratio is 0.8&times; and there is nothing to correct, DERM and ERM coincide
+    the O/H prevalence ratio is {oh_span('social')} and there is nothing to correct, DERM and ERM
+    coincide
     (nose-to-tail ON {os_('trS_erm_last','nt')} against {os_('trS_derm_last_popw','nt')}).
     <b>(ii) In distribution the 24-pool cross-fit reduces the bias on both behaviours, on the
     encoder that is deployed</b> &mdash; p = {eb24p('nt','p')} nose-to-tail and
