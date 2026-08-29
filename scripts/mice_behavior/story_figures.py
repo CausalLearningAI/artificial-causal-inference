@@ -22,6 +22,8 @@ from scipy import stats
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
+
+from src.mice_behavior.truth import read_truth                              # noqa: E402
 FRAME = ROOT / 'results' / 'vision' / 'mice' / 'frame'
 OUT = FRAME / '_figures'
 OUT.mkdir(parents=True, exist_ok=True)
@@ -39,8 +41,7 @@ FPS = 5.0
 
 def obs_table() -> pd.DataFrame:
     """Per-observation outcomes from the human labels: occupancy and bouts/min."""
-    a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
-                    usecols=['observation_id', 'frame_idx', 'Y_nt', 'Y_nn']).dropna(subset=['Y_nt'])
+    a = read_truth()
     e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')[
         ['observation_id', 'pool', 'phase', 'odor', 'genotype', 'sex', 'line']]
     a = a.sort_values(['observation_id', 'frame_idx'])
@@ -195,8 +196,7 @@ def fig_ap_vs_causal():
 
 def fig_window_sensitivity():
     """The same contrast under three defensible windows. One of them flips sign."""
-    a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
-                    usecols=['observation_id', 'frame_idx', 'Y_nt', 'Y_nn']).dropna(subset=['Y_nt'])
+    a = read_truth()
     e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')[
         ['observation_id', 'pool', 'phase', 'odor']]
     a = a.sort_values(['observation_id', 'frame_idx']).merge(e, on='observation_id')
@@ -344,8 +344,7 @@ def fig_learning_curve():
 
 def minute_table():
     """Bouts started per elapsed minute, per observation -- the raw material of the decay plot."""
-    a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
-                    usecols=['observation_id', 'frame_idx', 'Y_nt', 'Y_nn']).dropna(subset=['Y_nt'])
+    a = read_truth()
     e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')[
         ['observation_id', 'pool', 'phase', 'odor']]
     a = a.sort_values(['observation_id', 'frame_idx']).merge(e, on='observation_id')

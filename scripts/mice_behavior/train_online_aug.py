@@ -62,6 +62,7 @@ import grid_search_frame as gsf
 from src.mice_behavior.batch_data import FrameBatchData
 from src.mice_behavior.model import MouseFrameClassifier
 from src.mice_behavior.pools import get_fixed_val_pools
+from src.mice_behavior.truth import read_truth
 from src.mice_behavior.metrics import ap_report, format_ap_report, rate_report, format_rate_report
 from src.mice_behavior.viz import plot_confusion_examples, plot_error_strips
 from src.mice_behavior.head_cfg import get_head_cfg
@@ -212,9 +213,13 @@ def population_var(ann_csv, train_obs, o2e, env_names, cols=('Y_nt', 'Y_nn')):
     2,574,000 annotated frames, 18% of them positive against a true rate of 0.4-1.4%. Estimating
     the confound on that is estimating it on a set that has already had most of the confound
     removed, unevenly.
+
+    `cols` must name columns `read_truth` returns, so that Y_nn here is the SAME directed-pair
+    union the heads are trained on -- the raw Y_nn column is mutual-only and would estimate the
+    confound for a label no head predicts.
     """
-    a = pd.read_csv(ann_csv, usecols=['observation_id', *cols], low_memory=False)
-    a = a[a.observation_id.isin(set(train_obs))].dropna(subset=[cols[0]])
+    a = read_truth(path=ann_csv)
+    a = a[a.observation_id.isin(set(train_obs))]
     a = a.assign(_e=a.observation_id.map(o2e))
     idx = {n: i for i, n in enumerate(env_names)}
     out = np.full((len(env_names), len(cols)), np.nan)
@@ -251,11 +256,18 @@ def derm_table(labels: np.ndarray, envs: np.ndarray, idx: np.ndarray, n_env: int
 
     WHY THAT DISTINCTION IS THE WHOLE BUG (Riccardo, 2026-08-25). Training subsamples twice --
     --max-train-frames keeps positives preferentially, then neg_ratio balances 1:1 -- which drives
-    p_e from 0.4-1.4% up to 16-39%. Var(Y|E) = p(1-p) SATURATES there, so the ratio across
-    environments collapses: measured on the fear session, 3.56x -> 1.58x on nose-to-tail and
-    2.43x -> 1.32x on nose-to-nose. 77-78% of the confound is gone before DERM sees it. The
+    p_e from 0.4-3.1% up to 7.6-40.1% (measured per phase x exposure on the standing split,
+    derm.json `prevalence`). Var(Y|E) = p(1-p) SATURATES there, so the ratio across environments
+    collapses: on the fear session the O/H prevalence ratio goes 3.59x -> 2.50x on nose-to-tail
+    and 2.00x -> 1.39x on nose-to-nose. Most of the confound is gone before DERM sees it. The
     confound is a property of the POPULATION and the subsampling is a compute convenience, so the
     numerator must be the population variance.
+
+    Those nose-to-nose figures moved on 2026-08-29: they used to read 2.45x -> 1.58x because the
+    prevalence was measured on the raw `Y_nn` column, which is mutual-only, while the head has
+    always been trained on the directed-pair union. See src/mice_behavior/truth.py. The seven
+    runs on disk that passed --derm-prevalence population were trained against the old, mutual-only
+    numerator and were not retrained.
 
     IT ALSO FIXES THE DURATION PROBLEM for free. The old form divided by P(E), the environment's
     share of anchors, which for --env-key phase IS duration -- H runs 30 minutes against O and P's
@@ -293,14 +305,24 @@ def derm_table(labels: np.ndarray, envs: np.ndarray, idx: np.ndarray, n_env: int
             p = np.divide(joint[:, 1], tot, out=np.full(n_env, 0.5), where=tot > 0)
             var = p * (1.0 - p)
         if np.any(var < v_floor):
-            # This has bitten twice. --derm-floor 0.02 is safe against the SAMPLED variance and
-            # clips EVERY environment against the population one (Var = p(1-p) with p ~ 0.4-1.4%
-            # is 0.004-0.013, under 0.0196), which makes the target mass uniform and the whole
-            # correction an exact no-op. Never let that pass silently.
+            # This has bitten twice. --derm-floor 0.02 is safe against the SAMPLED variance but
+            # clips against the population one on nose-to-tail (Var = p(1-p) with p ~ 0.9-1.2% is
+            # 0.0088-0.0122, under 0.0196); nose-to-nose clears it on the directed-pair union
+            # (2.0-2.4% -> 0.0199-0.0237) though not on the mutual-only column this used to be
+            # measured against.
+            #
+            # WHAT CLIPPING COSTS, precisely -- it is one of the two channels, not the method.
+            # Equal target mass in y=0 and y=1 inside every environment is untouched, because the
+            # denominator P(y, e) is untouched: measured on the training pools, positives still
+            # carry 40x-111x the per-sample weight of negatives, and the table stays per label.
+            # What goes is the proportionality to Var(Y|E=e): every environment lands on the same
+            # mass, so an environment where the behaviour barely varies stops being downweighted.
+            # See test_derm.py section 6, which exercises the fully clipped regime.
             print(f'  !! DERM variance floor {v_floor:.2e} BINDS on '
                   f'{int(np.sum(var < v_floor))}/{n_env} environments for label {l} '
-                  f'(Var {np.array2string(var, precision=5)}) -- the target mass is being '
-                  f'flattened toward a no-op. Lower --derm-floor.', flush=True)
+                  f'(Var {np.array2string(var, precision=5)}) -- environment mass is going '
+                  f'uniform, so only the pos/neg balancing survives. Lower --derm-floor.',
+                  flush=True)
         var = np.maximum(var, v_floor)
         for k in (0, 1):
             tab[:, l, k] = np.divide(var, joint[:, k], out=np.zeros(n_env),
@@ -784,16 +806,26 @@ def main():
         print('  population Var(Y|E): ' + '  '.join(
             f'{n} nt {derm_var_pop[i, 0]:.5f} nn {derm_var_pop[i, 1]:.5f}'
             for i, n in enumerate(env_names)), flush=True)
-        # REFUSE, do not warn. A floor that clips every environment makes the target mass uniform
-        # and the whole objective an exact no-op, and a warning after submission is a wasted run --
-        # this had already cost two launches. Checked here, before anything is trained.
+        # REFUSE, do not warn. A floor that clips every environment for every label throws away
+        # the whole reason to pass --derm-prevalence population: the population Var(Y|E) never
+        # reaches the weights, and the run is an expensive way to get uniform environment mass.
+        # A warning after submission is a wasted run -- this had already cost two launches -- so
+        # it is checked here, before anything is trained. Deliberately conservative: it fires only
+        # when EVERY environment of EVERY label is clipped, and a run where one label clips and
+        # the other does not is allowed through with derm_table's per-label warning.
+        #
+        # NOT an exact no-op, and the message used to say it was. Clipping flattens the
+        # environment masses (invariant B) and leaves the pos/neg balancing inside each
+        # environment (invariant A) exactly as it was, which is still a large reweighting --
+        # measured 40x-111x on positives. See test_derm.py section 6.
         _vf = args.derm_floor * (1.0 - args.derm_floor)
         if (derm_var_pop < _vf).all():
             raise SystemExit(
                 f'--derm-floor {args.derm_floor:g} gives a variance floor of {_vf:.2e}, which is '
                 f'above EVERY population Var(Y|E) here (max {derm_var_pop.max():.5f}). That clips '
-                'all environments to one value, makes the target mass uniform and turns DERM into '
-                'an exact no-op. Pass a smaller --derm-floor.')
+                'every environment to one value, so the population variance you asked for never '
+                'reaches the weights and all that survives is the pos/neg balancing. Pass a '
+                'smaller --derm-floor.')
 
     pos_idx = np.where(tm.labels.sum(1) > 0)[0]
     neg_idx = np.where(tm.labels.sum(1) == 0)[0]

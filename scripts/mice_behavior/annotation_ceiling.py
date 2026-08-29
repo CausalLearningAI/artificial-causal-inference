@@ -51,14 +51,17 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from src.mice_behavior.truth import read_truth                              # noqa: E402
+
 LABELS = ('Y_nt', 'Y_nn')
 NICE = {'Y_nt': 'nt', 'Y_nn': 'nn'}
 
 
 def load() -> pd.DataFrame:
     """Per-observation annotated rate joined to the design. 144 rows (the annotated half)."""
-    a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
-                    usecols=['observation_id', 'Y_nt', 'Y_nn'], low_memory=False)
+    a = read_truth()
     obs = a.groupby('observation_id')[list(LABELS)].mean().reset_index()
     e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')
     m = obs.merge(e[['observation_id', 'pool', 'line', 'genotype', 'phase', 'odor', 'annotator']],

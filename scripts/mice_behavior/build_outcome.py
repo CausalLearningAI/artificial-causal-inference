@@ -70,6 +70,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
+from src.mice_behavior.truth import read_truth                               # noqa: E402
 from src.mice_behavior.phase_ate import TRANSITIONS, pool_deltas             # noqa: E402
 from build_estimates import labelled_truth, out_of_fold_predictions          # noqa: E402
 from event_eval import runs                                                  # noqa: E402
@@ -82,10 +83,7 @@ UNITS = ('counts', 'occupancy', 'duration')
 
 def per_observation():
     """All three units per observation, plus every bout length, from the human labels."""
-    a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
-                    usecols=['observation_id', 'frame_idx', 'Y_nt', 'Y_nn'],
-                    low_memory=False).dropna(subset=['Y_nt'])
-    a = a.sort_values(['observation_id', 'frame_idx'])
+    a = read_truth().sort_values(['observation_id', 'frame_idx'])
     rows, lens = [], {l: [] for l in LABELS}
     for oid, g in a.groupby('observation_id', sort=False):
         n = len(g); rec = {'observation_id': oid}

@@ -39,6 +39,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
+from mice_behavior.truth import read_truth  # noqa: E402
 from mice_behavior.ppi import (  # noqa: E402
     StratumData, classical_contrast, ppi_contrast, projected_variance_factor,
     assert_crossfitted,
@@ -73,8 +74,7 @@ def load_pool_rates() -> pd.DataFrame:
     happens downstream in batch_data), so a plain groupby would silently average them away
     and report 72 'annotated' pools. Filter on experiment.csv's `annotator` instead.
     """
-    ann = pd.read_csv(ROOT / "dataset" / "mice" / "v1" / "annotations.csv",
-                      usecols=["observation_id", "Y_nt", "Y_nn"])
+    ann = read_truth()
     exp = pd.read_csv(ROOT / "data" / "mice" / "v1" / "experiment.csv")
     obs = ann.groupby("observation_id")[["Y_nt", "Y_nn"]].mean().reset_index()
     obs = obs.rename(columns={"Y_nt": "nt", "Y_nn": "nn"})

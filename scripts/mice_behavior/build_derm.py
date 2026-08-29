@@ -107,6 +107,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
+from src.mice_behavior.truth import read_truth                              # noqa: E402
 from event_eval import runs, postprocess                                    # noqa: E402
 from build_estimates import WINDOW, labelled_truth                          # noqa: E402
 
@@ -149,10 +150,8 @@ def prevalence(val_pools: set[str]) -> dict:
     reported side by side so a reader can see whether it depends on the sampling detail.
     """
     exp = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')
-    a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
-                    usecols=['observation_id', 'frame_idx', 'Y_nt', 'Y_nn'],
-                    low_memory=False).dropna(subset=['Y_nt'])
-    a = a.merge(exp[['observation_id', 'pool', 'phase', 'odor']], on='observation_id')
+    a = read_truth().merge(exp[['observation_id', 'pool', 'phase', 'odor']],
+                           on='observation_id')
     tr = a[~a.pool.isin(val_pools)].copy()
     tr['anypos'] = (tr.Y_nt > 0.5) | (tr.Y_nn > 0.5)
     rho = min(1.0, tr.anypos.sum() / max((~tr.anypos).sum(), 1))

@@ -10,9 +10,14 @@ Sampling maximizes diversity: 20 *distinct* observations per cell (all four
 cells have >=28 annotated observations available), one random qualifying frame
 each, so a single long bout can never fill a panel.
 
-Y_np (the third, non-symmetrical nose-nose behavior) is orthogonal to the nn/nt
-grid, so tiles where it is also positive are flagged -- "nn=0 & nt=0" is not
-the same thing as "no behavior at all".
+Y_np is NOT a third behaviour: it is the one-sided (directional) form of the same
+nose-to-nose contact that Y_nn records mutually -- see src/mice_behavior/build_pair_labels.py
+for the cross-tabulation. This script is the ONE place that deliberately keeps the two apart,
+because the point here is to eyeball the raw annotation cells rather than the union the model
+is trained on. So tiles where Y_np is also positive are flagged: "nn=0 & nt=0" is not the same
+thing as "no behavior at all", and a panel of nn=0 frames will contain one-sided nose-to-nose.
+Every OTHER read of the nn truth goes through src/mice_behavior/truth.read_truth, which returns
+the union.
 
 Usage:
     python scripts/mice_behavior/explore_label_combos.py
@@ -113,7 +118,8 @@ def main():
 
     fig.suptitle(
         f'mice/v1 — k={K} random frames per (nn, nt) label combination\n'
-        f'nn = symmetrical nose-nose · nt = non-symmetrical nose-tail · '
+        f'nn = MUTUAL nose-nose only (np, the directional form, is flagged not merged) · '
+        f'nt = nose-tail · '
         f'one frame per distinct observation · seed={SEED}',
         fontsize=15, y=0.975,
     )

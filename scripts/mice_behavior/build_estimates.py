@@ -72,6 +72,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
+from src.mice_behavior.truth import read_truth                             # noqa: E402
 from src.mice_behavior.phase_ate import (                                  # noqa: E402
     TRANSITIONS, classical, pool_deltas, ppci, ppi)
 from event_eval import postprocess, runs                                   # noqa: E402
@@ -218,10 +219,7 @@ def mean_onset(starts) -> float:
 # --------------------------------------------------------------------------- labelled v1 truth
 def labelled_truth() -> pd.DataFrame:
     """Per-observation TRUE occupancy and bouts/min on the 24 annotated pools."""
-    a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
-                    usecols=['observation_id', 'frame_idx', 'Y_nt', 'Y_nn'],
-                    low_memory=False).dropna(subset=['Y_nt'])
-    a = a.sort_values(['observation_id', 'frame_idx'])
+    a = read_truth().sort_values(['observation_id', 'frame_idx'])
     rows = []
     for oid, g in a.groupby('observation_id', sort=False):
         g = g[in_window(g['frame_idx'].to_numpy())]          # 02b's matched window

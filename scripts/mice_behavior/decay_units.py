@@ -62,7 +62,10 @@ import statsmodels.api as sm
 from scipy import stats as st
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
+
+from src.mice_behavior.truth import read_truth                              # noqa: E402
 FPS = 5.0
 BEH = (('Y_nt', 'nt'), ('Y_nn', 'nn'))
 ODOURS = (('F', 'fear'), ('S', 'social'))
@@ -73,9 +76,7 @@ UNITS = ('mean_full', 'mean_first15', 'mean_last15', 'amp_t0', 'frontload')
 
 def minute_counts() -> pd.DataFrame:
     """Bouts STARTED per elapsed minute, per observation. t is the bin midpoint."""
-    a = pd.read_csv(ROOT / 'dataset' / 'mice' / 'v1' / 'annotations.csv',
-                    usecols=['observation_id', 'frame_idx', 'Y_nt', 'Y_nn'],
-                    low_memory=False).dropna(subset=['Y_nt'])
+    a = read_truth()
     e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')[
         ['observation_id', 'pool', 'phase', 'odor']]
     a = a.sort_values(['observation_id', 'frame_idx']).merge(e, on='observation_id')
