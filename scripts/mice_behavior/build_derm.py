@@ -559,7 +559,9 @@ def estimand_bias(exp: pd.DataFrame, families: dict) -> dict:
         for key, (ke, kd) in {'paired_erm_minus_derm': ('ERM', 'DERM'),
                               'paired_xfit': ('ERM · 24 pools', 'DERM · 24 pools'),
                               'paired_xfit_ssl': ('ERM · 24 pools · SSL',
-                                                  'DERM · 24 pools · SSL')}.items():
+                                                  'DERM · 24 pools · SSL'),
+                              'paired_xfit_bit6': ('ERM · 24 pools · BitFit',
+                                                   'DERM · 24 pools · BitFit')}.items():
             if ke not in vals or kd not in vals:
                 continue
             e, d = vals[ke].align(vals[kd], join='inner')
@@ -672,9 +674,20 @@ def nuisance_bias(exp_full: pd.DataFrame) -> dict:
 #   '_popw_s1'/'_popw_s2'  seed replicates of the decisive pair (fear direction): the headline
 #            paired test otherwise rests on seed 42 alone, and this project has already seen a
 #            metric move 0.18 -> 0.85 between two seeds of one config. Paired WITHIN seed.
+#   '_bit6_popw{,_s1,_s2}'  the SAME fixed budget and the SAME population weighting, on the
+#            BitFit-6 backbone instead of the frozen one. This variant exists because DERM was
+#            promoted on THIS page -- `seed_avg.train_fear_popw_seedavg`, nt H->O, ERM +0.1843
+#            against DERM -0.0148 -- and every arm behind that number recorded
+#            n_encoder_trainable 0. BitFit-6 leads on accuracy, calibration and IN-distribution
+#            estimand bias, so this split is the one criterion it had never been run on. Same
+#            seeds, same held-out exposure, same monitor pools, same head, same d4_photo
+#            augmentation: the backbone is the only thing that moves.
 ODOUR_VARIANTS = {'': ('', ''), '_last': ('_last', '_last'), '_popw': ('_last', '_last_popw'),
                   '_popw_s1': ('_last_s1', '_last_popw_s1'),
-                  '_popw_s2': ('_last_s2', '_last_popw_s2')}
+                  '_popw_s2': ('_last_s2', '_last_popw_s2'),
+                  '_bit6_popw': ('_last_bit6', '_last_popw_bit6'),
+                  '_bit6_popw_s1': ('_last_bit6_s1', '_last_popw_bit6_s1'),
+                  '_bit6_popw_s2': ('_last_bit6_s2', '_last_popw_bit6_s2')}
 ODOUR_ARMS = {f'tr{d}_{o}{sfx}': (f'odour_tr{d}_{o}{sfx}', d)
               for d in ('F', 'S')
               for o, sfx in {('erm', es) for es, _ in ODOUR_VARIANTS.values()}
@@ -834,7 +847,12 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
     # comparison.
     SEED_SETS = {'train_fear_popw_seedavg':
                  ('trF', ['_last', '_last_s1', '_last_s2'],
-                  ['_last_popw', '_last_popw_s1', '_last_popw_s2'])}
+                  ['_last_popw', '_last_popw_s1', '_last_popw_s2']),
+                 # the same headline on the BitFit-6 backbone. Reported ONLY when all six arms
+                 # are on disk, so a half-landed set cannot be read as a two-seed answer.
+                 'train_fear_popw_bit6_seedavg':
+                 ('trF', ['_last_bit6', '_last_bit6_s1', '_last_bit6_s2'],
+                  ['_last_popw_bit6', '_last_popw_bit6_s1', '_last_popw_bit6_s2'])}
     for key, (kdir, es_l, ds_l) in SEED_SETS.items():
         E_ = [out['arms'].get(f'{kdir}_erm{s}') for s in es_l]
         D_ = [out['arms'].get(f'{kdir}_derm{s}') for s in ds_l]
@@ -1022,8 +1040,18 @@ def main():
     # with the objective switched to DERM on phases. So this pair varies ONE thing, which the
     # stock-encoder pair also does but on the other backbone. Two backbones agreeing is a
     # replication; two backbones disagreeing says the correction is backbone-dependent, and
-    # either answer is worth more than one pair alone. Four families, two paired tests, one code
-    # path -- the rate-matched threshold in units() applies to all of them equally.
+    # either answer is worth more than one pair alone.
+    #
+    # THE `· BitFit` PAIR is the THIRD replication, and the one the 2x2 was missing. `xfit_bit6_f*`
+    # is the accuracy leader (BitFit-6 encoder, 0.52 M cross-attention head, ERM); `xfit_bit6_derm_f*`
+    # is that recipe with the objective switched and nothing else moved -- same seed, same folds,
+    # same val_pools, same head, same encoder init. It is the arm with the CAPACITY to read the
+    # phase shortcut, so it is where DERM has the most to remove. Note its DERM weights are
+    # `sampled`, matching xfit_derm_f*, not the stronger `population` weighting: the pairing is
+    # matched, but it does not carry the strongest form of the correction.
+    #
+    # Six families, three paired tests, one code path -- the rate-matched threshold in units()
+    # applies to all of them equally.
     FAMS = {'ERM': ['res448_k2_frozen_d4photo_ermH5M', 'res448_k2_frozen_d4photo_ermH5M_s1'],
             'DERM': ['res448_k2_frozen_d4photo_dermPhase',
                      'res448_k2_frozen_d4photo_dermPhase_s1'],
@@ -1031,7 +1059,9 @@ def main():
             'ERM · 24 pools': [f'xfit_erm_f{k}' for k in (1, 2, 3)],
             'DERM · 24 pools': [f'xfit_derm_f{k}' for k in (1, 2, 3)],
             'ERM · 24 pools · SSL': [f'xfit_f{k}' for k in (1, 2, 3)],
-            'DERM · 24 pools · SSL': [f'xfit_derm_ssl_f{k}' for k in (1, 2, 3)]}
+            'DERM · 24 pools · SSL': [f'xfit_derm_ssl_f{k}' for k in (1, 2, 3)],
+            'ERM · 24 pools · BitFit': [f'xfit_bit6_f{k}' for k in (1, 2, 3)],
+            'DERM · 24 pools · BitFit': [f'xfit_bit6_derm_f{k}' for k in (1, 2, 3)]}
     FAMS = {k: [t for t in v if (FRAME / t / 'val_probs.npz').exists()] for k, v in FAMS.items()}
     eb = estimand_bias(exp, {k: v for k, v in FAMS.items() if v})
     print('\nmean a_O - a_H over the 8 (pool x exposure) units -- the ATE-relevant component')
@@ -1050,7 +1080,8 @@ def main():
         # they are printed side by side because the interesting question is whether they agree.
         for key, nice in (('paired_erm_minus_derm', 'paired ERM-DERM  (4 pools)     '),
                           ('paired_xfit',           'paired ERM-DERM  (24p, stock)  '),
-                          ('paired_xfit_ssl',       'paired ERM-DERM  (24p, SSL)    ')):
+                          ('paired_xfit_ssl',       'paired ERM-DERM  (24p, SSL)    '),
+                          ('paired_xfit_bit6',      'paired ERM-DERM  (24p, BitFit) ')):
             pr = eb['families'][l].get(key)
             if pr is None:
                 continue

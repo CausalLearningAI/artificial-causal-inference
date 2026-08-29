@@ -57,11 +57,55 @@
 # the across-environment ratio 3.56x -> 1.58x, so ~77% of the confound is gone before DERM sees it.
 # On the odour split the population weighting is the strongest DERM evidence this project has.
 #
-# This script still uses `sampled`, because xfit_derm_f* did (their configs predate the field
+# This script DEFAULTS to `sampled`, because xfit_derm_f* did (their configs predate the field
 # being dumped; the wrapper's default has always been sampled) and a paired comparison beats a
-# stronger arm that lines up with nothing. Concretely: leave DERM_PREVALENCE unset. Setting it to
-# population ALSO changes --derm-floor's default from 0.02 to 1e-4, so it is two moves, not one.
-# A population-weighted BitFit cross-fit is a worthwhile follow-up; it is a different script.
+# stronger arm that lines up with nothing.
+#
+# POPW=1 IS THAT FOLLOW-UP, and it lives here rather than in a copy of this file
+# ============================================================================
+# The sampled cross-fit has now been scored, and DERM made the estimand bias WORSE on this
+# backbone -- nn went from 0.50x to 1.00x of the true effect, paired p 0.0295. That is exactly
+# the failure the odour split already diagnosed and fixed: on `nn` there, sampled-DERM did
+# -0.292 of harm where ERM sat at -0.128, and population weights moved it to +0.036. So the
+# open question is whether BitFit's DERM failure is the WEIGHTING or the BACKBONE, and the only
+# way to ask it is one variable moved against the runs above.
+#
+# Because it is one variable, it is an opt-in here and NOT a second script: every export in this
+# file is then literally the same line for both arms, which a copied launcher cannot promise.
+#
+#     POPW=1 GRES=gpu:L40S:1 GRAD_CHECKPOINT=1 TIME=20:00:00 STAGE=train \
+#         bash scripts/mice_behavior/xfit_bit6_derm.sh
+#
+# IT MOVES TWO RECORDED FIELDS, NOT ONE, AND THAT IS FORCED
+# ---------------------------------------------------------
+# derm_prevalence sampled -> population, AND derm_floor 0.02 -> 1e-4. The second is not a choice:
+# the population Var(Y|E) on these folds is 0.0057-0.0144, and a floor of 0.02 gives a variance
+# floor of 0.0196 that sits ABOVE ALL SIX cells, clipping every environment to one value and
+# making the correction an exact no-op. The trainer refuses outright rather than training it
+# (`--derm-floor ... is above EVERY population Var(Y|E) here`). So leave DERM_FLOOR unset and let
+# the trainer pick 1e-4 -- which is what odour_tr{F,S}_derm_last_popw recorded.
+#
+# THE TARGET WEIGHT TABLE, computed BEFORE launch so the log can be checked and not rationalised
+# ---------------------------------------------------------------------------------------------
+# Population Var(Y|E) per fold, over every annotated frame of the 16 training pools, and the
+# `target ratio` the trainer prints at epoch 1 (max/min over H,O,P):
+#
+#     fold 1   H nt 0.00931 nn 0.00824   O nt 0.01444 nn 0.00974   P nt 0.01158 nn 0.00683
+#              -> target ratio  nt 1.55x   nn 1.43x
+#     fold 2   H nt 0.00811 nn 0.00594   O nt 0.00905 nn 0.00806   P nt 0.01080 nn 0.00569
+#              -> target ratio  nt 1.33x   nn 1.42x
+#     fold 3   H nt 0.00912 nn 0.00797   O nt 0.01338 nn 0.00864   P nt 0.01177 nn 0.00654
+#              -> target ratio  nt 1.47x   nn 1.32x
+#
+# EXPECT A SMALLER CORRECTION THAN THE ODOUR SPLIT PROMISED. Those 1.3-1.6x are nowhere near the
+# fear session's 3.56x/2.43x that made population weighting look decisive. The reason is that the
+# cross-fit trains on BOTH odours pooled: fear suppresses the home-cage phase hard (H nt Var
+# 0.00374 against O's 0.01329) while social is nearly flat (1.29x), and pooling them averages the
+# confound away before DERM sees it. For reference the SAMPLED arm above logged env mass share
+# ratios of 1.31x / 1.09x on fold 1, so this moves the spread 1.31x -> 1.55x and 1.09x -> 1.43x.
+# Real, one-directional, and much smaller than the odour split. A null result here is a genuine
+# answer -- it says the BitFit backbone, not the weighting, is what breaks DERM -- so do not read
+# a null as a botched launch.
 #
 # DO NOT JUDGE THIS ARM ON MACRO AP
 # =================================
@@ -90,6 +134,8 @@
 #     bash scripts/mice_behavior/xfit_bit6_derm.sh          # 3 trainings, then 6 dense passes
 #     DRY=1 bash scripts/mice_behavior/xfit_bit6_derm.sh    # print, submit nothing
 #     STAGE=predict bash scripts/mice_behavior/xfit_bit6_derm.sh   # dense passes only, no chaining
+#     STAGE=train   bash scripts/mice_behavior/xfit_bit6_derm.sh   # trainings only, no dense passes
+#     POPW=1 ...                                            # population target mass, tag _popw
 set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 export PATH=/opt/slurm/bin:$PATH
@@ -109,6 +155,16 @@ export WANDB=1
 # what xfit_derm_f* trained with. Forwarding DERM_FLOOR unconditionally once turned the whole
 # correction into an exact no-op, which is why the wrapper only passes it when it is set.
 export ENV_KEY=phase DERM=1 VREX_BETA=0
+
+# POPW=1 switches the target mass to the population Var(Y|E) and renames the arm. DERM_FLOOR is
+# deliberately NOT set: the wrapper only forwards it when non-empty, so the trainer applies its
+# mode-dependent default of 1e-4. Setting it here to "match" the sampled arm's 0.02 would be the
+# one edit that silently destroys the run.
+SUF=""
+if [ "${POPW:-0}" = "1" ]; then
+    export DERM_PREVALENCE=population
+    SUF="_popw"
+fi
 
 # THE L40S ESCAPE HATCH -- opt-in, defaults unchanged
 # ==================================================
@@ -143,7 +199,7 @@ declare -A FOLD=(
 train_ids=()
 if [ "${STAGE:-all}" != "predict" ]; then
   for f in 1 2 3; do
-      tag="xfit_bit6_derm_f${f}"
+      tag="xfit_bit6_derm${SUF}_f${f}"
       # config.json only appears when a run FINISHES, so this check alone would happily submit a
       # second copy of an arm that is queued or mid-training, and both would write the same dir.
       if [ -e "results/vision/mice/frame/$tag/config.json" ]; then
@@ -171,9 +227,14 @@ fi
 # build_model() takes the encoder from the run's own best_encoder.pt (the ~300 KB of BitFit
 # tensors) and refuses if it is missing. The silent-substitution trap only bites runs that froze
 # the encoder at someone else's --init-encoder checkpoint and therefore left no artefact behind.
+# STAGE=train stops here. The dense passes are what lets an arm ENTER the effects grid, and that
+# is a decision to take AFTER the folds land and the estimand bias is read -- not a side effect of
+# launching a training. Chaining them by default is right for an arm already meant for deployment;
+# it is wrong for an arm being run to answer a question.
 i=0
 for f in 1 2 3; do
-    tag="xfit_bit6_derm_f${f}"
+    if [ "${STAGE:-all}" = "train" ]; then break; fi
+    tag="xfit_bit6_derm${SUF}_f${f}"
     dep=""
     if [ "${STAGE:-all}" != "predict" ] && [ ${#train_ids[@]} -gt $i ]; then
         dep="--dependency=afterok:${train_ids[$i]}"; i=$((i+1))

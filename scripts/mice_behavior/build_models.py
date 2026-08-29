@@ -85,6 +85,19 @@ ROLE = {
     # and a mean over all of them would average two different backbones into one number. The
     # suffix follows `deployment fold (bitfit)`: same comparison, different recipe, separate row.
     **{f'xfit_derm_ssl_f{k}': 'objective cross-fit (ssl)' for k in (1, 2, 3)},
+    # And the THIRD backbone of that same objective comparison: DERM on BitFit-6, whose ERM
+    # control is `xfit_bit6_f{1,2,3}` above. Same reason for its own role as the SSL pair -- a
+    # mean across backbones would be meaningless. Registered mainly so these do NOT fall
+    # through to 'model candidate': they are a matched control arm, not a deployment candidate,
+    # and extra arms in that pool would move the AP-vs-rDelta Spearman the report quotes.
+    #
+    # `_popw_f*` is that same recipe retrained with the DERM weights estimated on the POPULATION
+    # of frames instead of the 1:1-balanced training subsample -- the fix the exposure split
+    # walked through, applied to the cross-fit. Same role, because it is the same arm of the same
+    # comparison at a second weight estimate. That means SIX runs answer to this role, so the
+    # report picks its cross-fit rows by TAG, never by this role.
+    **{f'xfit_bit6_derm{w}_f{k}': 'objective cross-fit (bitfit)'
+       for w in ('', '_popw') for k in (1, 2, 3)},
     # And the exposure-split arms: trained on ONE exposure session, so they are not comparable to
     # anything trained on both.
     **{f'odour_tr{d}_{o}': 'exposure split' for d in ('F', 'S') for o in ('erm', 'derm')},

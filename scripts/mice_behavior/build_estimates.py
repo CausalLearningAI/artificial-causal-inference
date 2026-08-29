@@ -109,6 +109,19 @@ PREDICTORS = {
                             'human': True,
                             'nice': 'cross-fitted, 3 folds (SSL encoder, DERM on phases) -- the '
                                     'matched counterpart of the ERM comparison'},
+    # THE MATCHED COUNTERPART OF `xfit_bit6_dense`, and the last empty cell of the 2x2 (backbone x
+    # objective). `xfit_bit6_f*` is the accuracy leader and also the arm that leans hardest on the
+    # phase shortcut -- fine-tuning gives the encoder the capacity to read the bag, and ERM's
+    # optimum keeps the phase-conditional prior that capacity buys. These three folds are that
+    # recipe with the objective switched and nothing else moved: same stock DINOv2 init, same
+    # BitFit-6 (70,656 encoder params), same 0.52 M cross-attention head, same seed 42, same three
+    # folds, same val_pools. Its DERM weights are `sampled` (matching xfit_derm_f*), not the
+    # stronger `population` weighting, so it is a matched pair but not the strongest correction.
+    'xfit_bit6_derm_dense': {'folds': ('xfit_bit6_derm_f1', 'xfit_bit6_derm_f2',
+                                       'xfit_bit6_derm_f3'),
+                             'human': True,
+                             'nice': 'cross-fitted, 3 folds (BitFit-6, DERM on phases) -- the '
+                                     'matched counterpart of the accuracy leader'},
 }
 
 # WHICH PREDICTOR THE REPORT SPEAKS FOR. Promoted from the ERM cross-fit to DERM on 2026-08-26,

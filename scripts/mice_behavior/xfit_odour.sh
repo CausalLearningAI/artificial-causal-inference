@@ -59,10 +59,12 @@
 # of that work and hits the prebuilt JPEG cache, which the unannotated one could not.
 #
 # Usage:
-#     bash scripts/mice_behavior/xfit_odour.sh                    # 4 trainings
+#     bash scripts/mice_behavior/xfit_odour.sh                    # 4 trainings + chained dense pass
 #     ARMS="odourF_erm odourF_derm" bash scripts/mice_behavior/xfit_odour.sh
 #     DRY=1 bash scripts/mice_behavior/xfit_odour.sh
 #     STAGE=predict bash scripts/mice_behavior/xfit_odour.sh      # dense passes for what landed
+#     STAGE=train   bash scripts/mice_behavior/xfit_odour.sh      # trainings only, no dense pass
+#     BIT6=1 ...                                                  # BitFit-6 backbone, tag _bit6
 set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 export PATH=/opt/slurm/bin:$PATH
@@ -138,8 +140,50 @@ if [ "${WEIGHTS:-}" = "corrected" ]; then
   for a in $ORDER; do ARM_TAG[$a]="${ARM_TAG[$a]}_popw"; done
 fi
 
+# BIT6=1 -- THE SAME SPLIT ON THE BitFit-6 BACKBONE, and the reason it is an opt-in here rather
+# than a copied launcher is the reason POPW=1 lives inside xfit_bit6_derm.sh: every other export
+# in this file is then literally the same line for both backbones, which a copy cannot promise.
+#
+# WHY THE ARM HAD TO EXIST. DERM was promoted on this page. On the fear direction, seed-averaged
+# over three seeds, nose-to-tail H->O reads ERM +0.1843 against DERM -0.0148, paired p 0.0023
+# (results/vision/mice/frame/_figures/derm.json, odour_split.seed_avg.train_fear_popw_seedavg).
+# Every arm behind that number ran a FROZEN encoder -- n_encoder_trainable 0 in all fourteen
+# landed configs. BitFit-6 now leads on accuracy, calibration and in-distribution estimand bias,
+# so the one criterion still standing against it is the one criterion it has never been run on.
+#
+# EXACTLY ONE THING MOVES against the frozen arms, and it is the backbone. UNFREEZE_BLOCKS 0 -> 6
+# is the change. FT_MODE and ENCODER_LR are INERT while the encoder is frozen -- every frozen arm
+# records encoder_lr 1e-05 and trains nothing with it -- so setting them here cannot retro-alter
+# the comparison. AUGMENT deliberately stays d4_photo: xfit_bitfit.sh uses d4, but following it
+# would move the augmentation and the backbone in the same step and the contrast against the
+# frozen odour arms would then answer nothing. That is the ONE place where "match the odour arms"
+# and "match xfit_bit6_f*" disagree, and this split is the thing being matched.
+#
+# GRAD_CHECKPOINT=1 by default, because the default GRES here is the L40S: BitFit-6 at batch 64
+# and 448 px stores backprop activations for six unfrozen blocks over 64 x 5 = 320 images of 1025
+# tokens, peaks at 42.53 GiB, and dies 1.88 GiB short on a 44.42 GiB card without it. Checkpointing
+# recomputes those blocks in backward instead -- same loss, same gradients, A/B verified in commit
+# 7558b6d -- at about 1.64x per epoch, which is why TIME defaults to 20:00:00 here against the
+# frozen arms' 10:00:00. Nineteen L40S cards beat queueing eight arms behind the one A100 node.
+#
+#     SELECT=last BIT6=1 ARMS=odourF_erm bash scripts/mice_behavior/xfit_odour.sh
+#     SELECT=last WEIGHTS=corrected BIT6=1 ARMS=odourF_derm bash scripts/mice_behavior/xfit_odour.sh
+#
+# The tag gains `_bit6` AFTER the weighting marker and BEFORE the seed, so the grammar stays
+# `odour_tr{F,S}_{erm,derm}[_last][_popw][_bit6][_s{n}]` and build_derm.py's ODOUR_VARIANTS picks
+# the pairs up as one more internally-matched variant.
+if [ "${BIT6:-0}" = "1" ]; then
+    export UNFREEZE_BLOCKS=6 FT_MODE=bitfit ENCODER_LR=1e-3
+    export GRAD_CHECKPOINT="${GRAD_CHECKPOINT:-1}"
+    TIME="${TIME:-20:00:00}"
+    for a in $ORDER; do ARM_TAG[$a]="${ARM_TAG[$a]}_bit6"; done
+fi
+
 if ! grep -q 'train-odour' scripts/mice_behavior/train_online_aug.sh; then
   echo "REFUSING: train_online_aug.sh does not forward --train-odour." >&2; exit 1
+fi
+if [ "${BIT6:-0}" = "1" ] && ! grep -q 'grad-checkpoint' scripts/mice_behavior/train_online_aug.sh; then
+  echo "REFUSING: train_online_aug.sh does not forward --grad-checkpoint, so BIT6=1 on an L40S would OOM." >&2; exit 1
 fi
 
 # SEED=n replicates an arm under a different seed, tagged `_s{n}`. The headline paired test rests
@@ -157,6 +201,7 @@ fi
 SB=(--partition="${PARTITION:-gpu}" --gres="${GRES:-gpu:L40S:1}" --time="${TIME:-10:00:00}"
     --mem="${MEM:-180G}" --cpus-per-task=32)
 
+declare -A TRAIN_JID=()
 for arm in ${ARMS:-$ORDER}; do
     tag="${ARM_TAG[$arm]:-}"
     [ -n "$tag" ] || { echo "unknown arm '$arm'" >&2; exit 1; }
@@ -168,40 +213,63 @@ for arm in ${ARMS:-$ORDER}; do
     fi
     if [ "${STAGE:-all}" = "predict" ]; then continue; fi
     if [ -n "${DRY:-}" ]; then
-        echo "[dry] $tag  ${ARM_ENV[$arm]}  MONITOR=$MONITOR"; continue
+        echo "[dry] $tag  ${ARM_ENV[$arm]}  MONITOR=$MONITOR" \
+             "  gres=${GRES:-gpu:L40S:1} time=${TIME:-10:00:00}" \
+             "unfreeze=${UNFREEZE_BLOCKS} ft_mode=${FT_MODE:-full}" \
+             "grad_checkpoint=${GRAD_CHECKPOINT:-0}"
+        TRAIN_JID[$arm]="<dry>"          # so the dry run also shows the chained dense pass
+        continue
     fi
     jid=$(env ${ARM_ENV[$arm]} VAL_POOLS="$MONITOR" TAG="$tag" SEED="${SEED:-42}" sbatch "${SB[@]}" \
               --job-name="$tag" --output="logs/${tag}_%j.out" --error="logs/${tag}_%j.err" \
               --parsable scripts/mice_behavior/train_online_aug.sh)
+    TRAIN_JID[$arm]="$jid"
     echo "submitted $jid  $tag  (${ARM_ENV[$arm]})"
 done
 
 # The TEST session comes from a dense pass, because the trainer only ever scores its own monitor
 # set. --held-out-odour selects it by EXPOSURE (see the note at the top of this file), and the
 # _heldout suffix keeps it clear of the unannotated dump the first attempt wrote to the plain name.
-if [ "${STAGE:-all}" = "predict" ]; then
+#
+# THIS IS NOW CHAINED BY DEFAULT, and that is a fix rather than a convenience. A trained odour arm
+# with no dense pass contributes NOTHING: derm.json's odour_split reads `pred_dense_v1_heldout.csv`
+# and nothing else, so the arm lands in `absent` and the GPU hours are spent for no measurement.
+# This project has already paid for that twice -- once with four arms dumping the wrong 288
+# observations, and once with a STAGE=train launch whose predict half was never submitted. So the
+# default submits both halves, with afterok so a failed training cannot produce a garbage dump.
+# STAGE=train opts out (a training run purely to answer a question, where the dense pass is a
+# decision to take afterwards); STAGE=predict submits only the dense half for what already landed.
+if [ "${STAGE:-all}" != "train" ]; then
   for arm in ${ARMS:-$ORDER}; do
     tag="${ARM_TAG[$arm]}"
-    [ -e "results/vision/mice/frame/$tag/config.json" ] || { echo "SKIP  $tag not landed"; continue; }
+    dep=""
+    if [ -n "${TRAIN_JID[$arm]:-}" ]; then
+        dep="--dependency=afterok:${TRAIN_JID[$arm]}"
+    elif [ ! -e "results/vision/mice/frame/$tag/config.json" ]; then
+        echo "SKIP  $tag not landed and no training submitted this pass"; continue
+    fi
     if [ -e "results/vision/mice/frame/$tag/pred_dense_v1_heldout.csv" ]; then
         echo "SKIP  $tag already has its test session"; continue
     fi
     if squeue -u "$USER" -h -o '%j' 2>/dev/null | grep -qx "pd_${tag}"; then
         echo "SKIP  pd_${tag} already queued or running"; continue
     fi
-    if [ -n "${DRY:-}" ]; then echo "[dry] predict_dense --held-out-odour $tag v1"; continue; fi
+    if [ -n "${DRY:-}" ]; then
+        echo "[dry] predict_dense --held-out-odour $tag v1 ${dep}"; continue
+    fi
     jid=$(env TAG="$tag" VERSION=v1 \
               EXTRA="--held-out-odour --out-suffix _heldout" \
-              sbatch --job-name="pd_${tag}" --parsable scripts/mice_behavior/predict_dense.sh)
-    echo "submitted $jid  predict_dense --held-out-odour $tag v1"
+              sbatch $dep --job-name="pd_${tag}" --parsable scripts/mice_behavior/predict_dense.sh)
+    echo "submitted $jid  predict_dense --held-out-odour $tag v1${dep:+  (after ${dep#*:})}"
   done
 fi
 
 cat <<'EOF'
 
-When the four trainings have landed:
+The dense pass is chained above (afterok). When it has landed:
+    python scripts/mice_behavior/build_derm.py               # reads pred_dense_v1_heldout.csv
+If a training was already queued when this ran, its dense pass was NOT chained; submit it with
     STAGE=predict bash scripts/mice_behavior/xfit_odour.sh   # dense pass, the TEST session
-    python scripts/mice_behavior/build_derm.py               # add the odour_* tags to FAMS
 
 Read a_O - a_H on the HELD-OUT exposure, per direction. The prediction under a phase-prior
 shortcut is that ERM's bias flips sign between the two directions and DERM's is closer to zero in
