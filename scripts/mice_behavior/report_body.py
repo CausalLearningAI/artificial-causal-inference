@@ -428,6 +428,14 @@ xfds = ({k: sum(r[k] for r in _fs) / len(_fs) for k in _KM} if len(_fs) == 3 els
 _fdb = [r for r in M['runs']
         if r['tag'] in ('xfit_bit6_derm_f1', 'xfit_bit6_derm_f2', 'xfit_bit6_derm_f3')]
 xfdb = ({k: sum(r[k] for r in _fdb) / len(_fdb) for k in _KM} if len(_fdb) == 3 else None)
+# The population-weight retrain of that same arm -- the reason the tag filter above is explicit.
+# Same backbone, head, seed, folds and val_pools; only DERM's weight ESTIMATE moves, from the
+# training subsample to the population. Its own row, because a mean over both would average two
+# corrections into one leaderboard line.
+_fdbp = [r for r in M['runs']
+         if r['tag'] in ('xfit_bit6_derm_popw_f1', 'xfit_bit6_derm_popw_f2',
+                         'xfit_bit6_derm_popw_f3')]
+xfdbp = ({k: sum(r[k] for r in _fdbp) / len(_fdbp) for k in _KM} if len(_fdbp) == 3 else None)
 
 # Which cross-fit row the leaderboard highlights: the DEPLOYED one, read from meta. It used to be
 # hard-coded onto BitFit-6, which was right only until DERM was promoted -- after that the green
@@ -445,7 +453,9 @@ _XROWS = [('<b>cross-fitted ERM</b> &mdash; SSL encoder, mean of 3 folds', 'xfit
           ('<b>cross-fitted DERM on the SSL encoder</b> &mdash; the twin of the first row',
            'xfit_derm_ssl_dense', xfds),
           ('<b>cross-fitted DERM on BitFit-6</b> &mdash; the twin of the second row',
-           'xfit_bit6_derm_dense', xfdb)]
+           'xfit_bit6_derm_dense', xfdb),
+          ('<b>cross-fitted DERM on BitFit-6, population weights</b> &mdash; the row above with '
+           'DERM&rsquo;s weight estimate corrected', 'xfit_bit6_derm_popw_dense', xfdbp)]
 # ONE ROW PER PREDICTOR IN THE GRID, ASSERTED. The list above is still maintained by hand, and
 # that is exactly what went wrong: `xfit_bit6_derm_dense` had a full grid in estimates.json and
 # no row here, so the caption counted four while the sentence below it counted five. The count
@@ -643,11 +653,15 @@ except KeyError:
     os_popw_max = os_popw_max_cell = '&mdash;'
 
 # HAS THE EXPOSURE SPLIT EVER RUN ON A FINE-TUNED ENCODER? It is the criterion the DERM
-# promotion actually turned on, and every arm in it so far is `odour_tr{F,S}_*` on a frozen
-# encoder -- so BitFit-6, which leads everything else, has never been tested on it. A BitFit arm
-# would carry `bit6` in its tag, as every other BitFit run in this project does, so 05.1's
-# closing paragraph reads this flag instead of a sentence somebody has to remember to delete.
+# promotion actually turned on, and for a long time every arm in it was `odour_tr{F,S}_*` on a
+# FROZEN encoder -- so BitFit-6, which leads everything else, had never been through it. A BitFit
+# arm carries `bit6` in its tag, as every other BitFit run in this project does, so 05.1's closing
+# paragraph reads these two flags instead of a sentence somebody has to remember to delete.
+# The BitFit arms landed on 30 August 2026; `os_bitfit_savg` is the stronger gate of the two,
+# because a single seed of this split has already been seen to move a cell by 0.5 bouts/min.
 os_has_bitfit = any('bit6' in t for t in _OS.get('arms', {}))
+_BSAVG_KEY = 'train_fear_popw_bit6_seedavg'
+os_bitfit_savg = _OS.get('seed_avg', {}).get(_BSAVG_KEY, {})
 
 
 # Whether the effects grid already carries a DERM predictor decides how 04.6's closing block
@@ -757,6 +771,9 @@ n_lines_word = _WORD.get(n_lines, str(n_lines))
 # family suffix; '' is stock, SSL is the adapted encoder, BIT is BitFit-6.
 SSL = ' \u00b7 SSL'
 BIT = ' \u00b7 BitFit'
+# The BitFit-6 DERM arm retrained with population weights. A DERM-side suffix only: its ERM
+# control is the plain BitFit one, because ERM has no environment weights to correct.
+BITP = ' \u00b7 BitFit popw'
 
 
 def eb24(behav, fam, what='mean', back=''):
@@ -796,28 +813,37 @@ def eb24p(behav, field, key='paired_xfit'):
 # "carries less of the phase shortcut" with no backbone attached to the claim. One entry here
 # adds a backbone to the table, and the `hi`/`lo` classes are computed from the two means, so a
 # row cannot be marked a DERM win when it is not.
-_REPS = [('stock DINOv2, 0.52&nbsp;M head &mdash; <b>deployed</b>', '', 'paired_xfit'),
-         ('SSL-adapted encoder, 5.04&nbsp;M head', SSL, 'paired_xfit_ssl'),
-         ('BitFit-6, 0.52&nbsp;M head &mdash; the accuracy leader', BIT, 'paired_xfit_bit6')]
+# Each entry is (row label, DERM family suffix, ERM family suffix, paired-test key). The ERM
+# suffix is carried SEPARATELY from the DERM one because the fourth row is not a fourth backbone:
+# it is the BitFit-6 arm again with DERM's weights estimated for the population instead of the
+# training subsample, so it is scored against the SAME BitFit ERM control as row three. Rows and
+# backbones are therefore different counts, and the caption below uses the backbone one.
+_REPS = [('stock DINOv2, 0.52&nbsp;M head &mdash; <b>deployed</b>', '', '', 'paired_xfit'),
+         ('SSL-adapted encoder, 5.04&nbsp;M head', SSL, SSL, 'paired_xfit_ssl'),
+         ('BitFit-6, 0.52&nbsp;M head &mdash; the accuracy leader', BIT, BIT,
+          'paired_xfit_bit6'),
+         ('BitFit-6 again, DERM weights from the population &mdash; not a fourth backbone',
+          BITP, BIT, 'paired_xfit_bit6_popw')]
 _REPS = [r for r in _REPS
          if f'DERM \u00b7 24 pools{r[1]}' in D['estimand_bias']['families']['nt']]
 
 
-def _rep_cls(behav, back):
+def _rep_cls(behav, dback, eback):
     """Marks the DERM cell by whether it is actually nearer zero than its own ERM control."""
     f = D['estimand_bias']['families'][behav]
-    return (' class="hi"' if abs(f[f'DERM \u00b7 24 pools{back}']['mean'])
-            < abs(f[f'ERM \u00b7 24 pools{back}']['mean']) else ' class="lo"')
+    return (' class="hi"' if abs(f[f'DERM \u00b7 24 pools{dback}']['mean'])
+            < abs(f[f'ERM \u00b7 24 pools{eback}']['mean']) else ' class="lo"')
 
 
 derm_rep_rows = '\n        '.join(
     f'<tr><td>{lab if b == "nt" else ""}</td><td>{_BNICE[b]}</td>'
-    f'<td>{eb24(b, "ERM", back=back)}</td>'
-    f'<td{_rep_cls(b, back)}>{eb24(b, "DERM", back=back)}</td>'
+    f'<td>{eb24(b, "ERM", back=eback)}</td>'
+    f'<td{_rep_cls(b, dback, eback)}>{eb24(b, "DERM", back=dback)}</td>'
     f'<td>{eb24p(b, "p", key)}</td>'
     f'<td>{eb24p(b, "shrunk_units", key)}/{eb24p(b, "n_units", key)}</td></tr>'
-    for lab, back, key in _REPS for b in ('nt', 'nn'))
-n_reps_word = _WORD.get(len(_REPS), str(len(_REPS)))
+    for lab, dback, eback, key in _REPS for b in ('nt', 'nn'))
+# BACKBONES, not rows: distinct ERM controls. The population-weight row reuses row three's.
+n_reps_word = _WORD.get(len({r[2] for r in _REPS}), str(len({r[2] for r in _REPS})))
 
 
 def eb_backbone_ratio(behav, fam):
@@ -1097,24 +1123,76 @@ _prime_behind_word = _WORD.get(_prime_behind, str(_prime_behind))
 _XNICE = {'xfit_dense': 'the SSL ERM cross-fit', 'xfit_bit6_dense': 'BitFit-6 ERM',
           'xfit_derm_dense': 'the deployed DERM cross-fit',
           'xfit_derm_ssl_dense': 'DERM on the SSL encoder',
-          'xfit_bit6_derm_dense': 'DERM on BitFit-6'}
+          'xfit_bit6_derm_dense': 'DERM on BitFit-6',
+          'xfit_bit6_derm_popw_dense': 'DERM on BitFit-6 with population weights'}
 _rd_lead = max(_XROWS, key=lambda r: r[2]['rd_nt'])
 rd_lead_note = ('' if _rd_lead[1] == 'xfit_bit6_dense' else
                 f" The best r&Delta; nose-to-tail of the {n_xrows_word} is not BitFit-6's, "
                 f"though &mdash; {_XNICE.get(_rd_lead[1], _rd_lead[1])} carries "
                 f"{_rd_lead[2]['rd_nt']:.3f}.")
 
-# The exposure split is criterion (b), the one the DERM promotion actually turned on, and every
-# arm in it so far runs a frozen encoder -- so the arm that leads everything else has not been
-# through it. Read off derm.json's own arm list, so the paragraph flips the moment one lands.
+# The exposure split is criterion (b), the one the DERM promotion actually turned on. It ran on a
+# frozen encoder only until 30 August 2026; the BitFit-6 arms of it are now on disk, all six of
+# the fear direction, so the seed-averaged comparison exists. Every number below is read off
+# derm.json, so the paragraph cannot outlive the runs behind it.
+_bs = lambda lab, what, tr='H->O': os_savg(lab, tr, what, key=_BSAVG_KEY)
+# `p = &lt; 0.0001` is what a bare os_savg('p') gives on a cell that saturates the resolution, and
+# one of these cells does. Emit the relation once, so it reads `p &lt; 0.0001` or `p = 0.0011`.
+def _bsp(lab, tr='H->O'):
+    v = _bs(lab, 'p', tr)
+    return f'p {v}' if v.startswith('&lt;') else f'p = {v}'
+# WHICH ARM IS NEARER ZERO ON THE ON LEG, counted rather than written down. The sentence below
+# used to be the one thing in this paragraph a rerun could not correct.
+_bs_far = [_BNICE[lab] for lab in ('nt', 'nn')
+           if (os_bitfit_savg.get(lab, {}).get('H->O')
+               and abs(os_bitfit_savg[lab]['H->O']['derm_mean'])
+               > abs(os_bitfit_savg[lab]['H->O']['erm_mean']))]
+_bs_verdict = (
+    'On this backbone the DERM arm is the one further from zero on both behaviours &mdash; the '
+    'reverse of the frozen-encoder result quoted just above, which is what the promotion rested '
+    'on.'
+    if len(_bs_far) == 2 else
+    f'On this backbone the DERM arm is further from zero on {_bs_far[0]} and nearer zero on the '
+    'other behaviour, so it does not reproduce the frozen-encoder result quoted just above.'
+    if len(_bs_far) == 1 else
+    'On this backbone the DERM arm is nearer zero on both behaviours, as it is on the frozen '
+    'encoder quoted just above.')
+# The same computed fact, in one clause, for section 06's row 2. Only the exposure split's
+# BitFit DERM arm is population-weighted -- there is no subsample-weighted BitFit arm of that
+# split -- so this speaks about one arm, not two.
+_bs_gate = (
+    ('on the exposure split, criterion (b), the BitFit-6 DERM arm is further from zero than its '
+     'ERM control on both behaviours (05.1)' if len(_bs_far) == 2 else
+     f'on the exposure split, criterion (b), the BitFit-6 DERM arm is further from zero than its '
+     f'ERM control on {_bs_far[0]} (05.1)' if len(_bs_far) == 1 else
+     'on the exposure split, criterion (b), the BitFit-6 DERM arm is nearer zero than its ERM '
+     'control on both behaviours (05.1)')
+    if os_bitfit_savg else
+    'and the exposure split, criterion (b), has no seed-averaged BitFit comparison yet')
 os_bitfit_note = (
     '<b>Every arm in that split runs a frozen encoder, so BitFit-6 has never been tested on '
     'it.</b> Those runs are queued. Until they land, BitFit-6 leads everything that has been '
     'measured and the one gate the deployment rests on is the one it has not been through. '
     'That is a pending result, not a verdict either way.'
     if not os_has_bitfit else
-    '<b>A BitFit-6 arm of that split has now landed</b> &mdash; its cells are in the '
-    'exposure-split figure in 04.6, and this paragraph owes the comparison.')
+    '<b>BitFit-6 arms of that split have now landed, and the gate does not clear on them.</b> '
+    'Same split, same held-out exposure, same monitor pools, same head, same three seeds, same '
+    'population-weighted DERM &mdash; only the backbone moves. Seed-averaged over '
+    f"{_bs('nt', 'n_seeds')} seeds and {_bs('nt', 'n_pools')} pools, the nose-to-tail ON leg has "
+    f"BitFit-6 ERM importing {_bs('nt', 'erm_mean')} bouts per minute against BitFit-6 DERM's "
+    f"{_bs('nt', 'derm_mean')} (paired {_bs('nt', 'erm_minus_derm')}, "
+    f"{_bsp('nt')}), and nose-to-nose {_bs('nn', 'erm_mean')} against "
+    f"{_bs('nn', 'derm_mean')} (paired {_bs('nn', 'erm_minus_derm')}, {_bsp('nn')}). "
+    f'{_bs_verdict} '
+    'The per-seed cells are in the exposure-split figure in 04.6 under the BitFit variants. '
+    'What the deployment decision should be given that is an open question this page does not '
+    'settle.'
+    if os_bitfit_savg else
+    '<b>BitFit-6 arms of that split have landed, but not the full set of seeds</b> &mdash; the '
+    'per-seed cells are in the exposure-split figure in 04.6 under the BitFit variants, and the '
+    'seed-averaged comparison this paragraph would quote is withheld until all six arms are on '
+    'disk, because one seed of this split has already been seen to move a cell by 0.5 bouts per '
+    'minute.')
 
 BODY = f'''
 <div class="wrap">
@@ -2058,7 +2136,9 @@ BODY = f'''
     <div class="note"><b>{n_reps_word.capitalize()} backbones now carry that same swap, and the
     third disagrees.</b> Objective changed, encoder, head, folds, seeds and validation pools held
     fixed &mdash; the same single-variable comparison, run three times on three different
-    predictors. Paired over the same {eb24p('nt','n_units')} units each time:
+    predictors. The last row is not a fourth backbone: it is the third one again with DERM's
+    weights estimated for the population rather than the training subsample, scored against the
+    same ERM control. Paired over the same {eb24p('nt','n_units')} units each time:
     <div class="scroll" style="margin-top:11px"><table>
       <thead><tr><th>backbone</th><th>behaviour</th><th>ERM</th><th>DERM</th><th>paired p</th>
         <th>DERM nearer zero in</th></tr></thead>
@@ -2082,10 +2162,23 @@ BODY = f'''
     DERM subtracts one constant per environment, so it can only help in proportion to the
     shortcut its own training run took up &mdash; and how much that is turns out to depend on the
     encoder, which nobody predicted. On the encoder the report deploys it is a repair on both
-    behaviours; on the most accurate encoder available it is not. All three DERM arms use the
-    same weight estimate (the training subsample, not the population), so the comparison across
-    backbones is matched, and none of them carries the stronger weighting the exposure split
-    below uses. 05.1 works out what this means for which predictor should be deployed.</div>
+    behaviours; on the most accurate encoder available, with the same weight estimate, it is not.
+    All three cross-backbone DERM arms use that same estimate (the training subsample), so the
+    comparison across backbones is matched.
+    <br><br><b>The weight estimate moves the BitFit-6 result, and that is the fourth row.</b>
+    Correcting DERM's weights to the population &mdash; the stronger form, and the one the
+    exposure split below uses &mdash; changes nothing else: same backbone, head, seed, folds and
+    validation pools. Nose-to-nose the bias goes from {eb24('nn','DERM',back=BIT)} to
+    {eb24('nn','DERM',back=BITP)}, a paired
+    {eb24p('nn','diff','paired_bit6_derm_vs_popw')} at
+    p = {eb24p('nn','p','paired_bit6_derm_vs_popw')} over the same
+    {eb24p('nn','n_units','paired_bit6_derm_vs_popw')} units, and against its ERM control it no
+    longer resolves either way (p = {eb24p('nn','p','paired_xfit_bit6_popw')}). Nose-to-tail the
+    two weightings are indistinguishable ({eb24('nt','DERM',back=BIT)} against
+    {eb24('nt','DERM',back=BITP)}, p = {eb24p('nt','p','paired_bit6_derm_vs_popw')}). So the
+    significant nose-to-nose move in the wrong direction is a property of the SUBSAMPLE weight
+    estimate on this backbone, not of DERM on this backbone.
+    05.1 works out what this means for which predictor should be deployed.</div>
 
     <div class="note"><b>Do not judge DERM on AP.</b> A model that has stopped using the phase
     prior is <em>necessarily</em> a little worse at frame classification, because the prior is
@@ -2577,11 +2670,16 @@ BODY = f'''
         predictor ahead only on the level ({narrowing(PRIME,'events')} against
         {narrowing('xfit_bit6_dense','events')}). But it trains with plain ERM, so it carries the
         phase shortcut 04.6 disqualifies &mdash; the two axes are not comparable and BitFit's win is
-        on the one that does not decide. The honest next move is a <b>BitFit-6 backbone trained
-        with DERM</b>, cross-fitted over the same three folds, which would put the accuracy and the
-        objective on the same model instead of asking which to give up. The other crossing has been
-        run since &mdash; DERM on the SSL encoder, 04.3 &mdash; and it cut the bias without
-        improving the intervals. Compute, not annotator time</td></tr>
+        on the one that does not decide. The move that would have settled it &mdash; a <b>BitFit-6
+        backbone trained with DERM</b>, cross-fitted over the same three folds &mdash; has since
+        been run, twice: once with DERM's weights from the training subsample and once with them
+        corrected to the population, both now in 04.6's table and in the effects grid. Neither
+        resolves the question. Against the same BitFit-6 ERM control the subsample arm moves
+        nose-to-nose <em>away</em> from zero ({eb24p('nn','diff','paired_xfit_bit6')},
+        p = {eb24p('nn','p','paired_xfit_bit6')}) and the population arm moves it nowhere
+        (p = {eb24p('nn','p','paired_xfit_bit6_popw')}); {_bs_gate}. The other
+        crossing &mdash; DERM on the SSL encoder, 04.3 &mdash; cut the bias without improving the
+        intervals. So this row is now a decision on evidence, not a compute request</td></tr>
       <tr><td>3</td><td>seed replicates of the <em>social</em>-trained pair</td>
         <td>{os_absent_note}</td>
         <td>the fear-trained pair now has three seeds each and 04.6's headline is

@@ -555,12 +555,23 @@ def estimand_bias(exp: pd.DataFrame, families: dict) -> dict:
                 'positive': int((a > 0).sum()),
                 'share_of_truth': (round(abs(float(a.mean() / out['truth'][l]['pooled'])), 2)
                                    if out['truth'][l]['pooled'] else None)}
+        # `paired_bit6_derm_vs_popw` is the ONLY pair here whose two arms share an objective: it
+        # isolates DERM's weight ESTIMATE (subsample-`sampled` against `population`) with the
+        # backbone, head, seed, folds and val_pools all held fixed. Every other row varies the
+        # objective, so without it a difference between the two BitFit DERM arms would have to be
+        # read off two independent CIs -- and the between-unit variance they share is exactly what
+        # a paired test removes.
         for key, (ke, kd) in {'paired_erm_minus_derm': ('ERM', 'DERM'),
                               'paired_xfit': ('ERM · 24 pools', 'DERM · 24 pools'),
                               'paired_xfit_ssl': ('ERM · 24 pools · SSL',
                                                   'DERM · 24 pools · SSL'),
                               'paired_xfit_bit6': ('ERM · 24 pools · BitFit',
-                                                   'DERM · 24 pools · BitFit')}.items():
+                                                   'DERM · 24 pools · BitFit'),
+                              'paired_xfit_bit6_popw': ('ERM · 24 pools · BitFit',
+                                                        'DERM · 24 pools · BitFit popw'),
+                              'paired_bit6_derm_vs_popw': ('DERM · 24 pools · BitFit',
+                                                           'DERM · 24 pools · BitFit popw'),
+                              }.items():
             if ke not in vals or kd not in vals:
                 continue
             e, d = vals[ke].align(vals[kd], join='inner')
@@ -1049,7 +1060,17 @@ def main():
     # `sampled`, matching xfit_derm_f*, not the stronger `population` weighting: the pairing is
     # matched, but it does not carry the strongest form of the correction.
     #
-    # Six families, three paired tests, one code path -- the rate-matched threshold in units()
+    # THE `· BitFit popw` FAMILY is the same BitFit-6 DERM recipe with ONE thing moved: the DERM
+    # weights are estimated for the POPULATION (derm_prevalence `population`, floor 1e-4) instead
+    # of from the subsample (`sampled`, floor 0.02). Backbone, head, seed 42, folds and val_pools
+    # are identical to `xfit_bit6_derm_f*`. It gets its own family rather than being averaged into
+    # that one because the two are different weight estimates, and a mean over both would report
+    # two corrections as one. It carries TWO paired tests: against the same ERM control as the
+    # sampled arm (so the ERM->DERM swap is measured on the stronger correction too), and against
+    # the sampled DERM arm itself, which is the only comparison in this block that holds the
+    # objective fixed and varies the weight estimate alone.
+    #
+    # Seven families, five paired tests, one code path -- the rate-matched threshold in units()
     # applies to all of them equally.
     FAMS = {'ERM': ['res448_k2_frozen_d4photo_ermH5M', 'res448_k2_frozen_d4photo_ermH5M_s1'],
             'DERM': ['res448_k2_frozen_d4photo_dermPhase',
@@ -1060,7 +1081,8 @@ def main():
             'ERM · 24 pools · SSL': [f'xfit_f{k}' for k in (1, 2, 3)],
             'DERM · 24 pools · SSL': [f'xfit_derm_ssl_f{k}' for k in (1, 2, 3)],
             'ERM · 24 pools · BitFit': [f'xfit_bit6_f{k}' for k in (1, 2, 3)],
-            'DERM · 24 pools · BitFit': [f'xfit_bit6_derm_f{k}' for k in (1, 2, 3)]}
+            'DERM · 24 pools · BitFit': [f'xfit_bit6_derm_f{k}' for k in (1, 2, 3)],
+            'DERM · 24 pools · BitFit popw': [f'xfit_bit6_derm_popw_f{k}' for k in (1, 2, 3)]}
     FAMS = {k: [t for t in v if (FRAME / t / 'val_probs.npz').exists()] for k, v in FAMS.items()}
     eb = estimand_bias(exp, {k: v for k, v in FAMS.items() if v})
     print('\nmean a_O - a_H over the 8 (pool x exposure) units -- the ATE-relevant component')
@@ -1080,7 +1102,10 @@ def main():
         for key, nice in (('paired_erm_minus_derm', 'paired ERM-DERM  (4 pools)     '),
                           ('paired_xfit',           'paired ERM-DERM  (24p, stock)  '),
                           ('paired_xfit_ssl',       'paired ERM-DERM  (24p, SSL)    '),
-                          ('paired_xfit_bit6',      'paired ERM-DERM  (24p, BitFit) ')):
+                          ('paired_xfit_bit6',      'paired ERM-DERM  (24p, BitFit) '),
+                          ('paired_xfit_bit6_popw', 'paired ERM-DERMpopw (24p, BitF)'),
+                          ('paired_bit6_derm_vs_popw',
+                           'paired DERM sampled-popw (24p)  ')):
             pr = eb['families'][l].get(key)
             if pr is None:
                 continue

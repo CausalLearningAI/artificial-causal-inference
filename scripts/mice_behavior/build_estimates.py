@@ -123,6 +123,20 @@ PREDICTORS = {
                              'human': True,
                              'nice': 'cross-fitted, 3 folds (BitFit-6, DERM on phases) -- the '
                                      'matched counterpart of the accuracy leader'},
+    # THE SAME RECIPE AS THE ROW ABOVE WITH ONE THING MOVED: DERM's environment weights estimated
+    # for the POPULATION (derm_prevalence `population`, floor 1e-4) rather than from the training
+    # subsample (`sampled`, floor 0.02). Same stock DINOv2 init, same BitFit-6, same 0.52 M head,
+    # same seed 42, same three folds, same val_pools. It is a SEPARATE predictor and not a second
+    # seed of `xfit_bit6_derm_dense`: the two are different corrections, and averaging their dense
+    # passes would report two weight estimates as one model. The population weighting is the
+    # stronger form -- it is what the exposure-split arms use -- so this is the grid's first cell
+    # carrying BitFit-6 with the correction the report argues for.
+    'xfit_bit6_derm_popw_dense': {'folds': ('xfit_bit6_derm_popw_f1', 'xfit_bit6_derm_popw_f2',
+                                            'xfit_bit6_derm_popw_f3'),
+                                  'human': True,
+                                  'nice': 'cross-fitted, 3 folds (BitFit-6, DERM on phases, '
+                                          'population weights) -- the corrected-weight twin of '
+                                          'the row above'},
 }
 
 # WHICH PREDICTOR THE REPORT SPEAKS FOR. Promoted from the ERM cross-fit to DERM on 2026-08-26,

@@ -66,6 +66,16 @@
     { id: '_popw',    e: '_last',    d: '_last_popw',    label: 'fixed budget + corrected weights' },
     { id: '_popw_s1', e: '_last_s1', d: '_last_popw_s1', label: 'corrected weights · seed 1' },
     { id: '_popw_s2', e: '_last_s2', d: '_last_popw_s2', label: 'corrected weights · seed 2' },
+    // The same fixed budget and the same corrected weights on the BitFit-6 backbone. Registered
+    // here as well as in build_derm.py: the arms landed in the payload on 30 August 2026 and this
+    // list is what decides whether the figure can reach them, so an entry missing here is an arm
+    // that trained and was never seen.
+    { id: '_bit6_popw',    e: '_last_bit6',    d: '_last_popw_bit6',
+      label: 'BitFit-6 · corrected weights' },
+    { id: '_bit6_popw_s1', e: '_last_bit6_s1', d: '_last_popw_bit6_s1',
+      label: 'BitFit-6 · corrected weights · seed 1' },
+    { id: '_bit6_popw_s2', e: '_last_bit6_s2', d: '_last_popw_bit6_s2',
+      label: 'BitFit-6 · corrected weights · seed 2' },
   ];
   const has = (dir, v) => !!(ARMS['tr' + dir + '_erm' + v.e] && ARMS['tr' + dir + '_derm' + v.d]);
   const VARIANTS = KNOWN.filter(v => has('F', v) || has('S', v));
