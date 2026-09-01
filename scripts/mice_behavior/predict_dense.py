@@ -73,6 +73,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from regen_confusion_figs import load_jpeg_cache                        # noqa: E402
 from predict_unannotated import build_model                            # noqa: E402
 from event_eval import runs, postprocess                               # noqa: E402
+from src.mice_behavior.masking import apply_mask, frame_share          # noqa: E402
 from PIL import Image                                                  # noqa: E402
 import io                                                              # noqa: E402
 from concurrent.futures import ThreadPoolExecutor                      # noqa: E402
@@ -85,24 +86,34 @@ FPS = 5.0
 THRESHOLDS = np.round(np.arange(0.05, 1.0, 0.05), 2)
 
 
-def decode_batch(cache, gis, S, pool):
+def decode_batch(cache, gis, S, pool, mask_region=None):
     """JPEG bytes -> normalised float tensor (n, 3, S, S). Decoded ONCE per frame, in threads.
 
     The old loop decoded inside a python double loop over (batch, context position), so every
     frame was decoded 2k+1 = 5 times and the GPU waited on a single CPU core. Pillow releases
     the GIL in decode/resize, so a thread pool is enough -- no worker processes, no pickling of
     the memory-mapped cache.
+
+    mask_region blanks a fixed part of every frame and comes from the RUN'S OWN config.json, not
+    from a flag here. A model trained with the bag corner masked must be scored on masked frames or
+    the test input distribution differs from the training one, and the arm measures that instead of
+    what it was built to measure. Reading it off the checkpoint's config makes forgetting impossible;
+    None (every run predating the flag) leaves this path byte-identical to before.
     """
     def one(g):
         with Image.open(io.BytesIO(cache[int(g)].tobytes())) as im:
-            return np.asarray(im.convert('RGB').resize((S, S), Image.BILINEAR), dtype=np.uint8)
+            im = im.convert('RGB')
+            if mask_region:
+                apply_mask(im, mask_region)
+            return np.asarray(im.resize((S, S), Image.BILINEAR), dtype=np.uint8)
     arrs = list(pool.map(one, gis))
     x = torch.from_numpy(np.stack(arrs)).permute(0, 3, 1, 2).float().div_(255.0)
     return (x - IMAGENET_MEAN) / IMAGENET_STD
 
 
 @torch.no_grad()
-def dense_probs(encoder, model, cache, gis, S, K, n_patches, dev, chunk, head_bs, pool):
+def dense_probs(encoder, model, cache, gis, S, K, n_patches, dev, chunk, head_bs, pool,
+                mask_region=None):
     """Per-frame probabilities for ONE observation, encoding each frame exactly once.
 
     Frames are processed in chunks with a K-frame halo on each side, so a window centred on the
@@ -119,7 +130,7 @@ def dense_probs(encoder, model, cache, gis, S, K, n_patches, dev, chunk, head_bs
         toks = []
         for b0 in range(lo, hi, head_bs):
             b1 = min(hi, b0 + head_bs)
-            x = decode_batch(cache, gis[b0:b1], S, pool).to(dev, non_blocking=True)
+            x = decode_batch(cache, gis[b0:b1], S, pool, mask_region).to(dev, non_blocking=True)
             with torch.autocast('cuda', dtype=torch.float16, enabled=dev.type == 'cuda'):
                 toks.append(encoder(pixel_values=x).last_hidden_state[:, 1:].half())
         tok = torch.cat(toks)                                     # (hi-lo, n_patches, D)
@@ -180,8 +191,15 @@ def main():
     run_dir = FRAME_DIR / args.tag
     cfg = json.load(open(run_dir / 'config.json'))
     S, K = cfg['input_size'], cfg['context_k']
+    # Not a flag: whether the frames were masked is a property of the TRAINED MODEL, so it is read
+    # off the run it is scoring. Runs older than the flag have no key and score unmasked as before.
+    mask_region = cfg.get('mask_region') or None
     n_patches = (S // PATCH_SIZE) ** 2
     print(f'{args.tag}: input={S} k={K} on {args.version}  (dense, stride 1)', flush=True)
+    if mask_region:
+        print(f'  INPUT MASK from config.json: region={mask_region}, '
+              f'{frame_share(mask_region):.2%} of every frame blanked, as at training time',
+              flush=True)
 
     ann = pd.read_csv(ROOT / 'dataset' / 'mice' / args.version / 'annotations.csv',
                       usecols=['observation_id', 'frame_idx', 'frame_path', 'Y_nt', 'Y_nn'],
@@ -243,7 +261,7 @@ def main():
         gis = g.sort_values('frame_idx').gi.to_numpy()
         cache = load_jpeg_cache(args.jpeg_cache_file, gis, frame_paths, args.read_workers)
         pr = dense_probs(encoder, model, cache, gis, S, K, n_patches, dev,
-                         args.chunk, args.head_batch, pool)
+                         args.chunk, args.head_batch, pool, mask_region)
         del cache
         per_frame[oid] = pr.astype(np.float16)
         mins = len(pr) / FPS / 60

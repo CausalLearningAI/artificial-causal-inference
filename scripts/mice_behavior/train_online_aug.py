@@ -66,6 +66,7 @@ from src.mice_behavior.truth import read_truth
 from src.mice_behavior.metrics import ap_report, format_ap_report, rate_report, format_rate_report
 from src.mice_behavior.viz import plot_confusion_examples, plot_error_strips
 from src.mice_behavior.head_cfg import get_head_cfg
+from src.mice_behavior.masking import apply_mask, frame_share
 from train_patchgrid_online import dummy_loader
 
 MODEL_ID = 'facebook/dinov2-base'
@@ -122,6 +123,17 @@ class _SampleDataset(Dataset):
     # patches at 448 and 2.46 at 504, which is why 504 bought nothing; whether the 224->448
     # jump (+41% macro AP) was extra tokens or extra pixels has never been tested.
     pixel_source = 0
+
+    # Set by main() from --mask-region. None = off, and off means the decode path below is
+    # byte-identical to what every run before this flag existed took. A named region blanks that
+    # part of EVERY frame -- training, monitor and, through predict_dense.py reading it back out of
+    # config.json, the dense test pass. See src/mice_behavior/masking.py for what the regions are
+    # and why: 'bottom_left' is the cage corner holding the O-phase bag, which a linear probe on a
+    # 32x32 thumbnail reads the phase off at 0.90 balanced accuracy from a QUIET frame.
+    #
+    # Applied BEFORE d4_transform, i.e. in original frame coordinates. Masking after the D4 draw
+    # would blank a corner of the rendering while leaving the bag wherever the rotation put it.
+    mask_region = None
 
     def __init__(self, meta, batches, jpeg_cache, input_size, augment, seed,
                  photo_brightness=(0.80, 1.25), photo_contrast=(0.80, 1.25),
@@ -182,6 +194,8 @@ class _SampleDataset(Dataset):
                 buf = self.cache[int(abs_idx[b, t])]
                 with Image.open(io.BytesIO(buf.tobytes())) as im:
                     im = im.convert('RGB')
+                    if self.mask_region:
+                        apply_mask(im, self.mask_region)
                     if op:
                         im = d4_transform(im, op)
                     if self.pixel_source:
@@ -516,6 +530,20 @@ def main():
                          'up, the 224->448 gain (+41%) was TOKENS and the next lever is more tokens '
                          'per mouse (tiling); if it collapses to the 224 level, it was PIXELS and '
                          'only going back to the 2060x2062 source (per-animal crops) can help.')
+    p.add_argument('--mask-region', choices=['', 'bottom_left', 'four_corners'], default='',
+                    help="blank a fixed region of every input frame, at training AND at monitor "
+                         "time, and -- via config.json -- in predict_dense.py's test pass. "
+                         "'' (default) is off and leaves the decode path byte-identical to before "
+                         "this flag existed. 'bottom_left' is the cage corner that holds the "
+                         "O-phase bag: build_derm.py's phase_probe reads O vs not-O off a QUIET "
+                         "32x32 grey thumbnail at 0.946 balanced accuracy whole-frame, 0.903 from "
+                         "that quadrant alone against 0.507-0.581 from the other three, and 0.657 "
+                         "once it is blanked. Masking it is the control for 'does this backbone's "
+                         "estimand bias depend on SEEING the bag' -- the answer is only meaningful "
+                         "if train and test see the same input distribution, which is why the flag "
+                         "is one switch over both. 'four_corners' is the area control (4x the "
+                         "pixels, all four corners), so a change cannot be blamed on lost pixels "
+                         "alone. See src/mice_behavior/masking.py.")
     p.add_argument('--augment', choices=['none', 'd4', 'd4_photo'], default='d4',
                     help="'d4_photo' adds per-sample brightness/contrast/gamma jitter on top of "
                          'the 8 exact D4 renderings. Every positive is drawn every epoch, so with '
@@ -678,6 +706,7 @@ def main():
         p.error(f'--pixel-source {args.pixel_source} >= --input-size {args.input_size} is a no-op '
                 '(or an upsample); it only makes sense strictly below input_size.')
     _SampleDataset.pixel_source = args.pixel_source
+    _SampleDataset.mask_region = args.mask_region or None
 
     n_patches = (args.input_size // PATCH_SIZE) ** 2
     # The old 'patchgrid256_dinov2_' prefix is gone: every run here is a 256-dim patch grid over
@@ -694,6 +723,12 @@ def main():
           f'reach +-{args.context_k*args.stride} frames)  input_size={args.input_size} '
           f'({n_patches} patches)  augment={args.augment}  neg_ratio={args.neg_ratio}'
           f'  motion={args.use_motion}', flush=True)
+    if args.mask_region:
+        # Loud, because a masked arm that silently trained unmasked is indistinguishable from the
+        # control it is meant to be compared against.
+        print(f'INPUT MASK: region={args.mask_region} blanked to black on EVERY frame '
+              f'(train + monitor), {frame_share(args.mask_region):.2%} of the frame, applied '
+              f'before D4. predict_dense.py re-reads this from config.json.', flush=True)
 
     pair_labels = gsf.build_pair_labels(gsf.DATA_DIR, gsf.DATASET_DIR, overwrite=False)
     ann_csv = gsf.DATASET_DIR / 'mice' / 'v1' / 'annotations.csv'
@@ -1301,6 +1336,10 @@ def main():
         except Exception:
             pass
     json.dump({'cfg': best_cfg, 'context_k': args.context_k, 'input_size': args.input_size,
+               # predict_dense.py reads mask_region back out of here, so the dense test pass masks
+               # exactly what training masked without anyone having to remember a second flag.
+               # Absent in every run predating the flag, which .get() reads as None = unmasked.
+               'mask_region': args.mask_region or None,
                'pixel_source': args.pixel_source, 'init_encoder': args.init_encoder,
                'n_train_pools': args.n_train_pools, 'pool_grid': args.pool_grid,
                'val_pools': sorted(val_pools),

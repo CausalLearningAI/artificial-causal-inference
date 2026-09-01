@@ -65,6 +65,15 @@ if [ "${GRAD_CHECKPOINT:-0}" = "1" ]; then
     GRAD_CHECKPOINT_ARGS="--grad-checkpoint"
 fi
 
+# Blank a fixed region of every input frame (the O-phase bag's corner), at training and at
+# monitor time. Only forwarded when set, so every prior run stays byte-identical. predict_dense.py
+# does NOT take this: it reads mask_region back out of the run's config.json, so the test pass
+# cannot silently disagree with training.
+MASK_REGION_ARGS=""
+if [ -n "${MASK_REGION:-}" ]; then
+    MASK_REGION_ARGS="--mask-region ${MASK_REGION}"
+fi
+
 WANDB_ARGS=""
 if [ "${WANDB:-0}" = "1" ]; then
     WANDB_ARGS="--wandb"
@@ -127,5 +136,5 @@ python -u scripts/mice_behavior/train_online_aug.py \
     --patch-selfattn-dim "${PATCH_SELFATTN_DIM:-0}" \
     --pool-queries "${POOL_QUERIES:-1}" \
     ${OVERRIDE_ARGS} ${MOTION_ARGS} ${WANDB_ARGS} ${SMOKE_ARGS} ${JPEG_CACHE_ARGS} \
-    ${INIT_ENCODER_ARGS} ${DERM_ARGS} ${GRAD_CHECKPOINT_ARGS} \
+    ${INIT_ENCODER_ARGS} ${DERM_ARGS} ${GRAD_CHECKPOINT_ARGS} ${MASK_REGION_ARGS} \
     --tag "${TAG:-online_aug}"

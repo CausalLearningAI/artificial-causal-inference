@@ -179,11 +179,46 @@ if [ "${BIT6:-0}" = "1" ]; then
     for a in $ORDER; do ARM_TAG[$a]="${ARM_TAG[$a]}_bit6"; done
 fi
 
+# MASK_REGION=bottom_left -- THE BAG CONTROL. Everything on this page is built on the premise that
+# the treatment phase is readable off a frame without reading behaviour: a physical bag sits in one
+# cage corner during O, and build_derm.py's phase_probe reads O vs not-O off a QUIET 32x32 grey
+# thumbnail (no scored behaviour, >=5 s from the nearest bout, held out by pool) at
+#
+#     whole frame 0.946 | bottom-left quadrant 0.903 | the other three 0.507 / 0.545 / 0.581
+#     border ring 0.951 | centre 0.656 | with that corner blanked 0.657
+#
+# and the per-pool peak of |mean(O) - mean(not-O)| lands in that quadrant in all four probed pools.
+#
+# BitFit-6 ERM's measured estimand bias is already near zero, which the premise does not predict.
+# Either the premise is wrong for this backbone or the near-zero is a coincidence, and this arm
+# separates them: blank the bag corner and see whether the bias moves. If it does not, BitFit-6's
+# answer never depended on seeing the bag and the shortcut story is dead for this backbone.
+#
+# The mask is ONE switch over training AND scoring -- the trainer records mask_region in
+# config.json and predict_dense.py reads it back -- because a model trained on masked frames and
+# scored on unmasked ones measures a distribution shift instead of the shortcut.
+#
+# CAVEAT, and it belongs in whatever this ends up supporting: the probe covers 4 of 24 pools.
+#
+#     SELECT=last BIT6=1 MASK_REGION=bottom_left ARMS=odourF_erm bash scripts/mice_behavior/xfit_odour.sh
+#
+# The tag gains `_nobag` after `_bit6` and before the seed, keeping the grammar
+# `odour_tr{F,S}_{erm,derm}[_last][_popw][_bit6][_nobag][_s{n}]`.
+if [ -n "${MASK_REGION:-}" ]; then
+    export MASK_REGION
+    for a in $ORDER; do ARM_TAG[$a]="${ARM_TAG[$a]}_nobag"; done
+fi
+
 if ! grep -q 'train-odour' scripts/mice_behavior/train_online_aug.sh; then
   echo "REFUSING: train_online_aug.sh does not forward --train-odour." >&2; exit 1
 fi
 if [ "${BIT6:-0}" = "1" ] && ! grep -q 'grad-checkpoint' scripts/mice_behavior/train_online_aug.sh; then
   echo "REFUSING: train_online_aug.sh does not forward --grad-checkpoint, so BIT6=1 on an L40S would OOM." >&2; exit 1
+fi
+# A `_nobag` arm that silently trained on unmasked frames is worse than no arm: it is a duplicate
+# of the control wearing the treatment's name, and nothing downstream would notice.
+if [ -n "${MASK_REGION:-}" ] && ! grep -q 'mask-region' scripts/mice_behavior/train_online_aug.sh; then
+  echo "REFUSING: train_online_aug.sh does not forward --mask-region, so the _nobag arms would train UNMASKED." >&2; exit 1
 fi
 
 # SEED=n replicates an arm under a different seed, tagged `_s{n}`. The headline paired test rests
