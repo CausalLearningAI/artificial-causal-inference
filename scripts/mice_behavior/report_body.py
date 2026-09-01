@@ -1222,39 +1222,71 @@ def ctl(lab, what, tr='H->O'):
     return f"{c[what]:+.3f}".replace('-', '&minus;')
 
 
-# Does blanking the corner MOVE the bias? Counted over the two ON legs, so the sentence cannot
-# outlive the runs. `moved` = the masked arm's |bias| differs from the unmasked one's by more
-# than a tenth of a bout per minute, which is the resolution the rest of this section quotes at.
-_ctl_moved = [_BNICE[lab] for lab in ('nt', 'nn')
-              if (_CSA or {}).get('cells', {}).get(lab, {}).get('H->O')
-              and abs(abs(_CSA['cells'][lab]['H->O']['treated_mean'])
-                      - abs(_CSA['cells'][lab]['H->O']['baseline_mean'])) > 0.1]
-_ctl_sig = [_BNICE[lab] for lab in ('nt', 'nn')
-            if (_CSA or {}).get('cells', {}).get(lab, {}).get('H->O')
-            and _CSA['cells'][lab]['H->O']['p'] < 0.05]
+# Does blanking the corner MOVE the bias? Over ALL FOUR cells, not just the two ON legs: the
+# prose quotes both legs, so a count taken on one of them and described as "neither leg" is a
+# claim the data does not carry -- nose-to-nose's OFF leg moves 0.16 while its ON leg moves 0.02.
+# `moved` = |bias| differs by more than a tenth of a bout per minute, the resolution this section
+# quotes at; `sig` = the paired difference resolves at 5%.
+_ctl_cells = [(lab, tr) for lab in ('nt', 'nn') for tr in _TR
+              if (_CSA or {}).get('cells', {}).get(lab, {}).get(tr)]
+_ctl_name = lambda lab, tr: f"{_BNICE[lab]}&rsquo;s {'ON' if tr == 'H->O' else 'OFF'} leg"
+_ctl_moved = [_ctl_name(lab, tr) for lab, tr in _ctl_cells
+              if abs(abs(_CSA['cells'][lab][tr]['treated_mean'])
+                     - abs(_CSA['cells'][lab][tr]['baseline_mean'])) > 0.1]
+_ctl_sig = [_ctl_name(lab, tr) for lab, tr in _ctl_cells
+            if _CSA['cells'][lab][tr]['p'] < 0.05]
 
 if _CSA:
+    # THE VERDICT, COUNTED. `_ctl_sig` is the cells whose paired difference resolves; `_ctl_moved`
+    # the cells where |bias| shifts by more than 0.1 bouts/min, the resolution this section quotes
+    # at. A null on both is the informative outcome here, so it gets said plainly rather than
+    # hedged -- and it is derived, so a rerun that changes it changes this sentence.
     _ctl_verdict = (
-        'On neither behaviour does blanking the corner move the bias by more than 0.1 bouts per '
-        'minute, and neither difference resolves' if not _ctl_moved and not _ctl_sig else
-        f"The difference resolves on {' and '.join(_ctl_sig)}"
-        if _ctl_sig else
-        f"The bias moves on {' and '.join(_ctl_moved)}, though neither difference resolves")
+        f'In none of the {_WORD.get(len(_ctl_cells), len(_ctl_cells))} cells does blanking the '
+        'corner move |bias| by more than 0.1 bouts per minute, and no paired difference resolves'
+        if not _ctl_moved and not _ctl_sig
+        else f"The paired difference resolves on {' and '.join(_ctl_sig)}" if _ctl_sig else
+        f"|bias| moves by more than 0.1 bouts per minute on {' and '.join(_ctl_moved)}, but no "
+        f'paired difference resolves in any of the '
+        f'{_WORD.get(len(_ctl_cells), len(_ctl_cells))} cells')
+    # The headline follows the test, not the eye: with nothing resolving, the measured statement
+    # is that no change was resolved -- not that nothing changed.
+    _ctl_head = ('masking the bag does not resolve any change in the bias' if not _ctl_sig
+                 else 'masking the bag changes the bias')
+    _apc = D['odour_split'].get('control_ap', {}).get('train_fear_bit6_nobag_seedavg', {})
+    _apbits = ', '.join(f"{_BNICE[l]} &minus;{_apc[l]['cost']:.3f}"
+                        for l in ('nt', 'nn') if l in _apc)
+    _mres = (D['probe'].get('mask', {}) or {}).get('bottom_left_0.25', {})
     bag_mask_note = (
-        '<div class="note"><b>The premise is now tested, not assumed.</b> Everything above turns '
-        'on the bag being <em>readable</em> &mdash; the probe says it is, at '
-        f'{probe()} balanced accuracy whole-frame &mdash; but a readable cue is not a used one. '
-        'These arms are the BitFit-6 ERM exposure-split arms retrained with that corner blacked '
-        'out, in original frame coordinates, over training <em>and</em> scoring; same split, same '
-        'held-out exposure, same monitor pools, same head, same seeds. Seed-averaged over '
-        f"{ctl('nt', 'n_seeds')} seeds and {ctl('nt', 'n_pools')} pools, on the ON leg the "
-        f"nose-to-tail bias is {ctl('nt', 'baseline_mean')} with the bag visible against "
-        f"{ctl('nt', 'treated_mean')} with it masked (paired "
+        f'<div class="note"><b>The premise is now tested, and {_ctl_head}.</b> '
+        'Everything above turns on the bag being <em>readable</em> &mdash; the probe '
+        f'says it is, at {probe()} balanced accuracy whole-frame &mdash; but a readable cue is '
+        'not a used one. These arms are the BitFit-6 ERM exposure-split arms retrained with that '
+        'corner blacked out, in original frame coordinates, over training <em>and</em> scoring; '
+        'same split, same held-out exposure, same monitor pools, same head, same seeds. '
+        f"Seed-averaged over {ctl('nt', 'n_seeds')} seeds and {ctl('nt', 'n_pools')} pools, on "
+        f"the ON leg the nose-to-tail bias is {ctl('nt', 'baseline_mean')} with the bag visible "
+        f"against {ctl('nt', 'treated_mean')} with it masked (paired "
         f"{ctl('nt', 'baseline_minus_treated')}, p = {ctl('nt', 'p')}), and nose-to-nose "
         f"{ctl('nn', 'baseline_mean')} against {ctl('nn', 'treated_mean')} (paired "
-        f"{ctl('nn', 'baseline_minus_treated')}, p = {ctl('nn', 'p')}). "
-        f'{_ctl_verdict}. Both legs and every seed are in the exposure-split figure above, under '
-        'the bag-masked variants.</div>')
+        f"{ctl('nn', 'baseline_minus_treated')}, p = {ctl('nn', 'p')}); on the OFF leg "
+        f"{ctl('nt', 'baseline_mean', 'O->P')} against {ctl('nt', 'treated_mean', 'O->P')} "
+        f"(p = {ctl('nt', 'p', 'O->P')}) and {ctl('nn', 'baseline_mean', 'O->P')} against "
+        f"{ctl('nn', 'treated_mean', 'O->P')} (p = {ctl('nn', 'p', 'O->P')}). "
+        f'{_ctl_verdict}. '
+        '<br><br><b>Three things this does not settle.</b> The mask is <em>incomplete</em>: with '
+        f"that corner blanked the probe still reads the phase at "
+        f"{_mres.get('bal_acc', 0):.3f} balanced accuracy"
+        + (f" from {_mres['frame_share']:.2%} of the frame removed" if 'frame_share' in _mres
+           else '')
+        + ', so a model denied the corner is not a model denied the treatment &mdash; the '
+        'residual cue is enough to keep a phase prior alive, and this test cannot separate "the '
+        'shortcut is not used" from "the shortcut survives the mask". The corner itself was '
+        f"located on {D['probe']['n_pools']} of the 24 pools. And the mask was not free: it cost "
+        f'{_apbits} average precision on the monitor pools, so the arms being compared are not '
+        'equally '
+        'good frame classifiers. Both legs and every seed are in the exposure-split figure above, '
+        'under the bag-masked variants.</div>')
 elif _CTL:
     bag_mask_note = (
         '<div class="note"><b>The premise is being tested, and the test is part-landed.</b> The '

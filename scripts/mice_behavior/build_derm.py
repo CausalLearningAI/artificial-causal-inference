@@ -102,6 +102,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy import stats
+from sklearn.metrics import average_precision_score
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -758,6 +759,13 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
     out = {'note': 'mechanism split: the model has seen every test pool, so this is a LOWER bound '
                    'on the deployment bias, and PPI++ cannot use it',
            'arms': {}, 'landed': [], 'absent': []}
+    # The SAME per-pool biases the payload carries, kept UNROUNDED and out of the JSON. `per_pool`
+    # is rounded to 4 decimals for the figure's tooltips, and pairing on those rounded values is
+    # fine for a mean or a t-test but not for a boundary COUNT: two arms can sit 3e-5 apart on a
+    # pool -- a tenth of the stored grain -- and rounding then decides which one is "nearer zero".
+    # That is exactly what separated this block's count from an independent recomputation on the
+    # bag-mask control (13 against 12, on pool rd14). The counts below use these instead.
+    raw_pp = {}
     for key, (tag, train_od) in ODOUR_ARMS.items():
         # `_heldout` ONLY. The plain pred_dense_v1.csv on these arms is the first attempt's dump of
         # the 48 UNANNOTATED pools -- no truth to compare against, zero overlap with the labelled
@@ -838,6 +846,8 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
                 trans = f'{x}->{y}'
                 arm.setdefault('per_pool', {}).setdefault(lab, {})[trans] = {
                     str(k): round(float(xx), 4) for k, xx in zip(r['pool'], v)}
+                raw_pp.setdefault(key, {}).setdefault(lab, {})[trans] = {
+                    str(k): float(xx) for k, xx in zip(r['pool'], v)}
                 cell = {
                     'n_pools': len(v), 'mean': round(float(v.mean()), 4),
                     'lo': round(float(v.mean() - qt * se), 4),
@@ -949,13 +959,17 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
         seed-averaged ones (three arms each) through the same arithmetic the ERM/DERM seed
         average uses: average across seeds WITHIN a leg first, then pair.
         """
-        A = [out['arms'].get(f'tr{direction}_{s}') for s in base_legs]
-        B = [out['arms'].get(f'tr{direction}_{s}') for s in treat_legs]
-        if not (all(A) and all(B)):
+        ka = [f'tr{direction}_{s}' for s in base_legs]
+        kb = [f'tr{direction}_{s}' for s in treat_legs]
+        if not all(k in out['arms'] for k in ka + kb):
             return None
-        pp = [a.get('per_pool', {}).get(lab, {}).get(tr) for a in A + B]
+        # UNROUNDED, from raw_pp -- see its comment above. The existing ERM/DERM blocks pair on
+        # the rounded `per_pool` and keep doing so, because their numbers are already published
+        # and a precision change would move them; this block is new and starts correct.
+        pp = [raw_pp.get(k, {}).get(lab, {}).get(tr) for k in ka + kb]
         if not all(pp):
             return None
+        A, B = ka, kb
         pools = sorted(set.intersection(*[set(p) for p in pp]))
         if len(pools) < 3:
             return None
@@ -984,7 +998,30 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
                                                                 'label': flabel,
                                                                 'cells': {}})
                 out['controls'][key]['cells'].setdefault(lab, {})[f'{x}->{y}'] = r
+    # WHAT THE CONTROL COST IN ACCURACY. Blanking 6.25% of the frame removes real pixels as well
+    # as the bag, so a control that moved the bias would still owe this number, and one that did
+    # not still has to show it paid something -- otherwise "masking changes nothing" reads as
+    # "the mask did nothing", which is a different claim. Average precision on the monitor pools,
+    # per behaviour, averaged over the same seeds. Not a promotion criterion; context for the
+    # bias result next to it.
+    def leg_ap(legs, direction, j):
+        v = []
+        for s_ in legs:
+            f = FRAME / f'odour_tr{direction}_{s_}' / 'val_probs.npz'
+            if not f.exists():
+                return None
+            z = np.load(f, allow_pickle=True)
+            v.append(average_precision_score(z['labels'][:, j], z['probs'][:, j]))
+        return float(np.mean(v))
+
     for key, (direction, bl_legs, tl_legs, bl, tl) in CONTROL_SEED_SETS.items():
+        for j, lab in enumerate(LABELS):
+            a_, b_ = leg_ap(bl_legs, direction, j), leg_ap(tl_legs, direction, j)
+            if a_ is None or b_ is None:
+                continue
+            out.setdefault('control_ap', {}).setdefault(key, {})[lab] = {
+                'baseline': round(a_, 4), 'treated': round(b_, 4),
+                'cost': round(a_ - b_, 4), 'n_seeds': len(bl_legs)}
         for lab in LABELS:
             for x, y in TRANS:
                 r = paired_legs(direction, bl_legs, tl_legs, lab, f'{x}->{y}')
