@@ -698,10 +698,59 @@ ODOUR_VARIANTS = {'': ('', ''), '_last': ('_last', '_last'), '_popw': ('_last', 
                   '_bit6_popw': ('_last_bit6', '_last_popw_bit6'),
                   '_bit6_popw_s1': ('_last_bit6_s1', '_last_popw_bit6_s1'),
                   '_bit6_popw_s2': ('_last_bit6_s2', '_last_popw_bit6_s2')}
+
+# SAME-OBJECTIVE CONTROLS, which ODOUR_VARIANTS structurally cannot hold. Every entry above is an
+# ERM leg against a DERM leg, and every consumer of it -- ODOUR_ARMS, the sign test, `paired`,
+# SEED_SETS -- builds its tags as `_erm{suffix}` against `_derm{suffix}`. A control that varies
+# something OTHER than the objective has both legs on the same objective, so putting it in
+# ODOUR_VARIANTS would pair it against an arm differing in two things at once, which is the
+# confounded comparison this file exists to avoid. It gets its own registry instead.
+#
+#   '_bit6_nobag'  THE BAG-SHORTCUT TEST (arms launched 1 September 2026). Every phase-prior
+#            argument on this page rests on the premise that the O-phase bag sits in a cage corner
+#            and is readable off a quiet frame -- phase_probe() measures 0.903 balanced accuracy
+#            from the bottom-left quadrant alone, against 0.657 once it is blanked -- but nothing
+#            had tested whether a model USES it. These arms are `odour_trF_erm_last_bit6{,_s1,_s2}`
+#            retrained with that corner blacked out in ORIGINAL frame coordinates, over training
+#            AND scoring. Everything else is identical: same split, same held-out exposure, same
+#            monitor pools, same head, same BitFit-6 backbone, same seeds. So the pair is
+#            unmasked-ERM against masked-ERM and the objective never moves.
+#
+# Each entry is (direction, baseline leg, treated leg, baseline label, treated label, figure
+# label). A `leg` is the whole suffix after `tr{D}_`, objective included, because that is the part
+# these vary. The figure label lives here rather than being reconstructed from the key, so the
+# exposure-split figure's variant control names a control the same way this file does.
+ODOUR_CONTROLS = {
+    '_bit6_nobag': ('F', 'erm_last_bit6', 'erm_last_bit6_nobag', 'bag visible', 'bag masked',
+                    'BitFit-6 ERM · bag corner masked'),
+    '_bit6_nobag_s1': ('F', 'erm_last_bit6_s1', 'erm_last_bit6_nobag_s1',
+                       'bag visible', 'bag masked', 'BitFit-6 ERM · bag masked · seed 1'),
+    '_bit6_nobag_s2': ('F', 'erm_last_bit6_s2', 'erm_last_bit6_nobag_s2',
+                       'bag visible', 'bag masked', 'BitFit-6 ERM · bag masked · seed 2'),
+}
+# Seed-averaged control tests, gated on ALL of their arms landing, exactly as SEED_SETS is: a
+# half-landed set read as a two-seed answer is how a 0.5 bouts/min cell would get quoted as
+# settled. (key) -> (direction, baseline legs, treated legs, baseline label, treated label).
+CONTROL_SEED_SETS = {
+    'train_fear_bit6_nobag_seedavg': (
+        'F', ['erm_last_bit6', 'erm_last_bit6_s1', 'erm_last_bit6_s2'],
+        ['erm_last_bit6_nobag', 'erm_last_bit6_nobag_s1', 'erm_last_bit6_nobag_s2'],
+        'bag visible', 'bag masked'),
+}
+
 ODOUR_ARMS = {f'tr{d}_{o}{sfx}': (f'odour_tr{d}_{o}{sfx}', d)
               for d in ('F', 'S')
               for o, sfx in {('erm', es) for es, _ in ODOUR_VARIANTS.values()}
               | {('derm', ds) for _, ds in ODOUR_VARIANTS.values()}}
+# The control legs join the SAME arm table, so they get cells, per-pool biases and a place in
+# `landed`/`absent` on exactly the same code path. Their direction is fixed per entry -- these are
+# controls for one training direction, not a grid -- so only that direction's tags are added.
+ODOUR_ARMS.update({f'tr{d}_{leg}': (f'odour_tr{d}_{leg}', d)
+                   for d, base, treat, *_ in ODOUR_CONTROLS.values()
+                   for leg in (base, treat)})
+ODOUR_ARMS.update({f'tr{d}_{leg}': (f'odour_tr{d}_{leg}', d)
+                   for d, bl, tl, *_ in CONTROL_SEED_SETS.values()
+                   for leg in bl + tl})
 
 
 def odour_split(exp_full: pd.DataFrame) -> dict:
@@ -886,6 +935,65 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
                     'erm_mean': round(float(ev.mean()), 4),
                     'derm_mean': round(float(dm.mean()), 4),
                     'erm_minus_derm': round(float(diff.mean()), 4), 'p': round(float(pv), 4)}
+
+    # ---- SAME-OBJECTIVE CONTROLS: paired, and then seed-averaged -----------------------------
+    # Deliberately NOT written into `paired`/`seed_avg`. Those blocks' fields are named
+    # `erm_mean`, `derm_mean`, `erm_minus_derm`, and every reader of them -- the report prose and
+    # the exposure-split figure -- prints the two legs as "ERM" and "DERM". A comparison whose two
+    # legs are both ERM would be rendered under those labels as an objective swap it is not. Own
+    # block, own field names, and each entry carries the labels for its own two legs.
+    def paired_legs(direction, base_legs, treat_legs, lab, tr):
+        """Per-pool bias for two sets of arms, averaged within set, then paired over shared pools.
+
+        One set per leg, so this serves the single-seed controls (one arm each) and the
+        seed-averaged ones (three arms each) through the same arithmetic the ERM/DERM seed
+        average uses: average across seeds WITHIN a leg first, then pair.
+        """
+        A = [out['arms'].get(f'tr{direction}_{s}') for s in base_legs]
+        B = [out['arms'].get(f'tr{direction}_{s}') for s in treat_legs]
+        if not (all(A) and all(B)):
+            return None
+        pp = [a.get('per_pool', {}).get(lab, {}).get(tr) for a in A + B]
+        if not all(pp):
+            return None
+        pools = sorted(set.intersection(*[set(p) for p in pp]))
+        if len(pools) < 3:
+            return None
+        av = np.array([np.mean([p[q] for p in pp[:len(A)]]) for q in pools])
+        bv = np.array([np.mean([p[q] for p in pp[len(A):]]) for q in pools])
+        d = av - bv
+        _, pv = stats.ttest_1samp(d, 0.0)
+        return {'n_seeds': len(A), 'n_pools': len(pools),
+                'baseline_mean': round(float(av.mean()), 4),
+                'treated_mean': round(float(bv.mean()), 4),
+                'baseline_minus_treated': round(float(d.mean()), 4),
+                'p': round(float(pv), 4),
+                'treated_nearer_zero': int(sum(abs(b) < abs(a) for a, b in zip(av, bv)))}
+
+    for key, (direction, base, treat, bl, tl, flabel) in ODOUR_CONTROLS.items():
+        for lab in LABELS:
+            for x, y in TRANS:
+                r = paired_legs(direction, [base], [treat], lab, f'{x}->{y}')
+                if r is None:
+                    continue
+                out.setdefault('controls', {}).setdefault(key, {'direction': direction,
+                                                                'baseline_label': bl,
+                                                                'treated_label': tl,
+                                                                'baseline_leg': base,
+                                                                'treated_leg': treat,
+                                                                'label': flabel,
+                                                                'cells': {}})
+                out['controls'][key]['cells'].setdefault(lab, {})[f'{x}->{y}'] = r
+    for key, (direction, bl_legs, tl_legs, bl, tl) in CONTROL_SEED_SETS.items():
+        for lab in LABELS:
+            for x, y in TRANS:
+                r = paired_legs(direction, bl_legs, tl_legs, lab, f'{x}->{y}')
+                if r is None:
+                    continue
+                out.setdefault('control_seed_avg', {}).setdefault(
+                    key, {'direction': direction, 'baseline_label': bl, 'treated_label': tl,
+                          'baseline_legs': bl_legs, 'treated_legs': tl_legs, 'cells': {}})
+                out['control_seed_avg'][key]['cells'].setdefault(lab, {})[f'{x}->{y}'] = r
     return out
 
 
@@ -1154,6 +1262,22 @@ def main():
             for tr, r in byt.items():
                 print(f"    {direction:12s} {lab} {tr:5s}: {r['erm_minus_derm']:+.3f}  "
                       f"p={r['p']:.4f}  DERM nearer zero {r['toward_zero']}/{r['n_pools']}")
+    # Same-objective controls. Printed separately and with their own leg names, because reading
+    # them under the ERM/DERM heading is the whole mistake this block is shaped to prevent.
+    for blk, head in (('controls', '  SAME-OBJECTIVE CONTROLS, per seed'),
+                      ('control_seed_avg', '  SAME-OBJECTIVE CONTROLS, seed-averaged')):
+        if not od.get(blk):
+            continue
+        print(f'\n{head}')
+        for key, c in od[blk].items():
+            print(f"    {key}  ({c['baseline_label']} vs {c['treated_label']}, "
+                  f"train {c['direction']})")
+            for lab, byt in c['cells'].items():
+                for tr, r in byt.items():
+                    print(f"      {lab} {tr:5s}: {c['baseline_label']} "
+                          f"{r['baseline_mean']:+.3f} vs {c['treated_label']} "
+                          f"{r['treated_mean']:+.3f}  diff {r['baseline_minus_treated']:+.3f}  "
+                          f"p={r['p']:.4f}  n={r['n_pools']} seeds={r['n_seeds']}")
 
     # ---- the PPI++ bound, for the report's box ----------------------------------------------
     n, N = 24, 48

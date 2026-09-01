@@ -77,8 +77,28 @@
     { id: '_bit6_popw_s2', e: '_last_bit6_s2', d: '_last_popw_bit6_s2',
       label: 'BitFit-6 · corrected weights · seed 2' },
   ];
-  const has = (dir, v) => !!(ARMS['tr' + dir + '_erm' + v.e] && ARMS['tr' + dir + '_derm' + v.d]);
-  const VARIANTS = KNOWN.filter(v => has('F', v) || has('S', v));
+  // A leg is an objective plus a tag suffix. Every entry above is an ERM leg against a DERM leg,
+  // so those are the defaults; `eObj`/`dObj` exist for the controls below, whose two legs share
+  // an objective. `eName`/`dName` are what the legend, the rows and the table call them -- a
+  // same-objective pair drawn under the labels "ERM" and "DERM" would read as an objective swap
+  // it is not.
+  // `undefined`, not falsy: a control sets its objective to the empty string because its legs
+  // carry their own, and `'' || 'erm'` would quietly put every control back on the ERM prefix.
+  const obj = (o, dflt) => (o === undefined ? dflt : o);
+  const legE = (v) => obj(v.eObj, 'erm') + v.e, legD = (v) => obj(v.dObj, 'derm') + v.d;
+  const nameE = (v) => v.eName || 'ERM', nameD = (v) => v.dName || 'DERM';
+  const has = (dir, v) => !!(ARMS['tr' + dir + '_' + legE(v)] && ARMS['tr' + dir + '_' + legD(v)]);
+
+  // SAME-OBJECTIVE CONTROLS, built FROM THE PAYLOAD rather than listed here again. build_derm.py's
+  // ODOUR_CONTROLS already carries each one's direction, its two legs and their labels, so a
+  // control added there reaches this figure with no edit to this file -- which is the failure the
+  // `_bit6_popw` arms hit, landing on disk with no registry entry to make them visible.
+  const CONTROLS = Object.entries(OS.controls || {}).map(([id, c]) => ({
+    id: id, dir: c.direction, control: true,
+    eObj: '', e: c.baseline_leg, dObj: '', d: c.treated_leg,
+    eName: c.baseline_label, dName: c.treated_label,
+    label: c.label }));
+  const VARIANTS = KNOWN.concat(CONTROLS).filter(v => has('F', v) || has('S', v));
 
   const ROWS = [
     { lab: 'nt', tr: 'H->O', name: 'nose-to-tail', leg: 'odour ON H→O' },
@@ -104,12 +124,24 @@
   const fmt = (v, d = 2) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(d);
 
   const variant = () => VARIANTS.find(v => v.id === state.variant) || VARIANTS[0];
-  const armE = () => ARMS['tr' + state.dir + '_erm' + variant().e];
-  const armD = () => ARMS['tr' + state.dir + '_derm' + variant().d];
+  const armE = () => ARMS['tr' + state.dir + '_' + legE(variant())];
+  const armD = () => ARMS['tr' + state.dir + '_' + legD(variant())];
   const cell = (arm, r) => (((arm || {}).cells || {})[r.lab] || {})[r.tr];
   const pools = (arm, r) => (((arm || {}).per_pool || {})[r.lab] || {})[r.tr] || {};
-  const paired = (r) => (((OS.paired || {})[DIRS[state.dir].paired + state.variant]
-    || {})[r.lab] || {})[r.tr];
+  /* Both blocks answer "how far apart are these two legs on the same pools", but they are stored
+     apart and named apart on purpose, so this normalises to one shape rather than letting a
+     control's difference be printed as an ERM-minus-DERM. */
+  const paired = (r) => {
+    const v = variant();
+    if (v.control) {
+      const c = (((OS.controls || {})[v.id] || {}).cells || {})[r.lab] || {};
+      const x = c[r.tr];
+      return x && { diff: x.baseline_minus_treated, p: x.p };
+    }
+    const x = (((OS.paired || {})[DIRS[state.dir].paired + state.variant]
+      || {})[r.lab] || {})[r.tr];
+    return x && { diff: x.erm_minus_derm, p: x.p };
+  };
 
   // ------------------------------------------------------------------ controls & tooltip
   function seg(label, key, opts) {
@@ -164,7 +196,8 @@
     const x = (v) => L + (v + DOM) / (2 * DOM) * (W - L - R);
     const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img',
       'aria-label': `Bias of the estimated phase-transition effect on the held-out exposure, `
-        + `ERM against DERM, ${DIRS[state.dir].label}, four behaviour-by-leg cells with 95% `
+        + `${nameE(variant())} against ${nameD(variant())}, ${DIRS[state.dir].label}, `
+        + `four behaviour-by-leg cells with 95% `
         + `confidence intervals and one faint dot per pool.` });
 
     // x grid + axis
@@ -198,8 +231,8 @@
       if (ce) svg.appendChild(txt(`true effect ${fmt(ce.true_dY)}`, { x: 14, y: y0 + 66,
         fill: css('--ink-3'), 'font-size': 11 }));
 
-      [[ce, armE(), 'ERM', css('--os-erm'), y0 + 28],
-       [cd, armD(), 'DERM', css('--os-derm'), y0 + 62]].forEach(([c, arm, name, col, y]) => {
+      [[ce, armE(), nameE(variant()), css('--os-erm'), y0 + 28],
+       [cd, armD(), nameD(variant()), css('--os-derm'), y0 + 62]].forEach(([c, arm, name, col, y]) => {
         if (!c) {
           svg.appendChild(txt(`${name}: not landed`, { x: L + 8, y: y + 4,
             fill: css('--ink-3'), 'font-size': 11 }));
@@ -243,7 +276,7 @@
       // the paired test, on the right where the row ends
       if (pr) {
         const strong = pr.p < 0.05;
-        svg.appendChild(txt('ERM−DERM ' + fmt(pr.erm_minus_derm), {
+        svg.appendChild(txt(`${nameE(variant())}−${nameD(variant())} ` + fmt(pr.diff), {
           x: W - R + 12, y: y0 + 38, fill: css('--ink-2'), 'font-size': 11 }));
         svg.appendChild(txt('p ' + (pr.p < 1e-4 ? '< 0.0001' : '= ' + pr.p.toFixed(4)), {
           x: W - R + 12, y: y0 + 56, fill: strong ? css('--good') : css('--ink-3'),
@@ -264,8 +297,9 @@
     h.textContent = `${DIRS[state.dir].label} · ${variant().label}`;
     const w = document.createElement('div'); w.className = 'scroll';
     w.innerHTML = '<table><thead><tr><th>cell</th><th>true effect</th>'
-      + '<th>ERM bias</th><th>ERM 95% CI</th><th>DERM bias</th><th>DERM 95% CI</th>'
-      + '<th>paired ERM−DERM</th><th>p</th></tr></thead><tbody>'
+      + `<th>${nameE(variant())} bias</th><th>${nameE(variant())} 95% CI</th>`
+      + `<th>${nameD(variant())} bias</th><th>${nameD(variant())} 95% CI</th>`
+      + `<th>paired ${nameE(variant())}−${nameD(variant())}</th><th>p</th></tr></thead><tbody>`
       + ROWS.map(r => {
         const ce = cell(armE(), r), cd = cell(armD(), r), pr = paired(r);
         const f = (c, k) => c ? fmt(c[k], 3) : '—';
@@ -273,7 +307,7 @@
         return `<tr><td>${r.name} · ${r.leg}</td><td>${f(ce, 'true_dY')}</td>`
           + `<td>${f(ce, 'mean')}</td><td>${ci(ce)}</td>`
           + `<td>${f(cd, 'mean')}</td><td>${ci(cd)}</td>`
-          + `<td>${pr ? fmt(pr.erm_minus_derm, 3) : '—'}</td>`
+          + `<td>${pr ? fmt(pr.diff, 3) : '—'}</td>`
           + `<td>${pr ? pr.p.toFixed(4) : '—'}</td></tr>`;
       }).join('') + '</tbody></table>';
     box.append(h, w);
@@ -301,8 +335,8 @@
 
     const e = armE(), d = armD();
     $('osf-legend').innerHTML =
-      '<span><i style="background:var(--os-erm)"></i>ERM</span>'
-      + '<span><i style="background:var(--os-derm)"></i>DERM</span>'
+      `<span><i style="background:var(--os-erm)"></i>${nameE(variant())}</span>`
+      + `<span><i style="background:var(--os-derm)"></i>${nameD(variant())}</span>`
       + '<span style="color:var(--ink-3)">dot + whisker = mean bias over '
       + ((e && e.n_pools) || 24) + ' pools with 95% CI · faint dot = one pool · '
       + 'bias = estimated minus true transition, bouts/min</span>';

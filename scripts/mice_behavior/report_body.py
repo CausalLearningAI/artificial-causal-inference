@@ -691,7 +691,11 @@ derm_pred_note = (
 # read it off derm.json's landed list so a rebuild flips the text the moment they arrive.
 # Section 06's amber row: the social-direction seed replicates. Read off derm.json's own `absent`
 # list so the status line cannot claim a run is queued after it has landed.
-_ABS = [t for t in _OS.get('absent', []) if t.endswith(('_s1', '_s2'))]
+# `_trS_` EXPLICITLY, not "any absent arm with a seed suffix". This row is about the SOCIAL
+# direction, and the absent list also carries fear-trained arms whose seed replicates have not
+# landed -- the bag-masked controls launched 1 September are trF -- so a suffix test alone counts
+# them into a sentence that calls them social-trained.
+_ABS = [t for t in _OS.get('absent', []) if t.endswith(('_s1', '_s2')) and '_trS_' in t]
 os_absent_note = ('{} of the {} arms are still absent'.format(len(_ABS), 'social-trained')
                   if _ABS else 'landed &mdash; they are in the variant control')
 
@@ -1193,6 +1197,82 @@ os_bitfit_note = (
     'seed-averaged comparison this paragraph would quote is withheld until all six arms are on '
     'disk, because one seed of this split has already been seen to move a cell by 0.5 bouts per '
     'minute.')
+
+# ------------------------------------------------ the bag-mask control, once its arms land
+# 04.6's shortcut argument rests on a PREMISE -- the O-phase bag sits in a cage corner, so the
+# treatment is readable off a frame carrying no behaviour -- and the probe measures that the
+# corner is readable. It does not measure whether a model USES it. The `_nobag` arms are
+# `odour_trF_erm_last_bit6{,_s1,_s2}` retrained with that corner blacked out over training AND
+# scoring, everything else held; they were launched 1 September 2026. Read off derm.json's own
+# control blocks, so this paragraph states a result only once one exists.
+_CSA = _OS.get('control_seed_avg', {}).get('train_fear_bit6_nobag_seedavg')
+_CTL = _OS.get('controls', {})
+_CTL_PENDING = [t for t in _OS.get('absent', []) if 'nobag' in t]
+
+
+def ctl(lab, what, tr='H->O'):
+    """One cell of the seed-averaged bag-mask control."""
+    c = (_CSA or {}).get('cells', {}).get(lab, {}).get(tr)
+    if c is None:
+        return '&mdash;'
+    if what == 'p':
+        return '&lt; 0.0001' if c['p'] < 1e-4 else f"{c['p']:.4f}".rstrip('0').rstrip('.')
+    if what in ('n_seeds', 'n_pools', 'treated_nearer_zero'):
+        return c[what]
+    return f"{c[what]:+.3f}".replace('-', '&minus;')
+
+
+# Does blanking the corner MOVE the bias? Counted over the two ON legs, so the sentence cannot
+# outlive the runs. `moved` = the masked arm's |bias| differs from the unmasked one's by more
+# than a tenth of a bout per minute, which is the resolution the rest of this section quotes at.
+_ctl_moved = [_BNICE[lab] for lab in ('nt', 'nn')
+              if (_CSA or {}).get('cells', {}).get(lab, {}).get('H->O')
+              and abs(abs(_CSA['cells'][lab]['H->O']['treated_mean'])
+                      - abs(_CSA['cells'][lab]['H->O']['baseline_mean'])) > 0.1]
+_ctl_sig = [_BNICE[lab] for lab in ('nt', 'nn')
+            if (_CSA or {}).get('cells', {}).get(lab, {}).get('H->O')
+            and _CSA['cells'][lab]['H->O']['p'] < 0.05]
+
+if _CSA:
+    _ctl_verdict = (
+        'On neither behaviour does blanking the corner move the bias by more than 0.1 bouts per '
+        'minute, and neither difference resolves' if not _ctl_moved and not _ctl_sig else
+        f"The difference resolves on {' and '.join(_ctl_sig)}"
+        if _ctl_sig else
+        f"The bias moves on {' and '.join(_ctl_moved)}, though neither difference resolves")
+    bag_mask_note = (
+        '<div class="note"><b>The premise is now tested, not assumed.</b> Everything above turns '
+        'on the bag being <em>readable</em> &mdash; the probe says it is, at '
+        f'{probe()} balanced accuracy whole-frame &mdash; but a readable cue is not a used one. '
+        'These arms are the BitFit-6 ERM exposure-split arms retrained with that corner blacked '
+        'out, in original frame coordinates, over training <em>and</em> scoring; same split, same '
+        'held-out exposure, same monitor pools, same head, same seeds. Seed-averaged over '
+        f"{ctl('nt', 'n_seeds')} seeds and {ctl('nt', 'n_pools')} pools, on the ON leg the "
+        f"nose-to-tail bias is {ctl('nt', 'baseline_mean')} with the bag visible against "
+        f"{ctl('nt', 'treated_mean')} with it masked (paired "
+        f"{ctl('nt', 'baseline_minus_treated')}, p = {ctl('nt', 'p')}), and nose-to-nose "
+        f"{ctl('nn', 'baseline_mean')} against {ctl('nn', 'treated_mean')} (paired "
+        f"{ctl('nn', 'baseline_minus_treated')}, p = {ctl('nn', 'p')}). "
+        f'{_ctl_verdict}. Both legs and every seed are in the exposure-split figure above, under '
+        'the bag-masked variants.</div>')
+elif _CTL:
+    bag_mask_note = (
+        '<div class="note"><b>The premise is being tested, and the test is part-landed.</b> The '
+        'BitFit-6 ERM exposure-split arms have been retrained with the bag corner blacked out '
+        f'over training and scoring; {len(_CTL)} of the three seeds are on disk and their cells '
+        'are in the exposure-split figure above, under the bag-masked variants. The seed-averaged '
+        'comparison is withheld until all three land &mdash; one seed of this split has already '
+        'been seen to move a cell by 0.5 bouts per minute.</div>')
+elif _CTL_PENDING:
+    bag_mask_note = (
+        '<div class="note"><b>The premise above is a premise, and it is being tested.</b> The '
+        'probe measures that the corner is <em>readable</em>; it does not measure whether a model '
+        f'uses it. {len(_CTL_PENDING)} arms are training now &mdash; the BitFit-6 ERM '
+        'exposure-split arms with that corner blacked out over training and scoring, everything '
+        'else held &mdash; and they will appear in the exposure-split figure above when they '
+        'land. Nothing on this page rests on their result yet.</div>')
+else:
+    bag_mask_note = ''
 
 BODY = f'''
 <div class="wrap">
@@ -2081,6 +2161,8 @@ BODY = f'''
     <math><mrow><mi>Var</mi><mo>(</mo><mi>Y</mi><mo>|</mo><mi>E</mi><mo>)</mo><mo>/</mo>
     <mi>P</mi><mo>(</mo><mi>Y</mi><mo>,</mo><mi>E</mi><mo>)</mo></mrow></math>, which divides the
     prior odds out. It is the right tool for this.</p>
+
+    {bag_mask_note}
 
     <p><b>What the shortcut would cost.</b> The estimand is a within-pool difference, so with
     <math><mrow><mi>E</mi><mo>[</mo><mi>f</mi><mo>|</mo><mi>p</mi><mo>]</mo><mo>=</mo>
