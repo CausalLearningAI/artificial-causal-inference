@@ -22,6 +22,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
+from src.mice_behavior.emb_index import cls_emb_dim
 import grid_search_frame as gsf
 from src.mice_behavior.batch_data import FrameBatchData
 from src.mice_behavior.report import collect_frame_val_predictions, generate_frame_report
@@ -32,7 +33,7 @@ pair_labels_path = gsf.build_pair_labels(gsf.DATA_DIR, gsf.DATASET_DIR, overwrit
 annotations_csv = gsf.DATASET_DIR / 'mice' / 'v1' / 'annotations.csv'
 cls_embeddings_path = gsf.DATASET_DIR / 'mice' / 'v1' / 'embeddings' / 'full' / gsf.ENCODER / gsf.TOKEN / 'embeddings.npy'
 n_frames = sum(1 for _ in open(annotations_csv)) - 1
-emb_dim = cls_embeddings_path.stat().st_size // (4 * n_frames)
+emb_dim = cls_emb_dim(cls_embeddings_path)  # via row_keys.parquet row count (!= len(annotations.csv))
 
 obs_to_pool = gsf.load_obs_to_pool_map(gsf.DATA_DIR)
 all_obs = pd.read_parquet(pair_labels_path)['observation_id'].unique().tolist()

@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.mice_behavior.emb_index import cls_emb_dim
 from src.mice_behavior.build_pair_labels import build_pair_labels
 from src.mice_behavior.pools import load_obs_to_pool_map
 from src.mice_behavior.train import train
@@ -61,7 +62,7 @@ def main():
         / args.encoder / args.token / 'embeddings.npy'
     )
     n_frames = sum(1 for _ in open(annotations_csv)) - 1  # fast line count
-    emb_dim = embeddings_path.stat().st_size // (4 * n_frames)
+    emb_dim = cls_emb_dim(embeddings_path)  # via row_keys.parquet row count (!= len(annotations.csv))
     print(f'Embeddings: {args.encoder}/{args.token}, dim={emb_dim}, frames={n_frames:,}')
 
     # Step 4: train

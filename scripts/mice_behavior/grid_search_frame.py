@@ -53,6 +53,7 @@ import torch
 from sklearn.metrics import average_precision_score
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.mice_behavior.emb_index import cls_emb_dim
 from src.mice_behavior.build_pair_labels import build_pair_labels
 from src.mice_behavior.batch_data import (
     FrameBatchData, load_cls_embeddings, load_patchgrid_embeddings, load_patchgrid_concat_embeddings, cached_loader,
@@ -230,7 +231,7 @@ def main():
     annotations_csv = DATASET_DIR / 'mice' / 'v1' / 'annotations.csv'
     cls_embeddings_path = DATASET_DIR / 'mice' / 'v1' / 'embeddings' / 'full' / ENCODER / TOKEN / 'embeddings.npy'
     n_frames = sum(1 for _ in open(annotations_csv)) - 1
-    emb_dim = cls_embeddings_path.stat().st_size // (4 * n_frames)
+    emb_dim = cls_emb_dim(cls_embeddings_path)  # via row_keys.parquet row count (!= len(annotations.csv))
 
     obs_to_pool = load_obs_to_pool_map(DATA_DIR)
     all_obs = pd.read_parquet(pair_labels_path)['observation_id'].unique().tolist()

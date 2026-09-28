@@ -19,6 +19,7 @@ import torch
 from sklearn.metrics import roc_auc_score, average_precision_score
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.mice_behavior.emb_index import cls_emb_dim
 from src.mice_behavior.dataset import MouseOPairDataset, collate_fn
 from src.mice_behavior.model import MouseOPairClassifier
 from src.mice_behavior.pools import load_obs_to_pool_map
@@ -56,7 +57,7 @@ def main():
     print(f'val pools: {sorted(val_pool_set)}')
 
     n_frames = sum(1 for _ in open(annotations_csv)) - 1
-    emb_dim = embeddings_path.stat().st_size // (4 * n_frames)
+    emb_dim = cls_emb_dim(embeddings_path)  # via row_keys.parquet row count (!= len(annotations.csv))
 
     print('Building val dataset (same split as training)...')
     val_ds = MouseOPairDataset(

@@ -88,8 +88,9 @@ def train(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     load_fn = (
-        load_patchgrid_embeddings(patch_embeddings_path, patch_global_idx_path, n_patches, emb_dim)
-        if use_patch_grid else load_cls_embeddings(embeddings_path, emb_dim)
+        load_patchgrid_embeddings(patch_embeddings_path, patch_global_idx_path, n_patches, emb_dim,
+                                  annotations_csv=annotations_csv)
+        if use_patch_grid else load_cls_embeddings(embeddings_path, emb_dim, annotations_csv=annotations_csv)
     )
 
     print('Building train dataset (vectorized)...')
@@ -400,8 +401,9 @@ def train_frame(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     load_fn = embeddings_loader if embeddings_loader is not None else (
-        load_patchgrid_embeddings(patch_embeddings_path, patch_global_idx_path, n_patches, emb_dim)
-        if use_patch_grid else load_cls_embeddings(embeddings_path, emb_dim)
+        load_patchgrid_embeddings(patch_embeddings_path, patch_global_idx_path, n_patches, emb_dim,
+                                  annotations_csv=annotations_csv)
+        if use_patch_grid else load_cls_embeddings(embeddings_path, emb_dim, annotations_csv=annotations_csv)
     )
 
     print('Building train dataset (per-frame, vectorized)...')

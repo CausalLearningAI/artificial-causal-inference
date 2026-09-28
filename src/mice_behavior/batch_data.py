@@ -19,6 +19,10 @@ import numpy as np
 import pandas as pd
 import torch
 
+from .emb_index import (
+    EmbeddingIndexError, check_obs_boundary, gather_rows, n_embedding_rows, require_rows, resolve_rows,
+)
+
 
 class OPairBatchData:
     """Precomputes a flat, padded embedding array + vectorized index/mask arrays
@@ -520,37 +524,74 @@ class FrameBatchData:
         )
 
 
-def load_cls_embeddings(embeddings_path: str, emb_dim: int):
+def _default_annotations_csv(embeddings_path) -> Path:
+    """Find the annotations.csv of the dataset an embedding cache belongs to:
+    dataset/<subject>/<version>/embeddings/<frame_type>/<encoder>/<token>/embeddings.npy
+    -> dataset/<subject>/<version>/annotations.csv."""
+    p = Path(embeddings_path).resolve()
+    for parent in p.parents:
+        if parent.name == 'embeddings' and (parent.parent / 'annotations.csv').exists():
+            return parent.parent / 'annotations.csv'
+    raise EmbeddingIndexError(
+        f'cannot locate annotations.csv for {embeddings_path}; pass annotations_csv= explicitly')
+
+
+def _resolve_obs_rows(emb_dir, annotations_csv, obs_boundary, n_rows, where):
+    """{obs_s: embedding rows for annotations rows obs_s..obs_e-1}, resolved by
+    (observation_id, frame_idx) key via row_keys.parquet. Hard-fails (naming the
+    observations) if any requested frame has no cached embedding."""
+    check_obs_boundary(annotations_csv, obs_boundary, where=where)
+    resolved = resolve_rows(emb_dir, annotations_csv, n_rows=n_rows)
+    all_rows = np.concatenate([np.arange(s, e) for s, e in obs_boundary.values()]) if obs_boundary else np.zeros(0, np.int64)
+    require_rows(resolved, annotations_csv, rows=all_rows, where=where)
+    return {s: resolved[s:e] for s, e in obs_boundary.values()}
+
+
+def load_cls_embeddings(embeddings_path: str, emb_dim: int, annotations_csv: str = None):
+    """Loader for a headerless float32 (n_rows, emb_dim) CLS cache. Rows are looked up by
+    (observation_id, frame_idx) through <cache dir>/row_keys.parquet — never by position.
+    annotations_csv must be the table the caller's obs_boundary was built from (default:
+    the annotations.csv of the dataset the cache lives in)."""
     def _load(obs_boundary):
         emb_path = Path(embeddings_path)
-        n_total = emb_path.stat().st_size // (4 * emb_dim)
-        mmap = np.memmap(emb_path, dtype='float32', mode='r', shape=(n_total, emb_dim))
-        return {obs_s: np.array(mmap[obs_s:obs_e]) for obs_s, obs_e in obs_boundary.values()}
+        ann_csv = annotations_csv or _default_annotations_csv(emb_path)
+        n_rows = n_embedding_rows(emb_path)
+        if emb_path.stat().st_size != n_rows * emb_dim * 4:
+            raise EmbeddingIndexError(
+                f'{emb_path}: {emb_path.stat().st_size:,} bytes != {n_rows:,} rows x {emb_dim} x 4 -- '
+                f'wrong emb_dim? (use emb_index.cls_emb_dim(path))')
+        mmap = np.memmap(emb_path, dtype='float32', mode='r', shape=(n_rows, emb_dim))
+        rows = _resolve_obs_rows(emb_path.parent, ann_csv, obs_boundary, n_rows, str(emb_path))
+        return {obs_s: gather_rows(mmap, r) for obs_s, r in rows.items()}
     return _load
 
 
-def load_patchgrid_embeddings(embeddings_path: str, global_idx_path: str, n_patches: int, emb_dim: int):
+def load_patchgrid_embeddings(embeddings_path: str, global_idx_path: str, n_patches: int, emb_dim: int,
+                              annotations_csv: str = None):
+    """Loader for an fp16 (n_rows, n_patches, emb_dim) patch-grid cache, resolved by key via
+    <cache dir>/row_keys.parquet. global_idx_path is kept for backward compatibility only
+    (its values are rows of the frame table AT EXTRACTION TIME and are no longer used for
+    lookup); it is still checked to have the cache's row count."""
     def _load(obs_boundary):
-        global_idx = np.load(global_idx_path)
-        row_of_global = {int(g): i for i, g in enumerate(global_idx)}
-        mmap = np.memmap(embeddings_path, dtype='float16', mode='r', shape=(len(global_idx), n_patches, emb_dim))
-        out = {}
-        for obs_s, obs_e in obs_boundary.values():
-            pg_start = row_of_global[obs_s]
-            pg_end = row_of_global[obs_e - 1] + 1
-            out[obs_s] = np.array(mmap[pg_start:pg_end])
-        return out
+        emb_path = Path(embeddings_path)
+        ann_csv = annotations_csv or _default_annotations_csv(emb_path)
+        n_rows = n_embedding_rows(emb_path)
+        if global_idx_path is not None and len(np.load(global_idx_path, mmap_mode='r')) != n_rows:
+            raise EmbeddingIndexError(f'{global_idx_path} length != {n_rows:,} rows in row_keys.parquet')
+        mmap = np.memmap(emb_path, dtype='float16', mode='r', shape=(n_rows, n_patches, emb_dim))
+        rows = _resolve_obs_rows(emb_path.parent, ann_csv, obs_boundary, n_rows, str(emb_path))
+        return {obs_s: gather_rows(mmap, r) for obs_s, r in rows.items()}
     return _load
 
 
 def load_patchgrid_concat_embeddings(
     embeddings_path_a: str, embeddings_path_b: str, global_idx_path: str, n_patches: int,
-    emb_dim_a: int, emb_dim_b: int,
+    emb_dim_a: int, emb_dim_b: int, annotations_csv: str = None,
 ):
     """Concatenates two patch-grid sources (e.g. dinov2 + dinov3) per patch position, each
-    L2-normalized first. Both sources must share the same global_idx.npy (same annotated
-    frames, same row order) — true for dinov2/dinov3 patch_grid4 (same v1 annotated-frame
-    subset, confirmed identical global_idx arrays).
+    L2-normalized first. Each source is resolved by key through its OWN row_keys.parquet,
+    so the two caches no longer need identical row order (global_idx_path is accepted for
+    backward compatibility and ignored).
 
     Normalization is mandatory here, not optional: DINOv2 and DINOv3 CLS-token norms differ
     by ~20x (measured: mean 20.7 vs 415.6) — concatenating raw scales let the larger-norm
@@ -559,15 +600,17 @@ def load_patchgrid_concat_embeddings(
     already-16x-CLS's-footprint format's memory further.
     """
     def _load(obs_boundary):
-        global_idx = np.load(global_idx_path)
-        row_of_global = {int(g): i for i, g in enumerate(global_idx)}
-        mmap_a = np.memmap(embeddings_path_a, dtype='float16', mode='r', shape=(len(global_idx), n_patches, emb_dim_a))
-        mmap_b = np.memmap(embeddings_path_b, dtype='float16', mode='r', shape=(len(global_idx), n_patches, emb_dim_b))
+        ann_csv = annotations_csv or _default_annotations_csv(embeddings_path_a)
+        srcs = []
+        for path, dim in ((Path(embeddings_path_a), emb_dim_a), (Path(embeddings_path_b), emb_dim_b)):
+            n_rows = n_embedding_rows(path)
+            mmap = np.memmap(path, dtype='float16', mode='r', shape=(n_rows, n_patches, dim))
+            srcs.append((mmap, _resolve_obs_rows(path.parent, ann_csv, obs_boundary, n_rows, str(path))))
+        (mmap_a, rows_a), (mmap_b, rows_b) = srcs
         out = {}
-        for obs_s, obs_e in obs_boundary.values():
-            pg_start, pg_end = row_of_global[obs_s], row_of_global[obs_e - 1] + 1
-            a = np.array(mmap_a[pg_start:pg_end]).astype(np.float32)
-            b = np.array(mmap_b[pg_start:pg_end]).astype(np.float32)
+        for obs_s in rows_a:
+            a = gather_rows(mmap_a, rows_a[obs_s]).astype(np.float32)
+            b = gather_rows(mmap_b, rows_b[obs_s]).astype(np.float32)
             a /= np.clip(np.linalg.norm(a, axis=-1, keepdims=True), 1e-6, None)
             b /= np.clip(np.linalg.norm(b, axis=-1, keepdims=True), 1e-6, None)
             out[obs_s] = np.concatenate([a, b], axis=-1).astype(np.float16)

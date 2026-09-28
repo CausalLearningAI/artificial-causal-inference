@@ -13,6 +13,11 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
+from .batch_data import load_patchgrid_embeddings
+from .emb_index import (
+    EmbeddingIndexError, check_obs_boundary, gather_rows, n_embedding_rows, require_rows, resolve_rows,
+)
+
 
 class MouseOPairDataset(Dataset):
     def __init__(
@@ -24,10 +29,13 @@ class MouseOPairDataset(Dataset):
         context_k: int = 2,
         emb_dim: int = 768,
         preload: bool = True,
+        _skip_embeddings: bool = False,
     ):
         self.k = context_k
 
-        # Row index in annotations.csv == row index in embeddings.npy (both built in same order)
+        # obs_boundary / global_idx below are annotations.csv ROWS. Cached embedding rows are a
+        # different order (the cache may predate the current annotations.csv); they are looked up
+        # by (observation_id, frame_idx) via <cache dir>/row_keys.parquet — see emb_index.py.
         print('  loading annotations index...')
         ann = pd.read_csv(annotations_csv, usecols=['observation_id', 'frame_idx'])
 
@@ -36,7 +44,7 @@ class MouseOPairDataset(Dataset):
             ann = ann[ann['observation_id'].isin(obs_set)]
 
         # obs_boundary[obs_id] = (global_start, global_end)  — [start, end) in embedding array
-        ann_reset = ann.reset_index()  # preserves original row number as 'index' (= embedding row)
+        ann_reset = ann.reset_index()  # preserves original row number as 'index' (= annotations row)
         obs_boundary = {}
         for oid, grp in ann_reset.groupby('observation_id', sort=False):
             idx = grp['index'].values
@@ -100,24 +108,34 @@ class MouseOPairDataset(Dataset):
         ).astype(np.int32)
 
         # Load embeddings: preload annotated obs into RAM (avoids NFS random I/O during training),
-        # or fall back to mmap for inference / low-memory cases.
-        emb_path = Path(embeddings_path)
-        n_total = emb_path.stat().st_size // (4 * emb_dim)
-        raw_mmap = np.memmap(emb_path, dtype='float32', mode='r', shape=(n_total, emb_dim))
+        # or fall back to mmap for inference / low-memory cases. Either way, annotations rows are
+        # mapped to embedding rows by key (never positionally); missing observations hard-fail.
+        self._preloaded = False
+        if not _skip_embeddings:
+            emb_path = Path(embeddings_path)
+            n_rows = n_embedding_rows(emb_path)
+            if emb_path.stat().st_size != n_rows * emb_dim * 4:
+                raise EmbeddingIndexError(
+                    f'{emb_path}: {emb_path.stat().st_size:,} bytes != {n_rows:,} rows x {emb_dim} x 4 -- '
+                    f'wrong emb_dim? (use emb_index.cls_emb_dim(path))')
+            raw_mmap = np.memmap(emb_path, dtype='float32', mode='r', shape=(n_rows, emb_dim))
+            used = {o: obs_boundary[o] for o in annotated_obs}
+            check_obs_boundary(annotations_csv, used, where=str(emb_path))
+            resolved = resolve_rows(emb_path.parent, annotations_csv, n_rows=n_rows)
+            used_rows = np.concatenate([np.arange(s, e) for s, e in used.values()]) if used else np.zeros(0, np.int64)
+            require_rows(resolved, annotations_csv, rows=used_rows, where=str(emb_path))
 
-        if preload:
-            print('  preloading embeddings into RAM (sequential NFS read)...')
-            # Load each annotated obs block contiguously — O(n_annotated_frames) sequential reads
-            self._obs_arrays = {}  # obs_start → dense float32 array
-            for oid in annotated_obs:
-                obs_s, obs_e = obs_boundary[oid]
-                self._obs_arrays[obs_s] = np.array(raw_mmap[obs_s:obs_e])  # copy into RAM
-            total_mb = sum(a.nbytes for a in self._obs_arrays.values()) / 1e6
-            print(f'  preloaded {total_mb:.0f} MB')
-            self._preloaded = True
-        else:
-            self.embeddings = raw_mmap
-            self._preloaded = False
+            if preload:
+                print('  preloading embeddings into RAM (sequential NFS read)...')
+                self._obs_arrays = {}  # obs_start (annotations row) → dense float32 array
+                for obs_s, obs_e in used.values():
+                    self._obs_arrays[obs_s] = gather_rows(raw_mmap, resolved[obs_s:obs_e])
+                total_mb = sum(a.nbytes for a in self._obs_arrays.values()) / 1e6
+                print(f'  preloaded {total_mb:.0f} MB')
+                self._preloaded = True
+            else:
+                self.embeddings = raw_mmap
+                self._emb_row = resolved  # annotations row -> embedding row
 
         # Per-sample weights for balanced class sampling
         unique, counts = np.unique(labels, return_counts=True)
@@ -146,7 +164,7 @@ class MouseOPairDataset(Dataset):
             local = int(gi) - int(obs_s)
             lo_abs = max(int(obs_s), int(gi) - k)
             hi_abs = min(int(obs_e) - 1, int(gi) + k)
-            context = self.embeddings[lo_abs : hi_abs + 1]  # (T, d)
+            context = gather_rows(self.embeddings, self._emb_row[lo_abs : hi_abs + 1])  # (T, d)
             lo, hi = lo_abs - int(obs_s), hi_abs - int(obs_s)
         offsets = np.arange(lo, hi + 1) - local  # relative frame offset from target, e.g. -2..+2
         return (
@@ -176,28 +194,21 @@ class MouseOPairDatasetPatchGrid(MouseOPairDataset):
         obs_ids=None, context_k=2, emb_dim=768, n_patches=16,
     ):
         # Reuses the parent's sample-index/obs_boundary construction (frame-boundary
-        # logic is embedding-agnostic); preload=False so the CLS embeddings file is
-        # never actually read, just used to size the (unused) placeholder mmap.
+        # logic is embedding-agnostic); the CLS file is not read (cls_embeddings_path is
+        # kept in the signature for backward compatibility only).
         super().__init__(
             annotations_csv, pair_labels_parquet, cls_embeddings_path,
             obs_ids=obs_ids, context_k=context_k, emb_dim=emb_dim, preload=False,
+            _skip_embeddings=True,
         )
-        del self.embeddings
         self.n_patches = n_patches
 
-        global_idx = np.load(global_idx_path)
-        pg_row_of_global = {int(g): i for i, g in enumerate(global_idx)}
-        pg_mmap = np.memmap(embeddings_path, dtype='float16', mode='r',
-                             shape=(len(global_idx), n_patches, emb_dim))
-
-        print('  preloading patch-grid embeddings into RAM (sequential NFS read)...')
-        self._pg_arrays = {}  # keyed by obs_s (CLS indexing, matches self.samples)
+        print('  preloading patch-grid embeddings into RAM (key-resolved via row_keys.parquet)...')
         seen_obs_s = set(self.samples[:, 4].tolist())
-        for obs_s in seen_obs_s:
-            obs_e = int(self.samples[self.samples[:, 4] == obs_s, 5][0])
-            pg_start = pg_row_of_global[obs_s]
-            pg_end = pg_row_of_global[obs_e - 1] + 1
-            self._pg_arrays[obs_s] = np.array(pg_mmap[pg_start:pg_end])
+        used = {o: (s, e) for o, (s, e) in self.obs_boundary.items() if s in seen_obs_s}
+        # keyed by obs_s (annotations row, matches self.samples)
+        self._pg_arrays = load_patchgrid_embeddings(
+            embeddings_path, global_idx_path, n_patches, emb_dim, annotations_csv=annotations_csv)(used)
         total_mb = sum(a.nbytes for a in self._pg_arrays.values()) / 1e6
         print(f'  preloaded {total_mb:.0f} MB (patch grid)')
 

@@ -325,6 +325,30 @@ class EmbeddingExtractor:
                          shape=(num_samples, embedding_dim))
 
 
+ROW_KEY_COLUMNS = ('observation_id', 'frame_idx')
+
+
+def _write_row_keys_sidecar(dataset, output_dir: Path, n_rows: int, verbose: bool = True) -> Optional[Path]:
+    """Write output_dir/row_keys.parquet = (observation_id, frame_idx) of every embedding row,
+    in embedding row order (= dataset row order). Downstream loaders (src/mice_behavior/
+    emb_index.py) join on these keys instead of assuming the frame table's current row order
+    still matches the order at extraction time. Skipped (with a warning) for datasets that
+    lack these columns."""
+    cols = getattr(dataset, 'column_names', None) or []
+    if not all(c in cols for c in ROW_KEY_COLUMNS):
+        print(f"  [WARN] dataset lacks {ROW_KEY_COLUMNS} columns -- no row_keys.parquet written for "
+              f"{output_dir}; key-based lookup (src/mice_behavior/emb_index.py) will refuse this cache.")
+        return None
+    from src.mice_behavior.emb_index import hf_column, write_row_keys
+    oid, fidx = hf_column(dataset, 'observation_id'), hf_column(dataset, 'frame_idx')
+    if len(oid) != n_rows:
+        raise RuntimeError(f"row_keys: dataset has {len(oid):,} rows but embeddings have {n_rows:,}")
+    out = write_row_keys(output_dir, oid, fidx)
+    if verbose:
+        print(f"  ✓ row_keys.parquet saved ({out})")
+    return out
+
+
 def _infer_subject_version(dataset: Dataset, subject: Optional[str], version: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
     inferred_subject = subject
     inferred_version = version
@@ -448,6 +472,10 @@ def extract_embeddings_to_disk(
                     f"killed before completion. Corrupt files deleted; re-run to extract."
                 )
             del emb_check
+        if not (output_dir / "row_keys.parquet").exists():
+            print(f"[WARN] {output_dir} has no row_keys.parquet -- key-based loaders will refuse it. "
+                  f"Re-extract with overwrite.embeddings=true (or, for legacy mice v1 caches, run "
+                  f"scripts/mice_behavior/build_row_keys.py).")
         if verbose:
             print(f"[SKIP] Embeddings already exist at {output_dir}")
             print(f"       Use overwrite.embeddings=true to recompute")
@@ -507,6 +535,8 @@ def extract_embeddings_to_disk(
             f"completion. Corrupt files deleted; re-run to extract again."
         )
     del arr, emb_tensor
+
+    _write_row_keys_sidecar(dataset, output_dir, n_samples, verbose=verbose)
 
     if verbose:
         print(f"  ✓ embeddings.pt saved")
