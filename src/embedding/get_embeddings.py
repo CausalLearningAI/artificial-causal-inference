@@ -574,36 +574,16 @@ def extract_embeddings_to_disk(
     return str(output_dir)
 
 
-def load_embeddings_from_disk(
-    subject: str,
-    version: str,
-    encoder: str = 'dinov2',
-    token: str = 'class',
-    layer: int = -1,
-    dataset_root: str = './dataset',
-    frame_type: str = 'full',
-    pov_identity: str = 'blue',
-) -> torch.Tensor:
-    """
-    Load embeddings from: dataset/{subject}/{version}/embeddings/{frame_type}/{encoder}/{token}/
-
-    Args:
-        subject: Dataset subject (e.g., 'ants', 'mice')
-        version: Dataset version (e.g., 'v1')
-        encoder: Model used
-        token: Token type used
-        dataset_root: Root dataset directory (default 'dataset')
-        frame_type: 'full' or 'pov' (default 'full')
-
-    Returns:
-        torch.Tensor of shape (num_samples, embedding_dim)
-    """
+def _embeddings_dir(subject, version, encoder, token, layer, dataset_root, frame_type, pov_identity) -> Path:
     token_dir = token if layer == -1 else f"{token}_l{layer}"
     path = Path(dataset_root) / subject / version / 'embeddings' / frame_type
     if frame_type == 'pov':
         path = path / pov_identity
-    path = path / encoder / token_dir
+    return path / encoder / token_dir
 
+
+def _load_embeddings_positional(path: Path, encoder: str, token: str) -> torch.Tensor:
+    """The cache's rows in stored order (the pre-row_keys behaviour of load_embeddings_from_disk)."""
     if not path.exists():
         raise FileNotFoundError(f"Embeddings not found at {path}")
 
@@ -637,6 +617,111 @@ def load_embeddings_from_disk(
     return torch.from_numpy(np.array(col_data, dtype=np.float32))
 
 
+_WARNED_NO_ROW_KEYS = set()
+
+
+def _table_keys(table):
+    """(observation_id, frame_idx) of every row of `table`, in its row order, as a DataFrame.
+    `table`: a HuggingFace Dataset, a DataFrame, or a path to a CSV (e.g. annotations.csv)."""
+    import pandas as pd
+    from src.mice_behavior.emb_index import EmbeddingIndexError, KEY_COLS, hf_column, read_annotation_keys
+    if isinstance(table, Dataset):
+        missing = [c for c in KEY_COLS if c not in table.column_names]
+        if missing:
+            raise EmbeddingIndexError(f'align_to dataset lacks key columns {missing}')
+        oid, fidx = hf_column(table, 'observation_id'), hf_column(table, 'frame_idx')
+    else:
+        ann = read_annotation_keys(table)
+        oid, fidx = ann['observation_id'].to_numpy(), ann['frame_idx'].to_numpy()
+    return pd.DataFrame({'observation_id': np.asarray(oid).astype(str),
+                         'frame_idx': np.asarray(fidx).astype(np.int64)})
+
+
+def _align_to_row_keys(emb: torch.Tensor, path: Path, table) -> torch.Tensor:
+    """Return emb's rows in `table`'s row order, using path/row_keys.parquet (row i = key of
+    embedding row i). Unchanged (same tensor) when the sidecar already matches `table` row by
+    row; reordered via the key join otherwise; raises if any table row has no cached embedding."""
+    from src.mice_behavior.emb_index import (
+        EmbeddingIndexError, load_row_keys, require_rows, resolve_rows,
+    )
+    sidecar = load_row_keys(path)
+    if len(sidecar) != len(emb):
+        raise EmbeddingIndexError(
+            f'{path}: embedding array has {len(emb):,} rows but row_keys.parquet has {len(sidecar):,} '
+            f'-- the sidecar does not describe this cache')
+    keys = _table_keys(table)
+    if len(keys) == len(sidecar) \
+            and np.array_equal(keys['frame_idx'].to_numpy(), sidecar['frame_idx'].to_numpy()) \
+            and np.array_equal(keys['observation_id'].to_numpy(), sidecar['observation_id'].to_numpy()):
+        return emb
+    rows = resolve_rows(path, keys, n_rows=len(emb))
+    require_rows(rows, keys, where=str(path))
+    n_moved = int((rows != np.arange(len(rows))).sum()) if len(rows) == len(emb) else len(rows)
+    logger.warning(f'[load_embeddings_from_disk] {path}: stored row order differs from the frame table '
+                   f'({n_moved:,} of {len(rows):,} rows); reordered by (observation_id, frame_idx) '
+                   f'using row_keys.parquet')
+    return emb[torch.from_numpy(rows)]
+
+
+def load_embeddings_from_disk(
+    subject: str,
+    version: str,
+    encoder: str = 'dinov2',
+    token: str = 'class',
+    layer: int = -1,
+    dataset_root: str = './dataset',
+    frame_type: str = 'full',
+    pov_identity: str = 'blue',
+    align_to=None,
+) -> torch.Tensor:
+    """
+    Load embeddings from: dataset/{subject}/{version}/embeddings/{frame_type}/{encoder}/{token}/
+
+    Row alignment (frame-key safety check):
+      - Cache WITHOUT row_keys.parquet (e.g. all ants caches as of 2026-09): rows are returned
+        in stored order, exactly as before; a one-time warning says the cache has no frame keys.
+      - Cache WITH row_keys.parquet (written at extraction time; mice v1 caches): the stored
+        keys are checked against the frame table the caller aligns to (`align_to`, default
+        {dataset_root}/{subject}/{version}/annotations.csv, from which the HF dataset is built).
+        Same keys in the same order -> returned unchanged; different order -> rows reordered
+        to the table's order by (observation_id, frame_idx); table rows with no cached
+        embedding -> EmbeddingIndexError naming the observations. Never silently misaligned.
+
+    Args:
+        subject: Dataset subject (e.g., 'ants', 'mice')
+        version: Dataset version (e.g., 'v1')
+        encoder: Model used
+        token: Token type used
+        dataset_root: Root dataset directory (default 'dataset')
+        frame_type: 'full' or 'pov' (default 'full')
+        align_to: Optional table whose row order the result must follow: a HuggingFace
+            Dataset, a DataFrame, or a CSV path, with observation_id/frame_idx columns.
+            Only read when the cache has row_keys.parquet.
+
+    Returns:
+        torch.Tensor of shape (num_samples, embedding_dim)
+    """
+    path = _embeddings_dir(subject, version, encoder, token, layer, dataset_root, frame_type, pov_identity)
+    emb = _load_embeddings_positional(path, encoder, token)
+
+    from src.mice_behavior.emb_index import ROW_KEYS_FILE, EmbeddingIndexError
+    if not (path / ROW_KEYS_FILE).exists():
+        if str(path) not in _WARNED_NO_ROW_KEYS:
+            _WARNED_NO_ROW_KEYS.add(str(path))
+            logger.warning(f'[load_embeddings_from_disk] {path} has no {ROW_KEYS_FILE}: rows are used '
+                           f'in stored order, which is only correct if the frame table has not been '
+                           f'reordered since extraction.')
+        return emb
+
+    if align_to is None:
+        align_to = Path(dataset_root) / subject / version / 'annotations.csv'
+        if not align_to.exists():
+            raise EmbeddingIndexError(
+                f'{path} has {ROW_KEYS_FILE} but no frame table to align it to: {align_to} not found. '
+                f'Pass align_to=<HF dataset or DataFrame with observation_id, frame_idx>.')
+    return _align_to_row_keys(emb, path, align_to)
+
+
 def add_embeddings_from_disk(
     dataset: Dataset,
     subject: Optional[str] = None,
@@ -660,7 +745,8 @@ def add_embeddings_from_disk(
     if col_name in dataset.column_names:
         dataset = dataset.remove_columns(col_name)
 
-    embeddings = load_embeddings_from_disk(subject, version, encoder, token, layer, dataset_root)
+    embeddings = load_embeddings_from_disk(subject, version, encoder, token, layer, dataset_root,
+                                           align_to=dataset)
     dataset = dataset.add_column(col_name, embeddings.tolist())
     dataset.set_format(type='torch', columns=[col_name])
     return dataset

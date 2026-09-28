@@ -580,7 +580,7 @@ class PPCIDataset:
 
         if frame_type == "full":
             emb = load_embeddings_from_disk(subject, version, encoder, token,
-                                            dataset_root=dataset_root)
+                                            dataset_root=dataset_root, align_to=hf)
             if use_dist:
                 meta = hf.select_columns(["observation_id", "frame_idx"]).to_pandas()
                 dists = _load_tracking_distances(
@@ -608,10 +608,12 @@ class PPCIDataset:
 
         emb_blue = load_embeddings_from_disk(subject, version, encoder, token,
                                              dataset_root=dataset_root,
-                                             frame_type="pov", pov_identity="blue")
+                                             frame_type="pov", pov_identity="blue",
+                                             align_to=hf)
         emb_yellow = load_embeddings_from_disk(subject, version, encoder, token,
                                                dataset_root=dataset_root,
-                                               frame_type="pov", pov_identity="yellow")
+                                               frame_type="pov", pov_identity="yellow",
+                                               align_to=hf)
 
         # Replace NaN embeddings with zeros (some POV crops fail extraction)
         for name, emb_t in [("blue", emb_blue), ("yellow", emb_yellow)]:
