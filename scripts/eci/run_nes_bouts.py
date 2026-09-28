@@ -1,0 +1,363 @@
+"""
+Neural Effect Search (NES) on mice v1 SAE codes with BOUT outcomes from max-pooled codes.
+
+Per-frame value = codes_max (max over patches). Per neuron j, threshold thr_j(q) = q-quantile of
+codes_max[:, j] over a fixed random subsample of frames pooled over all videos (treatment- and
+stage-agnostic). A bout = maximal run of consecutive frames of one video (window) with
+codes_max > thr_j; min length 1 frame; merge gap g = bouts separated by <= g frames are merged.
+Outcome per video = bout rate (bouts / minute of the window); mean / median bout duration (s)
+are descriptive only (undefined at 0 bouts, so never tested).
+
+Analyses (as scripts/eci/run_nes.py): family A = paired stage transition within genotype
+(het/wt x 1->2, 2->3, 4->5, 5->6; unit = pool), family B = het vs wt within stage 1..6.
+Primary: bout rate, q = 0.95, gap 0, t-test, Bonferroni, windows full and trim30, prefixes 128 and 1024.
+Sensitivity (one change from the full-window primary): signflip (A), BH, q 0.90, q 0.99,
+merge gap 2, time-matched window (A 1->2, 4->5), outcome = per-video mean of codes_max.
+Sanity: 20x genotype shuffle across pools (B stage 2) and 20x within-pool stage-label swap
+(A het 1->2), primary setting.
+
+Usage: python scripts/eci/run_nes_bouts.py --sae matryoshka_btk_1024_k16_ep20_s0
+Writes results/vision/mice/eci/nes/<sae>/maxpool_bouts/; caches under results/.../nes/<sae>/_cache/.
+"""
+
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'src'))
+
+from eci import contrasts as C  # noqa: E402
+from eci.nes import active_neurons, neural_effect_search, paired_effect_search  # noqa: E402
+
+FPS = 5.0
+PREFIXES = (128, 1024)
+QS = (0.90, 0.95, 0.99)
+CONFIGS = [(0.90, 0), (0.95, 0), (0.99, 0), (0.95, 2)]  # (quantile, merge gap)
+WINDOW_MAP = {'full': ('full', 'full'), 'matched': ('last', 'full'), 'trim30': ('trim', 'trim')}
+ARTEFACTS = {64: 'white card / experimenter hand at video start', 50: 'white card / experimenter hand at video start',
+             113: 'grey arena rim in one camera setup'}
+PRIMARY = dict(outcome_type='bout_rate', threshold_q=0.95, merge_gap=0, test='t', correction='bonferroni', window='full')
+# name -> overrides of PRIMARY; applicability filter by analysis id
+SENS = {'trim30': dict(window='trim30'), 'signflip': dict(test='signflip'), 'BH': dict(correction='bh'),
+        'q0.90': dict(threshold_q=0.90), 'q0.99': dict(threshold_q=0.99), 'gap2': dict(merge_gap=2),
+        'matched': dict(window='matched'), 'mean-outcome': dict(outcome_type='mean', threshold_q=np.nan, merge_gap=np.nan)}
+
+
+def applicable(name, aid):
+    if name == 'signflip':
+        return aid.startswith('A')
+    if name == 'matched':
+        return aid.startswith('A') and aid.endswith(('1to2', '4to5'))
+    return True
+
+
+def settings_for(aid):
+    out = [dict(PRIMARY)]
+    for name, ov in SENS.items():
+        if applicable(name, aid):
+            out.append({**PRIMARY, **ov})
+    return out
+
+
+def skey(prefix, s):
+    thr = 'na' if s['outcome_type'] == 'mean' else f"q{s['threshold_q']:.2f}_g{int(s['merge_gap'])}"
+    return f"p{prefix}_{s['outcome_type']}_{thr}_{s['test']}_{s['correction']}_{s['window']}"
+
+
+def strip(res):
+    return C.to_jsonable({k: v for k, v in res.items() if k != 'tables'})
+
+
+def tidy_rows(meta, res):
+    base = {**meta, 'n_tested_total': res['n_tested'], 'n_dropped': res['n_dropped']}
+    if len(res['rounds']) == 0:
+        return [{**base, 'round': 0}]
+    rows = []
+    for r in res['rounds'].to_dict('records'):
+        d = ('up' if r['tau'] > 0 else 'down') if meta['family'] == 'A' else ('het>wt' if r['tau'] > 0 else 'het<wt')
+        rows.append({**base, **{k: r[k] for k in ('round', 'neuron', 'tau', 'se', 't', 'df', 'p', 'threshold', 'n_tested')},
+                     'direction': d})
+    return rows
+
+
+def select(tidy, aid, prefix, s, round1=False):
+    t = tidy[(tidy['analysis_id'] == aid) & (tidy['prefix'] == prefix) & (tidy['round'] > 0)]
+    for k, v in s.items():
+        t = t[t[k].isna()] if isinstance(v, float) and np.isnan(v) else t[t[k] == v]
+    if round1:
+        t = t[t['round'] == 1]
+    return dict(zip(t['neuron'].astype(int), t['direction']))
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--sae', default='matryoshka_btk_1024_k16_ep20_s0')
+    ap.add_argument('--codes-root', default=str(ROOT / 'dataset/mice/v1/eci/codes'))
+    ap.add_argument('--out-root', default=str(ROOT / 'results/vision/mice/eci/nes'))
+    ap.add_argument('--n-match', type=int, default=4500)
+    ap.add_argument('--n-trim', type=int, default=150)
+    ap.add_argument('--n-thr-sample', type=int, default=2_000_000)
+    ap.add_argument('--n-shuffles', type=int, default=20)
+    ap.add_argument('--skip-signflip', action='store_true')
+    args = ap.parse_args()
+    t_start = time.time()
+    codes_dir = Path(args.codes_root) / args.sae
+    if not (codes_dir / 'DONE').exists():
+        raise SystemExit(f'{codes_dir}/DONE missing: codes not finished')
+    base = Path(args.out_root) / args.sae
+    out = base / 'maxpool_bouts'
+    out.mkdir(parents=True, exist_ok=True)
+    cache = base / '_cache'
+    cache.mkdir(parents=True, exist_ok=True)
+
+    design = C.load_design(ROOT / 'dataset/mice/v1/annotations.csv', ROOT / 'data/mice/v1/experiment.csv')
+    print(f'{len(design)} observations, contiguous row blocks verified; frames per stage:',
+          design.groupby('stage')['n_frames'].agg(['min', 'max']).to_dict('index'), flush=True)
+
+    # ---- thresholds (treatment-agnostic pooled quantiles of codes_max)
+    t0 = time.time()
+    thr_path = cache / f'bout_thresholds_n{args.n_thr_sample}.npz'
+    if thr_path.exists():
+        f = np.load(thr_path)
+        thr_arr, n_used = f['thr'], int(f['n_used'])
+    else:
+        thr_arr, n_used = C.pooled_thresholds(codes_dir / 'codes_max.npy', QS, args.n_thr_sample, seed=0)
+        np.savez(thr_path, thr=thr_arr, qs=np.array(QS), n_used=n_used)
+    thresholds = {q: thr_arr[i] for i, q in enumerate(QS)}
+    pd.DataFrame({'neuron': np.arange(thr_arr.shape[1]), **{f'thr_q{q:.2f}': thresholds[q] for q in QS}}).to_csv(
+        out / 'thresholds.csv', index=False)
+    thr_info = {'n_frames_sampled': n_used, 'seed': 0,
+                'n_zero_threshold': {f'{q:.2f}': int((thresholds[q] == 0).sum()) for q in QS}}
+    print(f'thresholds from {n_used} frames ({time.time() - t0:.0f}s):', thr_info, flush=True)
+
+    # ---- per-video bout summaries (streamed once, cached)
+    t0 = time.time()
+    bs = C.cached_bout_summaries(codes_dir / 'codes_max.npy', design, cache / 'bout_summaries_max.npz', thresholds,
+                                 CONFIGS, args.n_match, args.n_trim)
+    print(f'bout summaries: {time.time() - t0:.0f}s', flush=True)
+    t0 = time.time()
+    msum = C.cached_summaries(codes_dir / 'codes_max.npy', design, cache / 'video_summaries_max.npz', args.n_match,
+                              args.n_trim)
+    print(f'mean summaries codes_max: {time.time() - t0:.0f}s', flush=True)
+
+    # outcome matrices: (outcome_type, q, gap) -> {(window, 'v'): (n_obs, m)}
+    def summ_for(s):
+        if s['outcome_type'] == 'mean':
+            return {(w, 'v'): msum[(w, 'mean')] for w in C.WINDOWS}
+        return {(w, 'v'): C.bout_outcomes(bs, w, s['threshold_q'], int(s['merge_gap']), FPS)['rate'] for w in C.WINDOWS}
+
+    all_rows, results = [], {}
+    analyses = [(f'A_{g}_{tr}', 'A', g, tr) for g in ('het', 'wt') for tr in C.TRANSITIONS] + \
+               [(f'B_stage{st}', 'B', None, st) for st in range(1, 7)]
+    for aid, fam, geno, x in analyses:
+        results[aid] = {}
+        for s in settings_for(aid):
+            if s['test'] == 'signflip' and args.skip_signflip:
+                continue
+            sm = summ_for(s)
+            wa, wb = WINDOW_MAP[s['window']]
+            for prefix in PREFIXES:
+                t0 = time.time()
+                if fam == 'A':
+                    a, b = C.TRANSITIONS[x]
+                    units, Za, Zb = C.paired(sm, design, geno, a, b, 'v', wa, wb, prefix)
+                    res = paired_effect_search(Za, Zb, correction=s['correction'], test=s['test'])
+                    extra = {}
+                else:
+                    units, Z, T = C.genotype_contrast(sm, design, x, 'v', wa, prefix)
+                    res = neural_effect_search(Z, T, correction=s['correction'])
+                    extra = {'n_het': int(T.sum()), 'n_wt': int((1 - T).sum())}
+                k = skey(prefix, s)
+                results[aid][k] = {**strip(res), 'n_units': len(units), 'units': list(units), **extra}
+                meta = dict(analysis_id=aid, family=fam, genotype=geno if fam == 'A' else 'het_vs_wt',
+                            stage='' if fam == 'A' else x, transition=x if fam == 'A' else '', prefix=prefix,
+                            pooling='max', **s, n_units=len(units), setting=k)
+                all_rows += tidy_rows(meta, res)
+                print(f'{aid} {k}: selected={res["selected"]} dropped={res["n_dropped"]} {time.time() - t0:.1f}s',
+                      flush=True)
+
+    for aid, r in results.items():
+        (out / aid).mkdir(exist_ok=True)
+        with open(out / aid / 'result.json', 'w') as f:
+            json.dump(r, f)
+    tidy = pd.DataFrame(all_rows)
+    tidy.to_csv(out / 'summary.csv', index=False)
+
+    # ---- sanity nulls on the primary setting
+    rng = np.random.default_rng(0)
+    sm = summ_for(PRIMARY)
+    sanity = {'thresholds': thr_info, 'nulls': {}}
+    for prefix in PREFIXES:
+        _, Z, T = C.genotype_contrast(sm, design, 2, 'v', 'full', prefix)
+        cnt = [len(neural_effect_search(Z, rng.permutation(T))['selected']) for _ in range(args.n_shuffles)]
+        _, Za, Zb = C.paired(sm, design, 'het', 1, 2, 'v', 'full', 'full', prefix)
+        cnt_a = []
+        for _ in range(args.n_shuffles):
+            sw = rng.random(len(Za)) < 0.5
+            Ya, Yb = np.where(sw[:, None], Zb, Za), np.where(sw[:, None], Za, Zb)
+            cnt_a.append(len(paired_effect_search(Ya, Yb)['selected']))
+        sanity['nulls'][f'p{prefix}'] = {'B_stage2_genotype_shuffle_n_selected': cnt,
+                                         'A_het_1to2_stage_swap_n_selected': cnt_a}
+        print(f'null prefix {prefix}: genotype shuffle {cnt}; stage swap {cnt_a}', flush=True)
+
+    # ---- dropped (near-constant) neuron counts for the primary setting
+    sanity['n_dropped_primary'] = {
+        f'{r.analysis_id}_p{r.prefix}': int(r.n_dropped)
+        for r in tidy[(tidy['setting'].str.contains('bout_rate_q0.95_g0_t_bonferroni_full'))].drop_duplicates(
+            ['analysis_id', 'prefix']).itertuples()}
+
+    # ---- descriptives for round-1 neurons, comparison with the mean-pool run
+    desc, round1 = descriptives(tidy, design, bs, analyses)
+    desc.to_csv(out / 'round1_descriptives.csv', index=False)
+    prev = compare_meanpool(tidy, base / 'summary.csv', analyses)
+    sanity['runtime_s'] = time.time() - t_start
+    with open(out / 'sanity.json', 'w') as f:
+        json.dump(C.to_jsonable(sanity), f, indent=1)
+    write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, args.sae)
+    print(f'done in {time.time() - t_start:.0f}s -> {out}', flush=True)
+
+
+def unit_rows(design, aid):
+    """obs_rows of the videos entering analysis aid (both stages / both genotypes)."""
+    if aid.startswith('A'):
+        _, g, tr = aid.split('_')
+        a, b = C.TRANSITIONS[tr]
+        return design[(design['genotype'] == g) & design['stage'].isin([a, b])]['obs_row'].values
+    return design[design['stage'] == int(aid[len('B_stage'):])]['obs_row'].values
+
+
+def descriptives(tidy, design, bs, analyses):
+    """Per round-1 neuron of the primary full-window setting (either prefix): median over videos of
+    bouts/min, per-video median bout duration (s) and per-video mean bout duration (s), per stage x
+    genotype (primary q 0.95, gap 0, full window). 'robust' = also selected under trim30 at that prefix."""
+    o = C.bout_outcomes(bs, 'full', 0.95, 0, FPS)
+    round1 = {}
+    for aid, *_ in analyses:
+        for prefix in PREFIXES:
+            r1 = select(tidy, aid, prefix, PRIMARY, round1=True)
+            tr = select(tidy, aid, prefix, {**PRIMARY, 'window': 'trim30'})
+            for j, d in r1.items():
+                round1.setdefault(j, []).append({'analysis_id': aid, 'prefix': prefix, 'direction': d,
+                                                 'robust_trim30': j in tr})
+    rows = []
+    for j in sorted(round1):
+        for (st, g), dd in design.groupby(['stage', 'genotype']):
+            r = dd['obs_row'].values
+            rows.append({'neuron': j, 'stage': st, 'genotype': g, 'n_videos': len(r),
+                         'median_bouts_per_min': float(np.median(o['rate'][r, j])),
+                         'median_bout_dur_s': float(np.nanmedian(o['median_dur'][r, j])) if np.isfinite(o['median_dur'][r, j]).any() else np.nan,
+                         'median_mean_bout_dur_s': float(np.nanmedian(o['mean_dur'][r, j])) if np.isfinite(o['mean_dur'][r, j]).any() else np.nan,
+                         'frac_videos_0_bouts': float((o['rate'][r, j] == 0).mean()),
+                         'median_frac_frames_above': float(np.median(o['frac'][r, j]))})
+    return pd.DataFrame(rows), round1
+
+
+def compare_meanpool(tidy, prev_csv, analyses):
+    """Primary selections of the previous mean-pool run (codes_mean, per-video mean, t, Bonferroni,
+    full) vs this primary; {aid: {prefix: {'meanpool': [...], 'bouts': [...], 'overlap': [...]}}}."""
+    if not Path(prev_csv).exists():
+        return {}
+    p = pd.read_csv(prev_csv)
+    p = p[(p['pooling'] == 'mean') & (p['outcome_type'] == 'mean') & (p['test'] == 't') &
+          (p['correction'] == 'bonferroni') & (p['window'] == 'full') & (p['round'] > 0)]
+    out = {}
+    for aid, *_ in analyses:
+        out[aid] = {}
+        for prefix in PREFIXES:
+            mp = p[(p['analysis_id'] == aid) & (p['prefix'] == prefix)].sort_values('round')['neuron'].astype(int).tolist()
+            b = list(select(tidy, aid, prefix, PRIMARY))
+            out[aid][prefix] = {'meanpool': mp, 'bouts': b, 'overlap': [j for j in b if j in mp]}
+    return out
+
+
+def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, sae):
+    o = C.bout_outcomes(bs, 'full', 0.95, 0, FPS)
+    names = list(SENS)
+    L = [f'# NES summary (max-pool, bout outcomes): {sae}', '',
+         'Per-frame value = codes_max (max over patches). Threshold per neuron = q-quantile of codes_max pooled over '
+         f'{sanity["thresholds"]["n_frames_sampled"]} randomly sampled frames of all videos (treatment-agnostic; seed 0). '
+         'Above = codes_max > threshold (strict: a neuron whose quantile is 0 counts any activation > 0; zero thresholds '
+         f'per q: {sanity["thresholds"]["n_zero_threshold"]}). Bout = maximal run of consecutive above frames within one '
+         'video window, min 1 frame; merge gap g merges bouts separated by <= g frames (primary g = 0). Outcome = bout '
+         'rate (bouts per minute of the window). Mean/median bout duration is undefined at 0 bouts and is reported '
+         'descriptively only (never tested).', '',
+         'Primary: bout rate, q 0.95, gap 0, t-test, Bonferroni alpha 0.05, full window. Family A = paired stage '
+         'transition within genotype (unit = pool, tau > 0 = more bouts/min at the later stage); family B = het vs wt '
+         'within stage (tau > 0 = more bouts/min in het). Near-constant neurons (active in < 1% of units or zero '
+         'variance) are dropped before testing, as in nes.py.', '',
+         'Robustness columns: Y = also selected (any round) under that single change from the primary (same prefix); '
+         '"-" = not applicable. "mean-pool" = selected by the previous primary (codes_mean, per-video mean). '
+         'med dur = median over the analysis videos of each video\'s median bout duration (s, videos with bouts).', '']
+    for aid, *_ in analyses:
+        L.append(f'## {aid}')
+        for prefix in PREFIXES:
+            sub = tidy[(tidy['analysis_id'] == aid) & (tidy['prefix'] == prefix) & (tidy['setting'] == skey(prefix, PRIMARY))]
+            nd = int(sub['n_dropped'].iloc[0])
+            ps = sub[sub['round'] > 0].sort_values('round')
+            ntrim = len(select(tidy, aid, prefix, {**PRIMARY, 'window': 'trim30'}))
+            if len(ps) == 0:
+                L.append(f'- prefix {prefix}: nothing selected ({nd} dropped); trim30 selects {ntrim}')
+                continue
+            L += [f'- prefix {prefix}: {len(ps)} selected ({nd} dropped); trim30 selects {ntrim}', '',
+                  '| round | neuron | direction | tau (bouts/min) | p | med dur (s) | ' + ' | '.join(names) +
+                  ' | other prefix | mean-pool | artefact flag |', '|' + '---|' * (9 + len(names))]
+            other = select(tidy, aid, [p for p in PREFIXES if p != prefix][0], PRIMARY)
+            mp = prev.get(aid, {}).get(prefix, {}).get('meanpool', [])
+            rows = unit_rows(design, aid)
+            for _, r in ps.iterrows():
+                j = int(r['neuron'])
+                marks = ['Y' if j in select(tidy, aid, prefix, {**PRIMARY, **SENS[n]}) else 'N'
+                         if applicable(n, aid) else '-' for n in names]
+                op = '-' if (prefix == 1024 and j >= 128) else ('Y' if j in other else 'N')
+                md = np.nanmedian(o['median_dur'][rows, j]) if np.isfinite(o['median_dur'][rows, j]).any() else np.nan
+                L.append(f'| {int(r["round"])} | {j} | {r["direction"]} | {r["tau"]:.3g} | {r["p"]:.2e} | {md:.2f} | '
+                         + ' | '.join(marks) + f' | {op} | {"Y" if j in mp else "N"} | {ARTEFACTS.get(j, "")} |')
+            L.append('')
+        L.append('')
+    L += ['## Round-1 neurons: descriptives per stage x genotype (primary q 0.95, gap 0, full window)', '',
+          'Median over videos. dur = per-video median bout duration (s); 0-bout = fraction of videos with no bout.', '']
+    for j in sorted(round1):
+        hits = '; '.join(f'{h["analysis_id"]} p{h["prefix"]} {h["direction"]}{" (trim30 Y)" if h["robust_trim30"] else " (trim30 N)"}'
+                         for h in round1[j])
+        L += [f'### neuron {j} {ARTEFACTS.get(j, "")}', f'round 1 in: {hits}', '',
+              '| genotype | ' + ' | '.join(f'stage {s}' for s in range(1, 7)) + ' |', '|---|' + '---|' * 6]
+        d = desc[desc['neuron'] == j]
+        for g in ('het', 'wt'):
+            cells = [d[(d['genotype'] == g) & (d['stage'] == s)].iloc[0] for s in range(1, 7)]
+            L.append(f'| {g} | ' + ' | '.join(f'{c.median_bouts_per_min:.2f}/min, dur {c.median_bout_dur_s:.2f}s, '
+                                              f'0-bout {c.frac_videos_0_bouts:.2f}' for c in cells) + ' |')
+        L.append('')
+    L += ['## Overlap with the previous mean-pool primary (codes_mean, per-video mean)', '',
+          '| analysis | prefix | mean-pool selected | bout selected | overlap |', '|---|---|---|---|---|']
+    for aid, v in prev.items():
+        for prefix, d in v.items():
+            L.append(f'| {aid} | {prefix} | {d["meanpool"]} | {d["bouts"]} | {d["overlap"]} |')
+    L += ['', '## Sanity checks (primary setting)', '']
+    for p, v in sanity['nulls'].items():
+        L.append(f'- {p}: genotype shuffled across pools (B stage 2), {len(v["B_stage2_genotype_shuffle_n_selected"])} '
+                 f'shuffles: NES selected {v["B_stage2_genotype_shuffle_n_selected"]}')
+        L.append(f'- {p}: stage labels swapped within pool at random (A het 1->2), '
+                 f'{len(v["A_het_1to2_stage_swap_n_selected"])} swaps: NES selected {v["A_het_1to2_stage_swap_n_selected"]}')
+    L.append(f'- runtime: {sanity["runtime_s"]:.0f} s')
+    (out / 'SUMMARY.md').write_text('\n'.join(L) + '\n')
+    union = {}
+    for aid, *_ in analyses:
+        for prefix in PREFIXES:
+            for _, r in tidy[(tidy['analysis_id'] == aid) & (tidy['prefix'] == prefix) &
+                             (tidy['setting'] == skey(prefix, PRIMARY)) & (tidy['round'] > 0)].iterrows():
+                union.setdefault(int(r['neuron']), {'artefact_flag': ARTEFACTS.get(int(r['neuron']), ''), 'hits': []})[
+                    'hits'].append({'analysis_id': aid, 'prefix': prefix, 'round': int(r['round']),
+                                    'direction': r['direction'], 'tau_bouts_per_min': float(r['tau']), 'p': float(r['p'])})
+    with open(out / 'selected_neurons.json', 'w') as f:
+        json.dump({'sae': sae, 'settings': 'primary (codes_max, bout rate q0.95 gap0, t, bonferroni, full window)',
+                   'neurons': {str(j): v for j, v in sorted(union.items())}}, f, indent=1)
+
+
+if __name__ == '__main__':
+    main()
