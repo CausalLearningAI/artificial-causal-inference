@@ -21,6 +21,10 @@ the model sees the square [x0, x0 + c) x [y0, y0 + c) with s = 256 / min(W, H), 
 x0 = ((round(W s) - 224) // 2) / s (for 512 x 512 frames: x0 = y0 = 32, c = 448, 28 px / patch).
 The heatmap is placed on that square; the dashed box marks it (the border is never seen).
 Each recomputed patch map is checked against the stored pooled value (mean or max over patches).
+Foreground SAEs ('fg448', src/eci/foreground.py): DINOv2 sees the WHOLE 512 frame resized to 448
+(32 x 32 patches = 16 x 16 pixel blocks of the frame, box (0, 0, 512)); the SAE is applied only to
+the foreground patches (the video's stored background + FG_RULE), the other patches are shown as 0.
+The stored codes pool over foreground patches: codes_max = max, codes_mean = sum / n_fg.
 
 Candidate search over the (N, m) memmap: rows are grouped by video (contiguous in
 annotations.csv and in the training sample), so ONE pass over video blocks gives, per neuron and
@@ -37,6 +41,10 @@ Functions / classes:
     pick_top / pick_least   per-neuron frame selections from a NeuronScan
     PatchEncoder            DINOv2 + SAE, per-patch codes for a list of frames
     crop_box                region of the original frame seen by the model
+    representation          'crop224' (patch SAEs above) or 'fg448' (foreground SAEs) of an SAE's codes
+    PatchEncoderFG          fg448: whole frame at 448, SAE on foreground patches only (0 elsewhere)
+    make_patch_encoder      the encoder matching an SAE's representation
+    frame_box               heatmap placement (x0, y0, size) on the frame for a representation
     plot_neuron             one PNG per neuron
     write_index             HTML index
     gallery_for             end to end: scan, select, recompute heatmaps, plot, index
@@ -314,6 +322,75 @@ class PatchEncoder:
             z = self.sae.encode(self.norm(tok.reshape(B * P, d)), mode='threshold').view(B, P, -1)
             out.append(z[:, :, nsel].view(B, self.grid, self.grid, -1).float().cpu().numpy())
         return np.concatenate(out)
+
+
+def representation(sae_name, dataset_dir='dataset', subject='mice', version='v1'):
+    """'fg448' when the SAE's full codes come from the foreground pipeline (codes config.json has
+    resolution 448, center_crop false, a foreground_rule), else 'crop224'."""
+    cfg = Path(dataset_dir) / subject / version / 'eci' / 'codes' / sae_name / 'config.json'
+    if cfg.exists():
+        c = json.loads(cfg.read_text())
+        if c.get('resolution') == 448 and c.get('center_crop') is False and 'foreground_rule' in c:
+            return 'fg448'
+    return 'crop224'
+
+
+def frame_box(rep, width, height):
+    """(x0, y0, size) of the frame region the patch grid covers."""
+    return (0.0, 0.0, float(width)) if rep == 'fg448' else crop_box(width, height)
+
+
+class PatchEncoderFG:
+    """fg448 representation: DINOv2 on the whole frame at 448 (32 x 32 patches), foreground mask from
+    the video's stored background + FG_RULE (src/eci/foreground.py FgBackgrounds), SAE on the
+    foreground tokens only; non-foreground patches get code 0. Needs the annotations.csv row of every
+    frame (to find its video's background and time block)."""
+
+    rep = 'fg448'
+
+    def __init__(self, sae_path, bg_dir, ann_path, device='cuda'):
+        from src.eci.foreground import FG_RULE, FgBackgrounds, GRID, load_encoder_fg, obs_rows
+        self.device = torch.device(device)
+        _, self.processor, self.model = load_encoder_fg(device=self.device)
+        self.sae, self.norm, _ = load_sae(sae_path, self.device)
+        self.bgs = FgBackgrounds(bg_dir, obs_rows(ann_path), FG_RULE, self.device)
+        self.grid = GRID
+
+    @torch.no_grad()
+    def patch_codes(self, paths, neurons, rows, batch_size=32, num_workers=8, return_mask=False):
+        """(len(paths), 32, 32, len(neurons)) float32 patch codes (0 off the foreground)
+        [, (len(paths), 32, 32) bool foreground mask]."""
+        from src.eci.foreground import FrameDatasetFG, encode_batch
+        rows = np.asarray(rows)
+        loader = torch.utils.data.DataLoader(FrameDatasetFG(list(paths), self.processor, rows),
+                                             batch_size=batch_size, num_workers=num_workers, shuffle=False)
+        nsel = torch.as_tensor(np.asarray(neurons), device=self.device)
+        out, masks = [], []
+        for pix, grey, r in loader:
+            tok = encode_batch(self.model, pix, self.device)
+            mask, _ = self.bgs.mask(tok, grey.to(self.device), r.numpy())
+            B, P, _ = tok.shape
+            fi, pi = torch.nonzero(mask, as_tuple=True)
+            z = self.sae.encode(self.norm(tok[fi, pi]), mode='threshold')[:, nsel]
+            full = torch.zeros(B, P, len(nsel), device=self.device)
+            full[fi, pi] = z
+            out.append(full.view(B, self.grid, self.grid, -1).cpu().numpy())
+            masks.append(mask.view(B, self.grid, self.grid).cpu().numpy())
+        pc = np.concatenate(out)
+        return (pc, np.concatenate(masks)) if return_mask else pc
+
+
+def make_patch_encoder(sae_name, sae_path=None, dataset_dir='dataset', subject='mice', version='v1', device='cuda'):
+    """PatchEncoder (crop224) or PatchEncoderFG (fg448) for sae_name; .rep says which. Call
+    patch_codes(paths, neurons) for crop224 and patch_codes(paths, neurons, rows) for fg448."""
+    ds = Path(dataset_dir)
+    sae_path = sae_path or ds / subject / version / 'eci' / 'sae' / sae_name / 'sae.pt'
+    if representation(sae_name, ds, subject, version) == 'fg448':
+        c = json.loads((ds / subject / version / 'eci' / 'codes' / sae_name / 'config.json').read_text())
+        return PatchEncoderFG(sae_path, c['backgrounds'], ds / subject / version / 'annotations.csv', device)
+    pe = PatchEncoder(sae_path, device=device)
+    pe.rep = 'crop224'
+    return pe
 
 
 # ---------------------------------------------------------------------- plotting

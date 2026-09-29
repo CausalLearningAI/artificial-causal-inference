@@ -154,6 +154,11 @@ def to_jsonable(x):
 #            1 frame). A run cut by the window edge counts as a bout of its in-window length.
 # merge gap  g >= 0: two bouts separated by <= g below frames are merged into one bout (the gap
 #            frames count towards its duration). Primary g = 0 (no merging).
+# hysteresis optional sensitivity, config (q, gap, q_exit, min_len) instead of (q, gap): a bout
+#            starts at a frame > thr_j(q) and continues while codes_max > thr_j(q_exit) (q_exit <= q;
+#            forward-only Schmitt trigger: the frames above thr(q_exit) BEFORE the entry frame are not
+#            part of the bout); then bouts shorter than min_len frames are discarded. 'frames' is
+#            then the number of frames inside the kept bouts. (q, gap) == (q, gap, q, 1).
 # outcomes   per video x neuron: bout count, frames above, bout rate = count / window minutes,
 #            mean bout duration = covered frames / count / fps seconds (NaN when count = 0),
 #            median bout duration (s, NaN when count = 0).
@@ -180,9 +185,13 @@ def pooled_thresholds(codes_path, qs, n_sample=2_000_000, seed=0, col_chunk=64):
     return out, len(rows)
 
 
-def bout_stats(above, gap=0):
+def bout_stats(above, gap=0, enter=None, min_len=1):
     """above: (n_frames, m) bool. Returns dict of (m,) arrays: count (bouts), frames (above
-    frames), covered (frames inside bouts, incl. merged gaps), median_len (frames, NaN if 0 bouts)."""
+    frames), covered (frames inside bouts, incl. merged gaps), median_len (frames, NaN if 0 bouts).
+    enter: optional (n_frames, m) bool (hysteresis, `above` is then the exit mask, enter must imply
+    above): a run of `above` holds a bout from its first `enter` frame to the run end, runs without
+    an `enter` frame hold none. min_len: bouts shorter than min_len frames (after merging) are
+    dropped. With enter=None and min_len=1 the result is the plain run count (unchanged)."""
     n, m = above.shape
     pad = np.zeros((m, n + 2), dtype=np.int8)
     pad[:, 1:-1] = above.T
@@ -190,6 +199,17 @@ def bout_stats(above, gap=0):
     sc, st = np.nonzero(d == 1)    # sorted by column, then frame
     ec, en = np.nonzero(d == -1)   # run ends (exclusive), aligned with the starts
     frames = above.sum(0).astype(np.float64)
+    if enter is not None:
+        if (enter & ~above).any():
+            raise ValueError('hysteresis: enter frames must be above the exit threshold')
+        fc, ff = np.nonzero(enter.T)  # sorted by column, then frame
+        W = n + 2
+        ek = fc.astype(np.int64) * W + ff
+        i = np.searchsorted(ek, sc.astype(np.int64) * W + st)  # first enter frame at or after the run start
+        ok = i < len(ek)
+        first = np.where(ok, ek[np.minimum(i, len(ek) - 1)], -1)
+        ok &= first < sc.astype(np.int64) * W + en
+        sc, st, en = sc[ok], (first - sc.astype(np.int64) * W)[ok], en[ok]
     if gap > 0 and len(st) > 1:
         same = sc[1:] == sc[:-1]
         g = st[1:] - en[:-1]
@@ -197,7 +217,12 @@ def bout_stats(above, gap=0):
         keep_start = np.r_[True, ~merge]  # a bout starts where the previous run is not merged into it
         keep_end = np.r_[~merge, True]
         sc, st, en = sc[keep_start], st[keep_start], en[keep_end]
+    if min_len > 1:
+        k = (en - st) >= min_len
+        sc, st, en = sc[k], st[k], en[k]
     L = en - st
+    if enter is not None or min_len > 1:
+        frames = np.bincount(sc, weights=L, minlength=m).astype(np.float64) if gap == 0 else frames
     count = np.bincount(sc, minlength=m).astype(np.float64)
     covered = np.bincount(sc, weights=L, minlength=m)
     med = np.full(m, np.nan)
@@ -213,27 +238,39 @@ def bout_stats(above, gap=0):
     return {'count': count, 'frames': frames, 'covered': covered, 'median_len': med}
 
 
+def _cfg4(c):
+    """(q, gap) or (q, gap, q_exit, min_len) -> the 4-tuple."""
+    return tuple(c) if len(c) == 4 else (c[0], c[1], c[0], 1)
+
+
 def bout_summaries(codes_path, design, thresholds, configs, n_match, n_trim=150):
     """Stream the memmap once by observation (contiguous rows, checked in load_design).
-    thresholds: dict q -> (m,) array; configs: list of (q, gap). Returns dict
-    {(window, q, gap, stat): (n_obs, m) float64} for windows full/last/trim and BOUT_STATS,
+    thresholds: dict q -> (m,) array; configs: list of (q, gap) or (q, gap, q_exit, min_len)
+    (hysteresis, see bout_stats; q_exit must be a key of thresholds). Returns dict
+    {(window, *config, stat): (n_obs, m) float64} for windows full/last/trim and BOUT_STATS,
     plus {(window, 'n_frames'): (n_obs,)}."""
     Z = np.load(codes_path, mmap_mode='r')
     n_obs, m = len(design), Z.shape[1]
-    out = {(w, q, g, s): np.zeros((n_obs, m)) for w in WINDOWS for q, g in configs for s in BOUT_STATS}
+    configs = [tuple(c) for c in configs]
+    out = {(w, *c, s): np.zeros((n_obs, m)) for w in WINDOWS for c in configs for s in BOUT_STATS}
     for w in WINDOWS:
         out[(w, 'n_frames')] = np.zeros(n_obs)
     sls = (('full', slice(None)), ('last', slice(-n_match, None)), ('trim', slice(n_trim, None)))
+    qs = sorted({q for c in configs for q in (_cfg4(c)[0], _cfg4(c)[2])})
     for i, (s, e) in enumerate(zip(design['row_start'], design['row_end'])):
         X = np.asarray(Z[s:e])
         for w, sl in sls:
             Xw = X[sl]
             out[(w, 'n_frames')][i] = len(Xw)
-            for q in sorted({q for q, _ in configs}):
-                above = Xw > thresholds[q].astype(Xw.dtype)
-                for g in [g for qq, g in configs if qq == q]:
-                    for k, v in bout_stats(above, g).items():
-                        out[(w, q, g, k)][i] = v
+            above = {q: Xw > thresholds[q].astype(Xw.dtype) for q in qs}
+            for c in configs:
+                q, g, qx, ml = _cfg4(c)
+                if len(c) == 2:
+                    r = bout_stats(above[q], g)
+                else:
+                    r = bout_stats(above[qx], g, enter=None if qx == q else above[q] & above[qx], min_len=int(ml))
+                for k, v in r.items():
+                    out[(w, *c, k)][i] = v
     return out
 
 
@@ -242,31 +279,111 @@ def _bkey(k):
 
 
 def cached_bout_summaries(codes_path, design, cache_path, thresholds, configs, n_match, n_trim=150):
-    """bout_summaries with an npz cache keyed on observation order, thresholds, configs, windows."""
+    """bout_summaries with an npz cache keyed on observation order, thresholds, configs, windows.
+    Plain (q, gap) config lists keep the original cache key; lists with hysteresis configs are
+    keyed on the 4-tuples."""
     cache_path = Path(cache_path)
-    keys = [(w, q, g, s) for w in WINDOWS for q, g in configs for s in BOUT_STATS] + [(w, 'n_frames') for w in WINDOWS]
-    thr = np.stack([thresholds[q] for q, _ in configs])
+    configs = [tuple(c) for c in configs]
+    keys = [(w, *c, s) for w in WINDOWS for c in configs for s in BOUT_STATS] + [(w, 'n_frames') for w in WINDOWS]
+    plain = all(len(c) == 2 for c in configs)
+    carr = np.array(configs if plain else [_cfg4(c) + (len(c),) for c in configs], dtype=np.float64)
+    thr = np.stack([thresholds[q] for q in sorted({q for c in configs for q in (_cfg4(c)[0], _cfg4(c)[2])})]) \
+        if not plain else np.stack([thresholds[c[0]] for c in configs])
     if cache_path.exists():
         f = np.load(cache_path, allow_pickle=False)
         if np.array_equal(f['observation_id'], design['observation_id'].values.astype(str)) \
                 and int(f['n_match']) == n_match and int(f['n_trim']) == n_trim \
-                and np.array_equal(f['configs'], np.array(configs, dtype=np.float64)) and np.array_equal(f['thr'], thr):
+                and f['configs'].shape == carr.shape and np.array_equal(f['configs'], carr) \
+                and f['thr'].shape == thr.shape and np.array_equal(f['thr'], thr):
             return {k: f[_bkey(k)] for k in keys}
     out = bout_summaries(codes_path, design, thresholds, configs, n_match, n_trim)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(cache_path, observation_id=design['observation_id'].values.astype(str), n_match=n_match, n_trim=n_trim,
-             configs=np.array(configs, dtype=np.float64), thr=thr, **{_bkey(k): v for k, v in out.items()})
+             configs=carr, thr=thr, **{_bkey(k): v for k, v in out.items()})
     return out
 
 
-def bout_outcomes(bs, window, q, gap, fps=5.0):
-    """Video-level outcome matrices (n_obs, m) from bout_summaries for one window/q/gap:
-    rate (bouts per minute), mean_dur (s, NaN at 0 bouts), median_dur (s, NaN at 0 bouts),
-    frac (fraction of window frames above threshold)."""
+def bout_outcomes(bs, window, q, gap, fps=5.0, q_exit=None, min_len=None):
+    """Video-level outcome matrices (n_obs, m) from bout_summaries for one window/q/gap (and, for
+    a hysteresis config, q_exit / min_len): rate (bouts per minute), mean_dur (s, NaN at 0 bouts),
+    median_dur (s, NaN at 0 bouts), frac (fraction of window frames above threshold / in bouts)."""
+    c = (q, gap) if q_exit is None and min_len is None else (q, gap, q_exit, min_len)
     nf = bs[(window, 'n_frames')][:, None]
-    c = bs[(window, q, gap, 'count')]
+    cnt = bs[(window, *c, 'count')]
     with np.errstate(invalid='ignore', divide='ignore'):
-        return {'rate': c / (nf / fps / 60.0),
-                'mean_dur': np.where(c > 0, bs[(window, q, gap, 'covered')] / c, np.nan) / fps,
-                'median_dur': bs[(window, q, gap, 'median_len')] / fps,
-                'frac': bs[(window, q, gap, 'frames')] / nf}
+        return {'rate': cnt / (nf / fps / 60.0),
+                'mean_dur': np.where(cnt > 0, bs[(window, *c, 'covered')] / cnt, np.nan) / fps,
+                'median_dur': bs[(window, *c, 'median_len')] / fps,
+                'frac': bs[(window, *c, 'frames')] / nf}
+
+
+# ---------------------------------------------------------------------------------------------
+# Size covariate (foreground SAEs): per-video mean number of foreground patches n_fg, a proxy for
+# how spread out / huddled the mice are. size_adjusted_test re-tests one neuron with it:
+#   paired      D_j = Zb_j - Za_j regressed on 1 + (n_b - n_a) across pools (OLS, df = n - 2);
+#               tau = intercept = the change not explained by the change in foreground size.
+#   two-sample  Z_j = a + tau T + b n_fg (OLS, HC2 standard errors, df = n - 3).
+# ---------------------------------------------------------------------------------------------
+def video_nfg(nfg_path, design, n_match, n_trim=150):
+    """{window: (n_obs,) float64} per-video mean of the per-frame foreground patch count."""
+    nf = np.load(nfg_path, mmap_mode='r')
+    out = {w: np.zeros(len(design)) for w in WINDOWS}
+    for i, (s, e) in enumerate(zip(design['row_start'], design['row_end'])):
+        x = np.asarray(nf[s:e], dtype=np.float64)
+        out['full'][i], out['last'][i], out['trim'][i] = x.mean(), x[-n_match:].mean(), x[n_trim:].mean()
+    return out
+
+
+def size_adjusted_test(y_or_ya, cov_or_ca, T_or_yb=None, cb=None, paired_design=False):
+    """paired_design=True: (ya, ca, yb, cb) per pool -> dict tau, se, t, df, p, slope.
+    Else: (y, cov, T) per video."""
+    from scipy import stats
+    if paired_design:
+        ya, ca, yb = map(np.asarray, (y_or_ya, cov_or_ca, T_or_yb))
+        y, X = yb - ya, np.column_stack([np.ones(len(ya)), np.asarray(cb) - ca])
+    else:
+        y, c, T = map(np.asarray, (y_or_ya, cov_or_ca, T_or_yb))
+        X = np.column_stack([np.ones(len(y)), T, c])
+    n, k = X.shape
+    XtXi = np.linalg.pinv(X.T @ X)
+    b = XtXi @ X.T @ y
+    e = y - X @ b
+    idx = 0 if paired_design else 1
+    if paired_design:
+        V = XtXi * (e @ e) / (n - k)
+    else:
+        h = np.einsum('ij,jk,ik->i', X, XtXi, X)
+        V = XtXi @ (X.T * (e ** 2 / np.clip(1 - h, 1e-12, None))) @ X @ XtXi
+    se = float(np.sqrt(max(V[idx, idx], 0)))
+    t = float(b[idx] / se) if se > 0 else 0.0
+    return {'tau': float(b[idx]), 'se': se, 't': t, 'df': n - k, 'p': float(2 * stats.t.sf(abs(t), n - k)),
+            'slope': float(b[-1])}
+
+
+def size_adjusted_round1(r1, design, values, nfg, window_map):
+    """Re-test round-1 neurons with the per-video mean foreground size as a covariate.
+
+    r1: DataFrame of round-1 rows (analysis_id, prefix, window, neuron, tau, p, threshold, ...);
+    values: {contrasts window ('full'/'last'/'trim'): (n_obs, m) outcome matrix};
+    nfg: video_nfg output; window_map: runner window name -> (window a, window b).
+    Returns r1 with tau_adj, se_adj, p_adj, slope_nfg, survives (p_adj < the round-1 threshold and
+    the same sign as tau)."""
+    summ = {(w, 'v'): v for w, v in values.items()}
+    cov = {(w, 'v'): nfg[w][:, None] for w in nfg}
+    out = []
+    for r in r1.to_dict('records'):
+        j, (wa, wb) = int(r['neuron']), window_map[r['window']]
+        if r['analysis_id'].startswith('A'):
+            _, g, tr = r['analysis_id'].split('_')
+            a, b = TRANSITIONS[tr]
+            _, Za, Zb = paired(summ, design, g, a, b, 'v', wa, wb)
+            _, Ca, Cb = paired(cov, design, g, a, b, 'v', wa, wb)
+            res = size_adjusted_test(Za[:, j], Ca[:, 0], Zb[:, j], Cb[:, 0], paired_design=True)
+        else:
+            _, Z, T = genotype_contrast(summ, design, int(r['analysis_id'][len('B_stage'):]), 'v', wa)
+            _, Cv, _ = genotype_contrast(cov, design, int(r['analysis_id'][len('B_stage'):]), 'v', wa)
+            res = size_adjusted_test(Z[:, j], Cv[:, 0], T)
+        out.append({**r, 'tau_adj': res['tau'], 'se_adj': res['se'], 'p_adj': res['p'], 'df_adj': res['df'],
+                    'slope_nfg': res['slope'],
+                    'survives': bool(res['p'] < r['threshold'] and np.sign(res['tau']) == np.sign(r['tau']))})
+    return pd.DataFrame(out)

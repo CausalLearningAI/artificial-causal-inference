@@ -12,7 +12,12 @@ Analyses (as scripts/eci/run_nes.py): family A = paired stage transition within 
 (het/wt x 1->2, 2->3, 4->5, 5->6; unit = pool), family B = het vs wt within stage 1..6.
 Primary: bout rate, q = 0.95, gap 0, t-test, Bonferroni, windows full and trim30, prefixes 128 and 1024.
 Sensitivity (one change from the full-window primary): signflip (A), BH, q 0.90, q 0.99,
-merge gap 2, time-matched window (A 1->2, 4->5), outcome = per-video mean of codes_max.
+merge gap 2, time-matched window (A 1->2, 4->5), outcome = per-video mean of codes_max, and
+min2hyst (bout_rule 1 in summary.csv): hysteresis bouts that enter above thr(0.95), exit when
+codes_max drops to <= thr(0.90), and last >= 2 frames (src/eci/contrasts.py bout_stats).
+Size check (foreground SAEs, when <codes>/n_fg.npy exists): every round-1 neuron of the primary
+(full and trim30) re-tested with the per-video mean foreground patch count as a covariate
+(contrasts.size_adjusted_round1) -> size_adjusted.csv.
 Sanity: 20x genotype shuffle across pools (B stage 2) and 20x within-pool stage-label swap
 (A het 1->2), primary setting.
 
@@ -38,15 +43,20 @@ from eci.nes import active_neurons, neural_effect_search, paired_effect_search  
 FPS = 5.0
 PREFIXES = (128, 1024)
 QS = (0.90, 0.95, 0.99)
-CONFIGS = [(0.90, 0), (0.95, 0), (0.99, 0), (0.95, 2)]  # (quantile, merge gap)
+CONFIGS = [(0.90, 0), (0.95, 0), (0.99, 0), (0.95, 2), (0.95, 0, 0.90, 2)]  # (quantile, merge gap[, exit q, min len])
+HYST = (0.95, 0, 0.90, 2)  # bout_rule 1
 WINDOW_MAP = {'full': ('full', 'full'), 'matched': ('last', 'full'), 'trim30': ('trim', 'trim')}
-ARTEFACTS = {64: 'white card / experimenter hand at video start', 50: 'white card / experimenter hand at video start',
-             113: 'grey arena rim in one camera setup'}
-PRIMARY = dict(outcome_type='bout_rate', threshold_q=0.95, merge_gap=0, test='t', correction='bonferroni', window='full')
+# neurons flagged as recording artefacts: only valid for the ep20 SAE (neuron ids are SAE-specific)
+ARTEFACTS_EP20 = {64: 'white card / experimenter hand at video start', 50: 'white card / experimenter hand at video start',
+                  113: 'grey arena rim in one camera setup'}
+ARTEFACTS = {}
+PRIMARY = dict(outcome_type='bout_rate', threshold_q=0.95, merge_gap=0, bout_rule=0, test='t', correction='bonferroni',
+               window='full')
 # name -> overrides of PRIMARY; applicability filter by analysis id
 SENS = {'trim30': dict(window='trim30'), 'signflip': dict(test='signflip'), 'BH': dict(correction='bh'),
         'q0.90': dict(threshold_q=0.90), 'q0.99': dict(threshold_q=0.99), 'gap2': dict(merge_gap=2),
-        'matched': dict(window='matched'), 'mean-outcome': dict(outcome_type='mean', threshold_q=np.nan, merge_gap=np.nan)}
+        'matched': dict(window='matched'), 'min2hyst': dict(bout_rule=1),
+        'mean-outcome': dict(outcome_type='mean', threshold_q=np.nan, merge_gap=np.nan, bout_rule=np.nan)}
 
 
 def applicable(name, aid):
@@ -67,6 +77,8 @@ def settings_for(aid):
 
 def skey(prefix, s):
     thr = 'na' if s['outcome_type'] == 'mean' else f"q{s['threshold_q']:.2f}_g{int(s['merge_gap'])}"
+    if s['outcome_type'] != 'mean' and s.get('bout_rule', 0) == 1:
+        thr += f'_x{HYST[2]:.2f}_min{HYST[3]}'
     return f"p{prefix}_{s['outcome_type']}_{thr}_{s['test']}_{s['correction']}_{s['window']}"
 
 
@@ -105,8 +117,11 @@ def main():
     ap.add_argument('--n-thr-sample', type=int, default=2_000_000)
     ap.add_argument('--n-shuffles', type=int, default=20)
     ap.add_argument('--skip-signflip', action='store_true')
+    ap.add_argument('--compare-pooling', default='mean', help='pooling of the mean-activation run to compare with')
     args = ap.parse_args()
     t_start = time.time()
+    global ARTEFACTS
+    ARTEFACTS = ARTEFACTS_EP20 if args.sae == 'matryoshka_btk_1024_k16_ep20_s0' else {}
     codes_dir = Path(args.codes_root) / args.sae
     if not (codes_dir / 'DONE').exists():
         raise SystemExit(f'{codes_dir}/DONE missing: codes not finished')
@@ -150,6 +165,8 @@ def main():
     def summ_for(s):
         if s['outcome_type'] == 'mean':
             return {(w, 'v'): msum[(w, 'mean')] for w in C.WINDOWS}
+        if s.get('bout_rule', 0) == 1:
+            return {(w, 'v'): C.bout_outcomes(bs, w, *HYST[:2], FPS, *HYST[2:])['rate'] for w in C.WINDOWS}
         return {(w, 'v'): C.bout_outcomes(bs, w, s['threshold_q'], int(s['merge_gap']), FPS)['rate'] for w in C.WINDOWS}
 
     all_rows, results = [], {}
@@ -212,15 +229,50 @@ def main():
         for r in tidy[(tidy['setting'].str.contains('bout_rate_q0.95_g0_t_bonferroni_full'))].drop_duplicates(
             ['analysis_id', 'prefix']).itertuples()}
 
+    # ---- size check: round-1 neurons re-tested with the per-video mean foreground size
+    sadj = size_check(tidy, design, codes_dir, sm, args, out)
+    if sadj is not None:
+        sanity['size_check'] = {'n_round1': int(len(sadj)), 'n_survive': int(sadj['survives'].sum()),
+                                'n_frames_without_fg_frac': float((np.load(codes_dir / 'n_fg.npy', mmap_mode='r') == 0).mean())}
+
     # ---- descriptives for round-1 neurons, comparison with the mean-pool run
     desc, round1 = descriptives(tidy, design, bs, analyses)
     desc.to_csv(out / 'round1_descriptives.csv', index=False)
-    prev = compare_meanpool(tidy, base / 'summary.csv', analyses)
+    prev = compare_meanpool(tidy, base / 'summary.csv', analyses, args.compare_pooling)
     sanity['runtime_s'] = time.time() - t_start
     with open(out / 'sanity.json', 'w') as f:
         json.dump(C.to_jsonable(sanity), f, indent=1)
-    write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, args.sae)
+    write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, args.sae, sadj)
     print(f'done in {time.time() - t_start:.0f}s -> {out}', flush=True)
+
+
+def size_check(tidy, design, codes_dir, values, args, out, prim=None, window_map=None):
+    """Round-1 neurons of the primary setting (windows full and trim30) re-tested with the per-video
+    mean n_fg as a covariate; None when the codes have no n_fg.npy (patch-level SAEs)."""
+    if not (Path(codes_dir) / 'n_fg.npy').exists():
+        return None
+    prim = prim or PRIMARY
+    nfg = C.video_nfg(Path(codes_dir) / 'n_fg.npy', design, args.n_match, args.n_trim)
+    t = tidy[tidy['round'] == 1]
+    for k, v in prim.items():
+        if k != 'window':
+            t = t[t[k].isna()] if isinstance(v, float) and np.isnan(v) else t[t[k] == v]
+    t = t[t['window'].isin(['full', 'trim30'])]
+    vals = {w: values[(w, 'v')] for w in C.WINDOWS}
+    r = C.size_adjusted_round1(t, design, vals, nfg, window_map or WINDOW_MAP)
+    cols = ['analysis_id', 'prefix', 'window', 'neuron', 'direction', 'tau', 'p', 'threshold', 'tau_adj', 'se_adj',
+            'p_adj', 'df_adj', 'slope_nfg', 'survives']
+    r = r[cols] if len(r) else pd.DataFrame(columns=cols)
+    r.to_csv(Path(out) / 'size_adjusted.csv', index=False)
+    print(f'size check: {int(r["survives"].sum()) if len(r) else 0}/{len(r)} round-1 neurons survive', flush=True)
+    return r
+
+
+def size_mark(sadj, aid, prefix, window, j):
+    if sadj is None:
+        return '-'
+    r = sadj[(sadj['analysis_id'] == aid) & (sadj['prefix'] == prefix) & (sadj['window'] == window) & (sadj['neuron'] == j)]
+    return '-' if not len(r) else ('Y' if bool(r['survives'].iloc[0]) else 'N')
 
 
 def unit_rows(design, aid):
@@ -258,13 +310,13 @@ def descriptives(tidy, design, bs, analyses):
     return pd.DataFrame(rows), round1
 
 
-def compare_meanpool(tidy, prev_csv, analyses):
+def compare_meanpool(tidy, prev_csv, analyses, pooling='mean'):
     """Primary selections of the previous mean-pool run (codes_mean, per-video mean, t, Bonferroni,
     full) vs this primary; {aid: {prefix: {'meanpool': [...], 'bouts': [...], 'overlap': [...]}}}."""
     if not Path(prev_csv).exists():
         return {}
     p = pd.read_csv(prev_csv)
-    p = p[(p['pooling'] == 'mean') & (p['outcome_type'] == 'mean') & (p['test'] == 't') &
+    p = p[(p['pooling'] == pooling) & (p['outcome_type'] == 'mean') & (p['test'] == 't') &
           (p['correction'] == 'bonferroni') & (p['window'] == 'full') & (p['round'] > 0)]
     out = {}
     for aid, *_ in analyses:
@@ -276,7 +328,7 @@ def compare_meanpool(tidy, prev_csv, analyses):
     return out
 
 
-def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, sae):
+def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, sae, sadj=None):
     o = C.bout_outcomes(bs, 'full', 0.95, 0, FPS)
     names = list(SENS)
     L = [f'# NES summary (max-pool, bout outcomes): {sae}', '',
@@ -292,7 +344,10 @@ def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, s
          'within stage (tau > 0 = more bouts/min in het). Near-constant neurons (active in < 1% of units or zero '
          'variance) are dropped before testing, as in nes.py.', '',
          'Robustness columns: Y = also selected (any round) under that single change from the primary (same prefix); '
-         '"-" = not applicable. "mean-pool" = selected by the previous primary (codes_mean, per-video mean). '
+         '"-" = not applicable. "mean-pool" = selected by the mean-activation primary (per-video mean). '
+         'min2hyst = bouts enter above thr(0.95), exit at <= thr(0.90), min 2 frames. size-adj = round-1 neuron still '
+         'significant (same sign, p below the round-1 Bonferroni threshold) with the per-video mean foreground patch '
+         'count as a covariate ("-" = not a round-1 neuron / no foreground counts). '
          'med dur = median over the analysis videos of each video\'s median bout duration (s, videos with bouts).', '']
     for aid, *_ in analyses:
         L.append(f'## {aid}')
@@ -306,7 +361,7 @@ def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, s
                 continue
             L += [f'- prefix {prefix}: {len(ps)} selected ({nd} dropped); trim30 selects {ntrim}', '',
                   '| round | neuron | direction | tau (bouts/min) | p | med dur (s) | ' + ' | '.join(names) +
-                  ' | other prefix | mean-pool | artefact flag |', '|' + '---|' * (9 + len(names))]
+                  ' | other prefix | mean-pool | size-adj | artefact flag |', '|' + '---|' * (10 + len(names))]
             other = select(tidy, aid, [p for p in PREFIXES if p != prefix][0], PRIMARY)
             mp = prev.get(aid, {}).get(prefix, {}).get('meanpool', [])
             rows = unit_rows(design, aid)
@@ -317,7 +372,8 @@ def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, s
                 op = '-' if (prefix == 1024 and j >= 128) else ('Y' if j in other else 'N')
                 md = np.nanmedian(o['median_dur'][rows, j]) if np.isfinite(o['median_dur'][rows, j]).any() else np.nan
                 L.append(f'| {int(r["round"])} | {j} | {r["direction"]} | {r["tau"]:.3g} | {r["p"]:.2e} | {md:.2f} | '
-                         + ' | '.join(marks) + f' | {op} | {"Y" if j in mp else "N"} | {ARTEFACTS.get(j, "")} |')
+                         + ' | '.join(marks) + f' | {op} | {"Y" if j in mp else "N"} | '
+                         f'{size_mark(sadj, aid, prefix, "full", j) if int(r["round"]) == 1 else "-"} | {ARTEFACTS.get(j, "")} |')
             L.append('')
         L.append('')
     L += ['## Round-1 neurons: descriptives per stage x genotype (primary q 0.95, gap 0, full window)', '',
@@ -344,6 +400,9 @@ def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, s
                  f'shuffles: NES selected {v["B_stage2_genotype_shuffle_n_selected"]}')
         L.append(f'- {p}: stage labels swapped within pool at random (A het 1->2), '
                  f'{len(v["A_het_1to2_stage_swap_n_selected"])} swaps: NES selected {v["A_het_1to2_stage_swap_n_selected"]}')
+    if 'size_check' in sanity:
+        L.append(f'- size check (round-1 neurons, full + trim30): {sanity["size_check"]["n_survive"]}/'
+                 f'{sanity["size_check"]["n_round1"]} survive the per-video mean n_fg covariate (size_adjusted.csv)')
     L.append(f'- runtime: {sanity["runtime_s"]:.0f} s')
     (out / 'SUMMARY.md').write_text('\n'.join(L) + '\n')
     union = {}

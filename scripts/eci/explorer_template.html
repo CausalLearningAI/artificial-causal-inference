@@ -102,6 +102,8 @@ button.tag:hover{box-shadow:inset 0 0 0 1px var(--accent)}
 .dh{display:grid;gap:6px}
 .dh .l{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline}
 .facts{font:13px var(--mono);color:var(--muted)}
+.evalline{font-size:12.5px;color:var(--muted)}
+.evalline .num{color:var(--ink)}
 .warnbox{background:var(--warn-bg);color:var(--warn);border-radius:6px;padding:7px 10px;font-size:13px}
 .vids{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .vid{display:grid;gap:6px;min-width:0}
@@ -135,7 +137,7 @@ table.pt th{font-weight:500;color:var(--muted)}
 <div class="wrap">
   <header>
     <h1>Mouse Concept Atlas</h1>
-    <p class="sub">Visual concepts (<span class="tip" title="Units of a sparse autoencoder trained on DINOv2 patch features of the mice v1 videos. Each unit fires on a narrow visual pattern.">SAE neurons</span>) whose activation changes with odor stage or genotype · <span class="mono" id="saeName"></span></p>
+    <p class="sub">Visual concepts (<span class="tip" title="Units of a sparse autoencoder trained on DINOv2 patch features of the mice v1 videos. Each unit fires on a narrow visual pattern.">SAE neurons</span>) whose activation changes with odor stage or genotype · <span class="mono" id="saeName"></span><span id="repNote"></span></p>
   </header>
 
   <nav class="bar" aria-label="View and settings">
@@ -199,6 +201,7 @@ function longLabel(a){
   return `het vs wt in stage ${a.stage} (${STAGE_LONG[a.stage]})`;
 }
 $('#saeName').textContent = DATA.sae;
+if(DATA.rep_note) $('#repNote').textContent = ' · ' + DATA.rep_note;
 
 /* every neuron found in any analysis under the current outcome / window / prefix */
 function allFound(){
@@ -339,6 +342,10 @@ function renderDetail(){
   h+=`</span></div>`;
   if(hits) h+=`<div class="tags" aria-label="Found in">${hits.hits.map(({a:b,r:x})=>`<button type="button" class="tag ${cmp&&b.id===state.aid?'cur':x.tau>0?'up':'down'}" data-aid="${b.id}" title="${esc(longLabel(b))}: tau ${fmtTau(x.tau)} ${esc(outcome().unit)}, p ${fmtP(x.p)}. Open this comparison">${shortLabel(b)}${x.tau>0?'▲':'▼'}</button>`).join('')}</div>`;
   h+='</div>';
+  if(n.auroc){
+    const ev = DATA.events || {};
+    h+=`<div class="evalline"><span class="tip" title="Evaluation only: the human behaviour labels were never used to train the SAE or to find this neuron. AUROC of the neuron's per-frame codes_${outcome().codes} for each label on ${(DATA.n_eval_frames||0).toLocaleString()} annotated frames of held-out pools (0.5 = unrelated, 1 = perfect detector).">Check against human labels (not used for discovery)</span>: ${Object.entries(n.auroc).map(([k,v])=>`${esc(ev[k]||k)} AUROC <span class="num">${v.toFixed(2)}</span>`).join(' · ')}</div>`;
+  }
   if(n.artefact) h+=`<div class="warnbox">⚠ Likely artefact: ${esc(DATA.artefact_text[j]||'')}</div>`;
   const leastTip = n.least_rule==='random_zero' ? 'Random moments where the neuron is exactly zero, one per video' : 'Lowest-activation moments, one per video';
   h+=`<div class="vids">
