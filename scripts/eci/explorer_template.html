@@ -48,13 +48,13 @@ abbr[title],.tip{text-decoration:underline dotted var(--faint);cursor:help}
 .cgrid.drag{cursor:grabbing;scroll-snap-type:none}
 .cgrid .clip{flex:0 0 calc((100% - (var(--per) - 1) * 8px) / var(--per));scroll-snap-align:start}
 .clip{position:relative;min-width:0}
-.clip.miss{aspect-ratio:1;border:1px dashed var(--line);border-radius:4px;display:grid;place-items:center;text-align:center;font-size:11.5px;color:var(--faint);padding:8px}
+.clip.miss{aspect-ratio:1;border:1px dashed var(--line);border-radius:3px;display:grid;place-items:center;text-align:center;font-size:11.5px;color:var(--faint);padding:8px}
 .hd .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
 .hd .row .meta{font-size:12px;color:var(--muted)}
 .turbo{display:inline-block;width:90px;height:8px;border-radius:2px;vertical-align:middle;margin:0 4px;background:linear-gradient(90deg,#30123b,#4686fb,#1ae4b6,#a2fc3c,#fabb39,#e4460a,#7a0403)}
 .swatch{display:inline-block;width:28px;height:5px;vertical-align:middle;margin:0 3px;border-radius:1px}
-.clip canvas{width:100%;height:auto;aspect-ratio:1;display:block;background:#111;border-radius:4px}
-.clip .rk{position:absolute;right:4px;bottom:12px;font:500 10.5px var(--mono);background:rgba(0,0,0,.6);color:#fff;padding:0 4px;border-radius:3px}
+.clip canvas{width:100%;height:auto;aspect-ratio:1;display:block;background:#111;border-radius:3px}
+.clip .rk{position:absolute;right:4px;bottom:12px;font:500 10.5px var(--mono);background:rgba(0,0,0,.6);color:#fff;padding:0 4px;border-radius:3px;pointer-events:none}
 .srcv{position:absolute;width:2px;height:2px;opacity:0;pointer-events:none;left:0;top:0}
 .chart{max-width:640px}
 .pend{border:1px dashed var(--line);border-radius:6px;color:var(--faint);font-size:12px;display:grid;place-items:center;text-align:center;padding:16px;min-height:160px}
@@ -188,18 +188,19 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
 const ALL = /*__DATA__*/null;
 const SAES = Object.fromEntries(ALL.saes.map(d => [d.sae, d]));
 const DATA0 = SAES[ALL.default];
-const M = ALL.montage;   // montage layout: K tiles per block, cols per row, blocks [top, top_heat, least, least_heat]
+const M = ALL.montage;   // montage layout: K tiles per block, cols per row (one block = one row), tile px
 let DATA = DATA0;
 const STAGE = {1:'H,S',2:'O,S',3:'P,S',4:'H,F',5:'O,F',6:'P,F'};
 const STAGE_LONG = {1:'habituation, social odor',2:'social odor',3:'post, social odor',4:'habituation, fear odor',5:'fear odor',6:'post, fear odor'};
 const TRANS = {'1to2':'Social H→O','2to3':'Social O→P','4to5':'Fear H→O','5to6':'Fear O→P'};
 const TAU_TIP = 'tau: effect size in the outcome unit. A: mean paired change from the first to the second stage. B: het minus wt.';
 const P_TIP = 'p: t-test p-value. Found = p below the Bonferroni threshold of that search round.';
-const state = {sae:DATA0.sae, nclips:4, len:'1s', view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:128, window:'full', neuron:null, heat:true, sort:'count'};
+const state = {sae:DATA0.sae, from:'all', len:'1s', view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:128, window:'full', neuron:null, heat:true, sort:'count'};
 try{ Object.assign(state, JSON.parse(localStorage.getItem('nes-atlas')||'{}')); }catch(e){}
 DATA = SAES[state.sae] || DATA0; state.sae = DATA.sae; state.window = 'full';
 if(!(state.len in M.lengths)) state.len = '1s';
-if(![4,8,16].includes(state.nclips)) state.nclips = 4;
+if(!['all','cmp'].includes(state.from)) state.from = 'all';
+delete state.nclips;
 if(!DATA.outcomes.some(o=>o.id===state.outcome)) state.outcome = DATA.outcomes[0].id;
 if(!DATA.analyses.some(a=>a.id===state.aid)) state.aid = DATA.analyses[0].id;
 const $ = s => document.querySelector(s);
@@ -419,29 +420,51 @@ function renderDetail(){
   if(hits) h+=`<div class="tags" aria-label="Found in">${hits.hits.map(({a:b,r:x})=>`<button type="button" class="tag ${cmp&&b.id===state.aid?'cur':x.tau>0?'up':'down'}" data-aid="${b.id}" title="${esc(longLabel(b))}: tau ${fmtTau(x.tau)} ${esc(outcome().unit)}, p ${fmtP(x.p)}. Open this comparison">${shortLabel(b)}${x.tau>0?'▲':'▼'}</button>`).join('')}</div>`;
   h+='</div>';
   if(n.artefact) h+=`<div class="warnbox">⚠ Likely artefact: ${esc(DATA.artefact_text[j]||'')}</div>`;
-  const cd = outcome().codes, N = state.nclips, L = state.len, C = n.clips[L], w = M.lengths[L];
+  const cd = outcome().codes, L = state.len, w = M.lengths[L], N = M.K;
   const LAB = {frame:'frame', '1s':'1 s', '3s':'3 s'};
-  const seg = (k, key, vals, fmt) => `<span class="seg">${vals.map(v=>`<button type="button" data-${k}="${v}" aria-pressed="${String(state[key])===String(v)}">${fmt(v)}</button>`).join('')}</span>`;
-  const barTip = `Bar under each tile: the neuron's activation (codes_${cd}) in the frame shown; same scale in every row and length, full width = the neuron's highest frame.${n.bout_thr_bar!=null?' White tick = bout threshold.':''}`;
-  const grid = (id, av) => `<div class="cgrid" id="${id}" title="${esc(barTip)}">${Array.from({length:N},(_,i)=> i<av
-      ? `<div class="clip"><canvas width="${M.tile}" height="${M.tile}"></canvas><span class="rk">${i+1}</span></div>`
-      : `<div class="clip miss">#${i+1}<br>no more videos</div>`).join('')}</div>`;
+  // clip source: 'all' videos, or the videos of the current comparison (only for neurons found in it)
+  const want = state.from==='cmp' ? state.aid : null, srcId = want && n.clips[want] ? want : 'all', C = n.clips[srcId][L];
+  const ca = srcId==='all' ? null : analysis(srcId);
+  const seg = (k, key, vals, fmt, tips) => `<span class="seg">${vals.map(v=>`<button type="button" data-${k}="${v}" aria-pressed="${String(state[key])===String(v)}"${tips?` title="${esc(tips[v])}"`:''}>${fmt(v)}</button>`).join('')}</span>`;
+  const barTip = `Bar under each tile: the neuron's activation (codes_${cd}) in the frame shown; same scale in every row, length and clip source, full width = the neuron's highest frame.${n.bout_thr_bar!=null?' White tick = bout threshold.':''} Hover a tile for its video.`;
+  const grid = (kind) => `<div class="cgrid" id="g_${kind}" title="${esc(barTip)}">${Array.from({length:N},(_,i)=> i<C.n[kind]
+      ? `<div class="clip" title="#${i+1} · ${esc(C.info[kind][i][0])} · mean ${C.info[kind][i][1]}"><canvas width="${M.tile}" height="${M.tile}" data-kind="${kind}" data-i="${i}"></canvas><span class="rk">${i+1}</span></div>`
+      : `<div class="clip miss">no more videos</div>`).join('')}</div>`;
   const what = L==='frame' ? 'frame' : 'window';
   const topTip = L==='frame'
     ? `The ${M.K} highest single frames of this neuron (codes_${cd}), at most one per video: each video's highest frame, videos ranked by it.`
     : `Windows of ${w} consecutive frames (${LAB[L]} at 5 fps). In each video, the window with the highest MEAN activation (codes_${cd}) over its ${w} frames; the ${M.K} videos with the highest such mean, ranked. Sustained events, not one-frame peaks.`;
   const silent = C.least_rule==='silent';
+  const pool = ca ? ` of these videos` : '';
   const leastTip = silent
-    ? `${L==='frame'?'Frames':`Windows of ${w} consecutive frames`} where the neuron is exactly 0${L==='frame'?'':' on every frame'} (codes_${cd}): one picked at random in each of ${M.K} random videos (fixed seed).`
-    : `Fewer than ${M.K} videos contain a ${what} where the neuron is 0${L==='frame'?'':' on every frame'}, so these are the ${M.K} videos whose lowest-mean ${what} is lowest, that ${what} in each. Not silent: the neuron is weakly active here.`;
-  const heatTip = `Heat colours use one scale for every row and length of this neuron: full colour = ${n.heat_vmax}, the 99th percentile of its positive per-patch activations over all frames shown here.`;
+    ? `${L==='frame'?'Frames':`Windows of ${w} consecutive frames`} where the neuron is exactly 0${L==='frame'?'':' on every frame'} (codes_${cd}): one picked at random in each of ${M.K} random videos${pool} (fixed seed).`
+    : `Fewer than ${M.K} videos${pool} contain a ${what} where the neuron is 0${L==='frame'?'':' on every frame'}, so these are the ${M.K} videos whose lowest-mean ${what} is lowest, that ${what} in each. Not silent: the neuron is weakly active here.`;
+  const heatTip = `Heat colours use one scale for every row, length and clip source of this neuron: full colour = ${n.heat_vmax}, the 99th percentile of its positive per-patch activations over all frames shown here.`;
+  const topMeta = `${L==='frame'?'highest frames':`highest ${LAB[L]} mean`}, 1 per video`;
+  let groups, fromNote = '';
+  if(!ca){
+    groups = [['top','Most activated','',topTip]];
+    if(want) fromNote = `Neuron ${j} is not found in ${esc(longLabel(analysis(want)))} (primary search), so its clips come from all videos.`;
+  } else if(ca.family==='A'){
+    groups = ca.stages.map((st,k) => [`top${k}`, `Most activated · stage ${st} (${STAGE[st]})`, ` · ${ca.genotype} videos of stage ${st}`, `${topTip} Only the ${ca.genotype} videos of stage ${st} (${STAGE_LONG[st]}).`]);
+    fromNote = `Clips from the ${ca.genotype} videos of stages ${ca.stages[0]} and ${ca.stages[1]} only: what the neuron picks up in each stage of the change.`;
+  } else {
+    groups = [['top0','Most activated · het',` · het videos of stage ${ca.stage}`, `${topTip} Only the het videos of stage ${ca.stage}.`],
+              ['top1','Most activated · wt',` · wt videos of stage ${ca.stage}`, `${topTip} Only the wt videos of stage ${ca.stage}.`]];
+    fromNote = `Clips from the stage-${ca.stage} (${STAGE[ca.stage]}) videos only, het and wt.`;
+  }
+  const leastFrom = !ca ? '' : ca.family==='A' ? ` · ${ca.genotype} videos of stages ${ca.stages[0]} and ${ca.stages[1]}` : ` · het and wt videos of stage ${ca.stage}`;
+  const cmpName = analysis(state.aid) ? shortLabel(analysis(state.aid)) : '';
+  const FROM = {all:'all videos', cmp:'this comparison'};
+  const FROMTIP = {all:'Clips chosen among all 432 videos', cmp:`Clips chosen among the videos entering the current comparison (${cmpName}): A = that genotype's videos in the two stages (one row per stage); B = het and wt videos of that stage (one row per genotype)`};
   h+=`<div class="clipbar">
-      <span class="opt">Clips${seg('n','nclips',[4,8,16],v=>v)}</span>
+      <span class="opt"><span class="tip" title="Which videos the clips are chosen from">Clips from</span>${seg('f','from',['all','cmp'],v=>v==='cmp'?`this comparison${cmpName?` (${esc(cmpName)})`:''}`:FROM[v],FROMTIP)}</span>
       <span class="opt"><span class="tip" title="What is selected and shown: single frames, or windows of 5 (1 s) or 15 (3 s) consecutive frames ranked by their mean activation">Length</span>${seg('l','len',Object.keys(M.lengths),v=>LAB[v])}</span>
       <label class="switch tip" for="heat" title="${esc(heatTip)}"><input type="checkbox" id="heat"${state.heat?' checked':''}> Show where it fires</label>
     </div>
-    <div class="hd"><div class="row"><h3 class="tip" title="${esc(topTip)}">Most activated</h3><span class="meta">${L==='frame'?'highest frames':`highest ${LAB[L]} mean`}, 1 per video</span></div>${grid('gTop', C.n_top)}</div>
-    <div class="hd"><div class="row"><h3 class="tip" title="${esc(leastTip)}">Least activated${silent?'':' · lowest (not silent)'}</h3><span class="meta">${silent?`0 on every frame, random, 1 per video`:`lowest mean, 1 per video`}</span></div>${grid('gLeast', C.n_least)}</div>
+    ${fromNote ? `<p class="note">${fromNote}</p>` : ''}
+    ${groups.map(([kind,t,m,tip]) => `<div class="hd"><div class="row"><h3 class="tip" title="${esc(tip)}">${t}</h3><span class="meta">${topMeta}${m}</span></div>${grid(kind)}</div>`).join('')}
+    <div class="hd"><div class="row"><h3 class="tip" title="${esc(leastTip)}">Least activated${silent?'':' · lowest (not silent)'}</h3><span class="meta">${silent?`0 on every frame, random, 1 per video`:`lowest mean, 1 per video`}${leastFrom}</span></div>${grid('least')}</div>
     <div class="srcv">${L==='frame' ? `<img id="vM" src="${C.src}" alt="">` : `<video id="vM" src="${C.src}" muted loop autoplay playsinline preload="auto"></video>`}</div>`;
   const hl = cmp ? (a.family==='A' ? a.stages : [a.stage]) : [], ct = chartTable(j, n);
   const HT = `Share of all frames at each activation level (codes_${cd}), log scale.`;
@@ -465,11 +488,11 @@ function renderDetail(){
   if(n.arena) drawArena(n.arena);
   for(const b of D.querySelectorAll('[data-ar]')) b.onclick=()=>{ state.arena=b.dataset.ar; render(); };
   for(const b of D.querySelectorAll('.tags .tag')) b.onclick=()=>{ state.view='cmp'; state.aid=b.dataset.aid; render(); };
-  for(const b of D.querySelectorAll('[data-n]')) b.onclick=()=>{ state.nclips=+b.dataset.n; render(); };
+  for(const b of D.querySelectorAll('[data-f]')) b.onclick=()=>{ state.from=b.dataset.f; render(); };
   for(const b of D.querySelectorAll('[data-l]')) b.onclick=()=>{ state.len=b.dataset.l; render(); };
   $('#heat').onchange=e=>{ state.heat=e.target.checked; save(); };
   for(const g of D.querySelectorAll('.cgrid')) dragScroll(g);
-  startClips();
+  startClips(C);
 }
 
 /* ---- per-pool panel: the per-video values the NES test uses (DATA.videos order) ---- */
@@ -514,9 +537,10 @@ function poolPanel(j, a){
   return `<div class="lg"><span>${esc(lg)}; black = mean and 95% CI; dashed = 0</span></div>${s}<p class="note mono">${esc(sm)}</p><p class="note">Raw values. A round-1 τ is exactly this contrast; a later-round τ is adjusted for the neurons selected before it, so it can differ.</p>`;
 }
 
-/* Each montage (one per neuron x length) holds four blocks of M.K tiles (M.tile px, M.cols per row,
-   row-major): top, top with heat, least, least with heat. One hidden <video> (or <img> for single
-   frames); every frame, each tile of the shown blocks is copied into its own canvas. */
+/* Montages (per neuron x length, one or more files) hold blocks of M.K tiles (M.tile px, M.cols per row,
+   row-major): per clip source, each row kind raw then with heat; C.blocks maps a block name to its index
+   in C.src. One hidden <video> (or <img> for single frames); every frame, each tile of the shown blocks
+   is copied into its own canvas. */
 let clipRAF = null;
 function dragScroll(el){
   let x0 = 0, s0 = 0, on = false;
@@ -525,11 +549,11 @@ function dragScroll(el){
   const end = () => { if(!on) return; on = false; el.classList.remove('drag'); };
   el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
 }
-function startClips(){
+function startClips(C){
   if(clipRAF) cancelAnimationFrame(clipRAF);
   const v = $('#vM'); if(!v) return;
   const isImg = v.tagName === 'IMG';
-  const cTop = [...document.querySelectorAll('#gTop canvas')], cLeast = [...document.querySelectorAll('#gLeast canvas')];
+  const cs = [...document.querySelectorAll('.cgrid canvas')];
   const T = M.tile, BAR = T - 8;
   const nn = NE()[state.neuron], thr = nn && nn.bout_thr_bar != null ? nn.bout_thr_bar : null;   // bout threshold on the bar scale (0..1)
   const off = document.createElement('canvas'), ox = off.getContext('2d', {willReadFrequently:true});
@@ -543,7 +567,8 @@ function startClips(){
     const cols = Math.max(1, Math.round(W / T));
     if(off.width !== W || off.height !== H){ off.width = W; off.height = H; }
     ox.drawImage(v, 0, 0);
-    const put = (cs, name) => { const b = M.blocks.indexOf(name); cs.forEach((c, i) => {
+    for(const c of cs){
+      const b = C.blocks[c.dataset.kind + (state.heat ? '_heat' : '')], i = +c.dataset.i;
       const t = b * M.K + i, sx = (t % cols) * T, sy = Math.floor(t / cols) * T, g = c.getContext('2d');
       g.drawImage(off, sx, sy, T, BAR, 0, 0, T, BAR);
       // Burnt-in bar (bottom 5 rows of each tile, orange or blue by row) is re-read at row T-4 and redrawn in one style.
@@ -552,8 +577,7 @@ function startClips(){
       g.fillStyle = '#2b2b2b'; g.fillRect(0, BAR, T, T - BAR);
       g.fillStyle = '#f8af18'; g.fillRect(0, BAR + 1, w, T - BAR - 1);
       if(thr != null){ const tx = Math.round(thr * T); g.fillStyle = '#ffffff'; g.fillRect(Math.min(T - 2, tx), BAR - 2, 2, T - BAR + 2); }
-    }); };
-    put(cTop, state.heat ? 'top_heat' : 'top'); put(cLeast, state.heat ? 'least_heat' : 'least');
+    }
   };
   const tick = () => {
     if(!document.body.contains(v)) return;

@@ -31,6 +31,10 @@ Steps (each cached under <res>/_cache/explorer/, incremental):
                       frame: one random such window per video, K random videos (fixed seed); when fewer
                       than K videos have one, the K videos' lowest-mean windows (rule 'lowest', labelled
                       "lowest (not silent)" on the page).
+             The same rules again among the videos of each contrast the neuron is found in (primary search,
+             any prefix; 'Clips from: this comparison' on the page): A (e.g. A_wt_1to2) = top in that
+             genotype's stage-a videos, top in its stage-b videos, least among both; B (B_stage3) = top in
+             the het videos, top in the wt videos, least among both (stage 3 only).
              Plus the activation histogram over all frames (40 linear bins, all frames and per
              genotype|stage), the firing rate and the stage x genotype table of per-video mean codes.
              -> picks.json
@@ -42,9 +46,11 @@ Steps (each cached under <res>/_cache/explorer/, incremental):
     arena    arena maps of ALL neurons: per patch position, the mean SAE code over the SAE's training
              frames (fg448: 1 frame per second of every video, codes 0 off the foreground, plus how
              often the patch is foreground); the arena background image. -> arena.npz, assets/<tag>_arena_bg.webp
-    render   one montage per neuron x length, 200 px tiles, 8 per row, four blocks of K tiles each
-             (row-major): top raw, top with heat, least raw, least with heat (turbo, the neuron's shared
-             scale). frame -> one webp still; 1 s / 3 s -> one H.264 mp4 (5 / 15 frames at 5 fps).
+    render   per neuron x length, montage files of 144 px tiles, 16 per row, one block of K = 16 clips per
+             row: per clip source ('all' videos: top, least; each contrast: top0, top1, least) each row kind
+             raw then with heat (turbo, the neuron's shared scale). Sources are packed whole into files of
+             at most 16 blocks (montage_layout; all + 2 contrasts = 16). frame -> one webp still;
+             1 s / 3 s -> one H.264 mp4 (5 / 15 frames at 5 fps). -> assets/<tag>_<p>XXXX_<L>_<file>.<ext>
     page     data inlined into scripts/eci/explorer_template.html -> <out>/index.html; also the per-video
              outcome values of every shown neuron (from the NES caches: <res>/_cache/video_summaries_*.npz,
              bout_summaries_max.npz) for the per-pool panel, checked against the tau of summary.csv.
@@ -92,11 +98,13 @@ SAE_LABEL = {
                                          'trained from scratch on the mouse (foreground) patches only'),
     'matryoshka_btk_1024_k16_ep20_s0': ('full frame', 'Full frame: DINOv2 sees the 224 px center crop; the SAE is '
                                         'trained on all patches (mice and bedding)')}
-K, TILE, COLS = 16, 200, 8            # clips per row block, tile px, tiles per montage row
+K, TILE, COLS = 16, 144, 16           # clips per row block, tile px, tiles per montage row (1 block = 1 row)
+MAX_BLOCKS = 16                       # blocks per montage file (16 x 144 px = 2304 px high at most)
 LENGTHS = {'frame': 1, '1s': 5, '3s': 15}
-BLOCKS = (('top', False), ('top', True), ('least', False), ('least', True))  # montage block order
+# clip sources of a neuron: 'all' (every video) and one per contrast the neuron is found in (aid)
+KINDS = {'all': ('top', 'least'), 'cmp': ('top0', 'top1', 'least')}
 HIST_BINS = 40
-PICKS_V = 3                          # picks.json entry version (3 = per-length window selections)
+PICKS_V = 4                          # picks.json entry version (4 = + per-contrast selections)
 STAGE_LABEL = {1: 'H,S', 2: 'O,S', 3: 'P,S', 4: 'H,F', 5: 'O,F', 6: 'P,F'}
 FONT = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
 FONT_B = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
@@ -112,7 +120,6 @@ CHIP = {('test', 'signflip'): ('flip', 'sign-flip permutation test instead of th
         ('outcome_type', 'rate'): ('rate', 'firing rate (fraction of frames > 0) instead of mean activation'),
         ('outcome_type', 'mean'): ('mean', 'per-video mean activation as the outcome'),
         ('window', 'matched'): ('match', 'time-matched windows across stages'),
-        ('window', 'trim30'): ('−30s', 'first 30 s of each video dropped'),
         ('window', 'full'): ('full', 'full videos'),
         ('prefix', 128): ('128', 'searching only the first 128 neurons'),
         ('prefix', 1024): ('1024', 'searching all 1024 neurons')}
@@ -292,10 +299,30 @@ def stages_of(aid):
 
 
 def wanted(cfg):
-    want = {k: set() for k in cfg.keys}
+    """{codes key: {neuron: sorted contrasts (analysis ids) it is found in}}, over the primary searches
+    (any prefix, full window) of the outcomes ranked by that key."""
+    want = {k: {} for k in cfg.keys}
     for o in cfg.outcomes:
-        want[o['codes']] |= {int(j) for j in primary_rows(o).dropna(subset=['neuron'])['neuron']}
-    return want
+        p = primary_rows(o).dropna(subset=['neuron'])
+        for aid, j in zip(p['analysis_id'], p['neuron'].astype(int)):
+            want[o['codes']].setdefault(int(j), set()).add(aid)
+    return {k: {j: sorted(v) for j, v in w.items()} for k, w in want.items()}
+
+
+def kinds(src):
+    return KINDS['all' if src == 'all' else 'cmp']
+
+
+def contrast_groups(aid, vids):
+    """The videos of one contrast, as (top0 mask, top1 mask) over the rows of vids: A (e.g. A_wt_1to2) =
+    that genotype's videos in stage a / stage b; B (B_stage3) = het / wt videos of that stage.
+    'least' uses the union."""
+    st, gen = vids['stage'].astype(int).values, vids['genotype'].astype(str).values
+    if aid.startswith('A'):
+        g, (a, b) = aid.split('_')[1], stages_of(aid)
+        return (gen == g) & (st == a), (gen == g) & (st == b)
+    s = int(aid[len('B_stage'):])
+    return (gen == 'het') & (st == s), (gen == 'wt') & (st == s)
 
 
 # ---------------------------------------------------------------------- step: data
@@ -315,7 +342,8 @@ def step_data(cfg, overwrite):
     # keep only what is wanted now (drops stale entries, e.g. an older outcome's codes key)
     res['by_key'] = {k: {j: v for j, v in res.get('by_key', {}).get(k, {}).items() if int(j) in want[k]}
                      for k in cfg.keys}
-    missing = {k: sorted(j for j in v if res['by_key'][k].get(str(j), {}).get('v') != PICKS_V)
+    missing = {k: sorted(j for j, aids in v.items() if res['by_key'][k].get(str(j), {}).get('v') != PICKS_V
+                         or sorted(res['by_key'][k][str(j)]['clips']) != sorted(['all'] + aids))
                for k, v in want.items()}
     if not any(missing.values()):
         print(f'[{cfg.tag}] data: cached', {k: len(v) for k, v in res['by_key'].items()}, 'neurons')
@@ -323,7 +351,7 @@ def step_data(cfg, overwrite):
         return
     from types import SimpleNamespace
     from src.eci.viz import (CodeSource, load_full_codes, pick_least_windows, pick_top_windows, scan_windows,
-                             stage_genotype_table)
+                             stage_genotype_table, subset_windows)
     src = load_full_codes(cfg.sae, DATASET, ROOT / 'data')
     meta = src.meta
     fp = meta['frame_path'].values
@@ -354,14 +382,31 @@ def step_data(cfg, overwrite):
                         'act': float(tr.mean()), 'trace': [float(x) for x in tr], 'obs': str(obs[start]),
                         'frame': int(fidx[start]), 'stage': int(stg[start]), 'genotype': str(gen[start]),
                         'pool': str(pool[start])}
-            clips = {}
+            clips = {'all': {}}
+            for aid in want[key][j]:
+                clips[aid] = {}
             for L, w in LENGTHS.items():
                 ts, _ = pick_top_windows(wss[w], i, K)
                 ls, rule = pick_least_windows(wss[w], i, K, seed=0)
-                clips[L] = {'top': [clip(s, w) for s in ts], 'least': [clip(s, w) for s in ls], 'least_rule': rule}
-                assert all(len({c['obs'] for c in clips[L][k]}) == len(clips[L][k]) for k in ('top', 'least'))
-                if rule == 'silent':
-                    assert all(max(c['trace']) == 0 for c in clips[L]['least'])
+                clips['all'][L] = {'top': [clip(s, w) for s in ts], 'least': [clip(s, w) for s in ls],
+                                   'least_rule': rule}
+                for aid in want[key][j]:  # the same rules, among the videos of that contrast only
+                    m0, m1 = contrast_groups(aid, vids)
+                    c = {}
+                    for name, m in (('top0', m0), ('top1', m1)):
+                        ts, _ = pick_top_windows(subset_windows(wss[w], m), i, K)
+                        c[name] = [clip(s, w) for s in ts]
+                        want_set = set(vids['observation_id'][m])
+                        assert all(x['obs'] in want_set for x in c[name])
+                    ls, rule = pick_least_windows(subset_windows(wss[w], m0 | m1), i, K, seed=0)
+                    c['least'], c['least_rule'] = [clip(s, w) for s in ls], rule
+                    assert all(x['obs'] in set(vids['observation_id'][m0 | m1]) for x in c['least'])
+                    clips[aid][L] = c
+                for sname, cs in clips.items():
+                    c = cs[L]
+                    assert all(len({x['obs'] for x in c[k]}) == len(c[k]) for k in kinds(sname))
+                    if c['least_rule'] == 'silent':
+                        assert all(max(x['trace']) == 0 for x in c['least'])
             edges, counts = activation_hist(X[:, i], gid, len(gkeys))
             tab = stage_genotype_table(SimpleNamespace(videos=vids, video_mean=vmean), i)
             store[str(j)] = {
@@ -376,11 +421,14 @@ def step_data(cfg, overwrite):
             print(f'  [{cfg.tag}] codes_{key} neuron {j}: ' + ', '.join(
                 f'{L} top {len(c["top"])} (mean {c["top"][0]["act"]:.3g}..{c["top"][-1]["act"]:.3g}) '
                 f'least {len(c["least"])} {c["least_rule"]} (max {max(max(x["trace"]) for x in c["least"]):.3g})'
-                for L, c in clips.items() if c['top']), flush=True)
+                for L, c in clips['all'].items() if c['top']), flush=True)
+            for aid in want[key][j]:
+                print(f'      {aid}: ' + ', '.join(
+                    f'{L} top0 {len(c["top0"])} top1 {len(c["top1"])} least {len(c["least"])} {c["least_rule"]}'
+                    for L, c in clips[aid].items()), flush=True)
         del X
     res['frame_path'] = {str(r): fp[r] for r in sorted({r for st in res['by_key'].values() for n in st.values()
-                                                        for c in n['clips'].values() for kind in ('top', 'least')
-                                                        for x in c[kind] for r in x['rows']})}
+                                                        for rr in clip_rows(n).values() for r in rr})}
     cfg.work.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(res))
     print(f'[{cfg.tag}] data: wrote', out, {k: len(v) for k, v in res['by_key'].items()}, 'neurons')
@@ -392,9 +440,10 @@ def patch_file(cfg, key, j):
 
 
 def clip_rows(n):
-    """{'<L>_<kind>': rows of every clip, in clip order} of one neuron."""
-    return {f'{L}_{kind}': [r for x in c[kind] for r in x['rows']] for L, c in n['clips'].items()
-            for kind in ('top', 'least')}
+    """{'<source>__<L>__<kind>': rows of every clip, in clip order} of one neuron (source = 'all' or a
+    contrast id)."""
+    return {f'{src}__{L}__{kind}': [r for x in c[kind] for r in x['rows']] for src, cs in n['clips'].items()
+            for L, c in cs.items() for kind in kinds(src)}
 
 
 def step_patch(cfg, overwrite, chunk=6):
@@ -569,10 +618,10 @@ def tile_frames(c, frame_path, vmax, color, rep, maps=None, hvmax=None):
                                               hvmax, cmap))
         im = im.resize((TILE, TILE), Image.BILINEAR)
         d = ImageDraw.Draw(im, 'RGBA')
-        d.rectangle([0, 0, TILE, 17], fill=(0, 0, 0, 140))
-        d.text((5, 2), f'S{c["stage"]} {STAGE_LABEL[c["stage"]]} · {c["genotype"]} · {name}', font=font(11),
+        d.rectangle([0, 0, TILE, 12], fill=(0, 0, 0, 140))
+        d.text((3, 1), f'S{c["stage"]} {STAGE_LABEL[c["stage"]]} · {c["genotype"]} · {name}', font=font(8),
                fill=(255, 255, 255))
-        d.rectangle([0, TILE - 6, TILE, TILE], fill=(0, 0, 0, 255))  # opaque: the page re-reads this bar (row 196)
+        d.rectangle([0, TILE - 6, TILE, TILE], fill=(0, 0, 0, 255))  # opaque: the page re-reads this bar (row T-4)
         w = int(round(TILE * min(max(c['trace'][t], 0) / vmax, 1))) if vmax > 0 else 0
         if w:
             d.rectangle([0, TILE - 5, w, TILE], fill=color)
@@ -589,22 +638,37 @@ def encode(frames, path, crf=30):
     subprocess.run(cmd, input=b''.join(f.tobytes() for f in frames), check=True)
 
 
-def asset_name(cfg, key, j, L):
-    return f'{cfg.tag}_{pre(key)}{int(j):04d}_{L}.{"webp" if L == "frame" else "mp4"}'
+def montage_layout(n):
+    """The montage files of one neuron and length: [[(source, block name, kind, heat), ...] per file].
+    Blocks of a source: each of its kinds raw then with heat ('all': top, least; a contrast: top0,
+    top1, least). Sources ('all' first, then the contrasts in ORDER) are packed whole into files of at
+    most MAX_BLOCKS blocks, so a view (one source) always reads one file."""
+    srcs = ['all'] + sorted((x for x in n['clips'] if x != 'all'), key=ORDER.index)
+    files = []
+    for src in srcs:
+        bl = [(src, f'{k}{"_heat" if h else ""}', k, h) for k in kinds(src) for h in (False, True)]
+        if not files or len(files[-1]) + len(bl) > MAX_BLOCKS:
+            files.append([])
+        files[-1] += bl
+    return files
+
+
+def asset_name(cfg, key, j, L, f):
+    return f'{cfg.tag}_{pre(key)}{int(j):04d}_{L}_{f}.{"webp" if L == "frame" else "mp4"}'
 
 
 def _render_one(task):
-    out, n_clips, fp, vmax, rep, maps_file, L, crf = task
+    out, blocks, fp, vmax, rep, maps_file, L, crf = task
     w = LENGTHS[L]
     pz = np.load(maps_file)
     hv = float(pz['vmax'])
     blank = [np.zeros((TILE, TILE, 3), np.uint8)] * w
     tiles = []
-    for kind, heat in BLOCKS:
-        maps = pz[f'{L}_{kind}'].astype(np.float32) if heat else None
-        color = (255, 170, 40) if kind == 'top' else (120, 190, 255)
+    for src, _, kind, heat, clips in blocks:
+        maps = pz[f'{src}__{L}__{kind}'].astype(np.float32) if heat else None
+        color = (120, 190, 255) if kind == 'least' else (255, 170, 40)
         cl = [tile_frames(c, fp, vmax, color, rep, None if maps is None else maps[k * w:(k + 1) * w], hv)
-              for k, c in enumerate(n_clips[kind])]
+              for k, c in enumerate(clips)]
         tiles += cl + [blank] * (K - len(cl))
     rows = [tiles[r:r + COLS] for r in range(0, len(tiles), COLS)]
     frames = [np.concatenate([np.concatenate([clip[t] for clip in row], 1) for row in rows], 0) for t in range(w)]
@@ -626,18 +690,19 @@ def step_render(cfg, overwrite):
     tasks, sigs = [], {}
     for key in cfg.keys:
         for j, n in picks['by_key'].get(key, {}).items():
-            vmax = n['max_frame'] or 1.0  # bar scale: the neuron's highest frame, every row and length
+            vmax = n['max_frame'] or 1.0  # bar scale: the neuron's highest frame, every row, length and source
             pf = patch_file(cfg, key, j)
             hv = float(np.load(pf)['vmax'])
             for L in LENGTHS:
-                c = n['clips'][L]
-                out = cfg.assets / asset_name(cfg, key, j, L)
-                sig = json.dumps([cfg.rep, TILE, COLS, K, cfg.crf, vmax, hv, BLOCKS,
-                                  [x['start'] for x in c['top']], [x['start'] for x in c['least']]])
-                if out.exists() and man.get(out.name) == sig:
-                    continue
-                sigs[out.name] = sig
-                tasks.append((out, c, fp, vmax, cfg.rep, str(pf), L, cfg.crf))
+                for f, bl in enumerate(montage_layout(n)):
+                    out = cfg.assets / asset_name(cfg, key, j, L, f)
+                    blocks = [(src, name, k, h, n['clips'][src][L][k]) for src, name, k, h in bl]
+                    sig = json.dumps([cfg.rep, TILE, COLS, K, cfg.crf, vmax, hv,
+                                      [(src, name, [x['start'] for x in c]) for src, name, _, _, c in blocks]])
+                    if out.exists() and man.get(out.name) == sig:
+                        continue
+                    sigs[out.name] = sig
+                    tasks.append((out, blocks, fp, vmax, cfg.rep, str(pf), L, cfg.crf))
     if not tasks:
         print(f'[{cfg.tag}] render: cached')
         return
@@ -761,6 +826,30 @@ def tau_check(vm, vals, results, oid, round_=1):
     return worst
 
 
+def page_data_clip(x):
+    """[tooltip label, mean activation] of one clip."""
+    name, when = short_obs(x['obs'])
+    return [f'S{x["stage"]} {STAGE_LABEL[x["stage"]]} · {x["genotype"]} · {name} · {when} · pool {x["pool"]}',
+            sig4(x['act'])]
+
+
+def page_clips(cfg, key, j, n):
+    """{source: {L: {src, blocks: {block name: index in the file}, n: {kind: count}, least_rule,
+    info: {kind: [[label, mean], ...]}}}} of one neuron (montage_layout order)."""
+    out = {}
+    for f, bl in enumerate(montage_layout(n)):
+        for b, (src, name, k, h) in enumerate(bl):
+            for L in LENGTHS:
+                c = n['clips'][src][L]
+                e = out.setdefault(src, {}).setdefault(L, {'src': f'assets/{asset_name(cfg, key, j, L, f)}',
+                                                           'blocks': {}, 'least_rule': c['least_rule'],
+                                                           'n': {x: len(c[x]) for x in kinds(src)},
+                                                           'info': {x: [page_data_clip(y) for y in c[x]]
+                                                                    for x in kinds(src)}})
+                e['blocks'][name] = b
+    return out
+
+
 def page_data(cfg):
     picks = json.loads((cfg.work / 'picks.json').read_text())
     analyses, results, outcomes = {}, {}, []
@@ -795,7 +884,7 @@ def page_data(cfg):
     if det_p.exists() and o0 is not None:
         det = pd.read_csv(det_p, dtype=str)
         names = {'flip': 'rob_signflip', 'BH': 'rob_BH', 'max': 'rob_max-pool', 'rate': 'rob_rate',
-                 'match': 'rob_matched', '−30s': 'rob_trim30', '128': 'rob_other_prefix', '1024': 'rob_other_prefix'}
+                 'match': 'rob_matched', '128': 'rob_other_prefix', '1024': 'rob_other_prefix'}
         bad = 0
         for _, d in det.iterrows():
             rr = [x for x in results[f'{o0["id"]}|{d["analysis_id"]}|{d["prefix"]}|full']['rows']
@@ -820,10 +909,7 @@ def page_data(cfg):
                  'table': [{k: (round(v, 5) if isinstance(v, float) else v) for k, v in t_.items()} for t_ in n['table']],
                  'artefact': int(j) in cfg.artefact,
                  'heat_vmax': sig4(np.load(patch_file(cfg, key, j))['vmax']),
-                 'clips': {L: {'src': f'assets/{asset_name(cfg, key, j, L)}', 'n_top': len(c['top']),
-                               'n_least': len(c['least']), 'least_rule': c['least_rule'],
-                               'top_mean': [sig4(x['act']) for x in c['top']]}
-                           for L, c in n['clips'].items()},
+                 'clips': page_clips(cfg, key, j, n),
                  'hist': dict(n['hist'], thr=t),
                  'bout_thr_bar': (round(min(t / vmax, 1.0), 4) if t is not None and vmax > 0 else None),
                  'arena': {'rows': grid, 'cols': grid, 'act': [sig4(v) for v in act_all[:, int(j)]]}}
@@ -866,8 +952,7 @@ def page_data(cfg):
 def step_page(cfgs, overwrite):
     from scipy import stats
     data = {'default': cfgs[0].sae, 'saes': [page_data(c) for c in cfgs],
-            'montage': {'K': K, 'cols': COLS, 'tile': TILE, 'blocks': [f'{k}{"_heat" if h else ""}' for k, h in BLOCKS],
-                        'lengths': {L: w for L, w in LENGTHS.items()}},
+            'montage': {'K': K, 'cols': COLS, 'tile': TILE, 'lengths': {L: w for L, w in LENGTHS.items()}},
             'tcrit': {str(n): round(float(stats.t.ppf(0.975, n - 1)), 4) for n in range(2, 121)}}
     tpl = TEMPLATE.read_text()
     assert tpl.count('/*__DATA__*/null') == 1, 'template placeholder missing'
@@ -916,7 +1001,7 @@ if __name__ == '__main__':
     ap.add_argument('--steps', default='data,patch,arena,render,page,check')
     ap.add_argument('--overwrite', action='store_true')
     ap.add_argument('--max-files', type=int, default=480)
-    ap.add_argument('--max-mb', type=float, default=150)
+    ap.add_argument('--max-mb', type=float, default=250)
     ap.add_argument('--crf', type=int, default=30, help='H.264 quality of the montages (higher = smaller)')
     a = ap.parse_args()
     res = a.res or DEFAULT_RES

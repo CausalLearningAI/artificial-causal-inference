@@ -311,6 +311,16 @@ def scan_windows(source, neurons, key='max', lengths=(1, 5, 15), seed=0, log_eve
     return {w: WindowScan(neurons=neurons, videos=vids, length=w, key=key, **o) for w, o in out.items()}
 
 
+def subset_windows(ws, mask):
+    """The WindowScan restricted to the videos where mask (V,) is True (e.g. the videos of one
+    contrast), so pick_top_windows / pick_least_windows choose among those videos only."""
+    from dataclasses import replace
+    mask = np.asarray(mask, bool)
+    return replace(ws, videos=ws.videos[mask].reset_index(drop=True),
+                   **{k: getattr(ws, k)[mask] for k in ('best_start', 'best_mean', 'silent_start', 'min_start',
+                                                         'min_mean')})
+
+
 def pick_top_windows(ws, i, n=16):
     """(starts, means): the n videos with the highest best-window mean of neuron ws.neurons[i], that
     window in each (so at most one window per video; only means > 0)."""
