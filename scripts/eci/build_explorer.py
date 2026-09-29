@@ -2,9 +2,10 @@
 Build the NES explorer page "Exploratory Causal Inference x Mice": <out>/index.html + <out>/assets/.
 
 The page design is scripts/eci/explorer_template.html (the user's hand-edited version of the
-published page); this script fills its `const ALL = /*__DATA__*/null` with the data of one or more
-NES result sets (one per SAE / representation, chosen with the page's SAE selector; the first --res
-is the page default) and writes the assets they reference.
+published page); this script fills its `const ALL = /*__DATA__*/null` with the core data of one or more
+NES result sets (one per SAE / representation, chosen with the page's Model bar: MODELS gives each SAE
+its encoder / SAE type / input; the first --res is the page default), writes the rest as data files the
+page fetches on demand (assets/data/) and writes the media they reference.
 
 One command, all steps, incremental (GPU needed for the patch and arena steps):
     sbatch scripts/eci/build_explorer.sh
@@ -53,11 +54,19 @@ Steps (each cached under <res>/_cache/explorer/, incremental):
              raw then with heat (turbo, the neuron's shared scale). Sources are packed whole into files of
              at most 16 blocks (montage_layout; all + 3 contrasts = 16). frame -> one webp still;
              1 s / 3 s -> one H.264 mp4 (5 / 15 frames at 5 fps). -> assets/<tag>_<p>XXXX_<L>_<file>.<ext>
-    page     data inlined into scripts/eci/explorer_template.html -> <out>/index.html; also the per-video
-             outcome values of every shown neuron (from the NES caches: <res>/_cache/video_summaries_*.npz,
-             bout_summaries_max.npz) for the per-pool panel, checked against the tau of summary.csv.
-    check    every referenced asset exists; unreferenced files in assets/ are deleted; counts, MB
-             (fails above --max-files files / --max-mb MB / a file > 15 MB / page > 16 MB)
+    page     core data (model bar, outcomes, analyses, video list, subgroup sizes and the searches of the
+             default SAE's first outcome) inlined into scripts/eci/explorer_template.html -> <out>/index.html
+             (< --max-page-kb); the rest fetched by the page when needed (split_data): assets/data/
+             <tag>_r_<outcome>.json = searches of one SAE x outcome (full cohort + every subgroup),
+             <tag>_<codes>_<k>.json = neuron chunks of ~CHUNK_BYTES (clip lists, histogram, arena map,
+             per-video outcome values from the NES caches <res>/_cache/video_summaries_*.npz,
+             bout_summaries_max.npz, checked against the tau of summary.csv). The page shows 8 of the K
+             clips per row by default (8 / 16 control).
+    check    every referenced media / data file exists; unreferenced files in assets/ and assets/data/ are
+             deleted; counts, MB (fails above --max-version-files files / --max-mb MB / a file > 15 MB /
+             index.html > --max-page-kb KB). --max-files is the media budget of plan_budget.
+
+Page only (CPU, all caches present): python scripts/eci/build_explorer.py --steps page,check
 
 Representations (src/eci/viz.py representation): 'crop224' SAEs are patch SAEs on the 224 center crop
 (16 x 16 patches, heat on pixels 32-480); 'fg448' SAEs (src/eci/foreground.py) see the whole frame at
@@ -94,12 +103,19 @@ DATASET = ROOT / 'dataset'
 NES = 'results/vision/mice/eci/nes'
 DEFAULT_RES = [f'{NES}/matryoshka_btk_1024_k16_fg448_s0', f'{NES}/matryoshka_btk_1024_k16_ep20_s0']
 ARTEFACT_EP20 = {64, 50, 113}  # ep20 SAE neuron ids; other SAEs get no flags
-# SAE -> (label in the selector, one-line description)
-SAE_LABEL = {
-    'matryoshka_btk_1024_k16_fg448_s0': ('mouse only', 'Mouse only: DINOv2 sees the whole frame at 448 px; the SAE is '
-                                         'trained from scratch on the mouse (foreground) patches only'),
-    'matryoshka_btk_1024_k16_ep20_s0': ('full frame', 'Full frame: DINOv2 sees the 224 px center crop; the SAE is '
-                                        'trained on all patches (mice and bedding)')}
+# Model bar of the page: SAE result set -> its value on each axis (encoder, SAE type, input), plus a
+# tooltip per value. Adding an encoder / SAE type = one entry here (and its --res); an axis with a single
+# value is shown as a fixed selector.
+MODEL_AXES = [('encoder', 'Encoder'), ('sae', 'SAE'), ('input', 'Input')]
+MODELS = {
+    'matryoshka_btk_1024_k16_fg448_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mice only'},
+    'matryoshka_btk_1024_k16_ep20_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'full frame'}}
+MODEL_TIPS = {
+    ('encoder', 'DINOv2'): 'DINOv2 patch features',
+    ('sae', 'Matryoshka'): 'Matryoshka BatchTopK sparse autoencoder, 1024 neurons, k = 16',
+    ('input', 'mice only'): 'Whole frame at 448 px; SAE trained on the mouse (foreground) patches only',
+    ('input', 'full frame'): '224 px center crop; SAE trained on all patches (mice and bedding)'}
+CHUNK_BYTES = 200_000                 # target size of one neuron data file (assets/data/)
 K, TILE, COLS = 16, 144, 16           # clips per row block, tile px, tiles per montage row (1 block = 1 row)
 MAX_BLOCKS = 16                       # blocks per montage file (16 x 144 px = 2304 px high at most)
 LENGTHS = {'frame': 1, '1s': 5, '3s': 15}
@@ -924,11 +940,31 @@ def tau_check(vm, vals, results, oid, round_=1):
     return worst
 
 
+def video_table():
+    """The page's video list (video_meta order): [[pool, stage, genotype, line, sex] ...], [[name, time] ...]
+    (short_obs), and {observation_id: index}."""
+    vm = vmeta().reset_index(drop=True)
+    ex = pd.read_csv(ROOT / 'data/mice/v1/experiment.csv').drop_duplicates('pool').set_index('pool')
+    vm['line'], vm['sex'] = ex.loc[vm['pool'], 'line'].values, ex.loc[vm['pool'], 'sex'].values
+    videos = [[str(p), int(s), g, l, x] for p, s, g, l, x in zip(vm['pool'], vm['stage'], vm['genotype'], vm['line'],
+                                                                  vm['sex'])]
+    return vm, videos, [list(short_obs(o)) for o in vm['observation_id'].astype(str)], \
+        {o: i for i, o in enumerate(vm['observation_id'].astype(str))}
+
+
 def page_data_clip(x):
-    """[tooltip label, mean activation] of one clip."""
-    name, when = short_obs(x['obs'])
-    return [f'S{x["stage"]} {STAGE_LABEL[x["stage"]]} · {x["genotype"]} · {name} · {when} · pool {x["pool"]}',
-            sig4(x['act'])]
+    """[video index (page video list), mean activation] of one clip; the page builds the tooltip label
+    'S<stage> <label> · <genotype> · <name> · <time> · pool <pool>' from the video list."""
+    vm, videos, _, vidx = _vt()
+    i = vidx[x['obs']]
+    assert (videos[i][0], videos[i][1], videos[i][2]) == (str(x['pool']), int(x['stage']), str(x['genotype'])), x['obs']
+    return [i, sig4(x['act'])]
+
+
+def _vt():
+    if 'vt' not in _rates:
+        _rates['vt'] = video_table()
+    return _rates['vt']
 
 
 def page_clips(cfg, key, j, n):
@@ -1062,11 +1098,8 @@ def page_data(cfg):
         art.setdefault(str(j), 'flagged as a likely recording artefact')
     # per-video values of the tested outcome, for the per-pool panel (one list per outcome and neuron,
     # in the order of 'videos'); tables of bout outcomes by stage x genotype
-    vm = vmeta().reset_index(drop=True)
-    ex = pd.read_csv(ROOT / 'data/mice/v1/experiment.csv').drop_duplicates('pool').set_index('pool')
-    vm['line'], vm['sex'] = ex.loc[vm['pool'], 'line'].values, ex.loc[vm['pool'], 'sex'].values
-    videos = [[str(p), int(s), g, l, x] for p, s, g, l, x in zip(vm['pool'], vm['stage'], vm['genotype'], vm['line'],
-                                                                  vm['sex'])]
+    vm, videos, _, _ = _vt()
+    vm = vm.copy()
     vals, otables = {}, {}
     for o in cfg.outcomes:
         ids, Y = video_outcome(cfg, o)
@@ -1090,54 +1123,159 @@ def page_data(cfg):
             ids, Y = video_outcome(cfg, o)
             ix = ids.get_indexer(vm['observation_id'].astype(str))
             vals[o['id']].update({j: [sig4(v) for v in Y[ix, int(j)]] for j in miss})
-    label, desc = SAE_LABEL.get(cfg.sae, (cfg.sae, cfg.sae))
-    return {'sae': cfg.sae, 'label': label, 'desc': desc, 'rep': cfg.rep, 'outcomes': outcomes, 'otables': otables,
+    if cfg.sae not in MODELS:
+        raise SystemExit(f'{cfg.sae}: add it to MODELS (encoder / sae / input of the model bar)')
+    return {'sae': cfg.sae, 'tag': cfg.tag, 'model': MODELS[cfg.sae], 'rep': cfg.rep, 'outcomes': outcomes,
+            'otables': otables, 'artefact': sorted(int(j) for j in cfg.artefact),
             'subsets': subsets,
             'analyses': [analyses[a] for a in ORDER if a in analyses], 'results': results, 'neurons': neurons,
             'artefact_text': art, 'arena_note': str(ar['note']), 'videos': videos, 'vals': vals,
             'n_frames': int(sum(next(iter(picks['by_key'][cfg.keys[0]].values()))['hist']['counts']['all']))}
 
 
+def q16(v):
+    """Non-negative values -> {'max', 'q': base64 of little-endian uint16 round(v / max * 65535)} (arena maps:
+    display only)."""
+    import base64
+    v = np.maximum(np.asarray(v, dtype=np.float64), 0)
+    mx = float(v.max()) if v.max() > 0 else 1.0
+    return {'max': sig4(mx), 'q': base64.b64encode(np.round(v / mx * 65535).astype('<u2').tobytes()).decode()}
+
+
+def jdump(x):
+    return json.dumps(x, separators=(',', ':'))
+
+
+def split_data(d, data_dir, inline):
+    """One SAE's page data -> (the part kept in index.html, {data file name: content}). Files (fetched by
+    the page on demand, assets/data/): <tag>_r_<outcome id>.json = that outcome's searches (full cohort and
+    every subgroup); <tag>_<codes key>_<k>.json = chunk k of the neurons ranked by that codes key (clip
+    lists, histogram, arena map, per-video values and stage x genotype tables of each outcome built from
+    that key), ~CHUNK_BYTES each. inline: the results file whose content goes into index.html instead."""
+    tag, files = d['tag'], {}
+    core = {k: d[k] for k in ('sae', 'tag', 'model', 'rep', 'outcomes', 'analyses', 'artefact', 'artefact_text',
+                              'arena_note', 'n_frames')}
+    core['subsets'] = {name: {k: v for k, v in S.items() if k != 'results'} for name, S in d['subsets'].items()}
+    core['rfiles'], core['pre'] = {}, {}
+    for o in d['outcomes']:
+        pre_ = o['id'] + '|'
+        R = {'results': {k: v for k, v in d['results'].items() if k.startswith(pre_)},
+             'subsets': {name: {k: v for k, v in S['results'].items() if k.startswith(pre_)}
+                         for name, S in d['subsets'].items()}}
+        f = f'{tag}_r_{o["id"]}.json'
+        if (tag, o['id']) == inline:  # key 'pre:<file>': not a file, the page reads it from ALL
+            core['rfiles'][o['id']] = f'pre:{f}'
+            core['pre'][f'pre:{f}'] = R
+        else:
+            core['rfiles'][o['id']] = f'{data_dir}/{f}'
+            files[f] = R
+    arena0 = None
+    core['nfile'] = {}
+    for key, ns in d['neurons'].items():
+        chunks, cur, size = [], {}, 0
+        for j in sorted(ns, key=int):
+            e = dict(ns[j])
+            A = e.pop('arena')
+            if arena0 is None:
+                arena0 = {'rows': A['rows'], 'cols': A['cols'], 'bg': A.get('bg'),
+                          'occ': q16(A['occ']) if 'occ' in A else None}
+            e['arena'] = q16(A['act'])
+            e['vals'] = {o['id']: d['vals'][o['id']][j] for o in d['outcomes']
+                         if o['codes'] == key and j in d['vals'].get(o['id'], {})}
+            e['otable'] = {o['id']: d['otables'][o['id']]['full'][j] for o in d['outcomes']
+                           if o['codes'] == key and o['id'] in d['otables'] and j in d['otables'][o['id']]['full']}
+            n = len(jdump(e))
+            if cur and size + n > CHUNK_BYTES:
+                chunks.append(cur)
+                cur, size = {}, 0
+            cur[j], size = e, size + n
+        if cur:
+            chunks.append(cur)
+        core['nfile'][key] = {}
+        for k, c in enumerate(chunks):
+            f = f'{tag}_{key}_{k}.json'
+            files[f] = {'neurons': c}
+            core['nfile'][key].update({j: k for j in c})
+        core['nfile'][key] = {'files': [f'{data_dir}/{tag}_{key}_{k}.json' for k in range(len(chunks))],
+                              'of': core['nfile'][key]}
+    core['arena'] = arena0
+    # every per-video value / table of the data went to some neuron file
+    for o in d['outcomes']:
+        lost = set(d['vals'].get(o['id'], {})) - set(d['neurons'][o['codes']])
+        assert not lost, f'{tag} {o["id"]}: per-video values of neurons without an entry {sorted(lost)[:5]}'
+    return core, files
+
+
 def step_page(cfgs, overwrite):
     from scipy import stats
-    data = {'default': cfgs[0].sae, 'saes': [page_data(c) for c in cfgs],
+    _, videos, obs, _ = _vt()
+    saes = [page_data(c) for c in cfgs]
+    data = {'default': cfgs[0].sae, 'saes': [],
+            'axes': [{'key': k, 'label': lab, 'tips': {v: MODEL_TIPS.get((k, v), v) for v in
+                                                       dict.fromkeys(MODELS[d['sae']][k] for d in saes)}}
+                     for k, lab in MODEL_AXES],
+            'videos': videos, 'obs': obs,
             'montage': {'K': K, 'cols': COLS, 'tile': TILE, 'lengths': {L: w for L, w in LENGTHS.items()}},
             'tcrit': {str(n): round(float(stats.t.ppf(0.975, n - 1)), 4) for n in range(2, 121)}}
+    out = cfgs[0].out
+    ddir = out / 'assets' / 'data'
+    ddir.mkdir(parents=True, exist_ok=True)
+    inline = (saes[0]['tag'], saes[0]['outcomes'][0]['id'])  # the first view's searches
+    written = set()
+    for d in saes:
+        core, files = split_data(d, 'assets/data', inline)
+        data['saes'].append(core)
+        for f, c in files.items():
+            (ddir / f).write_text(jdump(c))
+            written.add(f)
+        print(f'[{d["tag"]}] page: {len(files)} data files, {sum(len(jdump(c)) for c in files.values()) / 1e3:.0f} KB, '
+              f'largest {max(len(jdump(c)) for c in files.values()) / 1e3:.0f} KB')
+    for f in ddir.glob('*.json'):
+        if f.name not in written:
+            f.unlink()
     tpl = TEMPLATE.read_text()
     assert tpl.count('/*__DATA__*/null') == 1, 'template placeholder missing'
-    page = tpl.replace('/*__DATA__*/null', json.dumps(data, separators=(',', ':')))
-    out = cfgs[0].out
-    out.mkdir(parents=True, exist_ok=True)
+    page = tpl.replace('/*__DATA__*/null', jdump(data))
     (out / 'index.html').write_text(page)
-    print('page: wrote', out / 'index.html', f'{len(page) / 1e3:.0f} KB')
+    print('page: wrote', out / 'index.html', f'{len(page.encode()) / 1e3:.0f} KB')
 
 
 # ---------------------------------------------------------------------- step: check
 def step_check(cfgs, a):
+    """index.html references the data files (assets/data/*.json); the page and the data files reference the
+    media. Every reference must exist; unreferenced files are deleted; limits: files per version, MB, a
+    file > 15 MB, index.html > --max-page-kb."""
     out = cfgs[0].out
     assets = out / 'assets'
     page = (out / 'index.html').read_text()
     assert page.startswith('<title>'), 'page must begin with <title>'
     for tag in ('html', 'head', 'body', '!doctype'):
         assert not re.search(rf'<{tag}[\s>]', page, re.I), f'page must not contain <{tag}>'
-    refs = set(re.findall(r'assets/[\w.\-]+\.(?:mp4|webp|png|jpg)', page))
-    missing = sorted(r for r in refs if not (out / r).exists())
+    drefs = set(re.findall(r'assets/data/[\w.\-]+\.json', page))
+    dmiss = sorted(r for r in drefs if not (out / r).exists())
+    texts = [page] + [(out / r).read_text() for r in sorted(drefs) if (out / r).exists()]
+    refs = {r for t in texts for r in re.findall(r'assets/[\w.\-]+\.(?:mp4|webp|png|jpg)', t)}
+    missing = sorted(r for r in refs if not (out / r).exists()) + dmiss
     files = sorted(p for p in assets.iterdir() if p.is_file())
-    unused = [p for p in files if f'assets/{p.name}' not in refs]
+    dfiles = sorted((assets / 'data').glob('*')) if (assets / 'data').is_dir() else []
+    unused = [p for p in files if f'assets/{p.name}' not in refs] + \
+             [p for p in dfiles if f'assets/data/{p.name}' not in drefs]
     for p in unused:
         p.unlink()
-    files = [p for p in files if p not in unused]
+    files = [p for p in files + dfiles if p not in unused]
     total = sum(p.stat().st_size for p in files) + (out / 'index.html').stat().st_size
     big = max(files, key=lambda p: p.stat().st_size)
-    print(f'check: {len(refs)} referenced assets, {len(missing)} missing {missing[:5]}, '
+    n_data = sum(1 for p in files if p.parent.name == 'data')
+    print(f'check: {len(refs)} referenced media + {len(drefs)} data files, {len(missing)} missing {missing[:5]}, '
           f'{len(unused)} unused deleted {[p.name for p in unused][:6]}')
-    print(f'check: {len(files)} asset files + index.html, total {total / 1e6:.1f} MB, '
-          f'largest {big.name} {big.stat().st_size / 1e3:.0f} KB, page {len(page) / 1e3:.0f} KB')
+    print(f'check: {len(files) + 1} files to publish (index.html + {len(files) - n_data} media + {n_data} data), '
+          f'total {total / 1e6:.1f} MB, largest {big.name} {big.stat().st_size / 1e3:.0f} KB, '
+          f'page {len(page.encode()) / 1e3:.0f} KB')
     for c in cfgs:
         n = [p for p in files if p.name.startswith(c.tag + '_')]
         print(f'check: [{c.tag}] {len(n)} files, {sum(p.stat().st_size for p in n) / 1e6:.1f} MB')
-    if (missing or len(files) + 1 > a.max_files or total > a.max_mb * 1e6 or len(page.encode()) > 16e6
-            or big.stat().st_size > 15e6):
+    if (missing or len(files) + 1 > a.max_version_files or total > a.max_mb * 1e6
+            or len(page.encode()) > a.max_page_kb * 1e3 or big.stat().st_size > 15e6):
         raise SystemExit('check failed')
 
 
@@ -1149,7 +1287,10 @@ if __name__ == '__main__':
     ap.add_argument('--out', default=None, help='output dir (default <first res>/explorer)')
     ap.add_argument('--steps', default='data,patch,arena,render,page,check')
     ap.add_argument('--overwrite', action='store_true')
-    ap.add_argument('--max-files', type=int, default=480)
+    ap.add_argument('--max-files', type=int, default=480, help='budget of media files + index.html (decides '
+                    'which subgroup-only neurons get clips); the data files come on top')
+    ap.add_argument('--max-version-files', type=int, default=511, help='all published files (artifact version limit)')
+    ap.add_argument('--max-page-kb', type=float, default=400, help='index.html size limit')
     ap.add_argument('--max-mb', type=float, default=250)
     ap.add_argument('--crf', type=int, default=30, help='H.264 quality of the montages (higher = smaller)')
     a = ap.parse_args()
