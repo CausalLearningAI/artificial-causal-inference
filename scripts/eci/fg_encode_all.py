@@ -24,7 +24,9 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 from src.eci.encode import shard_ranges  # noqa: E402
 from src.eci.fg_encode import encode_fg_shard, merge_fg_shards, verify_fg_codes  # noqa: E402
-from src.eci.foreground import FG_RULE  # noqa: E402
+import torch  # noqa: E402
+
+from src.eci.foreground import RULES  # noqa: E402
 
 
 def main():
@@ -51,12 +53,17 @@ def main():
     n_rows = len(frame_paths)
     ranges = shard_ranges(n_rows, args.n_shards)
     cfg = out_dir / 'config.json'
+    ck = torch.load(sae_path, map_location='cpu', weights_only=False)
+    rule_name, motion_delta = ck.get('fg_rule', 'fg448'), int(ck.get('motion_delta', 0) or 0)
+    del ck
     if not cfg.exists():
         cfg.write_text(json.dumps({
             'model_id': 'facebook/dinov2-base', 'resolution': 448, 'center_crop': False,
             'layer': 'last_hidden_state (after final LayerNorm), fp32 forward rounded to float16 before the SAE',
             'preprocessing': 'whole 512x512 frame resized bicubic to 448x448, ImageNet normalization (32x32 patches)',
-            'foreground_rule': FG_RULE, 'backgrounds': args.bg_dir,
+            'foreground_rule_name': rule_name, 'foreground_rule': RULES[rule_name], 'backgrounds': args.bg_dir,
+            'motion_delta': motion_delta,
+            'sae_input': 'token' if motion_delta == 0 else f'[token_t, token_t - token_(t-{motion_delta})] same patch',
             'sae_checkpoint': str(sae_path), 'sae_inference': 'global threshold',
             'pooling': {'codes_max': 'max over foreground patches', 'codes_mean': 'mean over foreground patches',
                         'n_fg': 'number of foreground patches'},

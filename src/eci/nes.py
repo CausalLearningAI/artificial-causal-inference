@@ -56,6 +56,13 @@ and do not count in the Bonferroni m. Their count is reported.
 
 Paired design (stage transitions, the same pool at stage a and b): see paired_effect_test().
 
+Nuisance conditioning (optional `nuisance` argument of both searches): per-unit covariates that are
+not concepts but can drive many neurons (e.g. the per-video mean foreground size = how spread out the
+mice are). They are appended as extra columns and treated as ALREADY SELECTED from round 0: every
+test (round 1 included) stratifies on them first and residualizes on them exactly as on selected
+neurons, they are never tested themselves and do not count in the Bonferroni m. With nuisance=None
+the searches are unchanged.
+
 Functions:
     unit_means               per-unit (e.g. per-video) mean activations from frame rows
     active_neurons           mask of neurons that are not near-constant
@@ -266,15 +273,17 @@ def _pick(table, rejected, select):
     raise ValueError(f'unknown select {select!r}')
 
 
-def _search(test_fn, keep, alpha, correction, select, max_rounds, keep_tables):
+def _search(test_fn, keep, alpha, correction, select, max_rounds, keep_tables, S0=()):
+    """S0: column indices (nuisance covariates) conditioned on from round 0, never tested/returned."""
     t0 = time.time()
     tested = np.flatnonzero(keep)
+    S0 = list(S0)
     S, rounds, tables = [], [], []
     while max_rounds is None or len(S) < max_rounds:
         cols = np.array([j for j in tested if j not in set(S)], dtype=np.int64)
         if len(cols) == 0:
             break
-        table, info = test_fn(S, cols)
+        table, info = test_fn(S0 + S, cols)
         rejected, thr = _reject(table['p'].values, alpha, correction)
         table['significant'] = rejected
         if keep_tables or not tables:
@@ -289,12 +298,28 @@ def _search(test_fn, keep, alpha, correction, select, max_rounds, keep_tables):
         S.append(j)
     return {'selected': S, 'rounds': pd.DataFrame(rounds), 'first_round': tables[0] if tables else None,
             'tables': tables if keep_tables else None, 'n_tested': int(keep.sum()),
-            'n_dropped': int((~keep).sum()), 'dropped': np.flatnonzero(~keep), 'elapsed_s': time.time() - t0}
+            'n_dropped': int((~keep).sum()) - len(S0), 'dropped': np.setdiff1d(np.flatnonzero(~keep), S0),
+            'n_nuisance': len(S0),
+            'elapsed_s': time.time() - t0}
+
+
+def _with_nuisance(Z, nuisance):
+    """-> (Z with the nuisance columns appended, their indices, keep-mask extension)."""
+    if nuisance is None:
+        return Z, [], None
+    N = np.asarray(nuisance, dtype=np.float64)
+    N = N[:, None] if N.ndim == 1 else N
+    if len(N) != len(Z):
+        raise ValueError(f'nuisance has {len(N)} rows, Z has {len(Z)}')
+    if not np.isfinite(N).all():
+        raise ValueError('nuisance covariates must be finite')
+    m = Z.shape[1]
+    return np.column_stack([Z, N]), list(range(m, m + N.shape[1])), N.shape[1]
 
 
 def neural_effect_search(Z, T, alpha=0.05, correction='bonferroni', select='tau', n_strata=2, min_per_cell=3,
                          residualize='ols', n_folds=5, max_rounds=None, min_active=0.01, groups=None,
-                         keep_tables=False, seed=0):
+                         keep_tables=False, seed=0, nuisance=None):
     """Neural Effect Search (Algorithm 1), two-sample.
 
     Z: (n, m) activations, T: (n,) binary treatment (e.g. het=1 vs wt=0 within one stage).
@@ -307,6 +332,8 @@ def neural_effect_search(Z, T, alpha=0.05, correction='bonferroni', select='tau'
     correction: 'bonferroni' (alpha / m_remaining, paper default), 'bh', 'none'.
     select: 'tau' (paper: largest |tau| among the rejected) or 'p' (smallest p).
     max_rounds: cap on |S|. min_active: neurons active in fewer units are not tested.
+    nuisance: optional (n_units,) or (n_units, k) per-unit covariates conditioned on from round 0
+      (see the module docstring); with groups, rows are units AFTER averaging (sorted unit ids).
     Returns dict: selected (ordered list), rounds (DataFrame, one row per selected neuron with
     its test stats, threshold, #tested, #significant, strata used), first_round (the naive
     per-neuron multiple test: all neurons, no conditioning; column 'significant'), tables
@@ -317,11 +344,14 @@ def neural_effect_search(Z, T, alpha=0.05, correction='bonferroni', select='tau'
         _, Z, T = unit_means(Z, groups, T)
     T = np.asarray(T).astype(np.int64)
     keep = active_neurons(Z, min_active)
+    Z, S0, k = _with_nuisance(Z, nuisance)
+    if k:
+        keep = np.r_[keep, np.zeros(k, dtype=bool)]
 
     def test_fn(S, cols):
-        return neural_effect_test(Z, T, S, cols, n_strata, min_per_cell, residualize, n_folds, seed + len(S))
+        return neural_effect_test(Z, T, S, cols, n_strata, min_per_cell, residualize, n_folds, seed + len(S) - len(S0))
 
-    return _search(test_fn, keep, alpha, correction, select, max_rounds, keep_tables)
+    return _search(test_fn, keep, alpha, correction, select, max_rounds, keep_tables, S0)
 
 
 def _signflip_p(e0, h, Q, dof, t_obs, n_perm, rng, chunk=1024):
@@ -415,19 +445,28 @@ def paired_effect_test(Za, Zb, S=(), cols=None, n_strata=2, min_per_cell=3, resi
 
 def paired_effect_search(Za, Zb, alpha=0.05, correction='bonferroni', select='tau', n_strata=2, min_per_cell=3,
                          residualize=True, test='t', n_perm=None, max_rounds=None, min_active=0.01,
-                         keep_tables=False, seed=0):
+                         keep_tables=False, seed=0, nuisance=None):
     """Neural Effect Search (Algorithm 1) with the paired test of paired_effect_test().
 
     Za, Zb: (n_pools, m) per-pool mean activations at stages a and b (rows aligned by pool),
     e.g. stage 1 -> 2 within the het pools. tau > 0 means the concept increases from a to b.
     Neurons active in < min_active of the 2n stacked observations, or with constant Zb - Za,
     are not tested. Other options and the returned dict as in neural_effect_search().
+    nuisance: optional pair (Na, Nb) of (n_pools,) or (n_pools, k) per-pool covariates at stages a and
+      b, conditioned on from round 0 like selected neurons: regression on Nb - Na and strata on
+      (Na + Nb) / 2 (see paired_effect_test).
     """
     Za, Zb = np.asarray(Za, dtype=np.float64), np.asarray(Zb, dtype=np.float64)
     keep = active_neurons(np.vstack([Za, Zb]), min_active) & ((Zb - Za).std(0) > 1e-8)
+    S0 = []
+    if nuisance is not None:
+        Na, Nb = nuisance
+        Za, S0, k = _with_nuisance(Za, Na)
+        Zb, _, _ = _with_nuisance(Zb, Nb)
+        keep = np.r_[keep, np.zeros(k, dtype=bool)]
 
     def test_fn(S, cols):
         return paired_effect_test(Za, Zb, S, cols, n_strata, min_per_cell, residualize, test, n_perm, alpha,
-                                  seed + len(S))
+                                  seed + len(S) - len(S0))
 
-    return _search(test_fn, keep, alpha, correction, select, max_rounds, keep_tables)
+    return _search(test_fn, keep, alpha, correction, select, max_rounds, keep_tables, S0)

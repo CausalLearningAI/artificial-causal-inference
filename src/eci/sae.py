@@ -68,6 +68,25 @@ class TokenNorm(nn.Module):
         self.scale.copy_((math.sqrt(x.shape[1]) / avg_norm).to(self.scale.device))
         return self
 
+    @torch.no_grad()
+    def fit_blocks(self, tokens, blocks, n_sample=500_000, seed=0):
+        """As fit, but one scale per block of consecutive dims (e.g. [768, 768] for a
+        [token, token change] concatenation): each block gets average norm sqrt(block size),
+        so both parts weigh the same in the loss / FVE. scale becomes a (dim,) vector."""
+        if sum(blocks) != self.mean.shape[0]:
+            raise ValueError(f'blocks {blocks} do not sum to dim {self.mean.shape[0]}')
+        g = torch.Generator(device='cpu').manual_seed(seed)
+        idx = torch.randperm(tokens.shape[0], generator=g)[:n_sample].to(tokens.device)
+        x = tokens[idx].float()
+        mean = x.mean(0)
+        scale, a = torch.empty_like(mean), 0
+        for b in blocks:
+            scale[a:a + b] = math.sqrt(b) / (x[:, a:a + b] - mean[a:a + b]).norm(dim=1).mean()
+            a += b
+        self.mean.copy_(mean.to(self.mean.device))
+        self.scale = scale.to(self.mean.device)
+        return self
+
     def forward(self, x):
         return (x.float() - self.mean) * self.scale
 
@@ -369,5 +388,7 @@ def load_sae(path, device='cpu'):
     sae = MatryoshkaBatchTopKSAE(**ck['hparams'])
     sae.load_state_dict(ck['state_dict'])
     norm = TokenNorm(ck['hparams']['d_in'])
+    if ck['norm']['scale'].ndim == 1:  # per-block scale (TokenNorm.fit_blocks)
+        norm.scale = torch.ones(ck['hparams']['d_in'])
     norm.load_state_dict(ck['norm'])
     return sae.to(device).eval(), norm.to(device), ck

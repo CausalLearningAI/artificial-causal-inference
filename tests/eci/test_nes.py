@@ -240,6 +240,67 @@ def test_runtime_m1024():
     assert t_two < 10
 
 
+def _nuisance_world(rng, T, n_units, m=200):
+    """Nuisance N (e.g. mice spread) shifted by T; neuron 0 = N + noise (no effect of its own),
+    neuron 1 = a true effect independent of N, the rest noise."""
+    N = 1.8 * T + rng.normal(0, 1, n_units)
+    Z = rng.normal(0, 1, (n_units, m))
+    Z[:, 0] = N + rng.normal(0, 0.5, n_units)
+    Z[:, 1] = 1.8 * T + rng.normal(0, 1, n_units)
+    return Z, N
+
+
+def test_nuisance_conditioning_two_sample():
+    """(f) a neuron driven only by a nuisance covariate is significant without conditioning and must
+    not be selected with nuisance=...; the true effect must still be found."""
+    rng = np.random.default_rng(21)
+    T = np.repeat([0, 1], 36)
+    n_sim, hit0_plain, hit0, hit1, extra = 50, 0, 0, 0, 0
+    for _ in range(n_sim):
+        Z, N = _nuisance_world(rng, T, 72)
+        plain = neural_effect_search(Z, T)
+        res = neural_effect_search(Z, T, nuisance=N)
+        fr = plain['first_round']
+        hit0_plain += bool(fr.loc[fr['neuron'] == 0, 'significant'].iloc[0])  # naive round-1 test flags it
+        hit0 += 0 in res['selected']
+        hit1 += 1 in res['selected']
+        extra += len(set(res['selected']) - {1})
+        assert res['n_tested'] == 200 and res['n_nuisance'] == 1 and all(j < 200 for j in res['selected'])
+    print(f'    two-sample, {n_sim} sims: nuisance-driven neuron significant in the unconditioned round 1 {hit0_plain}/{n_sim}, selected '
+          f'{hit0}/{n_sim} conditioned; true effect recovered {hit1}/{n_sim}; other selections {extra}')
+    assert hit0_plain >= 0.7 * n_sim, 'the nuisance world is too weak to test anything'
+    assert hit0 <= 0.1 * n_sim and hit1 >= 0.85 * n_sim and extra <= 0.15 * n_sim
+    # nuisance=None is exactly the old search
+    Z, N = _nuisance_world(rng, T, 72)
+    a, b = neural_effect_search(Z, T), neural_effect_search(Z, T, nuisance=None)
+    assert a['selected'] == b['selected'] and np.allclose(a['first_round']['p'], b['first_round']['p'])
+
+
+def test_nuisance_conditioning_paired():
+    """(f) paired analogue: the nuisance changes from stage a to b and drives neuron 0 only.
+    Conditioning on a covariate that changes by mean(D_N) costs power exactly as for a selected
+    neuron (intercept SE x sqrt(1 + mean(D_N)^2 / var(D_N)), here ~1.5), hence the larger true effect."""
+    rng = np.random.default_rng(22)
+    n, n_sim, hit0_plain, hit0, hit1, extra = 36, 50, 0, 0, 0, 0
+    for _ in range(n_sim):
+        U = rng.normal(0, 1, (n, 200))  # pool random effects
+        Na, Nb = rng.normal(0, 1, n), 1.5 + rng.normal(0, 1, n)
+        Za, Zb = U + rng.normal(0, 1, (n, 200)), U + rng.normal(0, 1, (n, 200))
+        Za[:, 0], Zb[:, 0] = U[:, 0] + Na + rng.normal(0, .3, n), U[:, 0] + Nb + rng.normal(0, .3, n)
+        Zb[:, 1] += 2.2
+        plain = paired_effect_search(Za, Zb)
+        res = paired_effect_search(Za, Zb, nuisance=(Na, Nb))
+        fr = plain['first_round']
+        hit0_plain += bool(fr.loc[fr['neuron'] == 0, 'significant'].iloc[0])  # naive round-1 test flags it
+        hit0 += 0 in res['selected']
+        hit1 += 1 in res['selected']
+        extra += len(set(res['selected']) - {1})
+    print(f'    paired, {n_sim} sims: nuisance-driven neuron significant in the unconditioned round 1 {hit0_plain}/{n_sim}, selected '
+          f'{hit0}/{n_sim} conditioned; true effect recovered {hit1}/{n_sim}; other selections {extra}')
+    assert hit0_plain >= 0.7 * n_sim
+    assert hit0 <= 0.1 * n_sim and hit1 >= 0.85 * n_sim and extra <= 0.15 * n_sim
+
+
 def main() -> int:
     tests = [v for k, v in globals().items() if k.startswith("test_") and callable(v)]
     failed = 0

@@ -7,6 +7,10 @@
 # Output: dataset/mice/v1/eci/sae/matryoshka_btk_1024_k16_fg448_s{seed}/
 #
 # Usage: sbatch scripts/eci/train_sae_fg.sh
+#   mask v3, static tokens / motion input [token_t, token_t - token_(t-2)]:
+#   T=dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fgv3_fps1_d2
+#   EXTRA_ARGS="--tokens-dir $T --tag fgv3" sbatch --export=ALL scripts/eci/train_sae_fg.sh
+#   EXTRA_ARGS="--tokens-dir $T --tag fgv3m2 --motion" sbatch --export=ALL scripts/eci/train_sae_fg.sh
 #
 #SBATCH --job-name=eci_sae_fg
 #SBATCH --output=logs/eci_sae_fg_%A_%a.out

@@ -18,7 +18,14 @@ and codes_mean its sensitivity. Size check (foreground SAEs, when <codes>/n_fg.n
 neurons of the primary (full, trim30) re-tested with the per-video mean foreground patch count as a
 covariate -> size_adjusted.csv (contrasts.size_adjusted_round1).
 
+Nuisance conditioning (--nuisance nfg, foreground SAEs): every A / B search (and the shuffle nulls)
+conditions on the per-video mean foreground patch count n_fg (same window as the outcome) from
+round 0, as an already-selected neuron (src/eci/nes.py `nuisance`). --subdir writes the run to
+<out-root>/<sae>/<subdir>/ (e.g. the unconditioned sensitivity: --nuisance none --subdir unconditioned);
+the per-video summary cache stays in <out-root>/<sae>/_cache/.
+
 Usage: python scripts/eci/run_nes.py --sae matryoshka_btk_1024_k16_ep20_s0
+       python scripts/eci/run_nes.py --sae <fg sae> --primary-pooling max --nuisance nfg
 """
 
 import argparse
@@ -81,6 +88,9 @@ def main():
     ap.add_argument('--frame-max-rounds', type=int, default=8)  # strata double per round at frame level
     ap.add_argument('--skip-frame', action='store_true')
     ap.add_argument('--primary-pooling', default='mean', choices=('mean', 'max'))
+    ap.add_argument('--nuisance', default='none', choices=('none', 'nfg'),
+                    help='nfg: condition every search on the per-video mean foreground size from round 0')
+    ap.add_argument('--subdir', default='', help='write to <out-root>/<sae>/<subdir>/')
     args = ap.parse_args()
     t_start = time.time()
     global ARTEFACTS
@@ -89,8 +99,9 @@ def main():
     codes_dir = Path(args.codes_root) / args.sae
     if not (codes_dir / 'DONE').exists():
         raise SystemExit(f'{codes_dir}/DONE missing: codes not finished')
-    out = Path(args.out_root) / args.sae
+    out = Path(args.out_root) / args.sae / args.subdir
     out.mkdir(parents=True, exist_ok=True)
+    cache_dir = Path(args.out_root) / args.sae / '_cache'
 
     design = C.load_design(ROOT / 'dataset/mice/v1/annotations.csv', ROOT / 'data/mice/v1/experiment.csv')
     dur = design.groupby('stage')['n_frames'].agg(['count', 'min', 'max', 'mean']).reset_index()
@@ -104,10 +115,21 @@ def main():
     for pooling in ('mean', 'max'):
         t0 = time.time()
         summ[pooling] = C.cached_summaries(codes_dir / f'codes_{pooling}.npy', design,
-                                           out / '_cache' / f'video_summaries_{pooling}.npz', args.n_match)
+                                           cache_dir / f'video_summaries_{pooling}.npz', args.n_match)
         print(f'summaries codes_{pooling}: {time.time() - t0:.0f}s', flush=True)
 
-    all_rows, results, sanity = [], {}, {'genotype_balance': genotype_balance(design)}
+    cov = None
+    if args.nuisance == 'nfg':
+        nfg_v = C.video_nfg(codes_dir / 'n_fg.npy', design, args.n_match)
+        cov = {(w, 'v'): nfg_v[w][:, None] for w in C.WINDOWS}
+
+    def nuis_paired(geno, a, b, wa, wb):
+        return None if cov is None else C.paired(cov, design, geno, a, b, 'v', wa, wb)[1:]
+
+    def nuis_two(stage, w):
+        return None if cov is None else C.genotype_contrast(cov, design, stage, 'v', w)[1]
+
+    all_rows, results, sanity = [], {}, {'genotype_balance': genotype_balance(design), 'nuisance': args.nuisance}
     print('genotype balance across pool-level fields:', json.dumps(sanity['genotype_balance'])[:2000], flush=True)
 
     # ---- A: paired stage transitions
@@ -129,7 +151,8 @@ def main():
                                     if test == 'signflip' and (pooling, stat, corr, window) != (pp, 'mean', 'bonferroni', 'full'):
                                         continue
                                     t0 = time.time()
-                                    res = paired_effect_search(Za, Zb, correction=corr, test=test)
+                                    res = paired_effect_search(Za, Zb, correction=corr, test=test,
+                                                               nuisance=nuis_paired(geno, a, b, wa, wb))
                                     k = key(prefix, pooling, stat, test, corr, window)
                                     results[aid][k] = {**strip(res), 'n_units': len(pools), 'units': list(pools)}
                                     meta = dict(analysis_id=aid, family='A', genotype=geno, stage='', transition=tr,
@@ -148,7 +171,7 @@ def main():
                 for stat, window in (('mean', 'full'), ('rate', 'full'), ('mean', 'trim30'), ('rate', 'trim30')):
                     pools, Z, T = C.genotype_contrast(summ[pooling], design, stage, stat, WINDOW_MAP[window][0], prefix)
                     for corr in ('bonferroni', 'bh'):
-                        res = neural_effect_search(Z, T, correction=corr)
+                        res = neural_effect_search(Z, T, correction=corr, nuisance=nuis_two(stage, WINDOW_MAP[window][0]))
                         k = key(prefix, pooling, stat, 't', corr, window)
                         results[aid][k] = {**strip(res), 'n_units': len(pools), 'n_het': int(T.sum()),
                                            'n_wt': int((1 - T).sum()), 'units': list(pools)}
@@ -173,7 +196,7 @@ def main():
         pools, Z, T = C.genotype_contrast(summ[pp], design, 2, 'mean', 'full', prefix)
         counts, naive = [], []
         for _ in range(args.n_shuffles):
-            res = neural_effect_search(Z, rng.permutation(T))
+            res = neural_effect_search(Z, rng.permutation(T), nuisance=nuis_two(2, 'full'))
             counts.append(len(res['selected'])), naive.append(int(res['first_round']['significant'].sum()))
         perm[prefix] = {'n_selected': counts, 'n_naive_significant': naive}
         print(f'permutation prefix {prefix}: selected {counts} naive {naive}', flush=True)
@@ -220,7 +243,7 @@ def main():
     sanity['runtime_s'] = time.time() - t_start
     with open(out / 'sanity.json', 'w') as f:
         json.dump(C.to_jsonable(sanity), f, indent=1)
-    write_reports(out, tidy, results, dur, sanity, args.sae, pp, sadj)
+    write_reports(out, tidy, results, dur, sanity, args.sae, pp, sadj, args.nuisance)
     print(f'done in {time.time() - t_start:.0f}s -> {out}', flush=True)
 
 
@@ -250,7 +273,7 @@ def selected_set(tidy, aid, **kw):
     return dict(zip(s['neuron'].astype(int), s['direction']))
 
 
-def write_reports(out, tidy, results, dur, sanity, sae, pp='mean', sadj=None):
+def write_reports(out, tidy, results, dur, sanity, sae, pp='mean', sadj=None, nuisance='none'):
     alt = 'max' if pp == 'mean' else 'mean'
     sens = {  # name -> overrides of the primary setting (same prefix)
         'signflip': dict(test='signflip'), f'{alt}-pool': dict(pooling=alt), 'rate': dict(outcome_type='rate'),
@@ -262,7 +285,10 @@ def write_reports(out, tidy, results, dur, sanity, sae, pp='mean', sadj=None):
              'activation, t-test, Bonferroni alpha 0.05, full stage window. Family A = paired stage transition within '
              'genotype (unit = pool, tau > 0 = increase from stage a to b); family B = het vs wt within stage '
              '(unit = video, tau > 0 = higher in het). Prefix 128 = first 128 Matryoshka latents; neuron ids are '
-             'shared with prefix 1024.', '',
+             'shared with prefix 1024.'
+             + (' Nuisance conditioning: every search conditions on the per-video mean foreground patch count '
+                '(n_fg, how spread out / huddled the mice are) from round 0, as an already-selected neuron.'
+                if nuisance == 'nfg' else ' No nuisance conditioning.'), '',
              'Robustness columns: Y = the neuron is also selected (any round) under that single change from primary '
              '(same prefix); N = not; "-" = not applicable. "other prefix" = selected in the same analysis at the '
              'other prefix (only neurons < 128 can appear at prefix 128). size-adj = round-1 neuron still significant '

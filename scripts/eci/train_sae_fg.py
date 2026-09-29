@@ -40,19 +40,23 @@ def row_pools(dataset_dir, data_dir):
     return codes.astype(np.int16), list(names)
 
 
-def load_split(store, is_val_row, n_threads=8):
-    """-> (train tokens (n, d) fp16, val tokens, val rows, val pos) in CPU RAM."""
+def load_split(store, is_val_row, n_threads=8, motion=False):
+    """-> (train tokens (n, d) fp16, val tokens, val rows, val pos) in CPU RAM.
+    motion=True: each row is [token_t, token_t - token_{t-D}] (2 d), from tokens.f16 / prev.f16."""
     sel_tr, sel_va, rows_va, pos_va = [], [], [], []
     for s in range(len(store.dirs)):
         v = is_val_row[store.row(s)]
         sel_tr.append(~v); sel_va.append(v)
     n_tr, n_va = sum(int(m.sum()) for m in sel_tr), sum(int(m.sum()) for m in sel_va)
-    train = np.empty((n_tr, store.dim), np.float16)
-    val = np.empty((n_va, store.dim), np.float16)
+    d_out = store.dim * (2 if motion else 1)
+    train = np.empty((n_tr, d_out), np.float16)
+    val = np.empty((n_va, d_out), np.float16)
     offs = np.cumsum([0] + [int(m.sum()) for m in sel_tr]), np.cumsum([0] + [int(m.sum()) for m in sel_va])
 
     def job(s):
         t = np.asarray(store.tokens(s))
+        if motion:
+            t = np.concatenate([t, (t.astype(np.float32) - store.prev(s)).astype(np.float16)], 1)
         train[offs[0][s]:offs[0][s + 1]] = t[sel_tr[s]]
         val[offs[1][s]:offs[1][s + 1]] = t[sel_va[s]]
     with ThreadPoolExecutor(n_threads) as ex:
@@ -83,6 +87,23 @@ def batches(train, epochs, batch_size, seed):
                 yield ep, x
 
 
+@torch.no_grad()
+def block_fve(sae, norm, tokens, blocks, names, chunk=65536):
+    """FVE per block of input dims (normalized space, all latents, threshold inference)."""
+    dev = sae.W_dec.device
+    sse, s1, s2, n = [0.0] * len(blocks), [0.0] * len(blocks), [0.0] * len(blocks), 0
+    for a in range(0, tokens.shape[0], chunk):
+        x = norm(tokens[a:a + chunk].to(dev))
+        r = sae.decode(sae.encode(x, mode='threshold'))
+        o = 0
+        for i, b in enumerate(blocks):
+            xs, rs = x[:, o:o + b].double(), r[:, o:o + b].double()
+            sse[i] += float((xs - rs).pow(2).sum()); s1[i] = s1[i] + xs.sum(0); s2[i] += float(xs.pow(2).sum())
+            o += b
+        n += x.shape[0]
+    return {nm: float(1 - sse[i] / (s2[i] - float((s1[i] ** 2).sum()) / n)) for i, nm in enumerate(names)}
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--tokens-dir', default=str(REPO / 'dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fg448_fps1'))
@@ -105,6 +126,9 @@ def main():
     p.add_argument('--grad-clip', type=float, default=1.0)
     p.add_argument('--max-train-tokens', type=int, default=None, help='testing: random subset')
     p.add_argument('--overwrite', action='store_true')
+    p.add_argument('--motion', action='store_true',
+                   help='SAE input = [token_t, token_t - token_{t-D}] (store written with --motion-delta D); '
+                        'each half normalized to the same average norm (TokenNorm.fit_blocks)')
     args = p.parse_args()
 
     out_dir = Path(args.out_dir) if args.out_dir else \
@@ -121,7 +145,11 @@ def main():
     is_val_row = np.isin(np.array(names)[codes], val_pools)
     store = FgTokenStore(args.tokens_dir)
     t0 = time.time()
-    train, val, val_rows, val_pos = load_split(store, is_val_row)
+    train, val, val_rows, val_pos = load_split(store, is_val_row, motion=args.motion)
+    shard_info = store.info[0]
+    motion_delta = int(shard_info.get('motion_delta', 0)) if args.motion else 0
+    if args.motion and motion_delta <= 0:
+        raise SystemExit('--motion needs a token store written with --motion-delta')
     print(f'val pools {val_pools}: {len(train):,} train / {len(val):,} val foreground tokens, loaded in '
           f'{time.time() - t0:.0f}s', flush=True)
     if args.max_train_tokens:
@@ -130,15 +158,17 @@ def main():
 
     g = np.random.default_rng(args.seed)
     init = torch.from_numpy(train[np.sort(g.choice(len(train), 500_000, replace=False))]).to(device)
-    norm = TokenNorm(store.dim).to(device).fit(init, seed=args.seed)
+    d_in = train.shape[1]
+    norm = TokenNorm(d_in).to(device)
+    norm = norm.fit_blocks(init, [store.dim, store.dim], seed=args.seed) if args.motion else norm.fit(init, seed=args.seed)
     prefixes = [int(x) for x in args.prefixes.split(',')]
-    sae = MatryoshkaBatchTopKSAE(d_in=store.dim, n_latents=args.n_latents, prefixes=prefixes, k=args.k,
+    sae = MatryoshkaBatchTopKSAE(d_in=d_in, n_latents=args.n_latents, prefixes=prefixes, k=args.k,
                                  k_aux=args.k_aux, aux_coef=args.aux_coef, dead_tokens=args.dead_tokens,
                                  seed=args.seed).to(device)
     with torch.no_grad():
         sae.b_dec.copy_(geometric_median(norm(init[:100_000])))
     del init
-    print(f'norm scale {float(norm.scale):.4f}, |b_dec init| {float(sae.b_dec.norm()):.3f}', flush=True)
+    print(f'norm scale {norm.scale.unique()[:4].tolist()}, |b_dec init| {float(sae.b_dec.norm()):.3f}', flush=True)
 
     opt = torch.optim.Adam(sae.parameters(), lr=args.lr, betas=(0.9, 0.999))
     total = args.epochs * (len(train) // args.batch_size)
@@ -153,7 +183,9 @@ def main():
     assert step == total
     train_time = time.time() - tt
     sae.eval()
-    save_checkpoint(out_dir / 'sae.pt', sae, norm, extra={'val_pools': val_pools, 'args': vars(args)})
+    extra = {'val_pools': val_pools, 'args': vars(args), 'fg_rule': shard_info.get('rule_name', 'fg448'),
+             'motion_delta': motion_delta}
+    save_checkpoint(out_dir / 'sae.pt', sae, norm, extra=extra)
 
     val_t = torch.from_numpy(val[: (len(val) // 256) * 256])  # evaluate_sae groups rows by 256 (ignored)
     ev = {}
@@ -165,9 +197,13 @@ def main():
         for m, r in ev[mode]['prefixes'].items():
             print(f'  m={m:>5}  FVE {r["fve"]:.4f}  L0/token {r["l0_per_token"]:6.2f}  dead {100 * r["dead_frac"]:5.1f}% '
                   f'({r["n_dead"]})', flush=True)
-    metrics = {'args': vars(args), 'val_pools': val_pools, 'n_train_tokens': int(len(train)),
-               'n_val_tokens': int(val_t.shape[0]), 'n_steps': total, 'norm_scale': float(norm.scale),
-               'threshold': float(sae.threshold), 'train_time_s': round(train_time, 1),
+    if args.motion:  # FVE of each half (static token / token change), prefix 1024, threshold inference
+        ev['blocks'] = block_fve(sae, norm, val_t, [store.dim, store.dim], ('static', 'delta'))
+        print('VAL per-block FVE (m=1024):', ev['blocks'], flush=True)
+    metrics = {'args': vars(args), 'val_pools': val_pools, 'fg_rule': extra['fg_rule'], 'motion_delta': motion_delta,
+               'val_blocks': ev.get('blocks'), 'n_train_tokens': int(len(train)),
+               'n_val_tokens': int(val_t.shape[0]), 'n_steps': total,
+               'threshold': float(sae.threshold), 'norm_scale_blocks': norm.scale.unique().tolist(), 'train_time_s': round(train_time, 1),
                'val_threshold': ev['threshold'], 'val_topk': ev['topk'], 'history': history}
     (out_dir / 'metrics.json').write_text(json.dumps(metrics, indent=1))
     print(f'Done in {train_time:.0f}s -> {out_dir}')

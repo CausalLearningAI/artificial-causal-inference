@@ -27,6 +27,8 @@ Per frame and patch:
     dist        cosine distance 1 - cos(token, bg_seg[block, position])
     foreground  FG_RULE: core = drop_isolated(dist > thr_video) OR (dark > 0.15), then a
                 1-patch (3x3) dilation so noses / tails at mouse edges are kept.
+                FG_RULE_V3 (mask v3): the dilation only adds patches with >= 1 dark pixel
+                (dark > 0), so bedding / static objects next to a mouse are not admitted.
                 thr_video = 0.995 quantile of dist over the video's sample patches that are
                 > 2 patches away from any dark-cue patch (surely not a black mouse).
                 The dark cue is what keeps mice sleeping still for most of a video (stage 4
@@ -74,6 +76,15 @@ FG_RULE = {
     'dark_abs': 60, 'dark_rel': 40, 'dark_frac': 0.15,
     'use_dark': True, 'drop_isolated': True, 'dilate': 1,
 }
+
+# mask v3 ("mice only"): as FG_RULE, but the 1-patch dilation may only add patches that contain at
+# least one dark mouse pixel (dark fraction > 0). Diagnosis of fg448 latent 46: 87% of its in-mask
+# activation sat on dilation-only patches (75% on dilation patches with no dark pixel at all), i.e.
+# the white odor object in the arena corner entered the mask whenever a mouse sat next to it. A
+# temporal-change gate on the feature cue was measured as well and rejected: it removed no further
+# object activation and dropped still tails (see the v3 report).
+FG_RULE_V3 = {**FG_RULE, 'dilate_requires_dark': True}
+RULES = {'fg448': FG_RULE, 'v3': FG_RULE_V3}
 
 
 class FrameDatasetFG(torch.utils.data.Dataset):
@@ -190,7 +201,11 @@ def foreground_parts(dist, dark, thr, rule=FG_RULE):
     if rule.get('drop_isolated', False):
         feat = drop_isolated(feat)
     dk = dark > rule['dark_frac'] if rule.get('use_dark', True) else torch.zeros_like(feat)
-    return feat, dk, dilate(feat | dk, rule.get('dilate', 1))
+    core = feat | dk
+    grown = dilate(core, rule.get('dilate', 1))
+    if rule.get('dilate_requires_dark', False):
+        grown = core | (grown & (dark > 0))
+    return feat, dk, grown
 
 
 @torch.no_grad()
@@ -304,6 +319,10 @@ class FgTokenStore:
 
     def pos(self, s):
         return np.fromfile(self.dirs[s] / 'pos.i16', dtype=np.int16)
+
+    def prev(self, s):
+        """Tokens of the same patches Delta frames earlier (stores written with --motion-delta)."""
+        return np.memmap(self.dirs[s] / 'prev.f16', dtype=np.float16, mode='r', shape=(int(self.sizes[s]), self.dim))
 
     def frames(self):
         z = [np.load(d / 'frames.npz') for d in self.dirs]

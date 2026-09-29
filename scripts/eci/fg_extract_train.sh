@@ -6,16 +6,19 @@
 # Finished shards are skipped (resubmit to resume).
 #
 # Usage: sbatch scripts/eci/fg_extract_train.sh
+#   mask v3 + motion (token 2 frames earlier), ~115 GB:
+#   EXTRA_ARGS="--rule v3 --motion-delta 2 --batch-size 64 --out-dir dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fgv3_fps1_d2" \
+#       sbatch scripts/eci/fg_extract_train.sh
 #
 #SBATCH --job-name=eci_fg_tok
 #SBATCH --output=logs/eci_fg_tok_%A_%a.out
 #SBATCH --error=logs/eci_fg_tok_%A_%a.err
 #SBATCH --array=0-15
-#SBATCH --time=03:00:00
+#SBATCH --time=04:00:00
 #SBATCH --partition=gpu
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=24
-#SBATCH --mem=64G
+#SBATCH --mem=96G
 #SBATCH --gres=gpu:1
 
 module load conda

@@ -9,6 +9,12 @@ Per frame and SAE, pooled over the FOREGROUND patches only:
 Sharded by row ranges of annotations.csv, same resumable layout as src/eci/encode.py
 (shards/shard_XX.tmp -> shards/shard_XX + DONE; merge_fg_shards; verify_fg_codes).
 
+The foreground rule and the SAE input come from the SAE checkpoint: 'fg_rule' (src/eci/foreground.py
+RULES, default 'fg448' for checkpoints without it) and 'motion_delta' D (0 = static token; D > 0 =
+[token_t, token_t - token_{t-D}] at the same patch, the frame D rows earlier in the same video, clipped
+to the video's first frame). All SAEs of one run must share the rule. Frames earlier in the same batch
+or the previous batch are reused; any other earlier frame is loaded and encoded on the fly.
+
 Functions:
     fg_sae_pool        (B, 1024, d) tokens + mask -> max / mean pooled codes over the mask
     encode_rows        DINOv2 + mask + SAEs on arbitrary rows -> dict of arrays (in memory)
@@ -26,19 +32,23 @@ import numpy as np
 import pandas as pd
 import torch
 
-from src.eci.foreground import FG_RULE, FgBackgrounds, FrameDatasetFG, encode_batch, load_encoder_fg, obs_rows
+from src.eci.foreground import RULES, FgBackgrounds, FrameDatasetFG, encode_batch, load_encoder_fg, obs_rows
 from src.eci.sae import load_sae
 
 FG_OUTPUTS = ('codes_max', 'codes_mean', 'n_fg')
 
 
 @torch.no_grad()
-def fg_sae_pool(sae, norm, tokens, mask):
+def fg_sae_pool(sae, norm, tokens, mask, prev=None):
     """tokens (B, P, d) fp16, mask (B, P) bool -> (max (B, m), mean (B, m)) float32 over the
-    masked patches (zeros for frames without foreground). Only masked tokens are encoded."""
+    masked patches (zeros for frames without foreground). Only masked tokens are encoded.
+    prev (B, P, d) fp16: tokens D frames earlier; the SAE input is then [token, token - prev]."""
     B, P, _ = tokens.shape
     fi, pi = torch.nonzero(mask, as_tuple=True)
-    z = sae.encode(norm(tokens[fi, pi]), mode='threshold')  # (n, m), >= 0
+    x = tokens[fi, pi]
+    if prev is not None:
+        x = torch.cat([x, (x.float() - prev[fi, pi].float()).half()], 1)
+    z = sae.encode(norm(x), mode='threshold')  # (n, m), >= 0
     m = z.shape[1]
     mx = torch.zeros(B, m, device=z.device).index_reduce_(0, fi, z, 'amax', include_self=True)
     sm = torch.zeros(B, m, device=z.device).index_add_(0, fi, z)
@@ -47,11 +57,46 @@ def fg_sae_pool(sae, norm, tokens, mask):
 
 
 class _Runner:
-    def __init__(self, sae_paths, bg_dir, ann_path, device='cuda', rule=FG_RULE):
+    def __init__(self, sae_paths, bg_dir, ann_path, device='cuda', frame_paths=None, dataset_dir='dataset'):
         self.device = torch.device(device)
         _, self.processor, self.model = load_encoder_fg(device=self.device)
-        self.saes = [load_sae(p, self.device)[:2] for p in sae_paths]
-        self.bgs = FgBackgrounds(bg_dir, obs_rows(ann_path), rule, self.device)
+        loaded = [load_sae(p, self.device) for p in sae_paths]
+        self.saes = [(s, n) for s, n, _ in loaded]
+        self.deltas = [int(ck.get('motion_delta', 0) or 0) for _, _, ck in loaded]
+        rules = {ck.get('fg_rule', 'fg448') for _, _, ck in loaded}
+        if len(rules) != 1:
+            raise ValueError(f'SAEs with different foreground rules in one run: {rules}')
+        self.rule_name = rules.pop()
+        self.rule = RULES[self.rule_name]
+        ranges = obs_rows(ann_path)
+        self.bgs = FgBackgrounds(bg_dir, ranges, self.rule, self.device)
+        self.frame_paths, self.dataset_dir = frame_paths, Path(dataset_dir)
+        self._cache = {}  # row -> tokens (1024, d) of the previous batch (for motion inputs)
+
+    @torch.no_grad()
+    def _prev_tokens(self, tok, rows, D):
+        """(B, 1024, d) tokens of rows r - D (same video, clipped to its first row)."""
+        k = self.bgs.obs_index(rows)
+        prow = np.maximum(rows - D, self.bgs.starts[k])
+        where = {int(r): i for i, r in enumerate(rows)}
+        out = torch.empty_like(tok)
+        missing = []
+        for i, pr in enumerate(prow):
+            pr = int(pr)
+            if pr in where:
+                out[i] = tok[where[pr]]
+            elif pr in self._cache:
+                out[i] = self._cache[pr]
+            else:
+                missing.append((i, pr))
+        if missing:
+            ds = FrameDatasetFG([str(self.dataset_dir / self.frame_paths[pr]) for _, pr in missing], self.processor)
+            pix = torch.stack([ds[j][0] for j in range(len(ds))])
+            for a in range(0, len(missing), 64):
+                enc = encode_batch(self.model, pix[a:a + 64], self.device)
+                for (i, _), t in zip(missing[a:a + 64], enc):
+                    out[i] = t
+        return out
 
     def loader(self, paths, rows, batch_size, num_workers):
         return torch.utils.data.DataLoader(
@@ -59,15 +104,21 @@ class _Runner:
             shuffle=False, pin_memory=self.device.type == 'cuda', prefetch_factor=4 if num_workers > 0 else None)
 
     def batch(self, pix, grey, rows):
+        rows = np.asarray(rows)
         tok = encode_batch(self.model, pix, self.device)
         mask, _ = self.bgs.mask(tok, grey.to(self.device, non_blocking=True), rows)
-        return mask, [fg_sae_pool(s, n, tok, mask) for s, n in self.saes]
+        prev = {D: self._prev_tokens(tok, rows, D) for D in set(self.deltas) if D > 0}
+        out = [fg_sae_pool(s, n, tok, mask, prev.get(D)) for (s, n), D in zip(self.saes, self.deltas)]
+        Dm = max(self.deltas)
+        if Dm > 0:  # keep the last Dm rows for the next batch
+            self._cache = {int(r): tok[i] for i, r in enumerate(rows[-Dm:], start=len(rows) - min(Dm, len(rows)))}
+        return mask, out
 
 
 def encode_rows(rows, frame_paths, sae_paths, bg_dir, ann_path, dataset_dir='dataset', batch_size=128,
                 num_workers=16, device='cuda'):
     """-> list (one per SAE) of dicts codes_max / codes_mean (N, m) float16, plus n_fg (N,)."""
-    run = _Runner(sae_paths, bg_dir, ann_path, device)
+    run = _Runner(sae_paths, bg_dir, ann_path, device, frame_paths, dataset_dir)
     rows = np.asarray(rows)
     paths = [str(Path(dataset_dir) / frame_paths[r]) for r in rows]
     out = [{'codes_max': [], 'codes_mean': []} for _ in sae_paths]
@@ -96,7 +147,7 @@ def encode_fg_shard(frame_paths, lo, hi, shard_dir, sae_path, bg_dir, ann_path, 
     if tmp.exists():
         shutil.rmtree(tmp)
     tmp.mkdir(parents=True)
-    run = _Runner([sae_path], bg_dir, ann_path, device)
+    run = _Runner([sae_path], bg_dir, ann_path, device, frame_paths, dataset_dir)
     m = run.saes[0][0].n_latents
     N = hi - lo
     rows = np.arange(lo, hi)

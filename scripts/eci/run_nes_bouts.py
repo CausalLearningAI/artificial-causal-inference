@@ -21,8 +21,11 @@ Size check (foreground SAEs, when <codes>/n_fg.npy exists): every round-1 neuron
 Sanity: 20x genotype shuffle across pools (B stage 2) and 20x within-pool stage-label swap
 (A het 1->2), primary setting.
 
+Nuisance conditioning (--nuisance nfg): every search and null conditions on the per-video mean
+foreground patch count (same window as the outcome) from round 0 (src/eci/nes.py `nuisance`).
+
 Usage: python scripts/eci/run_nes_bouts.py --sae matryoshka_btk_1024_k16_ep20_s0
-Writes results/vision/mice/eci/nes/<sae>/maxpool_bouts/; caches under results/.../nes/<sae>/_cache/.
+Writes results/vision/mice/eci/nes/<sae>/[<subdir>/]maxpool_bouts/; caches under results/.../nes/<sae>/_cache/.
 """
 
 import argparse
@@ -118,6 +121,8 @@ def main():
     ap.add_argument('--n-shuffles', type=int, default=20)
     ap.add_argument('--skip-signflip', action='store_true')
     ap.add_argument('--compare-pooling', default='mean', help='pooling of the mean-activation run to compare with')
+    ap.add_argument('--nuisance', default='none', choices=('none', 'nfg'))
+    ap.add_argument('--subdir', default='', help='write to <out-root>/<sae>/<subdir>/maxpool_bouts/')
     args = ap.parse_args()
     t_start = time.time()
     global ARTEFACTS
@@ -125,10 +130,10 @@ def main():
     codes_dir = Path(args.codes_root) / args.sae
     if not (codes_dir / 'DONE').exists():
         raise SystemExit(f'{codes_dir}/DONE missing: codes not finished')
-    base = Path(args.out_root) / args.sae
+    base = Path(args.out_root) / args.sae / args.subdir
     out = base / 'maxpool_bouts'
     out.mkdir(parents=True, exist_ok=True)
-    cache = base / '_cache'
+    cache = Path(args.out_root) / args.sae / '_cache'
     cache.mkdir(parents=True, exist_ok=True)
 
     design = C.load_design(ROOT / 'dataset/mice/v1/annotations.csv', ROOT / 'data/mice/v1/experiment.csv')
@@ -169,6 +174,17 @@ def main():
             return {(w, 'v'): C.bout_outcomes(bs, w, *HYST[:2], FPS, *HYST[2:])['rate'] for w in C.WINDOWS}
         return {(w, 'v'): C.bout_outcomes(bs, w, s['threshold_q'], int(s['merge_gap']), FPS)['rate'] for w in C.WINDOWS}
 
+    cov = None
+    if args.nuisance == 'nfg':
+        nfg_v = C.video_nfg(codes_dir / 'n_fg.npy', design, args.n_match, args.n_trim)
+        cov = {(w, 'v'): nfg_v[w][:, None] for w in C.WINDOWS}
+
+    def nuis_paired(geno, a, b, wa, wb):
+        return None if cov is None else C.paired(cov, design, geno, a, b, 'v', wa, wb)[1:]
+
+    def nuis_two(stage, w):
+        return None if cov is None else C.genotype_contrast(cov, design, stage, 'v', w)[1]
+
     all_rows, results = [], {}
     analyses = [(f'A_{g}_{tr}', 'A', g, tr) for g in ('het', 'wt') for tr in C.TRANSITIONS] + \
                [(f'B_stage{st}', 'B', None, st) for st in range(1, 7)]
@@ -184,11 +200,12 @@ def main():
                 if fam == 'A':
                     a, b = C.TRANSITIONS[x]
                     units, Za, Zb = C.paired(sm, design, geno, a, b, 'v', wa, wb, prefix)
-                    res = paired_effect_search(Za, Zb, correction=s['correction'], test=s['test'])
+                    res = paired_effect_search(Za, Zb, correction=s['correction'], test=s['test'],
+                                               nuisance=nuis_paired(geno, a, b, wa, wb))
                     extra = {}
                 else:
                     units, Z, T = C.genotype_contrast(sm, design, x, 'v', wa, prefix)
-                    res = neural_effect_search(Z, T, correction=s['correction'])
+                    res = neural_effect_search(Z, T, correction=s['correction'], nuisance=nuis_two(x, wa))
                     extra = {'n_het': int(T.sum()), 'n_wt': int((1 - T).sum())}
                 k = skey(prefix, s)
                 results[aid][k] = {**strip(res), 'n_units': len(units), 'units': list(units), **extra}
@@ -209,16 +226,19 @@ def main():
     # ---- sanity nulls on the primary setting
     rng = np.random.default_rng(0)
     sm = summ_for(PRIMARY)
-    sanity = {'thresholds': thr_info, 'nulls': {}}
+    sanity = {'thresholds': thr_info, 'nulls': {}, 'nuisance': args.nuisance}
     for prefix in PREFIXES:
         _, Z, T = C.genotype_contrast(sm, design, 2, 'v', 'full', prefix)
-        cnt = [len(neural_effect_search(Z, rng.permutation(T))['selected']) for _ in range(args.n_shuffles)]
+        cnt = [len(neural_effect_search(Z, rng.permutation(T), nuisance=nuis_two(2, 'full'))['selected'])
+               for _ in range(args.n_shuffles)]
         _, Za, Zb = C.paired(sm, design, 'het', 1, 2, 'v', 'full', 'full', prefix)
+        Nab = nuis_paired('het', 1, 2, 'full', 'full')
         cnt_a = []
         for _ in range(args.n_shuffles):
             sw = rng.random(len(Za)) < 0.5
             Ya, Yb = np.where(sw[:, None], Zb, Za), np.where(sw[:, None], Za, Zb)
-            cnt_a.append(len(paired_effect_search(Ya, Yb)['selected']))
+            nu = None if Nab is None else (np.where(sw[:, None], Nab[1], Nab[0]), np.where(sw[:, None], Nab[0], Nab[1]))
+            cnt_a.append(len(paired_effect_search(Ya, Yb, nuisance=nu)['selected']))
         sanity['nulls'][f'p{prefix}'] = {'B_stage2_genotype_shuffle_n_selected': cnt,
                                          'A_het_1to2_stage_swap_n_selected': cnt_a}
         print(f'null prefix {prefix}: genotype shuffle {cnt}; stage swap {cnt_a}', flush=True)
@@ -342,7 +362,10 @@ def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, s
          'Primary: bout rate, q 0.95, gap 0, t-test, Bonferroni alpha 0.05, full window. Family A = paired stage '
          'transition within genotype (unit = pool, tau > 0 = more bouts/min at the later stage); family B = het vs wt '
          'within stage (tau > 0 = more bouts/min in het). Near-constant neurons (active in < 1% of units or zero '
-         'variance) are dropped before testing, as in nes.py.', '',
+         'variance) are dropped before testing, as in nes.py.'
+         + (' Nuisance conditioning: every search conditions on the per-video mean foreground patch count (n_fg, how '
+            'spread out / huddled the mice are; same window as the outcome) from round 0, as an already-selected neuron.'
+            if sanity.get('nuisance') == 'nfg' else ' No nuisance conditioning.'), '',
          'Robustness columns: Y = also selected (any round) under that single change from the primary (same prefix); '
          '"-" = not applicable. "mean-pool" = selected by the mean-activation primary (per-video mean). '
          'min2hyst = bouts enter above thr(0.95), exit at <= thr(0.90), min 2 frames. size-adj = round-1 neuron still '
