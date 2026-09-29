@@ -137,6 +137,7 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
 .lg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted);align-items:center;margin:4px 0}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
 .hd{display:grid;gap:6px}
+.note{font-size:12px;color:var(--muted);max-width:62ch}
 @media (max-width:900px){.main,.main.wide,.two{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:560px){
   .cgrid{--per:2}
@@ -150,6 +151,7 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
 <div class="wrap">
   <header>
     <h1>Exploratory Causal Inference x Mice</h1>
+    <p class="sub" id="saeDesc"></p>
     <p class="sub">Visual concepts (<span class="tip" title="Units of a sparse autoencoder trained on DINOv2 patch features of the mice v1 videos. Each unit fires on a narrow visual pattern.">SAE neurons</span>) whose activation changes with odor stage or genotype</p>
   </header>
 
@@ -160,7 +162,6 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
     </div>
     <div class="opts">
       <span class="opt" id="outcomeOpt" hidden><span class="tip" title="Per-video outcome the search tests">Outcome</span><span class="seg" id="outcomeSeg"></span></span>
-      <span class="opt"><span class="tip" title="Use the full videos, or drop the first 30 s of each video">Window</span><span class="seg" id="winSeg"><button type="button" data-w="full">full</button><button type="button" data-w="trim30">−30 s</button></span></span>
       <span class="opt"><label class="tip" for="saeSel" title="Sparse autoencoder whose neurons are searched">SAE</label><select id="saeSel" class="sel"></select></span>
       <span class="opt"><span class="tip" title="Search only the first 128 neurons (the coarse Matryoshka prefix) or all 1024">Neurons</span><span class="seg" id="prefixSeg"><button type="button" data-p="128">128</button><button type="button" data-p="1024">1024</button></span></span>
     </div>
@@ -184,17 +185,20 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
 </div>
 
 <script>
-const DATA0 = /*__DATA__*/null;
-const SAES = {[DATA0.sae]: DATA0};
+const ALL = /*__DATA__*/null;
+const SAES = Object.fromEntries(ALL.saes.map(d => [d.sae, d]));
+const DATA0 = SAES[ALL.default];
+const M = ALL.montage;   // montage layout: K tiles per block, cols per row, blocks [top, top_heat, least, least_heat]
 let DATA = DATA0;
 const STAGE = {1:'H,S',2:'O,S',3:'P,S',4:'H,F',5:'O,F',6:'P,F'};
 const STAGE_LONG = {1:'habituation, social odor',2:'social odor',3:'post, social odor',4:'habituation, fear odor',5:'fear odor',6:'post, fear odor'};
 const TRANS = {'1to2':'Social H→O','2to3':'Social O→P','4to5':'Fear H→O','5to6':'Fear O→P'};
 const TAU_TIP = 'tau: effect size in the outcome unit. A: mean paired change from the first to the second stage. B: het minus wt.';
 const P_TIP = 'p: t-test p-value. Found = p below the Bonferroni threshold of that search round.';
-const state = {sae:DATA0.sae, nclips:4, short:false, view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:128, window:'full', neuron:null, heat:true, sort:'count'};
+const state = {sae:DATA0.sae, nclips:4, len:'1s', view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:128, window:'full', neuron:null, heat:true, sort:'count'};
 try{ Object.assign(state, JSON.parse(localStorage.getItem('nes-atlas')||'{}')); }catch(e){}
-DATA = SAES[state.sae] || DATA0; state.sae = DATA.sae;
+DATA = SAES[state.sae] || DATA0; state.sae = DATA.sae; state.window = 'full';
+if(!(state.len in M.lengths)) state.len = '1s';
 if(![4,8,16].includes(state.nclips)) state.nclips = 4;
 if(!DATA.outcomes.some(o=>o.id===state.outcome)) state.outcome = DATA.outcomes[0].id;
 if(!DATA.analyses.some(a=>a.id===state.aid)) state.aid = DATA.analyses[0].id;
@@ -219,7 +223,7 @@ function longLabel(a){
   return `het vs wt in stage ${a.stage} (${STAGE_LONG[a.stage]})`;
 }
 const SS=$('#saeSel');
-SS.innerHTML = Object.keys(SAES).map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('');
+SS.innerHTML = ALL.saes.map(d=>`<option value="${esc(d.sae)}" title="${esc(d.desc)} (${esc(d.sae)})">${esc(d.label)}</option>`).join('');
 SS.value = state.sae;
 SS.onchange = () => {
   DATA = SAES[SS.value]; state.sae = SS.value; state.neuron = null;
@@ -261,14 +265,14 @@ function buildControls(){
   $('#outcomeOpt').hidden = DATA.outcomes.length<2;
   OS.innerHTML = DATA.outcomes.map(o=>`<button type="button" data-o="${o.id}" aria-pressed="${o.id===state.outcome}" title="${esc(o.setting)}">${esc(o.label)}</button>`).join('');
   for(const b of OS.querySelectorAll('button')) b.onclick=()=>{ state.outcome=b.dataset.o; render(); };
-  for(const b of document.querySelectorAll('#winSeg button')) b.setAttribute('aria-pressed', String(b.dataset.w===state.window));
+  SS.value = state.sae; SS.title = `${DATA.desc} (${DATA.sae})`;
+  $('#saeDesc').textContent = `SAE: ${DATA.desc} (${DATA.sae}).`;
   for(const b of document.querySelectorAll('#prefixSeg button')) b.setAttribute('aria-pressed', String(+b.dataset.p===state.prefix));
   for(const t of document.querySelectorAll('.tab')) t.setAttribute('aria-selected', String(t.dataset.view===state.view));
   $('#allN').textContent = allFound().length;
   $('#picker').hidden = state.view!=='cmp';
   $('#main').classList.toggle('wide', state.view==='all');
 }
-for(const b of document.querySelectorAll('#winSeg button')) b.onclick=()=>{ state.window=b.dataset.w; render(); };
 for(const b of document.querySelectorAll('#prefixSeg button')) b.onclick=()=>{ state.prefix=+b.dataset.p; render(); };
 for(const t of document.querySelectorAll('.tab')) t.onclick=()=>{ state.view=t.dataset.view; render(); };
 
@@ -415,48 +419,104 @@ function renderDetail(){
   if(hits) h+=`<div class="tags" aria-label="Found in">${hits.hits.map(({a:b,r:x})=>`<button type="button" class="tag ${cmp&&b.id===state.aid?'cur':x.tau>0?'up':'down'}" data-aid="${b.id}" title="${esc(longLabel(b))}: tau ${fmtTau(x.tau)} ${esc(outcome().unit)}, p ${fmtP(x.p)}. Open this comparison">${shortLabel(b)}${x.tau>0?'▲':'▼'}</button>`).join('')}</div>`;
   h+='</div>';
   if(n.artefact) h+=`<div class="warnbox">⚠ Likely artefact: ${esc(DATA.artefact_text[j]||'')}</div>`;
-  const cd = outcome().codes, N = state.nclips, L = state.short ? '1 s' : '3 s';
-  const AV = n.n_top || 6;   // real clips in each montage (row-major 200 px tiles; the builder writes n_top / n_mid / n_least)
-  const least0 = n.least_rule==='random_zero';
-  const seg = (k, vals, fmt) => `<span class="seg">${vals.map(v=>`<button type="button" data-${k}="${v}" aria-pressed="${String(state[k==='n'?'nclips':'short'])===String(v)}">${fmt(v)}</button>`).join('')}</span>`;
-  const barTip = `Bar under each clip: the neuron's activation (codes_${cd}) in each frame; same scale in every row, full width = the neuron's high level (capped). The outlined frame is the selected moment.`;
-  const grid = (id, av=AV, miss='not rendered yet') => `<div class="cgrid" id="${id}" title="${esc(barTip)}">${Array.from({length:N},(_,i)=> i<av
-      ? `<div class="clip"><canvas width="200" height="200"></canvas><span class="rk">${i+1}</span></div>`
-      : `<div class="clip miss">#${i+1}<br>${miss}</div>`).join('')}</div>`;
-  const more = N>AV ? `showing ${AV} of ${N} · drag to scroll` : '';
+  const cd = outcome().codes, N = state.nclips, L = state.len, C = n.clips[L], w = M.lengths[L];
+  const LAB = {frame:'frame', '1s':'1 s', '3s':'3 s'};
+  const seg = (k, key, vals, fmt) => `<span class="seg">${vals.map(v=>`<button type="button" data-${k}="${v}" aria-pressed="${String(state[key])===String(v)}">${fmt(v)}</button>`).join('')}</span>`;
+  const barTip = `Bar under each tile: the neuron's activation (codes_${cd}) in the frame shown; same scale in every row and length, full width = the neuron's highest frame.${n.bout_thr_bar!=null?' White tick = bout threshold.':''}`;
+  const grid = (id, av) => `<div class="cgrid" id="${id}" title="${esc(barTip)}">${Array.from({length:N},(_,i)=> i<av
+      ? `<div class="clip"><canvas width="${M.tile}" height="${M.tile}"></canvas><span class="rk">${i+1}</span></div>`
+      : `<div class="clip miss">#${i+1}<br>no more videos</div>`).join('')}</div>`;
+  const what = L==='frame' ? 'frame' : 'window';
+  const topTip = L==='frame'
+    ? `The ${M.K} highest single frames of this neuron (codes_${cd}), at most one per video: each video's highest frame, videos ranked by it.`
+    : `Windows of ${w} consecutive frames (${LAB[L]} at 5 fps). In each video, the window with the highest MEAN activation (codes_${cd}) over its ${w} frames; the ${M.K} videos with the highest such mean, ranked. Sustained events, not one-frame peaks.`;
+  const silent = C.least_rule==='silent';
+  const leastTip = silent
+    ? `${L==='frame'?'Frames':`Windows of ${w} consecutive frames`} where the neuron is exactly 0${L==='frame'?'':' on every frame'} (codes_${cd}): one picked at random in each of ${M.K} random videos (fixed seed).`
+    : `Fewer than ${M.K} videos contain a ${what} where the neuron is 0${L==='frame'?'':' on every frame'}, so these are the ${M.K} videos whose lowest-mean ${what} is lowest, that ${what} in each. Not silent: the neuron is weakly active here.`;
+  const heatTip = `Heat colours use one scale for every row and length of this neuron: full colour = ${n.heat_vmax}, the 99th percentile of its positive per-patch activations over all frames shown here.`;
   h+=`<div class="clipbar">
-      <span class="opt">Clips${seg('n',[4,8,16],v=>v)}</span>
-      <span class="opt"><span class="tip" title="3 s = 15 frames around the selected frame; 1 s = the 5 frames centred on it">Length</span>${seg('s',[true,false],v=>v?'1 s':'3 s')}</span>
-      <label class="switch" for="heat"><input type="checkbox" id="heat"${state.heat?' checked':''}> Show where it fires</label>
+      <span class="opt">Clips${seg('n','nclips',[4,8,16],v=>v)}</span>
+      <span class="opt"><span class="tip" title="What is selected and shown: single frames, or windows of 5 (1 s) or 15 (3 s) consecutive frames ranked by their mean activation">Length</span>${seg('l','len',Object.keys(M.lengths),v=>LAB[v])}</span>
+      <label class="switch tip" for="heat" title="${esc(heatTip)}"><input type="checkbox" id="heat"${state.heat?' checked':''}> Show where it fires</label>
     </div>
-    <div class="hd"><div class="row"><h3>Most activated</h3></div>${grid('gTop', n.n_top || AV)}</div>
-    <div class="hd"><div class="row"><h3 class="tip" title="Frames whose activation is near the neuron's median over the frames where it is active (45th to 55th percentile), sampled at random, at most one per video. Shows what the neuron looks like when it is on in an ordinary way, not at its extreme.">Median activation</h3></div>${grid('gMid', n.mid_mp4 ? (n.n_mid || AV) : 0, 'waiting for render')}</div>
-    <div class="hd"><div class="row"><h3>Least activated</h3></div>${grid('gLeast', n.n_least || AV)}</div>
-    <div class="srcv"><video id="vHeat" src="${n.heat_mp4}" muted loop autoplay playsinline preload="auto"></video><video id="vTop" src="${n.top_mp4}" muted loop autoplay playsinline preload="auto"></video>${n.mid_mp4?`<video id="vMid" src="${n.mid_mp4}" muted loop autoplay playsinline preload="auto"></video>`:''}${n.mid_heat_mp4?`<video id="vMidHeat" src="${n.mid_heat_mp4}" muted loop autoplay playsinline preload="auto"></video>`:''}<video id="vLeast" src="${n.least_mp4}" muted loop autoplay playsinline preload="auto"></video></div>`;
+    <div class="hd"><div class="row"><h3 class="tip" title="${esc(topTip)}">Most activated</h3><span class="meta">${L==='frame'?'highest frames':`highest ${LAB[L]} mean`}, 1 per video</span></div>${grid('gTop', C.n_top)}</div>
+    <div class="hd"><div class="row"><h3 class="tip" title="${esc(leastTip)}">Least activated${silent?'':' · lowest (not silent)'}</h3><span class="meta">${silent?`0 on every frame, random, 1 per video`:`lowest mean, 1 per video`}</span></div>${grid('gLeast', C.n_least)}</div>
+    <div class="srcv">${L==='frame' ? `<img id="vM" src="${C.src}" alt="">` : `<video id="vM" src="${C.src}" muted loop autoplay playsinline preload="auto"></video>`}</div>`;
   const hl = cmp ? (a.family==='A' ? a.stages : [a.stage]) : [], ct = chartTable(j, n);
-  const HT = `Share of all frames at each activation level (codes_${cd}), log scale. Dashed line = bout threshold. Coloured lines = the two groups of the current comparison.`;
+  const HT = `Share of all frames at each activation level (codes_${cd}), log scale.`;
   const AT = `Mean activation of this neuron on each image patch over ${DATA.arena_note || 'all frames'}. The camera is fixed, so each patch is a fixed spot in the arena.`;
+  const occ = state.arena==='occ' && n.arena && n.arena.occ;
+  const AN = occ ? `Per occupancy: the mean activation divided by how often a mouse is at that spot. High where, when a mouse is there, the concept fires strongly; this removes the effect of mice simply preferring some spots.`
+                 : `Mean: the average activation of this neuron at each spot of the arena over all sampled frames. High where the concept often happens; it mixes "mice are often here" and "the concept fires here".`;
   h+=`<div class="two">
-    <div class="hd"><h3 class="tip" title="${esc(HT)}">Activation histogram</h3>${n.hist ? histSVG(n, cmp ? a : null) : '<div class="pend">waiting for data</div>'}</div>
-    <div class="hd"><div class="row"><h3 class="tip" title="${esc(AT)}">Arena map</h3>${n.arena && n.arena.occ ? `<span class="seg" id="arSeg"><button type="button" data-ar="raw" aria-pressed="${state.arena!=='occ'}">mean</button><button type="button" data-ar="occ" aria-pressed="${state.arena==='occ'}" title="Mean activation divided by how often a mouse is on that patch">per occupancy</button></span>` : ''}</div>
+    <div class="hd"><h3 class="tip" title="${esc(HT)}">Activation histogram</h3>
+      <p class="note">Share of frames at each activation level (log scale). The spike at 0 = frames where the concept is absent${n.hist && n.hist.thr!=null?'; the dashed line = the threshold that defines a bout':''}. A heavier right tail in one coloured curve = the concept occurs more often or more strongly in that group.</p>
+      ${n.hist ? histSVG(n, cmp ? a : null) : '<div class="pend">waiting for data</div>'}</div>
+    <div class="hd"><div class="row"><h3 class="tip" title="${esc(AT)}">Arena map</h3>${n.arena && n.arena.occ ? `<span class="seg" id="arSeg"><button type="button" data-ar="raw" aria-pressed="${state.arena!=='occ'}">mean</button><button type="button" data-ar="occ" aria-pressed="${state.arena==='occ'}" title="Mean activation divided by how often a mouse is on that spot">per occupancy</button></span>` : ''}</div>
+      <p class="note">${esc(AN)}</p>
       ${n.arena ? `<div class="arena">${n.arena.bg ? `<img class="bg" src="${n.arena.bg}" alt="">` : ''}<canvas id="arenaC"></canvas></div><div class="scale">low <i></i> high</div>` : '<div class="pend">waiting for data</div>'}</div>
   </div>`;
-  h+=`<div class="chart"><h3 class="tip" title="${esc(ct.what)}: mean ± 95% CI over 36 pools; shaded = current comparison">By stage and genotype · ${esc(ct.what.split(' (')[0])}</h3>
+  h+=`<div class="two"><div class="chart"><h3 class="tip" title="${esc(ct.what)}: mean ± 95% CI over 36 pools; shaded = current comparison">By stage and genotype · ${esc(ct.what.split(' (')[0])}</h3>
       <div class="lg"><span><span class="dot" style="background:var(--wt)"></span>wt</span><span><span class="dot" style="background:var(--het)"></span>het</span></div>
-      ${chart(ct.T,hl)}</div>`;
+      ${chart(ct.T,hl)}</div>
+    <div class="chart"><h3 class="tip" title="NES tests these per-pool values; a consistent shift across pools can be significant even when the frame-level histograms overlap.">Per-pool ${cmp && a.family==='B' ? 'values' : 'change'}</h3>${cmp ? poolPanel(j, a) : '<div class="pend">Open a comparison to see the values it tests</div>'}</div></div>`;
   D.innerHTML = h+'</div>';
   if(n.arena) drawArena(n.arena);
   for(const b of D.querySelectorAll('[data-ar]')) b.onclick=()=>{ state.arena=b.dataset.ar; render(); };
   for(const b of D.querySelectorAll('.tags .tag')) b.onclick=()=>{ state.view='cmp'; state.aid=b.dataset.aid; render(); };
   for(const b of D.querySelectorAll('[data-n]')) b.onclick=()=>{ state.nclips=+b.dataset.n; render(); };
-  for(const b of D.querySelectorAll('[data-s]')) b.onclick=()=>{ state.short=b.dataset.s==='true'; render(); };
+  for(const b of D.querySelectorAll('[data-l]')) b.onclick=()=>{ state.len=b.dataset.l; render(); };
   $('#heat').onchange=e=>{ state.heat=e.target.checked; save(); };
   for(const g of D.querySelectorAll('.cgrid')) dragScroll(g);
   startClips();
 }
 
-/* Each montage video holds the ranked clips as 200 px tiles (3 x 2, row-major = rank).
-   One hidden video per montage; every frame, each tile is copied into its own canvas. */
+/* ---- per-pool panel: the per-video values the NES test uses (DATA.videos order) ---- */
+function meanCI(v){
+  const n = v.length, m = v.reduce((p,q)=>p+q,0)/n;
+  const sd = n>1 ? Math.sqrt(v.reduce((p,q)=>p+(q-m)**2,0)/(n-1)) : 0, h = n>1 ? (ALL.tcrit[n]||1.96)*sd/Math.sqrt(n) : 0;
+  return {n, m, lo:m-h, hi:m+h};
+}
+function poolPanel(j, a){
+  const V = (DATA.vals[state.outcome]||{})[j];
+  if(!V) return '<div class="pend">no per-video values for this neuron</div>';
+  const u = outcome().unit, rows = [];
+  let axis, lg;
+  if(a.family==='A'){
+    const [s0, s1] = a.stages, by = {};
+    DATA.videos.forEach(([p,s,g],i) => { if(g===a.genotype && (s===s0||s===s1)) (by[p] = by[p]||{})[s] = V[i]; });
+    const d = Object.values(by).filter(x => x[s0]!=null && x[s1]!=null).map(x => x[s1]-x[s0]);
+    rows.push({name:a.genotype, col:`var(--${a.genotype})`, v:d});
+    axis = `stage ${s1} − stage ${s0} (${u})`; lg = `each dot = one ${a.genotype} pool: its change from stage ${s0} to stage ${s1}`;
+  } else {
+    for(const g of ['wt','het']) rows.push({name:g, col:`var(--${g})`, v:DATA.videos.map(([p,s,gg],i)=>(gg===g&&s===a.stage)?V[i]:null).filter(x=>x!=null)});
+    axis = `stage ${a.stage} value (${u})`; lg = `each dot = one video (one pool) in stage ${a.stage}`;
+  }
+  const W=460, rh=46, m={l:44,r:12,t:8,b:34}, H=m.t+rows.length*rh+m.b;
+  for(const r of rows) r.s = meanCI(r.v);
+  const all = rows.flatMap(r=>[...r.v, r.s.lo, r.s.hi]);
+  let lo = Math.min(0,...all), hi = Math.max(0,...all); const step = niceStep((hi-lo)/4||1e-3);
+  lo = Math.floor(lo/step)*step; hi = Math.ceil(hi/step)*step; if(hi===lo) hi = lo+step;
+  const x = v => m.l + (v-lo)/(hi-lo)*(W-m.l-m.r), F = 'font-family="IBM Plex Mono, ui-monospace, monospace"';
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Per-pool values">`;
+  for(let v=lo; v<=hi+step/2; v+=step) s += `<line x1="${x(v)}" x2="${x(v)}" y1="${m.t}" y2="${H-m.b}" stroke="var(--line)"/><text x="${x(v)}" y="${H-m.b+14}" text-anchor="middle" font-size="10.5" fill="var(--muted)" ${F}>${+v.toPrecision(3)}</text>`;
+  s += `<line x1="${x(0)}" x2="${x(0)}" y1="${m.t}" y2="${H-m.b}" stroke="var(--ink)" stroke-dasharray="3 3"/>`;
+  s += `<text x="${(m.l+W-m.r)/2}" y="${H-4}" text-anchor="middle" font-size="10.5" fill="var(--muted)" ${F}>${esc(axis)}</text>`;
+  rows.forEach((r,k) => {
+    const y0 = m.t + k*rh + rh/2;
+    s += `<text x="${m.l-6}" y="${y0+4}" text-anchor="end" font-size="11" fill="var(--ink)" ${F}>${r.name}</text>`;
+    r.v.forEach((v,i) => { s += `<circle cx="${x(v)}" cy="${y0 - 12 + ((i*0.618034)%1)*24}" r="2.6" fill="${r.col}" fill-opacity=".5"/>`; });
+    s += `<line x1="${x(r.s.lo)}" x2="${x(r.s.hi)}" y1="${y0}" y2="${y0}" stroke="var(--ink)" stroke-width="2.5"/><line x1="${x(r.s.m)}" x2="${x(r.s.m)}" y1="${y0-10}" y2="${y0+10}" stroke="var(--ink)" stroke-width="2.5"><title>${r.name}: mean ${r.s.m.toPrecision(3)} [${r.s.lo.toPrecision(3)}, ${r.s.hi.toPrecision(3)}], n = ${r.s.n}</title></line>`;
+  });
+  s += '</svg>';
+  const sm = rows.map(r => `${r.name} ${r.s.m.toPrecision(3)} [${r.s.lo.toPrecision(3)}, ${r.s.hi.toPrecision(3)}], n ${r.s.n}`).join(' · ');
+  return `<div class="lg"><span>${esc(lg)}; black = mean and 95% CI; dashed = 0</span></div>${s}<p class="note mono">${esc(sm)}</p><p class="note">Raw values. A round-1 τ is exactly this contrast; a later-round τ is adjusted for the neurons selected before it, so it can differ.</p>`;
+}
+
+/* Each montage (one per neuron x length) holds four blocks of M.K tiles (M.tile px, M.cols per row,
+   row-major): top, top with heat, least, least with heat. One hidden <video> (or <img> for single
+   frames); every frame, each tile of the shown blocks is copied into its own canvas. */
 let clipRAF = null;
 function dragScroll(el){
   let x0 = 0, s0 = 0, on = false;
@@ -467,36 +527,37 @@ function dragScroll(el){
 }
 function startClips(){
   if(clipRAF) cancelAnimationFrame(clipRAF);
-  const V = {heat:$('#vHeat'), top:$('#vTop'), least:$('#vLeast'), mid:$('#vMid'), midHeat:$('#vMidHeat')};
-  const cTop = [...document.querySelectorAll('#gTop canvas')], cLeast = [...document.querySelectorAll('#gLeast canvas')], cMid = [...document.querySelectorAll('#gMid canvas')];
-  const T = 200, BAR = 192, A = 1.0, B = 2.0;
+  const v = $('#vM'); if(!v) return;
+  const isImg = v.tagName === 'IMG';
+  const cTop = [...document.querySelectorAll('#gTop canvas')], cLeast = [...document.querySelectorAll('#gLeast canvas')];
+  const T = M.tile, BAR = T - 8;
   const nn = NE()[state.neuron], thr = nn && nn.bout_thr_bar != null ? nn.bout_thr_bar : null;   // bout threshold on the bar scale (0..1)
-  const off = document.createElement('canvas'), ox = off.getContext('2d', {willReadFrequently:true});   // 1 s window = frames 5..9, peak frame 7 in the middle
-  for(const v of Object.values(V).filter(Boolean)){ v.muted = true; const p = v.play(); if(p && p.catch) p.catch(()=>{}); }
-  const draw = (v, cs) => {
-    if(!v || v.readyState < 2) return;
-    if(state.short && (v.currentTime < A || v.currentTime >= B)) v.currentTime = A;
-    const cols = Math.max(1, Math.round(v.videoWidth / T));
-    const nt = cols * Math.max(1, Math.round(v.videoHeight / T));
-    // Burnt-in bar (bottom rows of each tile, orange or blue by set) is re-read and redrawn in one style.
-    if(off.width !== v.videoWidth){ off.width = v.videoWidth; off.height = v.videoHeight; }
+  const off = document.createElement('canvas'), ox = off.getContext('2d', {willReadFrequently:true});
+  if(!isImg){ v.muted = true; const p = v.play(); if(p && p.catch) p.catch(()=>{}); }
+  let last = null;
+  const draw = () => {
+    const W = isImg ? v.naturalWidth : v.videoWidth, H = isImg ? v.naturalHeight : v.videoHeight;
+    if(isImg ? !(v.complete && W) : v.readyState < 2) return;
+    const key = `${state.heat}|${isImg ? 0 : v.currentTime}`;
+    if(key === last) return; last = key;
+    const cols = Math.max(1, Math.round(W / T));
+    if(off.width !== W || off.height !== H){ off.width = W; off.height = H; }
     ox.drawImage(v, 0, 0);
-    cs.forEach((c, i) => {
-      if(i >= nt) return;
-      const sx = (i % cols) * T, sy = Math.floor(i / cols) * T, g = c.getContext('2d');
+    const put = (cs, name) => { const b = M.blocks.indexOf(name); cs.forEach((c, i) => {
+      const t = b * M.K + i, sx = (t % cols) * T, sy = Math.floor(t / cols) * T, g = c.getContext('2d');
       g.drawImage(off, sx, sy, T, BAR, 0, 0, T, BAR);
-      // read row 196, skipping the 3 px outline columns on each side; the fill runs left to right
-      const px = ox.getImageData(sx, sy + 196, T, 1).data;
-      let w = 0; for(let x = 3; x < T - 3; x++){ const r = px[4*x], gg = px[4*x+1], b = px[4*x+2]; if(Math.max(r,gg,b) - Math.min(r,gg,b) > 60) w = x - 2; else break; }
-      w = Math.round(w * T / (T - 6));
+      // Burnt-in bar (bottom 5 rows of each tile, orange or blue by row) is re-read at row T-4 and redrawn in one style.
+      const px = ox.getImageData(sx, sy + T - 4, T, 1).data;
+      let w = 0; for(let x = 0; x < T; x++){ const r = px[4*x], gg = px[4*x+1], bb = px[4*x+2]; if(Math.max(r,gg,bb) - Math.min(r,gg,bb) > 60) w = x + 1; else break; }
       g.fillStyle = '#2b2b2b'; g.fillRect(0, BAR, T, T - BAR);
       g.fillStyle = '#f8af18'; g.fillRect(0, BAR + 1, w, T - BAR - 1);
       if(thr != null){ const tx = Math.round(thr * T); g.fillStyle = '#ffffff'; g.fillRect(Math.min(T - 2, tx), BAR - 2, 2, T - BAR + 2); }
-    });
+    }); };
+    put(cTop, state.heat ? 'top_heat' : 'top'); put(cLeast, state.heat ? 'least_heat' : 'least');
   };
   const tick = () => {
-    if(!document.body.contains(V.top)) return;
-    draw(state.heat ? V.heat : V.top, cTop); draw(V.least, cLeast); draw(state.heat && V.midHeat ? V.midHeat : V.mid, cMid);
+    if(!document.body.contains(v)) return;
+    draw();
     clipRAF = requestAnimationFrame(tick);
   };
   tick();

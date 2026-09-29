@@ -257,6 +257,85 @@ def pick_least(scan, i, n=12, seed=0):
     return scan.min_row[order, i], 'bottom'
 
 
+# ---------------------------------------------------------------------- windows of consecutive frames
+@dataclass
+class WindowScan:
+    """Per video block (V) and neuron (s), for windows of `length` consecutive frames of one video.
+    Rows are global row indices of the window's FIRST frame (-1 when the video has no such window)."""
+    neurons: np.ndarray
+    videos: pd.DataFrame
+    length: int
+    best_start: np.ndarray    # (V, s) window with the highest mean activation (first one on ties)
+    best_mean: np.ndarray     # (V, s)
+    silent_start: np.ndarray  # (V, s) a random window with activation exactly 0 on every frame, -1 if none
+    min_start: np.ndarray     # (V, s) window with the lowest mean activation
+    min_mean: np.ndarray      # (V, s)
+    key: str
+
+
+def scan_windows(source, neurons, key='max', lengths=(1, 5, 15), seed=0, log_every=50):
+    """One pass over the video blocks of source.codes[key][:, neurons] -> {length: WindowScan}.
+    Windows are `length` consecutive rows of one video (rows of a video are consecutive frames);
+    length 1 = single frames (best = the video's highest frame, silent = a random zero frame).
+    The random silent window uses rng([seed, video, length])."""
+    Z = source.codes[key]
+    neurons = np.asarray(neurons, dtype=np.int64)
+    vids = _video_blocks(source.meta)
+    V, s = len(vids), len(neurons)
+    out = {w: {k: np.full((V, s), -1 if k.endswith('start') else np.nan, np.int64 if k.endswith('start')
+                          else np.float32) for k in ('best_start', 'best_mean', 'silent_start', 'min_start', 'min_mean')}
+           for w in lengths}
+    t0 = time.time()
+    ar = np.arange(s)
+    for v, (lo, hi) in enumerate(zip(vids['lo'].values, vids['hi'].values)):
+        X = np.asarray(Z[lo:hi][:, neurons], dtype=np.float64)
+        S = np.vstack([np.zeros((1, s)), np.cumsum(X, 0)])
+        C = np.vstack([np.zeros((1, s), np.int64), np.cumsum(X > 0, 0)])
+        for w in lengths:
+            n_a = (hi - lo) - w + 1
+            if n_a <= 0:
+                continue
+            m = (S[w:w + n_a] - S[:n_a]) / w                  # (n_a, s) window means
+            silent = (C[w:w + n_a] - C[:n_a]) == 0              # every frame exactly 0
+            o = out[w]
+            a = m.argmax(0)
+            o['best_start'][v], o['best_mean'][v] = lo + a, m[a, ar]
+            a = m.argmin(0)
+            o['min_start'][v], o['min_mean'][v] = lo + a, m[a, ar]
+            r = np.random.default_rng([seed, v, w]).random(n_a)
+            score = np.where(silent, r[:, None], -1.0)
+            a = score.argmax(0)
+            o['silent_start'][v] = np.where(score[a, ar] >= 0, lo + a, -1)
+        if log_every and (v % log_every == 0 or v == V - 1):
+            print(f'  window scan video {v + 1}/{V}  {time.time() - t0:.0f}s', flush=True)
+    return {w: WindowScan(neurons=neurons, videos=vids, length=w, key=key, **o) for w, o in out.items()}
+
+
+def pick_top_windows(ws, i, n=16):
+    """(starts, means): the n videos with the highest best-window mean of neuron ws.neurons[i], that
+    window in each (so at most one window per video; only means > 0)."""
+    val = np.nan_to_num(ws.best_mean[:, i], nan=-np.inf)
+    order = np.argsort(-val, kind='stable')[:n]
+    order = order[val[order] > 0]
+    return ws.best_start[order, i], val[order]
+
+
+def pick_least_windows(ws, i, n=16, seed=0):
+    """(starts, rule): if >= n videos contain a window where the neuron is exactly 0 on every frame,
+    n of those videos at random (rng([seed, neuron, length])) with their random silent window,
+    rule 'silent'; else the n videos with the lowest min-window mean and that window, rule 'lowest'
+    (silent windows, mean 0, come first). At most one window per video."""
+    st = ws.silent_start[:, i]
+    has = np.flatnonzero(st >= 0)
+    if len(has) >= n:
+        pick = np.random.default_rng([seed, int(ws.neurons[i]), ws.length]).choice(has, n, replace=False)
+        return np.sort(st[pick]), 'silent'
+    val = np.nan_to_num(ws.min_mean[:, i], nan=np.inf)
+    order = np.argsort(val, kind='stable')[:n]
+    order = order[np.isfinite(val[order])]
+    return ws.min_start[order, i], 'lowest'
+
+
 def stage_genotype_table(scan, i):
     """Per (stage, genotype): mean over pools of the per-video means, 95% t-CI, n pools."""
     df = scan.videos[['pool', 'stage', 'genotype']].copy()
