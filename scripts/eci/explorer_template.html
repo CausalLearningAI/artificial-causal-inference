@@ -1,4 +1,4 @@
-<title>Mouse Concept Atlas</title>
+<title>Exploratory Causal Inference x Mice</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -42,6 +42,27 @@ abbr[title],.tip{text-decoration:underline dotted var(--faint);cursor:help}
 .seg button{border:0;background:var(--bg);padding:4px 10px;cursor:pointer;font:500 12px var(--sans);color:var(--muted)}
 .seg button+button{border-left:1px solid var(--line)}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.sel{font:500 12px var(--mono);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:3px 6px;max-width:100%}
+.clipbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:12.5px;color:var(--muted)}
+.cgrid{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:thin;cursor:grab;user-select:none;padding-bottom:4px;--per:4}
+.cgrid.drag{cursor:grabbing;scroll-snap-type:none}
+.cgrid .clip{flex:0 0 calc((100% - (var(--per) - 1) * 8px) / var(--per));scroll-snap-align:start}
+.clip{position:relative;min-width:0}
+.clip.miss{aspect-ratio:1;border:1px dashed var(--line);border-radius:4px;display:grid;place-items:center;text-align:center;font-size:11.5px;color:var(--faint);padding:8px}
+.hd .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.hd .row .meta{font-size:12px;color:var(--muted)}
+.turbo{display:inline-block;width:90px;height:8px;border-radius:2px;vertical-align:middle;margin:0 4px;background:linear-gradient(90deg,#30123b,#4686fb,#1ae4b6,#a2fc3c,#fabb39,#e4460a,#7a0403)}
+.swatch{display:inline-block;width:28px;height:5px;vertical-align:middle;margin:0 3px;border-radius:1px}
+.clip canvas{width:100%;height:auto;aspect-ratio:1;display:block;background:#111;border-radius:4px}
+.clip .rk{position:absolute;right:4px;bottom:12px;font:500 10.5px var(--mono);background:rgba(0,0,0,.6);color:#fff;padding:0 4px;border-radius:3px}
+.srcv{position:absolute;width:2px;height:2px;opacity:0;pointer-events:none;left:0;top:0}
+.chart{max-width:640px}
+.pend{border:1px dashed var(--line);border-radius:6px;color:var(--faint);font-size:12px;display:grid;place-items:center;text-align:center;padding:16px;min-height:160px}
+.arena{position:relative;max-width:420px}
+.arena canvas{position:relative;width:100%;height:auto;display:block;border-radius:4px;image-rendering:pixelated}
+.arena .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:4px;filter:grayscale(1)}
+.scale{display:flex;align-items:center;gap:6px;font:11px var(--mono);color:var(--muted);margin-top:4px}
+.scale i{display:inline-block;width:120px;height:8px;border-radius:2px;background:linear-gradient(90deg,#30123b,#4686fb,#1ae4b6,#a2fc3c,#fabb39,#e4460a,#7a0403)}
 
 /* comparison picker */
 .picker{display:flex;flex-wrap:wrap;gap:12px 32px;align-items:flex-start}
@@ -102,14 +123,10 @@ button.tag:hover{box-shadow:inset 0 0 0 1px var(--accent)}
 .dh{display:grid;gap:6px}
 .dh .l{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline}
 .facts{font:13px var(--mono);color:var(--muted)}
-.evalline{font-size:12.5px;color:var(--muted)}
-.evalline .num{color:var(--ink)}
 .warnbox{background:var(--warn-bg);color:var(--warn);border-radius:6px;padding:7px 10px;font-size:13px}
-.vids{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .vid{display:grid;gap:6px;min-width:0}
 .vid .cap{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;min-height:22px}
 video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4px;display:block}
-video.tall{aspect-ratio:2/3;max-width:280px}
 .switch{display:inline-flex;gap:6px;align-items:center;cursor:pointer;font-size:12.5px;color:var(--ink)}
 .switch input{appearance:none;width:28px;height:16px;border-radius:8px;background:var(--line);position:relative;cursor:pointer;margin:0;transition:background .15s}
 .switch input::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:left .15s}
@@ -119,14 +136,10 @@ video.tall{aspect-ratio:2/3;max-width:280px}
 .chart svg{width:100%;height:auto;display:block}
 .lg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted);align-items:center;margin:4px 0}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
-.pools{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:14px;align-items:start}
-table.pt{border-collapse:collapse;font-size:12px}
-table.pt td,table.pt th{padding:2px 10px 2px 0;text-align:left;border-bottom:1px solid var(--line)}
-table.pt th{font-weight:500;color:var(--muted)}
 .hd{display:grid;gap:6px}
 @media (max-width:900px){.main,.main.wide,.two{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:560px){
-  .vids,.pools{grid-template-columns:minmax(0,1fr)}
+  .cgrid{--per:2}
   .fa{grid-template-columns:auto repeat(4,minmax(0,1fr))}
   .fb{grid-template-columns:repeat(3,minmax(0,1fr))}
   .bar{justify-content:flex-start}
@@ -136,8 +149,8 @@ table.pt th{font-weight:500;color:var(--muted)}
 
 <div class="wrap">
   <header>
-    <h1>Mouse Concept Atlas</h1>
-    <p class="sub">Visual concepts (<span class="tip" title="Units of a sparse autoencoder trained on DINOv2 patch features of the mice v1 videos. Each unit fires on a narrow visual pattern.">SAE neurons</span>) whose activation changes with odor stage or genotype · <span class="mono" id="saeName"></span><span id="repNote"></span></p>
+    <h1>Exploratory Causal Inference x Mice</h1>
+    <p class="sub">Visual concepts (<span class="tip" title="Units of a sparse autoencoder trained on DINOv2 patch features of the mice v1 videos. Each unit fires on a narrow visual pattern.">SAE neurons</span>) whose activation changes with odor stage or genotype</p>
   </header>
 
   <nav class="bar" aria-label="View and settings">
@@ -148,6 +161,7 @@ table.pt th{font-weight:500;color:var(--muted)}
     <div class="opts">
       <span class="opt" id="outcomeOpt" hidden><span class="tip" title="Per-video outcome the search tests">Outcome</span><span class="seg" id="outcomeSeg"></span></span>
       <span class="opt"><span class="tip" title="Use the full videos, or drop the first 30 s of each video">Window</span><span class="seg" id="winSeg"><button type="button" data-w="full">full</button><button type="button" data-w="trim30">−30 s</button></span></span>
+      <span class="opt"><label class="tip" for="saeSel" title="Sparse autoencoder whose neurons are searched">SAE</label><select id="saeSel" class="sel"></select></span>
       <span class="opt"><span class="tip" title="Search only the first 128 neurons (the coarse Matryoshka prefix) or all 1024">Neurons</span><span class="seg" id="prefixSeg"><button type="button" data-p="128">128</button><button type="button" data-p="1024">1024</button></span></span>
     </div>
   </nav>
@@ -170,14 +184,18 @@ table.pt th{font-weight:500;color:var(--muted)}
 </div>
 
 <script>
-const DATA = /*__DATA__*/null;
+const DATA0 = /*__DATA__*/null;
+const SAES = {[DATA0.sae]: DATA0};
+let DATA = DATA0;
 const STAGE = {1:'H,S',2:'O,S',3:'P,S',4:'H,F',5:'O,F',6:'P,F'};
 const STAGE_LONG = {1:'habituation, social odor',2:'social odor',3:'post, social odor',4:'habituation, fear odor',5:'fear odor',6:'post, fear odor'};
 const TRANS = {'1to2':'Social H→O','2to3':'Social O→P','4to5':'Fear H→O','5to6':'Fear O→P'};
 const TAU_TIP = 'tau: effect size in the outcome unit. A: mean paired change from the first to the second stage. B: het minus wt.';
 const P_TIP = 'p: t-test p-value. Found = p below the Bonferroni threshold of that search round.';
-const state = {view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:128, window:'full', neuron:null, heat:true, sort:'count'};
+const state = {sae:DATA0.sae, nclips:4, short:false, view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:128, window:'full', neuron:null, heat:true, sort:'count'};
 try{ Object.assign(state, JSON.parse(localStorage.getItem('nes-atlas')||'{}')); }catch(e){}
+DATA = SAES[state.sae] || DATA0; state.sae = DATA.sae;
+if(![4,8,16].includes(state.nclips)) state.nclips = 4;
 if(!DATA.outcomes.some(o=>o.id===state.outcome)) state.outcome = DATA.outcomes[0].id;
 if(!DATA.analyses.some(a=>a.id===state.aid)) state.aid = DATA.analyses[0].id;
 const $ = s => document.querySelector(s);
@@ -200,8 +218,15 @@ function longLabel(a){
   if(a.family==='A') return `${a.genotype}, stage ${a.stages[0]} (${STAGE_LONG[a.stages[0]]}) → stage ${a.stages[1]} (${STAGE_LONG[a.stages[1]]})`;
   return `het vs wt in stage ${a.stage} (${STAGE_LONG[a.stage]})`;
 }
-$('#saeName').textContent = DATA.sae;
-if(DATA.rep_note) $('#repNote').textContent = ' · ' + DATA.rep_note;
+const SS=$('#saeSel');
+SS.innerHTML = Object.keys(SAES).map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('');
+SS.value = state.sae;
+SS.onchange = () => {
+  DATA = SAES[SS.value]; state.sae = SS.value; state.neuron = null;
+  if(!DATA.outcomes.some(o=>o.id===state.outcome)) state.outcome = DATA.outcomes[0].id;
+  if(!DATA.analyses.some(a=>a.id===state.aid)) state.aid = DATA.analyses[0].id;
+  render();
+};
 
 /* every neuron found in any analysis under the current outcome / window / prefix */
 function allFound(){
@@ -304,6 +329,53 @@ function chartTable(j, n){
   return ot ? {T:ot[state.window][j], what:`${outcome().unit} per video (${state.window==='full'?'full videos':'first 30 s dropped'})`}
             : {T:n.table, what:`mean codes_${outcome().codes} per video`};
 }
+/* ---- activation histogram: n.hist = {edges:[B+1], counts:{all:[B], 'het|1':[B], ...}, thr} ---- */
+function histSVG(n, a){
+  const H = n.hist, E = H.edges, B = E.length - 1, W = 460, Ht = 200, m = {l:44, r:10, t:10, b:30};
+  const norm = c => { const s = c.reduce((p,q)=>p+q, 0) || 1; return c.map(v => v / s); };
+  const series = [{c:norm(H.counts.all), col:'var(--faint)', fill:true, name:'all frames'}];
+  if(a){
+    const keys = a.family==='A' ? [[`${a.genotype}|${a.stages[0]}`,'var(--wt)',`stage ${a.stages[0]}`],[`${a.genotype}|${a.stages[1]}`,'var(--het)',`stage ${a.stages[1]}`]]
+                                : [[`wt|${a.stage}`,'var(--wt)','wt'],[`het|${a.stage}`,'var(--het)','het']];
+    for(const [k,col,name] of keys) if(H.counts[k]) series.push({c:norm(H.counts[k]), col, name});
+  }
+  const pos = series.flatMap(s => s.c).filter(v => v > 0), lo = Math.log10(Math.min(...pos)), hi = Math.log10(Math.max(...pos));
+  const x = v => m.l + (v - E[0]) / (E[B] - E[0]) * (W - m.l - m.r);
+  const y = v => v > 0 ? m.t + (hi - Math.log10(v)) / ((hi - lo) || 1) * (Ht - m.t - m.b) : Ht - m.b;
+  const F = 'font-family="IBM Plex Mono, ui-monospace, monospace"';
+  let s = `<svg viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Activation histogram">`;
+  for(let e = Math.ceil(lo); e <= Math.floor(hi); e++){
+    s += `<line x1="${m.l}" x2="${W-m.r}" y1="${y(10**e)}" y2="${y(10**e)}" stroke="var(--line)"/><text x="${m.l-6}" y="${y(10**e)+4}" text-anchor="end" font-size="10.5" fill="var(--muted)" ${F}>1e${e}</text>`;
+  }
+  for(let i = 0; i <= 4; i++){ const v = E[0] + i * (E[B] - E[0]) / 4; s += `<text x="${x(v)}" y="${Ht-m.b+15}" text-anchor="middle" font-size="10.5" fill="var(--muted)" ${F}>${+v.toPrecision(3)}</text>`; }
+  for(const S of series){
+    const d = S.c.map((v,i) => `${i?'L':'M'}${x(E[i])},${y(v)}H${x(E[i+1])}`).join('');
+    s += S.fill ? `<path d="M${x(E[0])},${Ht-m.b}${d.replace(/^M/,'L')}V${Ht-m.b}Z" fill="var(--soft)" stroke="${S.col}" stroke-width="1"/>`
+                : `<path d="${d}" fill="none" stroke="${S.col}" stroke-width="1.6"/>`;
+  }
+  if(H.thr != null) s += `<line x1="${x(H.thr)}" x2="${x(H.thr)}" y1="${m.t}" y2="${Ht-m.b}" stroke="var(--ink)" stroke-dasharray="3 3"/><text x="${x(H.thr)+4}" y="${m.t+10}" font-size="10.5" fill="var(--ink)" ${F}>bout threshold</text>`;
+  s += '</svg>';
+  const lg = series.map(S => `<span><span class="dot" style="background:${S.col}"></span>${S.name}</span>`).join('');
+  return `<div class="lg">${lg}</div><div class="chart">${s}</div>`;
+}
+/* ---- arena map: n.arena = {rows, cols, act:[rows*cols], occ?:[rows*cols], bg?} ---- */
+function turbo(t){
+  t = Math.max(0, Math.min(1, t));
+  const r = 0.13572138 + t*(4.61539260 + t*(-42.66032258 + t*(132.13108234 + t*(-152.94239396 + t*59.28637943))));
+  const g = 0.09140261 + t*(2.19418839 + t*(4.84296658 + t*(-14.18503333 + t*(4.27729857 + t*2.82956604))));
+  const b = 0.10667330 + t*(12.64194608 + t*(-60.58204836 + t*(110.36276771 + t*(-89.90310912 + t*27.34824973))));
+  return [r, g, b].map(v => Math.round(255 * Math.max(0, Math.min(1, v))));
+}
+function drawArena(A){
+  const c = $('#arenaC'); if(!c) return;
+  c.width = A.cols; c.height = A.rows;
+  const v = state.arena==='occ' && A.occ ? A.act.map((x,i) => A.occ[i] > 0 ? x / A.occ[i] : 0) : A.act;
+  const sorted = [...v].sort((p,q)=>p-q), lo = sorted[0], hi = sorted[Math.floor(0.99 * (sorted.length - 1))] || 1;
+  const g = c.getContext('2d'), im = g.createImageData(A.cols, A.rows), al = A.bg ? 170 : 255;
+  v.forEach((x,i) => { const [r,gg,b] = turbo((x - lo) / ((hi - lo) || 1)); im.data.set([r,gg,b,al], 4*i); });
+  g.putImageData(im, 0, 0);
+}
+
 function chart(T, hl){
   const W=460,H=220,m={l:48,r:10,t:10,b:38}; let lo=Math.min(0,...T.map(t=>t.lo)), hi=Math.max(...T.map(t=>t.hi));
   const step=niceStep((hi-lo)/4); lo=Math.floor(lo/step)*step; hi=Math.ceil(hi/step)*step;
@@ -342,36 +414,92 @@ function renderDetail(){
   h+=`</span></div>`;
   if(hits) h+=`<div class="tags" aria-label="Found in">${hits.hits.map(({a:b,r:x})=>`<button type="button" class="tag ${cmp&&b.id===state.aid?'cur':x.tau>0?'up':'down'}" data-aid="${b.id}" title="${esc(longLabel(b))}: tau ${fmtTau(x.tau)} ${esc(outcome().unit)}, p ${fmtP(x.p)}. Open this comparison">${shortLabel(b)}${x.tau>0?'▲':'▼'}</button>`).join('')}</div>`;
   h+='</div>';
-  if(n.auroc){
-    const ev = DATA.events || {};
-    h+=`<div class="evalline"><span class="tip" title="Evaluation only: the human behaviour labels were never used to train the SAE or to find this neuron. AUROC of the neuron's per-frame codes_${outcome().codes} for each label on ${(DATA.n_eval_frames||0).toLocaleString()} annotated frames of held-out pools (0.5 = unrelated, 1 = perfect detector).">Check against human labels (not used for discovery)</span>: ${Object.entries(n.auroc).map(([k,v])=>`${esc(ev[k]||k)} AUROC <span class="num">${v.toFixed(2)}</span>`).join(' · ')}</div>`;
-  }
   if(n.artefact) h+=`<div class="warnbox">⚠ Likely artefact: ${esc(DATA.artefact_text[j]||'')}</div>`;
-  const leastTip = n.least_rule==='random_zero' ? 'Random moments where the neuron is exactly zero, one per video' : 'Lowest-activation moments, one per video';
-  h+=`<div class="vids">
-    <div class="vid"><div class="cap"><h3 class="tip" title="The 6 highest codes_${outcome().codes} frames over all videos (one per video), each as a 3 s clip. Bar = activation frame by frame; outlined frame = peak.">Most activated</h3>
-      <label class="switch" for="heat" title="Overlay the per-patch activation (turbo colour scale, red = strongest)"><input type="checkbox" id="heat"${state.heat?' checked':''}> Show where it fires</label></div>
-      <video id="vHeat" src="${n.heat_mp4}" muted loop autoplay playsinline preload="auto"${state.heat?'':' hidden'}></video>
-      <video id="vTop" src="${n.top_mp4}" muted loop autoplay playsinline preload="auto"${state.heat?' hidden':''}></video></div>
-    <div class="vid"><div class="cap"><h3 class="tip" title="${leastTip}, 3 s each">Least activated</h3></div>
-      <video src="${n.least_mp4}" muted loop autoplay playsinline preload="auto"></video></div>
-  </div>`;
+  const cd = outcome().codes, N = state.nclips, L = state.short ? '1 s' : '3 s';
+  const AV = n.n_top || 6;   // real clips in each montage (row-major 200 px tiles; the builder writes n_top / n_mid / n_least)
+  const least0 = n.least_rule==='random_zero';
+  const seg = (k, vals, fmt) => `<span class="seg">${vals.map(v=>`<button type="button" data-${k}="${v}" aria-pressed="${String(state[k==='n'?'nclips':'short'])===String(v)}">${fmt(v)}</button>`).join('')}</span>`;
+  const barTip = `Bar under each clip: the neuron's activation (codes_${cd}) in each frame; same scale in every row, full width = the neuron's high level (capped). The outlined frame is the selected moment.`;
+  const grid = (id, av=AV, miss='not rendered yet') => `<div class="cgrid" id="${id}" title="${esc(barTip)}">${Array.from({length:N},(_,i)=> i<av
+      ? `<div class="clip"><canvas width="200" height="200"></canvas><span class="rk">${i+1}</span></div>`
+      : `<div class="clip miss">#${i+1}<br>${miss}</div>`).join('')}</div>`;
+  const more = N>AV ? `showing ${AV} of ${N} · drag to scroll` : '';
+  h+=`<div class="clipbar">
+      <span class="opt">Clips${seg('n',[4,8,16],v=>v)}</span>
+      <span class="opt"><span class="tip" title="3 s = 15 frames around the selected frame; 1 s = the 5 frames centred on it">Length</span>${seg('s',[true,false],v=>v?'1 s':'3 s')}</span>
+      <label class="switch" for="heat"><input type="checkbox" id="heat"${state.heat?' checked':''}> Show where it fires</label>
+    </div>
+    <div class="hd"><div class="row"><h3>Most activated</h3></div>${grid('gTop', n.n_top || AV)}</div>
+    <div class="hd"><div class="row"><h3 class="tip" title="Frames whose activation is near the neuron's median over the frames where it is active (45th to 55th percentile), sampled at random, at most one per video. Shows what the neuron looks like when it is on in an ordinary way, not at its extreme.">Median activation</h3></div>${grid('gMid', n.mid_mp4 ? (n.n_mid || AV) : 0, 'waiting for render')}</div>
+    <div class="hd"><div class="row"><h3>Least activated</h3></div>${grid('gLeast', n.n_least || AV)}</div>
+    <div class="srcv"><video id="vHeat" src="${n.heat_mp4}" muted loop autoplay playsinline preload="auto"></video><video id="vTop" src="${n.top_mp4}" muted loop autoplay playsinline preload="auto"></video>${n.mid_mp4?`<video id="vMid" src="${n.mid_mp4}" muted loop autoplay playsinline preload="auto"></video>`:''}${n.mid_heat_mp4?`<video id="vMidHeat" src="${n.mid_heat_mp4}" muted loop autoplay playsinline preload="auto"></video>`:''}<video id="vLeast" src="${n.least_mp4}" muted loop autoplay playsinline preload="auto"></video></div>`;
   const hl = cmp ? (a.family==='A' ? a.stages : [a.stage]) : [], ct = chartTable(j, n);
-  h+=`<div class="two"><div class="chart"><h3 class="tip" title="${esc(ct.what)}: mean ± 95% CI over 36 pools; shaded = current comparison">By stage and genotype · ${esc(ct.what.split(' (')[0])}</h3>
+  const HT = `Share of all frames at each activation level (codes_${cd}), log scale. Dashed line = bout threshold. Coloured lines = the two groups of the current comparison.`;
+  const AT = `Mean activation of this neuron on each image patch over ${DATA.arena_note || 'all frames'}. The camera is fixed, so each patch is a fixed spot in the arena.`;
+  h+=`<div class="two">
+    <div class="hd"><h3 class="tip" title="${esc(HT)}">Activation histogram</h3>${n.hist ? histSVG(n, cmp ? a : null) : '<div class="pend">waiting for data</div>'}</div>
+    <div class="hd"><div class="row"><h3 class="tip" title="${esc(AT)}">Arena map</h3>${n.arena && n.arena.occ ? `<span class="seg" id="arSeg"><button type="button" data-ar="raw" aria-pressed="${state.arena!=='occ'}">mean</button><button type="button" data-ar="occ" aria-pressed="${state.arena==='occ'}" title="Mean activation divided by how often a mouse is on that patch">per occupancy</button></span>` : ''}</div>
+      ${n.arena ? `<div class="arena">${n.arena.bg ? `<img class="bg" src="${n.arena.bg}" alt="">` : ''}<canvas id="arenaC"></canvas></div><div class="scale">low <i></i> high</div>` : '<div class="pend">waiting for data</div>'}</div>
+  </div>`;
+  h+=`<div class="chart"><h3 class="tip" title="${esc(ct.what)}: mean ± 95% CI over 36 pools; shaded = current comparison">By stage and genotype · ${esc(ct.what.split(' (')[0])}</h3>
       <div class="lg"><span><span class="dot" style="background:var(--wt)"></span>wt</span><span><span class="dot" style="background:var(--het)"></span>het</span></div>
       ${chart(ct.T,hl)}</div>`;
-  if(cmp && r && r.contrast){
-    const c=DATA.contrast[r.ckey], u=esc(outcome().unit);
-    h+=`<div class="hd"><h3 class="tip" title="The 3 pools with the largest paired change of the outcome (${u}, full videos) in the direction of tau. Each row: the most activated 3 s of that pool in stage ${c.stages[0]} (left) and stage ${c.stages[1]} (right).">Driving pools · stage ${c.stages[0]} | ${c.stages[1]}</h3>
-      <div class="pools"><video class="tall" src="${r.contrast}" muted loop autoplay playsinline preload="auto"></video>
-      <div class="tw"><table class="pt"><tr><th>pool</th><th>S${c.stages[0]}</th><th>S${c.stages[1]}</th><th>Δ ${u}</th></tr>
-      ${c.pools.map(p=>`<tr><td class="num">${esc(p.pool)}</td><td class="num">${+p.va.toPrecision(3)}</td><td class="num">${+p.vb.toPrecision(3)}</td><td class="num">${fmtTau(p.delta)}</td></tr>`).join('')}</table></div></div></div>`;
-  }
   D.innerHTML = h+'</div>';
+  if(n.arena) drawArena(n.arena);
+  for(const b of D.querySelectorAll('[data-ar]')) b.onclick=()=>{ state.arena=b.dataset.ar; render(); };
   for(const b of D.querySelectorAll('.tags .tag')) b.onclick=()=>{ state.view='cmp'; state.aid=b.dataset.aid; render(); };
-  const hv=$('#vHeat'), tv=$('#vTop');
-  $('#heat').onchange=e=>{ state.heat=e.target.checked; hv.hidden=!state.heat; tv.hidden=state.heat; const v=state.heat?hv:tv, o=state.heat?tv:hv; try{ v.currentTime=o.currentTime; }catch(_){} save(); };
-  for(const v of D.querySelectorAll('video')){ v.muted=true; const p=v.play(); if(p&&p.catch) p.catch(()=>{}); }
+  for(const b of D.querySelectorAll('[data-n]')) b.onclick=()=>{ state.nclips=+b.dataset.n; render(); };
+  for(const b of D.querySelectorAll('[data-s]')) b.onclick=()=>{ state.short=b.dataset.s==='true'; render(); };
+  $('#heat').onchange=e=>{ state.heat=e.target.checked; save(); };
+  for(const g of D.querySelectorAll('.cgrid')) dragScroll(g);
+  startClips();
+}
+
+/* Each montage video holds the ranked clips as 200 px tiles (3 x 2, row-major = rank).
+   One hidden video per montage; every frame, each tile is copied into its own canvas. */
+let clipRAF = null;
+function dragScroll(el){
+  let x0 = 0, s0 = 0, on = false;
+  el.addEventListener('pointerdown', e => { if(e.pointerType!=='mouse') return; on = true; x0 = e.clientX; s0 = el.scrollLeft; el.classList.add('drag'); el.setPointerCapture(e.pointerId); });
+  el.addEventListener('pointermove', e => { if(on) el.scrollLeft = s0 - (e.clientX - x0); });
+  const end = () => { if(!on) return; on = false; el.classList.remove('drag'); };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+}
+function startClips(){
+  if(clipRAF) cancelAnimationFrame(clipRAF);
+  const V = {heat:$('#vHeat'), top:$('#vTop'), least:$('#vLeast'), mid:$('#vMid'), midHeat:$('#vMidHeat')};
+  const cTop = [...document.querySelectorAll('#gTop canvas')], cLeast = [...document.querySelectorAll('#gLeast canvas')], cMid = [...document.querySelectorAll('#gMid canvas')];
+  const T = 200, BAR = 192, A = 1.0, B = 2.0;
+  const nn = NE()[state.neuron], thr = nn && nn.bout_thr_bar != null ? nn.bout_thr_bar : null;   // bout threshold on the bar scale (0..1)
+  const off = document.createElement('canvas'), ox = off.getContext('2d', {willReadFrequently:true});   // 1 s window = frames 5..9, peak frame 7 in the middle
+  for(const v of Object.values(V).filter(Boolean)){ v.muted = true; const p = v.play(); if(p && p.catch) p.catch(()=>{}); }
+  const draw = (v, cs) => {
+    if(!v || v.readyState < 2) return;
+    if(state.short && (v.currentTime < A || v.currentTime >= B)) v.currentTime = A;
+    const cols = Math.max(1, Math.round(v.videoWidth / T));
+    const nt = cols * Math.max(1, Math.round(v.videoHeight / T));
+    // Burnt-in bar (bottom rows of each tile, orange or blue by set) is re-read and redrawn in one style.
+    if(off.width !== v.videoWidth){ off.width = v.videoWidth; off.height = v.videoHeight; }
+    ox.drawImage(v, 0, 0);
+    cs.forEach((c, i) => {
+      if(i >= nt) return;
+      const sx = (i % cols) * T, sy = Math.floor(i / cols) * T, g = c.getContext('2d');
+      g.drawImage(off, sx, sy, T, BAR, 0, 0, T, BAR);
+      // read row 196, skipping the 3 px outline columns on each side; the fill runs left to right
+      const px = ox.getImageData(sx, sy + 196, T, 1).data;
+      let w = 0; for(let x = 3; x < T - 3; x++){ const r = px[4*x], gg = px[4*x+1], b = px[4*x+2]; if(Math.max(r,gg,b) - Math.min(r,gg,b) > 60) w = x - 2; else break; }
+      w = Math.round(w * T / (T - 6));
+      g.fillStyle = '#2b2b2b'; g.fillRect(0, BAR, T, T - BAR);
+      g.fillStyle = '#f8af18'; g.fillRect(0, BAR + 1, w, T - BAR - 1);
+      if(thr != null){ const tx = Math.round(thr * T); g.fillStyle = '#ffffff'; g.fillRect(Math.min(T - 2, tx), BAR - 2, 2, T - BAR + 2); }
+    });
+  };
+  const tick = () => {
+    if(!document.body.contains(V.top)) return;
+    draw(state.heat ? V.heat : V.top, cTop); draw(V.least, cLeast); draw(state.heat && V.midHeat ? V.midHeat : V.mid, cMid);
+    clipRAF = requestAnimationFrame(tick);
+  };
+  tick();
 }
 
 function render(){
@@ -381,3 +509,5 @@ function render(){
 }
 render();
 </script>
+
+
