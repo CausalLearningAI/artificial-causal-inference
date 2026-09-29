@@ -103,18 +103,25 @@ def sample_frames_stride(table, stride=5, seed=0):
     return pd.concat(picks, ignore_index=True)
 
 
-def load_encoder(name='dinov2_base', resolution=224, device='cuda'):
+def load_encoder(name='dinov2_base', resolution=224, device='cuda', center_crop=True):
     """DINOv2 with its standard HF preprocessing (bicubic resize of the shorter side to
-    resolution*256/224, center crop to resolution, ImageNet normalization)."""
+    resolution*256/224, center crop to resolution, ImageNet normalization).
+    center_crop=False: the WHOLE frame is resized (bicubic) to resolution x resolution,
+    no crop (used by the foreground pipeline, src/eci/foreground.py, at 448)."""
     from transformers import AutoImageProcessor, AutoModel
     model_id = MODEL_IDS[name]
     if resolution % 14 != 0:
         raise ValueError(f'resolution must be a multiple of the patch size 14, got {resolution}')
-    processor = AutoImageProcessor.from_pretrained(
-        model_id, use_fast=True,
-        size={'shortest_edge': int(round(resolution * 256 / 224))},
-        crop_size={'height': resolution, 'width': resolution},
-    )
+    if center_crop:
+        processor = AutoImageProcessor.from_pretrained(
+            model_id, use_fast=True,
+            size={'shortest_edge': int(round(resolution * 256 / 224))},
+            crop_size={'height': resolution, 'width': resolution},
+        )
+    else:
+        processor = AutoImageProcessor.from_pretrained(
+            model_id, use_fast=True, size={'height': resolution, 'width': resolution}, do_center_crop=False,
+        )
     model = AutoModel.from_pretrained(model_id).to(device).eval()
     model.requires_grad_(False)
     return model_id, processor, model
