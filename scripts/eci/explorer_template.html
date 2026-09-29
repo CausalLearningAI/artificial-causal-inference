@@ -162,18 +162,22 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
     </div>
     <div class="opts">
       <span class="opt" id="outcomeOpt" hidden><span class="tip" title="Per-video outcome the search tests">Outcome</span><span class="seg" id="outcomeSeg"></span></span>
+      <span class="opt"><span class="tip" title="Gene line: restrict the search to the pools of one line (12 het and 12 wt pools each), or all 72 pools">Line</span><span class="seg" id="lineSeg"><button type="button" data-line="all">all</button><button type="button" data-line="ash1l">ash1l</button><button type="button" data-line="kdm6b">kdm6b</button><button type="button" data-line="kmt5b">kmt5b</button></span></span>
+      <span class="opt"><span class="tip" title="Sex: restrict the search to the female or male pools (18 het and 18 wt pools each), or all">Sex</span><span class="seg" id="sexSeg"><button type="button" data-sex="all">all</button><button type="button" data-sex="f">female</button><button type="button" data-sex="m">male</button></span></span>
       <span class="opt"><label class="tip" for="saeSel" title="Sparse autoencoder whose neurons are searched">SAE</label><select id="saeSel" class="sel"></select></span>
       <span class="opt"><span class="tip" title="Search only the first 128 neurons (the coarse Matryoshka prefix) or all 1024">Neurons</span><span class="seg" id="prefixSeg"><button type="button" data-p="128">128</button><button type="button" data-p="1024">1024</button></span></span>
     </div>
   </nav>
 
+  <p class="warnbox" id="subNote" hidden></p>
+
   <section class="picker" id="picker" aria-label="Choose a comparison">
     <div class="fam">
-      <h3 class="tip" title="Paired change between two stages of the same pool, within one genotype (36 pools)">A · stage change</h3>
+      <h3 class="tip" id="famAh" title="Paired change between two stages of the same pool, within one genotype (36 pools)">A · stage change</h3>
       <div class="fa" id="famA"></div>
     </div>
     <div class="fam">
-      <h3 class="tip" title="het minus wt videos within one stage (36 vs 36)">B · het vs wt</h3>
+      <h3 class="tip" id="famBh" title="het minus wt videos within one stage (36 vs 36)">B · het vs wt</h3>
       <div class="fb" id="famB"></div>
     </div>
   </section>
@@ -195,7 +199,7 @@ const STAGE_LONG = {1:'habituation, social odor',2:'social odor',3:'post, social
 const TRANS = {'1to2':'Social H→O','2to3':'Social O→P','4to5':'Fear H→O','5to6':'Fear O→P'};
 const TAU_TIP = 'tau: effect size in the outcome unit. A: mean paired change from the first to the second stage. B: het minus wt.';
 const P_TIP = 'p: t-test p-value. Found = p below the Bonferroni threshold of that search round.';
-const state = {sae:DATA0.sae, from:'all', len:'1s', view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:128, window:'full', neuron:null, heat:true, sort:'count'};
+const state = {sae:DATA0.sae, from:'all', len:'1s', view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:128, window:'full', neuron:null, heat:true, sort:'count', line:'all', sex:'all'};
 try{ Object.assign(state, JSON.parse(localStorage.getItem('nes-atlas')||'{}')); }catch(e){}
 DATA = SAES[state.sae] || DATA0; state.sae = DATA.sae; state.window = 'full';
 if(!(state.len in M.lengths)) state.len = '1s';
@@ -203,12 +207,25 @@ if(!['all','cmp'].includes(state.from)) state.from = 'all';
 delete state.nclips;
 if(!DATA.outcomes.some(o=>o.id===state.outcome)) state.outcome = DATA.outcomes[0].id;
 if(!DATA.analyses.some(a=>a.id===state.aid)) state.aid = DATA.analyses[0].id;
+if(!['all','ash1l','kdm6b','kmt5b'].includes(state.line)) state.line = 'all';
+if(!['all','f','m'].includes(state.sex)) state.sex = 'all';
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtP = p => p<1e-3 ? p.toExponential(1).replace('e-','e−') : p.toFixed(4);
 const fmtTau = t => (t>=0?'+':'−')+Math.abs(t).toPrecision(3);
 const save = () => { try{ localStorage.setItem('nes-atlas', JSON.stringify(state)); }catch(e){} };
-const res = (aid=state.aid) => DATA.results[`${state.outcome}|${aid}|${state.prefix}|${state.window}`] || {rows:[]};
+/* subgroup (gene line x sex): 'all_all' = every pool; otherwise DATA.subsets[name] holds that subgroup's own searches */
+const subName = () => `${state.line}_${state.sex}`;
+const SUB = () => subName()==='all_all' ? null : (DATA.subsets||{})[subName()] || null;
+const SEXL = {f:'female', m:'male'};
+const subLabel = () => [state.line!=='all'?state.line:'', state.sex!=='all'?SEXL[state.sex]:''].filter(Boolean).join(' ') || 'all pools';
+const inSub = v => (state.line==='all'||v[3]===state.line) && (state.sex==='all'||v[4]===state.sex);
+const res = (aid=state.aid) => {
+  const k = `${state.outcome}|${aid}|${state.prefix}|${state.window}`, S = SUB();
+  if(!S) return DATA.results[k] || {rows:[]};
+  return S.results[k] || {rows:[], skipped:S.skipped.includes(aid)};
+};
+const nUnits = a => { const S = SUB(); return S ? (S.n_units[a.id] ?? 0) : a.n_units; };
 const analysis = id => DATA.analyses.find(a => a.id===id);
 const outcome = () => DATA.outcomes.find(o => o.id===state.outcome);
 const NE = () => DATA.neurons[outcome().codes];
@@ -228,6 +245,7 @@ SS.innerHTML = ALL.saes.map(d=>`<option value="${esc(d.sae)}" title="${esc(d.des
 SS.value = state.sae;
 SS.onchange = () => {
   DATA = SAES[SS.value]; state.sae = SS.value; state.neuron = null;
+  if(subName()!=='all_all' && !SUB()){ state.line = 'all'; state.sex = 'all'; }
   if(!DATA.outcomes.some(o=>o.id===state.outcome)) state.outcome = DATA.outcomes[0].id;
   if(!DATA.analyses.some(a=>a.id===state.aid)) state.aid = DATA.analyses[0].id;
   render();
@@ -271,10 +289,28 @@ function buildControls(){
   for(const b of document.querySelectorAll('#prefixSeg button')) b.setAttribute('aria-pressed', String(+b.dataset.p===state.prefix));
   for(const t of document.querySelectorAll('.tab')) t.setAttribute('aria-selected', String(t.dataset.view===state.view));
   $('#allN').textContent = allFound().length;
+  for(const b of document.querySelectorAll('#lineSeg button')) b.setAttribute('aria-pressed', String(b.dataset.line===state.line));
+  for(const b of document.querySelectorAll('#sexSeg button')) b.setAttribute('aria-pressed', String(b.dataset.sex===state.sex));
+  const S = SUB(), NB = $('#subNote');
+  NB.hidden = !S;
+  if(S){
+    const per = S.n_het_pools, tot = S.n_pools;
+    NB.textContent = `Subgroup analysis (${subLabel()}): ${per} het and ${tot-per} wt pools, less statistical power, and 11 subgroups searched without correction across subgroups — treat as exploratory. Clip rows from “this comparison” come from the full-cohort search.`;
+  }
+  const np = S ? S.n_het_pools : 36;
+  $('#famAh').title = `Paired change between two stages of the same pool, within one genotype (${np} pools${S?`, ${subLabel()}`:''})`;
+  $('#famBh').title = `het minus wt videos within one stage (${np} vs ${S ? S.n_pools-np : 36}${S?`, ${subLabel()}`:''})`;
   $('#picker').hidden = state.view!=='cmp';
   $('#main').classList.toggle('wide', state.view==='all');
 }
 for(const b of document.querySelectorAll('#prefixSeg button')) b.onclick=()=>{ state.prefix=+b.dataset.p; render(); };
+function setSub(line, sex){
+  const name = `${line}_${sex}`;
+  if(name!=='all_all' && !(DATA.subsets||{})[name]) return;
+  state.line = line; state.sex = sex; render();
+}
+for(const b of document.querySelectorAll('#lineSeg button')) b.onclick=()=>setSub(b.dataset.line, state.sex);
+for(const b of document.querySelectorAll('#sexSeg button')) b.onclick=()=>setSub(state.line, b.dataset.sex);
 for(const t of document.querySelectorAll('.tab')) t.onclick=()=>{ state.view=t.dataset.view; render(); };
 
 function chipsHTML(r){
@@ -289,10 +325,10 @@ function chipsHTML(r){
 
 function renderCmpList(){
   const a=analysis(state.aid), R=res(), S=$('#side');
-  const unit = a.family==='A' ? `${a.n_units} paired pools` : `${a.n_units} videos`;
-  let h=`<div class="side-head"><h2 title="${esc(longLabel(a))}">${esc(label(a))}</h2><span class="meta">${unit} · ${R.n_tested_total||0} tested · <span class="tip" title="${TAU_TIP}">τ</span> in ${esc(outcome().unit)}</span></div>`;
+  const nu = nUnits(a), unit = a.family==='A' ? `${nu} paired pools` : `${nu} videos`;
+  let h=`<div class="side-head"><h2 title="${esc(longLabel(a))}">${esc(label(a))}</h2><span class="meta">${SUB()?`${esc(subLabel())} · `:''}${unit} · ${R.n_tested_total||0} tested · <span class="tip" title="${TAU_TIP}">τ</span> in ${esc(outcome().unit)}</span></div>`;
   if(!R.rows.length){
-    state.neuron=null; S.innerHTML = h+`<div class="empty">No neuron found with these settings.</div>`; return;
+    state.neuron=null; S.innerHTML = h+`<div class="empty">${R.skipped ? 'Not run in this subgroup: too few pools.' : 'No neuron found with these settings.'}</div>`; return;
   }
   if(state.neuron===null || !R.rows.some(r=>r.neuron===state.neuron)) state.neuron=R.rows[0].neuron;
   h+='<div class="rows">';
@@ -329,7 +365,23 @@ function renderAllList(){
 }
 
 function niceStep(r){ const e=Math.pow(10,Math.floor(Math.log10(r||1e-3))), f=r/e; return (f<=1?1:f<=2?2:f<=5?5:10)*e; }
+/* stage x genotype table of the tested per-video values of the subgroup's pools (as the builder's rate_table) */
+function subTable(j){
+  const V = (DATA.vals[state.outcome]||{})[j]; if(!V) return null;
+  const T = [];
+  for(let st=1; st<=6; st++) for(const g of ['wt','het']){
+    const y = DATA.videos.map((v,i)=>(inSub(v)&&v[1]===st&&v[2]===g)?V[i]:null).filter(x=>x!=null);
+    if(!y.length) continue;
+    const s = meanCI(y);
+    T.push({stage:st, genotype:g, mean:s.m, lo:s.lo, hi:s.hi, n_pools:s.n});
+  }
+  return T;
+}
 function chartTable(j, n){
+  if(SUB() || !n.table){
+    const o = outcome();
+    return {T:subTable(j)||[], what:`${o.bout?o.unit:`mean codes_${o.codes}`} per video (full videos, ${subLabel()})`};
+  }
   const ot = DATA.otables[state.outcome];
   return ot ? {T:ot[state.window][j], what:`${outcome().unit} per video (${state.window==='full'?'full videos':'first 30 s dropped'})`}
             : {T:n.table, what:`mean codes_${outcome().codes} per video`};
@@ -414,12 +466,13 @@ function renderDetail(){
   const r = cmp ? res().rows.find(x=>x.neuron===j) : null;
   const hits = allFound().find(x=>x.neuron===j);
   let h=`<div class="dh"><div class="l"><h2>Neuron ${j}</h2>
-    <span class="facts"><span class="tip" title="Fraction of all 2.59 M frames where the neuron is active">fires ${(n.firing_rate*100).toFixed(1)}%</span>`;
-  if(r) h+=` · <span class="tip ${r.tau>0?'up':'down'}" title="${TAU_TIP}">τ ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${P_TIP}">p ${fmtP(r.p)}</span>`;
+    <span class="facts">${n.firing_rate!=null?`<span class="tip" title="Fraction of all 2.59 M frames where the neuron is active">fires ${(n.firing_rate*100).toFixed(1)}%</span>`:''}`;
+  if(r) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${r.tau>0?'up':'down'}" title="${TAU_TIP}">τ ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${P_TIP}">p ${fmtP(r.p)}</span>`;
   h+=`</span></div>`;
   if(hits) h+=`<div class="tags" aria-label="Found in">${hits.hits.map(({a:b,r:x})=>`<button type="button" class="tag ${cmp&&b.id===state.aid?'cur':x.tau>0?'up':'down'}" data-aid="${b.id}" title="${esc(longLabel(b))}: tau ${fmtTau(x.tau)} ${esc(outcome().unit)}, p ${fmtP(x.p)}. Open this comparison">${shortLabel(b)}${x.tau>0?'▲':'▼'}</button>`).join('')}</div>`;
   h+='</div>';
   if(n.artefact) h+=`<div class="warnbox">⚠ Likely artefact: ${esc(DATA.artefact_text[j]||'')}</div>`;
+  if(n.noclip) return renderNoClip(D, h, j, n, cmp, a);
   const cd = outcome().codes, L = state.len, w = M.lengths[L], N = M.K;
   const LAB = {frame:'frame', '1s':'1 s', '3s':'3 s'};
   // clip source: 'all' videos, or the videos of the current comparison (only for neurons found in it)
@@ -444,19 +497,21 @@ function renderDetail(){
   let groups, fromNote = '';
   if(!ca){
     groups = [['top','Most activated','',topTip]];
-    if(want) fromNote = `Neuron ${j} is not found in ${esc(longLabel(analysis(want)))} (primary search), so its clips come from all videos.`;
-  } else if(ca.family==='A'){
-    groups = ca.stages.map((st,k) => [`top${k}`, `Most activated · stage ${st} (${STAGE[st]})`, ` · ${ca.genotype} videos of stage ${st}`, `${topTip} Only the ${ca.genotype} videos of stage ${st} (${STAGE_LONG[st]}).`]);
-    fromNote = `Clips from the ${ca.genotype} videos of stages ${ca.stages[0]} and ${ca.stages[1]} only: what the neuron picks up in each stage of the change.`;
+    if(want) fromNote = `Neuron ${j} is not found in ${esc(longLabel(analysis(want)))} in the full-cohort primary search (all pools), so its clips come from all videos.`;
   } else {
-    groups = [['top0','Most activated · het',` · het videos of stage ${ca.stage}`, `${topTip} Only the het videos of stage ${ca.stage}.`],
-              ['top1','Most activated · wt',` · wt videos of stage ${ca.stage}`, `${topTip} Only the wt videos of stage ${ca.stage}.`]];
-    fromNote = `Clips from the stage-${ca.stage} (${STAGE[ca.stage]}) videos only, het and wt.`;
+    // one row: the top windows among every video of the comparison; count them per stage / genotype
+    const cnt = {};
+    for(const [lab] of C.info.top){ const m = lab.match(/^S(\d)\b.*?\b(het|wt)\b/); if(!m) continue; const k = ca.family==='A' ? `stage ${m[1]}` : m[2]; cnt[k] = (cnt[k]||0)+1; }
+    const keys = ca.family==='A' ? ca.stages.map(s=>`stage ${s}`) : ['het','wt'];
+    const split = keys.map(k=>`${cnt[k]||0} ${k}`).join(', ');
+    const pool = ca.family==='A' ? `the ${ca.genotype} videos of stages ${ca.stages[0]} and ${ca.stages[1]}` : `the het and wt videos of stage ${ca.stage}`;
+    groups = [['top','Most activated',` · ${pool} (${split})`, `${topTip} Among ${pool} together; each tile's label shows its stage and genotype.`]];
+    fromNote = `Clips from ${pool} only (full cohort): the ${M.K} top ${L==='frame'?'frames':'windows'}, at most one per video, whichever stage or genotype they come from; each tile is labelled with its stage and genotype.`;
   }
   const leastFrom = !ca ? '' : ca.family==='A' ? ` · ${ca.genotype} videos of stages ${ca.stages[0]} and ${ca.stages[1]}` : ` · het and wt videos of stage ${ca.stage}`;
   const cmpName = analysis(state.aid) ? shortLabel(analysis(state.aid)) : '';
   const FROM = {all:'all videos', cmp:'this comparison'};
-  const FROMTIP = {all:'Clips chosen among all 432 videos', cmp:`Clips chosen among the videos entering the current comparison (${cmpName}): A = that genotype's videos in the two stages (one row per stage); B = het and wt videos of that stage (one row per genotype)`};
+  const FROMTIP = {all:'Clips chosen among all 432 videos', cmp:`Clips chosen among the videos entering the current comparison (${cmpName}) in the full cohort (all pools, whatever line / sex is selected), for neurons the full-cohort search finds there: A = that genotype's videos in both stages; B = het and wt videos of that stage. One 'most activated' row across both groups; each tile shows its stage and genotype`};
   h+=`<div class="clipbar">
       <span class="opt"><span class="tip" title="Which videos the clips are chosen from">Clips from</span>${seg('f','from',['all','cmp'],v=>v==='cmp'?`this comparison${cmpName?` (${esc(cmpName)})`:''}`:FROM[v],FROMTIP)}</span>
       <span class="opt"><span class="tip" title="What is selected and shown: single frames, or windows of 5 (1 s) or 15 (3 s) consecutive frames ranked by their mean activation">Length</span>${seg('l','len',Object.keys(M.lengths),v=>LAB[v])}</span>
@@ -475,15 +530,13 @@ function renderDetail(){
   h+=`<div class="two">
     <div class="hd"><h3 class="tip" title="${esc(HT)}">Activation histogram</h3>
       <p class="note">Share of frames at each activation level (log scale). The spike at 0 = frames where the concept is absent${n.hist && n.hist.thr!=null?'; the dashed line = the threshold that defines a bout':''}. A heavier right tail in one coloured curve = the concept occurs more often or more strongly in that group.</p>
+      ${SUB()?`<p class="note">All pools (not restricted to ${esc(subLabel())}).</p>`:''}
       ${n.hist ? histSVG(n, cmp ? a : null) : '<div class="pend">waiting for data</div>'}</div>
     <div class="hd"><div class="row"><h3 class="tip" title="${esc(AT)}">Arena map</h3>${n.arena && n.arena.occ ? `<span class="seg" id="arSeg"><button type="button" data-ar="raw" aria-pressed="${state.arena!=='occ'}">mean</button><button type="button" data-ar="occ" aria-pressed="${state.arena==='occ'}" title="Mean activation divided by how often a mouse is on that spot">per occupancy</button></span>` : ''}</div>
       <p class="note">${esc(AN)}</p>
       ${n.arena ? `<div class="arena">${n.arena.bg ? `<img class="bg" src="${n.arena.bg}" alt="">` : ''}<canvas id="arenaC"></canvas></div><div class="scale">low <i></i> high</div>` : '<div class="pend">waiting for data</div>'}</div>
   </div>`;
-  h+=`<div class="two"><div class="chart"><h3 class="tip" title="${esc(ct.what)}: mean ± 95% CI over 36 pools; shaded = current comparison">By stage and genotype · ${esc(ct.what.split(' (')[0])}</h3>
-      <div class="lg"><span><span class="dot" style="background:var(--wt)"></span>wt</span><span><span class="dot" style="background:var(--het)"></span>het</span></div>
-      ${chart(ct.T,hl)}</div>
-    <div class="chart"><h3 class="tip" title="NES tests these per-pool values; a consistent shift across pools can be significant even when the frame-level histograms overlap.">Per-pool ${cmp && a.family==='B' ? 'values' : 'change'}</h3>${cmp ? poolPanel(j, a) : '<div class="pend">Open a comparison to see the values it tests</div>'}</div></div>`;
+  h+=chartsHTML(j, n, cmp, a, hl, ct);
   D.innerHTML = h+'</div>';
   if(n.arena) drawArena(n.arena);
   for(const b of D.querySelectorAll('[data-ar]')) b.onclick=()=>{ state.arena=b.dataset.ar; render(); };
@@ -493,6 +546,25 @@ function renderDetail(){
   $('#heat').onchange=e=>{ state.heat=e.target.checked; save(); };
   for(const g of D.querySelectorAll('.cgrid')) dragScroll(g);
   startClips(C);
+}
+
+function chartsHTML(j, n, cmp, a, hl, ct){
+  const np = SUB() ? SUB().n_het_pools : 36;
+  return `<div class="two"><div class="chart"><h3 class="tip" title="${esc(ct.what)}: mean ± 95% CI over ${np} pools per genotype; shaded = current comparison">By stage and genotype · ${esc(ct.what.split(' (')[0])}${SUB()?` · ${esc(subLabel())}`:''}</h3>
+      <div class="lg"><span><span class="dot" style="background:var(--wt)"></span>wt</span><span><span class="dot" style="background:var(--het)"></span>het</span></div>
+      ${ct.T.length ? chart(ct.T,hl) : '<div class="pend">no per-video values for this neuron</div>'}</div>
+    <div class="chart"><h3 class="tip" title="NES tests these per-pool values; a consistent shift across pools can be significant even when the frame-level histograms overlap.">Per-pool ${cmp && a.family==='B' ? 'values' : 'change'}${SUB()?` · ${esc(subLabel())}`:''}</h3>${cmp ? poolPanel(j, a) : '<div class="pend">Open a comparison to see the values it tests</div>'}</div></div>`;
+}
+/* a neuron found only in a subgroup and left without clips (file budget): arena map, chart and per-pool panel */
+function renderNoClip(D, h, j, n, cmp, a){
+  h+=`<p class="note">Neuron ${j} is found only in subgroup searches; no clips or activation histogram were rendered for it (page size limit).</p>`;
+  const AT = `Mean activation of this neuron on each image patch over ${DATA.arena_note || 'all frames'}.`;
+  h+=`<div class="two"><div class="hd"><h3 class="tip" title="${esc(AT)}">Arena map</h3><div class="arena">${n.arena.bg ? `<img class="bg" src="${n.arena.bg}" alt="">` : ''}<canvas id="arenaC"></canvas></div><div class="scale">low <i></i> high</div></div><div></div></div>`;
+  h+=chartsHTML(j, n, cmp, a, cmp ? (a.family==='A' ? a.stages : [a.stage]) : [], chartTable(j, n));
+  D.innerHTML = h+'</div>';
+  drawArena(n.arena);
+  for(const b of D.querySelectorAll('.tags .tag')) b.onclick=()=>{ state.view='cmp'; state.aid=b.dataset.aid; render(); };
+  if(clipRAF) cancelAnimationFrame(clipRAF);
 }
 
 /* ---- per-pool panel: the per-video values the NES test uses (DATA.videos order) ---- */
@@ -508,12 +580,12 @@ function poolPanel(j, a){
   let axis, lg;
   if(a.family==='A'){
     const [s0, s1] = a.stages, by = {};
-    DATA.videos.forEach(([p,s,g],i) => { if(g===a.genotype && (s===s0||s===s1)) (by[p] = by[p]||{})[s] = V[i]; });
+    DATA.videos.forEach((v,i) => { const [p,s,g] = v; if(inSub(v) && g===a.genotype && (s===s0||s===s1)) (by[p] = by[p]||{})[s] = V[i]; });
     const d = Object.values(by).filter(x => x[s0]!=null && x[s1]!=null).map(x => x[s1]-x[s0]);
     rows.push({name:a.genotype, col:`var(--${a.genotype})`, v:d});
     axis = `stage ${s1} − stage ${s0} (${u})`; lg = `each dot = one ${a.genotype} pool: its change from stage ${s0} to stage ${s1}`;
   } else {
-    for(const g of ['wt','het']) rows.push({name:g, col:`var(--${g})`, v:DATA.videos.map(([p,s,gg],i)=>(gg===g&&s===a.stage)?V[i]:null).filter(x=>x!=null)});
+    for(const g of ['wt','het']) rows.push({name:g, col:`var(--${g})`, v:DATA.videos.map((vv,i)=>(inSub(vv)&&vv[2]===g&&vv[1]===a.stage)?V[i]:null).filter(x=>x!=null)});
     axis = `stage ${a.stage} value (${u})`; lg = `each dot = one video (one pool) in stage ${a.stage}`;
   }
   const W=460, rh=46, m={l:44,r:12,t:8,b:34}, H=m.t+rows.length*rh+m.b;

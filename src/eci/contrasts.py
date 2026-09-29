@@ -57,6 +57,29 @@ def load_design(annotations_csv, experiment_csv):
     return d
 
 
+LINES = ('ash1l', 'kdm6b', 'kmt5b')
+SEXES = ('f', 'm')
+
+
+def subset_name(line='all', sex='all'):
+    """'<line>_<sex>' ('all' = that dimension unrestricted), e.g. 'ash1l_all', 'all_f'."""
+    return f'{line}_{sex}'
+
+
+def subset_design(design, line='all', sex='all'):
+    """The observations of the pools of one gene line and / or sex ('all' = no restriction).
+    Rows keep their obs_row (row into the per-video summary arrays, which stay full-cohort), so
+    per-video caches and n_fg must be computed on the full design and indexed with obs_row."""
+    if line not in ('all',) + LINES or sex not in ('all',) + SEXES:
+        raise ValueError(f'unknown subgroup line={line!r} sex={sex!r}')
+    m = np.ones(len(design), bool)
+    if line != 'all':
+        m &= (design['line'] == line).values
+    if sex != 'all':
+        m &= (design['sex'] == sex).values
+    return design[m].copy()
+
+
 def video_summaries(codes_path, design, n_match, n_trim=150):
     """Stream the memmap once; returns dict {(window, stat): (n_obs, m) float64} for windows
     full/last/trim and stats mean/rate (activation > 0)."""

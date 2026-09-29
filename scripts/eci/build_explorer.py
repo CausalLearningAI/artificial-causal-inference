@@ -32,9 +32,11 @@ Steps (each cached under <res>/_cache/explorer/, incremental):
                       than K videos have one, the K videos' lowest-mean windows (rule 'lowest', labelled
                       "lowest (not silent)" on the page).
              The same rules again among the videos of each contrast the neuron is found in (primary search,
-             any prefix; 'Clips from: this comparison' on the page): A (e.g. A_wt_1to2) = top in that
-             genotype's stage-a videos, top in its stage-b videos, least among both; B (B_stage3) = top in
-             the het videos, top in the wt videos, least among both (stage 3 only).
+             any prefix, full cohort; 'Clips from: this comparison' on the page), top and least each among
+             all the videos of the contrast together: A (e.g. A_wt_1to2) = that genotype's videos of stages
+             a and b; B (B_stage3) = the het and wt videos of stage 3. Neurons found only in a subgroup
+             search (<res>/subsets/, gene line / sex) get 'all' clips only; if the projected file count
+             exceeds --max-files, only their round-1 neurons, and the rest are listed without clips.
              Plus the activation histogram over all frames (40 linear bins, all frames and per
              genotype|stage), the firing rate and the stage x genotype table of per-video mean codes.
              -> picks.json
@@ -47,9 +49,9 @@ Steps (each cached under <res>/_cache/explorer/, incremental):
              frames (fg448: 1 frame per second of every video, codes 0 off the foreground, plus how
              often the patch is foreground); the arena background image. -> arena.npz, assets/<tag>_arena_bg.webp
     render   per neuron x length, montage files of 144 px tiles, 16 per row, one block of K = 16 clips per
-             row: per clip source ('all' videos: top, least; each contrast: top0, top1, least) each row kind
+             row: per clip source ('all' videos: top, least; each contrast: top, least) each row kind
              raw then with heat (turbo, the neuron's shared scale). Sources are packed whole into files of
-             at most 16 blocks (montage_layout; all + 2 contrasts = 16). frame -> one webp still;
+             at most 16 blocks (montage_layout; all + 3 contrasts = 16). frame -> one webp still;
              1 s / 3 s -> one H.264 mp4 (5 / 15 frames at 5 fps). -> assets/<tag>_<p>XXXX_<L>_<file>.<ext>
     page     data inlined into scripts/eci/explorer_template.html -> <out>/index.html; also the per-video
              outcome values of every shown neuron (from the NES caches: <res>/_cache/video_summaries_*.npz,
@@ -102,9 +104,9 @@ K, TILE, COLS = 16, 144, 16           # clips per row block, tile px, tiles per 
 MAX_BLOCKS = 16                       # blocks per montage file (16 x 144 px = 2304 px high at most)
 LENGTHS = {'frame': 1, '1s': 5, '3s': 15}
 # clip sources of a neuron: 'all' (every video) and one per contrast the neuron is found in (aid)
-KINDS = {'all': ('top', 'least'), 'cmp': ('top0', 'top1', 'least')}
+KINDS = {'all': ('top', 'least'), 'cmp': ('top', 'least')}
 HIST_BINS = 40
-PICKS_V = 4                          # picks.json entry version (4 = + per-contrast selections)
+PICKS_V = 5                          # picks.json entry version (5 = one top row per contrast; 4 = + per-contrast selections)
 STAGE_LABEL = {1: 'H,S', 2: 'O,S', 3: 'P,S', 4: 'H,F', 5: 'O,F', 6: 'P,F'}
 FONT = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
 FONT_B = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
@@ -123,6 +125,8 @@ CHIP = {('test', 'signflip'): ('flip', 'sign-flip permutation test instead of th
         ('window', 'full'): ('full', 'full videos'),
         ('prefix', 128): ('128', 'searching only the first 128 neurons'),
         ('prefix', 1024): ('1024', 'searching all 1024 neurons')}
+LINES, SEXES = ('ash1l', 'kdm6b', 'kmt5b'), ('f', 'm')
+SUBSETS = [f'{l}_{x}' for l in ('all',) + LINES for x in ('all',) + SEXES if (l, x) != ('all', 'all')]
 DEFAULT_OUTCOMES = ['Bout rate (max-pool)=maxpool_bouts:pooling=max,outcome_type=bout_rate,threshold_q=0.95,merge_gap=0,unit=bouts/min,short=bouts',
                     'Mean activation ({p}-pool)=.:pooling={p},outcome_type=mean,short={p}-pool']
 
@@ -164,6 +168,21 @@ class Cfg:
                                   'short': meta.get('short', label.split()[0].lower()),
                                   'id': re.sub(r'\W+', '', label.lower())[:16] or 'o'})
             print(f'[{self.tag}] outcome {label!r}: {d} primary {prim} codes_{codes}')
+        # subgroup result sets (scripts/eci/run_nes*.py --line/--sex --primary-only): the same outcomes
+        # read from <res>/subsets/<line>_<sex>/<SUBDIR>/, when their summary.csv exists
+        self.subsets = {}
+        for name in SUBSETS:
+            outs = []
+            for o in self.outcomes:
+                d = self.res / 'subsets' / name / o['dir'].relative_to(self.res)
+                if (d / 'summary.csv').exists():
+                    outs.append({**o, 'dir': d, 'tidy': pd.read_csv(d / 'summary.csv')})
+            if len(outs) == len(self.outcomes):
+                self.subsets[name] = outs
+            elif outs:
+                raise SystemExit(f'subset {name}: only {len(outs)} of {len(self.outcomes)} outcomes present')
+        print(f'[{self.tag}] subgroups: {sorted(self.subsets)}')
+        self.noclip = set()  # (codes key, neuron) found only in subgroups and left without clips (file budget)
         self.keys = sorted({o['codes'] for o in self.outcomes})
         from src.eci.viz import representation
         self.rep = representation(self.sae, DATASET)
@@ -298,15 +317,98 @@ def stages_of(aid):
     return [int(x) for x in re.match(r'A_\w+_(\d)to(\d)', aid).groups()]
 
 
-def wanted(cfg):
+def wanted(cfg, subsets=True):
     """{codes key: {neuron: sorted contrasts (analysis ids) it is found in}}, over the primary searches
-    (any prefix, full window) of the outcomes ranked by that key."""
+    (any prefix, full window) of the outcomes ranked by that key. Neurons found only in a subgroup search
+    get 'all videos' clips only (no contrasts: 'this comparison' clips stay full-cohort), unless they are
+    in cfg.noclip (left without clips to respect the file budget)."""
     want = {k: {} for k in cfg.keys}
     for o in cfg.outcomes:
         p = primary_rows(o).dropna(subset=['neuron'])
         for aid, j in zip(p['analysis_id'], p['neuron'].astype(int)):
             want[o['codes']].setdefault(int(j), set()).add(aid)
+    if subsets:
+        for k, j in subgroup_neurons(cfg):
+            if (k, j) not in cfg.noclip:
+                want[k].setdefault(j, set())
     return {k: {j: sorted(v) for j, v in w.items()} for k, w in want.items()}
+
+
+def subgroup_neurons(cfg, round1_only=False):
+    """[(codes key, neuron)] found in any subgroup's primary search (full window, any prefix) but not in
+    the full cohort, sorted."""
+    full = {(o['codes'], int(j)) for o in cfg.outcomes for j in primary_rows(o)['neuron'].dropna()}
+    out = set()
+    for outs in cfg.subsets.values():
+        for o in outs:
+            p = primary_rows(o).dropna(subset=['neuron'])
+            if round1_only:
+                p = p[p['round'] == 1]
+            out |= {(o['codes'], int(j)) for j in p['neuron']} - full
+    return sorted(out)
+
+
+def n_files(n_contrasts):
+    """Montage files per length of a neuron with clips from all videos + n_contrasts contrasts
+    (montage_layout packing: 4 blocks for 'all', 6 per contrast, at most MAX_BLOCKS per file)."""
+    files, cur = 0, MAX_BLOCKS + 1
+    for b in [2 * len(KINDS['all'])] + [2 * len(KINDS['cmp'])] * n_contrasts:
+        if cur + b > MAX_BLOCKS:
+            files, cur = files + 1, 0
+        cur += b
+    return files
+
+
+def subgroup_hits(cfg):
+    """{(codes key, neuron): (number of round-1 hits over the subgroup searches, best p)} of the
+    subgroup-only neurons (primary, full window, any prefix / outcome / analysis)."""
+    full = {(o['codes'], int(j)) for o in cfg.outcomes for j in primary_rows(o)['neuron'].dropna()}
+    out = {}
+    for outs in cfg.subsets.values():
+        for o in outs:
+            p = primary_rows(o).dropna(subset=['neuron'])
+            for j, pv in zip(p[p['round'] == 1]['neuron'].astype(int), p[p['round'] == 1]['p']):
+                k = (o['codes'], int(j))
+                if k not in full:
+                    n, b = out.get(k, (0, 1.0))
+                    out[k] = (n + 1, min(b, float(pv)))
+    return out
+
+
+def plan_budget(cfgs, max_files):
+    """Projected asset files (+ index.html). If the subgroup-only neurons do not all fit, only their
+    round-1 neurons are candidates, ranked over both SAEs by the number of round-1 subgroup hits, then
+    best p; they get clips in that order while the total stays <= max_files. The others are listed
+    (cfg.noclip) and shown on the page without clips."""
+    def total():
+        t = 1 + len(cfgs)  # index.html + one arena background per SAE
+        for c in cfgs:
+            for k, w in wanted(c).items():
+                t += sum(len(LENGTHS) * n_files(len(a)) for a in w.values())
+        return t
+    for c in cfgs:
+        c.noclip = set()
+    t = total()
+    print(f'budget: {t} files projected with every subgroup-only neuron '
+          f'({sum(len(subgroup_neurons(c)) for c in cfgs)}) given clips; limit {max_files}')
+    if t > max_files:
+        for c in cfgs:
+            c.noclip = set(subgroup_neurons(c))
+        t = total()
+        cand = sorted(((h, c, k) for c in cfgs for k, h in subgroup_hits(c).items()),
+                      key=lambda x: (-x[0][0], x[0][1], x[1].tag, x[2]))
+        for h, c, k in cand:
+            if t + len(LENGTHS) * n_files(0) > max_files:
+                break
+            c.noclip.discard(k)
+            t += len(LENGTHS) * n_files(0)
+        print(f'budget: {t} files; subgroup-only neurons with clips: '
+              f'{sum(len(subgroup_neurons(c)) - len(c.noclip) for c in cfgs)} of '
+              f'{sum(len(subgroup_neurons(c)) for c in cfgs)} (round-1 ones ranked by hit count, then p)')
+    for c in cfgs:
+        if c.noclip:
+            print(f'budget: [{c.tag}] left without clips ({len(c.noclip)}): {sorted(c.noclip)}')
+    return t
 
 
 def kinds(src):
@@ -392,12 +494,9 @@ def step_data(cfg, overwrite):
                                    'least_rule': rule}
                 for aid in want[key][j]:  # the same rules, among the videos of that contrast only
                     m0, m1 = contrast_groups(aid, vids)
-                    c = {}
-                    for name, m in (('top0', m0), ('top1', m1)):
-                        ts, _ = pick_top_windows(subset_windows(wss[w], m), i, K)
-                        c[name] = [clip(s, w) for s in ts]
-                        want_set = set(vids['observation_id'][m])
-                        assert all(x['obs'] in want_set for x in c[name])
+                    ts, _ = pick_top_windows(subset_windows(wss[w], m0 | m1), i, K)  # one row: both groups
+                    c = {'top': [clip(s, w) for s in ts]}
+                    assert all(x['obs'] in set(vids['observation_id'][m0 | m1]) for x in c['top'])
                     ls, rule = pick_least_windows(subset_windows(wss[w], m0 | m1), i, K, seed=0)
                     c['least'], c['least_rule'] = [clip(s, w) for s in ls], rule
                     assert all(x['obs'] in set(vids['observation_id'][m0 | m1]) for x in c['least'])
@@ -424,7 +523,7 @@ def step_data(cfg, overwrite):
                 for L, c in clips['all'].items() if c['top']), flush=True)
             for aid in want[key][j]:
                 print(f'      {aid}: ' + ', '.join(
-                    f'{L} top0 {len(c["top0"])} top1 {len(c["top1"])} least {len(c["least"])} {c["least_rule"]}'
+                    f'{L} top {len(c["top"])} (' + ', '.join(f'{g}|S{st} {n}' for (g, st), n in sorted(__import__('collections').Counter((x['genotype'], x['stage']) for x in c['top']).items())) + f') least {len(c["least"])} {c["least_rule"]}'
                     for L, c in clips[aid].items()), flush=True)
         del X
     res['frame_path'] = {str(r): fp[r] for r in sorted({r for st in res['by_key'].values() for n in st.values()
@@ -640,8 +739,7 @@ def encode(frames, path, crf=30):
 
 def montage_layout(n):
     """The montage files of one neuron and length: [[(source, block name, kind, heat), ...] per file].
-    Blocks of a source: each of its kinds raw then with heat ('all': top, least; a contrast: top0,
-    top1, least). Sources ('all' first, then the contrasts in ORDER) are packed whole into files of at
+    Blocks of a source: each of its kinds raw then with heat (top, least). Sources ('all' first, then the contrasts in ORDER) are packed whole into files of at
     most MAX_BLOCKS blocks, so a view (one source) always reads one file."""
     srcs = ['all'] + sorted((x for x in n['clips'] if x != 'all'), key=ORDER.index)
     files = []
@@ -820,7 +918,7 @@ def tau_check(vm, vals, results, oid, round_=1):
                 t = float((p[b] - p[a]).mean())
             else:
                 s = int(aid[len('B_stage'):])
-                d = vm.assign(y=y)[vm['stage'] == s]
+                d = vm.assign(y=y[vm.index])[vm['stage'] == s]
                 t = float(d[d['genotype'] == 'het']['y'].mean() - d[d['genotype'] == 'wt']['y'].mean())
             worst = max(worst, abs(t - r['tau']) / max(abs(r['tau']), 1e-9))
     return worst
@@ -850,16 +948,14 @@ def page_clips(cfg, key, j, n):
     return out
 
 
-def page_data(cfg):
-    picks = json.loads((cfg.work / 'picks.json').read_text())
-    analyses, results, outcomes = {}, {}, []
-    for o in cfg.outcomes:
+def search_results(outs, analyses=None):
+    """{'<outcome id>|<aid>|<prefix>|<window>': {n_tested_total, rows}} of the primary searches of one
+    result set (full cohort or one subgroup); analyses (dict, filled) gets the per-analysis metadata."""
+    analyses = {} if analyses is None else analyses
+    results = {}
+    for o in outs:
         prim = primary_rows(o)
-        others = [x for x in cfg.outcomes if x is not o]
-        outcomes.append({'id': o['id'], 'label': o['label'], 'codes': o['codes'], 'unit': o['unit'],
-                         'bout': is_bout(o),
-                         'setting': ', '.join(f'{k} {v:g}' if isinstance(v, float) else f'{k} {v}'
-                                              for k, v in o['primary'].items())})
+        others = [x for x in outs if x is not o]
         for aid in ORDER:
             g = prim[prim['analysis_id'] == aid]
             if not len(g):
@@ -878,6 +974,35 @@ def page_data(cfg):
                                  'rob': robustness(o, others, aid, int(prefix), window, j)})
                 results[f'{o["id"]}|{aid}|{int(prefix)}|{window}'] = {
                     'n_tested_total': int(h['n_tested_total'].iloc[0]), 'rows': rows}
+    return results
+
+
+def subset_meta(outs):
+    """Units per analysis, pools and skipped analyses of one subgroup (from its bout / mean sanity.json)."""
+    o = outs[0]
+    prim = primary_rows(o)
+    n_units = {aid: int(g['n_units'].iloc[0]) for aid, g in prim.groupby('analysis_id')}
+    sj = json.loads((o['dir'] / 'sanity.json').read_text())
+    sg = sj.get('subgroup', {})
+    return {'n_units': n_units, 'n_pools': sg.get('n_pools'), 'n_het_pools': sg.get('n_het_pools'),
+            'skipped': [x['analysis_id'] for x in sj.get('skipped', [])]}
+
+
+def page_data(cfg):
+    picks = json.loads((cfg.work / 'picks.json').read_text())
+    analyses, outcomes = {}, []
+    for o in cfg.outcomes:
+        outcomes.append({'id': o['id'], 'label': o['label'], 'codes': o['codes'], 'unit': o['unit'],
+                         'bout': is_bout(o),
+                         'setting': ', '.join(f'{k} {v:g}' if isinstance(v, float) else f'{k} {v}'
+                                              for k, v in o['primary'].items())})
+    results = search_results(cfg.outcomes, analyses)
+    subsets = {}
+    for name, outs in cfg.subsets.items():
+        subsets[name] = {'results': search_results(outs), **subset_meta(outs)}
+        print(f'[{cfg.tag}] page: subgroup {name}: ' + ', '.join(
+            f'{o["id"]} {sum(len(R["rows"]) for k, R in subsets[name]["results"].items() if k.startswith(o["id"] + "|"))} hits'
+            for o in outs))
     # consistency check of the chips against the stored table (mean-pool result set, full window)
     det_p = cfg.res / 'galleries/stats_detail.csv'
     o0 = next((o for o in cfg.outcomes if mean_outcome(o) and o['dir'] == cfg.res), None)
@@ -918,6 +1043,15 @@ def page_data(cfg):
             if bg:
                 e['arena']['bg'] = bg
             neurons[key][j] = e
+        for k2, j in sorted(cfg.noclip):
+            if k2 == key:
+                e = {'noclip': True, 'artefact': int(j) in cfg.artefact,
+                     'arena': {'rows': grid, 'cols': grid, 'act': [sig4(v) for v in act_all[:, int(j)]]}}
+                if len(occ):
+                    e['arena']['occ'] = [sig4(v) for v in occ]
+                if bg:
+                    e['arena']['bg'] = bg
+                neurons[key][str(j)] = e
     art = {}
     for o in cfg.outcomes:
         sel = o['dir'] / 'selected_neurons.json'
@@ -929,21 +1063,36 @@ def page_data(cfg):
     # per-video values of the tested outcome, for the per-pool panel (one list per outcome and neuron,
     # in the order of 'videos'); tables of bout outcomes by stage x genotype
     vm = vmeta().reset_index(drop=True)
-    videos = [[str(p), int(s), g] for p, s, g in zip(vm['pool'], vm['stage'], vm['genotype'])]
+    ex = pd.read_csv(ROOT / 'data/mice/v1/experiment.csv').drop_duplicates('pool').set_index('pool')
+    vm['line'], vm['sex'] = ex.loc[vm['pool'], 'line'].values, ex.loc[vm['pool'], 'sex'].values
+    videos = [[str(p), int(s), g, l, x] for p, s, g, l, x in zip(vm['pool'], vm['stage'], vm['genotype'], vm['line'],
+                                                                  vm['sex'])]
     vals, otables = {}, {}
     for o in cfg.outcomes:
         ids, Y = video_outcome(cfg, o)
         ix = ids.get_indexer(vm['observation_id'].astype(str))
         assert (ix >= 0).all(), 'videos missing from the NES cache'
-        js = sorted({str(r['neuron']) for k, R in results.items() if k.startswith(o['id'] + '|') for r in R['rows']},
-                    key=int)
+        js = sorted({str(r['neuron']) for RR in [results] + [v['results'] for v in subsets.values()]
+                     for k, R in RR.items() if k.startswith(o['id'] + '|') for r in R['rows']}, key=int)
         vals[o['id']] = {j: [sig4(v) for v in Y[ix, int(j)]] for j in js}
         print(f'[{cfg.tag}] page: {o["label"]}: tau recomputed from per-video values vs summary.csv, '
               f'max relative diff {tau_check(vm, vals[o["id"]], results, o["id"]):.2e}')
+        for name, v in subsets.items():
+            l, x = name.split('_')
+            sm = vm[((vm['line'] == l) | (l == 'all')) & ((vm['sex'] == x) | (x == 'all'))]
+            print(f'[{cfg.tag}] page: {o["label"]} subgroup {name}: tau check max relative diff '
+                  f'{tau_check(sm, vals[o["id"]], v["results"], o["id"]):.2e}')
         if is_bout(o):
             otables[o['id']] = {'full': {j: rate_table(cfg, o, int(j)) for j in picks['by_key'][o['codes']]}}
+    for o in cfg.outcomes:  # every neuron shown in a subgroup needs its per-video values (chart, per-pool panel)
+        miss = {str(j) for (k, j) in cfg.noclip if k == o['codes']} - set(vals[o['id']])
+        if miss:
+            ids, Y = video_outcome(cfg, o)
+            ix = ids.get_indexer(vm['observation_id'].astype(str))
+            vals[o['id']].update({j: [sig4(v) for v in Y[ix, int(j)]] for j in miss})
     label, desc = SAE_LABEL.get(cfg.sae, (cfg.sae, cfg.sae))
     return {'sae': cfg.sae, 'label': label, 'desc': desc, 'rep': cfg.rep, 'outcomes': outcomes, 'otables': otables,
+            'subsets': subsets,
             'analyses': [analyses[a] for a in ORDER if a in analyses], 'results': results, 'neurons': neurons,
             'artefact_text': art, 'arena_note': str(ar['note']), 'videos': videos, 'vals': vals,
             'n_frames': int(sum(next(iter(picks['by_key'][cfg.keys[0]].values()))['hist']['counts']['all']))}
@@ -1008,6 +1157,7 @@ if __name__ == '__main__':
     r0 = (ROOT / res[0]) if not Path(res[0]).is_absolute() else Path(res[0])
     out = Path(a.out) if a.out else r0 / 'explorer'
     cfgs = [Cfg(r, a, out) for r in res]
+    plan_budget(cfgs, a.max_files)
     for s in a.steps.split(','):
         if s == 'page':
             step_page(cfgs, a.overwrite)

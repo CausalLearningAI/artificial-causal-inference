@@ -24,6 +24,13 @@ Sanity: 20x genotype shuffle across pools (B stage 2) and 20x within-pool stage-
 Nuisance conditioning (--nuisance nfg): every search and null conditions on the per-video mean
 foreground patch count (same window as the outcome) from round 0 (src/eci/nes.py `nuisance`).
 
+Subgroups (--line ash1l|kdm6b|kmt5b, --sex f|m, default all): units restricted to the pools of that gene
+line and / or sex before the search (as scripts/eci/run_nes.py); thresholds and per-video summaries stay
+full-cohort (label-free). Output defaults to <out-root>/<sae>/subsets/<line>_<sex>/maxpool_bouts/.
+Analyses with fewer than --min-units units per arm are skipped (sanity.json 'skipped').
+--primary-only: only the primary setting (full window, both prefixes), no sensitivity columns.
+--n-shuffles 0 skips the sanity nulls.
+
 Usage: python scripts/eci/run_nes_bouts.py --sae matryoshka_btk_1024_k16_ep20_s0
 Writes results/vision/mice/eci/nes/<sae>/[<subdir>/]maxpool_bouts/; caches under results/.../nes/<sae>/_cache/.
 """
@@ -123,7 +130,13 @@ def main():
     ap.add_argument('--compare-pooling', default='mean', help='pooling of the mean-activation run to compare with')
     ap.add_argument('--nuisance', default='none', choices=('none', 'nfg'))
     ap.add_argument('--subdir', default='', help='write to <out-root>/<sae>/<subdir>/maxpool_bouts/')
+    ap.add_argument('--line', default='all', choices=('all',) + C.LINES)
+    ap.add_argument('--sex', default='all', choices=('all',) + C.SEXES)
+    ap.add_argument('--min-units', type=int, default=5, help='skip an analysis with fewer units per arm')
+    ap.add_argument('--primary-only', action='store_true')
     args = ap.parse_args()
+    if (args.line, args.sex) != ('all', 'all') and not args.subdir:
+        args.subdir = f'subsets/{C.subset_name(args.line, args.sex)}'
     t_start = time.time()
     global ARTEFACTS
     ARTEFACTS = ARTEFACTS_EP20 if args.sae == 'matryoshka_btk_1024_k16_ep20_s0' else {}
@@ -136,7 +149,10 @@ def main():
     cache = Path(args.out_root) / args.sae / '_cache'
     cache.mkdir(parents=True, exist_ok=True)
 
-    design = C.load_design(ROOT / 'dataset/mice/v1/annotations.csv', ROOT / 'data/mice/v1/experiment.csv')
+    dfull = C.load_design(ROOT / 'dataset/mice/v1/annotations.csv', ROOT / 'data/mice/v1/experiment.csv')
+    design = C.subset_design(dfull, args.line, args.sex)  # obs_row still indexes the full-cohort summaries
+    print(f'subgroup line={args.line} sex={args.sex}: {design["pool"].nunique()} pools '
+          f'({design[design["T"] == 1]["pool"].nunique()} het)', flush=True)
     print(f'{len(design)} observations, contiguous row blocks verified; frames per stage:',
           design.groupby('stage')['n_frames'].agg(['min', 'max']).to_dict('index'), flush=True)
 
@@ -158,11 +174,11 @@ def main():
 
     # ---- per-video bout summaries (streamed once, cached)
     t0 = time.time()
-    bs = C.cached_bout_summaries(codes_dir / 'codes_max.npy', design, cache / 'bout_summaries_max.npz', thresholds,
+    bs = C.cached_bout_summaries(codes_dir / 'codes_max.npy', dfull, cache / 'bout_summaries_max.npz', thresholds,
                                  CONFIGS, args.n_match, args.n_trim)
     print(f'bout summaries: {time.time() - t0:.0f}s', flush=True)
     t0 = time.time()
-    msum = C.cached_summaries(codes_dir / 'codes_max.npy', design, cache / 'video_summaries_max.npz', args.n_match,
+    msum = C.cached_summaries(codes_dir / 'codes_max.npy', dfull, cache / 'video_summaries_max.npz', args.n_match,
                               args.n_trim)
     print(f'mean summaries codes_max: {time.time() - t0:.0f}s', flush=True)
 
@@ -176,7 +192,7 @@ def main():
 
     cov = None
     if args.nuisance == 'nfg':
-        nfg_v = C.video_nfg(codes_dir / 'n_fg.npy', design, args.n_match, args.n_trim)
+        nfg_v = C.video_nfg(codes_dir / 'n_fg.npy', dfull, args.n_match, args.n_trim)
         cov = {(w, 'v'): nfg_v[w][:, None] for w in C.WINDOWS}
 
     def nuis_paired(geno, a, b, wa, wb):
@@ -185,12 +201,25 @@ def main():
     def nuis_two(stage, w):
         return None if cov is None else C.genotype_contrast(cov, design, stage, 'v', w)[1]
 
-    all_rows, results = [], {}
-    analyses = [(f'A_{g}_{tr}', 'A', g, tr) for g in ('het', 'wt') for tr in C.TRANSITIONS] + \
-               [(f'B_stage{st}', 'B', None, st) for st in range(1, 7)]
+    all_rows, results, skipped = [], {}, []
+    analyses = []
+    for aid, fam, geno, x in [(f'A_{g}_{tr}', 'A', g, tr) for g in ('het', 'wt') for tr in C.TRANSITIONS] + \
+                             [(f'B_stage{st}', 'B', None, st) for st in range(1, 7)]:
+        if fam == 'A':
+            n = len(C.paired(msum, design, geno, *C.TRANSITIONS[x], 'mean')[0])
+            sk = {'analysis_id': aid, 'n_units': n} if n < args.min_units else None
+        else:
+            T0 = C.genotype_contrast(msum, design, x)[2]
+            sk = ({'analysis_id': aid, 'n_het': int(T0.sum()), 'n_wt': int((1 - T0).sum())}
+                  if min(T0.sum(), (1 - T0).sum()) < args.min_units else None)
+        if sk:
+            skipped.append(sk)
+            print(f'{aid}: SKIPPED, too few units {sk}', flush=True)
+        else:
+            analyses.append((aid, fam, geno, x))
     for aid, fam, geno, x in analyses:
         results[aid] = {}
-        for s in settings_for(aid):
+        for s in ([dict(PRIMARY)] if args.primary_only else settings_for(aid)):
             if s['test'] == 'signflip' and args.skip_signflip:
                 continue
             sm = summ_for(s)
@@ -226,8 +255,12 @@ def main():
     # ---- sanity nulls on the primary setting
     rng = np.random.default_rng(0)
     sm = summ_for(PRIMARY)
-    sanity = {'thresholds': thr_info, 'nulls': {}, 'nuisance': args.nuisance}
-    for prefix in PREFIXES:
+    sanity = {'thresholds': thr_info, 'nulls': {}, 'nuisance': args.nuisance, 'primary_only': args.primary_only,
+              'subgroup': {'line': args.line, 'sex': args.sex, 'n_pools': int(design['pool'].nunique()),
+                           'n_het_pools': int(design[design['T'] == 1]['pool'].nunique()), 'n_videos': int(len(design))},
+              'skipped': skipped,
+              'n_units': {aid: int(results[aid][skey(128, PRIMARY)]['n_units']) for aid, *_ in analyses}}
+    for prefix in PREFIXES if args.n_shuffles > 0 else ():
         _, Z, T = C.genotype_contrast(sm, design, 2, 'v', 'full', prefix)
         cnt = [len(neural_effect_search(Z, rng.permutation(T), nuisance=nuis_two(2, 'full'))['selected'])
                for _ in range(args.n_shuffles)]
@@ -250,7 +283,7 @@ def main():
             ['analysis_id', 'prefix']).itertuples()}
 
     # ---- size check: round-1 neurons re-tested with the per-video mean foreground size
-    sadj = size_check(tidy, design, codes_dir, sm, args, out)
+    sadj = size_check(tidy, design, codes_dir, sm, args, out, dfull=dfull)
     if sadj is not None:
         sanity['size_check'] = {'n_round1': int(len(sadj)), 'n_survive': int(sadj['survives'].sum()),
                                 'n_frames_without_fg_frac': float((np.load(codes_dir / 'n_fg.npy', mmap_mode='r') == 0).mean())}
@@ -262,17 +295,17 @@ def main():
     sanity['runtime_s'] = time.time() - t_start
     with open(out / 'sanity.json', 'w') as f:
         json.dump(C.to_jsonable(sanity), f, indent=1)
-    write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, args.sae, sadj)
+    write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, args.sae, sadj, args.primary_only)
     print(f'done in {time.time() - t_start:.0f}s -> {out}', flush=True)
 
 
-def size_check(tidy, design, codes_dir, values, args, out, prim=None, window_map=None):
+def size_check(tidy, design, codes_dir, values, args, out, prim=None, window_map=None, dfull=None):
     """Round-1 neurons of the primary setting (windows full and trim30) re-tested with the per-video
     mean n_fg as a covariate; None when the codes have no n_fg.npy (patch-level SAEs)."""
     if not (Path(codes_dir) / 'n_fg.npy').exists():
         return None
     prim = prim or PRIMARY
-    nfg = C.video_nfg(Path(codes_dir) / 'n_fg.npy', design, args.n_match, args.n_trim)
+    nfg = C.video_nfg(Path(codes_dir) / 'n_fg.npy', design if dfull is None else dfull, args.n_match, args.n_trim)
     t = tidy[tidy['round'] == 1]
     for k, v in prim.items():
         if k != 'window':
@@ -348,10 +381,15 @@ def compare_meanpool(tidy, prev_csv, analyses, pooling='mean'):
     return out
 
 
-def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, sae, sadj=None):
+def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, sae, sadj=None, primary_only=False):
     o = C.bout_outcomes(bs, 'full', 0.95, 0, FPS)
-    names = list(SENS)
+    names = [] if primary_only else list(SENS)
+    sg = sanity.get('subgroup', {})
     L = [f'# NES summary (max-pool, bout outcomes): {sae}', '',
+         *([f'**Subgroup: line {sg["line"]}, sex {sg["sex"]}** ({sg["n_pools"]} pools, {sg["n_het_pools"]} het; '
+            f'{sg["n_videos"]} videos).' + (' Primary setting only.' if primary_only else ''),
+            f'Skipped (too few units): {sanity["skipped"]}' if sanity.get('skipped') else '', '']
+           if sg and (sg['line'], sg['sex']) != ('all', 'all') else []),
          'Per-frame value = codes_max (max over patches). Threshold per neuron = q-quantile of codes_max pooled over '
          f'{sanity["thresholds"]["n_frames_sampled"]} randomly sampled frames of all videos (treatment-agnostic; seed 0). '
          'Above = codes_max > threshold (strict: a neuron whose quantile is 0 counts any activation > 0; zero thresholds '
@@ -378,7 +416,7 @@ def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, s
             sub = tidy[(tidy['analysis_id'] == aid) & (tidy['prefix'] == prefix) & (tidy['setting'] == skey(prefix, PRIMARY))]
             nd = int(sub['n_dropped'].iloc[0])
             ps = sub[sub['round'] > 0].sort_values('round')
-            ntrim = len(select(tidy, aid, prefix, {**PRIMARY, 'window': 'trim30'}))
+            ntrim = 'n/a (not run)' if primary_only else len(select(tidy, aid, prefix, {**PRIMARY, 'window': 'trim30'}))
             if len(ps) == 0:
                 L.append(f'- prefix {prefix}: nothing selected ({nd} dropped); trim30 selects {ntrim}')
                 continue
@@ -402,7 +440,8 @@ def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, s
     L += ['## Round-1 neurons: descriptives per stage x genotype (primary q 0.95, gap 0, full window)', '',
           'Median over videos. dur = per-video median bout duration (s); 0-bout = fraction of videos with no bout.', '']
     for j in sorted(round1):
-        hits = '; '.join(f'{h["analysis_id"]} p{h["prefix"]} {h["direction"]}{" (trim30 Y)" if h["robust_trim30"] else " (trim30 N)"}'
+        hits = '; '.join(f'{h["analysis_id"]} p{h["prefix"]} {h["direction"]}'
+                         f'{"" if primary_only else " (trim30 Y)" if h["robust_trim30"] else " (trim30 N)"}'
                          for h in round1[j])
         L += [f'### neuron {j} {ARTEFACTS.get(j, "")}', f'round 1 in: {hits}', '',
               '| genotype | ' + ' | '.join(f'stage {s}' for s in range(1, 7)) + ' |', '|---|' + '---|' * 6]
