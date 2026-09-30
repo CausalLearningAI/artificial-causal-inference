@@ -278,12 +278,20 @@ def _search(test_fn, keep, alpha, correction, select, max_rounds, keep_tables, S
     t0 = time.time()
     tested = np.flatnonzero(keep)
     S0 = list(S0)
-    S, rounds, tables = [], [], []
+    S, rounds, tables, stopped = [], [], [], None
     while max_rounds is None or len(S) < max_rounds:
         cols = np.array([j for j in tested if j not in set(S)], dtype=np.int64)
         if len(cols) == 0:
             break
-        table, info = test_fn(S0 + S, cols)
+        try:
+            table, info = test_fn(S0 + S, cols)
+        except ValueError as err:
+            # the conditioning set has used up the units (strata x slopes >= units per arm): stop with the
+            # neurons selected so far, recorded as result['stopped']; round 1 still fails loud
+            if not S or not str(err).startswith(('no residual df', 'no stratum has')):
+                raise
+            stopped = f'round {len(S) + 1}: {err}'
+            break
         rejected, thr = _reject(table['p'].values, alpha, correction)
         table['significant'] = rejected
         if keep_tables or not tables:
@@ -300,7 +308,7 @@ def _search(test_fn, keep, alpha, correction, select, max_rounds, keep_tables, S
             'tables': tables if keep_tables else None, 'n_tested': int(keep.sum()),
             'n_dropped': int((~keep).sum()) - len(S0), 'dropped': np.setdiff1d(np.flatnonzero(~keep), S0),
             'n_nuisance': len(S0),
-            'elapsed_s': time.time() - t0}
+            'elapsed_s': time.time() - t0, **({'stopped': stopped} if stopped else {})}
 
 
 def _with_nuisance(Z, nuisance):
@@ -331,7 +339,9 @@ def neural_effect_search(Z, T, alpha=0.05, correction='bonferroni', select='tau'
       groups=ids  -> rows are frames, first averaged per id (unit_means); T constant per id.
     correction: 'bonferroni' (alpha / m_remaining, paper default), 'bh', 'none'.
     select: 'tau' (paper: largest |tau| among the rejected) or 'p' (smallest p).
-    max_rounds: cap on |S|. min_active: neurons active in fewer units are not tested.
+    max_rounds: cap on |S|. min_active: neurons active in fewer units are not tested. A round whose
+      conditioning set leaves no residual df (or no usable stratum) ends the search with the neurons
+      selected so far and result["stopped"] = the reason (never in round 1, which fails loud).
     nuisance: optional (n_units,) or (n_units, k) per-unit covariates conditioned on from round 0
       (see the module docstring); with groups, rows are units AFTER averaging (sorted unit ids).
     Returns dict: selected (ordered list), rounds (DataFrame, one row per selected neuron with
