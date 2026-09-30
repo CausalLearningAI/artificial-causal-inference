@@ -37,6 +37,10 @@ Domains (--domain, default mice; src/eci/domain.py): the analyses, design, paths
 tau > 0 = higher in the treated videos), sanity null = treatment shuffled across the v2 videos,
 frame-level C = v2_1_vs_2; v3_2_vs_8 is confounded with the recording day (summary.csv 'confound').
 
+--analysis-set (default core): the domain's analysis set (src/eci/domain.py); ants 'pairs' = the 3 core
+analyses (identical rows, first) and every other within-experiment treatment pair, written to <sae>/pairs/
+(+ analyses.json: n per arm, recording-day counts, day chi-square p, confound flag per analysis).
+
 --poolings (default mean,max): the per-frame code files <codes>/codes_<pooling>.npy the grid runs over. A codes
 folder with a single aggregation (SOMP codes of scripts/eci/somp_encode_all.py: codes_somp.npy) is run with
 --primary-pooling somp --poolings somp; the other-pooling sensitivity column is then dropped from SUMMARY.md.
@@ -98,6 +102,9 @@ def tidy_rows(meta, res, directions):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--domain', default='mice', choices=DOMAINS)
+    ap.add_argument('--analysis-set', default='core',
+                    help="the domain's analysis set (src/eci/domain.py; ants 'pairs' = every within-experiment "
+                         "treatment pair); a set other than core writes to <sae>/<set>/ unless --subdir")
     ap.add_argument('--sae', default='matryoshka_btk_1024_k16_ep20_s0')
     ap.add_argument('--codes-root', default=None, help='default <domain eci dir>/codes')
     ap.add_argument('--out-root', default=None, help='default the domain NES root (results/vision/<domain>/eci/nes)')
@@ -116,7 +123,7 @@ def main():
     ap.add_argument('--min-units', type=int, default=5, help='skip an analysis with fewer units per arm')
     ap.add_argument('--primary-only', action='store_true')
     args = ap.parse_args()
-    D = get_domain(args.domain)
+    D = get_domain(args.domain, args.analysis_set)
     args.codes_root = args.codes_root or str(D.codes_root)
     args.out_root = args.out_root or str(D.nes_root)
     args.n_match = D.n_match if args.n_match is None else args.n_match
@@ -124,6 +131,8 @@ def main():
     subset = (args.line, args.sex) != ('all', 'all')
     if subset and not args.subdir:
         args.subdir = f'subsets/{C.subset_name(args.line, args.sex)}'
+    if args.analysis_set != 'core' and not args.subdir:
+        args.subdir = args.analysis_set
     if args.primary_only:
         args.skip_frame = True
     t_start = time.time()
@@ -139,6 +148,8 @@ def main():
     out = Path(args.out_root) / args.sae / args.subdir
     out.mkdir(parents=True, exist_ok=True)
     cache_dir = Path(args.out_root) / args.sae / '_cache'
+    if args.analysis_set != 'core' and hasattr(D, 'analysis_table'):  # per-analysis n, day counts, confound flag
+        (out / 'analyses.json').write_text(json.dumps(C.to_jsonable(D.analysis_table()), indent=1))
 
     dfull = D.load_design()
     design = D.subset(dfull, args.line, args.sex)  # obs_row still indexes the full-cohort summaries

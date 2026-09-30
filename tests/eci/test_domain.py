@@ -215,6 +215,32 @@ def test_ants_analyses():
     assert "T" in d and set(d["T"]) == {1, 2, 4, 6, 7, 8, 9}  # select() never overwrites the raw design T
 
 
+def test_ants_pairs():
+    """'pairs' = the 3 core analyses unchanged (first) + every other within-experiment pair (control < treatment);
+    confound flag = recording day x arm chi-square p < 0.05, i.e. exactly the v3 pairs with one arm in {8, 9}
+    and the other in {2, 4, 6, 7}."""
+    A, d = ants_design()
+    P = get_domain("ants", "pairs")
+    assert [(a.id, a.meta) for a in P.analyses[:3]] == [(a.id, a.meta) for a in A.analyses]
+    ids = P.analysis_ids()
+    assert len(ids) == len(set(ids)) == 1 + 15
+    summ = fake_summaries(len(d))
+    for an, row in zip(P.analyses, P.analysis_table()):
+        e, c, t = an.meta["experiment"], an.meta["control"], an.meta["treatment"]
+        assert an.id == row["analysis_id"] == f"{e}_{c}_vs_{t}" and c < t
+        u, Z, T = C.two_sample(summ, an.select(d), unit=an.unit)
+        g = d[d["experiment"] == e]
+        assert ((T == 0).sum(), (T == 1).sum()) == ((g["T"] == c).sum(), (g["T"] == t).sum()) == \
+            (row["n_control"], row["n_treatment"])
+        day_split = e == "v3" and (c in (8, 9)) != (t in (8, 9))
+        assert row["confounded"] == day_split == bool(an.meta["confound"]), an.id
+    try:
+        get_domain("mice", "pairs")
+        raise AssertionError("mice has no pairs set")
+    except ValueError:
+        pass
+
+
 def main() -> int:
     tests = [v for k, v in globals().items() if k.startswith("test_") and callable(v)]
     failed = 0

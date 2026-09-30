@@ -23,12 +23,19 @@ Domains:
         dataset/ants/eci/annotations.csv, per-video table dataset/ants/eci/experiment.csv (both
         written by scripts/eci/ants_prepare.py). Primary nuisance: none.
 
+Analysis sets (get_domain(name, analysis_set), runners' --analysis-set; default 'core' = the analyses above,
+unchanged): ants 'pairs' = the 3 core analyses (same ids, meta and order) followed by every other pair of
+treatment values within one experiment, control = the lower treatment number, treatment = the higher
+(v2: 1 vs 2 only; v3: all 15 pairs of 2/4/6/7/8/9, 12 new ids v3_<c>_vs_<t>). A new pair's meta 'confound'
+is computed from experiment.csv: chi-square test of recording day x arm, p < CONFOUND_ALPHA -> 'recording
+day: ...' (the arms' day counts and p), else ''. analysis_table() gives n per arm, day counts, p and the flag.
+
 Functions / classes:
     Analysis       one NES contrast: id, family, unit, summary.csv meta, direction labels; select()
     Domain         base class: paths, fps / n_match, load_design, analyses, subgroups, balance, texts
     MiceDomain     mice v1
     AntsDomain     ants v2 + v3
-    get_domain     name -> Domain instance (cached)
+    get_domain     (name, analysis set) -> Domain instance (cached)
     DOMAINS        the domain names
 """
 
@@ -110,6 +117,12 @@ class Domain:
     desc_table = ()       # (row column, row values, column column, column values) of their report tables
     text = {}             # report phrases: window, families_nes, families_bouts, null_two, frame,
     #                       null_two_bouts, null_paired_bouts
+    analysis_sets = ('core',)  # names accepted by get_domain(name, analysis_set); 'core' = the default analyses
+
+    def __init__(self, analysis_set='core'):
+        if analysis_set not in self.analysis_sets:
+            raise ValueError(f'domain {self.name} has no analysis set {analysis_set!r}; known: {self.analysis_sets}')
+        self.analysis_set = analysis_set
 
     @property
     def codes_root(self):
@@ -290,9 +303,55 @@ class AntsDomain(Domain):
     # (experiment, control value, treatment value, confound)
     CONTRASTS = (('v2', 1, 2, ''), ('v3', 2, 6, ''),
                  ('v3', 2, 8, 'recording day: t=8 only on day C (brighter arena), t=2 only on days A/B'))
+    analysis_sets = ('core', 'pairs')
+    CONFOUND_ALPHA = 0.05  # 'pairs': recording day x arm chi-square p below this -> confounded
+    text_pairs = {'families_nes': 'Family B = treated vs control videos within one experiment (unit = video, tau > 0 = '
+                                  'higher in the treated videos = the higher treatment number); every pair of treatment '
+                                  'values within an experiment, control = the lower number. Pairs whose arms differ in '
+                                  'recording day (chi-square p < 0.05) are flagged in the confound column: in v3, '
+                                  't=8 and t=9 were recorded only on day C (brighter arena), t=2/4/6/7 only on days A/B.',
+                  'families_bouts': 'Family B = treated vs control videos within one experiment (unit = video, tau > 0 = '
+                                    'more bouts/min in the treated videos = the higher treatment number); every pair of '
+                                    'treatment values within an experiment; pairs confounded with the recording day are '
+                                    'flagged in the confound column.'}
+
+    def __init__(self, analysis_set='core'):
+        super().__init__(analysis_set)
+        if analysis_set == 'pairs':
+            self.text = {**type(self).text, **self.text_pairs}
 
     def load_design(self):
         return C.load_design_ants(self.ann_path, self.experiment_csv)
+
+    def contrasts(self):
+        """(experiment, control, treatment, confound) of the analysis set: 'core' = CONTRASTS; 'pairs' = CONTRASTS,
+        then the other within-experiment pairs (control < treatment), in experiment / control / treatment order."""
+        if self.analysis_set == 'core':
+            return self.CONTRASTS
+        core = {(e, c, t) for e, c, t, _ in self.CONTRASTS}
+        e = pd.read_csv(self.experiment_csv)
+        extra = []
+        for ex in sorted(e['experiment'].unique()):
+            ts = sorted(int(t) for t in e.loc[e['experiment'] == ex, 'T'].unique())
+            for i, c in enumerate(ts):
+                for t in ts[i + 1:]:
+                    if (ex, c, t) not in core:
+                        extra.append((ex, c, t, self.day_confound(e, ex, c, t)[0]))
+        return tuple(self.CONTRASTS) + tuple(extra)
+
+    def day_confound(self, e, ex, c, t):
+        """-> (confound text or '', chi-square p, {arm value: {day: videos}}) of recording day x arm in
+        experiment ex (e = experiment.csv); one day in total -> p = 1."""
+        from scipy.stats import chi2_contingency
+        d = e[(e['experiment'] == ex) & e['T'].isin([c, t])]
+        tab = pd.crosstab(d['recording_date'].astype(str), d['T'])
+        p = float(chi2_contingency(tab.values)[1]) if tab.shape[0] > 1 and tab.shape[1] > 1 else 1.0
+        days = {int(v): {str(k): int(n) for k, n in tab[v].items() if n > 0} for v in tab.columns}
+        txt = ''
+        if p < self.CONFOUND_ALPHA:
+            on = {v: ('day ' if len(days[v]) == 1 else 'days ') + '/'.join(days[v]) for v in (c, t)}
+            txt = f'recording day: t={c} on {on[c]}, t={t} on {on[t]} (chi-square p = {p:.2g})'
+        return txt, p, days
 
     @property
     def analyses(self):
@@ -300,7 +359,26 @@ class AntsDomain(Domain):
                          {'experiment': e, 'control': c, 'treatment': t, 'confound': conf},
                          ('treated>control', 'treated<control'), where={'experiment': e}, arm='T',
                          control=(c,), treatment=(t,))
-                for e, c, t, conf in self.CONTRASTS]
+                for e, c, t, conf in self.contrasts()]
+
+    def analysis_table(self):
+        """One row per analysis of the set: id, experiment, control, treatment, n_control, n_treatment (videos),
+        recording-day counts per arm, day_chi2_p, confounded (day_chi2_p < CONFOUND_ALPHA), confound (meta text),
+        core (one of the 3 default analyses)."""
+        e = pd.read_csv(self.experiment_csv)
+        core = {(x, c, t) for x, c, t, _ in self.CONTRASTS}
+        rows = []
+        for an in self.analyses:
+            m = an.meta
+            ex, c, t = m['experiment'], m['control'], m['treatment']
+            _, p, days = self.day_confound(e, ex, c, t)
+            g = e[e['experiment'] == ex]
+            rows.append({'analysis_id': an.id, 'experiment': ex, 'control': c, 'treatment': t,
+                         'n_control': int((g['T'] == c).sum()), 'n_treatment': int((g['T'] == t).sum()),
+                         'days_control': days.get(c, {}), 'days_treatment': days.get(t, {}), 'day_chi2_p': p,
+                         'confounded': bool(p < self.CONFOUND_ALPHA), 'confound': m['confound'],
+                         'core': (ex, c, t) in core})
+        return rows
 
     def describe(self, design):
         n = design.groupby(['experiment', 'T']).size()
@@ -346,7 +424,7 @@ class AntsDomain(Domain):
 
 
 @lru_cache(maxsize=None)
-def get_domain(name='mice'):
+def get_domain(name='mice', analysis_set='core'):
     if name not in DOMAINS:
         raise ValueError(f'unknown domain {name!r}; known: {DOMAINS}')
-    return {'mice': MiceDomain, 'ants': AntsDomain}[name]()
+    return {'mice': MiceDomain, 'ants': AntsDomain}[name](analysis_set)

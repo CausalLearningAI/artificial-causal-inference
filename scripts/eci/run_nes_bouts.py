@@ -38,6 +38,9 @@ Usage: python scripts/eci/run_nes_bouts.py --sae matryoshka_btk_1024_k16_ep20_s0
        python scripts/eci/run_nes_bouts.py --domain ants --sae <ants sae> --compare-pooling max
 Writes results/vision/<domain>/eci/nes/<sae>/[<subdir>/]maxpool_bouts/; caches under .../nes/<sae>/_cache/.
 
+--analysis-set (default core): the domain's analysis set (see scripts/eci/run_nes.py); a set other than core
+writes to <out-root>/<sae>/<set>/<P>_bouts/ and compares with <sae>/<set>/summary.csv.
+
 --frame-pooling P (default max): the per-frame values are <codes>/codes_P.npy instead of codes_max.npy (e.g. somp
 for the SOMP codes of scripts/eci/somp_encode_all.py, mean for mean-pooled codes); output subdir P_bouts/
 (meanpool_bouts/ for mean), 'pooling' column = P, caches with a _P suffix. Default outputs are unchanged.
@@ -132,6 +135,9 @@ def select(tidy, aid, prefix, s, round1=False):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--domain', default='mice', choices=DOMAINS)
+    ap.add_argument('--analysis-set', default='core',
+                    help="the domain's analysis set (src/eci/domain.py; ants 'pairs' = every within-experiment "
+                         "treatment pair); a set other than core writes to <sae>/<set>/ unless --subdir")
     ap.add_argument('--sae', default='matryoshka_btk_1024_k16_ep20_s0')
     ap.add_argument('--codes-root', default=None, help='default <domain eci dir>/codes')
     ap.add_argument('--out-root', default=None, help='default the domain NES root (results/vision/<domain>/eci/nes)')
@@ -152,7 +158,7 @@ def main():
     global FPS, FP
     FP = args.frame_pooling
     sfx = '' if FP == 'max' else f'_{FP}'
-    D = get_domain(args.domain)
+    D = get_domain(args.domain, args.analysis_set)
     FPS = D.fps
     args.codes_root = args.codes_root or str(D.codes_root)
     args.out_root = args.out_root or str(D.nes_root)
@@ -160,6 +166,8 @@ def main():
     args.nuisance = args.nuisance or D.nuisance
     if (args.line, args.sex) != ('all', 'all') and not args.subdir:
         args.subdir = f'subsets/{C.subset_name(args.line, args.sex)}'
+    if args.analysis_set != 'core' and not args.subdir:
+        args.subdir = args.analysis_set
     t_start = time.time()
     global ARTEFACTS
     ARTEFACTS = ARTEFACTS_EP20 if args.sae in [f'matryoshka_btk_1024_k16_ep20_s0{x}' for x in ('', '_somp', '_mean')] else {}
@@ -169,6 +177,8 @@ def main():
     base = Path(args.out_root) / args.sae / args.subdir
     out = base / {'max': 'maxpool_bouts', 'mean': 'meanpool_bouts'}.get(FP, f'{FP}_bouts')
     out.mkdir(parents=True, exist_ok=True)
+    if args.analysis_set != 'core' and hasattr(D, 'analysis_table'):  # per-analysis n, day counts, confound flag
+        (out / 'analyses.json').write_text(json.dumps(C.to_jsonable(D.analysis_table()), indent=1))
     cache = Path(args.out_root) / args.sae / '_cache'
     cache.mkdir(parents=True, exist_ok=True)
 

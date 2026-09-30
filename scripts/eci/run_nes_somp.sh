@@ -10,6 +10,7 @@
 #
 # Usage: DOMAIN=ants SAE=matryoshka_btk_1024_k16_antsfg_s0 sbatch --export=ALL scripts/eci/run_nes_somp.sh
 #        AGGS="somp" ... to run one aggregation only
+#        EXTRA_ARGS="--analysis-set pairs" ... passed to both runners (ants: every treatment pair -> <SAE>_<agg>/pairs/)
 #
 #SBATCH --job-name=eci_nes_somp
 #SBATCH --output=logs/eci_nes_somp_%j.out
@@ -28,8 +29,8 @@ cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 mkdir -p logs
 for agg in ${AGGS:-somp mean}; do
   echo "=== ${SAE}_${agg}: mean-activation NES"
-  python -u scripts/eci/run_nes.py --domain "${DOMAIN:-mice}" --sae "${SAE}_${agg}" --primary-pooling "$agg" --poolings "$agg"
+  python -u scripts/eci/run_nes.py --domain "${DOMAIN:-mice}" --sae "${SAE}_${agg}" --primary-pooling "$agg" --poolings "$agg" ${EXTRA_ARGS:-}
   echo "=== ${SAE}_${agg}: bout NES"
   python -u scripts/eci/run_nes_bouts.py --domain "${DOMAIN:-mice}" --sae "${SAE}_${agg}" --frame-pooling "$agg" \
-    --compare-pooling "$agg"
+    --compare-pooling "$agg" ${EXTRA_ARGS:-}
 done
