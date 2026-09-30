@@ -11,6 +11,11 @@
 #   T=dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fgv3_fps1_d2
 #   EXTRA_ARGS="--tokens-dir $T --tag fgv3" sbatch --export=ALL scripts/eci/train_sae_fg.sh
 #   EXTRA_ARGS="--tokens-dir $T --tag fgv3m2 --motion" sbatch --export=ALL scripts/eci/train_sae_fg.sh
+#   ants full frame -> dataset/ants/eci/sae/matryoshka_btk_1024_k16_antsfull_s0 (35.5M train tokens, 43k steps, ~3 min):
+#   DOMAIN=ants EXTRA_ARGS="--tokens-dir dataset/ants/eci/train_tokens/dinov2_base_l-1_antsfull448_fps1_pf25 --tag antsfull" \
+#       sbatch --export=ALL --array=0 scripts/eci/train_sae_fg.sh
+#   then codes: DOMAIN=ants SAE=matryoshka_btk_1024_k16_antsfull_s0 fg_encode_all.sh / fg_encode_merge.sh (rule all
+#   = mean / max over all 1024 patches, n_fg = 1024), somp_encode_all.sh / somp_encode_merge.sh
 #
 #SBATCH --job-name=eci_sae_fg
 #SBATCH --output=logs/eci_sae_fg_%A_%a.out

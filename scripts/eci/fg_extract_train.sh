@@ -9,6 +9,9 @@
 #   mask v3 + motion (token 2 frames earlier), ~115 GB:
 #   EXTRA_ARGS="--rule v3 --motion-delta 2 --batch-size 64 --out-dir dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fgv3_fps1_d2" \
 #       sbatch scripts/eci/fg_extract_train.sh
+#   ants full frame (no mask, rule all, 25% of the 1024 patches per 1 fps frame, 39.3M tokens, 54 GB, ~12 min):
+#   DOMAIN=ants EXTRA_ARGS="--rule all --patch-frac 0.25 --out-dir dataset/ants/eci/train_tokens/dinov2_base_l-1_antsfull448_fps1_pf25" \
+#       sbatch --export=ALL --partition=gpu100 scripts/eci/fg_extract_train.sh
 #
 #SBATCH --job-name=eci_fg_tok
 #SBATCH --output=logs/eci_fg_tok_%A_%a.out
