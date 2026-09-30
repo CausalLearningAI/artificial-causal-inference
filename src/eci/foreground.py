@@ -1,5 +1,5 @@
 """
-Foreground ("mouse patches") selection for the ECI pipeline on mice v1.
+Foreground ("mouse patches") selection for the ECI pipeline on mice v1 (and ants, RULES).
 
 The first SAEs were trained on every DINOv2 patch of a 224 center crop, and most of
 their concepts describe the background (bedding, rim, lighting). Here the model sees
@@ -35,6 +35,14 @@ Per frame and patch:
                 huddles), whose tokens leak into the median background. The experimenter's
                 hand / the white card at the start and end of videos is foreground too.
 See scripts/eci/fg_background.py (per-video backgrounds) and FG_RULE for the rule used.
+
+Rules (RULES, chosen by name with --rule; the SAE checkpoint records it as 'fg_rule'):
+    fg448   FG_RULE (mice foreground SAE)
+    v3      FG_RULE_V3 (mice, dilation only onto dark patches)
+    ants    ants-only foreground: starts as FG_RULE_V3 (ants are dark on light ground, and small, so the
+            dilation must not admit bedding); its parameters are tuned on the ants backgrounds with
+            scripts/eci/fg_validate.py --domain ants before any token extraction
+    all     every patch is foreground (the whole frame at 448, 1024 patches); needs no background
 
 Functions / classes:
     PATCH_PX, GRID              geometry (512 px frame, 448 input, 32 x 32 patches)
@@ -84,7 +92,11 @@ FG_RULE = {
 # temporal-change gate on the feature cue was measured as well and rejected: it removed no further
 # object activation and dropped still tails (see the v3 report).
 FG_RULE_V3 = {**FG_RULE, 'dilate_requires_dark': True}
-RULES = {'fg448': FG_RULE, 'v3': FG_RULE_V3}
+# ants: see the module docstring (a starting point, tuned before use)
+FG_RULE_ANTS = {**FG_RULE_V3}
+# whole frame: no background, no threshold, every patch kept (foreground_parts / FgBackgrounds.mask)
+FG_RULE_ALL = {'all': True}
+RULES = {'fg448': FG_RULE, 'v3': FG_RULE_V3, 'ants': FG_RULE_ANTS, 'all': FG_RULE_ALL}
 
 
 class FrameDatasetFG(torch.utils.data.Dataset):
@@ -197,6 +209,9 @@ def drop_isolated(mask):
 @torch.no_grad()
 def foreground_parts(dist, dark, thr, rule=FG_RULE):
     """-> (feature core, dark core, final mask), each (B, 1024) bool."""
+    if rule.get('all', False):
+        every = torch.ones_like(dist, dtype=torch.bool)
+        return every, torch.zeros_like(every), every
     feat = dist > thr
     if rule.get('drop_isolated', False):
         feat = drop_isolated(feat)
@@ -277,6 +292,9 @@ class FgBackgrounds:
     def mask(self, tokens, grey, rows):
         """tokens (B, 1024, d) on device, grey (B, 512, 512) uint8 on device, rows (B,) numpy.
         -> (mask (B, 1024) bool, dist (B, 1024) float)."""
+        if self.rule.get('all', False):  # whole frame: no background is read (dist = 0)
+            return (torch.ones(tokens.shape[:2], dtype=torch.bool, device=tokens.device),
+                    torch.zeros(tokens.shape[:2], dtype=torch.float32, device=tokens.device))
         rows = np.asarray(rows)
         k = self.obs_index(rows)
         out = torch.zeros(tokens.shape[:2], dtype=torch.bool, device=tokens.device)

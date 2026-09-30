@@ -8,9 +8,13 @@ Output (default): dataset/mice/v1/eci/codes/<sae name>/
     n_fg.npy        int16   (2592000,)       foreground patches per frame (of 1024)
     config.json, verify.json, shards/ (deleted after a successful --verify with --delete-shards)
 
+--domain (default mice, src/eci/domain.py) picks annotations.csv, the SAE and codes dirs and the
+default backgrounds (ants: dataset/ants/eci/..., 768,000 frames). The foreground rule is the SAE's.
+
 Usage:
     python scripts/eci/fg_encode_all.py --shard 3 --n-shards 24
     python scripts/eci/fg_encode_all.py --merge --verify --delete-shards --n-shards 24
+    python scripts/eci/fg_encode_all.py --domain ants --sae <ants sae> --shard 3 --n-shards 24
 """
 import argparse
 import json
@@ -22,6 +26,7 @@ import pandas as pd
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
+from src.eci.domain import DOMAINS, get_domain  # noqa: E402
 from src.eci.encode import shard_ranges  # noqa: E402
 from src.eci.fg_encode import encode_fg_shard, merge_fg_shards, verify_fg_codes  # noqa: E402
 import torch  # noqa: E402
@@ -31,8 +36,9 @@ from src.eci.foreground import RULES  # noqa: E402
 
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument('--domain', default='mice', choices=DOMAINS)
     p.add_argument('--dataset-dir', default=str(REPO / 'dataset'))
-    p.add_argument('--bg-dir', default=str(REPO / 'dataset/mice/v1/eci/fg448/background'))
+    p.add_argument('--bg-dir', default=None, help='default <dataset dir>/<domain eci dir>/fg448/background')
     p.add_argument('--sae', default='matryoshka_btk_1024_k16_fg448_s0')
     p.add_argument('--out-dir', default=None)
     p.add_argument('--n-shards', type=int, default=24)
@@ -44,10 +50,12 @@ def main():
     p.add_argument('--num-workers', type=int, default=16)
     args = p.parse_args()
 
+    dom = get_domain(args.domain)
     ds = Path(args.dataset_dir)
-    ann = ds / 'mice/v1/annotations.csv'
-    sae_path = ds / 'mice/v1/eci/sae' / args.sae / 'sae.pt'
-    out_dir = Path(args.out_dir) if args.out_dir else ds / 'mice/v1/eci/codes' / args.sae
+    args.bg_dir = args.bg_dir or str(ds / dom.eci_rel / 'fg448/background')
+    ann = ds / dom.ann_rel
+    sae_path = ds / dom.eci_rel / 'sae' / args.sae / 'sae.pt'
+    out_dir = Path(args.out_dir) if args.out_dir else ds / dom.eci_rel / 'codes' / args.sae
     out_dir.mkdir(parents=True, exist_ok=True)
     frame_paths = pd.read_csv(ann, usecols=['frame_path'])['frame_path'].values
     n_rows = len(frame_paths)
@@ -67,7 +75,7 @@ def main():
             'sae_checkpoint': str(sae_path), 'sae_inference': 'global threshold',
             'pooling': {'codes_max': 'max over foreground patches', 'codes_mean': 'mean over foreground patches',
                         'n_fg': 'number of foreground patches'},
-            'row_order': 'dataset/mice/v1/annotations.csv', 'n_rows': n_rows,
+            'row_order': f'dataset/{dom.ann_rel}', 'n_rows': n_rows,
             'n_shards': args.n_shards, 'shard_ranges': ranges}, indent=1))
     if args.shard is not None:
         lo, hi = ranges[args.shard]

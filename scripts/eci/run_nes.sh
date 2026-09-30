@@ -7,6 +7,7 @@
 # Usage:
 #   sbatch scripts/eci/run_nes.sh
 #   SAE=matryoshka_btk_1024_k16_ep20_s0 sbatch scripts/eci/run_nes.sh
+#   DOMAIN=ants SAE=<ants sae> EXTRA_ARGS="--primary-pooling max" sbatch --export=ALL scripts/eci/run_nes.sh
 #
 #SBATCH --job-name=eci_nes
 #SBATCH --output=logs/eci_nes_%j.out
@@ -26,4 +27,4 @@ set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 mkdir -p logs
 
-python -u scripts/eci/run_nes.py --sae "${SAE:-matryoshka_btk_1024_k16_ep20_s0}" ${EXTRA_ARGS:-}
+python -u scripts/eci/run_nes.py --domain "${DOMAIN:-mice}" --sae "${SAE:-matryoshka_btk_1024_k16_ep20_s0}" ${EXTRA_ARGS:-}

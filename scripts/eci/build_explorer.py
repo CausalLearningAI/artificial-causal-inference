@@ -98,6 +98,9 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from src.eci.domain import get_domain  # noqa: E402
+
+MICE = get_domain('mice')  # stage labels, analysis ids / order, gene lines and sexes, experiment.csv
 TEMPLATE = ROOT / 'scripts/eci/explorer_template.html'
 DATASET = ROOT / 'dataset'
 NES = 'results/vision/mice/eci/nes'
@@ -123,7 +126,7 @@ LENGTHS = {'frame': 1, '1s': 5, '3s': 15}
 KINDS = {'all': ('top', 'least'), 'cmp': ('top', 'least')}
 HIST_BINS = 40
 PICKS_V = 5                          # picks.json entry version (5 = one top row per contrast; 4 = + per-contrast selections)
-STAGE_LABEL = {1: 'H,S', 2: 'O,S', 3: 'P,S', 4: 'H,F', 5: 'O,F', 6: 'P,F'}
+STAGE_LABEL = MICE.stage_label  # 1 -> 'H,S'
 FONT = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
 FONT_B = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
 FIELDS = ('pooling', 'outcome_type', 'test', 'correction')
@@ -141,7 +144,7 @@ CHIP = {('test', 'signflip'): ('flip', 'sign-flip permutation test instead of th
         ('window', 'full'): ('full', 'full videos'),
         ('prefix', 128): ('128', 'searching only the first 128 neurons'),
         ('prefix', 1024): ('1024', 'searching all 1024 neurons')}
-LINES, SEXES = ('ash1l', 'kdm6b', 'kmt5b'), ('f', 'm')
+LINES, SEXES = MICE.subgroups['line'], MICE.subgroups['sex']
 SUBSETS = [f'{l}_{x}' for l in ('all',) + LINES for x in ('all',) + SEXES if (l, x) != ('all', 'all')]
 DEFAULT_OUTCOMES = ['Bout rate (max-pool)=maxpool_bouts:pooling=max,outcome_type=bout_rate,threshold_q=0.95,merge_gap=0,unit=bouts/min,short=bouts',
                     'Mean activation ({p}-pool)=.:pooling={p},outcome_type=mean,short={p}-pool']
@@ -330,7 +333,7 @@ def short_obs(obs):
 
 
 def stages_of(aid):
-    return [int(x) for x in re.match(r'A_\w+_(\d)to(\d)', aid).groups()]
+    return [int(x) for x in MICE.analysis(aid).stages]
 
 
 def wanted(cfg, subsets=True):
@@ -436,10 +439,11 @@ def contrast_groups(aid, vids):
     that genotype's videos in stage a / stage b; B (B_stage3) = het / wt videos of that stage.
     'least' uses the union."""
     st, gen = vids['stage'].astype(int).values, vids['genotype'].astype(str).values
-    if aid.startswith('A'):
-        g, (a, b) = aid.split('_')[1], stages_of(aid)
+    an = MICE.analysis(aid)
+    if an.family == 'A':
+        g, (a, b) = an.genotype, an.stages
         return (gen == g) & (st == a), (gen == g) & (st == b)
-    s = int(aid[len('B_stage'):])
+    s = an.where['stage']
     return (gen == 'het') & (st == s), (gen == 'wt') & (st == s)
 
 
@@ -890,8 +894,7 @@ def size_table(o):
     return _size[k]
 
 
-ORDER = [f'A_{g}_{t}' for g in ('het', 'wt') for t in ('1to2', '2to3', '4to5', '5to6')] + \
-        [f'B_stage{s}' for s in range(1, 7)]
+ORDER = MICE.analysis_ids()  # A_het_1to2 .. A_wt_5to6, B_stage1 .. B_stage6
 
 
 def sig4(v):
@@ -944,7 +947,7 @@ def video_table():
     """The page's video list (video_meta order): [[pool, stage, genotype, line, sex] ...], [[name, time] ...]
     (short_obs), and {observation_id: index}."""
     vm = vmeta().reset_index(drop=True)
-    ex = pd.read_csv(ROOT / 'data/mice/v1/experiment.csv').drop_duplicates('pool').set_index('pool')
+    ex = pd.read_csv(MICE.experiment_csv).drop_duplicates('pool').set_index('pool')
     vm['line'], vm['sex'] = ex.loc[vm['pool'], 'line'].values, ex.loc[vm['pool'], 'sex'].values
     videos = [[str(p), int(s), g, l, x] for p, s, g, l, x in zip(vm['pool'], vm['stage'], vm['genotype'], vm['line'],
                                                                   vm['sex'])]

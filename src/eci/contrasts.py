@@ -7,7 +7,10 @@ Builds the unit-level matrices that src/eci/nes.py consumes:
       mean  = mean activation over the frames of a window,
       rate  = fraction of frames in the window with activation > 0 (firing rate);
   * paired stage transitions (unit = pool, same pool at stage a and b, one genotype);
-  * genotype contrasts within one stage (unit = video, het = 1 vs wt = 0).
+  * genotype contrasts within one stage (unit = video, het = 1 vs wt = 0);
+  * generic two-sample contrasts (two_sample: the rows of one analysis, src/eci/domain.py
+    Analysis.select, T = 1 treatment / 0 control), e.g. the ants treatment contrasts
+    (load_design_ants: one row per video of dataset/ants/eci/annotations.csv, unit = video).
 
 Design (data/mice/DATA_STRUCTURE.md): 72 pools x 6 stages, stage 1..6 = (S,H) (S,O) (S,P)
 (F,H) (F,O) (F,P); a pool is one genotype. At 5 fps habituation is 9000 frames (30 min),
@@ -31,9 +34,10 @@ TRANSITIONS = {'1to2': (1, 2), '2to3': (2, 3), '4to5': (4, 5), '5to6': (5, 6)}
 WINDOWS = ('full', 'last', 'trim')
 
 
-def load_design(annotations_csv, experiment_csv):
-    """One row per observation in annotations.csv block order: observation_id, pool, genotype,
-    T (het=1), stage, row_start, row_end (half-open rows into the codes memmap), n_frames."""
+def observation_blocks(annotations_csv):
+    """One row per observation in annotations.csv block order: observation_id, row_start, row_end
+    (half-open rows into the codes memmap). Raises unless every observation is one contiguous block
+    in increasing frame_idx order."""
     a = pd.read_csv(annotations_csv, usecols=['observation_id', 'frame_idx'])
     oid = a['observation_id'].values
     brk = np.flatnonzero(oid[1:] != oid[:-1]) + 1
@@ -45,6 +49,13 @@ def load_design(annotations_csv, experiment_csv):
     for s, e in zip(starts, ends):
         if not (np.diff(fi[s:e]) > 0).all():
             raise ValueError('frames are not in increasing frame_idx order within an observation')
+    return blocks
+
+
+def load_design(annotations_csv, experiment_csv):
+    """One row per observation in annotations.csv block order: observation_id, pool, genotype,
+    T (het=1), stage, row_start, row_end (half-open rows into the codes memmap), n_frames."""
+    blocks = observation_blocks(annotations_csv)
     e = pd.read_csv(experiment_csv)
     e['stage'] = [STAGES[(o, p)] for o, p in zip(e['odor'], e['phase'])]
     e['T'] = (e['genotype'] == 'het').astype(int)
@@ -54,6 +65,21 @@ def load_design(annotations_csv, experiment_csv):
         raise ValueError('observations missing from experiment.csv')
     d['n_frames'] = d['row_end'] - d['row_start']
     d['obs_row'] = np.arange(len(d))  # row into the video_summaries arrays
+    return d
+
+
+def load_design_ants(annotations_csv, experiment_csv):
+    """Ants (dataset/ants/eci/, scripts/eci/ants_prepare.py): one row per video in annotations.csv
+    block order: observation_id, experiment (v2 / v3), T (raw treatment value), batch, position,
+    annotator, recording_date, nestbox (v3 only), row_start, row_end, n_frames, obs_row."""
+    blocks = observation_blocks(annotations_csv)
+    e = pd.read_csv(experiment_csv, dtype={'batch': str, 'position': str, 'nestbox': str})
+    d = blocks.merge(e, on='observation_id', how='left', validate='1:1')
+    if d['T'].isna().any():
+        raise ValueError('observations missing from experiment.csv')
+    d['T'] = d['T'].astype(int)
+    d['n_frames'] = d['row_end'] - d['row_start']
+    d['obs_row'] = np.arange(len(d))
     return d
 
 
@@ -134,11 +160,26 @@ def genotype_contrast(summ, design, stage, stat='mean', window='full', prefix=No
     return d['pool'].values, Z, d['T'].values
 
 
+def two_sample(summ, rows, stat='mean', window='full', prefix=None, unit='pool'):
+    """Z (n_units, prefix), T of the design rows of one two-sample analysis (T = 1 treatment,
+    0 control; src/eci/domain.py Analysis.select), sorted by unit; returns (units, Z, T).
+    genotype_contrast(summ, design, s) == two_sample(summ, design rows of stage s)."""
+    d = rows.sort_values(unit)
+    Z = summ[(window, stat)][d['obs_row'].values]
+    if prefix is not None:
+        Z = Z[:, :prefix]
+    return d[unit].values, Z, d['T'].values
+
+
 def frame_matrix(codes_path, design, stage, prefix=None):
     """Raw per-frame codes (n_frames, prefix) float64 of all videos of a stage, with T per frame
     and the video index per frame (for the pseudo-replication illustration)."""
+    return frame_matrix_rows(codes_path, design[design['stage'] == stage], prefix)
+
+
+def frame_matrix_rows(codes_path, d, prefix=None):
+    """frame_matrix of the videos of the design rows d (design order, column T)."""
     Z = np.load(codes_path, mmap_mode='r')
-    d = design[design['stage'] == stage]
     m = Z.shape[1] if prefix is None else prefix
     parts, T, g = [], [], []
     for k, (s, e, t) in enumerate(zip(d['row_start'], d['row_end'], d['T'])):
@@ -383,12 +424,13 @@ def size_adjusted_test(y_or_ya, cov_or_ca, T_or_yb=None, cb=None, paired_design=
             'slope': float(b[-1])}
 
 
-def size_adjusted_round1(r1, design, values, nfg, window_map):
+def size_adjusted_round1(r1, design, values, nfg, window_map, analyses=None):
     """Re-test round-1 neurons with the per-video mean foreground size as a covariate.
 
     r1: DataFrame of round-1 rows (analysis_id, prefix, window, neuron, tau, p, threshold, ...);
     values: {contrasts window ('full'/'last'/'trim'): (n_obs, m) outcome matrix};
-    nfg: video_nfg output; window_map: runner window name -> (window a, window b).
+    nfg: video_nfg output; window_map: runner window name -> (window a, window b);
+    analyses: {analysis_id: src/eci/domain.py Analysis} (None: the mice ids A_<g>_<tr> / B_stage<s>).
     Returns r1 with tau_adj, se_adj, p_adj, slope_nfg, survives (p_adj < the round-1 threshold and
     the same sign as tau)."""
     summ = {(w, 'v'): v for w, v in values.items()}
@@ -396,12 +438,21 @@ def size_adjusted_round1(r1, design, values, nfg, window_map):
     out = []
     for r in r1.to_dict('records'):
         j, (wa, wb) = int(r['neuron']), window_map[r['window']]
-        if r['analysis_id'].startswith('A'):
-            _, g, tr = r['analysis_id'].split('_')
-            a, b = TRANSITIONS[tr]
+        an = analyses[r['analysis_id']] if analyses is not None else None
+        if (an.family == 'A') if an is not None else r['analysis_id'].startswith('A'):
+            if an is not None:
+                g, (a, b) = an.genotype, an.stages
+            else:
+                _, g, tr = r['analysis_id'].split('_')
+                a, b = TRANSITIONS[tr]
             _, Za, Zb = paired(summ, design, g, a, b, 'v', wa, wb)
             _, Ca, Cb = paired(cov, design, g, a, b, 'v', wa, wb)
             res = size_adjusted_test(Za[:, j], Ca[:, 0], Zb[:, j], Cb[:, 0], paired_design=True)
+        elif an is not None:
+            rows = an.select(design)
+            _, Z, T = two_sample(summ, rows, 'v', wa, unit=an.unit)
+            _, Cv, _ = two_sample(cov, rows, 'v', wa, unit=an.unit)
+            res = size_adjusted_test(Z[:, j], Cv[:, 0], T)
         else:
             _, Z, T = genotype_contrast(summ, design, int(r['analysis_id'][len('B_stage'):]), 'v', wa)
             _, Cv, _ = genotype_contrast(cov, design, int(r['analysis_id'][len('B_stage'):]), 'v', wa)

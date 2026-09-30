@@ -7,18 +7,21 @@ frame at 448 (no crop) -> per-position median token (bg_median), pixel backgroun
 is dark-foreground excluded), and the cosine distances of the n_bg frames to both backgrounds
 (used for the per-video threshold and for validation). No behaviour annotation is used.
 
-Output: dataset/mice/v1/eci/fg448/background/{observation_id}.npz with
+Output: dataset/<domain eci dir>/fg448/background/{observation_id}.npz (mice: dataset/mice/v1/eci/...) with
     rows (n_bg,) int64        rows of annotations.csv
     bg_median, bg_masked      (1024, 768) float16
     n_ok (1024,) int16        frames used per position by bg_masked
     pix_bg (512, 512) uint8   per-pixel --pix-q quantile of grey
     bg_seg (n_seg, 1024, 768) float16   masked median per time block (seg_bounds: sample indices)
     dist_bg_median, dist_bg_masked, dist_bg_seg, dark   (n_bg, 1024) float16
-Existing files are skipped (resumable).
+Existing files are skipped (resumable). --domain (default mice, src/eci/domain.py) picks the
+annotations.csv and the output dir; --rule (default the domain's, src/eci/foreground.py RULES) the
+dark-pixel cue parameters (dark_abs / dark_rel / dark_frac) that exclude foreground from bg_masked.
 
 Usage:
     python scripts/eci/fg_background.py --task 0 --n-tasks 8
     python scripts/eci/fg_background.py --obs wt_ash1l_m_1_S_H,...
+    python scripts/eci/fg_background.py --domain ants --task 0 --n-tasks 8
 """
 import argparse
 import sys
@@ -31,15 +34,18 @@ import torch
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
-from src.eci.foreground import (FG_RULE, FrameDatasetFG, cosine_distance, dark_fraction, dilate,  # noqa: E402
+from src.eci.domain import DOMAINS, get_domain  # noqa: E402
+from src.eci.foreground import (RULES, FrameDatasetFG, cosine_distance, dark_fraction, dilate,  # noqa: E402
                                 encode_batch, load_encoder_fg, obs_rows, patch_background,
                                 pixel_background)
 
 
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument('--domain', default='mice', choices=DOMAINS)
+    p.add_argument('--rule', default=None, choices=sorted(RULES), help='default: the domain rule (mice fg448)')
     p.add_argument('--dataset-dir', default=str(REPO / 'dataset'))
-    p.add_argument('--out-dir', default=str(REPO / 'dataset/mice/v1/eci/fg448/background'))
+    p.add_argument('--out-dir', default=None, help='default <dataset dir>/<domain eci dir>/fg448/background')
     p.add_argument('--n-bg', type=int, default=200)
     p.add_argument('--task', type=int, default=0)
     p.add_argument('--n-tasks', type=int, default=1)
@@ -51,9 +57,14 @@ def main():
     p.add_argument('--num-workers', type=int, default=16)
     args = p.parse_args()
 
-    ds, out = Path(args.dataset_dir), Path(args.out_dir)
+    dom = get_domain(args.domain)
+    rule = RULES[args.rule or dom.fg_rule]
+    if rule.get('all', False):
+        raise SystemExit('rule "all" keeps every patch and needs no background')
+    ds = Path(args.dataset_dir)
+    out = Path(args.out_dir) if args.out_dir else ds / dom.eci_rel / 'fg448/background'
     out.mkdir(parents=True, exist_ok=True)
-    ann = ds / 'mice/v1/annotations.csv'
+    ann = ds / dom.ann_rel
     ranges = obs_rows(ann)
     ids = sorted(ranges)
     ids = args.obs.split(',') if args.obs else ids[args.task::args.n_tasks]
@@ -92,8 +103,8 @@ def main():
         tok, gr = torch.cat(buf_t), torch.cat(buf_g)
         buf_t, buf_g = [], []
         pix_bg = pixel_background(gr, args.pix_q)
-        dark = dark_fraction(gr, pix_bg, FG_RULE['dark_abs'], FG_RULE['dark_rel'])
-        excl = dilate(dark > FG_RULE['dark_frac'], 1)
+        dark = dark_fraction(gr, pix_bg, rule['dark_abs'], rule['dark_rel'])
+        excl = dilate(dark > rule['dark_frac'], 1)
         bg_med, _ = patch_background(tok)
         bg_msk, n_ok = patch_background(tok, excl)
         d_med, d_msk = cosine_distance(tok, bg_med), cosine_distance(tok, bg_msk)
@@ -116,7 +127,7 @@ def main():
                  dist_bg_seg=d_seg.half().cpu().numpy(), seg_bounds=np.array([s_[0] for s_ in seg] + [args.n_bg]))
         tmp.rename(out / f'{o}.npz')
         print(f'  {o}: dist med {float(d_med.median()):.3f}/{float(d_msk.median()):.3f}  '
-              f'dark>{FG_RULE["dark_frac"]} {float((dark > FG_RULE["dark_frac"]).float().mean()):.3f}  '
+              f'dark>{rule["dark_frac"]} {float((dark > rule["dark_frac"]).float().mean()):.3f}  '
               f'min n_ok {int(n_ok.min())}  {cur}/{len(rows)} frames {cur / (time.time() - t0):.1f} f/s', flush=True)
     assert cur == len(rows)
     print(f'Done {len(ids)} observations in {time.time() - t0:.0f}s')

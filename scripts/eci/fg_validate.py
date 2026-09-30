@@ -5,9 +5,13 @@ no GPU is needed). Each PNG: frame | foreground overlay (feature cue red, dark-o
 blue, dilation ring yellow) | distance map; plus per-video panel of pix_bg, n_ok and
 median distance.
 
+--domain (default mice, src/eci/domain.py) picks annotations.csv and the default dirs; --base-rule
+(default the domain rule, src/eci/foreground.py RULES) is the rule that --rule JSON overrides.
+
 Usage:
     python scripts/eci/fg_validate.py --pick obs:idx,obs:idx ... --out-dir <dir>
     python scripts/eci/fg_validate.py --stats            # foreground fraction per frame, all videos
+    python scripts/eci/fg_validate.py --domain ants --stats --rule '{"dark_abs": 70}'
 """
 import argparse
 import json
@@ -24,7 +28,8 @@ from PIL import Image  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
-from src.eci.foreground import FG_RULE, GRID, PATCH_PX, foreground_parts, video_threshold  # noqa: E402
+from src.eci.domain import DOMAINS, get_domain  # noqa: E402
+from src.eci.foreground import GRID, PATCH_PX, RULES, foreground_parts, video_threshold  # noqa: E402
 
 
 def masks(z, rule):
@@ -79,18 +84,23 @@ def video_panel(bg_dir, obs, rule, out):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--bg-dir', default=str(REPO / 'dataset/mice/v1/eci/fg448/background'))
+    p.add_argument('--domain', default='mice', choices=DOMAINS)
+    p.add_argument('--bg-dir', default=None, help='default <dataset dir>/<domain eci dir>/fg448/background')
     p.add_argument('--dataset-dir', default=str(REPO / 'dataset'))
-    p.add_argument('--out-dir', default=str(REPO / 'dataset/mice/v1/eci/fg448/validation'))
+    p.add_argument('--out-dir', default=None, help='default <dataset dir>/<domain eci dir>/fg448/validation')
     p.add_argument('--pick', default='', help='obs:i[:title],...  (i = index among the n_bg sample frames)')
     p.add_argument('--panels', default='', help='comma list of obs for per-video panels')
-    p.add_argument('--rule', default='{}', help='JSON overrides of FG_RULE')
+    p.add_argument('--base-rule', default=None, choices=sorted(RULES), help='default: the domain rule (mice fg448)')
+    p.add_argument('--rule', default='{}', help='JSON overrides of the base rule')
     p.add_argument('--stats', action='store_true')
     args = p.parse_args()
-    rule = {**FG_RULE, **json.loads(args.rule)}
-    bg_dir, ds, out = Path(args.bg_dir), Path(args.dataset_dir), Path(args.out_dir)
+    dom = get_domain(args.domain)
+    rule = {**RULES[args.base_rule or dom.fg_rule], **json.loads(args.rule)}
+    ds = Path(args.dataset_dir)
+    bg_dir = Path(args.bg_dir) if args.bg_dir else ds / dom.eci_rel / 'fg448/background'
+    out = Path(args.out_dir) if args.out_dir else ds / dom.eci_rel / 'fg448/validation'
     out.mkdir(parents=True, exist_ok=True)
-    paths = pd.read_csv(ds / 'mice/v1/annotations.csv', usecols=['frame_path'])['frame_path'].values
+    paths = pd.read_csv(ds / dom.ann_rel, usecols=['frame_path'])['frame_path'].values
     for item in filter(None, args.pick.split(',')):
         obs, i, *t = item.split(':')
         render(bg_dir, ds, paths, obs, int(i), rule, out / f'mask_{obs}_{int(i):03d}.png', ' '.join(t))

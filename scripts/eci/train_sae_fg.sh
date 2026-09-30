@@ -32,4 +32,4 @@ set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 mkdir -p logs
 
-python -u scripts/eci/train_sae_fg.py --seed ${SLURM_ARRAY_TASK_ID} ${EXTRA_ARGS:-}
+python -u scripts/eci/train_sae_fg.py --domain "${DOMAIN:-mice}" --seed ${SLURM_ARRAY_TASK_ID} ${EXTRA_ARGS:-}

@@ -26,6 +26,11 @@ Foreground SAEs ('fg448', src/eci/foreground.py): DINOv2 sees the WHOLE 512 fram
 the foreground patches (the video's stored background + FG_RULE), the other patches are shown as 0.
 The stored codes pool over foreground patches: codes_max = max, codes_mean = sum / n_fg.
 
+Domains: load_full_codes, representation, make_patch_encoder and default_sae_path take an optional
+domain (src/eci/domain.py); it replaces the subject / version paths (ants: dataset/ants/eci/) and the
+per-video metadata (domain.video_meta, its meta_cols are carried into the video blocks). Without a
+domain everything is mice v1 as before.
+
 Candidate search over the (N, m) memmap: rows are grouped by video (contiguous in
 annotations.csv and in the training sample), so ONE pass over video blocks gives, per neuron and
 video, the top max_per_video frames (non-maximum suppression in time), a random zero frame, the
@@ -35,7 +40,7 @@ With one frame per video this is exact (no top-C candidate truncation).
 Functions / classes:
     video_meta              observation_id -> pool, stage, genotype, phase, odor
     CodeSource              pooled codes + row metadata (full codes or training sample)
-    load_full_codes         dataset/mice/v1/eci/codes/{sae}/ (annotations.csv row order)
+    load_full_codes         dataset/mice/v1/eci/codes/{sae}/ (annotations.csv row order), or a domain's
     sample_codes            encode the training-sample patch tokens through the SAE (cached)
     scan_codes              the single pass above -> NeuronScan
     pick_top / pick_least   per-neuron frame selections from a NeuronScan
@@ -69,6 +74,7 @@ from src.eci.extract import STAGES, _FrameDataset, load_encoder
 from src.eci.sae import load_sae
 
 STAGE_LABEL = {v: f'{p},{o}' for (p, o), v in STAGES.items()}  # 1 -> 'H,S'
+META_COLS = ('pool', 'stage', 'genotype')  # per-video columns of the mice video blocks
 GENO_COLOR = {'wt': '#2a78b5', 'het': '#d9661f'}
 
 
@@ -93,21 +99,31 @@ class CodeSource:
     info: dict = field(default_factory=dict)
 
 
-def load_full_codes(sae_name, dataset_dir='dataset', data_dir='data', subject='mice', version='v1', codes_dir=None):
+def _eci_dir(dataset_dir, subject, version, domain):
+    return Path(dataset_dir) / (domain.eci_rel if domain is not None else Path(subject) / version / 'eci')
+
+
+def load_full_codes(sae_name, dataset_dir='dataset', data_dir='data', subject='mice', version='v1', codes_dir=None,
+                    domain=None):
     ds = Path(dataset_dir)
-    d = Path(codes_dir) if codes_dir else ds / subject / version / 'eci' / 'codes' / sae_name
+    d = Path(codes_dir) if codes_dir else _eci_dir(ds, subject, version, domain) / 'codes' / sae_name
     if not (d / 'DONE').exists():
         raise FileNotFoundError(f'{d}/DONE missing: full codes not merged yet (use --source sample)')
-    ann = pd.read_csv(ds / subject / version / 'annotations.csv',
+    ann = pd.read_csv(ds / domain.ann_rel if domain is not None else ds / subject / version / 'annotations.csv',
                       usecols=['observation_id', 'frame_idx', 'fps', 'frame_path'])
-    meta = ann.merge(video_meta(data_dir, subject, version), on='observation_id', how='left', validate='m:1')
-    if meta['stage'].isna().any():
+    vm = domain.video_meta() if domain is not None else video_meta(data_dir, subject, version)
+    meta = ann.merge(vm, on='observation_id', how='left', validate='m:1')
+    cols = domain.meta_cols if domain is not None else META_COLS
+    if meta[cols[1]].isna().any():
         raise ValueError('observations in annotations.csv missing from experiment.csv')
     codes = {k: np.load(d / f'codes_{k}.npy', mmap_mode='r') for k in ('mean', 'max')}
     for k, a in codes.items():
         if a.shape[0] != len(meta):
             raise ValueError(f'codes_{k} has {a.shape[0]} rows, annotations.csv has {len(meta)}')
-    return CodeSource('full', codes, meta, ds, {'codes_dir': str(d), 'n_rows': len(meta)})
+    info = {'codes_dir': str(d), 'n_rows': len(meta)}
+    if domain is not None:
+        info['meta_cols'] = cols
+    return CodeSource('full', codes, meta, ds, info)
 
 
 @torch.no_grad()
@@ -175,8 +191,9 @@ class NeuronScan:
     key: str
 
 
-def _video_blocks(meta):
-    """Contiguous row ranges per observation (raises if a video's rows are not contiguous)."""
+def _video_blocks(meta, cols=META_COLS):
+    """Contiguous row ranges per observation (raises if a video's rows are not contiguous), with the
+    per-video columns cols (mice: pool, stage, genotype)."""
     obs = meta['observation_id'].values
     change = np.flatnonzero(obs[1:] != obs[:-1]) + 1
     lo = np.r_[0, change]
@@ -185,8 +202,7 @@ def _video_blocks(meta):
     if len(set(ids)) != len(ids):
         raise ValueError('rows of a video are not contiguous')
     first = meta.iloc[lo]
-    return pd.DataFrame({'observation_id': ids, 'pool': first['pool'].values, 'stage': first['stage'].values,
-                         'genotype': first['genotype'].values, 'lo': lo, 'hi': hi})
+    return pd.DataFrame({'observation_id': ids, **{c: first[c].values for c in cols}, 'lo': lo, 'hi': hi})
 
 
 def scan_codes(source, neurons, key='mean', max_per_video=1, min_gap_s=2.0, hist_per_video=128, seed=0,
@@ -196,7 +212,7 @@ def scan_codes(source, neurons, key='mean', max_per_video=1, min_gap_s=2.0, hist
     neurons = np.asarray(neurons, dtype=np.int64)
     cols = neurons if not np.array_equal(neurons, np.arange(neurons[0], neurons[-1] + 1)) \
         else slice(int(neurons[0]), int(neurons[-1]) + 1)
-    vids = _video_blocks(source.meta)
+    vids = _video_blocks(source.meta, source.info.get('meta_cols', META_COLS))
     V, s, K = len(vids), len(neurons), max_per_video
     frame_idx = source.meta['frame_idx'].values
     fps = source.meta['fps'].values
@@ -280,7 +296,7 @@ def scan_windows(source, neurons, key='max', lengths=(1, 5, 15), seed=0, log_eve
     The random silent window uses rng([seed, video, length])."""
     Z = source.codes[key]
     neurons = np.asarray(neurons, dtype=np.int64)
-    vids = _video_blocks(source.meta)
+    vids = _video_blocks(source.meta, source.info.get('meta_cols', META_COLS))
     V, s = len(vids), len(neurons)
     out = {w: {k: np.full((V, s), -1 if k.endswith('start') else np.nan, np.int64 if k.endswith('start')
                           else np.float32) for k in ('best_start', 'best_mean', 'silent_start', 'min_start', 'min_mean')}
@@ -413,10 +429,10 @@ class PatchEncoder:
         return np.concatenate(out)
 
 
-def representation(sae_name, dataset_dir='dataset', subject='mice', version='v1'):
+def representation(sae_name, dataset_dir='dataset', subject='mice', version='v1', domain=None):
     """'fg448' when the SAE's full codes come from the foreground pipeline (codes config.json has
     resolution 448, center_crop false, a foreground_rule), else 'crop224'."""
-    cfg = Path(dataset_dir) / subject / version / 'eci' / 'codes' / sae_name / 'config.json'
+    cfg = _eci_dir(dataset_dir, subject, version, domain) / 'codes' / sae_name / 'config.json'
     if cfg.exists():
         c = json.loads(cfg.read_text())
         if c.get('resolution') == 448 and c.get('center_crop') is False and 'foreground_rule' in c:
@@ -431,18 +447,18 @@ def frame_box(rep, width, height):
 
 class PatchEncoderFG:
     """fg448 representation: DINOv2 on the whole frame at 448 (32 x 32 patches), foreground mask from
-    the video's stored background + FG_RULE (src/eci/foreground.py FgBackgrounds), SAE on the
-    foreground tokens only; non-foreground patches get code 0. Needs the annotations.csv row of every
-    frame (to find its video's background and time block)."""
+    the video's stored background + the codes' foreground rule (src/eci/foreground.py RULES, default
+    'fg448' = FG_RULE; FgBackgrounds), SAE on the foreground tokens only; non-foreground patches get
+    code 0. Needs the annotations.csv row of every frame (to find its video's background and time block)."""
 
     rep = 'fg448'
 
-    def __init__(self, sae_path, bg_dir, ann_path, device='cuda'):
-        from src.eci.foreground import FG_RULE, FgBackgrounds, GRID, load_encoder_fg, obs_rows
+    def __init__(self, sae_path, bg_dir, ann_path, device='cuda', rule_name='fg448'):
+        from src.eci.foreground import GRID, RULES, FgBackgrounds, load_encoder_fg, obs_rows
         self.device = torch.device(device)
         _, self.processor, self.model = load_encoder_fg(device=self.device)
         self.sae, self.norm, _ = load_sae(sae_path, self.device)
-        self.bgs = FgBackgrounds(bg_dir, obs_rows(ann_path), FG_RULE, self.device)
+        self.bgs = FgBackgrounds(bg_dir, obs_rows(ann_path), RULES[rule_name], self.device)
         self.grid = GRID
 
     @torch.no_grad()
@@ -469,14 +485,17 @@ class PatchEncoderFG:
         return (pc, np.concatenate(masks)) if return_mask else pc
 
 
-def make_patch_encoder(sae_name, sae_path=None, dataset_dir='dataset', subject='mice', version='v1', device='cuda'):
+def make_patch_encoder(sae_name, sae_path=None, dataset_dir='dataset', subject='mice', version='v1', device='cuda',
+                       domain=None):
     """PatchEncoder (crop224) or PatchEncoderFG (fg448) for sae_name; .rep says which. Call
     patch_codes(paths, neurons) for crop224 and patch_codes(paths, neurons, rows) for fg448."""
     ds = Path(dataset_dir)
-    sae_path = sae_path or ds / subject / version / 'eci' / 'sae' / sae_name / 'sae.pt'
-    if representation(sae_name, ds, subject, version) == 'fg448':
-        c = json.loads((ds / subject / version / 'eci' / 'codes' / sae_name / 'config.json').read_text())
-        return PatchEncoderFG(sae_path, c['backgrounds'], ds / subject / version / 'annotations.csv', device)
+    eci = _eci_dir(ds, subject, version, domain)
+    sae_path = sae_path or eci / 'sae' / sae_name / 'sae.pt'
+    if representation(sae_name, ds, subject, version, domain) == 'fg448':
+        c = json.loads((eci / 'codes' / sae_name / 'config.json').read_text())
+        ann = ds / domain.ann_rel if domain is not None else ds / subject / version / 'annotations.csv'
+        return PatchEncoderFG(sae_path, c['backgrounds'], ann, device, c.get('foreground_rule_name', 'fg448'))
     pe = PatchEncoder(sae_path, device=device)
     pe.rep = 'crop224'
     return pe
@@ -653,8 +672,8 @@ key.onchange = sortCards; asc.onchange = sortCards;
 
 
 # ---------------------------------------------------------------------- end to end
-def default_sae_path(sae_name, dataset_dir='dataset', subject='mice', version='v1'):
-    return Path(dataset_dir) / subject / version / 'eci' / 'sae' / sae_name / 'sae.pt'
+def default_sae_path(sae_name, dataset_dir='dataset', subject='mice', version='v1', domain=None):
+    return _eci_dir(dataset_dir, subject, version, domain) / 'sae' / sae_name / 'sae.pt'
 
 
 def _tile_dicts(source, rows, vals, maps, idx, box_cache):

@@ -27,5 +27,5 @@ set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 mkdir -p logs
 
-python -u scripts/eci/fg_encode_all.py --sae ${SAE:-matryoshka_btk_1024_k16_fg448_s0} --n-shards 24 \
+python -u scripts/eci/fg_encode_all.py --domain "${DOMAIN:-mice}" --sae ${SAE:-matryoshka_btk_1024_k16_fg448_s0} --n-shards 24 \
     --shard ${SLURM_ARRAY_TASK_ID} --num-workers 22 ${EXTRA_ARGS:-}

@@ -1,8 +1,12 @@
 """
-Foreground-only SAE training tokens (ECI, mice v1): 1 fps frames (every 5th frame, seeded
+Foreground-only SAE training tokens (ECI, mice v1 by default): 1 fps frames (every 5th frame, seeded
 offset per video) of all 432 videos -> DINOv2-base on the whole frame at 448 (no crop) ->
 keep only the foreground patches (src/eci/foreground.py FG_RULE, per-video backgrounds
 from scripts/eci/fg_background.py). No behaviour annotation is used.
+--domain (src/eci/domain.py) picks annotations.csv and the default dirs (ants: dataset/ants/eci/...);
+--rule defaults to the domain rule ('all' = every patch, no backgrounds needed). --patch-frac f < 1
+keeps a seeded random fraction f of each frame's foreground patches (whole-frame stores stay small);
+frames.npz n_fg then counts the KEPT patches and shard.json records patch_frac.
 
 Output: dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fg448_fps1/
     shards/shard_XX/tokens.f16  raw float16 (n_tokens, 768)   (np.memmap, shape in shard.json)
@@ -21,6 +25,8 @@ Usage:
     python scripts/eci/fg_extract_train.py --task 0 --n-tasks 16 --max-obs 1 --out-dir /some/test/dir
     python scripts/eci/fg_extract_train.py --task 3 --rule v3 --motion-delta 2 \
         --out-dir dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fgv3_fps1_d2
+    python scripts/eci/fg_extract_train.py --domain ants --rule all --patch-frac 0.25 --task 0 --n-tasks 16 \
+        --out-dir dataset/ants/eci/train_tokens/dinov2_base_l-1_all448_fps1
 """
 import argparse
 import json
@@ -35,6 +41,7 @@ import torch
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
+from src.eci.domain import DOMAINS, get_domain  # noqa: E402
 from src.eci.foreground import (RULES, FgBackgrounds, FrameDatasetFG, encode_batch,  # noqa: E402
                                 load_encoder_fg, obs_rows)
 
@@ -61,21 +68,28 @@ class PairDataset(torch.utils.data.Dataset):
 
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument('--domain', default='mice', choices=DOMAINS)
     p.add_argument('--dataset-dir', default=str(REPO / 'dataset'))
-    p.add_argument('--bg-dir', default=str(REPO / 'dataset/mice/v1/eci/fg448/background'))
-    p.add_argument('--out-dir', default=str(REPO / 'dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fg448_fps1'))
+    p.add_argument('--bg-dir', default=None, help='default <dataset dir>/<domain eci dir>/fg448/background')
+    p.add_argument('--out-dir', default=None,
+                   help='default <dataset dir>/<domain eci dir>/train_tokens/dinov2_base_l-1_fg448_fps1')
     p.add_argument('--task', type=int, default=0)
     p.add_argument('--n-tasks', type=int, default=16)
     p.add_argument('--stride', type=int, default=5)
     p.add_argument('--seed', type=int, default=0)
     p.add_argument('--max-obs', type=int, default=None, help='testing')
-    p.add_argument('--rule', default='fg448', choices=sorted(RULES))
+    p.add_argument('--rule', default=None, choices=sorted(RULES), help='default: the domain rule (mice fg448)')
+    p.add_argument('--patch-frac', type=float, default=1.0, help='keep this random fraction of the foreground patches')
     p.add_argument('--motion-delta', type=int, default=0, help='also store the token D frames earlier (prev.f16)')
     p.add_argument('--batch-size', type=int, default=128)
     p.add_argument('--num-workers', type=int, default=16)
     args = p.parse_args()
 
-    ds, out = Path(args.dataset_dir), Path(args.out_dir)
+    dom = get_domain(args.domain)
+    args.rule = args.rule or dom.fg_rule
+    ds = Path(args.dataset_dir)
+    args.bg_dir = args.bg_dir or str(ds / dom.eci_rel / 'fg448/background')
+    out = Path(args.out_dir) if args.out_dir else ds / dom.eci_rel / 'train_tokens/dinov2_base_l-1_fg448_fps1'
     shard = out / 'shards' / f'shard_{args.task:02d}'
     if (shard / 'DONE').exists():
         print(f'[SKIP] {shard}')
@@ -85,7 +99,7 @@ def main():
         shutil.rmtree(tmp)
     tmp.mkdir(parents=True)
 
-    ann = ds / 'mice/v1/annotations.csv'
+    ann = ds / dom.ann_rel
     ranges = obs_rows(ann)
     sel = fps1_rows(ranges, args.stride, args.seed)
     ids = sorted(ranges)[args.task::args.n_tasks][:args.max_obs]
@@ -111,12 +125,15 @@ def main():
     names = ('tokens.f16', 'row.i32', 'pos.i16') + (('prev.f16',) if D > 0 else ())
     files = [open(tmp / n, 'wb') for n in names]
     f_tok, f_row, f_pos = files[:3]
+    keep_rng = np.random.default_rng([args.seed, args.task])
     n_fg_all, rows_seen, n_tok, t0 = [], [], 0, time.time()
     for b, batch in enumerate(loader):
         pix, grey, r = batch[:3]
         tok = encode_batch(model, pix, device)
         r = r.numpy()
         mask, _ = bgs.mask(tok, grey.to(device, non_blocking=True), r)
+        if args.patch_frac < 1:  # seeded per shard; the same draw for a rerun of the shard
+            mask &= torch.from_numpy(keep_rng.random(tuple(mask.shape)) < args.patch_frac).to(mask.device)
         fi, pi = torch.nonzero(mask, as_tuple=True)
         if D > 0:
             files[3].write(encode_batch(model, batch[3], device)[fi, pi].cpu().numpy().tobytes())
@@ -137,7 +154,7 @@ def main():
     np.savez(tmp / 'frames.npz', rows=rows, n_fg=n_fg)
     info = {'n_tokens': int(n_tok), 'n_frames': int(len(rows)), 'dim': int(tok.shape[-1]), 'observations': ids,
             'fg_frac_mean': float(n_fg.mean() / 1024), 'elapsed_s': round(time.time() - t0, 1), 'rule': rule,
-            'rule_name': args.rule, 'motion_delta': D,
+            'rule_name': args.rule, 'motion_delta': D, 'patch_frac': args.patch_frac, 'domain': args.domain,
             'stride': args.stride, 'seed': args.seed}
     (tmp / 'shard.json').write_text(json.dumps(info, indent=1))
     if shard.exists():

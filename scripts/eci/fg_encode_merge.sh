@@ -20,5 +20,5 @@ export PYTHONUNBUFFERED=1
 set -euo pipefail
 
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
-python -u scripts/eci/fg_encode_all.py --sae ${SAE:-matryoshka_btk_1024_k16_fg448_s0} --n-shards 24 \
+python -u scripts/eci/fg_encode_all.py --domain "${DOMAIN:-mice}" --sae ${SAE:-matryoshka_btk_1024_k16_fg448_s0} --n-shards 24 \
     --merge --verify --delete-shards

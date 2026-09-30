@@ -9,9 +9,14 @@ Output: dataset/mice/v1/eci/sae/matryoshka_btk_{n_latents}_k{k}_{tag}_s{seed}/
     sae.pt, metrics.json (args, split, history, validation metrics on all held-out
     foreground tokens: threshold inference and exact per-token top-k)
 
+Validation split per domain (--domain, src/eci/domain.py val_split): mice = the held-out pools of
+--val-from; ants = about 10% of the videos of every (experiment, T), seeded (--split-seed, default 0).
+metrics.json 'val_pools' lists the held-out units (ants: videos).
+
 Usage:
     python scripts/eci/train_sae_fg.py --seed 0
     python scripts/eci/train_sae_fg.py --seed 0 --max-train-tokens 2000000 --epochs 1 --out-dir <test dir>
+    python scripts/eci/train_sae_fg.py --domain ants --tokens-dir dataset/ants/eci/train_tokens/<store> --tag antfg448
 """
 import argparse
 import json
@@ -21,23 +26,14 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import torch
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
+from src.eci.domain import DOMAINS, get_domain  # noqa: E402
 from src.eci.foreground import FgTokenStore  # noqa: E402
 from src.eci.sae import (MatryoshkaBatchTopKSAE, TokenNorm, _log_step, _train_step,  # noqa: E402
                          evaluate_sae, geometric_median, save_checkpoint)
-
-
-def row_pools(dataset_dir, data_dir):
-    """Pool name of every annotations.csv row -> (codes (n_rows,) int16, names list)."""
-    ann = pd.read_csv(Path(dataset_dir) / 'mice/v1/annotations.csv', usecols=['observation_id'])
-    exp = pd.read_csv(Path(data_dir) / 'mice/v1/experiment.csv').set_index('observation_id')
-    pool = exp.loc[ann.observation_id.values, 'pool'].values
-    codes, names = pd.factorize(pool)
-    return codes.astype(np.int16), list(names)
 
 
 def load_split(store, is_val_row, n_threads=8, motion=False):
@@ -106,10 +102,11 @@ def block_fve(sae, norm, tokens, blocks, names, chunk=65536):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--tokens-dir', default=str(REPO / 'dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fg448_fps1'))
-    p.add_argument('--dataset-dir', default=str(REPO / 'dataset'))
-    p.add_argument('--data-dir', default=str(REPO / 'data'))
-    p.add_argument('--val-from', default=str(REPO / 'dataset/mice/v1/eci/sae/matryoshka_btk_1024_k16_ep20_s0/metrics.json'))
+    p.add_argument('--domain', default='mice', choices=DOMAINS)
+    p.add_argument('--tokens-dir', default=None, help='default <domain eci dir>/train_tokens/dinov2_base_l-1_fg448_fps1')
+    p.add_argument('--val-from', default=str(REPO / 'dataset/mice/v1/eci/sae/matryoshka_btk_1024_k16_ep20_s0/metrics.json'),
+                   help='mice: the SAE whose held-out pools are reused')
+    p.add_argument('--split-seed', type=int, default=0, help='ants: seed of the held-out videos')
     p.add_argument('--out-dir', default=None)
     p.add_argument('--tag', default='fg448')
     p.add_argument('--seed', type=int, default=0)
@@ -130,9 +127,11 @@ def main():
                    help='SAE input = [token_t, token_t - token_{t-D}] (store written with --motion-delta D); '
                         'each half normalized to the same average norm (TokenNorm.fit_blocks)')
     args = p.parse_args()
+    dom = get_domain(args.domain)
+    args.tokens_dir = args.tokens_dir or str(dom.eci_dir / 'train_tokens/dinov2_base_l-1_fg448_fps1')
 
     out_dir = Path(args.out_dir) if args.out_dir else \
-        REPO / 'dataset/mice/v1/eci/sae' / f'matryoshka_btk_{args.n_latents}_k{args.k}_{args.tag}_s{args.seed}'
+        dom.eci_dir / 'sae' / f'matryoshka_btk_{args.n_latents}_k{args.k}_{args.tag}_s{args.seed}'
     if (out_dir / 'metrics.json').exists() and not args.overwrite:
         print(f'[SKIP] {out_dir} exists')
         return
@@ -140,9 +139,7 @@ def main():
     torch.manual_seed(args.seed)
     device = torch.device('cuda')
 
-    val_pools = json.loads(Path(args.val_from).read_text())['val_pools']
-    codes, names = row_pools(args.dataset_dir, args.data_dir)
-    is_val_row = np.isin(np.array(names)[codes], val_pools)
+    val_pools, is_val_row = dom.val_split(args.val_from, args.split_seed)
     store = FgTokenStore(args.tokens_dir)
     t0 = time.time()
     train, val, val_rows, val_pos = load_split(store, is_val_row, motion=args.motion)
