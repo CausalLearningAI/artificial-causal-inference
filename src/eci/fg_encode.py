@@ -180,7 +180,7 @@ def encode_fg_shard(frame_paths, lo, hi, shard_dir, sae_path, bg_dir, ann_path, 
     return shard_dir
 
 
-def merge_fg_shards(out_dir, ranges, n_rows):
+def merge_fg_shards(out_dir, ranges, n_rows, names=FG_OUTPUTS):
     out_dir = Path(out_dir)
     if (out_dir / 'DONE').exists():
         print(f'[SKIP] {out_dir} already merged')
@@ -188,7 +188,7 @@ def merge_fg_shards(out_dir, ranges, n_rows):
     missing = [i for i in range(len(ranges)) if not (out_dir / 'shards' / f'shard_{i:02d}' / 'DONE').exists()]
     if missing:
         raise RuntimeError(f'shards not finished: {missing}')
-    for name in FG_OUTPUTS:
+    for name in names:
         first = np.load(out_dir / 'shards' / 'shard_00' / f'{name}.npy', mmap_mode='r')
         dst = np.lib.format.open_memmap(out_dir / f'{name}.npy.tmp', 'w+', first.dtype, (n_rows,) + first.shape[1:])
         for i, (lo, hi) in enumerate(ranges):

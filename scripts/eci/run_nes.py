@@ -37,6 +37,10 @@ Domains (--domain, default mice; src/eci/domain.py): the analyses, design, paths
 tau > 0 = higher in the treated videos), sanity null = treatment shuffled across the v2 videos,
 frame-level C = v2_1_vs_2; v3_2_vs_8 is confounded with the recording day (summary.csv 'confound').
 
+--poolings (default mean,max): the per-frame code files <codes>/codes_<pooling>.npy the grid runs over. A codes
+folder with a single aggregation (SOMP codes of scripts/eci/somp_encode_all.py: codes_somp.npy) is run with
+--primary-pooling somp --poolings somp; the other-pooling sensitivity column is then dropped from SUMMARY.md.
+
 Usage: python scripts/eci/run_nes.py --sae matryoshka_btk_1024_k16_ep20_s0
        python scripts/eci/run_nes.py --sae <fg sae> --primary-pooling max --nuisance nfg
        python scripts/eci/run_nes.py --domain ants --sae <ants sae> --primary-pooling max
@@ -101,7 +105,8 @@ def main():
     ap.add_argument('--n-shuffles', type=int, default=20)
     ap.add_argument('--frame-max-rounds', type=int, default=8)  # strata double per round at frame level
     ap.add_argument('--skip-frame', action='store_true')
-    ap.add_argument('--primary-pooling', default='mean', choices=('mean', 'max'))
+    ap.add_argument('--primary-pooling', default='mean', choices=('mean', 'max', 'somp'))
+    ap.add_argument('--poolings', default='mean,max', help='comma list of codes_<pooling>.npy files in the grid')
     ap.add_argument('--nuisance', default=None, choices=('none', 'nfg'),
                     help='nfg: condition every search on the per-video mean foreground size from round 0 '
                          '(default: the domain primary, none for mice and ants)')
@@ -123,8 +128,11 @@ def main():
         args.skip_frame = True
     t_start = time.time()
     global ARTEFACTS
-    ARTEFACTS = ARTEFACTS_EP20 if args.sae == 'matryoshka_btk_1024_k16_ep20_s0' else {}
+    ARTEFACTS = ARTEFACTS_EP20 if args.sae in [f'matryoshka_btk_1024_k16_ep20_s0{x}' for x in ('', '_somp', '_mean')] else {}
     pp = args.primary_pooling
+    all_poolings = tuple(args.poolings.split(','))
+    if pp not in all_poolings:
+        raise SystemExit(f'--primary-pooling {pp} not in --poolings {all_poolings}')
     codes_dir = Path(args.codes_root) / args.sae
     if not (codes_dir / 'DONE').exists():
         raise SystemExit(f'{codes_dir}/DONE missing: codes not finished')
@@ -141,7 +149,7 @@ def main():
     print(f'{D.duration_col} durations (frames per observation):\n', dur.to_string(index=False), flush=True)
 
     summ = {}
-    for pooling in ('mean', 'max'):
+    for pooling in all_poolings:
         t0 = time.time()
         summ[pooling] = C.cached_summaries(codes_dir / f'codes_{pooling}.npy', dfull,
                                            cache_dir / f'video_summaries_{pooling}.npz', args.n_match)
@@ -161,7 +169,7 @@ def main():
     all_rows, results, sanity = [], {}, {D.balance_key: D.balance(design), 'nuisance': args.nuisance,
                                          'subgroup': D.subgroup_info(design, args.line, args.sex),
                                          'primary_only': args.primary_only, 'skipped': []}
-    poolings = (pp,) if args.primary_only else ('mean', 'max')
+    poolings = (pp,) if args.primary_only else all_poolings
     stats_a = ('mean',) if args.primary_only else ('mean', 'rate')
     tests = ('t',) if args.primary_only else ('t', 'signflip')
     corrs = ('bonferroni',) if args.primary_only else ('bonferroni', 'bh')
@@ -295,7 +303,8 @@ def main():
     sanity['runtime_s'] = time.time() - t_start
     with open(out / 'sanity.json', 'w') as f:
         json.dump(C.to_jsonable(sanity), f, indent=1)
-    write_reports(out, tidy, results, dur, sanity, args.sae, pp, sadj, args.nuisance, args.primary_only, D)
+    write_reports(out, tidy, results, dur, sanity, args.sae, pp, sadj, args.nuisance, args.primary_only, D,
+                  all_poolings)
     print(f'done in {time.time() - t_start:.0f}s -> {out}', flush=True)
 
 
@@ -307,13 +316,15 @@ def selected_set(tidy, aid, **kw):
 
 
 def write_reports(out, tidy, results, dur, sanity, sae, pp='mean', sadj=None, nuisance='none', primary_only=False,
-                  D=None):
+                  D=None, poolings=('mean', 'max')):
     D = D or get_domain('mice')
     dc = D.duration_col
     alt = 'max' if pp == 'mean' else 'mean'
     sens = {} if primary_only else {  # name -> overrides of the primary setting (same prefix)
         'signflip': dict(test='signflip'), f'{alt}-pool': dict(pooling=alt), 'rate': dict(outcome_type='rate'),
         'BH': dict(correction='bh'), 'matched': dict(window='matched'), 'trim30': dict(window='trim30')}
+    if alt not in poolings:
+        sens.pop(f'{alt}-pool', None)
     sg = sanity.get('subgroup', {})
     prim = dict(pooling=pp, outcome_type='mean', test='t', correction='bonferroni', window='full')
     union = {}

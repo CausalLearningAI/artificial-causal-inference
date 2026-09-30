@@ -37,6 +37,10 @@ Domains (--domain, default mice; src/eci/domain.py): analyses, design, paths, fp
 Usage: python scripts/eci/run_nes_bouts.py --sae matryoshka_btk_1024_k16_ep20_s0
        python scripts/eci/run_nes_bouts.py --domain ants --sae <ants sae> --compare-pooling max
 Writes results/vision/<domain>/eci/nes/<sae>/[<subdir>/]maxpool_bouts/; caches under .../nes/<sae>/_cache/.
+
+--frame-pooling P (default max): the per-frame values are <codes>/codes_P.npy instead of codes_max.npy (e.g. somp
+for the SOMP codes of scripts/eci/somp_encode_all.py, mean for mean-pooled codes); output subdir P_bouts/
+(meanpool_bouts/ for mean), 'pooling' column = P, caches with a _P suffix. Default outputs are unchanged.
 """
 
 import argparse
@@ -56,6 +60,7 @@ from eci.domain import DOMAINS, get_domain  # noqa: E402
 from eci.nes import active_neurons, neural_effect_search, paired_effect_search  # noqa: E402
 
 FPS = 5.0  # mice; main() sets the domain's frame rate
+FP = 'max'  # per-frame pooling of the codes (--frame-pooling); main() sets it
 PREFIXES = (128, 1024)
 QS = (0.90, 0.95, 0.99)
 CONFIGS = [(0.90, 0), (0.95, 0), (0.99, 0), (0.95, 2), (0.95, 0, 0.90, 2)]  # (quantile, merge gap[, exit q, min len])
@@ -142,8 +147,11 @@ def main():
     ap.add_argument('--sex', default='all', choices=('all',) + C.SEXES)
     ap.add_argument('--min-units', type=int, default=5, help='skip an analysis with fewer units per arm')
     ap.add_argument('--primary-only', action='store_true')
+    ap.add_argument('--frame-pooling', default='max', help='per-frame values = <codes>/codes_<this>.npy')
     args = ap.parse_args()
-    global FPS
+    global FPS, FP
+    FP = args.frame_pooling
+    sfx = '' if FP == 'max' else f'_{FP}'
     D = get_domain(args.domain)
     FPS = D.fps
     args.codes_root = args.codes_root or str(D.codes_root)
@@ -154,12 +162,12 @@ def main():
         args.subdir = f'subsets/{C.subset_name(args.line, args.sex)}'
     t_start = time.time()
     global ARTEFACTS
-    ARTEFACTS = ARTEFACTS_EP20 if args.sae == 'matryoshka_btk_1024_k16_ep20_s0' else {}
+    ARTEFACTS = ARTEFACTS_EP20 if args.sae in [f'matryoshka_btk_1024_k16_ep20_s0{x}' for x in ('', '_somp', '_mean')] else {}
     codes_dir = Path(args.codes_root) / args.sae
     if not (codes_dir / 'DONE').exists():
         raise SystemExit(f'{codes_dir}/DONE missing: codes not finished')
     base = Path(args.out_root) / args.sae / args.subdir
-    out = base / 'maxpool_bouts'
+    out = base / {'max': 'maxpool_bouts', 'mean': 'meanpool_bouts'}.get(FP, f'{FP}_bouts')
     out.mkdir(parents=True, exist_ok=True)
     cache = Path(args.out_root) / args.sae / '_cache'
     cache.mkdir(parents=True, exist_ok=True)
@@ -172,12 +180,12 @@ def main():
 
     # ---- thresholds (treatment-agnostic pooled quantiles of codes_max)
     t0 = time.time()
-    thr_path = cache / f'bout_thresholds_n{args.n_thr_sample}.npz'
+    thr_path = cache / f'bout_thresholds_n{args.n_thr_sample}{sfx}.npz'
     if thr_path.exists():
         f = np.load(thr_path)
         thr_arr, n_used = f['thr'], int(f['n_used'])
     else:
-        thr_arr, n_used = C.pooled_thresholds(codes_dir / 'codes_max.npy', QS, args.n_thr_sample, seed=0)
+        thr_arr, n_used = C.pooled_thresholds(codes_dir / f'codes_{FP}.npy', QS, args.n_thr_sample, seed=0)
         np.savez(thr_path, thr=thr_arr, qs=np.array(QS), n_used=n_used)
     thresholds = {q: thr_arr[i] for i, q in enumerate(QS)}
     pd.DataFrame({'neuron': np.arange(thr_arr.shape[1]), **{f'thr_q{q:.2f}': thresholds[q] for q in QS}}).to_csv(
@@ -188,13 +196,13 @@ def main():
 
     # ---- per-video bout summaries (streamed once, cached)
     t0 = time.time()
-    bs = C.cached_bout_summaries(codes_dir / 'codes_max.npy', dfull, cache / 'bout_summaries_max.npz', thresholds,
+    bs = C.cached_bout_summaries(codes_dir / f'codes_{FP}.npy', dfull, cache / f'bout_summaries_max{sfx}.npz', thresholds,
                                  CONFIGS, args.n_match, args.n_trim)
     print(f'bout summaries: {time.time() - t0:.0f}s', flush=True)
     t0 = time.time()
-    msum = C.cached_summaries(codes_dir / 'codes_max.npy', dfull, cache / 'video_summaries_max.npz', args.n_match,
+    msum = C.cached_summaries(codes_dir / f'codes_{FP}.npy', dfull, cache / f'video_summaries_max{sfx}.npz', args.n_match,
                               args.n_trim)
-    print(f'mean summaries codes_max: {time.time() - t0:.0f}s', flush=True)
+    print(f'mean summaries codes_{FP}: {time.time() - t0:.0f}s', flush=True)
 
     # outcome matrices: (outcome_type, q, gap) -> {(window, 'v'): (n_obs, m)}
     def summ_for(s):
@@ -253,7 +261,7 @@ def main():
                     extra = {'n_het': int(T.sum()), 'n_wt': int((1 - T).sum())}
                 k = skey(prefix, s)
                 results[aid][k] = {**strip(res), 'n_units': len(units), 'units': list(units), **extra}
-                meta = dict(analysis_id=aid, family=fam, **an.meta, prefix=prefix, pooling='max', **s,
+                meta = dict(analysis_id=aid, family=fam, **an.meta, prefix=prefix, pooling=FP, **s,
                             n_units=len(units), setting=k)
                 all_rows += tidy_rows(meta, res, an.directions)
                 print(f'{aid} {k}: selected={res["selected"]} dropped={res["n_dropped"]} {time.time() - t0:.1f}s',
@@ -400,14 +408,15 @@ def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, s
     o = C.bout_outcomes(bs, 'full', 0.95, 0, FPS)
     names = [] if primary_only else list(SENS)
     sg = sanity.get('subgroup', {})
-    L = [f'# NES summary (max-pool, bout outcomes): {sae}', '',
+    L = [f'# NES summary ({FP}-pool, bout outcomes): {sae}', '',
          *([f'**Subgroup: line {sg["line"]}, sex {sg["sex"]}** ({sg["n_pools"]} pools, {sg["n_het_pools"]} het; '
             f'{sg["n_videos"]} videos).' + (' Primary setting only.' if primary_only else ''),
             f'Skipped (too few units): {sanity["skipped"]}' if sanity.get('skipped') else '', '']
            if sg and (sg.get('line', 'all'), sg.get('sex', 'all')) != ('all', 'all') else []),
-         'Per-frame value = codes_max (max over patches). Threshold per neuron = q-quantile of codes_max pooled over '
+         (f'Per-frame value = codes_{FP} (max over patches). ' if FP == 'max' else f'Per-frame value = codes_{FP}. ')
+         + f'Threshold per neuron = q-quantile of codes_{FP} pooled over '
          f'{sanity["thresholds"]["n_frames_sampled"]} randomly sampled frames of all videos (treatment-agnostic; seed 0). '
-         'Above = codes_max > threshold (strict: a neuron whose quantile is 0 counts any activation > 0; zero thresholds '
+         f'Above = codes_{FP} > threshold (strict: a neuron whose quantile is 0 counts any activation > 0; zero thresholds '
          f'per q: {sanity["thresholds"]["n_zero_threshold"]}). Bout = maximal run of consecutive above frames within one '
          'video window, min 1 frame; merge gap g merges bouts separated by <= g frames (primary g = 0). Outcome = bout '
          'rate (bouts per minute of the window). Mean/median bout duration is undefined at 0 bouts and is reported '
@@ -494,7 +503,7 @@ def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, s
                     'hits'].append({'analysis_id': aid, 'prefix': prefix, 'round': int(r['round']),
                                     'direction': r['direction'], 'tau_bouts_per_min': float(r['tau']), 'p': float(r['p'])})
     with open(out / 'selected_neurons.json', 'w') as f:
-        json.dump({'sae': sae, 'settings': 'primary (codes_max, bout rate q0.95 gap0, t, bonferroni, full window)',
+        json.dump({'sae': sae, 'settings': f'primary (codes_{FP}, bout rate q0.95 gap0, t, bonferroni, full window)',
                    'neurons': {str(j): v for j, v in sorted(union.items())}}, f, indent=1)
 
 
