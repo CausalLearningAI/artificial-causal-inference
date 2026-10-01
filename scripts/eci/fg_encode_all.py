@@ -31,7 +31,8 @@ from src.eci.encode import shard_ranges  # noqa: E402
 from src.eci.fg_encode import encode_fg_shard, merge_fg_shards, verify_fg_codes  # noqa: E402
 import torch  # noqa: E402
 
-from src.eci.foreground import RULES  # noqa: E402
+from src.eci.extract import MODEL_IDS  # noqa: E402
+from src.eci.foreground import ENCODER_RESOLUTION, RULES  # noqa: E402
 
 
 def main():
@@ -63,8 +64,14 @@ def main():
     cfg = out_dir / 'config.json'
     ck = torch.load(sae_path, map_location='cpu', weights_only=False)
     rule_name, motion_delta = ck.get('fg_rule', 'fg448'), int(ck.get('motion_delta', 0) or 0)
+    encoder = ck.get('encoder', 'dinov2_base')
     del ck
     if not cfg.exists():
+        enc_cfg = {} if encoder == 'dinov2_base' else {  # SAE tokens from another encoder, mask from DINOv2 448
+            'encoder': encoder, 'model_id': MODEL_IDS[encoder], 'resolution': ENCODER_RESOLUTION[encoder],
+            'preprocessing': f'whole 512x512 frame at {ENCODER_RESOLUTION[encoder]} (no resize at 512), ImageNet '
+                             'normalization, patch 16 (32x32 patches), CLS and register tokens dropped',
+            'mask_encoder': 'facebook/dinov2-base at 448 (foreground rule and backgrounds unchanged)'}
         cfg.write_text(json.dumps({
             'model_id': 'facebook/dinov2-base', 'resolution': 448, 'center_crop': False,
             'layer': 'last_hidden_state (after final LayerNorm), fp32 forward rounded to float16 before the SAE',
@@ -76,7 +83,7 @@ def main():
             'pooling': {'codes_max': 'max over foreground patches', 'codes_mean': 'mean over foreground patches',
                         'n_fg': 'number of foreground patches'},
             'row_order': f'dataset/{dom.ann_rel}', 'n_rows': n_rows,
-            'n_shards': args.n_shards, 'shard_ranges': ranges}, indent=1))
+            'n_shards': args.n_shards, 'shard_ranges': ranges, **enc_cfg}, indent=1))
     if args.shard is not None:
         lo, hi = ranges[args.shard]
         print(f'shard {args.shard}/{args.n_shards}: rows [{lo}, {hi})', flush=True)

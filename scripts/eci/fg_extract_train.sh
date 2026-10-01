@@ -13,6 +13,13 @@
 #   DOMAIN=ants EXTRA_ARGS="--rule all --patch-frac 0.25 --out-dir dataset/ants/eci/train_tokens/dinov2_base_l-1_antsfull448_fps1_pf25" \
 #       sbatch --export=ALL --partition=gpu100 scripts/eci/fg_extract_train.sh
 #
+#   DINOv3 ViT-B/16 tokens (whole 512 px frame, 32 x 32 patches) of the SAME frames and foreground patches (mask from
+#   DINOv2, as above):
+#   EXTRA_ARGS="--encoder dinov3_base --out-dir dataset/mice/v1/eci/train_tokens/dinov3_base_l-1_fg512_fps1" \
+#       sbatch --export=ALL --partition=gpu100 scripts/eci/fg_extract_train.sh
+#   DOMAIN=ants EXTRA_ARGS="--encoder dinov3_base --out-dir dataset/ants/eci/train_tokens/dinov3_base_l-1_antsfg512_fps1" \
+#       sbatch --export=ALL --partition=gpu100 scripts/eci/fg_extract_train.sh
+#
 #SBATCH --job-name=eci_fg_tok
 #SBATCH --output=logs/eci_fg_tok_%A_%a.out
 #SBATCH --error=logs/eci_fg_tok_%A_%a.err

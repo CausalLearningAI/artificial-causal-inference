@@ -44,10 +44,17 @@ Rules (RULES, chosen by name with --rule; the SAE checkpoint records it as 'fg_r
             scripts/eci/fg_validate.py --domain ants before any token extraction
     all     every patch is foreground (the whole frame at 448, 1024 patches); needs no background
 
+Encoders (FgEncoder): the foreground mask is ALWAYS computed from DINOv2-base tokens at 448 (the rules and the
+per-video backgrounds above are DINOv2 quantities). The SAE tokens come from the chosen encoder: 'dinov2_base'
+(default, the same tokens as the mask) or 'dinov3_base' (DINOv3 ViT-B/16, whole 512 px frame, no resize, patch 16
+-> the same 32 x 32 grid; each patch is exactly the 16 x 16 pixel block that dark_fraction pools; CLS and the 4
+register tokens are dropped). Both encoders therefore see identical foreground patches.
+
 Functions / classes:
     PATCH_PX, GRID              geometry (512 px frame, 448 input, 32 x 32 patches)
-    FrameDatasetFG              frame -> (DINOv2 pixel_values, grey uint8 frame)
-    load_encoder_fg             DINOv2 on the whole frame at 448 (extract.load_encoder, no crop)
+    FrameDatasetFG              frame -> (DINOv2 pixel_values, grey uint8 frame[, row][, 2nd encoder pixel_values])
+    load_encoder_fg             DINOv2 on the whole frame at 448 (extract.load_encoder, no crop); DINOv3 at 512
+    FgEncoder                   mask encoder (DINOv2 448) + SAE-token encoder (DINOv2 itself or DINOv3 512)
     encode_batch                pixel_values -> (B, 1024, 768) patch tokens, fp16-rounded
     pixel_background            per-pixel high quantile of grey frames
     dark_fraction               per-patch fraction of dark, darker-than-background pixels
@@ -98,12 +105,18 @@ FG_RULE_ANTS = {**FG_RULE_V3}
 FG_RULE_ALL = {'all': True}
 RULES = {'fg448': FG_RULE, 'v3': FG_RULE_V3, 'ants': FG_RULE_ANTS, 'all': FG_RULE_ALL}
 
+MASK_ENCODER = 'dinov2_base'
+# input resolution per encoder: 32 x 32 patches for both (448 / 14 = 512 / 16 = 32)
+ENCODER_RESOLUTION = {'dinov2_base': RESOLUTION, 'dinov3_base': FRAME_PX}
+ENCODERS = tuple(ENCODER_RESOLUTION)
+
 
 class FrameDatasetFG(torch.utils.data.Dataset):
-    """frame path -> (pixel_values (3, 448, 448) float32, grey (512, 512) uint8[, row])."""
+    """frame path -> (pixel_values (3, 448, 448) float32, grey (512, 512) uint8[, row][, pixel_values_2]).
+    processor2 (optional): a second encoder's processor; its pixel_values are appended last."""
 
-    def __init__(self, paths, processor, rows=None):
-        self.paths, self.processor, self.rows = paths, processor, rows
+    def __init__(self, paths, processor, rows=None, processor2=None):
+        self.paths, self.processor, self.rows, self.processor2 = paths, processor, rows, processor2
 
     def __len__(self):
         return len(self.paths)
@@ -115,11 +128,38 @@ class FrameDatasetFG(torch.utils.data.Dataset):
             raise ValueError(f'{self.paths[i]}: size {image.size}, expected {FRAME_PX}x{FRAME_PX}')
         grey = torch.from_numpy(np.asarray(image.convert('L'), dtype=np.uint8).copy())
         pix = self.processor(images=image, return_tensors='pt')['pixel_values'][0]
-        return (pix, grey) if self.rows is None else (pix, grey, int(self.rows[i]))
+        out = (pix, grey) if self.rows is None else (pix, grey, int(self.rows[i]))
+        if self.processor2 is not None:
+            out = out + (self.processor2(images=image, return_tensors='pt')['pixel_values'][0],)
+        return out
 
 
 def load_encoder_fg(name='dinov2_base', device='cuda'):
-    return load_encoder(name, RESOLUTION, device, center_crop=False)
+    return load_encoder(name, ENCODER_RESOLUTION[name], device, center_crop=False)
+
+
+class FgEncoder:
+    """Mask encoder (DINOv2-base at 448: the foreground rule's tokens) and SAE-token encoder.
+    encoder == 'dinov2_base': one model, the SAE tokens are the mask tokens (model2 is None).
+    Otherwise model2 / processor2 encode the same frames (FrameDatasetFG appends their pixel_values)."""
+
+    def __init__(self, encoder='dinov2_base', device='cuda'):
+        if encoder not in ENCODER_RESOLUTION:
+            raise ValueError(f'unknown encoder {encoder!r}; known: {ENCODERS}')
+        self.encoder, self.device = encoder, torch.device(device)
+        _, self.processor, self.model = load_encoder_fg(MASK_ENCODER, self.device)
+        self.processor2 = self.model2 = None
+        if encoder != MASK_ENCODER:
+            _, self.processor2, self.model2 = load_encoder_fg(encoder, self.device)
+
+    def dataset(self, paths, rows=None):
+        return FrameDatasetFG(paths, self.processor, rows, self.processor2)
+
+    def sae_tokens(self, mask_tok, pix2=None):
+        """SAE input tokens (B, 1024, d): the mask tokens, or the second encoder's tokens of pix2."""
+        if self.model2 is None:
+            return mask_tok
+        return encode_batch(self.model2, pix2, self.device)
 
 
 @torch.no_grad()
@@ -130,7 +170,7 @@ def encode_batch(model, pix, device):
     with torch.inference_mode():
         hs = model(pixel_values=pix.to(device, non_blocking=True)).last_hidden_state.float()
     if hs.shape[1] != n_prefix + GRID * GRID or not torch.isfinite(hs).all():
-        raise RuntimeError(f'bad DINOv2 output: shape {tuple(hs.shape)}')
+        raise RuntimeError(f'bad encoder output: shape {tuple(hs.shape)}')
     return hs[:, n_prefix:].half()
 
 

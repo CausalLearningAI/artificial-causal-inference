@@ -42,6 +42,8 @@ class SompEncoder:
             self.run = _Runner([sae_path], bg_dir, ann_path, device, frame_paths, dataset_dir)
             if self.run.deltas != [0]:
                 raise ValueError('SOMP encoding supports static-token SAEs only (motion_delta 0)')
+            if self.run.fg.model2 is not None:
+                raise ValueError(f'SOMP encoding supports dinov2_base SAEs only (this one: {self.run.encoder})')
             self.sae, self.norm = self.run.saes[0]
             self.processor, self.model = self.run.processor, self.run.model
         elif pipeline == 'full':

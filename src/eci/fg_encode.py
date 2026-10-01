@@ -12,7 +12,9 @@ Sharded by row ranges of annotations.csv, same resumable layout as src/eci/encod
 The foreground rule and the SAE input come from the SAE checkpoint: 'fg_rule' (src/eci/foreground.py
 RULES, default 'fg448' for checkpoints without it) and 'motion_delta' D (0 = static token; D > 0 =
 [token_t, token_t - token_{t-D}] at the same patch, the frame D rows earlier in the same video, clipped
-to the video's first frame). All SAEs of one run must share the rule. Frames earlier in the same batch
+to the video's first frame). All SAEs of one run must share the rule. 'encoder' (absent = 'dinov2_base') is the
+encoder of the SAE input tokens (src/eci/foreground.py FgEncoder: the mask always comes from DINOv2 at 448; a
+'dinov3_base' SAE encodes DINOv3 tokens of the same patches); all SAEs of one run must share it too. Frames earlier in the same batch
 or the previous batch are reused; any other earlier frame is loaded and encoded on the fly.
 
 Functions:
@@ -32,7 +34,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from src.eci.foreground import RULES, FgBackgrounds, FrameDatasetFG, encode_batch, load_encoder_fg, obs_rows
+from src.eci.foreground import MASK_ENCODER, RULES, FgBackgrounds, FgEncoder, FrameDatasetFG, encode_batch, obs_rows
 from src.eci.sae import load_sae
 
 FG_OUTPUTS = ('codes_max', 'codes_mean', 'n_fg')
@@ -59,10 +61,17 @@ def fg_sae_pool(sae, norm, tokens, mask, prev=None):
 class _Runner:
     def __init__(self, sae_paths, bg_dir, ann_path, device='cuda', frame_paths=None, dataset_dir='dataset'):
         self.device = torch.device(device)
-        _, self.processor, self.model = load_encoder_fg(device=self.device)
         loaded = [load_sae(p, self.device) for p in sae_paths]
+        encoders = {ck.get('encoder', MASK_ENCODER) for _, _, ck in loaded}
+        if len(encoders) != 1:
+            raise ValueError(f'SAEs with different encoders in one run: {encoders}')
+        self.encoder = encoders.pop()
+        self.fg = FgEncoder(self.encoder, self.device)
+        self.processor, self.model = self.fg.processor, self.fg.model
         self.saes = [(s, n) for s, n, _ in loaded]
         self.deltas = [int(ck.get('motion_delta', 0) or 0) for _, _, ck in loaded]
+        if self.fg.model2 is not None and max(self.deltas) > 0:
+            raise ValueError(f'motion inputs are only supported for {MASK_ENCODER} SAEs')
         rules = {ck.get('fg_rule', 'fg448') for _, _, ck in loaded}
         if len(rules) != 1:
             raise ValueError(f'SAEs with different foreground rules in one run: {rules}')
@@ -100,13 +109,15 @@ class _Runner:
 
     def loader(self, paths, rows, batch_size, num_workers):
         return torch.utils.data.DataLoader(
-            FrameDatasetFG(paths, self.processor, rows), batch_size=batch_size, num_workers=num_workers,
+            self.fg.dataset(paths, rows), batch_size=batch_size, num_workers=num_workers,
             shuffle=False, pin_memory=self.device.type == 'cuda', prefetch_factor=4 if num_workers > 0 else None)
 
-    def batch(self, pix, grey, rows):
+    def batch(self, pix, grey, rows, pix2=None):
+        """pix2: the second encoder's pixel_values (loader batch[3]) for a non-DINOv2 SAE."""
         rows = np.asarray(rows)
         tok = encode_batch(self.model, pix, self.device)
         mask, _ = self.bgs.mask(tok, grey.to(self.device, non_blocking=True), rows)
+        tok = self.fg.sae_tokens(tok, pix2)
         prev = {D: self._prev_tokens(tok, rows, D) for D in set(self.deltas) if D > 0}
         out = [fg_sae_pool(s, n, tok, mask, prev.get(D)) for (s, n), D in zip(self.saes, self.deltas)]
         Dm = max(self.deltas)
@@ -123,8 +134,8 @@ def encode_rows(rows, frame_paths, sae_paths, bg_dir, ann_path, dataset_dir='dat
     paths = [str(Path(dataset_dir) / frame_paths[r]) for r in rows]
     out = [{'codes_max': [], 'codes_mean': []} for _ in sae_paths]
     n_fg, t0 = [], time.time()
-    for b, (pix, grey, r) in enumerate(run.loader(paths, rows, batch_size, num_workers)):
-        mask, pooled = run.batch(pix, grey, r.numpy())
+    for b, (pix, grey, r, *pix2) in enumerate(run.loader(paths, rows, batch_size, num_workers)):
+        mask, pooled = run.batch(pix, grey, r.numpy(), *pix2)
         n_fg.append(mask.sum(1).short().cpu().numpy())
         for o, (mx, mean) in zip(out, pooled):
             o['codes_max'].append(mx.half().cpu().numpy())
@@ -155,10 +166,10 @@ def encode_fg_shard(frame_paths, lo, hi, shard_dir, sae_path, bg_dir, ann_path, 
     mm = {n: np.lib.format.open_memmap(tmp / f'{n}.npy', 'w+', np.float16, (N, m)) for n in ('codes_max', 'codes_mean')}
     mm['n_fg'] = np.lib.format.open_memmap(tmp / 'n_fg.npy', 'w+', np.int16, (N,))
     t0, cur = time.time(), 0
-    for b, (pix, grey, r) in enumerate(run.loader(paths, rows, batch_size, num_workers)):
+    for b, (pix, grey, r, *pix2) in enumerate(run.loader(paths, rows, batch_size, num_workers)):
         r = r.numpy()
         assert r[0] == lo + cur
-        mask, [(mx, mean)] = run.batch(pix, grey, r)
+        mask, [(mx, mean)] = run.batch(pix, grey, r, *pix2)
         B = len(r)
         mm['codes_max'][cur:cur + B] = mx.half().cpu().numpy()
         mm['codes_mean'][cur:cur + B] = mean.half().cpu().numpy()

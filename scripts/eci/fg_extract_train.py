@@ -19,6 +19,9 @@ Output: dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fg448_fps1/
                                 video's first frame (zero change there)
     (read with src.eci.foreground.FgTokenStore)
     --rule v3 uses FG_RULE_V3 (dilation only onto patches with dark pixels).
+    --encoder dinov3_base: the mask is still computed from DINOv2 (448), so the frames and the kept patches are the
+    same as for DINOv2; the stored tokens are DINOv3 ViT-B/16 patch tokens of the whole 512 px frame (32 x 32 grid,
+    CLS + registers dropped). Needs --out-dir; shard.json records 'encoder' (absent = dinov2_base). No --motion-delta.
 
 Usage:
     python scripts/eci/fg_extract_train.py --task 3 --n-tasks 16
@@ -27,6 +30,8 @@ Usage:
         --out-dir dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fgv3_fps1_d2
     python scripts/eci/fg_extract_train.py --domain ants --rule all --patch-frac 0.25 --task 0 --n-tasks 16 \
         --out-dir dataset/ants/eci/train_tokens/dinov2_base_l-1_all448_fps1
+    python scripts/eci/fg_extract_train.py --encoder dinov3_base --task 3 \
+        --out-dir dataset/mice/v1/eci/train_tokens/dinov3_base_l-1_fg512_fps1
 """
 import argparse
 import json
@@ -42,8 +47,8 @@ import torch
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 from src.eci.domain import DOMAINS, get_domain  # noqa: E402
-from src.eci.foreground import (RULES, FgBackgrounds, FrameDatasetFG, encode_batch,  # noqa: E402
-                                load_encoder_fg, obs_rows)
+from src.eci.foreground import (ENCODERS, MASK_ENCODER, RULES, FgBackgrounds, FgEncoder,  # noqa: E402
+                                FrameDatasetFG, encode_batch, obs_rows)
 
 
 def fps1_rows(ranges, stride=5, seed=0):
@@ -83,7 +88,11 @@ def main():
     p.add_argument('--motion-delta', type=int, default=0, help='also store the token D frames earlier (prev.f16)')
     p.add_argument('--batch-size', type=int, default=128)
     p.add_argument('--num-workers', type=int, default=16)
+    p.add_argument('--encoder', default=MASK_ENCODER, choices=ENCODERS,
+                   help='encoder of the stored tokens (the mask always uses DINOv2 at 448)')
     args = p.parse_args()
+    if args.encoder != MASK_ENCODER and (args.out_dir is None or args.motion_delta > 0):
+        raise SystemExit(f'--encoder {args.encoder} needs --out-dir and does not support --motion-delta')
 
     dom = get_domain(args.domain)
     args.rule = args.rule or dom.fg_rule
@@ -108,10 +117,11 @@ def main():
     print(f'task {args.task}/{args.n_tasks}: {len(ids)} videos, {len(rows)} frames', flush=True)
 
     device = torch.device('cuda')
-    _, processor, model = load_encoder_fg(device=device)
+    enc = FgEncoder(args.encoder, device)
+    processor, model = enc.processor, enc.model
     rule = RULES[args.rule]
     bgs = FgBackgrounds(args.bg_dir, ranges, rule, device)
-    ds_cur = FrameDatasetFG([str(ds / pth) for pth in paths[rows]], processor, rows)
+    ds_cur = enc.dataset([str(ds / pth) for pth in paths[rows]], rows)
     D = args.motion_delta
     if D > 0:
         lo_of = np.concatenate([np.full(len(sel[o]), ranges[o][0]) for o in ids])
@@ -134,6 +144,8 @@ def main():
         mask, _ = bgs.mask(tok, grey.to(device, non_blocking=True), r)
         if args.patch_frac < 1:  # seeded per shard; the same draw for a rerun of the shard
             mask &= torch.from_numpy(keep_rng.random(tuple(mask.shape)) < args.patch_frac).to(mask.device)
+        if enc.model2 is not None:  # stored tokens from the second encoder, same frames and patches
+            tok = enc.sae_tokens(tok, batch[3])
         fi, pi = torch.nonzero(mask, as_tuple=True)
         if D > 0:
             files[3].write(encode_batch(model, batch[3], device)[fi, pi].cpu().numpy().tobytes())
@@ -156,6 +168,8 @@ def main():
             'fg_frac_mean': float(n_fg.mean() / 1024), 'elapsed_s': round(time.time() - t0, 1), 'rule': rule,
             'rule_name': args.rule, 'motion_delta': D, 'patch_frac': args.patch_frac, 'domain': args.domain,
             'stride': args.stride, 'seed': args.seed}
+    if args.encoder != MASK_ENCODER:
+        info['encoder'] = args.encoder
     (tmp / 'shard.json').write_text(json.dumps(info, indent=1))
     if shard.exists():
         shutil.rmtree(shard)

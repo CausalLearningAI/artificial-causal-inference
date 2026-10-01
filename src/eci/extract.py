@@ -16,7 +16,7 @@ Functions:
     build_frame_table   one row per frame on disk, with pool/stage/genotype metadata
     sample_frames       stratified-in-time sampling (n per observation, seeded jitter)
     sample_frames_stride  every stride-th frame per observation (1 fps = stride 5), seeded offset
-    load_encoder        DINOv2 model + its standard processor at a given resolution
+    load_encoder        DINOv2 (or DINOv3, name 'dinov3_base') model + its standard processor at a given resolution
     extract_tokens      writes patch tokens / CLS / metadata to an output directory
 """
 
@@ -31,7 +31,8 @@ import pandas as pd
 import torch
 from PIL import Image
 
-MODEL_IDS = {'dinov2_base': 'facebook/dinov2-base'}
+MODEL_IDS = {'dinov2_base': 'facebook/dinov2-base', 'dinov3_base': 'facebook/dinov3-vitb16-pretrain-lvd1689m'}
+PATCH_SIZES = {'dinov2_base': 14, 'dinov3_base': 16}
 STAGES = {('H', 'S'): 1, ('O', 'S'): 2, ('P', 'S'): 3, ('H', 'F'): 4, ('O', 'F'): 5, ('P', 'F'): 6}
 
 
@@ -110,9 +111,16 @@ def load_encoder(name='dinov2_base', resolution=224, device='cuda', center_crop=
     no crop (used by the foreground pipeline, src/eci/foreground.py, at 448)."""
     from transformers import AutoImageProcessor, AutoModel
     model_id = MODEL_IDS[name]
-    if resolution % 14 != 0:
-        raise ValueError(f'resolution must be a multiple of the patch size 14, got {resolution}')
-    if center_crop:
+    patch = PATCH_SIZES[name]
+    if resolution % patch != 0:
+        raise ValueError(f'resolution must be a multiple of the patch size {patch}, got {resolution}')
+    if name != 'dinov2_base':
+        # DINOv3: its own processor (ImageNet mean / std, bilinear resize) on the whole frame, no crop
+        if center_crop:
+            raise ValueError(f'{name}: only center_crop=False is supported')
+        processor = AutoImageProcessor.from_pretrained(model_id, use_fast=True,
+                                                       size={'height': resolution, 'width': resolution})
+    elif center_crop:
         processor = AutoImageProcessor.from_pretrained(
             model_id, use_fast=True,
             size={'shortest_edge': int(round(resolution * 256 / 224))},

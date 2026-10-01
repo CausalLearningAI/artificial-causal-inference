@@ -17,6 +17,8 @@ Usage:
     python scripts/eci/train_sae_fg.py --seed 0
     python scripts/eci/train_sae_fg.py --seed 0 --max-train-tokens 2000000 --epochs 1 --out-dir <test dir>
     python scripts/eci/train_sae_fg.py --domain ants --tokens-dir dataset/ants/eci/train_tokens/<store> --tag antfg448
+A token store written with fg_extract_train.py --encoder dinov3_base (shard.json 'encoder') makes the checkpoint and
+metrics.json record 'encoder'; fg_encode.py then encodes with that encoder.
 """
 import argparse
 import json
@@ -182,6 +184,8 @@ def main():
     sae.eval()
     extra = {'val_pools': val_pools, 'args': vars(args), 'fg_rule': shard_info.get('rule_name', 'fg448'),
              'motion_delta': motion_delta}
+    if 'encoder' in shard_info:  # token stores of a non-DINOv2 encoder (absent = dinov2_base)
+        extra['encoder'] = shard_info['encoder']
     save_checkpoint(out_dir / 'sae.pt', sae, norm, extra=extra)
 
     val_t = torch.from_numpy(val[: (len(val) // 256) * 256])  # evaluate_sae groups rows by 256 (ignored)
@@ -202,6 +206,8 @@ def main():
                'n_val_tokens': int(val_t.shape[0]), 'n_steps': total,
                'threshold': float(sae.threshold), 'norm_scale_blocks': norm.scale.unique().tolist(), 'train_time_s': round(train_time, 1),
                'val_threshold': ev['threshold'], 'val_topk': ev['topk'], 'history': history}
+    if 'encoder' in extra:
+        metrics['encoder'] = extra['encoder']
     (out_dir / 'metrics.json').write_text(json.dumps(metrics, indent=1))
     print(f'Done in {train_time:.0f}s -> {out_dir}')
 
