@@ -76,6 +76,13 @@ ARTEFACTS_EP20 = {64: 'white card / experimenter hand at video start', 50: 'whit
 ARTEFACTS = {}  # set in main: the ep20 flags only apply to the ep20 SAE (neuron ids are SAE-specific)
 
 
+def resolve_prefixes(spec, codes_path):
+    """'128,1024' -> (128, 1024); 'all' -> (number of columns of codes_path,)."""
+    if spec == 'all':
+        return (int(np.load(codes_path, mmap_mode='r').shape[1]),)
+    return tuple(int(x) for x in spec.split(','))
+
+
 def key(prefix, pooling, stat, test, correction, window):
     return f'p{prefix}_{pooling}_{stat}_{test}_{correction}_{window}'
 
@@ -112,7 +119,10 @@ def main():
     ap.add_argument('--n-shuffles', type=int, default=20)
     ap.add_argument('--frame-max-rounds', type=int, default=8)  # strata double per round at frame level
     ap.add_argument('--skip-frame', action='store_true')
-    ap.add_argument('--primary-pooling', default='mean', choices=('mean', 'max', 'somp'))
+    ap.add_argument('--primary-pooling', default='mean', choices=('mean', 'max', 'somp', 'pairs', 'zones'))
+    ap.add_argument('--prefixes', default='128,1024',
+                    help="comma list of feature prefixes (first k columns); 'all' = one prefix, every column of the "
+                         "codes file (feature sets without a Matryoshka order: <sae>_pairs, <sae>_zones)")
     ap.add_argument('--poolings', default='mean,max', help='comma list of codes_<pooling>.npy files in the grid')
     ap.add_argument('--nuisance', default=None, choices=('none', 'nfg'),
                     help='nfg: condition every search on the per-video mean foreground size from round 0 '
@@ -124,6 +134,8 @@ def main():
     ap.add_argument('--primary-only', action='store_true')
     args = ap.parse_args()
     D = get_domain(args.domain, args.analysis_set)
+    global PREFIXES
+    PREFIXES = resolve_prefixes(args.prefixes, Path(args.codes_root or D.codes_root) / args.sae / f'codes_{args.primary_pooling}.npy')
     args.codes_root = args.codes_root or str(D.codes_root)
     args.out_root = args.out_root or str(D.nes_root)
     args.n_match = D.n_match if args.n_match is None else args.n_match
@@ -371,7 +383,8 @@ def write_reports(out, tidy, results, dur, sanity, sae, pp='mean', sadj=None, nu
                 lines.append(f'- prefix {prefix}: nothing selected ({nd} near-constant neurons dropped)')
                 continue
             any_sel = True
-            other = selected_set(tidy, aid, prefix=[p for p in PREFIXES if p != prefix][0], **prim)
+            others = [p for p in PREFIXES if p != prefix]
+            other = selected_set(tidy, aid, prefix=others[0], **prim) if others else {}
             lines.append(f'- prefix {prefix}: {len(ps)} selected ({nd} dropped)')
             lines.append('')
             lines.append('| round | neuron | direction | tau | p | ' + ' | '.join(sens) + ' | other prefix | size-adj | artefact flag |')
@@ -385,7 +398,7 @@ def write_reports(out, tidy, results, dur, sanity, sae, pp='mean', sadj=None, nu
                         marks.append('-')
                         continue
                     marks.append('Y' if j in selected_set(tidy, aid, prefix=prefix, **{**prim, **ov}) else 'N')
-                op = '-' if (prefix == 1024 and j >= 128) else ('Y' if j in other else 'N')
+                op = '-' if (prefix == 1024 and j >= 128) or len(PREFIXES) == 1 else ('Y' if j in other else 'N')
                 sa = '-'
                 if sadj is not None and int(r['round']) == 1:
                     q = sadj[(sadj['analysis_id'] == aid) & (sadj['prefix'] == prefix) & (sadj['window'] == 'full') & (sadj['neuron'] == j)]

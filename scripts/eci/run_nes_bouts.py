@@ -154,11 +154,15 @@ def main():
     ap.add_argument('--min-units', type=int, default=5, help='skip an analysis with fewer units per arm')
     ap.add_argument('--primary-only', action='store_true')
     ap.add_argument('--frame-pooling', default='max', help='per-frame values = <codes>/codes_<this>.npy')
+    ap.add_argument('--prefixes', default='128,1024', help="as scripts/eci/run_nes.py ('all' = every column, one prefix)")
     args = ap.parse_args()
     global FPS, FP
     FP = args.frame_pooling
     sfx = '' if FP == 'max' else f'_{FP}'
     D = get_domain(args.domain, args.analysis_set)
+    global PREFIXES
+    from run_nes import resolve_prefixes
+    PREFIXES = resolve_prefixes(args.prefixes, Path(args.codes_root or D.codes_root) / args.sae / f'codes_{FP}.npy')
     FPS = D.fps
     args.codes_root = args.codes_root or str(D.codes_root)
     args.out_root = args.out_root or str(D.nes_root)
@@ -457,14 +461,15 @@ def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, s
             L += [f'- prefix {prefix}: {len(ps)} selected ({nd} dropped); trim30 selects {ntrim}', '',
                   '| round | neuron | direction | tau (bouts/min) | p | med dur (s) | ' + ' | '.join(names) +
                   ' | other prefix | mean-pool | size-adj | artefact flag |', '|' + '---|' * (10 + len(names))]
-            other = select(tidy, aid, [p for p in PREFIXES if p != prefix][0], PRIMARY)
+            others = [p for p in PREFIXES if p != prefix]
+            other = select(tidy, aid, others[0], PRIMARY) if others else {}
             mp = prev.get(aid, {}).get(prefix, {}).get('meanpool', [])
             rows = unit_rows(design, an)
             for _, r in ps.iterrows():
                 j = int(r['neuron'])
                 marks = ['Y' if j in select(tidy, aid, prefix, {**PRIMARY, **SENS[n]}) else 'N'
                          if applicable(n, an) else '-' for n in names]
-                op = '-' if (prefix == 1024 and j >= 128) else ('Y' if j in other else 'N')
+                op = '-' if (prefix == 1024 and j >= 128) or len(PREFIXES) == 1 else ('Y' if j in other else 'N')
                 md = np.nanmedian(o['median_dur'][rows, j]) if np.isfinite(o['median_dur'][rows, j]).any() else np.nan
                 L.append(f'| {int(r["round"])} | {j} | {r["direction"]} | {r["tau"]:.3g} | {r["p"]:.2e} | {md:.2f} | '
                          + ' | '.join(marks) + f' | {op} | {"Y" if j in mp else "N"} | '
