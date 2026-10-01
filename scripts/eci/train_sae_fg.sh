@@ -17,6 +17,14 @@
 #   then codes: DOMAIN=ants SAE=matryoshka_btk_1024_k16_antsfull_s0 fg_encode_all.sh / fg_encode_merge.sh (rule all
 #   = mean / max over all 1024 patches, n_fg = 1024), somp_encode_all.sh / somp_encode_merge.sh
 #
+#   DINOv3 tokens (fg_extract_train.sh --encoder dinov3_base) -> the checkpoint records 'encoder' and fg_encode_all uses it:
+#   EXTRA_ARGS="--tokens-dir dataset/mice/v1/eci/train_tokens/dinov3_base_l-1_fg512_fps1 --tag fg512v3" \
+#       sbatch --export=ALL --array=0 scripts/eci/train_sae_fg.sh
+#   DOMAIN=ants EXTRA_ARGS="--tokens-dir dataset/ants/eci/train_tokens/dinov3_base_l-1_antsfg512_fps1 --tag antsfgv3" \
+#       sbatch --export=ALL --array=0 scripts/eci/train_sae_fg.sh
+#   then fg_encode_all.sh with EXTRA_ARGS="--batch-size 64 --num-workers 16" (two encoders' pixels per frame: the
+#   default 128 x 22 workers prefetch does not fit in 64 GB; the same holds for fg_extract_train.sh with 96 GB)
+#
 #SBATCH --job-name=eci_sae_fg
 #SBATCH --output=logs/eci_sae_fg_%A_%a.out
 #SBATCH --error=logs/eci_sae_fg_%A_%a.err
