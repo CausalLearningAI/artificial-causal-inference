@@ -24,3 +24,4 @@ notebooks/tracking/.pixel_cache/
 
 # Weights & Biases local run data (synced to the cloud; NFS is at 96%)
 wandb/
+*.whl
