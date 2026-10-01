@@ -12,29 +12,33 @@ One command, all steps, incremental (GPU needed for the patch and arena steps):
 or directly (on a GPU node):
     python scripts/eci/build_explorer.py            # default: mice fg448 + mice ep20 + ants antsfg SAEs
     python scripts/eci/build_explorer.py --res results/vision/mice/eci/nes/<sae> [--res ...]
-The SAE is the basename of each --res; its domain (src/eci/domain.py: mice, ants) is the NES root the
-result set lies under. Its full per-frame codes (<domain eci dir>/codes/<sae>/), its training tokens
+Without --res: DEFAULT_RES plus every other finished SAE result set under the domains' NES roots
+(discover_res), so a new SAE appears once its NES run is done (MODELS names it on the model bar, else
+model_of derives its values). The SAE is the basename of each --res; its domain (src/eci/domain.py: mice,
+ants) is the NES root the result set lies under, with the analysis set covering its summary.csv analyses
+(ants 'pairs': every treatment pair of an experiment). Its full per-frame codes (<domain eci dir>/codes/<sae>/), its training tokens
 (tokens_dir in the SAE's metrics.json) and, for fg448 representations, the per-video backgrounds (codes
 config.json 'backgrounds') must exist. Output: <first res>/explorer/ (publish the folder). The last step
 checks the limits (files, MB, 0 missing / 0 unused assets).
 
-Domains: the page's Domain switch shows one domain at a time (its SAEs in the Model bar, its comparisons,
-videos and charts). Mice: stage x genotype design, families A (paired stage change) and B (het vs wt),
-gene line / sex subgroups. Ants (VIEW): one family, treated vs control videos of one experiment (labelled
-with the raw treatment numbers, "t=2 vs t=8"), a confound note for v3_2_vs_8 (recording day), the recording
-day on every clip, the top-by-p neurons of every search (VIEW 'top', so comparisons without NES selections
-can be browsed) and packed montages (pack_layout): the mice page fills the artifact file limit, so the ants
-clips share files (--max-files-new) and neurons beyond that budget are listed without clips.
+Domains: the domain word of the page title is a selector showing one domain at a time (its SAEs in the
+Model bar, its comparisons, videos and charts). Mice: stage x genotype design, families A (paired stage
+change) and B (het vs wt), gene line / sex subgroups. Ants (VIEW): one family, treated vs control videos of
+one experiment, picked with Experiment / Control / Treatment selectors over the analyses on disk (labelled
+with the raw treatment numbers, "t=2 vs t=8"), a confound note from each analysis's metadata 'confound'
+(CONFOUND_FALLBACK when missing), the recording day on every clip and the top-by-p neurons of every search
+(VIEW 'top', so comparisons without NES selections can be browsed).
 
-Outcome controls: Outcome (event rate = bouts/min, average time = per-video mean) x Spatial aggregation
-(max pooling, average pooling, SOMP). The core outcomes (--outcome / DEFAULT_OUTCOMES) keep their data
-files; extra_outcomes adds the other poolings found in their summary.csv and the sibling result sets
-<res>_<aggregation> (<sae>_mean, <sae>_somp) as <tag>_x.json bundles (full cohort only, no clips).
+Outcome controls: Temporal Aggregation (event rate = bouts/min, average time = per-video mean) x Spatial
+aggregation (max pooling, average pooling, SOMP). The core outcomes (--outcome / DEFAULT_OUTCOMES) keep
+their data files; extra_outcomes adds the other poolings found in their summary.csv and the sibling result
+sets <res>_<aggregation> (<sae>_mean, <sae>_somp) as <tag>_x.json bundles (full cohort only).
 
 Data-driven: everything comes from the result sets (summary.csv files written by the NES runs); only
-the full-video window is shown. The first --outcome is the page default. Neurons discovered in ANY
-outcome's primary search (prefix 128 / 1024, full window) get clips, ranked by the codes the outcome is
-built from (codes_mean for mean-pool outcomes, codes_max for max-pool outcomes).
+the full-video window is shown. The first --outcome is the page default. Every neuron the page lists gets
+clips (clip_candidates / plan_clips; --max-pages caps them, 0 = no cap): found in any outcome's primary search
+(core or extra, prefix 128 / 1024, full window), in a top-by-p list, or only in a subgroup search; ranked by
+the codes the outcome is built from (codes_max, codes_mean, codes_somp from the <sae>_somp codes).
 
 Steps (each cached under <res>/_cache/explorer/, incremental):
     data     reads the neuron's codes on every frame (2.59 M) and, per clip length (src/eci/viz.py
@@ -47,38 +51,47 @@ Steps (each cached under <res>/_cache/explorer/, incremental):
                       than K videos have one, the K videos' lowest-mean windows (rule 'lowest', labelled
                       "lowest (not silent)" on the page).
              The same rules again among the videos of each contrast the neuron is found in (primary search,
-             any prefix, full cohort; 'Clips from: this comparison' on the page), top and least each among
-             all the videos of the contrast together: A (e.g. A_wt_1to2) = that genotype's videos of stages
-             a and b; B (B_stage3) = the het and wt videos of stage 3. Neurons found only in a subgroup
-             search (<res>/subsets/, gene line / sex) get 'all' clips only; if the projected file count
-             exceeds --max-files, only their round-1 neurons, and the rest are listed without clips.
-             Plus the activation histogram over all frames (40 linear bins, all frames and per
-             genotype|stage), the firing rate and the stage x genotype table of per-video mean codes.
+             any prefix, full cohort, or listed top-by-p there; 'Clips from: this comparison' on the page),
+             top and least each among all the videos of the contrast together: A (e.g. A_wt_1to2) = that
+             genotype's videos of stages a and b; B (B_stage3) = the het and wt videos of stage 3; ants =
+             the control and treated videos of the experiment.
+             Neurons found only in a subgroup search get 'all' clips only. Plus the activation histogram
+             over all frames (40 linear bins, all frames and per genotype|stage), the firing rate and the
+             stage x genotype table of per-video mean codes.
              -> picks.json
     patch    per-patch codes of the neuron on every frame of every clip (top and least, all lengths),
              recomputed through DINOv2 + SAE (src/eci/viz.py make_patch_encoder, GPU; crop224 or fg448
-             geometry from the SAE's codes config), checked against the stored pooled codes. The heat
+             geometry from the SAE's codes config), checked against the stored pooled codes (mean / max;
+             SOMP clips show the neuron's SAE patch codes as heat, unchecked). The heat
              colour scale of a neuron = the 99th percentile of its positive patch codes over all those
              frames (shared by every row and length). -> patch/<p>XXXX.npz
     arena    arena maps of ALL neurons: per patch position, the mean SAE code over the SAE's training
              frames (fg448: 1 frame per second of every video, codes 0 off the foreground, plus how
              often the patch is foreground); the arena background image. -> arena.npz, assets/<tag>_arena_bg.webp
-    render   per neuron x length, montage files of 144 px tiles, 16 per row, one block of K = 16 clips per
-             row: per clip source ('all' videos: top, least; each contrast: top, least) each row kind
-             raw then with heat (turbo, the neuron's shared scale). Sources are packed whole into files of
-             at most 16 blocks (montage_layout; all + 3 contrasts = 16). frame -> one webp still;
-             1 s / 3 s -> one H.264 mp4 (5 / 15 frames at 5 fps). -> assets/<tag>_<p>XXXX_<L>_<file>.<ext>
+    render   clip pages: one per codes key x neuron x clip source ('all' videos, each contrast) and length
+             (frame = 1 frame, 1 s = 5, 3 s = 15 at 5 fps) = blocks top, top heat, least, least heat (turbo,
+             the neuron's shared scale) of VIEW kr tiles, cols per row (mice: 144 px whole frames, 16 per
+             row; ants: 256 px full-resolution cuts around each top clip's activation peak, 8 per row). Each
+             page is one cached H.264 segment (<work>/seg/), joined without re-encoding into packs of at
+             most --pack-mb MB per SAE and length: page p of a pack = frames [p w, (p + 1) w).
+             -> assets/<tag>_<L>_<md5>.mp4, <work>/packs.json
     page     core data (domains, model bar, outcomes, analyses, video list, subgroup sizes and the searches of the
              default SAE's first outcome) inlined into scripts/eci/explorer_template.html -> <out>/index.html
              (< --max-page-kb); the rest fetched by the page when needed (split_data): assets/data/
              <tag>_r_<outcome>.json = searches of one SAE x outcome (full cohort + every subgroup),
              <tag>_<codes>_<k>.json = neuron chunks of ~CHUNK_BYTES (clip lists, histogram, arena map,
              per-video outcome values from the NES caches <res>/_cache/video_summaries_*.npz,
-             bout_summaries_max.npz, checked against the tau of summary.csv). The page shows 8 of the K
-             clips per row by default (8 / 16 control).
+             bout_summaries_max.npz, checked against the tau of summary.csv). The page shows 8 clips per
+             row by default (8 / 16 control where 16 are rendered). A clip names its pack (src: assets/<pack>,
+             or its asset-store URL from --asset-map) and page; the page seeks a hidden <video> to it.
     check    every referenced media / data file exists; unreferenced files in assets/ and assets/data/ are
-             deleted; counts, MB (fails above --max-version-files files / --max-mb MB / a file > 15 MB /
-             index.html > --max-page-kb KB). --max-files is the media budget of plan_budget.
+             deleted; counts, MB; writes <out>/publish.json (version files, packs with sizes and asset URLs).
+             Fails on a missing file, a pack > 15 MB, index.html > --max-page-kb KB (and, with --require-fit,
+             version files above --max-version-files / --max-mb).
+
+Publishing (the artifact version holds at most 511 files / 256 MB): the packs can be version files or be
+uploaded to the artifact's asset store (the page must declare the 'assets' capability); then rebuild with
+--steps page,check --asset-map <json {pack name: asset url}> so the page reads them from their URLs.
 
 Page only (CPU, all caches present): python scripts/eci/build_explorer.py --steps page,check
 
@@ -121,28 +134,42 @@ DATASET = ROOT / 'dataset'
 NES = 'results/vision/mice/eci/nes'
 DEFAULT_RES = [f'{NES}/matryoshka_btk_1024_k16_fg448_s0', f'{NES}/matryoshka_btk_1024_k16_ep20_s0',
                'results/vision/ants/eci/nes/matryoshka_btk_1024_k16_antsfg_s0']
+# without --res: DEFAULT_RES (first = page default) plus every other finished SAE result set found under the
+# domains' NES roots (discover_res: <root>/<sae>/summary.csv + SUMMARY.md, full codes merged, not an
+# aggregation sibling <sae>_mean / <sae>_somp), so a new SAE shows up once its NES run is done
 ARTEFACT_EP20 = {64, 50, 113}  # ep20 SAE neuron ids; other SAEs get no flags
 # Model bar of the page: SAE result set -> its value on each axis (encoder, SAE type, input), plus a
-# tooltip per value. Adding an encoder / SAE type = one entry here (and its --res); an axis with a single
-# value is shown as a fixed selector. The Domain switch shows the SAEs of one domain at a time.
+# tooltip per value. An SAE missing here gets its values from its name and representation (model_of);
+# an axis with a single value is shown as a fixed selector. The title's domain selector shows the SAEs of
+# one domain at a time.
 MODEL_AXES = [('encoder', 'Encoder'), ('sae', 'SAE'), ('input', 'Input')]
 MODELS = {
-    'matryoshka_btk_1024_k16_fg448_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mice only'},
+    'matryoshka_btk_1024_k16_fg448_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mouse mask'},
     'matryoshka_btk_1024_k16_ep20_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'full frame'},
-    'matryoshka_btk_1024_k16_antsfg_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'ants only'}}
+    'matryoshka_btk_1024_k16_antsfg_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'ants mask'},
+    'matryoshka_btk_1024_k16_antsfull_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'full frame'}}
 MODEL_TIPS = {
     ('encoder', 'DINOv2'): 'DINOv2 patch features',
     ('sae', 'Matryoshka'): 'Matryoshka BatchTopK sparse autoencoder, 1024 neurons, k = 16',
-    ('input', 'mice only'): 'Whole frame at 448 px; SAE trained on the mouse (foreground) patches only',
-    ('input', 'full frame'): '224 px center crop; SAE trained on all patches (mice and bedding)',
-    ('input', 'ants only'): 'Whole frame at 448 px; SAE trained on the ant (foreground) patches only'}
-# Per domain: page title word, subject words of the tooltips, clip layout and top-by-p list length.
-# packed = the SAE's clips of all neurons share montage files (pack_layout, budget --max-files-new):
-# the mice SAEs fill the artifact's file limit with one montage set per neuron, so a later domain packs.
+    ('input', 'mouse mask'): 'Whole frame at 448 px; SAE trained on the mouse (foreground) patches only',
+    ('input', 'full frame'): 'SAE trained on all patches of the frame (animals and background)',
+    ('input', 'ants mask'): 'Whole frame at 448 px; SAE trained on the ant (foreground) patches only'}
+# Per domain: page title word, subject words of the tooltips, top-by-p list length and clip rendering.
 # top = per search, the N neurons with the smallest first-round p that NES did not select (listed on the
 # page, so comparisons where nothing is selected can still be browsed); 0 = none.
-VIEW = {'mice': {'title': 'Mice', 'subject': 'mouse', 'subjects': 'mice', 'packed': False, 'top': 0},
-        'ants': {'title': 'Ants', 'subject': 'ant', 'subjects': 'ants', 'packed': True, 'top': 10}}
+# Clips: one page per (codes key, neuron, clip source) = its 4 blocks (top, top heat, least, least heat) of
+# kr tiles (the first kr of the K picked clips), cols tiles per row, tile px; crop = side (source px) of the
+# square cut around the activation peak of each 'top' clip (least rows and crop None: the whole frame);
+# crf = H.264 quality. Mice keep the historical 144 px whole-frame tiles; ant clips are 256 px cuts at
+# full source resolution (the whole 512 px frame at 144 px made the ants ~11 px long).
+# cmp_top = top-by-p neurons also get 'this comparison' clips (ants: no; with 16 treatment pairs x 2 SAEs x 6
+# outcomes that would be ~3000 extra clip pages; every listed neuron still gets its 'all videos' clips).
+VIEW = {'mice': {'title': 'Mice', 'subject': 'mouse', 'subjects': 'mice', 'top': 0, 'cmp_top': True,
+                 'tile': 144, 'cols': 16, 'kr': 16, 'crop': None, 'crf': 30},
+        'ants': {'title': 'Ants', 'subject': 'ant', 'subjects': 'ants', 'top': 10, 'cmp_top': False,
+                 'tile': 256, 'cols': 8, 'kr': 8, 'crop': 256, 'crf': 27}}
+# analysis metadata 'confound' missing (older result sets): these analyses keep their known confound note
+CONFOUND_FALLBACK = {'v3_2_vs_8': 'recording day: t=8 only on day C (brighter arena), t=2 only on days A/B'}
 # The page's two outcome controls. Outcome kind: event rate (bouts per minute above the threshold,
 # scripts/eci/run_nes_bouts.py) or average time (per-video mean of the frame code, scripts/eci/run_nes.py).
 # Spatial aggregation (how the patch codes of one frame become one value per neuron): the pooling of the
@@ -156,8 +183,8 @@ AGGS = [('max', 'max pooling', 'Frame value = max over the frame\'s patch codes 
         ('mean', 'average pooling', 'Frame value = mean over the frame\'s patch codes (codes_mean)'),
         ('somp', 'SOMP', 'Simultaneous Orthogonal Matching Pursuit over the frame\'s patch tokens')]
 CHUNK_BYTES = 200_000                 # target size of one neuron data file (assets/data/)
-K, TILE, COLS = 16, 144, 16           # clips per row block, tile px, tiles per montage row (1 block = 1 row)
-MAX_BLOCKS = 16                       # blocks per montage file (16 x 144 px = 2304 px high at most)
+K = 16                                # clips picked per row (picks.json); VIEW kr of them are rendered
+BLOCKS = ('top', 'top_heat', 'least', 'least_heat')  # the blocks of one clip page, in page order
 LENGTHS = {'frame': 1, '1s': 5, '3s': 15}
 # clip sources of a neuron: 'all' (every video) and one per contrast the neuron is found in (aid)
 KINDS = {'all': ('top', 'least'), 'cmp': ('top', 'least')}
@@ -187,6 +214,13 @@ DEFAULT_OUTCOMES = ['Bout rate (max-pool)=maxpool_bouts:pooling=max,outcome_type
                     'Mean activation ({p}-pool)=.:pooling={p},outcome_type=mean,short={p}-pool']
 
 
+def rdir_of(res):
+    """Where a result set's searches are: <res>/pairs/ when that analysis-set run exists (ants: every treatment
+    pair, scripts/eci/run_nes*.py --analysis-set pairs; its first analyses repeat the core ones), else <res>.
+    The per-video caches stay in <res>/_cache."""
+    return res / 'pairs' if (res / 'pairs' / 'summary.csv').exists() else res
+
+
 def default_outcomes(res):
     """DEFAULT_OUTCOMES whose summary.csv exists; the mean-activation outcome uses the run's primary
     pooling as recorded in <res>/selected_neurons.json 'settings' ('primary (codes_max, ...)'), else mean."""
@@ -197,11 +231,49 @@ def default_outcomes(res):
 
 
 def domain_of(res):
-    """The domain whose NES root (src/eci/domain.py nes_root) contains the result set."""
+    """The domain whose NES root (src/eci/domain.py nes_root) contains the result set, with the analysis set
+    (get_domain(name, analysis_set), when the domain has several) that covers every analysis id of the
+    result set's summary.csv files (e.g. ants 'pairs' = every treatment pair of an experiment)."""
     for d in (MICE, ANTS):
         if res.resolve().is_relative_to(d.nes_root.resolve()):
-            return d
+            sets = getattr(type(d), 'analysis_sets', ('core',))
+            if len(sets) < 2:
+                return d
+            ids = set()
+            for f in [res / 'summary.csv'] + sorted(res.glob('*/summary.csv')):
+                if f.exists():
+                    ids |= set(pd.read_csv(f, usecols=['analysis_id'])['analysis_id'].astype(str))
+            for name in sets:
+                dd = get_domain(d.name, name)
+                if ids <= set(dd.analysis_ids()):
+                    return dd
+            raise SystemExit(f'{res}: analyses {sorted(ids)} not covered by any analysis set {sets} of {d.name}')
     raise SystemExit(f'{res}: not under a domain NES root ({MICE.nes_root}, {ANTS.nes_root})')
+
+
+def discover_res():
+    """DEFAULT_RES, then every other finished SAE result set under the domains' NES roots (summary.csv and
+    SUMMARY.md written, full codes merged; not an aggregation sibling <sae>_<agg>), sorted per domain."""
+    out = [str((ROOT / r).resolve()) for r in DEFAULT_RES if (ROOT / r / 'summary.csv').exists()]
+    aggs = tuple(f'_{g}' for g, _, _ in AGGS)
+    for d in (MICE, ANTS):
+        for r in sorted(p for p in d.nes_root.glob('*') if p.is_dir()):
+            if (str(r.resolve()) in out or r.name.endswith(aggs) or not (r / 'summary.csv').exists()
+                    or not (r / 'SUMMARY.md').exists() or not (d.eci_dir / 'codes' / r.name / 'DONE').exists()):
+                continue
+            out.append(str(r.resolve()))
+            print(f'discovered result set {r}')
+    return out
+
+
+def model_of(cfg):
+    """Model bar values of an SAE: MODELS, else from its name (encoder DINOv2, SAE type = the name's first
+    word) and representation (fg448 = '<subject> mask', else 'full frame')."""
+    if cfg.sae in MODELS:
+        return MODELS[cfg.sae]
+    word = {'mice': 'mouse', 'ants': 'ants'}.get(cfg.dom.name, cfg.dom.name)
+    return {'encoder': 'DINOv2', 'sae': cfg.sae.split('_')[0].capitalize(),
+            'input': f'{word} mask' if cfg.rep == 'fg448' else 'full frame'}
 
 
 def outcome_kind(o):
@@ -236,11 +308,12 @@ def extra_outcomes(cfg):
         d = cfg.res.parent / f'{cfg.res.name}_{agg}'
         if not d.is_dir():
             continue
-        for s in sorted(d.glob('summary.csv')) + sorted(d.glob('*/summary.csv')):
+        rd = rdir_of(d)
+        for s in sorted(rd.glob('summary.csv')) + sorted(p for p in rd.glob('*/summary.csv') if p.parent.name != 'pairs'):
             t = pd.read_csv(s)
             for kind, ot in (('rate', 'bout_rate'), ('time', 'mean')):
                 g = t[t['outcome_type'] == ot]
-                if (kind, agg) in have or not len(g) or (kind == 'time' and s.parent != d):
+                if (kind, agg) in have or not len(g) or (kind == 'time' and s.parent != rd):
                     continue
                 kv = {'pooling': str(g['pooling'].iloc[0]), 'outcome_type': ot}
                 if kind == 'rate':
@@ -277,10 +350,13 @@ class Cfg:
         self.assets = out / 'assets'
         self.work = self.res / '_cache' / 'explorer'
         self.outcomes = []
-        for spec in a.outcome or default_outcomes(self.res):
+        self.rdir = rdir_of(self.res)
+        af = self.rdir / 'analyses.json'  # per analysis: experiment, control, treatment, confounded, confound
+        self.ameta = {r['analysis_id']: r for r in json.loads(af.read_text())} if af.exists() else {}
+        for spec in a.outcome or default_outcomes(self.rdir):
             label, rest = spec.split('=', 1)
             sub, _, opts = rest.partition(':')
-            d = (self.res / sub).resolve()
+            d = (self.rdir / sub).resolve()
             if not (d / 'summary.csv').exists():
                 raise SystemExit(f'{d}/summary.csv missing (outcome {label!r})')
             tidy = pd.read_csv(d / 'summary.csv')
@@ -297,6 +373,11 @@ class Cfg:
                                      extra=False, cache=self.res / '_cache')
             print(f'[{self.tag}] outcome {label!r}: {d} primary {prim} codes_{codes}')
         self.extras = extra_outcomes(self)
+        # size check (n_fg covariate) is meaningless when every frame has the same foreground size (full frame)
+        nf = self.dom.eci_dir / 'codes' / self.sae / 'n_fg.npy'
+        self.size_ok = not (nf.exists() and np.ptp(np.load(nf, mmap_mode='r')[::97]) == 0)
+        for o in self.outcomes + self.extras:
+            o['size_ok'] = self.size_ok
         # subgroup result sets (scripts/eci/run_nes*.py --line/--sex --primary-only): the same outcomes
         # read from <res>/subsets/<line>_<sex>/<SUBDIR>/, when their summary.csv exists
         self.subsets = {}
@@ -311,13 +392,14 @@ class Cfg:
             elif outs:
                 raise SystemExit(f'subset {name}: only {len(outs)} of {len(self.outcomes)} outcomes present')
         print(f'[{self.tag}] subgroups: {sorted(self.subsets)}')
-        self.noclip = set()  # (codes key, neuron) found only in subgroups and left without clips (file budget)
-        self.clipplan = None  # packed SAEs: {codes key: {neuron: contrasts}} given clips (plan_packed)
-        self.keys = sorted({o['codes'] for o in self.outcomes})
+        self.noclip = set()  # (codes key, neuron) listed without clips (beyond --max-pages, plan_clips)
+        self.clipplan = None  # {codes key: {neuron: contrasts}} given clips (plan_clips)
+        self.keys = sorted({o['codes'] for o in self.outcomes + self.extras})  # clip rankings (codes_<key>)
         from src.eci.viz import representation
         self.rep = representation(self.sae, DATASET, domain=self.vdom)
         self.artefact = ARTEFACT_EP20 if self.sae == 'matryoshka_btk_1024_k16_ep20_s0' else set()
-        self.crf = a.crf
+        self.crf = a.crf if a.crf is not None else self.view['crf']
+        self.tile, self.cols, self.kr, self.crop = (self.view[k] for k in ('tile', 'cols', 'kr', 'crop'))
         print(f'[{self.tag}] SAE {self.sae}: representation {self.rep}, artefact flags {sorted(self.artefact)}')
 
 
@@ -436,8 +518,8 @@ def rate_table(cfg, o, j):
 
 
 def pre(key):
-    """asset / cache file prefix per ranking codes (mean keeps the historical 'n')."""
-    return 'n' if key == 'mean' else 'x'
+    """cache file prefix per ranking codes (historical: mean 'n', max 'x'; others their key, e.g. 'somp')."""
+    return {'mean': 'n', 'max': 'x'}.get(key, key)
 
 
 def short_obs(obs):
@@ -452,23 +534,40 @@ def stages_of(aid):
     return [int(x) for x in MICE.analysis(aid).stages]
 
 
-def wanted(cfg, subsets=True):
-    """{codes key: {neuron: sorted contrasts (analysis ids) it is found in}}, over the primary searches
-    (any prefix, full window) of the outcomes ranked by that key. Neurons found only in a subgroup search
-    get 'all videos' clips only (no contrasts: 'this comparison' clips stay full-cohort), unless they are
-    in cfg.noclip (left without clips to respect the file budget). Packed SAEs: cfg.clipplan."""
+def wanted(cfg):
+    """{codes key: {neuron: sorted contrasts (analysis ids) it is shown in}} of the neurons given clips
+    (cfg.clipplan, plan_clips), else every neuron the page lists: the primary searches (any prefix, full
+    window) of every outcome (core and extra) ranked by that key, the top-by-p lists (VIEW 'top') with their
+    contrast, and the neurons found only in a subgroup search ('all videos' clips only: 'this comparison'
+    clips stay full-cohort)."""
     if cfg.clipplan is not None:
         return {k: {j: sorted(v, key=cfg.order.index) for j, v in w.items()} for k, w in cfg.clipplan.items()}
-    want = {k: {} for k in cfg.keys}
-    for o in cfg.outcomes:
+    return {k: {j: sorted(v, key=cfg.order.index) for j, v in w.items()} for k, w in clip_candidates(cfg)[0].items()}
+
+
+def clip_candidates(cfg):
+    """({codes key: {neuron: contrasts}} of every listed neuron, [(codes key, neuron, contrasts)] in clip
+    priority order): neurons selected by a primary search (best p first, with the contrasts they are selected
+    in), then the top-by-p lists rank 1 of every list, rank 2, ..., each with its contrast, then the
+    subgroup-only neurons (most round-1 subgroup hits, then best p)."""
+    sel = {}  # (codes key, neuron) -> (best p, contrasts)
+    for o in cfg.outcomes + cfg.extras:
         p = primary_rows(o).dropna(subset=['neuron'])
-        for aid, j in zip(p['analysis_id'], p['neuron'].astype(int)):
-            want[o['codes']].setdefault(int(j), set()).add(aid)
-    if subsets:
-        for k, j in subgroup_neurons(cfg):
-            if (k, j) not in cfg.noclip:
-                want[k].setdefault(j, set())
-    return {k: {j: sorted(v) for j, v in w.items()} for k, w in want.items()}
+        for aid, j, pv in zip(p['analysis_id'], p['neuron'].astype(int), p['p']):
+            b, st = sel.get((o['codes'], int(j)), (1.0, set()))
+            sel[(o['codes'], int(j))] = (min(b, float(pv)), st | {aid})
+    seq = [(k, j, st) for (k, j), (b, st) in sorted(sel.items(), key=lambda x: (x[1][0], x[0]))]
+    lists = [[(o['codes'], j, {aid} if cfg.view['cmp_top'] else set()) for j in L]
+             for o in cfg.outcomes + cfg.extras for (aid, _, _), L in
+             sorted(top_lists(cfg, o).items(), key=lambda x: (cfg.order.index(x[0][0]), -x[0][1]))]
+    seq += [L[r] for r in range(max(map(len, lists), default=0)) for L in lists if r < len(L)]
+    hits = subgroup_hits(cfg)
+    seq += [(k, j, set()) for k, j in sorted(subgroup_neurons(cfg), key=lambda x: (-hits.get(x, (0, 1.0))[0],
+                                                                                   hits.get(x, (0, 1.0))[1], x))]
+    want = {k: {} for k in cfg.keys}
+    for k, j, st in seq:
+        want.setdefault(k, {}).setdefault(int(j), set()).update(st)
+    return want, seq
 
 
 def subgroup_neurons(cfg, round1_only=False):
@@ -483,17 +582,6 @@ def subgroup_neurons(cfg, round1_only=False):
                 p = p[p['round'] == 1]
             out |= {(o['codes'], int(j)) for j in p['neuron']} - full
     return sorted(out)
-
-
-def n_files(n_contrasts):
-    """Montage files per length of a neuron with clips from all videos + n_contrasts contrasts
-    (montage_layout packing: 4 blocks for 'all', 6 per contrast, at most MAX_BLOCKS per file)."""
-    files, cur = 0, MAX_BLOCKS + 1
-    for b in [2 * len(KINDS['all'])] + [2 * len(KINDS['cmp'])] * n_contrasts:
-        if cur + b > MAX_BLOCKS:
-            files, cur = files + 1, 0
-        cur += b
-    return files
 
 
 def subgroup_hits(cfg):
@@ -512,89 +600,25 @@ def subgroup_hits(cfg):
     return out
 
 
-def plan_budget(cfgs, max_files):
-    """Projected asset files (+ index.html). If the subgroup-only neurons do not all fit, only their
-    round-1 neurons are candidates, ranked over both SAEs by the number of round-1 subgroup hits, then
-    best p; they get clips in that order while the total stays <= max_files. The others are listed
-    (cfg.noclip) and shown on the page without clips."""
-    def total():
-        t = 1 + len(cfgs)  # index.html + one arena background per SAE
-        for c in cfgs:
-            for k, w in wanted(c).items():
-                t += sum(len(LENGTHS) * n_files(len(a)) for a in w.values())
-        return t
+def plan_clips(cfgs, max_pages):
+    """Clip pages (one per codes key x neuron x clip source, each rendered at every length) of each SAE:
+    every listed neuron gets its 'all videos' page and one page per contrast it is shown in, in
+    clip_candidates priority order while the SAE's pages stay <= max_pages (0 = no limit). A neuron that does
+    not fit is listed without clips (cfg.noclip)."""
     for c in cfgs:
-        c.noclip = set()
-    t = total()
-    print(f'budget: {t} files projected with every subgroup-only neuron '
-          f'({sum(len(subgroup_neurons(c)) for c in cfgs)}) given clips; limit {max_files}')
-    if t > max_files:
-        for c in cfgs:
-            c.noclip = set(subgroup_neurons(c))
-        t = total()
-        cand = sorted(((h, c, k) for c in cfgs for k, h in subgroup_hits(c).items()),
-                      key=lambda x: (-x[0][0], x[0][1], x[1].tag, x[2]))
-        for h, c, k in cand:
-            if t + len(LENGTHS) * n_files(0) > max_files:
-                break
-            c.noclip.discard(k)
-            t += len(LENGTHS) * n_files(0)
-        print(f'budget: {t} files; subgroup-only neurons with clips: '
-              f'{sum(len(subgroup_neurons(c)) - len(c.noclip) for c in cfgs)} of '
-              f'{sum(len(subgroup_neurons(c)) for c in cfgs)} (round-1 ones ranked by hit count, then p)')
-    for c in cfgs:
-        if c.noclip:
-            print(f'budget: [{c.tag}] left without clips ({len(c.noclip)}): {sorted(c.noclip)}')
-    return t
-
-
-def plan_packed(cfgs, max_files):
-    """Clips of the packed SAEs (VIEW 'packed'): neurons in priority order get clips while the SAE's montage
-    files (pack_layout, len(LENGTHS) per packed file) stay <= max_files: first the neurons selected by a
-    core outcome's primary search (full window, any prefix; best p first), with the contrasts they are
-    selected in; then the top-by-p lists (VIEW 'top') of the core outcomes, rank 1 of every list, then rank
-    2, ..., each adding its contrast. Stops at the first candidate that does not fit. The rest are listed
-    on the page without clips."""
-    for c in cfgs:
-        cand = {}  # (codes key, neuron) -> (best p, contrasts), selected neurons
-        for o in c.outcomes:
-            p = primary_rows(o).dropna(subset=['neuron'])
-            for aid, j, pv in zip(p['analysis_id'], p['neuron'].astype(int), p['p']):
-                b, s = cand.get((o['codes'], j), (1.0, set()))
-                cand[(o['codes'], j)] = (min(b, float(pv)), s | {aid})
-        seq = [(k, j, s) for (k, j), (b, s) in sorted(cand.items(), key=lambda x: (x[1][0], x[0]))]
-        lists = [[(o['codes'], j, {aid}) for j in L] for o in c.outcomes for (aid, _, _), L in
-                 sorted(top_lists(c, o).items(), key=lambda x: (c.order.index(x[0][0]), -x[0][1]))]
-        seq += [L[r] for r in range(max(map(len, lists), default=0)) for L in lists if r < len(L)]
-        plan = {k: {} for k in c.keys}
-        for k, j, s in seq:
-            trial = {kk: {jj: set(v) for jj, v in w.items()} for kk, w in plan.items()}
-            trial[k].setdefault(j, set()).update(s)
-            if trial == plan:
+        want, seq = clip_candidates(c)
+        plan, n = {k: {} for k in c.keys}, 0
+        for k, j, st in seq:
+            add = (0 if j in plan[k] else 1) + len(set(st) - plan[k].get(j, set()))
+            if max_pages and n + add > max_pages:
                 continue
-            if len(LENGTHS) * sum(len(pack_layout(c, kk, w)) for kk, w in trial.items()) > max_files:
-                break
-            plan = trial
+            plan[k].setdefault(j, set()).update(st)
+            n += add
         c.clipplan = plan
-        n = sum(len(w) for w in plan.values())
-        print(f'[{c.tag}] packed clips: {n} neurons, '
-              f'{len(LENGTHS) * sum(len(pack_layout(c, k, w)) for k, w in plan.items())} media files '
-              f'(limit {max_files}): ' + ', '.join(f'codes_{k} {sorted(w)}' for k, w in plan.items()))
-
-
-def pack_layout(cfg, key, clips):
-    """Packed montage files of one SAE and codes key: [[(neuron, source, block name, kind, heat), ...] per
-    file]. clips = {neuron: contrasts} in priority order (plan_packed / picks order); per neuron the sources
-    'all' then its contrasts (cfg.order), each packed whole (all its blocks in one file) into files of at
-    most MAX_BLOCKS blocks, in that order."""
-    files = []
-    for j, aids in clips.items():
-        for src in ['all'] + sorted(aids, key=cfg.order.index):
-            bl = [(int(j), src, f'{k}{"_heat" if h else ""}', k, h) for k in kinds(src) for h in (False, True)]
-            if not files or len(files[-1]) + len(bl) > MAX_BLOCKS:
-                files.append([])
-            files[-1] += bl
-    return files
+        c.noclip = {(k, j) for k, w in want.items() for j in w if j not in plan[k]}
+        print(f'[{c.tag}] clips: {sum(len(w) for w in plan.values())} neurons, {n} pages per length '
+              f'(limit {max_pages or "none"}): ' + ', '.join(f'codes_{k} {len(w)}' for k, w in plan.items())
+              + (f'; listed without clips (page limit): {sorted(c.noclip)}' if c.noclip else ''))
 
 
 def read_json(f):
@@ -695,6 +719,20 @@ def activation_hist(x, group, n_groups):
     return np.linspace(0, hi, HIST_BINS + 1), c
 
 
+def codes_array(cfg, src, key):
+    """(n_frames, m) codes_<key> of the SAE, full codes row order: src.codes (mean, max), else the
+    aggregation sibling <codes dir>/<sae>_<key>/codes_<key>.npy (e.g. SOMP), same row order (checked)."""
+    if key in src.codes:
+        return src.codes[key]
+    f = cfg.dom.eci_dir / 'codes' / f'{cfg.sae}_{key}' / f'codes_{key}.npy'
+    if not f.exists():
+        raise SystemExit(f'{f} missing (clips ranked by codes_{key})')
+    Z = np.load(f, mmap_mode='r')
+    if Z.shape[0] != len(src.meta):
+        raise SystemExit(f'{f}: {Z.shape[0]} rows, the full codes have {len(src.meta)}')
+    return Z
+
+
 def step_data(cfg, overwrite):
     out = cfg.work / 'picks.json'
     res = json.loads(out.read_text()) if out.exists() and not overwrite else {}
@@ -729,7 +767,7 @@ def step_data(cfg, overwrite):
             continue
         print(f'[{cfg.tag}] data: reading codes_{key} of neurons', miss, flush=True)
         neurons = np.array(miss, dtype=np.int64)
-        Z = src.codes[key]
+        Z = codes_array(cfg, src, key)
         X = np.empty((len(meta), len(neurons)), np.float32)  # every frame of the selected neurons
         for a in range(0, len(meta), 200_000):
             X[a:a + 200_000] = Z[a:a + 200_000][:, neurons]
@@ -808,10 +846,10 @@ def patch_file(cfg, key, j):
     return cfg.work / 'patch' / f'{pre(key)}{int(j):04d}.npz'
 
 
-def clip_rows(n):
-    """{'<source>__<L>__<kind>': rows of every clip, in clip order} of one neuron (source = 'all' or a
-    contrast id)."""
-    return {f'{src}__{L}__{kind}': [r for x in c[kind] for r in x['rows']] for src, cs in n['clips'].items()
+def clip_rows(n, kr=K):
+    """{'<source>__<L>__<kind>': rows of the first kr clips (the rendered ones), in clip order} of one neuron
+    (source = 'all' or a contrast id)."""
+    return {f'{src}__{L}__{kind}': [r for x in c[kind][:kr] for r in x['rows']] for src, cs in n['clips'].items()
             for L, c in cs.items() for kind in kinds(src)}
 
 
@@ -821,9 +859,11 @@ def step_patch(cfg, overwrite, chunk=6):
     todo = []
     for k in cfg.keys:
         for j, n in picks['by_key'].get(k, {}).items():
-            f, rr = patch_file(cfg, k, j), clip_rows(n)
+            f, rr = patch_file(cfg, k, j), clip_rows(n, cfg.kr)
             sig = hashlib.md5(json.dumps(rr).encode()).hexdigest()
-            if overwrite or not f.exists() or str(np.load(f)['sig']) != sig:
+            # a file made for all K clips also serves (its first kr clips are the rendered ones)
+            ok = {sig, hashlib.md5(json.dumps(clip_rows(n)).encode()).hexdigest()}
+            if overwrite or not f.exists() or str(np.load(f)['sig']) not in ok:
                 todo.append((k, int(j), rr, sig))
     if not todo:
         print(f'[{cfg.tag}] patch: cached')
@@ -850,16 +890,17 @@ def step_patch(cfg, overwrite, chunk=6):
             ur = sorted({r for v in rr.values() for r in v})
             ii = np.array([pos[r] for r in ur])
             m = pc[ii, :, :, ci]
-            stored = np.asarray(codes[k][np.array(ur)][:, j], dtype=np.float32)
-            if k == 'max':
-                pooled = m.max((1, 2))
-            elif n_fg is None:
-                pooled = m.mean((1, 2))
-            else:  # fg448: mean over the foreground patches only
-                pooled = m.sum((1, 2)) / np.maximum(n_fg[ii], 1)
-            worst[k] = max(worst.get(k, 0.0), float(np.abs(pooled - stored).max()))
-            mism[k] = mism.get(k, 0) + int(((pooled > 0) != (stored > 0)).sum())
-            npair += len(ur)
+            if k in ('max', 'mean'):  # SOMP (and other non-pooled codes): heat = the neuron's patch codes, no check
+                stored = np.asarray(codes[k][np.array(ur)][:, j], dtype=np.float32)
+                if k == 'max':
+                    pooled = m.max((1, 2))
+                elif n_fg is None:
+                    pooled = m.mean((1, 2))
+                else:  # fg448: mean over the foreground patches only
+                    pooled = m.sum((1, 2)) / np.maximum(n_fg[ii], 1)
+                worst[k] = max(worst.get(k, 0.0), float(np.abs(pooled - stored).max()))
+                mism[k] = mism.get(k, 0) + int(((pooled > 0) != (stored > 0)).sum())
+                npair += len(ur)
             posv = m[m > 0]
             vmax = float(np.quantile(posv, 0.99)) if len(posv) else 1.0
             lp = {r: t for t, r in enumerate(ur)}
@@ -977,141 +1018,198 @@ def tile_text(c):
     return f'{c["experiment"]} t={c["T"]} · day {c["day"]} · {c["obs"]}'
 
 
-def tile_frames(c, frame_path, vmax, color, rep, maps=None, hvmax=None):
-    """len(c['rows']) labelled TILE x TILE frames of one clip; a bar at the bottom shows the activation
-    of the current frame relative to vmax. maps: (w, grid, grid) patch codes -> heatmap overlaid (scale hvmax)."""
+def crop_origin(maps, rep, W, H, crop):
+    """(x0, y0) of the crop x crop square (source px) centred on the activation peak of one clip: the argmax
+    of its patch codes summed over the clip's frames (Gaussian-smoothed, sigma 1 patch), mapped through the
+    patch grid's frame box and clamped inside the frame. None when the clip has no activation."""
+    from scipy.ndimage import gaussian_filter
+    from src.eci.viz import frame_box
+    acc = gaussian_filter(np.maximum(maps.astype(np.float32), 0).sum(0), 1.0)
+    if not acc.max() > 0:
+        return None
+    iy, ix = np.unravel_index(int(np.argmax(acc)), acc.shape)
+    bx, by, bc = frame_box(rep, W, H)
+    cx, cy = bx + (ix + 0.5) * bc / acc.shape[1], by + (iy + 0.5) * bc / acc.shape[0]
+    return (int(round(min(max(cx - crop / 2, 0), W - crop))), int(round(min(max(cy - crop / 2, 0), H - crop))))
+
+
+def tile_frames(c, frame_path, vmax, color, rep, tile, maps=None, hvmax=None, origin=None, crop=None):
+    """len(c['rows']) labelled tile x tile frames of one clip; a bar at the bottom shows the activation
+    of the current frame relative to vmax. maps: (w, grid, grid) patch codes -> heatmap overlaid (scale hvmax).
+    origin / crop: the clip is cut to the crop x crop square at origin (source px, crop_origin), else the
+    whole frame is shown."""
     from src.eci.viz import _overlay_rgb, frame_box
     import matplotlib
     matplotlib.use('Agg')
     cmap = matplotlib.colormaps['turbo']
     frames = []
+    fs, hh = (8, 12) if tile <= 144 else (int(round(8 * tile / 144)), int(round(12 * tile / 144)))
     for t, r in enumerate(c['rows']):
         im = Image.open(DATASET / frame_path[str(r)]).convert('RGB')
         if maps is not None:
             a = np.asarray(im)
             im = Image.fromarray(_overlay_rgb(a, maps[t].astype(np.float32), frame_box(rep, a.shape[1], a.shape[0]),
                                               hvmax, cmap))
-        im = im.resize((TILE, TILE), Image.BILINEAR)
+        if origin is not None:
+            im = im.crop((origin[0], origin[1], origin[0] + crop, origin[1] + crop))
+            if crop != tile:
+                im = im.resize((tile, tile), Image.LANCZOS)
+        elif im.size != (tile, tile):
+            im = im.resize((tile, tile), Image.BILINEAR if tile <= 144 else Image.LANCZOS)
         d = ImageDraw.Draw(im, 'RGBA')
-        d.rectangle([0, 0, TILE, 12], fill=(0, 0, 0, 140))
-        d.text((3, 1), tile_text(c), font=font(8), fill=(255, 255, 255))
-        d.rectangle([0, TILE - 6, TILE, TILE], fill=(0, 0, 0, 255))  # opaque: the page re-reads this bar (row T-4)
-        w = int(round(TILE * min(max(c['trace'][t], 0) / vmax, 1))) if vmax > 0 else 0
+        d.rectangle([0, 0, tile, hh], fill=(0, 0, 0, 140))
+        d.text((3, 1) if tile <= 144 else (5, 2), tile_text(c), font=font(fs), fill=(255, 255, 255))
+        d.rectangle([0, tile - 6, tile, tile], fill=(0, 0, 0, 255))  # opaque: the page re-reads this bar (row T-4)
+        w = int(round(tile * min(max(c['trace'][t], 0) / vmax, 1))) if vmax > 0 else 0
         if w:
-            d.rectangle([0, TILE - 5, w, TILE], fill=color)
+            d.rectangle([0, tile - 5, w, tile], fill=color)
         frames.append(np.asarray(im))
     return frames
 
 
 def encode(frames, path, crf=30):
-    """frames: list of HxWx3 uint8 arrays -> H.264 mp4 at 5 fps."""
+    """frames: list of HxWx3 uint8 arrays -> one H.264 segment at 5 fps, one closed GOP (the first frame is
+    an IDR frame), so segments can be joined without re-encoding (packs) and each starts decodable."""
     h, w = frames[0].shape[:2]
+    n = len(frames)
     cmd = ['ffmpeg', '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{w}x{h}',
            '-r', '5', '-i', '-', '-c:v', 'libx264', '-preset', 'slow', '-crf', str(crf), '-pix_fmt', 'yuv420p',
-           '-movflags', '+faststart', '-an', str(path)]
+           '-x264-params', f'keyint={n}:min-keyint={n}:scenecut=0', '-an', str(path)]
     subprocess.run(cmd, input=b''.join(f.tobytes() for f in frames), check=True)
 
 
-def montage_layout(cfg, n):
-    """The montage files of one neuron and length: [[(source, block name, kind, heat), ...] per file].
-    Blocks of a source: each of its kinds raw then with heat (top, least). Sources ('all' first, then the contrasts in cfg.order) are packed whole into files of at
-    most MAX_BLOCKS blocks, so a view (one source) always reads one file."""
-    srcs = ['all'] + sorted((x for x in n['clips'] if x != 'all'), key=cfg.order.index)
-    files = []
-    for src in srcs:
-        bl = [(src, f'{k}{"_heat" if h else ""}', k, h) for k in kinds(src) for h in (False, True)]
-        if not files or len(files[-1]) + len(bl) > MAX_BLOCKS:
-            files.append([])
-        files[-1] += bl
-    return files
+RENDER_V = 2  # page rendering version (part of the segment signature)
 
 
-def asset_name(cfg, key, j, L, f):
-    return f'{cfg.tag}_{pre(key)}{int(j):04d}_{L}_{f}.{"webp" if L == "frame" else "mp4"}'
+def page_list(cfg, picks):
+    """The clip pages of one SAE, in pack order: [(page id '<key>|<neuron>|<source>', key, neuron, source)];
+    per codes key and neuron (ascending) its sources 'all' then its contrasts (cfg.order)."""
+    out = []
+    for key in cfg.keys:
+        for j in sorted(picks['by_key'].get(key, {}), key=int):
+            n = picks['by_key'][key][j]
+            for src in ['all'] + sorted((x for x in n['clips'] if x != 'all'), key=cfg.order.index):
+                out.append((f'{key}|{int(j)}|{src}', key, int(j), src))
+    return out
 
 
-def montages(cfg, key, picks):
-    """Every montage file of one SAE and codes key: [(asset name of length L = fn(L), [(neuron, source, block
-    name, kind, heat), ...])]. One set per neuron (montage_layout, mice), or the neurons packed together
-    (pack_layout, VIEW 'packed', in plan order)."""
-    by = picks['by_key'].get(key, {})
-    if cfg.view['packed']:
-        want = wanted(cfg).get(key, {})
-        assert set(map(int, by)) == set(want), f'[{cfg.tag}] picks {sorted(map(int, by))} != plan {sorted(want)}'
-        return [(lambda L, f=f: f'{cfg.tag}_{pre(key)}pack_{L}_{f}.{"webp" if L == "frame" else "mp4"}', bl)
-                for f, bl in enumerate(pack_layout(cfg, key, want))]
-    return [(lambda L, j=j, f=f: asset_name(cfg, key, j, L, f), [(int(j), *b) for b in bl])
-            for j, n in by.items() for f, bl in enumerate(montage_layout(cfg, n))]
-
-
-def _render_one(task):
-    """task: (out, blocks [(source, name, kind, heat, clips, bar vmax, patch file)], frame paths, rep, L, crf);
-    each block uses its neuron's bar scale and patch maps (heat scale = that neuron's patch-file vmax)."""
-    out, blocks, fp, rep, L, crf = task
+def _render_page(task):
+    """task: (segment path, blocks [(source, block name, kind, heat, clips, bar vmax, patch file)], frame paths,
+    rep, L, crf, (tile, cols, kr, crop)): one page = BLOCKS of kr tiles, cols per row, encoded as one segment.
+    Crop (top rows only): each clip cut around its own activation peak (the same square raw and with heat)."""
+    out, blocks, fp, rep, L, crf, (tile, cols, kr, crop) = task
     w = LENGTHS[L]
     pzs = {}
-    blank = [np.zeros((TILE, TILE, 3), np.uint8)] * w
+    blank = [np.zeros((tile, tile, 3), np.uint8)] * w
     tiles = []
     for src, _, kind, heat, clips, vmax, maps_file in blocks:
+        if heat is None:  # least heat of silent clips: identical to the raw block, which the page shows instead
+            tiles += [blank] * kr
+            continue
         if maps_file not in pzs:
             pzs[maps_file] = np.load(maps_file)
         pz = pzs[maps_file]
         hv = float(pz['vmax'])
-        maps = pz[f'{src}__{L}__{kind}'].astype(np.float32) if heat else None
+        allm = pz[f'{src}__{L}__{kind}'].astype(np.float32)
         color = (120, 190, 255) if kind == 'least' else (255, 170, 40)
-        cl = [tile_frames(c, fp, vmax, color, rep, None if maps is None else maps[k * w:(k + 1) * w], hv)
-              for k, c in enumerate(clips)]
-        tiles += cl + [blank] * (K - len(cl))
-    rows = [tiles[r:r + COLS] for r in range(0, len(tiles), COLS)]
+        cl = []
+        for k, c in enumerate(clips[:kr]):
+            m = allm[k * w:(k + 1) * w]
+            org = None
+            if crop and kind == 'top':
+                im0 = Image.open(DATASET / fp[str(c['rows'][0])])
+                org = crop_origin(m, rep, im0.size[0], im0.size[1], crop)
+            cl.append(tile_frames(c, fp, vmax, color, rep, tile, m if heat else None, hv, org, crop))
+        tiles += cl + [blank] * (kr - len(cl))
+    rows = [tiles[r:r + cols] for r in range(0, len(tiles), cols)]
     frames = [np.concatenate([np.concatenate([clip[t] for clip in row], 1) for row in rows], 0) for t in range(w)]
-    if L == 'frame':
-        Image.fromarray(frames[0]).save(out, 'WEBP', quality=72, method=6)
-    else:
-        encode(frames, out, crf)
+    tmp = out.with_suffix('.tmp.mp4')
+    encode(frames, tmp, crf)
+    tmp.rename(out)
     return out
 
 
-def step_render(cfg, overwrite):
+def pack_name(cfg, L, segs):
+    return f'{cfg.tag}_{L}_{hashlib.md5("|".join(segs).encode()).hexdigest()[:10]}.mp4'
+
+
+def step_render(cfg, overwrite, pack_mb=8.0):
+    """Every clip page of the SAE (page_list) at every length, as one cached segment each
+    (<work>/seg/<L>/<signature md5>.mp4, reused while its content is unchanged), then joined without
+    re-encoding into packs of at most pack_mb MB (assets/<tag>_<L>_<md5 of the members>.mp4): page p of a pack
+    is frames [p w, (p + 1) w) (w = frames per clip). -> <work>/packs.json {L: [{name, pages: [page id]}]}."""
     import multiprocessing as mp
     import os
     picks = json.loads((cfg.work / 'picks.json').read_text())
     fp = picks['frame_path']
     cfg.assets.mkdir(parents=True, exist_ok=True)
-    man_p = cfg.work / 'render.json'
-    man = json.loads(man_p.read_text()) if man_p.exists() and not overwrite else {}
-    tasks, sigs = [], {}
-    for key in cfg.keys:
-        by = picks['by_key'].get(key, {})
-        # bar scale: the neuron's highest frame, every row, length and source; heat scale: its patch file
-        vm = {int(j): n['max_frame'] or 1.0 for j, n in by.items()}
-        pf = {int(j): patch_file(cfg, key, j) for j in by}
-        hv = {j: float(np.load(f)['vmax']) for j, f in pf.items()}
-        for name, bl in montages(cfg, key, picks):
-            for L in LENGTHS:
-                out = cfg.assets / name(L)
-                blocks = [(src, bn, k, h, by[str(j)]['clips'][src][L][k], vm[j], str(pf[j])) for j, src, bn, k, h in bl]
-                if cfg.view['packed']:
-                    sig = json.dumps([cfg.rep, TILE, COLS, K, cfg.crf, [(j, src, bn, vm[j], hv[j], [x['start'] for x in c])
-                                                                       for (j, src, bn, _, _), (_, _, _, _, c, _, _) in zip(bl, blocks)]])
-                else:  # one neuron per file (the historical signature)
-                    j = bl[0][0]
-                    sig = json.dumps([cfg.rep, TILE, COLS, K, cfg.crf, vm[j], hv[j],
-                                      [(src, bn, [x['start'] for x in c]) for src, bn, _, _, c, _, _ in blocks]])
-                if out.exists() and man.get(out.name) == sig:
-                    continue
-                sigs[out.name] = sig
-                tasks.append((out, blocks, fp, cfg.rep, L, cfg.crf))
-    if not tasks:
-        print(f'[{cfg.tag}] render: cached')
-        return
-    nproc = max(1, min(len(tasks), len(os.sched_getaffinity(0))))
-    print(f'[{cfg.tag}] render: {len(tasks)} montages on {nproc} processes', flush=True)
-    with mp.get_context('fork').Pool(nproc) as pool:
-        for i, out in enumerate(pool.imap_unordered(_render_one, tasks)):
-            man[out.name] = sigs[out.name]
-            man_p.write_text(json.dumps(man))
-            if (i + 1) % 10 == 0 or i + 1 == len(tasks):
-                print(f'[{cfg.tag}] render: {i + 1}/{len(tasks)} {out.name}', flush=True)
+    pages = page_list(cfg, picks)
+    geo = (cfg.tile, cfg.cols, cfg.kr, cfg.crop)
+    vm, hv, pf = {}, {}, {}
+    for key in cfg.keys:  # bar scale: the neuron's highest frame; heat scale: its patch file
+        for j, n in picks['by_key'].get(key, {}).items():
+            vm[(key, int(j))] = n['max_frame'] or 1.0
+            pf[(key, int(j))] = patch_file(cfg, key, j)
+            hv[(key, int(j))] = float(np.load(pf[(key, int(j))])['vmax'])
+    tasks, segs = [], {L: [] for L in LENGTHS}
+    for pid, key, j, src in pages:
+        n = picks['by_key'][key][str(j)]
+        for L in LENGTHS:
+            # silent least clips of pooled codes have all patch codes 0 (heat = raw): the block is left blank
+            silent = n['clips'][src][L]['least_rule'] == 'silent' and key in ('max', 'mean')
+            blocks = [(src, bn, bn.split('_')[0], None if bn == 'least_heat' and silent else bn.endswith('_heat'),
+                       n['clips'][src][L][bn.split('_')[0]], vm[(key, j)], str(pf[(key, j)])) for bn in BLOCKS]
+            sig = json.dumps([RENDER_V, cfg.rep, geo, cfg.crf, vm[(key, j)], hv[(key, j)],
+                              [(bn, ht, [x['start'] for x in c[:cfg.kr]]) for _, bn, _, ht, c, _, _ in blocks]])
+            h = hashlib.md5(sig.encode()).hexdigest()
+            out = cfg.work / 'seg' / L / f'{h}.mp4'
+            segs[L].append((pid, h, out))
+            if overwrite or not out.exists():
+                out.parent.mkdir(parents=True, exist_ok=True)
+                tasks.append((out, blocks, fp, cfg.rep, L, cfg.crf, geo))
+    tasks = list({str(t[0]): t for t in tasks}.values())
+    if tasks:
+        nproc = max(1, min(len(tasks), len(os.sched_getaffinity(0))))
+        print(f'[{cfg.tag}] render: {len(tasks)} clip pages x length on {nproc} processes', flush=True)
+        with mp.get_context('fork').Pool(nproc) as pool:
+            for i, out in enumerate(pool.imap_unordered(_render_page, tasks)):
+                if (i + 1) % 50 == 0 or i + 1 == len(tasks):
+                    print(f'[{cfg.tag}] render: {i + 1}/{len(tasks)}', flush=True)
+    else:
+        print(f'[{cfg.tag}] render: segments cached ({sum(len(v) for v in segs.values())})')
+    packs = {}
+    for L, ss in segs.items():
+        groups, cur, size = [], [], 0
+        for x in ss:
+            b = x[2].stat().st_size
+            if cur and size + b > pack_mb * 1e6:
+                groups.append(cur)
+                cur, size = [], 0
+            cur.append(x)
+            size += b
+        if cur:
+            groups.append(cur)
+        packs[L] = []
+        for g in groups:
+            name = pack_name(cfg, L, [h for _, h, _ in g])
+            out = cfg.assets / name
+            if overwrite or not out.exists():
+                lst = cfg.work / 'seg' / f'{name}.txt'
+                lst.write_text(''.join(f"file '{p}'\n" for _, _, p in g))
+                tmp = out.with_suffix('.tmp.mp4')
+                subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', str(lst),
+                                '-c', 'copy', '-movflags', '+faststart', str(tmp)], check=True)
+                n = int(subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-count_packets',
+                                        '-show_entries', 'stream=nb_read_packets', '-of', 'csv=p=0', str(tmp)],
+                                       capture_output=True, text=True, check=True).stdout.strip())
+                if n != len(g) * LENGTHS[L]:
+                    raise SystemExit(f'{tmp}: {n} frames, expected {len(g)} pages x {LENGTHS[L]}')
+                tmp.rename(out)
+                lst.unlink()
+            packs[L].append({'name': name, 'pages': [pid for pid, _, _ in g]})
+        print(f'[{cfg.tag}] render: {L}: {len(ss)} pages in {len(groups)} packs, '
+              f'{sum((cfg.assets / p["name"]).stat().st_size for p in packs[L]) / 1e6:.1f} MB')
+    (cfg.work / 'packs.json').write_text(json.dumps(packs))
 
 
 # ---------------------------------------------------------------------- step: page
@@ -1148,7 +1246,7 @@ def robustness(o, others, aid, prefix, window, neuron, words=('mouse', 'mice')):
         else:
             val = ('Y' if neuron in set(g['neuron'].dropna().astype(int)) else 'N') if len(g) else '-'
         chips.append([*chip_name(f, v), val])
-    sz = None if o['extra'] else size_table(o)
+    sz = None if o['extra'] or not o.get('size_ok', True) else size_table(o)
     if sz is not None:
         g = sz[(sz['analysis_id'] == aid) & (sz['prefix'] == prefix) & (sz['window'] == window) & (sz['neuron'] == neuron)]
         val = ('Y' if bool(g['survives'].iloc[0]) else 'N') if len(g) else '-'
@@ -1275,31 +1373,43 @@ def _vt(dom=MICE):
     return _rates[k]
 
 
-def page_clips(cfg, key, j, n, mont):
-    """{source: {L: {src, blocks: {block name: index in the file}, n: {kind: count}, least_rule,
-    info: {kind: [[label, mean], ...]}}}} of one neuron (montages order; mont = montages(cfg, key, picks))."""
+AMAP = {}  # --asset-map: pack name -> URL in the artifact's asset store (packs not in it stay version files)
+
+
+def media_url(name):
+    return AMAP.get(name, f'assets/{name}')
+
+
+def page_clips(cfg, key, j, n, where):
+    """{source: {L: {src, page, blocks: {block name: index in the page}, n: {kind: count}, least_rule,
+    info: {kind: [[video, mean], ...]}}}} of one neuron; where = {L: {page id: (pack name, page index)}}
+    (packs.json). Page p of a pack = frames [p w, (p + 1) w); the page holds BLOCKS of VIEW kr tiles."""
     out = {}
-    for name, bl in mont:
-        for b, (jj, src, bn, k, h) in enumerate(bl):
-            if jj != int(j):
-                continue
-            for L in LENGTHS:
-                c = n['clips'][src][L]
-                e = out.setdefault(src, {}).setdefault(L, {'src': f'assets/{name(L)}',
-                                                           'blocks': {}, 'least_rule': c['least_rule'],
-                                                           'n': {x: len(c[x]) for x in kinds(src)},
-                                                           'info': {x: [page_data_clip(y) for y in c[x]]
-                                                                    for x in kinds(src)}})
-                e['blocks'][bn] = b
+    for src in n['clips']:
+        for L in LENGTHS:
+            name, p = where[L][f'{key}|{int(j)}|{src}']
+            c = n['clips'][src][L]
+            blocks = {bn: i for i, bn in enumerate(BLOCKS)}
+            if c['least_rule'] == 'silent' and key in ('max', 'mean'):  # heat block blank in the page: heat = raw
+                blocks['least_heat'] = blocks['least']
+            out.setdefault(src, {})[L] = {'src': media_url(name), 'page': p, 'blocks': blocks,
+                                          'least_rule': c['least_rule'],
+                                          'n': {x: min(len(c[x]), cfg.kr) for x in kinds(src)},
+                                          'info': {x: [page_data_clip(y) for y in c[x][:cfg.kr]] for x in kinds(src)}}
     return out
 
 
 def analysis_meta(cfg, aid, r0):
     """Page metadata of one analysis (r0 = a summary.csv row of it)."""
     if cfg.dom is not MICE:
-        m = cfg.dom.analysis(aid).meta
+        m = dict(cfg.dom.analysis(aid).meta, **cfg.ameta.get(aid, {}))  # analyses.json of the run first
+        if 'confounded' in m:
+            conf = (m.get('confound') or 'recording day') if m['confounded'] else ''
+        else:
+            conf = m.get('confound', CONFOUND_FALLBACK.get(aid, ''))
+        conf = conf if isinstance(conf, str) else ''
         return {'id': aid, 'family': 'B', 'experiment': m['experiment'], 'control': int(m['control']),
-                'treatment': int(m['treatment']), 'confound': m['confound'], 'n_units': int(r0['n_units'])}
+                'treatment': int(m['treatment']), 'confound': conf, 'n_units': int(r0['n_units'])}
     return ({'id': aid, 'family': 'A', 'genotype': r0['genotype'], 'stages': stages_of(aid),
              'n_units': int(r0['n_units'])} if aid.startswith('A') else
             {'id': aid, 'family': 'B', 'stage': int(r0['stage']), 'n_units': int(r0['n_units'])})
@@ -1332,6 +1442,10 @@ def search_results(cfg, outs, analyses=None, others=None, top=False):
                                  'rob': robustness(o, oth, aid, int(prefix), window, j, words)})
                 results[f'{o["id"]}|{aid}|{int(prefix)}|{window}'] = {
                     'n_tested_total': int(h['n_tested_total'].iloc[0]), 'rows': rows}
+                rf = o['dir'] / aid / 'result.json'
+                stop = read_json(rf).get(h['setting'].iloc[0], {}).get('stopped') if rf.exists() else None
+                if stop:  # NES stopped early (no residual degrees of freedom left)
+                    results[f'{o["id"]}|{aid}|{int(prefix)}|{window}']['stopped'] = str(stop)
                 if top and cfg.view['top']:
                     results[f'{o["id"]}|{aid}|{int(prefix)}|{window}']['top'] = top_rows(cfg, o, aid, prefix, window)
     return results
@@ -1398,10 +1512,11 @@ def page_data(cfg):
         if bg:
             e['bg'] = bg
         return e
+    packs = json.loads((cfg.work / 'packs.json').read_text())
+    where = {L: {pid: (pk['name'], i) for pk in P for i, pid in enumerate(pk['pages'])} for L, P in packs.items()}
     neurons = {}
     for key in cfg.keys:
         neurons[key] = {}
-        mont = montages(cfg, key, picks)
         for j, n in picks['by_key'][key].items():
             vmax = n['max_frame'] or 1.0
             t = float(thr[key][int(j)]) if key in thr else None
@@ -1409,7 +1524,7 @@ def page_data(cfg):
                  'table': [{k: (round(v, 5) if isinstance(v, float) else v) for k, v in t_.items()} for t_ in n['table']],
                  'artefact': int(j) in cfg.artefact,
                  'heat_vmax': sig4(np.load(patch_file(cfg, key, j))['vmax']),
-                 'clips': page_clips(cfg, key, j, n, mont),
+                 'clips': page_clips(cfg, key, j, n, where),
                  'hist': dict(n['hist'], thr=t),
                  'bout_thr_bar': (round(min(t / vmax, 1.0), 4) if t is not None and vmax > 0 else None),
                  'arena': arena_of(j)}
@@ -1417,7 +1532,7 @@ def page_data(cfg):
         for k2, j in sorted(cfg.noclip):
             if k2 == key:
                 neurons[key][str(j)] = {'noclip': True, 'artefact': int(j) in cfg.artefact, 'arena': arena_of(j)}
-    # every other listed neuron (extra outcomes, top-by-p lists, packed SAEs beyond the clip budget): arena
+    # every other listed neuron (beyond the --max-pages clip budget): arena
     # map, chart and per-video panel only; 'x' = not in the historical neuron files (split_data)
     listed = {o['id']: set() for o in allo}
     for RR in [results, xres] + [v['results'] for v in subsets.values()]:
@@ -1450,7 +1565,7 @@ def page_data(cfg):
         assert (ix >= 0).all(), 'videos missing from the NES cache'
         js = sorted({str(r['neuron']) for RR in [results, xres] + [v['results'] for v in subsets.values()]
                      for k, R in RR.items() if k.startswith(o['id'] + '|') for r in R['rows']}, key=int)
-        if cfg.view['packed']:  # every neuron of the page gets every outcome's values (chart, per-video panel)
+        if cfg.view['top']:  # every neuron of the page gets every outcome's values (chart, per-video panel)
             js = sorted(set(js) | set(neurons.get(o['codes'], {})) | listed[o['id']], key=int)
         vals[o['id']] = {j: [sig4(v) for v in Y[ix, int(j)]] for j in js}
         print(f'[{cfg.tag}] page: {o["label"]}: tau recomputed from per-video values vs summary.csv, '
@@ -1470,15 +1585,15 @@ def page_data(cfg):
             ids, Y = video_outcome(cfg, o)
             ix = ids.get_indexer(vm['observation_id'].astype(str))
             vals[o['id']].update({j: [sig4(v) for v in Y[ix, int(j)]] for j in miss})
-    if cfg.sae not in MODELS:
-        raise SystemExit(f'{cfg.sae}: add it to MODELS (encoder / sae / input of the model bar)')
-    return {'sae': cfg.sae, 'tag': cfg.tag, 'model': MODELS[cfg.sae], 'rep': cfg.rep, 'outcomes': outcomes,
+    return {'sae': cfg.sae, 'tag': cfg.tag, 'model': model_of(cfg), 'rep': cfg.rep, 'outcomes': outcomes,
             'otables': otables, 'artefact': sorted(int(j) for j in cfg.artefact),
             'subsets': subsets,
             'analyses': [analyses[a] for a in cfg.order if a in analyses], 'results': results, 'neurons': neurons,
             'artefact_text': art, 'arena_note': str(ar['note']), 'videos': videos, 'vals': vals,
             'n_frames': int(sum(next(iter(picks['by_key'][cfg.keys[0]].values()))['hist']['counts']['all'])),
-            'xresults': xres, 'xids': [o['id'] for o in cfg.extras], 'packed': cfg.view['packed'],
+            'xresults': xres, 'xids': [o['id'] for o in cfg.extras],
+            'montage': {'K': K, 'kr': cfg.kr, 'cols': cfg.cols, 'tile': cfg.tile, 'crop': cfg.crop,
+                        'lengths': dict(LENGTHS)},
             'domain': cfg.dom.name, 'obs': _vt(cfg.dom)[2]}
 
 
@@ -1503,10 +1618,10 @@ def split_data(d, data_dir, inline):
     that key), ~CHUNK_BYTES each. inline: the results file whose content goes into index.html instead.
     <tag>_x.json = one bundle {results, subsets, vals: {outcome: {neuron: values}}, by: {codes key: {neuron:
     entry}}} with the extra outcomes' searches and values and the neurons not in the files above ('x'
-    entries); a packed SAE (VIEW 'packed') puts everything in its bundle (one data file)."""
-    tag, files, packed, xids = d['tag'], {}, d['packed'], set(d['xids'])
+    entries)."""
+    tag, files, xids = d['tag'], {}, set(d['xids'])
     core = {k: d[k] for k in ('sae', 'tag', 'model', 'rep', 'outcomes', 'analyses', 'artefact', 'artefact_text',
-                              'arena_note', 'n_frames')}
+                              'arena_note', 'n_frames', 'montage')}
     core['subsets'] = {name: {k: v for k, v in S.items() if k != 'results'} for name, S in d['subsets'].items()}
     core['rfiles'], core['pre'] = {}, {}
     xf, X = f'{tag}_x.json', {'results': {}, 'subsets': {}, 'vals': {}, 'by': {}}
@@ -1517,7 +1632,7 @@ def split_data(d, data_dir, inline):
              'subsets': {} if o['id'] in xids else {name: {k: v for k, v in S['results'].items() if k.startswith(pre_)}
                                                     for name, S in d['subsets'].items()}}
         f = f'{tag}_r_{o["id"]}.json'
-        if packed or o['id'] in xids:
+        if o['id'] in xids:
             X['results'].update(R['results'])
             for name, S in R['subsets'].items():
                 X['subsets'].setdefault(name, {}).update(S)
@@ -1541,7 +1656,7 @@ def split_data(d, data_dir, inline):
                 arena0 = {'rows': A['rows'], 'cols': A['cols'], 'bg': A.get('bg'),
                           'occ': q16(A['occ']) if 'occ' in A else None}
             e['arena'] = q16(A['act'])
-            if packed or isx:
+            if isx:
                 xs[j] = e
                 continue
             e['vals'] = {o['id']: d['vals'][o['id']][j] for o in d['outcomes']
@@ -1567,7 +1682,7 @@ def split_data(d, data_dir, inline):
                                        + ([f'{data_dir}/{xf}'] if xs else []),
                               'of': core['nfile'][key]}
     core['arena'] = arena0
-    if packed or xids or X['by']:
+    if xids or X['by']:
         files[xf] = X
     # every per-video value / table of the data went to some neuron file
     for o in d['outcomes']:
@@ -1590,10 +1705,10 @@ def step_page(cfgs, overwrite):
     doms = list(dict.fromkeys(c.dom.name for c in cfgs))
     data = {'default': cfgs[0].sae, 'saes': [],
             'axes': [{'key': k, 'label': lab, 'tips': {v: MODEL_TIPS.get((k, v), v) for v in
-                                                       dict.fromkeys(MODELS[d['sae']][k] for d in saes)}}
+                                                       dict.fromkeys(d['model'][k] for d in saes)}}
                      for k, lab in MODEL_AXES],
             'videos': videos, 'obs': obs,
-            'montage': {'K': K, 'cols': COLS, 'tile': TILE, 'lengths': {L: w for L, w in LENGTHS.items()}},
+            'montage': saes[0]['montage'],  # each SAE carries its own (core 'montage'); this = the default's
             'tcrit': {str(n): round(float(stats.t.ppf(0.975, n - 1)), 4) for n in range(2, 121)},
             'domains': [{'id': x, 'title': VIEW[x]['title'], 'default': next(c.sae for c in cfgs if c.dom.name == x)}
                         for x in doms],
@@ -1625,8 +1740,11 @@ def step_page(cfgs, overwrite):
 # ---------------------------------------------------------------------- step: check
 def step_check(cfgs, a):
     """index.html references the data files (assets/data/*.json); the page and the data files reference the
-    media. Every reference must exist; unreferenced files are deleted; limits: files per version, MB, a
-    file > 15 MB, index.html > --max-page-kb."""
+    media (clip packs: assets/<name>.mp4, or their asset-store URL when --asset-map maps the name). Every
+    local reference must exist; unreferenced local files are deleted. Writes <out>/publish.json: the version
+    files (index.html, data, arena backgrounds, packs not in the asset map) and the packs with their sizes and
+    asset URL (null = not uploaded). Fails on a missing file, a pack > 15 MB (version file limit; the asset
+    store takes 20 MiB), index.html > --max-page-kb, or version files over --max-version-files / --max-mb."""
     out = cfgs[0].out
     assets = out / 'assets'
     page = (out / 'index.html').read_text()
@@ -1637,59 +1755,84 @@ def step_check(cfgs, a):
     dmiss = sorted(r for r in drefs if not (out / r).exists())
     texts = [page] + [(out / r).read_text() for r in sorted(drefs) if (out / r).exists()]
     refs = {r for t in texts for r in re.findall(r'assets/[\w.\-]+\.(?:mp4|webp|png|jpg)', t)}
+    inv = {u: n for n, u in AMAP.items()}
+    mapped = {inv[u] for t in texts for u in inv if u in t}  # packs the page reads from the asset store
     missing = sorted(r for r in refs if not (out / r).exists()) + dmiss
+    missing += sorted(f'assets/{n} (mapped, local copy)' for n in mapped if not (assets / n).exists())
     files = sorted(p for p in assets.iterdir() if p.is_file())
     dfiles = sorted((assets / 'data').glob('*')) if (assets / 'data').is_dir() else []
-    unused = [p for p in files if f'assets/{p.name}' not in refs] + \
+    unused = [p for p in files if f'assets/{p.name}' not in refs and p.name not in mapped] + \
              [p for p in dfiles if f'assets/data/{p.name}' not in drefs]
     for p in unused:
         p.unlink()
     files = [p for p in files + dfiles if p not in unused]
-    total = sum(p.stat().st_size for p in files) + (out / 'index.html').stat().st_size
-    big = max(files, key=lambda p: p.stat().st_size)
+    vfiles = [p for p in files if p.name not in mapped]
+    packs = [p for p in files if p.suffix == '.mp4']
+    vbytes = sum(p.stat().st_size for p in vfiles) + (out / 'index.html').stat().st_size
+    big = max(packs, key=lambda p: p.stat().st_size) if packs else None
     n_data = sum(1 for p in files if p.parent.name == 'data')
-    print(f'check: {len(refs)} referenced media + {len(drefs)} data files, {len(missing)} missing {missing[:5]}, '
-          f'{len(unused)} unused deleted {[p.name for p in unused][:6]}')
-    print(f'check: {len(files) + 1} files to publish (index.html + {len(files) - n_data} media + {n_data} data), '
-          f'total {total / 1e6:.1f} MB, largest {big.name} {big.stat().st_size / 1e3:.0f} KB, '
-          f'page {len(page.encode()) / 1e3:.0f} KB')
+    print(f'check: {len(refs)} local media refs + {len(mapped)} asset-store packs + {len(drefs)} data files, '
+          f'{len(missing)} missing {missing[:5]}, {len(unused)} unused deleted {[p.name for p in unused][:6]}')
+    print(f'check: clip packs {len(packs)}, {sum(p.stat().st_size for p in packs) / 1e6:.1f} MB '
+          f'(largest {big.name if big else "-"} {big.stat().st_size / 1e6 if big else 0:.1f} MB); '
+          f'{len(mapped)} served from the asset store ({sum((assets / n).stat().st_size for n in mapped if (assets / n).exists()) / 1e6:.1f} MB)')
+    print(f'check: version files {len(vfiles) + 1} (index.html + {n_data} data + {len(vfiles) - n_data} media), '
+          f'{vbytes / 1e6:.1f} MB (limits {a.max_version_files} files, {a.max_mb:g} MB); page {len(page.encode()) / 1e3:.0f} KB')
     for c in cfgs:
         n = [p for p in files if p.name.startswith(c.tag + '_')]
         print(f'check: [{c.tag}] {len(n)} files, {sum(p.stat().st_size for p in n) / 1e6:.1f} MB')
-    if (missing or len(files) + 1 > a.max_version_files or total > a.max_mb * 1e6
-            or len(page.encode()) > a.max_page_kb * 1e3 or big.stat().st_size > 15e6):
+    man = {'page': 'index.html', 'page_bytes': len(page.encode()),
+           'version_files': {str(p.relative_to(out)): p.stat().st_size for p in vfiles},
+           'packs': {p.name: {'bytes': p.stat().st_size, 'asset_url': AMAP.get(p.name)} for p in packs}}
+    (out / 'publish.json').write_text(json.dumps(man, indent=1))
+    fit = len(vfiles) + 1 <= a.max_version_files and vbytes <= a.max_mb * 1e6
+    if not fit:
+        print('check: WARNING the version files do not fit one artifact version: upload the packs to the asset '
+              'store and rebuild the page with --asset-map (publish.json lists them)')
+    if missing or len(page.encode()) > a.max_page_kb * 1e3 or (big is not None and big.stat().st_size > 15e6) \
+            or (a.require_fit and not fit):
         raise SystemExit('check failed')
 
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('--res', action='append', help=f'NES result set, repeatable; first = page default '
-                    f'(default {DEFAULT_RES}); cache in <res>/_cache/explorer')
+                    f'(default: {DEFAULT_RES} + discovered ones, discover_res); cache in <res>/_cache/explorer')
     ap.add_argument('--outcome', action='append', help='LABEL=SUBDIR[:key=value,...], repeatable')
     ap.add_argument('--out', default=None, help='output dir (default <first res>/explorer)')
     ap.add_argument('--steps', default='data,patch,arena,render,page,check')
     ap.add_argument('--overwrite', action='store_true')
-    ap.add_argument('--max-files', type=int, default=480, help='budget of media files + index.html (decides '
-                    'which subgroup-only neurons get clips); the data files come on top')
-    ap.add_argument('--max-files-new', type=int, default=10, help='media budget of each packed SAE (VIEW packed: '
-                    'ants), what the mice pages leave of --max-version-files: 511 - 480 (mice media + index.html) '
-                    '- 19 (mice data files) - 2 (the ants data file and arena background)')
+    ap.add_argument('--max-pages', type=int, default=0, help='clip pages per SAE (codes key x neuron x source, '
+                    'each at every length), in clip_candidates priority order; 0 = every listed neuron')
+    ap.add_argument('--pack-mb', type=float, default=8.0, help='clip pack size (MB); packs are version files '
+                    '(<= 15 MB) or asset-store uploads (<= 20 MiB)')
+    ap.add_argument('--asset-map', default=None, help='JSON {pack name: asset URL} of packs uploaded to the '
+                    'artifact asset store; the page reads those from their URL (the rest stay version files)')
     ap.add_argument('--max-version-files', type=int, default=511, help='all published files (artifact version limit)')
     ap.add_argument('--max-page-kb', type=float, default=400, help='index.html size limit')
-    ap.add_argument('--max-mb', type=float, default=250)
-    ap.add_argument('--crf', type=int, default=30, help='H.264 quality of the montages (higher = smaller)')
+    ap.add_argument('--max-mb', type=float, default=250, help='version size limit (the artifact takes 256 MB)')
+    ap.add_argument('--require-fit', action='store_true', help='check fails when the version files do not fit')
+    ap.add_argument('--crf', type=int, default=None, help='H.264 quality of the clips (default per domain, VIEW crf)')
     a = ap.parse_args()
-    res = a.res or DEFAULT_RES
+    res = a.res or discover_res()
     r0 = (ROOT / res[0]) if not Path(res[0]).is_absolute() else Path(res[0])
     out = Path(a.out) if a.out else r0 / 'explorer'
+    if a.asset_map:
+        AMAP.update(json.loads(Path(a.asset_map).read_text()))
     cfgs = [Cfg(r, a, out) for r in res]
-    plan_budget([c for c in cfgs if not c.view['packed']], a.max_files)
-    plan_packed([c for c in cfgs if c.view['packed']], a.max_files_new)
+    tags = [c.tag for c in cfgs]
+    for c in cfgs:  # file prefixes must be unique across domains (e.g. two 'ep20' SAEs)
+        if tags.count(c.tag) > 1:
+            c.tag = f'{c.dom.name}{c.tag}'
+    plan_clips(cfgs, a.max_pages)
     for s in a.steps.split(','):
         if s == 'page':
             step_page(cfgs, a.overwrite)
         elif s == 'check':
             step_check(cfgs, a)
+        elif s == 'render':
+            for c in cfgs:
+                step_render(c, a.overwrite, a.pack_mb)
         else:
             for c in cfgs:
                 globals()[f'step_{s}'](c, a.overwrite)
