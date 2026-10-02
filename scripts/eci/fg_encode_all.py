@@ -15,6 +15,9 @@ Usage:
     python scripts/eci/fg_encode_all.py --shard 3 --n-shards 24
     python scripts/eci/fg_encode_all.py --merge --verify --delete-shards --n-shards 24
     python scripts/eci/fg_encode_all.py --domain ants --sae <ants sae> --shard 3 --n-shards 24
+    python scripts/eci/fg_encode_all.py --sae matryoshka_btk_1024_k16_fg448al_s0 --shard 3 --n-shards 24
+An SAE trained on odor-aligned tokens (checkpoint 'align' = 'odor') encodes rotated frames, with the default
+backgrounds fg448al/background; config.json records 'align'.
 """
 import argparse
 import json
@@ -32,14 +35,14 @@ from src.eci.fg_encode import encode_fg_shard, merge_fg_shards, verify_fg_codes 
 import torch  # noqa: E402
 
 from src.eci.extract import MODEL_IDS  # noqa: E402
-from src.eci.foreground import ENCODER_RESOLUTION, RULES  # noqa: E402
+from src.eci.foreground import ENCODER_RESOLUTION, RULES, align_tag  # noqa: E402
 
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--domain', default='mice', choices=DOMAINS)
     p.add_argument('--dataset-dir', default=str(REPO / 'dataset'))
-    p.add_argument('--bg-dir', default=None, help='default <dataset dir>/<domain eci dir>/fg448/background')
+    p.add_argument('--bg-dir', default=None, help="default <dataset dir>/<domain eci dir>/fg448[al]/background (SAE's align)")
     p.add_argument('--sae', default='matryoshka_btk_1024_k16_fg448_s0')
     p.add_argument('--out-dir', default=None)
     p.add_argument('--n-shards', type=int, default=24)
@@ -53,7 +56,6 @@ def main():
 
     dom = get_domain(args.domain)
     ds = Path(args.dataset_dir)
-    args.bg_dir = args.bg_dir or str(ds / dom.eci_rel / 'fg448/background')
     ann = ds / dom.ann_rel
     sae_path = ds / dom.eci_rel / 'sae' / args.sae / 'sae.pt'
     out_dir = Path(args.out_dir) if args.out_dir else ds / dom.eci_rel / 'codes' / args.sae
@@ -66,7 +68,9 @@ def main():
     rule_name, motion_delta = ck.get('fg_rule', 'fg448'), int(ck.get('motion_delta', 0) or 0)
     encoder = ck.get('encoder', 'dinov2_base')
     bg_sub = bool(ck.get('bg_sub', False))
+    align = ck.get('align', 'none')
     del ck
+    args.bg_dir = args.bg_dir or str(ds / dom.eci_rel / align_tag(align) / 'background')
     if not cfg.exists():
         enc_cfg = {} if encoder == 'dinov2_base' else {  # SAE tokens from another encoder, mask from DINOv2 448
             'encoder': encoder, 'model_id': MODEL_IDS[encoder], 'resolution': ENCODER_RESOLUTION[encoder],
@@ -86,7 +90,10 @@ def main():
             'row_order': f'dataset/{dom.ann_rel}', 'n_rows': n_rows,
             'n_shards': args.n_shards, 'shard_ranges': ranges, **enc_cfg,
             **({'sae_input': 'token - background token (rule background, same patch position and time block)',
-                'bg_sub': True} if bg_sub else {})}, indent=1))
+                'bg_sub': True} if bg_sub else {}),
+            **({'align': align, 'alignment': 'every frame rotated by a multiple of 90 degrees (lossless) before the '
+                'encoder so that the odor corner (odor_corner.csv) is at the top right; patch positions are '
+                'aligned-frame positions'} if align != 'none' else {})}, indent=1))
     if args.shard is not None:
         lo, hi = ranges[args.shard]
         print(f'shard {args.shard}/{args.n_shards}: rows [{lo}, {hi})', flush=True)

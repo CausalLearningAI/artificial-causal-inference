@@ -21,6 +21,7 @@ PREFIX = 128 Matryoshka latents enter the pair and zone features.
    Per frame also the foreground patch count per zone (zone_nfg).
      mice  2 zones per video from dataset/mice/v1/eci/odor_corner.csv (scripts/eci/mice_odor_corner.py):
            0 = near odor (patch centre within 0.5 x arena side of the arena corner on the odor-bag side), 1 = rest
+           (odor-aligned SAEs, checkpoint 'align' = 'odor': the zone maps are rotated with the frames)
      ants  3 x 3 grid of the frame (patch rows / cols 0-10, 11-21, 22-31), zone = 3 * grid row + grid col
 3. Blob measures (`blob_stats`), from the foreground mask alone: connected components of the mask on the 32 x 32
    grid, 8-connectivity (as the mask's own 3 x 3 dilation / isolation rules); a blob = a component of >= MIN_BLOB = 2
@@ -169,6 +170,9 @@ class SpatialEncoder:
         self.m = self.sae.n_latents
         self.frame_paths, self.dataset_dir = frame_paths, Path(dataset_dir)
         zm, self.zone_names = zone_maps(domain, self.run.bgs.ids, odor_csv)
+        if self.run.rot is not None:  # odor-aligned SAE: the zone maps turn with the frames (patch grid = frame grid)
+            for k, lo in enumerate(self.run.bgs.starts):
+                zm[k] = np.rot90(zm[k].reshape(GRID, GRID), int(self.run.rot[lo])).ravel()
         self.zones = torch.from_numpy(zm.astype(np.int64)).to(self.device)
         self.n_zones = len(self.zone_names)
 

@@ -17,11 +17,14 @@ Output: dataset/<domain eci dir>/fg448/background/{observation_id}.npz (mice: da
 Existing files are skipped (resumable). --domain (default mice, src/eci/domain.py) picks the
 annotations.csv and the output dir; --rule (default the domain's, src/eci/foreground.py RULES) the
 dark-pixel cue parameters (dark_abs / dark_rel / dark_frac) that exclude foreground from bg_masked.
+--align odor (mice): frames rotated so the odor corner is at the top right (src/eci/foreground.py align_rot90) before
+everything; default output fg448al/background, and each npz also holds align='odor' (default 'none': no key, unchanged).
 
 Usage:
     python scripts/eci/fg_background.py --task 0 --n-tasks 8
     python scripts/eci/fg_background.py --obs wt_ash1l_m_1_S_H,...
     python scripts/eci/fg_background.py --domain ants --task 0 --n-tasks 8
+    python scripts/eci/fg_background.py --align odor --task 0 --n-tasks 8
 """
 import argparse
 import sys
@@ -35,8 +38,8 @@ import torch
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 from src.eci.domain import DOMAINS, get_domain  # noqa: E402
-from src.eci.foreground import (RULES, FrameDatasetFG, cosine_distance, dark_fraction, dilate,  # noqa: E402
-                                encode_batch, load_encoder_fg, obs_rows, patch_background,
+from src.eci.foreground import (ALIGNS, RULES, FrameDatasetFG, align_rot90, align_tag, cosine_distance,  # noqa: E402
+                                dark_fraction, dilate, encode_batch, load_encoder_fg, obs_rows, patch_background,
                                 pixel_background)
 
 
@@ -45,7 +48,8 @@ def main():
     p.add_argument('--domain', default='mice', choices=DOMAINS)
     p.add_argument('--rule', default=None, choices=sorted(RULES), help='default: the domain rule (mice fg448)')
     p.add_argument('--dataset-dir', default=str(REPO / 'dataset'))
-    p.add_argument('--out-dir', default=None, help='default <dataset dir>/<domain eci dir>/fg448/background')
+    p.add_argument('--out-dir', default=None, help='default <dataset dir>/<domain eci dir>/fg448[al]/background')
+    p.add_argument('--align', default='none', choices=ALIGNS, help='odor: rotate frames, odor corner top right')
     p.add_argument('--n-bg', type=int, default=200)
     p.add_argument('--task', type=int, default=0)
     p.add_argument('--n-tasks', type=int, default=1)
@@ -62,9 +66,10 @@ def main():
     if rule.get('all', False):
         raise SystemExit('rule "all" keeps every patch and needs no background')
     ds = Path(args.dataset_dir)
-    out = Path(args.out_dir) if args.out_dir else ds / dom.eci_rel / 'fg448/background'
+    out = Path(args.out_dir) if args.out_dir else ds / dom.eci_rel / align_tag(args.align) / 'background'
     out.mkdir(parents=True, exist_ok=True)
     ann = ds / dom.ann_rel
+    rot_all = align_rot90(args.align, ann)
     ranges = obs_rows(ann)
     ids = sorted(ranges)
     ids = args.obs.split(',') if args.obs else ids[args.task::args.n_tasks]
@@ -86,7 +91,8 @@ def main():
     device = torch.device('cuda')
     _, processor, model = load_encoder_fg(device=device)
     loader = torch.utils.data.DataLoader(
-        FrameDatasetFG([str(ds / pth) for pth in paths_all[rows]], processor), batch_size=args.batch_size,
+        FrameDatasetFG([str(ds / pth) for pth in paths_all[rows]], processor,
+                       rot=None if rot_all is None else rot_all[rows]), batch_size=args.batch_size,
         num_workers=args.num_workers, shuffle=False, pin_memory=True, prefetch_factor=4)
 
     t0, cur, buf_t, buf_g = time.time(), 0, [], []
@@ -124,7 +130,8 @@ def main():
                  n_ok=n_ok.short().cpu().numpy(), pix_bg=pix_bg.cpu().numpy(),
                  dist_bg_median=d_med.half().cpu().numpy(), dist_bg_masked=d_msk.half().cpu().numpy(),
                  dark=dark.half().cpu().numpy(), bg_seg=bg_seg.half().cpu().numpy(),
-                 dist_bg_seg=d_seg.half().cpu().numpy(), seg_bounds=np.array([s_[0] for s_ in seg] + [args.n_bg]))
+                 dist_bg_seg=d_seg.half().cpu().numpy(), seg_bounds=np.array([s_[0] for s_ in seg] + [args.n_bg]),
+                 **({} if args.align == 'none' else {'align': np.array(args.align)}))
         tmp.rename(out / f'{o}.npz')
         print(f'  {o}: dist med {float(d_med.median()):.3f}/{float(d_msk.median()):.3f}  '
               f'dark>{rule["dark_frac"]} {float((dark > rule["dark_frac"]).float().mean()):.3f}  '

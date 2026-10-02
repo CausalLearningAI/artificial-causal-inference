@@ -17,7 +17,9 @@ token - the video's background token at the same patch and time block (FgBackgro
 computed from the raw tokens as always. 'encoder' (absent = 'dinov2_base') is the
 encoder of the SAE input tokens (src/eci/foreground.py FgEncoder: the mask always comes from DINOv2 at 448; a
 'dinov3_base' SAE encodes DINOv3 tokens of the same patches); all SAEs of one run must share it too. Frames earlier in the same batch
-or the previous batch are reused; any other earlier frame is loaded and encoded on the fly.
+or the previous batch are reused; any other earlier frame is loaded and encoded on the fly. 'align' (absent = 'none')
+is the frame alignment of the SAE's training tokens (src/eci/foreground.py align_rot90: 'odor' rotates every frame so
+the odor corner is at the top right); frames are rotated the same way here, and the backgrounds must record it.
 
 Functions:
     fg_sae_pool        (B, 1024, d) tokens + mask -> max / mean pooled codes over the mask
@@ -36,8 +38,8 @@ import numpy as np
 import pandas as pd
 import torch
 
-from src.eci.foreground import (MASK_ENCODER, RULES, FgBackgrounds, FgEncoder, FrameDatasetFG, encode_batch, obs_rows,
-                                subtract_background_tokens)
+from src.eci.foreground import (MASK_ENCODER, RULES, FgBackgrounds, FgEncoder, FrameDatasetFG, align_rot90, encode_batch,
+                                obs_rows, subtract_background_tokens)
 from src.eci.sae import load_sae
 
 FG_OUTPUTS = ('codes_max', 'codes_mean', 'n_fg')
@@ -86,8 +88,13 @@ class _Runner:
             raise ValueError(f'SAEs with different foreground rules in one run: {rules}')
         self.rule_name = rules.pop()
         self.rule = RULES[self.rule_name]
+        aligns = {ck.get('align', 'none') for _, _, ck in loaded}
+        if len(aligns) != 1:
+            raise ValueError(f'SAEs with different frame alignments in one run: {aligns}')
+        self.align = aligns.pop()
+        self.rot = align_rot90(self.align, ann_path)  # None or per-row 90-degree turns
         ranges = obs_rows(ann_path)
-        self.bgs = FgBackgrounds(bg_dir, ranges, self.rule, self.device)
+        self.bgs = FgBackgrounds(bg_dir, ranges, self.rule, self.device, align=self.align)
         self.frame_paths, self.dataset_dir = frame_paths, Path(dataset_dir)
         self._cache = {}  # row -> tokens (1024, d) of the previous batch (for motion inputs)
 
@@ -108,7 +115,8 @@ class _Runner:
             else:
                 missing.append((i, pr))
         if missing:
-            ds = FrameDatasetFG([str(self.dataset_dir / self.frame_paths[pr]) for _, pr in missing], self.processor)
+            ds = FrameDatasetFG([str(self.dataset_dir / self.frame_paths[pr]) for _, pr in missing], self.processor,
+                                rot=self.rot_of([pr for _, pr in missing]))
             pix = torch.stack([ds[j][0] for j in range(len(ds))])
             for a in range(0, len(missing), 64):
                 enc = encode_batch(self.model, pix[a:a + 64], self.device)
@@ -116,9 +124,13 @@ class _Runner:
                     out[i] = t
         return out
 
+    def rot_of(self, rows):
+        """Per-row 90-degree turns of the frames (None when not aligned)."""
+        return None if self.rot is None else self.rot[np.asarray(rows, dtype=np.int64)]
+
     def loader(self, paths, rows, batch_size, num_workers):
         return torch.utils.data.DataLoader(
-            self.fg.dataset(paths, rows), batch_size=batch_size, num_workers=num_workers,
+            self.fg.dataset(paths, rows, self.rot_of(rows)), batch_size=batch_size, num_workers=num_workers,
             shuffle=False, pin_memory=self.device.type == 'cuda', prefetch_factor=4 if num_workers > 0 else None)
 
     def batch(self, pix, grey, rows, pix2=None):

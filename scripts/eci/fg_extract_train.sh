@@ -20,6 +20,10 @@
 #   DOMAIN=ants EXTRA_ARGS="--encoder dinov3_base --out-dir dataset/ants/eci/train_tokens/dinov3_base_l-1_antsfg512_fps1" \
 #       sbatch --export=ALL --partition=gpu100 scripts/eci/fg_extract_train.sh
 #
+#   odor-aligned frames (odor corner top right; needs fg_background.sh with --align odor first), same frames and sampling:
+#   EXTRA_ARGS="--align odor" sbatch --export=ALL -p gpu scripts/eci/fg_extract_train.sh
+#     -> dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fg448al_fps1
+#
 #   motion stores (token 5 frames = 1 s earlier, prev.f16; same frames / mask as the default store), mice 208 GB, ants 21 GB:
 #   EXTRA_ARGS="--motion-delta 5 --out-dir dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fg448_fps1_d5" \
 #       sbatch --export=ALL -p gpu --mem=180G scripts/eci/fg_extract_train.sh

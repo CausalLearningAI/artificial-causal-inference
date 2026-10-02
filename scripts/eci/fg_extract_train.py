@@ -22,6 +22,9 @@ Output: dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fg448_fps1/
     --encoder dinov3_base: the mask is still computed from DINOv2 (448), so the frames and the kept patches are the
     same as for DINOv2; the stored tokens are DINOv3 ViT-B/16 patch tokens of the whole 512 px frame (32 x 32 grid,
     CLS + registers dropped). Needs --out-dir; shard.json records 'encoder' (absent = dinov2_base). No --motion-delta.
+    --align odor (mice): frames rotated so the odor corner is at the top right (src/eci/foreground.py align_rot90);
+    backgrounds default to fg448al/background (must be aligned too), output default
+    train_tokens/dinov2_base_l-1_fg448al_fps1; shard.json records 'align' (absent = none). Same frames as fg448.
 
 Usage:
     python scripts/eci/fg_extract_train.py --task 3 --n-tasks 16
@@ -30,6 +33,7 @@ Usage:
         --out-dir dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fgv3_fps1_d2
     python scripts/eci/fg_extract_train.py --domain ants --rule all --patch-frac 0.25 --task 0 --n-tasks 16 \
         --out-dir dataset/ants/eci/train_tokens/dinov2_base_l-1_all448_fps1
+    python scripts/eci/fg_extract_train.py --align odor --task 3
     python scripts/eci/fg_extract_train.py --encoder dinov3_base --task 3 \
         --out-dir dataset/mice/v1/eci/train_tokens/dinov3_base_l-1_fg512_fps1
 """
@@ -47,8 +51,8 @@ import torch
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 from src.eci.domain import DOMAINS, get_domain  # noqa: E402
-from src.eci.foreground import (ENCODERS, MASK_ENCODER, RULES, FgBackgrounds, FgEncoder,  # noqa: E402
-                                FrameDatasetFG, encode_batch, obs_rows)
+from src.eci.foreground import (ALIGNS, ENCODERS, MASK_ENCODER, RULES, FgBackgrounds, FgEncoder,  # noqa: E402
+                                FrameDatasetFG, align_rot90, align_tag, encode_batch, obs_rows)
 
 
 def fps1_rows(ranges, stride=5, seed=0):
@@ -75,9 +79,10 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--domain', default='mice', choices=DOMAINS)
     p.add_argument('--dataset-dir', default=str(REPO / 'dataset'))
-    p.add_argument('--bg-dir', default=None, help='default <dataset dir>/<domain eci dir>/fg448/background')
+    p.add_argument('--bg-dir', default=None, help='default <dataset dir>/<domain eci dir>/fg448[al]/background')
     p.add_argument('--out-dir', default=None,
-                   help='default <dataset dir>/<domain eci dir>/train_tokens/dinov2_base_l-1_fg448_fps1')
+                   help='default <dataset dir>/<domain eci dir>/train_tokens/dinov2_base_l-1_fg448[al]_fps1')
+    p.add_argument('--align', default='none', choices=ALIGNS, help='odor: rotate frames, odor corner top right')
     p.add_argument('--task', type=int, default=0)
     p.add_argument('--n-tasks', type=int, default=16)
     p.add_argument('--stride', type=int, default=5)
@@ -97,8 +102,9 @@ def main():
     dom = get_domain(args.domain)
     args.rule = args.rule or dom.fg_rule
     ds = Path(args.dataset_dir)
-    args.bg_dir = args.bg_dir or str(ds / dom.eci_rel / 'fg448/background')
-    out = Path(args.out_dir) if args.out_dir else ds / dom.eci_rel / 'train_tokens/dinov2_base_l-1_fg448_fps1'
+    tag = align_tag(args.align)
+    args.bg_dir = args.bg_dir or str(ds / dom.eci_rel / tag / 'background')
+    out = Path(args.out_dir) if args.out_dir else ds / dom.eci_rel / f'train_tokens/dinov2_base_l-1_{tag}_fps1'
     shard = out / 'shards' / f'shard_{args.task:02d}'
     if (shard / 'DONE').exists():
         print(f'[SKIP] {shard}')
@@ -110,6 +116,7 @@ def main():
 
     ann = ds / dom.ann_rel
     ranges = obs_rows(ann)
+    rot_all = align_rot90(args.align, ann)
     sel = fps1_rows(ranges, args.stride, args.seed)
     ids = sorted(ranges)[args.task::args.n_tasks][:args.max_obs]
     rows = np.concatenate([sel[o] for o in ids])
@@ -120,13 +127,14 @@ def main():
     enc = FgEncoder(args.encoder, device)
     processor, model = enc.processor, enc.model
     rule = RULES[args.rule]
-    bgs = FgBackgrounds(args.bg_dir, ranges, rule, device)
-    ds_cur = enc.dataset([str(ds / pth) for pth in paths[rows]], rows)
+    bgs = FgBackgrounds(args.bg_dir, ranges, rule, device, align=args.align)
+    ds_cur = enc.dataset([str(ds / pth) for pth in paths[rows]], rows, None if rot_all is None else rot_all[rows])
     D = args.motion_delta
     if D > 0:
         lo_of = np.concatenate([np.full(len(sel[o]), ranges[o][0]) for o in ids])
         prev_rows = np.maximum(rows - D, lo_of)
-        dset = PairDataset(ds_cur, FrameDatasetFG([str(ds / pth) for pth in paths[prev_rows]], processor))
+        dset = PairDataset(ds_cur, FrameDatasetFG([str(ds / pth) for pth in paths[prev_rows]], processor,
+                                                  rot=None if rot_all is None else rot_all[prev_rows]))
     else:
         dset = ds_cur
     loader = torch.utils.data.DataLoader(dset, batch_size=args.batch_size, num_workers=args.num_workers,
@@ -170,6 +178,8 @@ def main():
             'stride': args.stride, 'seed': args.seed}
     if args.encoder != MASK_ENCODER:
         info['encoder'] = args.encoder
+    if args.align != 'none':
+        info['align'] = args.align
     (tmp / 'shard.json').write_text(json.dumps(info, indent=1))
     if shard.exists():
         shutil.rmtree(shard)

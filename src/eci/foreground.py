@@ -56,8 +56,18 @@ per-video backgrounds above are DINOv2 quantities). The SAE tokens come from the
 -> the same 32 x 32 grid; each patch is exactly the 16 x 16 pixel block that dark_fraction pools; CLS and the 4
 register tokens are dropped). Both encoders therefore see identical foreground patches.
 
+Odor alignment (--align odor, tag 'fg448al'; mice only): every frame of a video is rotated by a multiple of 90 degrees
+(lossless, before DINOv2 and before the grey frame of the dark cue) so that the video's odor corner
+(dataset/mice/v1/eci/odor_corner.csv, scripts/eci/mice_odor_corner.py) lands at the top right of the image:
+TR 0, BR 90 degrees counter-clockwise, BL 180, TL 270. All 432 mice videos are rotations of one cage layout (the water
+spout and the wall vent land on the left wall, the bag at the top right; checked on the per-video backgrounds, no
+mirror needed). Backgrounds, masks, training tokens and codes of an aligned SAE are all computed on aligned frames
+(fg448al/background, whose npz files record align='odor'; patch positions are aligned-frame positions). 'none' (the
+default) is the unrotated pipeline, unchanged. The SAE checkpoint and the token store record 'align' (absent = none).
+
 Functions / classes:
     PATCH_PX, GRID              geometry (512 px frame, 448 input, 32 x 32 patches)
+    ALIGNS, align_rot90         frame alignment names; per annotations.csv row: number of 90-degree CCW turns
     FrameDatasetFG              frame -> (DINOv2 pixel_values, grey uint8 frame[, row][, 2nd encoder pixel_values])
     load_encoder_fg             DINOv2 on the whole frame at 448 (extract.load_encoder, no crop); DINOv3 at 512
     FgEncoder                   mask encoder (DINOv2 448) + SAE-token encoder (DINOv2 itself or DINOv3 512)
@@ -121,13 +131,57 @@ MASK_ENCODER = 'dinov2_base'
 ENCODER_RESOLUTION = {'dinov2_base': RESOLUTION, 'dinov3_base': FRAME_PX}
 ENCODERS = tuple(ENCODER_RESOLUTION)
 
+# frame alignment (module docstring): name -> per-video rotation. 'odor': np.rot90 / PIL ROTATE_90 counter-clockwise
+# turns that bring the video's odor corner to the top right.
+ALIGNS = ('none', 'odor')
+ODOR_ROT90 = {'TR': 0, 'BR': 1, 'BL': 2, 'TL': 3}
+_PIL_ROT = {1: Image.Transpose.ROTATE_90, 2: Image.Transpose.ROTATE_180, 3: Image.Transpose.ROTATE_270}
+
+
+def align_tag(align):
+    """Directory tag of the foreground pipeline: 'fg448' (none) or 'fg448al' (odor)."""
+    return {'none': 'fg448', 'odor': 'fg448al'}[align]
+
+
+def align_rot90(align, ann_path, corner_csv=None):
+    """-> None ('none') or (n_rows,) int8: 90-degree counter-clockwise turns of every annotations.csv row's frame.
+    'odor': from the odor-corner table (default <annotations dir>/eci/odor_corner.csv); every video must be in it."""
+    if align not in ALIGNS:
+        raise ValueError(f'unknown align {align!r}; known: {ALIGNS}')
+    if align == 'none':
+        return None
+    import pandas as pd
+    corner_csv = Path(corner_csv) if corner_csv else Path(ann_path).parent / 'eci' / 'odor_corner.csv'
+    if not corner_csv.exists():
+        raise FileNotFoundError(f'align odor needs the odor-corner table {corner_csv} (scripts/eci/mice_odor_corner.py)')
+    corner = pd.read_csv(corner_csv).set_index('observation_id')['odor_corner']
+    ranges = obs_rows(ann_path)
+    missing = sorted(set(ranges) - set(corner.index))
+    if missing:
+        raise RuntimeError(f'{len(missing)} videos without an odor corner, e.g. {missing[:3]}')
+    out = np.full(max(hi for _, hi in ranges.values()), -1, np.int8)
+    for o, (lo, hi) in ranges.items():
+        out[lo:hi] = ODOR_ROT90[corner[o]]
+    assert (out >= 0).all()
+    return out
+
+
+def rotate_image(image, k):
+    """PIL image turned k x 90 degrees counter-clockwise (lossless; k = 0 returns it unchanged)."""
+    k = int(k) % 4
+    return image if k == 0 else image.transpose(_PIL_ROT[k])
+
 
 class FrameDatasetFG(torch.utils.data.Dataset):
     """frame path -> (pixel_values (3, 448, 448) float32, grey (512, 512) uint8[, row][, pixel_values_2]).
-    processor2 (optional): a second encoder's processor; its pixel_values are appended last."""
+    processor2 (optional): a second encoder's processor; its pixel_values are appended last.
+    rot (optional): per path, 90-degree counter-clockwise turns applied to the frame first (align_rot90)."""
 
-    def __init__(self, paths, processor, rows=None, processor2=None):
+    def __init__(self, paths, processor, rows=None, processor2=None, rot=None):
         self.paths, self.processor, self.rows, self.processor2 = paths, processor, rows, processor2
+        self.rot = None if rot is None else np.asarray(rot)
+        if self.rot is not None and len(self.rot) != len(paths):
+            raise ValueError(f'rot has {len(self.rot)} entries for {len(paths)} paths')
 
     def __len__(self):
         return len(self.paths)
@@ -137,6 +191,8 @@ class FrameDatasetFG(torch.utils.data.Dataset):
             image = im.convert('RGB')
         if image.size != (FRAME_PX, FRAME_PX):
             raise ValueError(f'{self.paths[i]}: size {image.size}, expected {FRAME_PX}x{FRAME_PX}')
+        if self.rot is not None:
+            image = rotate_image(image, self.rot[i])
         grey = torch.from_numpy(np.asarray(image.convert('L'), dtype=np.uint8).copy())
         pix = self.processor(images=image, return_tensors='pt')['pixel_values'][0]
         out = (pix, grey) if self.rows is None else (pix, grey, int(self.rows[i]))
@@ -163,8 +219,8 @@ class FgEncoder:
         if encoder != MASK_ENCODER:
             _, self.processor2, self.model2 = load_encoder_fg(encoder, self.device)
 
-    def dataset(self, paths, rows=None):
-        return FrameDatasetFG(paths, self.processor, rows, self.processor2)
+    def dataset(self, paths, rows=None, rot=None):
+        return FrameDatasetFG(paths, self.processor, rows, self.processor2, rot)
 
     def sae_tokens(self, mask_tok, pix2=None):
         """SAE input tokens (B, 1024, d): the mask tokens, or the second encoder's tokens of pix2."""
@@ -291,7 +347,7 @@ def segment_of(rows, sample_rows, seg_bounds):
 def load_background(bg_dir, observation_id, rule=FG_RULE, device='cpu'):
     """-> dict: bg (n_seg or 1, 1024, d) float32 tensor, pix_bg (512, 512) uint8 tensor,
     thr float, rows / seg_bounds (to place frames in time blocks, see segment_of), src (bg_dir, observation_id,
-    rule) for input_background."""
+    rule) for input_background, align (the frame alignment the file was computed on, absent = 'none')."""
     z = np.load(Path(bg_dir) / f'{observation_id}.npz')
     key = rule['background']
     bg = z[key].astype(np.float32)
@@ -299,7 +355,8 @@ def load_background(bg_dir, observation_id, rule=FG_RULE, device='cpu'):
     thr = video_threshold(z[f'dist_{key}'], z['dark'], rule)
     seg_bounds = z['seg_bounds'] if key == 'bg_seg' else np.array([0, len(z['rows'])])
     return {'bg': torch.from_numpy(bg).to(device), 'pix_bg': torch.from_numpy(z['pix_bg']).to(device),
-            'thr': thr, 'rows': z['rows'], 'seg_bounds': seg_bounds, 'src': (bg_dir, observation_id, rule)}
+            'thr': thr, 'rows': z['rows'], 'seg_bounds': seg_bounds, 'src': (bg_dir, observation_id, rule),
+            'align': str(z['align']) if 'align' in z.files else 'none'}
 
 
 # fg_background.py defaults: a time block needs MIN_SEG_FRAMES frames free of the dark cue at a position (else the
@@ -370,10 +427,13 @@ class FgBackgrounds:
 
     obs_ranges: {observation_id: (lo, hi)} contiguous rows (fg_background.obs_rows).
     mask(tokens, grey, rows): foreground mask (B, 1024) for a batch of frames that may
-    span several videos (rows sorted or not)."""
+    span several videos (rows sorted or not).
+    align: the frame alignment the caller's frames have; every background file read must record the same
+    (npz 'align', absent = 'none'), else it raises (aligned frames against unaligned backgrounds or vice versa)."""
 
-    def __init__(self, bg_dir, obs_ranges, rule=FG_RULE, device='cuda', cache=4):
+    def __init__(self, bg_dir, obs_ranges, rule=FG_RULE, device='cuda', cache=4, align='none'):
         self.bg_dir, self.rule, self.device, self.cache_n = Path(bg_dir), rule, torch.device(device), cache
+        self.align = align
         items = sorted(obs_ranges.items(), key=lambda kv: kv[1][0])
         self.ids = [k for k, _ in items]
         self.starts = np.array([v[0] for _, v in items], dtype=np.int64)
@@ -384,7 +444,10 @@ class FgBackgrounds:
         if obs not in self._cache:
             if len(self._cache) >= self.cache_n:
                 self._cache.pop(next(iter(self._cache)))
-            self._cache[obs] = load_background(self.bg_dir, obs, self.rule, self.device)
+            b = load_background(self.bg_dir, obs, self.rule, self.device)
+            if b['align'] != self.align:
+                raise RuntimeError(f'{self.bg_dir}/{obs}.npz: background align {b["align"]!r}, frames {self.align!r}')
+            self._cache[obs] = b
         return self._cache[obs]
 
     def obs_index(self, rows):

@@ -19,7 +19,9 @@ Usage:
     python scripts/eci/train_sae_fg.py --domain ants --tokens-dir dataset/ants/eci/train_tokens/<store> --tag antfg448
     python scripts/eci/train_sae_fg.py --bg-sub --tag fg448bg      (input = token - background token, same store)
 A token store written with fg_extract_train.py --encoder dinov3_base (shard.json 'encoder') makes the checkpoint and
-metrics.json record 'encoder'; fg_encode.py then encodes with that encoder.
+metrics.json record 'encoder'; fg_encode.py then encodes with that encoder. A store written with --align odor
+(shard.json 'align') makes them record 'align' (fg_encode.py then rotates the frames the same way):
+    python scripts/eci/train_sae_fg.py --tokens-dir dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fg448al_fps1 --tag fg448al
 """
 import argparse
 import json
@@ -34,7 +36,7 @@ import torch
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 from src.eci.domain import DOMAINS, get_domain  # noqa: E402
-from src.eci.foreground import RULES, FgTokenStore, obs_rows, subtract_background_np  # noqa: E402
+from src.eci.foreground import RULES, FgTokenStore, align_tag, obs_rows, subtract_background_np  # noqa: E402
 from src.eci.sae import (MatryoshkaBatchTopKSAE, TokenNorm, _log_step, _train_step,  # noqa: E402
                          evaluate_sae, geometric_median, save_checkpoint)
 
@@ -146,7 +148,7 @@ def main():
     p.add_argument('--bg-sub', action='store_true',
                    help="SAE input = token - the video's background token at the same patch position and time block "
                         "(the store's foreground rule background, bg_seg; src/eci/foreground.py); same mask")
-    p.add_argument('--bg-dir', default=None, help='with --bg-sub; default <domain eci dir>/fg448/background')
+    p.add_argument('--bg-dir', default=None, help='with --bg-sub; default <domain eci dir>/fg448[al]/background')
     args = p.parse_args()
     if args.bg_sub and args.motion:
         raise SystemExit('--bg-sub and --motion together are not supported')
@@ -166,12 +168,20 @@ def main():
     store = FgTokenStore(args.tokens_dir)
     t0 = time.time()
     shard_info = store.info[0]
+    aligns = {i.get('align', 'none') for i in store.info}
+    if len(aligns) != 1:
+        raise SystemExit(f'{args.tokens_dir}: shards with different frame alignments {aligns}')
+    align = aligns.pop()
     bg = None
     if args.bg_sub:
         if 'encoder' in shard_info:
             raise SystemExit('--bg-sub needs a DINOv2 token store (the backgrounds are DINOv2 tokens)')
-        args.bg_dir = args.bg_dir or str(dom.eci_dir / 'fg448/background')
+        args.bg_dir = args.bg_dir or str(dom.eci_dir / align_tag(align) / 'background')
         bg = (args.bg_dir, obs_rows(dom.ann_path), RULES[shard_info.get('rule_name', 'fg448')])
+        bg_align = {str(np.load(f)['align']) if 'align' in np.load(f).files else 'none'
+                    for f in sorted(Path(args.bg_dir).glob('*.npz'))[:5]}
+        if bg_align != {align}:
+            raise SystemExit(f'{args.bg_dir}: background align {bg_align} != token store align {align!r}')
     train, val, val_rows, val_pos = load_split(store, is_val_row, motion=args.motion, bg=bg)
     motion_delta = int(shard_info.get('motion_delta', 0)) if args.motion else 0
     if args.motion and motion_delta <= 0:
@@ -215,6 +225,8 @@ def main():
         extra['encoder'] = shard_info['encoder']
     if args.bg_sub:  # absent = raw tokens
         extra['bg_sub'] = True
+    if align != 'none':  # frames rotated before the encoder (absent = none)
+        extra['align'] = align
     save_checkpoint(out_dir / 'sae.pt', sae, norm, extra=extra)
 
     val_t = torch.from_numpy(val[: (len(val) // 256) * 256])  # evaluate_sae groups rows by 256 (ignored)
@@ -239,6 +251,8 @@ def main():
         metrics['encoder'] = extra['encoder']
     if args.bg_sub:
         metrics['bg_sub'] = True
+    if align != 'none':
+        metrics['align'] = align
     (out_dir / 'metrics.json').write_text(json.dumps(metrics, indent=1))
     print(f'Done in {train_time:.0f}s -> {out_dir}')
 
