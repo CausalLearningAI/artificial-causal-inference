@@ -10,11 +10,12 @@ page fetches on demand (assets/data/) and writes the media they reference.
 One command, all steps, incremental (GPU needed for the patch and arena steps):
     sbatch scripts/eci/build_explorer.sh
 or directly (on a GPU node):
-    python scripts/eci/build_explorer.py            # default: mice fg448 + mice ep20 + ants antsfg SAEs
+    python scripts/eci/build_explorer.py            # default: DEFAULT_RES (mice fg448, ep20, fg448mot; ants antsfg,
+                                                    # antsfull, antsfgmot)
     python scripts/eci/build_explorer.py --res results/vision/mice/eci/nes/<sae> [--res ...]
-Without --res: DEFAULT_RES plus every other finished SAE result set under the domains' NES roots
-(discover_res), so a new SAE appears once its NES run is done (MODELS names it on the model bar, else
-model_of derives its values). The SAE is the basename of each --res; its domain (src/eci/domain.py: mice,
+Without --res: DEFAULT_RES (the representations that earned their place); --discover adds every other finished
+SAE result set under the domains' NES roots (discover_res; MODELS names it on the model bar, else model_of
+derives its values). The SAE is the basename of each --res; its domain (src/eci/domain.py: mice,
 ants) is the NES root the result set lies under, with the analysis set covering its summary.csv analyses
 (ants 'pairs': every treatment pair of an experiment). Its full per-frame codes (<domain eci dir>/codes/<sae>/), its training tokens
 (tokens_dir in the SAE's metrics.json) and, for fg448 representations, the per-video backgrounds (codes
@@ -22,23 +23,29 @@ config.json 'backgrounds') must exist. Output: <first res>/explorer/ (publish th
 checks the limits (files, MB, 0 missing / 0 unused assets).
 
 Domains: the domain word of the page title is a selector showing one domain at a time (its SAEs in the
-Model bar, its comparisons, videos and charts). Mice: stage x genotype design, families A (paired stage
+Model bar, its comparisons, videos and charts). VIEW 'keep' restricts a domain's videos (ants: v2 and v3 t=2, 6, 8):
+only the analyses whose two arms are kept are shown, and every clip ('all videos' included), histogram, firing
+rate, table and video list uses the kept videos only. Mice: stage x genotype design, families A (paired stage
 change) and B (het vs wt), gene line / sex subgroups. Ants (VIEW): one family, treated vs control videos of
 one experiment, picked with Experiment / Control / Treatment selectors over the analyses on disk (labelled
 with the raw treatment numbers, "t=2 vs t=8"), a confound note from each analysis's metadata 'confound'
 (CONFOUND_FALLBACK when missing), the recording day on every clip and the top-by-p neurons of every search
 (VIEW 'top', so comparisons without NES selections can be browsed).
 
-Outcome controls: Temporal Aggregation (event rate = bouts/min, average time = per-video mean) x Spatial
-aggregation (max pooling, average pooling, SOMP). The core outcomes (--outcome / DEFAULT_OUTCOMES) keep
-their data files; extra_outcomes adds the other poolings found in their summary.csv and the sibling result
-sets <res>_<aggregation> (<sae>_mean, <sae>_somp) as <tag>_x.json bundles (full cohort only).
+Outcome controls: Temporal Aggregation (event rate = bouts/min, average time = per-video mean, latency = seconds to
+the first bout, right-censored at the video length) x Spatial aggregation (max pooling, average pooling, SOMP). The
+core outcomes (--outcome / DEFAULT_OUTCOMES) keep their data files; extra_outcomes adds the other poolings found in
+their summary.csv, the sibling result sets <res>_<aggregation> (<sae>_mean, <sae>_somp) and the latency runs
+(<res>/<P>_latency/, scripts/eci/run_nes_latency.py; per-video values and censoring from _cache/latency*.npz) as
+<tag>_x.json bundles (full cohort only). Latency rows carry the censored videos per arm (side panel, per-video
+panel). Mask + motion SAEs carry each neuron's change share (decoder weight on the change half of the input).
 
 Data-driven: everything comes from the result sets (summary.csv files written by the NES runs); only
-the full-video window is shown. The first --outcome is the page default. Every neuron the page lists gets
-clips (clip_candidates / plan_clips; --max-pages caps them, 0 = no cap): found in any outcome's primary search
-(core or extra, prefix 128 / 1024, full window), in a top-by-p list, or only in a subgroup search; ranked by
-the codes the outcome is built from (codes_max, codes_mean, codes_somp from the <sae>_somp codes).
+the full-video window is shown. The first --outcome is the page default. Every neuron of an event-rate or
+average-time search (CLIP_KINDS) gets clips (clip_candidates / plan_clips; --max-pages caps them, 0 = no cap):
+found in such a primary search (core or extra, prefix 128 / 1024, full window), in its top-by-p list, or only in a
+subgroup search; ranked by the codes the outcome is built from (codes_max, codes_mean, codes_somp from the
+<sae>_somp codes). Latency-only neurons are listed without clips (arena map, charts, per-video values).
 
 Steps (each cached under <res>/_cache/explorer/, incremental):
     data     reads the neuron's codes on every frame (2.59 M) and, per clip length (src/eci/viz.py
@@ -73,7 +80,9 @@ Steps (each cached under <res>/_cache/explorer/, incremental):
              the neuron's shared scale) of VIEW kr tiles, cols per row (mice: 144 px whole frames, 16 per
              row; ants: 256 px full-resolution cuts around each top clip's activation peak, 8 per row). Each
              page is one cached H.264 segment (<work>/seg/), joined without re-encoding into packs of at
-             most --pack-mb MB per SAE and length: page p of a pack = frames [p w, (p + 1) w).
+             most --pack-mb MB per SAE and length: page p of a pack = frames [p w, (p + 1) w). A pack of the
+             previous build whose pages are all unchanged is kept as it is (same name = same uploaded asset);
+             only the other pages are packed anew.
              -> assets/<tag>_<L>_<md5>.mp4, <work>/packs.json
     page     core data (domains, model bar, outcomes, analyses, video list, subgroup sizes and the searches of the
              default SAE's first outcome) inlined into scripts/eci/explorer_template.html -> <out>/index.html
@@ -132,11 +141,17 @@ ANTS = get_domain('ants')  # experiments, treatments, recording days, analysis i
 TEMPLATE = ROOT / 'scripts/eci/explorer_template.html'
 DATASET = ROOT / 'dataset'
 NES = 'results/vision/mice/eci/nes'
+ANES = 'results/vision/ants/eci/nes'
+# The representations on the page (the ones that earned their place): per domain the foreground-mask SAE, the
+# full-frame SAE and the mask + motion SAE (input [token_t, token_t - token_(t-5)], scripts/eci/train_sae_fg.py
+# --motion). DINOv3 and background-subtracted SAEs are left out on purpose (they did not beat these).
 DEFAULT_RES = [f'{NES}/matryoshka_btk_1024_k16_fg448_s0', f'{NES}/matryoshka_btk_1024_k16_ep20_s0',
-               'results/vision/ants/eci/nes/matryoshka_btk_1024_k16_antsfg_s0']
-# without --res: DEFAULT_RES (first = page default) plus every other finished SAE result set found under the
-# domains' NES roots (discover_res: <root>/<sae>/summary.csv + SUMMARY.md, full codes merged, not an
-# aggregation sibling <sae>_mean / <sae>_somp), so a new SAE shows up once its NES run is done
+               f'{NES}/matryoshka_btk_1024_k16_fg448mot_s0',
+               f'{ANES}/matryoshka_btk_1024_k16_antsfg_s0', f'{ANES}/matryoshka_btk_1024_k16_antsfull_s0',
+               f'{ANES}/matryoshka_btk_1024_k16_antsfgmot_s0']
+# without --res: DEFAULT_RES (first = page default); with --discover also every other finished SAE result set
+# found under the domains' NES roots (discover_res: <root>/<sae>/summary.csv + SUMMARY.md, full codes merged,
+# not an aggregation sibling <sae>_mean / <sae>_somp)
 ARTEFACT_EP20 = {64, 50, 113}  # ep20 SAE neuron ids; other SAEs get no flags
 # Model bar of the page: SAE result set -> its value on each axis (encoder, SAE type, input), plus a
 # tooltip per value. An SAE missing here gets its values from its name and representation (model_of);
@@ -147,13 +162,18 @@ MODELS = {
     'matryoshka_btk_1024_k16_fg448_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mouse mask'},
     'matryoshka_btk_1024_k16_ep20_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'full frame'},
     'matryoshka_btk_1024_k16_antsfg_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'ants mask'},
-    'matryoshka_btk_1024_k16_antsfull_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'full frame'}}
+    'matryoshka_btk_1024_k16_antsfull_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'full frame'},
+    'matryoshka_btk_1024_k16_fg448mot_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mask + motion'},
+    'matryoshka_btk_1024_k16_antsfgmot_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mask + motion'}}
 MODEL_TIPS = {
     ('encoder', 'DINOv2'): 'DINOv2 patch features',
     ('sae', 'Matryoshka'): 'Matryoshka BatchTopK sparse autoencoder, 1024 neurons, k = 16',
     ('input', 'mouse mask'): 'Whole frame at 448 px; SAE trained on the mouse (foreground) patches only',
     ('input', 'full frame'): 'SAE trained on all patches of the frame (animals and background)',
-    ('input', 'ants mask'): 'Whole frame at 448 px; SAE trained on the ant (foreground) patches only'}
+    ('input', 'ants mask'): 'Whole frame at 448 px; SAE trained on the ant (foreground) patches only',
+    ('input', 'mask + motion'): 'Foreground patches only, as the mask SAE, but each patch is described by its token '
+                                'and its change over the last second ([token_t, token_t - token_(t-5)], 5 frames '
+                                'at 5 fps, both halves scaled equally)'}
 # Per domain: page title word, subject words of the tooltips, top-by-p list length and clip rendering.
 # top = per search, the N neurons with the smallest first-round p that NES did not select (listed on the
 # page, so comparisons where nothing is selected can still be browsed); 0 = none.
@@ -164,10 +184,14 @@ MODEL_TIPS = {
 # full source resolution (the whole 512 px frame at 144 px made the ants ~11 px long).
 # cmp_top = top-by-p neurons also get 'this comparison' clips (ants: no; with 16 treatment pairs x 2 SAEs x 6
 # outcomes that would be ~3000 extra clip pages; every listed neuron still gets its 'all videos' clips).
+# keep = {experiment: treatment values kept, None = all} restricts the domain's videos and comparisons (only the
+# analyses whose two arms are both kept; every clip, histogram, table and count uses the kept videos only);
+# None = every video. vnote = how the page names the kept video set.
 VIEW = {'mice': {'title': 'Mice', 'subject': 'mouse', 'subjects': 'mice', 'top': 0, 'cmp_top': True,
-                 'tile': 144, 'cols': 16, 'kr': 16, 'crop': None, 'crf': 30},
+                 'tile': 144, 'cols': 16, 'kr': 16, 'crop': None, 'crf': 30, 'keep': None, 'vnote': ''},
         'ants': {'title': 'Ants', 'subject': 'ant', 'subjects': 'ants', 'top': 10, 'cmp_top': False,
-                 'tile': 256, 'cols': 8, 'kr': 8, 'crop': 256, 'crf': 27}}
+                 'tile': 256, 'cols': 8, 'kr': 8, 'crop': 256, 'crf': 27, 'keep': {'v2': None, 'v3': (2, 6, 8)},
+                 'vnote': 'v2 (t=1, 2) and v3 t=2, 6, 8'}}
 # analysis metadata 'confound' missing (older result sets): these analyses keep their known confound note
 CONFOUND_FALLBACK = {'v3_2_vs_8': 'recording day: t=8 only on day C (brighter arena), t=2 only on days A/B'}
 # The page's two outcome controls. Outcome kind: event rate (bouts per minute above the threshold,
@@ -178,11 +202,21 @@ CONFOUND_FALLBACK = {'v3_2_vs_8': 'recording day: t=8 only on day C (brighter ar
 OUTCOME_KINDS = [('rate', 'event rate', 'Bouts per minute: runs of frames above the neuron\'s activity threshold '
                   '(scripts/eci/run_nes_bouts.py)'),
                  ('time', 'average time', 'Per-video mean over time of the neuron\'s frame value '
-                  '(scripts/eci/run_nes.py)')]
+                  '(scripts/eci/run_nes.py)'),
+                 ('latency', 'latency', 'Seconds from the start of the video to the neuron\'s first bout (same '
+                  'threshold as the event rate); a video without a bout gets the video length (right-censored) '
+                  '(scripts/eci/run_nes_latency.py)')]
+# Data-driven: an aggregation <id> is offered for an SAE when its NES results exist (the pooling column of the
+# SAE's own summary.csv files, or a sibling result set <sae>_<id>). A pairwise / zone aggregation is added by
+# appending its entry here once its NES result sets (<sae>_pairs, <sae>_zones) are final.
 AGGS = [('max', 'max pooling', 'Frame value = max over the frame\'s patch codes (codes_max)'),
         ('mean', 'average pooling', 'Frame value = mean over the frame\'s patch codes (codes_mean)'),
         ('somp', 'SOMP', 'Simultaneous Orthogonal Matching Pursuit over the frame\'s patch tokens')]
 CHUNK_BYTES = 200_000                 # target size of one neuron data file (assets/data/)
+# Outcome kinds whose neurons (selections and top-by-p lists) get clips. Latency neurons are listed with their arena
+# map, charts and per-video values; they show clips when another outcome's search gives them some (same codes key).
+# This keeps the clip set inside the artifact's 1 GiB asset store.
+CLIP_KINDS = ('rate', 'time')
 K = 16                                # clips picked per row (picks.json); VIEW kr of them are rendered
 BLOCKS = ('top', 'top_heat', 'least', 'least_heat')  # the blocks of one clip page, in page order
 LENGTHS = {'frame': 1, '1s': 5, '3s': 15}
@@ -193,10 +227,11 @@ PICKS_V = 5                          # picks.json entry version (5 = one top row
 STAGE_LABEL = MICE.stage_label  # 1 -> 'H,S'
 FONT = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
 FONT_B = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
-FIELDS = ('pooling', 'outcome_type', 'test', 'correction')
+FIELDS = ('pooling', 'outcome_type', 'test', 'correction', 'transform')  # string settings ('transform': latency runs)
 KNOWN = set(FIELDS) | {'analysis_id', 'family', 'genotype', 'stage', 'transition', 'prefix', 'window', 'n_units',
                         'setting', 'n_tested_total', 'n_dropped', 'round', 'neuron', 'tau', 'se', 't', 'df', 'p',
-                        'threshold', 'n_tested', 'direction', 'experiment', 'control', 'treatment', 'confound'}
+                        'threshold', 'n_tested', 'direction', 'experiment', 'control', 'treatment', 'confound',
+                        'stopped'}
 # robustness chips: (field, alternative value) -> short label, tooltip
 CHIP = {('test', 'signflip'): ('flip', 'sign-flip permutation test instead of the t-test'),
         ('correction', 'bh'): ('BH', 'Benjamini-Hochberg instead of Bonferroni'),
@@ -206,6 +241,8 @@ CHIP = {('test', 'signflip'): ('flip', 'sign-flip permutation test instead of th
         ('outcome_type', 'mean'): ('mean', 'per-video mean activation as the outcome'),
         ('window', 'matched'): ('match', 'time-matched windows across stages'),
         ('window', 'full'): ('full', 'full videos'),
+        ('transform', 'rank'): ('rank', 'latencies replaced by their ranks (censored videos tie), a Mann-Whitney-like '
+                                'test, instead of raw seconds'),
         ('prefix', 128): ('128', 'searching only the first 128 neurons'),
         ('prefix', 1024): ('1024', 'searching all 1024 neurons')}
 LINES, SEXES = MICE.subgroups['line'], MICE.subgroups['sex']
@@ -251,10 +288,16 @@ def domain_of(res):
     raise SystemExit(f'{res}: not under a domain NES root ({MICE.nes_root}, {ANTS.nes_root})')
 
 
-def discover_res():
-    """DEFAULT_RES, then every other finished SAE result set under the domains' NES roots (summary.csv and
-    SUMMARY.md written, full codes merged; not an aggregation sibling <sae>_<agg>), sorted per domain."""
-    out = [str((ROOT / r).resolve()) for r in DEFAULT_RES if (ROOT / r / 'summary.csv').exists()]
+def discover_res(discover=False):
+    """DEFAULT_RES (those with a summary.csv); discover: then every other finished SAE result set under the
+    domains' NES roots (summary.csv and SUMMARY.md written, full codes merged; not an aggregation sibling
+    <sae>_<agg>), sorted per domain."""
+    out = [str((ROOT / r).resolve()) for r in DEFAULT_RES if (rdir_of(ROOT / r) / 'summary.csv').exists()]
+    for r in DEFAULT_RES:
+        if not (rdir_of(ROOT / r) / 'summary.csv').exists():
+            print(f'WARNING: default result set {r} has no summary.csv: left out')
+    if not discover:
+        return out
     aggs = tuple(f'_{g}' for g, _, _ in AGGS)
     for d in (MICE, ANTS):
         for r in sorted(p for p in d.nes_root.glob('*') if p.is_dir()):
@@ -263,6 +306,29 @@ def discover_res():
                 continue
             out.append(str(r.resolve()))
             print(f'discovered result set {r}')
+    return out
+
+
+def keep_mask(view, df):
+    """(len(df),) bool: rows (videos or frames, columns experiment and T) of the kept videos (VIEW 'keep')."""
+    k = view['keep']
+    if k is None:
+        return np.ones(len(df), bool)
+    e, t = df['experiment'].astype(str).values, df['T'].astype(int).values
+    return np.array([x in k and (k[x] is None or int(v) in k[x]) for x, v in zip(e, t)], bool)
+
+
+def kept_analyses(dom, view):
+    """The domain's analysis ids whose control and treatment videos are both kept (VIEW 'keep'), in order."""
+    ids = dom.analysis_ids()
+    if view['keep'] is None:
+        return ids
+    out = []
+    for aid in ids:
+        m = dom.analysis(aid).meta
+        arms = pd.DataFrame({'experiment': [m['experiment']] * 2, 'T': [m['control'], m['treatment']]})
+        if keep_mask(view, arms).all():
+            out.append(aid)
     return out
 
 
@@ -309,8 +375,9 @@ def extra_outcomes(cfg):
         if not d.is_dir():
             continue
         rd = rdir_of(d)
-        for s in sorted(rd.glob('summary.csv')) + sorted(p for p in rd.glob('*/summary.csv') if p.parent.name != 'pairs'):
-            t = pd.read_csv(s)
+        for s in sorted(rd.glob('summary.csv')) + sorted(p for p in rd.glob('*/summary.csv') if p.parent.name != 'pairs'
+                                                         and not p.parent.name.endswith('_latency')):
+            t = cfg.trim(pd.read_csv(s))
             for kind, ot in (('rate', 'bout_rate'), ('time', 'mean')):
                 g = t[t['outcome_type'] == ot]
                 if (kind, agg) in have or not len(g) or (kind == 'time' and s.parent != rd):
@@ -330,6 +397,29 @@ def extra_outcomes(cfg):
                             'unit': 'bouts/min' if kind == 'rate' else 'activation', 'short': name,
                             'id': f'x{kind}{agg}'})
                 have.add((kind, agg))
+    # latency to the first bout (scripts/eci/run_nes_latency.py): <rdir>/<P>_latency/ of the result set itself
+    # (P = its frame pooling: maxpool_latency = max, meanpool_latency = mean) and of the aggregation siblings
+    # <sae>_<agg> (agg = that sibling's aggregation); per-video values from <_cache>/latency[_<P>].npz
+    for agg0, d in [(None, cfg.res)] + [(g, cfg.res.parent / f'{cfg.res.name}_{g}') for g in agg_ids]:
+        if not d.is_dir():
+            continue
+        for s in sorted(rdir_of(d).glob('*_latency/summary.csv')):
+            P = {'maxpool': 'max', 'meanpool': 'mean'}.get(s.parent.name[:-len('_latency')], s.parent.name[:-len('_latency')])
+            agg = agg0 or P
+            if ('latency', agg) in have:
+                continue
+            t = cfg.trim(pd.read_csv(s))
+            try:
+                prim = default_primary(t, {'pooling': P, 'outcome_type': 'latency', 'threshold_q': '0.95'})
+            except SystemExit as e:
+                print(f'[{cfg.tag}] WARNING: {s} not used: {e}')
+                continue
+            lf = d / '_cache' / ('latency.npz' if P == 'max' else f'latency_{P}.npz')
+            name = 'SOMP' if agg == 'somp' else f'{agg}-pool'
+            out.append({'label': f'Latency to first bout ({name})', 'dir': s.parent, 'tidy': t, 'primary': prim,
+                        'codes': agg, 'pool': P, 'kind': 'latency', 'agg': agg, 'extra': True, 'cache': d / '_cache',
+                        'lfile': lf.name, 'unit': 's', 'short': 'latency', 'id': f'xlatency{agg}'})
+            have.add(('latency', agg))
     for o in out:
         print(f'[{cfg.tag}] extra outcome {o["label"]!r} ({o["kind"]} x {o["agg"]}): {o["dir"]} primary {o["primary"]}')
     return out
@@ -345,7 +435,10 @@ class Cfg:
         self.dom = domain_of(self.res)
         self.view = VIEW[self.dom.name]
         self.vdom = None if self.dom is MICE else self.dom  # src/eci/viz.py domain argument (None = mice v1)
-        self.order = self.dom.analysis_ids()
+        self.order = kept_analyses(self.dom, self.view)  # the analyses shown (VIEW 'keep'); others are dropped
+        dropped = [x for x in self.dom.analysis_ids() if x not in self.order]
+        if dropped:
+            print(f'[{self.sae}] analyses left out (VIEW keep {self.view["keep"]}): {dropped}')
         self.out = out
         self.assets = out / 'assets'
         self.work = self.res / '_cache' / 'explorer'
@@ -359,7 +452,7 @@ class Cfg:
             d = (self.rdir / sub).resolve()
             if not (d / 'summary.csv').exists():
                 raise SystemExit(f'{d}/summary.csv missing (outcome {label!r})')
-            tidy = pd.read_csv(d / 'summary.csv')
+            tidy = self.trim(pd.read_csv(d / 'summary.csv'))
             kv = dict(x.split('=', 1) for x in opts.split(',') if x)
             meta = {k: kv.pop(k) for k in ('codes', 'unit', 'short') if k in kv}
             prim = default_primary(tidy, kv)
@@ -386,7 +479,7 @@ class Cfg:
             for o in self.outcomes:
                 d = self.res / 'subsets' / name / o['dir'].relative_to(self.res)
                 if (d / 'summary.csv').exists():
-                    outs.append({**o, 'dir': d, 'tidy': pd.read_csv(d / 'summary.csv')})
+                    outs.append({**o, 'dir': d, 'tidy': self.trim(pd.read_csv(d / 'summary.csv'))})
             if len(outs) == len(self.outcomes):
                 self.subsets[name] = outs
             elif outs:
@@ -401,6 +494,10 @@ class Cfg:
         self.crf = a.crf if a.crf is not None else self.view['crf']
         self.tile, self.cols, self.kr, self.crop = (self.view[k] for k in ('tile', 'cols', 'kr', 'crop'))
         print(f'[{self.tag}] SAE {self.sae}: representation {self.rep}, artefact flags {sorted(self.artefact)}')
+
+    def trim(self, t):
+        """summary.csv rows of the analyses shown (self.order)."""
+        return t[t['analysis_id'].astype(str).isin(self.order)].reset_index(drop=True)
 
 
 def extra_cols(tidy):
@@ -419,6 +516,8 @@ def default_primary(tidy, kv):
         else:
             raise SystemExit(f'ambiguous primary: pass pooling=..,outcome_type=..; options {combos}')
     prim.update(pooling=kv.pop('pooling'), outcome_type=kv.pop('outcome_type'))
+    if 'transform' in tidy.columns:  # latency runs: raw seconds are the primary, ranks a sensitivity
+        prim['transform'] = kv.pop('transform', 'none')
     sub = tidy[match(tidy, prim)]
     for c in extra_cols(tidy):
         vals = sorted(sub[c].dropna().unique())
@@ -479,14 +578,34 @@ def bout_rates(cfg, o, window='full', fps=5.0):
     return _rates[k]
 
 
+def is_latency(o):
+    return o['primary']['outcome_type'] == 'latency'
+
+
+def latency_frames(o):
+    """(Index of observation_id, (n_obs, m) first-bout frame index in the full video (= its length when no bout),
+    (n_obs,) video length in frames) from the latency run's cache (scripts/eci/run_nes_latency.py)."""
+    k = ('lat', str(o['cache'] / o['lfile']), o['primary']['threshold_q'])
+    if k not in _rates:
+        f = np.load(o['cache'] / o['lfile'])
+        _rates[k] = (pd.Index(f['observation_id'].astype(str)), f[f'full__{o["primary"]["threshold_q"]:.2f}'],
+                     f['nf__full'])
+    return _rates[k]
+
+
 def video_outcome(cfg, o):
     """(Index of observation_id, (n_obs, m)) per-video value of the tested outcome, full videos, as the
-    NES runs computed it: bouts/min, or the per-video mean of codes_<pooling> (from the outcome's result
-    set _cache). Extra outcomes whose cache file is missing -> None (page: no per-video values)."""
-    f = o['cache'] / (o.get('bfile', f'bout_summaries_{o["pool"]}.npz') if is_bout(o) else f'video_summaries_{o["pool"]}.npz')
+    NES runs computed it: bouts/min, the per-video mean of codes_<pooling>, or the latency to the first bout in
+    seconds (from the outcome's result set _cache). Extra outcomes whose cache file is missing -> None (page: no
+    per-video values)."""
+    f = o['cache'] / (o.get('bfile', f'bout_summaries_{o["pool"]}.npz') if is_bout(o) else o['lfile'] if is_latency(o)
+                      else f'video_summaries_{o["pool"]}.npz')
     if o['extra'] and not f.exists():
         print(f'[{cfg.tag}] WARNING: {f} missing: no per-video values for {o["label"]!r}')
         return None
+    if is_latency(o):
+        ids, lat, _ = latency_frames(o)
+        return ids, lat / cfg.dom.fps
     if is_bout(o):
         return bout_rates(cfg, o, 'full')
     if o['primary']['outcome_type'] != 'mean':
@@ -551,14 +670,15 @@ def clip_candidates(cfg):
     in), then the top-by-p lists rank 1 of every list, rank 2, ..., each with its contrast, then the
     subgroup-only neurons (most round-1 subgroup hits, then best p)."""
     sel = {}  # (codes key, neuron) -> (best p, contrasts)
-    for o in cfg.outcomes + cfg.extras:
+    clip_outs = [o for o in cfg.outcomes + cfg.extras if o['kind'] in CLIP_KINDS]
+    for o in clip_outs:
         p = primary_rows(o).dropna(subset=['neuron'])
         for aid, j, pv in zip(p['analysis_id'], p['neuron'].astype(int), p['p']):
             b, st = sel.get((o['codes'], int(j)), (1.0, set()))
             sel[(o['codes'], int(j))] = (min(b, float(pv)), st | {aid})
     seq = [(k, j, st) for (k, j), (b, st) in sorted(sel.items(), key=lambda x: (x[1][0], x[0]))]
     lists = [[(o['codes'], j, {aid} if cfg.view['cmp_top'] else set()) for j in L]
-             for o in cfg.outcomes + cfg.extras for (aid, _, _), L in
+             for o in clip_outs for (aid, _, _), L in
              sorted(top_lists(cfg, o).items(), key=lambda x: (cfg.order.index(x[0][0]), -x[0][1]))]
     seq += [L[r] for r in range(max(map(len, lists), default=0)) for L in lists if r < len(L)]
     hits = subgroup_hits(cfg)
@@ -741,7 +861,11 @@ def step_data(cfg, overwrite):
     # keep only what is wanted now (drops stale entries, e.g. an older outcome's codes key)
     res['by_key'] = {k: {j: v for j, v in res.get('by_key', {}).get(k, {}).items() if int(j) in want[k]}
                      for k in cfg.keys}
+    # vset: the kept video set (VIEW 'keep') the entry was picked among (None = every video, the mice entries)
+    vset = None if cfg.view['keep'] is None else json.dumps({e: (sorted(t) if t else None)
+                                                             for e, t in sorted(cfg.view['keep'].items())})
     missing = {k: sorted(j for j, aids in v.items() if res['by_key'][k].get(str(j), {}).get('v') != PICKS_V
+                         or res['by_key'][k][str(j)].get('vset') != vset
                          or sorted(res['by_key'][k][str(j)]['clips']) != sorted(['all'] + aids))
                for k, v in want.items()}
     if not any(missing.values()):
@@ -755,7 +879,9 @@ def step_data(cfg, overwrite):
     meta = src.meta
     fp = meta['frame_path'].values
     g0, g1 = GROUP_COLS[cfg.dom.name]  # histogram groups: 'genotype|stage' (mice), 'experiment|T' (ants)
-    gkeys = sorted({f'{g}|{int(s)}' for g, s in zip(meta[g0], meta[g1])})
+    # frames of the kept videos (VIEW 'keep'): histogram, firing rate, bar scale and tables use only these
+    fkeep = keep_mask(cfg.view, meta) if cfg.view['keep'] is not None else slice(None)
+    gkeys = sorted({f'{g}|{int(s)}' for g, s in zip(meta[g0][fkeep], meta[g1][fkeep])})
     gid = pd.Index(gkeys).get_indexer(meta[g0].astype(str) + '|' + meta[g1].astype(int).astype(str))
     obs, fidx = meta['observation_id'].values, meta['frame_idx'].values
     if cfg.dom is MICE:
@@ -777,6 +903,10 @@ def step_data(cfg, overwrite):
             ws.neurons = neurons  # column i of X is neuron neurons[i] (seeds use the neuron id)
         vids = next(iter(wss.values())).videos
         vmean = np.stack([X[lo:hi].mean(0) for lo, hi in zip(vids['lo'], vids['hi'])])
+        # 'all videos' clips: among the kept videos only (every video for mice)
+        vkeep = keep_mask(cfg.view, vids) if cfg.view['keep'] is not None else np.ones(len(vids), bool)
+        wall = {w: (ws if vkeep.all() else subset_windows(ws, vkeep)) for w, ws in wss.items()}
+        kobs = set(vids['observation_id'][vkeep])
         store = res['by_key'].setdefault(key, {})
         for i, j in enumerate(miss):
             def clip(start, w):
@@ -793,10 +923,11 @@ def step_data(cfg, overwrite):
             for aid in want[key][j]:
                 clips[aid] = {}
             for L, w in LENGTHS.items():
-                ts, _ = pick_top_windows(wss[w], i, K)
-                ls, rule = pick_least_windows(wss[w], i, K, seed=0)
+                ts, _ = pick_top_windows(wall[w], i, K)
+                ls, rule = pick_least_windows(wall[w], i, K, seed=0)
                 clips['all'][L] = {'top': [clip(s, w) for s in ts], 'least': [clip(s, w) for s in ls],
                                    'least_rule': rule}
+                assert all(x['obs'] in kobs for k in ('top', 'least') for x in clips['all'][L][k])
                 for aid in want[key][j]:  # the same rules, among the videos of that contrast only
                     m0, m1 = contrast_groups(cfg, aid, vids)
                     ts, _ = pick_top_windows(subset_windows(wss[w], m0 | m1), i, K)  # one row: both groups
@@ -811,15 +942,16 @@ def step_data(cfg, overwrite):
                     assert all(len({x['obs'] for x in c[k]}) == len(c[k]) for k in kinds(sname))
                     if c['least_rule'] == 'silent':
                         assert all(max(x['trace']) == 0 for x in c['least'])
-            edges, counts = activation_hist(X[:, i], gid, len(gkeys))
+            xi = X[fkeep, i]
+            edges, counts = activation_hist(xi, gid[fkeep], len(gkeys))
             if cfg.dom is MICE:
                 tab = stage_genotype_table(SimpleNamespace(videos=vids, video_mean=vmean), i).to_dict('records')
             else:
-                tab = group_table(vids, vmean[:, i])
+                tab = group_table(vids[vkeep], vmean[vkeep, i])
             store[str(j)] = {
-                'v': PICKS_V, 'clips': clips,
-                'firing_rate': float((X[:, i] > 0).mean()),
-                'max_frame': float(X[:, i].max()),
+                'v': PICKS_V, 'vset': vset, 'clips': clips,
+                'firing_rate': float((xi > 0).mean()),
+                'max_frame': float(xi.max()),
                 'hist': {'edges': [float(f'{e:.5g}') for e in edges],
                          'counts': dict({'all': [int(c) for c in counts.sum(0)]},
                                         **{g: [int(c) for c in counts[k]] for k, g in enumerate(gkeys)})},
@@ -853,6 +985,80 @@ def clip_rows(n, kr=K):
             for L, c in cs.items() for kind in kinds(src)}
 
 
+def motion_delta(cfg):
+    """D of a mask + motion SAE (SAE input [token_t, token_t - token_(t-D)], checkpoint 'motion_delta'), else 0."""
+    k = f'md_{cfg.sae}'
+    if k not in _rates:
+        import torch
+        ck = torch.load(cfg.dom.eci_dir / 'sae' / cfg.sae / 'sae.pt', map_location='cpu', weights_only=False)
+        _rates[k] = int(ck.get('motion_delta', 0) or 0)
+    return _rates[k]
+
+
+def change_share(cfg):
+    """Mask + motion SAE: per neuron, the share of its decoder row's squared norm on the 'change' half of the input
+    ([token_t, token_t - token_(t-D)], both halves scaled equally by the SAE's block norm), in [0, 1]; None for
+    other SAEs. 0 = the neuron reconstructs only the static token, 1 = only the change."""
+    if not motion_delta(cfg):
+        return None
+    from src.eci.sae import load_sae
+    sae, _, _ = load_sae(cfg.dom.eci_dir / 'sae' / cfg.sae / 'sae.pt', 'cpu')
+    W = sae.W_dec.detach().double().numpy()
+    d = W.shape[1] // 2
+    return (W[:, d:] ** 2).sum(1) / (W ** 2).sum(1)
+
+
+class PatchEncoderMotion:
+    """Per-patch codes of a mask + motion SAE (fg448 geometry): as src/eci/viz.py PatchEncoderFG, but the SAE input
+    of a foreground patch is [token_t, token_t - token_(t-D)] (the same patch D rows earlier in the same video,
+    clipped to its first frame), exactly as src/eci/fg_encode.py encodes the full codes (its _Runner)."""
+
+    rep = 'fg448'
+
+    def __init__(self, cfg):
+        from src.eci.fg_encode import _Runner
+        from src.eci.foreground import GRID
+        cc = json.loads((cfg.dom.eci_dir / 'codes' / cfg.sae / 'config.json').read_text())
+        fp = pd.read_csv(cfg.dom.ann_path, usecols=['frame_path'])['frame_path'].values
+        self.run = _Runner([cfg.dom.eci_dir / 'sae' / cfg.sae / 'sae.pt'], cc['backgrounds'], cfg.dom.ann_path,
+                           'cuda', fp, DATASET)
+        self.D, self.grid = self.run.deltas[0], GRID
+        assert self.D > 0, f'{cfg.sae}: not a motion SAE'
+
+    def patch_codes(self, paths, neurons, rows, batch_size=32, num_workers=8, return_mask=False):
+        """paths / rows: the frames (annotations.csv rows). Each frame is loaded next to its frame D rows earlier
+        (same video, clipped to its first row; src/eci/fg_encode.py _Runner._prev_tokens), both through the
+        DataLoader workers."""
+        import torch
+        from src.eci.foreground import encode_batch
+        run, (sae, norm) = self.run, self.run.saes[0]
+        rows = np.asarray(rows)
+        prow = np.maximum(rows - self.D, run.bgs.starts[run.bgs.obs_index(rows)])
+        pp = [str(DATASET / run.frame_paths[int(x)]) for x in prow]
+        two = [x for pair in zip(list(paths), pp) for x in pair]  # frame, its earlier frame, frame, ...
+        two_rows = np.stack([rows, prow], 1).reshape(-1)
+        nsel = torch.as_tensor(np.asarray(neurons), device=run.device)
+        out, masks = [], []
+        with torch.no_grad():
+            for pix, grey, r, *pix2 in run.loader(two, two_rows, 2 * batch_size, num_workers):
+                assert not pix2, 'motion SAEs take DINOv2 tokens (the mask encoder) only'
+                r = r.numpy()[0::2]
+                tok2 = encode_batch(run.model, pix, run.device)
+                tok, prev = tok2[0::2], tok2[1::2]
+                mask, _ = run.bgs.mask(tok, grey[0::2].to(run.device), r)
+                B, P, _ = tok.shape
+                fi, pi = torch.nonzero(mask, as_tuple=True)
+                x = tok[fi, pi]
+                x = torch.cat([x, (x.float() - prev[fi, pi].float()).half()], 1)
+                z = sae.encode(norm(x), mode='threshold')[:, nsel]
+                full = torch.zeros(B, P, len(nsel), device=run.device)
+                full[fi, pi] = z
+                out.append(full.view(B, self.grid, self.grid, -1).cpu().numpy())
+                masks.append(mask.view(B, self.grid, self.grid).cpu().numpy())
+        pc = np.concatenate(out)
+        return (pc, np.concatenate(masks)) if return_mask else pc
+
+
 def step_patch(cfg, overwrite, chunk=6):
     picks = json.loads((cfg.work / 'picks.json').read_text())
     (cfg.work / 'patch').mkdir(parents=True, exist_ok=True)
@@ -872,7 +1078,7 @@ def step_patch(cfg, overwrite, chunk=6):
     print(f'[{cfg.tag}] patch: {len(todo)} neurons, '
           f'{sum(len(set(r for v in rr.values() for r in v)) for _, _, rr, _ in todo)} frame-neuron pairs '
           f'through DINOv2 + SAE ({cfg.rep})', flush=True)
-    pe = make_patch_encoder(cfg.sae, dataset_dir=DATASET, domain=cfg.vdom)
+    pe = PatchEncoderMotion(cfg) if motion_delta(cfg) else make_patch_encoder(cfg.sae, dataset_dir=DATASET, domain=cfg.vdom)
     codes = load_full_codes(cfg.sae, DATASET, ROOT / 'data', domain=cfg.vdom).codes
     worst, mism, npair = {}, {}, 0
     for c0 in range(0, len(todo), chunk):
@@ -934,14 +1140,20 @@ def step_arena(cfg, overwrite):
                 cfg.sae, DATASET, ROOT / 'data', domain=cfg.vdom).codes['max']
             from src.eci.foreground import GRID, FgTokenStore
             st = FgTokenStore(tokens_dir)
+            D = motion_delta(cfg)  # mask + motion SAE: input [token, token - the same patch D frames earlier]
+            if D and int(st.info[0].get('motion_delta', 0) or 0) != D:
+                raise SystemExit(f'{tokens_dir}: token store motion_delta {st.info[0].get("motion_delta")} != SAE {D}')
             P, n_frames = GRID * GRID, int(sum(i['n_frames'] for i in st.info))
             S = torch.zeros(P, sae.n_latents, dtype=torch.float64, device=dev)
             occ = torch.zeros(P, dtype=torch.float64, device=dev)
             for s in range(len(st.dirs)):
                 tok, pos, row = st.tokens(s), torch.from_numpy(st.pos(s).astype(np.int64)), st.row(s)
+                prv = st.prev(s) if D else None
                 for a in range(0, len(pos), 250_000):
                     with torch.no_grad():
                         x = torch.from_numpy(np.array(tok[a:a + 250_000])).to(dev)
+                        if D:  # as scripts/eci/train_sae_fg.py load_split (float32 difference rounded to fp16)
+                            x = torch.cat([x, (x.float() - torch.from_numpy(np.array(prv[a:a + 250_000])).to(dev).float()).half()], 1)
                         z = sae.encode(norm(x), mode='threshold')
                         p = pos[a:a + 250_000].to(dev)
                         S.index_add_(0, p, z.double())
@@ -1177,10 +1389,23 @@ def step_render(cfg, overwrite, pack_mb=8.0):
                     print(f'[{cfg.tag}] render: {i + 1}/{len(tasks)}', flush=True)
     else:
         print(f'[{cfg.tag}] render: segments cached ({sum(len(v) for v in segs.values())})')
-    packs = {}
+    # Sticky packing: a pack of the previous build (<work>/packs.json) whose pages all still exist with the same
+    # content (pack name = md5 of its member segments, recomputed from the current segments) is kept as it is, so
+    # its uploaded asset stays valid; only the other pages are packed anew (page_list order).
+    pf_ = cfg.work / 'packs.json'
+    old = json.loads(pf_.read_text()) if pf_.exists() and not overwrite else {}
+    packs, kept = {}, 0
     for L, ss in segs.items():
-        groups, cur, size = [], [], 0
-        for x in ss:
+        byp = {pid: (pid, h, out) for pid, h, out in ss}
+        reuse = []
+        for pk in old.get(L, []):
+            g = [byp.get(pid) for pid in pk['pages']]
+            if all(g) and pack_name(cfg, L, [h for _, h, _ in g]) == pk['name']:
+                reuse.append(g)
+        used = {pid for g in reuse for pid, _, _ in g}
+        kept += len(reuse)
+        groups, cur, size = list(reuse), [], 0
+        for x in (x for x in ss if x[0] not in used):
             b = x[2].stat().st_size
             if cur and size + b > pack_mb * 1e6:
                 groups.append(cur)
@@ -1207,8 +1432,8 @@ def step_render(cfg, overwrite, pack_mb=8.0):
                 tmp.rename(out)
                 lst.unlink()
             packs[L].append({'name': name, 'pages': [pid for pid, _, _ in g]})
-        print(f'[{cfg.tag}] render: {L}: {len(ss)} pages in {len(groups)} packs, '
-              f'{sum((cfg.assets / p["name"]).stat().st_size for p in packs[L]) / 1e6:.1f} MB')
+        print(f'[{cfg.tag}] render: {L}: {len(ss)} pages in {len(groups)} packs ({len(reuse)} kept from the previous '
+              f'build), {sum((cfg.assets / p["name"]).stat().st_size for p in packs[L]) / 1e6:.1f} MB')
     (cfg.work / 'packs.json').write_text(json.dumps(packs))
 
 
@@ -1233,6 +1458,8 @@ def robustness(o, others, aid, prefix, window, neuron, words=('mouse', 'mice')):
     base = dict(o['primary'], window=window, prefix=prefix)
     alts = []
     for f in list(FIELDS) + extra_cols(t) + ['window']:
+        if f not in t.columns:
+            continue
         if f in KNOWN:
             alts += [(f, v) for v in sorted(t[f].astype(str).unique()) if v != str(base.get(f))]
         else:
@@ -1343,7 +1570,8 @@ def video_table():
 def video_table_ants():
     """Ants video list (experiment.csv order): [[experiment, T, recording day, batch, position] ...],
     [[observation id, 'day <d>'] ...], {observation_id: index}."""
-    vm = ANTS.video_meta().reset_index(drop=True)
+    vm = ANTS.video_meta()
+    vm = vm[keep_mask(VIEW['ants'], vm)].reset_index(drop=True)  # the kept videos only (VIEW 'keep')
     vm['day'] = [day_label(str(d)) for d in vm['recording_date']]
     videos = [[str(e), int(t), d, str(b), int(p)] for e, t, d, b, p in zip(vm['experiment'], vm['T'], vm['day'],
                                                                           vm['batch'], vm['position'])]
@@ -1415,6 +1643,31 @@ def analysis_meta(cfg, aid, r0):
             {'id': aid, 'family': 'B', 'stage': int(r0['stage']), 'n_units': int(r0['n_units'])})
 
 
+def censored_arms(cfg, o, aid):
+    """Latency outcome o, analysis aid: ((n_videos, m) bool censored (no bout in the video: latency = its length)
+    over the page's video list, [(arm label, (n_videos,) mask)] of the two arms (ants: control / treated videos;
+    mice A: that genotype's videos of stage a / stage b; B: het / wt videos of that stage)."""
+    vm = _vt(cfg.dom)[0]
+    ids, lat, nf = latency_frames(o)
+    ix = ids.get_indexer(vm['observation_id'].astype(str))
+    assert (ix >= 0).all(), 'videos missing from the latency cache'
+    cz = lat[ix] >= nf[ix][:, None]
+    m0, m1 = contrast_groups(cfg, aid, vm)
+    an = cfg.dom.analysis(aid)
+    if cfg.dom is not MICE:
+        labs = (f't={an.meta["control"]}', f't={an.meta["treatment"]}')
+    elif an.family == 'A':
+        labs = tuple(f'stage {x}' for x in an.stages)
+    else:
+        labs = ('het', 'wt')
+    return cz, [(labs[0], m0), (labs[1], m1)]
+
+
+def cens_of(cz, arms, j):
+    """[[arm label, censored videos, videos], ...] of neuron j."""
+    return [[lab, int(cz[m, int(j)].sum()), int(m.sum())] for lab, m in arms]
+
+
 def search_results(cfg, outs, analyses=None, others=None, top=False):
     """{'<outcome id>|<aid>|<prefix>|<window>': {n_tested_total, rows[, top]}} of the primary searches of
     one result set (full cohort or one subgroup); analyses (dict, filled) gets the per-analysis metadata.
@@ -1435,11 +1688,14 @@ def search_results(cfg, outs, analyses=None, others=None, top=False):
                 analyses[aid] = analysis_meta(cfg, aid, r0)
             for (prefix, window), h in g.groupby(['prefix', 'window']):
                 rows = []
+                cz = censored_arms(cfg, o, aid) if is_latency(o) else None
                 for _, r in h.dropna(subset=['neuron']).sort_values('round').iterrows():
                     j = int(r['neuron'])
                     rows.append({'round': int(r['round']), 'neuron': j, 'tau': float(r['tau']), 'p': float(r['p']),
                                  'threshold': float(r['threshold']), 'n_tested': int(r['n_tested']),
                                  'rob': robustness(o, oth, aid, int(prefix), window, j, words)})
+                    if cz is not None:  # latency: censored videos per arm (side panel)
+                        rows[-1]['cens'] = cens_of(*cz, j)
                 results[f'{o["id"]}|{aid}|{int(prefix)}|{window}'] = {
                     'n_tested_total': int(h['n_tested_total'].iloc[0]), 'rows': rows}
                 rf = o['dir'] / aid / 'result.json'
@@ -1447,7 +1703,10 @@ def search_results(cfg, outs, analyses=None, others=None, top=False):
                 if stop:  # NES stopped early (no residual degrees of freedom left)
                     results[f'{o["id"]}|{aid}|{int(prefix)}|{window}']['stopped'] = str(stop)
                 if top and cfg.view['top']:
-                    results[f'{o["id"]}|{aid}|{int(prefix)}|{window}']['top'] = top_rows(cfg, o, aid, prefix, window)
+                    tr = top_rows(cfg, o, aid, prefix, window)
+                    if cz is not None:  # [neuron, tau, p, censored per arm]
+                        tr = [x + [cens_of(*cz, x[0])] for x in tr]
+                    results[f'{o["id"]}|{aid}|{int(prefix)}|{window}']['top'] = tr
     return results
 
 
@@ -1585,7 +1844,18 @@ def page_data(cfg):
             ids, Y = video_outcome(cfg, o)
             ix = ids.get_indexer(vm['observation_id'].astype(str))
             vals[o['id']].update({j: [sig4(v) for v in Y[ix, int(j)]] for j in miss})
+    # latency outcomes: per-video window length (s, the page's video order); a value equal to it is censored
+    lwin = {}
+    for o in allo:
+        if is_latency(o) and o['id'] in vals:
+            ids, _, nf = latency_frames(o)
+            lwin[o['id']] = [sig4(v) for v in nf[ids.get_indexer(vm['observation_id'].astype(str))] / cfg.dom.fps]
+    cs = change_share(cfg)
+    if cs is not None:
+        print(f'[{cfg.tag}] page: change share of the decoder rows (motion SAE): median {np.median(cs):.3f}, '
+              f'quartiles {np.quantile(cs, 0.25):.3f} / {np.quantile(cs, 0.75):.3f}')
     return {'sae': cfg.sae, 'tag': cfg.tag, 'model': model_of(cfg), 'rep': cfg.rep, 'outcomes': outcomes,
+            'lwin': lwin, 'change_share': None if cs is None else [round(float(x), 3) for x in cs],
             'otables': otables, 'artefact': sorted(int(j) for j in cfg.artefact),
             'subsets': subsets,
             'analyses': [analyses[a] for a in cfg.order if a in analyses], 'results': results, 'neurons': neurons,
@@ -1623,6 +1893,9 @@ def split_data(d, data_dir, inline):
     core = {k: d[k] for k in ('sae', 'tag', 'model', 'rep', 'outcomes', 'analyses', 'artefact', 'artefact_text',
                               'arena_note', 'n_frames', 'montage')}
     core['subsets'] = {name: {k: v for k, v in S.items() if k != 'results'} for name, S in d['subsets'].items()}
+    for k in ('lwin', 'change_share'):  # only SAEs that have them (latency outcomes, motion SAEs)
+        if d.get(k):
+            core[k] = d[k]
     core['rfiles'], core['pre'] = {}, {}
     xf, X = f'{tag}_x.json', {'results': {}, 'subsets': {}, 'vals': {}, 'by': {}}
     for o in d['outcomes']:
@@ -1694,6 +1967,8 @@ def split_data(d, data_dir, inline):
                 top=v['top'])
     if d['domain'] != 'mice':
         core.update(videos=d['videos'], obs=d['obs'])
+    if v['vnote']:
+        core['vnote'] = v['vnote']
     return core, files
 
 
@@ -1797,7 +2072,9 @@ def step_check(cfgs, a):
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('--res', action='append', help=f'NES result set, repeatable; first = page default '
-                    f'(default: {DEFAULT_RES} + discovered ones, discover_res); cache in <res>/_cache/explorer')
+                    f'(default: {DEFAULT_RES}, + discovered ones with --discover); cache in <res>/_cache/explorer')
+    ap.add_argument('--discover', action='store_true', help='without --res: add every other finished SAE result '
+                    'set under the NES roots to DEFAULT_RES')
     ap.add_argument('--outcome', action='append', help='LABEL=SUBDIR[:key=value,...], repeatable')
     ap.add_argument('--out', default=None, help='output dir (default <first res>/explorer)')
     ap.add_argument('--steps', default='data,patch,arena,render,page,check')
@@ -1806,19 +2083,20 @@ if __name__ == '__main__':
                     'each at every length), in clip_candidates priority order; 0 = every listed neuron')
     ap.add_argument('--pack-mb', type=float, default=8.0, help='clip pack size (MB); packs are version files '
                     '(<= 15 MB) or asset-store uploads (<= 20 MiB)')
-    ap.add_argument('--asset-map', default=None, help='JSON {pack name: asset URL} of packs uploaded to the '
-                    'artifact asset store; the page reads those from their URL (the rest stay version files)')
+    ap.add_argument('--asset-map', action='append', default=[], help='JSON {pack name: asset URL} of packs uploaded '
+                    'to the artifact asset store, repeatable (merged in order); the page reads those from their URL (the '
+                    'rest stay version files)')
     ap.add_argument('--max-version-files', type=int, default=511, help='all published files (artifact version limit)')
     ap.add_argument('--max-page-kb', type=float, default=400, help='index.html size limit')
     ap.add_argument('--max-mb', type=float, default=250, help='version size limit (the artifact takes 256 MB)')
     ap.add_argument('--require-fit', action='store_true', help='check fails when the version files do not fit')
     ap.add_argument('--crf', type=int, default=None, help='H.264 quality of the clips (default per domain, VIEW crf)')
     a = ap.parse_args()
-    res = a.res or discover_res()
+    res = a.res or discover_res(a.discover)
     r0 = (ROOT / res[0]) if not Path(res[0]).is_absolute() else Path(res[0])
     out = Path(a.out) if a.out else r0 / 'explorer'
-    if a.asset_map:
-        AMAP.update(json.loads(Path(a.asset_map).read_text()))
+    for f in a.asset_map:
+        AMAP.update(json.loads(Path(f).read_text()))
     cfgs = [Cfg(r, a, out) for r in res]
     tags = [c.tag for c in cfgs]
     for c in cfgs:  # file prefixes must be unique across domains (e.g. two 'ep20' SAEs)

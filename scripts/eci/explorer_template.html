@@ -47,7 +47,7 @@ abbr[title],.tip{text-decoration:underline dotted var(--faint);cursor:help}
 .model{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:12.5px;color:var(--muted);margin-top:10px;padding:8px 10px;background:var(--soft);border-radius:8px}
 .model .seg button{background:var(--bg)}
 .model .seg button[aria-pressed="true"]{background:var(--accent)}
-#kindSeg button:disabled,#aggSeg button:disabled{color:var(--faint);background:var(--soft);cursor:not-allowed}
+#kindSeg button:disabled,#aggSeg button:disabled,#lineSeg button:disabled,#sexSeg button:disabled{color:var(--faint);background:var(--soft);cursor:not-allowed}
 .warnbox.one{padding:5px 10px;font-size:12.5px}
 /* the domain word of the title is the domain selector */
 .tsel{font:inherit;color:var(--accent);background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%230f6b62' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 2px center;border:0;border-bottom:2px solid var(--accent-soft);border-radius:0;padding:0 20px 0 0;margin:0;appearance:none;-webkit-appearance:none;cursor:pointer;line-height:inherit}
@@ -177,7 +177,7 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
       <button type="button" class="tab" role="tab" id="tabAll" data-view="all">All neurons<span class="n" id="allN"></span></button>
     </div>
     <div class="opts">
-      <span class="opt" id="outcomeOpt"><span class="tip" title="Temporal aggregation: how the frame values of one video become the per-video outcome the search tests (event rate = bouts per minute; average time = mean over the video)">Temporal Aggregation</span><span class="seg" id="kindSeg"></span></span>
+      <span class="opt" id="outcomeOpt"><span class="tip" title="Temporal aggregation: how the frame values of one video become the per-video outcome the search tests (event rate = bouts per minute; average time = mean over the video; latency = seconds to the first bout)">Temporal Aggregation</span><span class="seg" id="kindSeg"></span></span>
       <span class="opt" id="aggOpt"><span class="tip" title="Spatial aggregation: how the patch codes of one frame become one value per neuron">Spatial aggregation</span><span class="seg" id="aggSeg"></span></span>
       <span class="opt" id="lineOpt"><span class="tip" title="Gene line: restrict the search to the pools of one line (12 het and 12 wt pools each), or all 72 pools">Line</span><span class="seg" id="lineSeg"><button type="button" data-line="all">all</button><button type="button" data-line="ash1l">ash1l</button><button type="button" data-line="kdm6b">kdm6b</button><button type="button" data-line="kmt5b">kmt5b</button></span></span>
       <span class="opt" id="sexOpt"><span class="tip" title="Sex: restrict the search to the female or male pools (18 het and 18 wt pools each), or all">Sex</span><span class="seg" id="sexSeg"><button type="button" data-sex="all">all</button><button type="button" data-sex="f">female</button><button type="button" data-sex="m">male</button></span></span>
@@ -308,7 +308,18 @@ function longLabel(a){
   if(a.family==='A') return `${a.genotype}, stage ${a.stages[0]} (${STAGE_LONG[a.stages[0]]}) → stage ${a.stages[1]} (${STAGE_LONG[a.stages[1]]})`;
   return `het vs wt in stage ${a.stage} (${STAGE_LONG[a.stage]})`;
 }
-const tauTip = () => ANTS() ? 'tau: effect size in the outcome unit: mean of the treated videos minus mean of the control videos.' : TAU_TIP;
+const tauTip = () => (ANTS() ? 'tau: effect size in the outcome unit: mean of the treated videos minus mean of the control videos.' : TAU_TIP)
+  + (isLat() ? ' Latency: tau > 0 = a later first bout; a video without a bout counts as the video length (censored).' : '');
+/* latency outcomes: DATA.lwin[outcome] = per-video window length (s); a value at the window length is censored (no bout) */
+const isLat = () => (outcome()||{}).kind==='latency';
+const lwin = () => (DATA.lwin||{})[state.outcome];
+const isCens = (v, i) => { const L = lwin(); return !!L && v!=null && v >= L[i]*(1-1e-4); };
+const censTip = c => c.map(([lab,k,n])=>`${lab} ${k}/${n}`).join(', ');
+const censChip = c => c ? `<span class="chip na" title="Censored videos (no bout in the video: latency set to the video length): ${esc(censTip(c))}">cens ${c.reduce((s,x)=>s+x[1],0)}/${c.reduce((s,x)=>s+x[2],0)}</span>` : '';
+/* mask + motion SAEs: DATA.change_share[j] = share of neuron j's decoder weight on the change half of the input */
+const CS_TIP = 'Change share: fraction of the neuron\'s decoder weight (squared norm) on the change half of the input [token, token − token 1 s earlier]; 0% = only what is there, 100% = only how it moves.';
+const csOf = j => DATA.change_share ? DATA.change_share[j] : null;
+const csHTML = j => { const c = csOf(j); return c==null ? '' : `<span class="pv tip" title="${CS_TIP}">Δ ${Math.round(c*100)}%</span>`; };
 /* columns of the charts highlighted for comparison a: stages (mice) or 'experiment|T' groups (ants) */
 const hlOf = a => a.experiment ? [`${a.experiment}|${a.control}`, `${a.experiment}|${a.treatment}`] : a.family==='A' ? a.stages : [a.stage];
 /* outcome = (kind: event rate | average time) x (spatial aggregation: max | mean | SOMP); the id of the
@@ -432,8 +443,9 @@ function buildControls(){
   for(const b of document.querySelectorAll('#prefixSeg button')) b.setAttribute('aria-pressed', String(+b.dataset.p===state.prefix));
   for(const t of document.querySelectorAll('.tab')) t.setAttribute('aria-selected', String(t.dataset.view===state.view));
   $('#allN').textContent = GOT[rfile()] ? allFound().length : '·';
-  for(const b of document.querySelectorAll('#lineSeg button')) b.setAttribute('aria-pressed', String(b.dataset.line===state.line));
-  for(const b of document.querySelectorAll('#sexSeg button')) b.setAttribute('aria-pressed', String(b.dataset.sex===state.sex));
+  const subOk = (l, x) => `${l}_${x}`==='all_all' || !!(DATA.subsets||{})[`${l}_${x}`];
+  for(const b of document.querySelectorAll('#lineSeg button')){ b.setAttribute('aria-pressed', String(b.dataset.line===state.line)); b.disabled = !subOk(b.dataset.line, state.sex); }
+  for(const b of document.querySelectorAll('#sexSeg button')){ b.setAttribute('aria-pressed', String(b.dataset.sex===state.sex)); b.disabled = !subOk(state.line, b.dataset.sex); }
   $('#lineOpt').hidden = $('#sexOpt').hidden = DATA.sub_ui===false;
   const ca = analysis(state.aid), CN = $('#cfNote');
   CN.hidden = !(state.view==='cmp' && ca && ca.confound);
@@ -490,8 +502,8 @@ function renderCmpList(){
     const up=r.tau>0;
     h+=`<button type="button" class="nr" data-n="${r.neuron}" aria-pressed="${r.neuron===state.neuron}" title="round ${r.round}: p ${fmtP(r.p)} < threshold ${fmtP(r.threshold)} (${r.n_tested} tested)">
       <span class="id">#${r.neuron}</span>
-      <span class="l1"><span class="${up?'up':'down'}">${up?'▲':'▼'} ${fmtTau(r.tau)}</span><span class="pv">p ${fmtP(r.p)}</span></span>
-      <span class="chips">${chipsHTML(r)}</span></button>`;
+      <span class="l1"><span class="${up?'up':'down'}">${up?'▲':'▼'} ${fmtTau(r.tau)}</span><span class="pv">p ${fmtP(r.p)}</span>${csHTML(r.neuron)}</span>
+      <span class="chips">${chipsHTML(r)}${censChip(r.cens)}</span></button>`;
   }
   if(top.length){ renderTop(S, h+'</div>', top); return; }
   S.innerHTML = h+'</div>';
@@ -499,12 +511,12 @@ function renderCmpList(){
 }
 function renderTop(S, h, top){
   h+=`<h3 class="tip" title="The ${top.length} neurons with the smallest first-round p-value of this search that NES did not select (p above the Bonferroni threshold). Exploratory: not discoveries.">Top ${top.length} by p-value · not selected</h3><div class="rows">`;
-  for(const [j, tau, p] of top){
+  for(const [j, tau, p, cens] of top){
     const up=tau>0;
     h+=`<button type="button" class="nr" data-n="${j}" aria-pressed="${j===state.neuron}" title="first-round p ${fmtP(p)}: not selected by NES">
       <span class="id">#${j}</span>
-      <span class="l1"><span class="${up?'up':'down'}">${up?'▲':'▼'} ${fmtTau(tau)}</span><span class="pv">p ${fmtP(p)}</span></span>
-      <span class="chips"><span class="chip na" title="not selected: p above the round-1 Bonferroni threshold">not selected</span></span></button>`;
+      <span class="l1"><span class="${up?'up':'down'}">${up?'▲':'▼'} ${fmtTau(tau)}</span><span class="pv">p ${fmtP(p)}</span>${csHTML(j)}</span>
+      <span class="chips"><span class="chip na" title="not selected: p above the round-1 Bonferroni threshold">not selected</span>${censChip(cens)}</span></button>`;
   }
   S.innerHTML = h+'</div>';
   for(const b of S.querySelectorAll('.nr')) b.onclick=()=>{ state.neuron=+b.dataset.n; render(); };
@@ -552,11 +564,12 @@ function groupTable(n){
   VIDS().forEach((v,i) => { if(V[i]==null) return; const k = `${v[0]}|${v[1]}`; (g[k] = g[k] || {e:v[0], t:v[1], y:[]}).y.push(V[i]); });
   return Object.values(g).sort((p,q)=>p.e.localeCompare(q.e) || p.t-q.t).map(x => { const s = meanCI(x.y); return {experiment:x.e, T:x.t, mean:s.m, lo:s.lo, hi:s.hi, n:s.n}; });
 }
+const owhat = o => o.kind==='latency' ? 'latency to first bout (s)' : o.bout ? o.unit : `mean codes_${o.codes}`;
 function chartTable(j, n){
-  if(ANTS()){ const o = outcome(); return {T:groupTable(n)||[], what:`${o.bout?o.unit:`mean codes_${o.codes}`} per video (full videos)`}; }
-  if(SUB() || !n.table){
+  if(ANTS()){ const o = outcome(); return {T:groupTable(n)||[], what:`${owhat(o)} per video (full videos)`}; }
+  if(SUB() || !n.table || isLat()){
     const o = outcome();
-    return {T:subTable(n)||[], what:`${o.bout?o.unit:`mean codes_${o.codes}`} per video (full videos, ${subLabel()})`};
+    return {T:subTable(n)||[], what:`${owhat(o)} per video (full videos, ${subLabel()})`};
   }
   const ot = (n.otable||{})[state.outcome];
   return ot ? {T:ot, what:`${outcome().unit} per video (${state.window==='full'?'full videos':'first 30 s dropped'})`}
@@ -686,6 +699,9 @@ function renderDetail(){
     <span class="facts">${n.firing_rate!=null?`<span class="tip" title="Fraction of all ${(DATA.n_frames/1e6).toFixed(2)} M frames where the neuron is active">fires ${(n.firing_rate*100).toFixed(1)}%</span>`:''}`;
   if(r) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${r.tau>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${P_TIP}">p ${fmtP(r.p)}</span>`;
   if(rt) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${rt[1]>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(rt[1])} ${esc(outcome().unit)}</span> · <span class="tip" title="First-round t-test p-value, above the Bonferroni threshold: not selected by NES">p ${fmtP(rt[2])} · not selected</span>`;
+  const cens = r ? r.cens : rt ? rt[3] : null;
+  if(cens) h+=` · <span class="tip" title="Videos of this comparison without a bout of this neuron: their latency is set to the video length (right-censored). ${esc(censTip(cens))}">censored ${esc(censTip(cens))}</span>`;
+  if(csOf(j)!=null) h+=` · <span class="tip" title="${CS_TIP}">change share ${Math.round(csOf(j)*100)}%</span>`;
   h+=`</span></div>`;
   if(hits) h+=`<div class="tags" aria-label="Found in">${hits.hits.map(({a:b,r:x})=>`<button type="button" class="tag ${cmp&&b.id===state.aid?'cur':x.tau>0?'up':'down'}" data-aid="${b.id}" title="${esc(longLabel(b))}: tau ${fmtTau(x.tau)} ${esc(outcome().unit)}, p ${fmtP(x.p)}. Open this comparison">${shortLabel(b)}${x.tau>0?'▲':'▼'}</button>`).join('')}</div>`;
   h+='</div>';
@@ -726,7 +742,7 @@ function renderDetail(){
     split += ' · day ' + Object.keys(days).sort().map(d=>`${d} ${days[d]}`).join(', ');
   }
   const cmpName = analysis(state.aid) ? shortLabel(analysis(state.aid)) : '';
-  const FROMTIP = {all:`Clips chosen among all ${VIDS().length} videos`, cmp:hasCmp ? (ANTS() ? `Clips chosen among the videos entering ${cmpName}: its control and treated videos. Each tile shows its experiment, treatment and recording day.` : `Clips chosen among the videos entering ${cmpName} (full cohort, whatever line / sex is selected): A = that genotype's videos in both stages; B = het and wt videos of that stage. Each tile shows its stage and genotype.`) : `Neuron ${j} is not found in ${cmpName} in the full-cohort search: no clips from this comparison.`};
+  const FROMTIP = {all:`Clips chosen among all ${VIDS().length} videos${DATA.vnote?` (${DATA.vnote})`:''}`, cmp:hasCmp ? (ANTS() ? `Clips chosen among the videos entering ${cmpName}: its control and treated videos. Each tile shows its experiment, treatment and recording day.` : `Clips chosen among the videos entering ${cmpName} (full cohort, whatever line / sex is selected): A = that genotype's videos in both stages; B = het and wt videos of that stage. Each tile shows its stage and genotype.`) : `Neuron ${j} is not found in ${cmpName} in the full-cohort search: no clips from this comparison.`};
   h+=`<div class="clipbar">
       <span class="opt"><span class="tip" title="Which videos the clips are chosen from">Clips from</span>${seg('f',srcId==='all'?'all':'cmp',['all','cmp'],v=>v==='cmp'?`this comparison${cmpName?` (${esc(cmpName)})`:''}`:'all videos',FROMTIP,v=>v==='cmp'&&!hasCmp)}</span>
       <span class="opt"><span class="tip" title="What is selected and shown: single frames, or windows of 5 (1 s) or 15 (3 s) consecutive frames ranked by their mean activation">Length</span>${seg('l',state.len,Object.keys(M.lengths),v=>LAB[v])}</span>
@@ -795,17 +811,21 @@ function poolPanel(n, a){
   if(!V) return '<div class="pend">no per-video values</div>';
   const u = outcome().unit, rows = [];
   let axis, lg;
+  const lat = !!lwin(), cens = [];   // latency: censored videos (no bout) per arm, hollow dots
+  const arm = (name, col, ix) => { ix = ix.filter(i=>V[i]!=null); if(lat) cens.push([name, ix.filter(i=>isCens(V[i],i)).length, ix.length]); return {name, col, v:ix.map(i=>V[i]), c:lat ? ix.map(i=>isCens(V[i],i)) : null}; };
+  const idx = f => VIDS().map((vv,i)=>f(vv)?i:null).filter(i=>i!=null);
   if(a.experiment){  // ants: control and treated videos of the experiment
-    for(const [t, col] of [[a.control,'var(--wt)'],[a.treatment,'var(--het)']]) rows.push({name:`t=${t}`, col, v:VIDS().map((vv,i)=>(vv[0]===a.experiment&&vv[1]===t)?V[i]:null).filter(x=>x!=null)});
+    for(const [t, col] of [[a.control,'var(--wt)'],[a.treatment,'var(--het)']]) rows.push(arm(`t=${t}`, col, idx(vv=>vv[0]===a.experiment&&vv[1]===t)));
     axis = `${a.experiment} value (${u})`; lg = 'dot = one video';
   } else if(a.family==='A'){
     const [s0, s1] = a.stages, by = {};
     ALL.videos.forEach((v,i) => { const [p,s,g] = v; if(inSub(v) && g===a.genotype && (s===s0||s===s1)) (by[p] = by[p]||{})[s] = V[i]; });
     const d = Object.values(by).filter(x => x[s0]!=null && x[s1]!=null).map(x => x[s1]-x[s0]);
     rows.push({name:a.genotype, col:`var(--${a.genotype})`, v:d});
+    if(lat) for(const st of [s0, s1]){ const ix = idx(vv=>inSub(vv)&&vv[2]===a.genotype&&vv[1]===st).filter(i=>V[i]!=null); cens.push([`stage ${st}`, ix.filter(i=>isCens(V[i],i)).length, ix.length]); }
     axis = `stage ${s1} − stage ${s0} (${u})`; lg = `dot = one ${a.genotype} pool`;
   } else {
-    for(const g of ['wt','het']) rows.push({name:g, col:`var(--${g})`, v:ALL.videos.map((vv,i)=>(inSub(vv)&&vv[2]===g&&vv[1]===a.stage)?V[i]:null).filter(x=>x!=null)});
+    for(const g of ['wt','het']) rows.push(arm(g, `var(--${g})`, idx(vv=>inSub(vv)&&vv[2]===g&&vv[1]===a.stage)));
     axis = `stage ${a.stage} value (${u})`; lg = `dot = one video`;
   }
   const W=460, rh=46, m={l:44,r:12,t:8,b:34}, H=m.t+rows.length*rh+m.b;
@@ -821,12 +841,14 @@ function poolPanel(n, a){
   rows.forEach((r,k) => {
     const y0 = m.t + k*rh + rh/2;
     s += `<text x="${m.l-6}" y="${y0+4}" text-anchor="end" font-size="11" fill="var(--ink)" ${F}>${r.name}</text>`;
-    r.v.forEach((v,i) => { s += `<circle cx="${x(v)}" cy="${y0 - 12 + ((i*0.618034)%1)*24}" r="2.6" fill="${r.col}" fill-opacity=".5"/>`; });
+    r.v.forEach((v,i) => { s += r.c && r.c[i] ? `<circle cx="${x(v)}" cy="${y0 - 12 + ((i*0.618034)%1)*24}" r="2.6" fill="none" stroke="${r.col}" stroke-width="1"/>`
+                                               : `<circle cx="${x(v)}" cy="${y0 - 12 + ((i*0.618034)%1)*24}" r="2.6" fill="${r.col}" fill-opacity=".5"/>`; });
     s += `<line x1="${x(r.s.lo)}" x2="${x(r.s.hi)}" y1="${y0}" y2="${y0}" stroke="var(--ink)" stroke-width="2.5"/><line x1="${x(r.s.m)}" x2="${x(r.s.m)}" y1="${y0-10}" y2="${y0+10}" stroke="var(--ink)" stroke-width="2.5"><title>${r.name}: mean ${r.s.m.toPrecision(3)} [${r.s.lo.toPrecision(3)}, ${r.s.hi.toPrecision(3)}], n = ${r.s.n}</title></line>`;
   });
   s += '</svg>';
   const sm = rows.map(r => `${r.name} ${r.s.m.toPrecision(3)} [${r.s.lo.toPrecision(3)}, ${r.s.hi.toPrecision(3)}], n ${r.s.n}`).join(' · ');
-  return `<div class="lg"><span>${esc(lg)} · black = mean, 95% CI</span></div>${s}<p class="note mono">${esc(sm)}</p>`;
+  const cn = lat ? `<p class="note">Censored (no bout, latency = video length${a.family==='A'?'':', hollow dots'}): ${esc(censTip(cens))}</p>` : '';
+  return `<div class="lg"><span>${esc(lg)} · black = mean, 95% CI</span></div>${s}<p class="note mono">${esc(sm)}</p>${cn}`;
 }
 
 /* Clip packs: one H.264 file holds many clip pages back to back; page p = frames [p w, (p + 1) w) at 5 fps
