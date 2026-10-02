@@ -44,6 +44,12 @@ Rules (RULES, chosen by name with --rule; the SAE checkpoint records it as 'fg_r
             scripts/eci/fg_validate.py --domain ants before any token extraction
     all     every patch is foreground (the whole frame at 448, 1024 patches); needs no background
 
+Background-subtracted SAE input (train_sae_fg.py --bg-sub, checkpoint 'bg_sub'): token - the video's background
+token at the same patch position and time block (the rule's background, bg_seg for fg448 / v3 / ants: the masked
+per-position median DINOv2 token of the empty arena from fg_background.py). The mask is unchanged. Where an animal
+stayed still for > 90% of the sample (leak_mask: the position fell back to the plain median, so its background token
+is the animal), the background token is replaced by the mean of the clean neighbouring positions (fill_leaks).
+
 Encoders (FgEncoder): the foreground mask is ALWAYS computed from DINOv2-base tokens at 448 (the rules and the
 per-video backgrounds above are DINOv2 quantities). The SAE tokens come from the chosen encoder: 'dinov2_base'
 (default, the same tokens as the mask) or 'dinov3_base' (DINOv3 ViT-B/16, whole 512 px frame, no resize, patch 16
@@ -66,7 +72,12 @@ Functions / classes:
     load_background             one video's saved background file
     obs_rows                    observation -> contiguous annotations.csv rows
     segment_of                  time block of a frame for bg_seg
-    FgBackgrounds               all videos' backgrounds, mask(tokens, grey, rows) for any batch
+    FgBackgrounds               all videos' backgrounds, mask(tokens, grey, rows) for any batch;
+                                background(rows) = the background tokens of a batch (background-subtracted input)
+    leak_mask, fill_leaks       background positions that are the animal itself; filled from clean neighbours
+    input_background            the background of the background-subtracted input (leaks filled)
+    subtract_background_tokens  token - background token (float32, rounded to fp16)
+    subtract_background_np      the same for a numpy token store (rows + patch positions), CPU
     FgTokenStore                reader for the foreground training-token shards
 """
 
@@ -279,7 +290,8 @@ def segment_of(rows, sample_rows, seg_bounds):
 
 def load_background(bg_dir, observation_id, rule=FG_RULE, device='cpu'):
     """-> dict: bg (n_seg or 1, 1024, d) float32 tensor, pix_bg (512, 512) uint8 tensor,
-    thr float, rows / seg_bounds (to place frames in time blocks, see segment_of)."""
+    thr float, rows / seg_bounds (to place frames in time blocks, see segment_of), src (bg_dir, observation_id,
+    rule) for input_background."""
     z = np.load(Path(bg_dir) / f'{observation_id}.npz')
     key = rule['background']
     bg = z[key].astype(np.float32)
@@ -287,7 +299,59 @@ def load_background(bg_dir, observation_id, rule=FG_RULE, device='cpu'):
     thr = video_threshold(z[f'dist_{key}'], z['dark'], rule)
     seg_bounds = z['seg_bounds'] if key == 'bg_seg' else np.array([0, len(z['rows'])])
     return {'bg': torch.from_numpy(bg).to(device), 'pix_bg': torch.from_numpy(z['pix_bg']).to(device),
-            'thr': thr, 'rows': z['rows'], 'seg_bounds': seg_bounds}
+            'thr': thr, 'rows': z['rows'], 'seg_bounds': seg_bounds, 'src': (bg_dir, observation_id, rule)}
+
+
+# fg_background.py defaults: a time block needs MIN_SEG_FRAMES frames free of the dark cue at a position (else the
+# video-level masked median is used), the video-level masked median MIN_BG_FRAMES (else the plain median)
+MIN_SEG_FRAMES, MIN_BG_FRAMES = 10, 20
+
+
+def leak_mask(dark, n_ok, seg_bounds=None, rule=FG_RULE):
+    """(n_seg, 1024) bool: background positions that ended up as the PLAIN median token (the dark animal cue covered
+    the position in > 90% of the 200 sample frames of the video, and in the time block too). There the background
+    token is the animal itself (checked visually: huddles of sleeping mice, ants that sat still).
+    seg_bounds None: one block (bg_masked)."""
+    video = np.asarray(n_ok) < MIN_BG_FRAMES
+    if seg_bounds is None:
+        return video[None]
+    excl = dilate(torch.from_numpy(np.asarray(dark, dtype=np.float32) > rule['dark_frac']), 1).numpy()
+    n_seg = np.stack([(~excl[a:b]).sum(0) for a, b in zip(seg_bounds[:-1], seg_bounds[1:])])
+    return (n_seg < MIN_SEG_FRAMES) & video[None]
+
+
+@torch.no_grad()
+def fill_leaks(bg, leak):
+    """bg (n_seg, 1024, d) float32, leak (n_seg, 1024) bool -> bg with every leaked position replaced by the mean of
+    its 8-neighbour positions that are clean (or already filled), filled ring by ring from the outside in."""
+    bg, todo = bg.clone(), leak.clone()
+    for s in range(bg.shape[0]):
+        if todo[s].all():  # nothing clean to fill from (never seen): leave as is
+            continue
+        while todo[s].any():
+            ok = (~todo[s]).float().view(1, 1, GRID, GRID)
+            k = torch.ones(1, 1, 3, 3, device=bg.device)
+            cnt = F.conv2d(ok, k, padding=1).view(-1)
+            g = (bg[s] * ok.view(-1, 1)).T.reshape(-1, 1, GRID, GRID)
+            sm = F.conv2d(g, k, padding=1).reshape(bg.shape[2], -1).T
+            new = todo[s] & (cnt > 0)
+            bg[s][new] = sm[new] / cnt[new, None]
+            todo[s] &= ~new
+    return bg
+
+
+def input_background(b):
+    """The background used for the background-subtracted SAE input: the rule background with leaked positions
+    (leak_mask) filled from clean neighbours (fill_leaks), cached in the load_background dict b (b['leak'] too)."""
+    if 'bg_input' not in b:
+        bg_dir, obs, rule = b['src']
+        if rule['background'] == 'bg_median':
+            raise ValueError('background subtraction needs a masked background (bg_masked / bg_seg)')
+        z = np.load(Path(bg_dir) / f'{obs}.npz')
+        leak = leak_mask(z['dark'], z['n_ok'], b['seg_bounds'] if rule['background'] == 'bg_seg' else None, rule)
+        b['leak'] = torch.from_numpy(leak).to(b['bg'].device)
+        b['bg_input'] = fill_leaks(b['bg'], b['leak'])
+    return b['bg_input']
 
 
 def obs_rows(ann_path):
@@ -350,6 +414,50 @@ class FgBackgrounds:
             out[sel_t] = foreground_mask(d, dk, b['thr'], self.rule)
             dist[sel_t] = d
         return out, dist
+
+    @torch.no_grad()
+    def background(self, rows):
+        """(B, 1024, d) float32 background tokens of a batch of rows for the background-subtracted input: the rule's
+        background (bg_seg: the video's empty-arena median token at each position, in the frame's time block), leaked
+        positions filled from clean neighbours (input_background)."""
+        rows = np.asarray(rows)
+        k = self.obs_index(rows)
+        out = None
+        for kk in np.unique(k):
+            sel = np.nonzero(k == kk)[0]
+            b = self.get(self.ids[kk])
+            seg = segment_of(rows[sel], b['rows'], b['seg_bounds'])
+            bg = input_background(b)[torch.from_numpy(seg).to(b['bg'].device)]
+            if out is None:
+                out = torch.empty((len(rows),) + tuple(bg.shape[1:]), dtype=torch.float32, device=bg.device)
+            out[torch.from_numpy(sel).to(bg.device)] = bg
+        return out
+
+
+def subtract_background_tokens(tokens, bg):
+    """Background-subtracted SAE input: fp16 token - float32 background token, in float32, rounded to fp16
+    (the same arithmetic for the training store and for encoding). tokens / bg: torch tensors or numpy."""
+    if isinstance(tokens, np.ndarray):
+        return (tokens.astype(np.float32) - bg).astype(np.float16)
+    return (tokens.float() - bg).half()
+
+
+def subtract_background_np(tokens, rows, pos, bg_dir, obs_ranges, rule, chunk=1_000_000):
+    """numpy (n, d) fp16 tokens with their annotations.csv rows and patch positions -> (n, d) fp16
+    token - background token of the same video, time block and patch position (FgBackgrounds.background)."""
+    rows, pos = np.asarray(rows), np.asarray(pos).astype(np.int64)
+    bgs = FgBackgrounds(bg_dir, obs_ranges, rule, 'cpu', cache=1)
+    out = np.empty(tokens.shape, np.float16)
+    k = bgs.obs_index(rows)
+    for kk in np.unique(k):
+        sel = np.nonzero(k == kk)[0]
+        b = load_background(bg_dir, bgs.ids[kk], rule)
+        seg = segment_of(rows[sel], b['rows'], b['seg_bounds'])
+        bg = input_background(b).numpy()
+        for a in range(0, len(sel), chunk):
+            s = sel[a:a + chunk]
+            out[s] = subtract_background_tokens(np.asarray(tokens[s]), bg[seg[a:a + chunk], pos[s]])
+    return out
 
 
 class FgTokenStore:

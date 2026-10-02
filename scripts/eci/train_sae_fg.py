@@ -17,6 +17,7 @@ Usage:
     python scripts/eci/train_sae_fg.py --seed 0
     python scripts/eci/train_sae_fg.py --seed 0 --max-train-tokens 2000000 --epochs 1 --out-dir <test dir>
     python scripts/eci/train_sae_fg.py --domain ants --tokens-dir dataset/ants/eci/train_tokens/<store> --tag antfg448
+    python scripts/eci/train_sae_fg.py --bg-sub --tag fg448bg      (input = token - background token, same store)
 A token store written with fg_extract_train.py --encoder dinov3_base (shard.json 'encoder') makes the checkpoint and
 metrics.json record 'encoder'; fg_encode.py then encodes with that encoder.
 """
@@ -33,14 +34,16 @@ import torch
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 from src.eci.domain import DOMAINS, get_domain  # noqa: E402
-from src.eci.foreground import FgTokenStore  # noqa: E402
+from src.eci.foreground import RULES, FgTokenStore, obs_rows, subtract_background_np  # noqa: E402
 from src.eci.sae import (MatryoshkaBatchTopKSAE, TokenNorm, _log_step, _train_step,  # noqa: E402
                          evaluate_sae, geometric_median, save_checkpoint)
 
 
-def load_split(store, is_val_row, n_threads=8, motion=False):
+def load_split(store, is_val_row, n_threads=8, motion=False, bg=None, chunk=1_000_000):
     """-> (train tokens (n, d) fp16, val tokens, val rows, val pos) in CPU RAM.
-    motion=True: each row is [token_t, token_t - token_{t-D}] (2 d), from tokens.f16 / prev.f16."""
+    motion=True: each row is [token_t, token_t - token_{t-D}] (2 d), from tokens.f16 / prev.f16.
+    bg=(bg_dir, obs_ranges, rule): each token minus its background token (foreground.subtract_background_np).
+    Shards are read in chunks of `chunk` tokens (the result does not depend on it)."""
     sel_tr, sel_va, rows_va, pos_va = [], [], [], []
     for s in range(len(store.dirs)):
         v = is_val_row[store.row(s)]
@@ -52,11 +55,23 @@ def load_split(store, is_val_row, n_threads=8, motion=False):
     offs = np.cumsum([0] + [int(m.sum()) for m in sel_tr]), np.cumsum([0] + [int(m.sum()) for m in sel_va])
 
     def job(s):
-        t = np.asarray(store.tokens(s))
-        if motion:
-            t = np.concatenate([t, (t.astype(np.float32) - store.prev(s)).astype(np.float16)], 1)
-        train[offs[0][s]:offs[0][s + 1]] = t[sel_tr[s]]
-        val[offs[1][s]:offs[1][s + 1]] = t[sel_va[s]]
+        tok = store.tokens(s)
+        prev = store.prev(s) if motion else None
+        row, pos = (store.row(s), store.pos(s)) if bg is not None else (None, None)
+        o_tr, o_va = offs[0][s], offs[1][s]
+        for a in range(0, tok.shape[0], chunk):
+            b = min(a + chunk, tok.shape[0])
+            t = np.asarray(tok[a:b])
+            if bg is not None:
+                t = subtract_background_np(t, row[a:b], pos[a:b], *bg)
+            if motion:
+                t = np.concatenate([t, (np.asarray(tok[a:b]).astype(np.float32) - prev[a:b]).astype(np.float16)], 1)
+            m_tr, m_va = sel_tr[s][a:b], sel_va[s][a:b]
+            n1, n2 = int(m_tr.sum()), int(m_va.sum())
+            train[o_tr:o_tr + n1] = t[m_tr]
+            val[o_va:o_va + n2] = t[m_va]
+            o_tr, o_va = o_tr + n1, o_va + n2
+        assert o_tr == offs[0][s + 1] and o_va == offs[1][s + 1]
     with ThreadPoolExecutor(n_threads) as ex:
         list(ex.map(job, range(len(store.dirs))))
     for s in range(len(store.dirs)):
@@ -128,7 +143,13 @@ def main():
     p.add_argument('--motion', action='store_true',
                    help='SAE input = [token_t, token_t - token_{t-D}] (store written with --motion-delta D); '
                         'each half normalized to the same average norm (TokenNorm.fit_blocks)')
+    p.add_argument('--bg-sub', action='store_true',
+                   help="SAE input = token - the video's background token at the same patch position and time block "
+                        "(the store's foreground rule background, bg_seg; src/eci/foreground.py); same mask")
+    p.add_argument('--bg-dir', default=None, help='with --bg-sub; default <domain eci dir>/fg448/background')
     args = p.parse_args()
+    if args.bg_sub and args.motion:
+        raise SystemExit('--bg-sub and --motion together are not supported')
     dom = get_domain(args.domain)
     args.tokens_dir = args.tokens_dir or str(dom.eci_dir / 'train_tokens/dinov2_base_l-1_fg448_fps1')
 
@@ -144,8 +165,14 @@ def main():
     val_pools, is_val_row = dom.val_split(args.val_from, args.split_seed)
     store = FgTokenStore(args.tokens_dir)
     t0 = time.time()
-    train, val, val_rows, val_pos = load_split(store, is_val_row, motion=args.motion)
     shard_info = store.info[0]
+    bg = None
+    if args.bg_sub:
+        if 'encoder' in shard_info:
+            raise SystemExit('--bg-sub needs a DINOv2 token store (the backgrounds are DINOv2 tokens)')
+        args.bg_dir = args.bg_dir or str(dom.eci_dir / 'fg448/background')
+        bg = (args.bg_dir, obs_rows(dom.ann_path), RULES[shard_info.get('rule_name', 'fg448')])
+    train, val, val_rows, val_pos = load_split(store, is_val_row, motion=args.motion, bg=bg)
     motion_delta = int(shard_info.get('motion_delta', 0)) if args.motion else 0
     if args.motion and motion_delta <= 0:
         raise SystemExit('--motion needs a token store written with --motion-delta')
@@ -186,6 +213,8 @@ def main():
              'motion_delta': motion_delta}
     if 'encoder' in shard_info:  # token stores of a non-DINOv2 encoder (absent = dinov2_base)
         extra['encoder'] = shard_info['encoder']
+    if args.bg_sub:  # absent = raw tokens
+        extra['bg_sub'] = True
     save_checkpoint(out_dir / 'sae.pt', sae, norm, extra=extra)
 
     val_t = torch.from_numpy(val[: (len(val) // 256) * 256])  # evaluate_sae groups rows by 256 (ignored)
@@ -208,6 +237,8 @@ def main():
                'val_threshold': ev['threshold'], 'val_topk': ev['topk'], 'history': history}
     if 'encoder' in extra:
         metrics['encoder'] = extra['encoder']
+    if args.bg_sub:
+        metrics['bg_sub'] = True
     (out_dir / 'metrics.json').write_text(json.dumps(metrics, indent=1))
     print(f'Done in {train_time:.0f}s -> {out_dir}')
 

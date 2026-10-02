@@ -12,7 +12,9 @@ Sharded by row ranges of annotations.csv, same resumable layout as src/eci/encod
 The foreground rule and the SAE input come from the SAE checkpoint: 'fg_rule' (src/eci/foreground.py
 RULES, default 'fg448' for checkpoints without it) and 'motion_delta' D (0 = static token; D > 0 =
 [token_t, token_t - token_{t-D}] at the same patch, the frame D rows earlier in the same video, clipped
-to the video's first frame). All SAEs of one run must share the rule. 'encoder' (absent = 'dinov2_base') is the
+to the video's first frame). All SAEs of one run must share the rule. 'bg_sub' (absent = False): the SAE input is
+token - the video's background token at the same patch and time block (FgBackgrounds.background); the mask is
+computed from the raw tokens as always. 'encoder' (absent = 'dinov2_base') is the
 encoder of the SAE input tokens (src/eci/foreground.py FgEncoder: the mask always comes from DINOv2 at 448; a
 'dinov3_base' SAE encodes DINOv3 tokens of the same patches); all SAEs of one run must share it too. Frames earlier in the same batch
 or the previous batch are reused; any other earlier frame is loaded and encoded on the fly.
@@ -34,7 +36,8 @@ import numpy as np
 import pandas as pd
 import torch
 
-from src.eci.foreground import MASK_ENCODER, RULES, FgBackgrounds, FgEncoder, FrameDatasetFG, encode_batch, obs_rows
+from src.eci.foreground import (MASK_ENCODER, RULES, FgBackgrounds, FgEncoder, FrameDatasetFG, encode_batch, obs_rows,
+                                subtract_background_tokens)
 from src.eci.sae import load_sae
 
 FG_OUTPUTS = ('codes_max', 'codes_mean', 'n_fg')
@@ -72,6 +75,12 @@ class _Runner:
         self.deltas = [int(ck.get('motion_delta', 0) or 0) for _, _, ck in loaded]
         if self.fg.model2 is not None and max(self.deltas) > 0:
             raise ValueError(f'motion inputs are only supported for {MASK_ENCODER} SAEs')
+        bg_subs = {bool(ck.get('bg_sub', False)) for _, _, ck in loaded}
+        if len(bg_subs) != 1:
+            raise ValueError('SAEs with and without background subtraction in one run')
+        self.bg_sub = bg_subs.pop()
+        if self.bg_sub and (self.fg.model2 is not None or max(self.deltas) > 0):
+            raise ValueError(f'background-subtracted inputs are only supported for static {MASK_ENCODER} SAEs')
         rules = {ck.get('fg_rule', 'fg448') for _, _, ck in loaded}
         if len(rules) != 1:
             raise ValueError(f'SAEs with different foreground rules in one run: {rules}')
@@ -118,6 +127,8 @@ class _Runner:
         tok = encode_batch(self.model, pix, self.device)
         mask, _ = self.bgs.mask(tok, grey.to(self.device, non_blocking=True), rows)
         tok = self.fg.sae_tokens(tok, pix2)
+        if self.bg_sub:  # SAE input = token - the video's background token (same position, time block)
+            tok = subtract_background_tokens(tok, self.bgs.background(rows))
         prev = {D: self._prev_tokens(tok, rows, D) for D in set(self.deltas) if D > 0}
         out = [fg_sae_pool(s, n, tok, mask, prev.get(D)) for (s, n), D in zip(self.saes, self.deltas)]
         Dm = max(self.deltas)

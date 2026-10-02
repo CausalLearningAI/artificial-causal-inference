@@ -25,6 +25,15 @@
 #   then fg_encode_all.sh with EXTRA_ARGS="--batch-size 64 --num-workers 16" (two encoders' pixels per frame: the
 #   default 128 x 22 workers prefetch does not fit in 64 GB; the same holds for fg_extract_train.sh with 96 GB)
 #
+#   Background-subtracted input (token - the video's empty-arena background token, leaked positions filled; same store
+#   and mask) and motion input ([token_t, token_t - token_(t-5)], 1 s at 5 fps; store from fg_extract_train.sh
+#   --motion-delta 5). GPU jobs go to the default 'gpu' partition (-p gpu --gres=gpu:1 overrides the H100 request):
+#   EXTRA_ARGS="--bg-sub --tag fg448bg" sbatch --export=ALL -p gpu --gres=gpu:1 --mem=320G --array=0 scripts/eci/train_sae_fg.sh
+#   EXTRA_ARGS="--tokens-dir dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fg448_fps1_d5 --motion --tag fg448mot" \
+#       sbatch --export=ALL -p gpu --gres=gpu:1 --mem=450G --array=0 scripts/eci/train_sae_fg.sh
+#   DOMAIN=ants EXTRA_ARGS="--tokens-dir dataset/ants/eci/train_tokens/dinov2_base_l-1_antsfg_fps1 --bg-sub --tag antsfgbg" ...
+#   DOMAIN=ants EXTRA_ARGS="--tokens-dir dataset/ants/eci/train_tokens/dinov2_base_l-1_antsfg_fps1_d5 --motion --tag antsfgmot" ...
+#
 #SBATCH --job-name=eci_sae_fg
 #SBATCH --output=logs/eci_sae_fg_%A_%a.out
 #SBATCH --error=logs/eci_sae_fg_%A_%a.err

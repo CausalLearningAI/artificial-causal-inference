@@ -65,6 +65,7 @@ def main():
     ck = torch.load(sae_path, map_location='cpu', weights_only=False)
     rule_name, motion_delta = ck.get('fg_rule', 'fg448'), int(ck.get('motion_delta', 0) or 0)
     encoder = ck.get('encoder', 'dinov2_base')
+    bg_sub = bool(ck.get('bg_sub', False))
     del ck
     if not cfg.exists():
         enc_cfg = {} if encoder == 'dinov2_base' else {  # SAE tokens from another encoder, mask from DINOv2 448
@@ -83,7 +84,9 @@ def main():
             'pooling': {'codes_max': 'max over foreground patches', 'codes_mean': 'mean over foreground patches',
                         'n_fg': 'number of foreground patches'},
             'row_order': f'dataset/{dom.ann_rel}', 'n_rows': n_rows,
-            'n_shards': args.n_shards, 'shard_ranges': ranges, **enc_cfg}, indent=1))
+            'n_shards': args.n_shards, 'shard_ranges': ranges, **enc_cfg,
+            **({'sae_input': 'token - background token (rule background, same patch position and time block)',
+                'bg_sub': True} if bg_sub else {})}, indent=1))
     if args.shard is not None:
         lo, hi = ranges[args.shard]
         print(f'shard {args.shard}/{args.n_shards}: rows [{lo}, {hi})', flush=True)
