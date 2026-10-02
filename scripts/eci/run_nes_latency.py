@@ -8,6 +8,14 @@ the same cached thresholds as the bout runs), a frame is above when its value > 
 run of above frames, min 1 frame. The first bout starts at the first above frame, so merge gaps do not change the
 latency. latency = (index of the first above frame in the window) / fps.
 
+Common window: every analysis measures latency in the SAME window for all its videos: the first W frames, W = the
+shortest video among the analysis's videos (Analysis.select rows). Bouts are looked for only inside the window and a
+video with no bout there is right-censored at W. Without this, videos of different lengths are censored at different
+values and the latency difference is the length difference (mice: habituation videos, stages 1 and 4, last 1800 s,
+the others 900 s, so H->O comparisons would compare censoring points; mice W = 900 s in every analysis with an O or
+P stage, 1800 s in B_stage1 / B_stage4; ants: all videos 600 s, W = 600 s). W and the window length are in
+censoring.csv, result.json and SUMMARY.md.
+
 Censoring: a video with no bout in the window gets latency = the window length (s), i.e. it is treated as if the
 first bout came at the very end (right-censored at the window length). censoring.csv gives, per analysis and prefix,
 the fraction of censored (video, latent) cells among the tested latents and how many tested latents are censored in
@@ -18,16 +26,19 @@ are replaced by their ranks (average ranks for ties, e.g. all censored videos ti
 paired rank test).
 
 Analyses, families and units as scripts/eci/run_nes.py (src/eci/domain.py). Primary: latency, q 0.95, t-test,
-Bonferroni alpha 0.05, full window, prefixes 128 and 1024 (or --prefixes). Sensitivities (one change each): q 0.90,
-q 0.99, trim30 (window starts after the first 30 s; latency counted from there), BH, rank, signflip (family A),
-matched (family A 1->2 and 4->5: last n_match frames of habituation). tau > 0 = LATER first bout in the treated
-arm (family B) / at the later stage (family A). Nulls (primary setting): the domain's two-sample label shuffle
+Bonferroni alpha 0.05, common window (window 'common' in summary.csv), prefixes 128 and 1024 (or --prefixes).
+Sensitivities (one change each): q 0.90, q 0.99, trim30 (window = frames [30 s, W): starts after the first 30 s,
+latency counted from there, censored at W - 30 s), BH, rank, signflip (family A), matched (family A 1->2 and 4->5:
+the last n_match frames of habituation vs the first frames of the later stage, both capped at min(n_match, W)).
+tau > 0 = LATER first bout in the treated
+arm (family B) / at the later stage (family A). Nulls (primary setting, common window of the null analysis): the domain's two-sample label shuffle
 (mice: genotype across pools, B stage 2; ants: v2_1_vs_2) and, mice, the within-pool stage swap (A het 1->2),
 20 each.
 
 --frame-pooling P: per-frame values = <codes>/<sae>/codes_P.npy (max for <sae>, mean for <sae>_mean, somp for
 <sae>_somp). Output: <nes root>/<sae>/[<set>/]<P>_latency/ ('maxpool_latency' / 'meanpool_latency' for max / mean);
-cache <nes root>/<sae>/_cache/latency_<P>.npz.
+cache <nes root>/<sae>/_cache/latency_<P>.npz (first-above frame index in the whole full / last / trim window, NOT
+capped at W: the common-window latency of a video is min(cached index, window length), censored when >= it).
 
 Usage: python scripts/eci/run_nes_latency.py --domain mice --sae matryoshka_btk_1024_k16_fg448_s0 --frame-pooling max
        python scripts/eci/run_nes_latency.py --domain ants --sae matryoshka_btk_1024_k16_antsfg_s0_somp --frame-pooling somp --analysis-set pairs
@@ -52,9 +63,11 @@ from eci.nes import neural_effect_search, paired_effect_search  # noqa: E402
 from run_nes import resolve_prefixes  # noqa: E402
 
 QS = (0.90, 0.95, 0.99)  # the bout runs' quantiles (same cached thresholds)
-WINDOW_MAP = {'full': ('full', 'full'), 'matched': ('last', 'full'), 'trim30': ('trim', 'trim')}
+# runner window -> (contrasts window of stage a / control, of stage b / treated); every window is capped at the
+# analysis's common length (window_frames)
+WINDOW_MAP = {'common': ('full', 'full'), 'matched': ('last', 'full'), 'trim30': ('trim', 'trim')}
 PRIMARY = dict(outcome_type='latency', threshold_q=0.95, transform='none', test='t', correction='bonferroni',
-               window='full')
+               window='common')
 SENS = {'q0.90': dict(threshold_q=0.90), 'q0.99': dict(threshold_q=0.99), 'trim30': dict(window='trim30'),
         'BH': dict(correction='bh'), 'rank': dict(transform='rank'), 'signflip': dict(test='signflip'),
         'matched': dict(window='matched')}
@@ -67,6 +80,17 @@ def applicable(name, an):
     if name == 'matched':
         return an.family == 'A' and an.matched
     return True
+
+
+def common_frames(an, design):
+    """W (frames) of an analysis: the shortest video among its videos."""
+    return int(an.select(design)['n_frames'].min())
+
+
+def window_frames(window, W, n_match, n_trim):
+    """Length (frames) of the runner window inside the common window of W frames: the latency is capped (censored)
+    at this value in both arms."""
+    return {'common': W, 'matched': min(n_match, W), 'trim30': W - n_trim}[window]
 
 
 def skey(prefix, s):
@@ -185,11 +209,23 @@ def main():
     lat, nf = cached_latencies(codes_path, design, cache / f'latency{sfx}.npz', thresholds, n_match, args.n_trim)
     print(f'latencies: {time.time() - t0:.0f}s (thresholds from {n_used} frames)', flush=True)
 
-    def summ(q):  # seconds; censored = window length
-        return {(w, 'v'): lat[(w, q)] / fps for w in C.WINDOWS}
+    def summ(q, L):  # seconds, inside a window of L frames from the window start; censored = L
+        return {(w, 'v'): np.minimum(lat[(w, q)], L) / fps for w in C.WINDOWS}
 
-    def censored(q):
-        return {(w, 'v'): (lat[(w, q)] >= nf[w][:, None]).astype(float) for w in C.WINDOWS}
+    def censored(q, L):
+        return {(w, 'v'): (lat[(w, q)] >= L).astype(float) for w in C.WINDOWS}
+
+    def check_len(an, wa, wb, L):  # the capped window must fit inside every video's own window
+        d = an.select(design)
+        if an.family == 'A':
+            ra, rb = (d.loc[d['stage'] == x, 'obs_row'].values for x in an.stages)
+        else:
+            ra = rb = d['obs_row'].values
+        if L <= 0 or (nf[wa][ra] < L).any() or (nf[wb][rb] < L).any():
+            raise SystemExit(f'{an.id}: window of {L} frames does not fit every video ({wa}/{wb})')
+
+    W_an = {an.id: common_frames(an, design) for an in D.analyses}
+    print('common window W (s):', {k: v / fps for k, v in W_an.items()}, flush=True)
 
     def settings(an):
         return [dict(PRIMARY)] + [{**PRIMARY, **ov} for n, ov in SENS.items() if applicable(n, an)]
@@ -198,9 +234,12 @@ def main():
     for an in D.analyses:
         aid = an.id
         results[aid] = {}
+        W = W_an[aid]
         for s in settings(an):
-            sm = summ(s['threshold_q'])
             wa, wb = WINDOW_MAP[s['window']]
+            L = window_frames(s['window'], W, n_match, args.n_trim)
+            check_len(an, wa, wb, L)
+            sm = summ(s['threshold_q'], L)
             for prefix in PREFIXES:
                 if an.family == 'A':
                     units, Za, Zb = C.paired(sm, design, an.genotype, *an.stages, 'v', wa, wb, prefix)
@@ -216,14 +255,15 @@ def main():
                     res = neural_effect_search(Z, T, correction=s['correction'])
                     extra = {'n_het': int(T.sum()), 'n_wt': int((1 - T).sum())}
                 k = skey(prefix, s)
-                results[aid][k] = {**strip(res), 'n_units': len(units), 'units': list(units), **extra}
+                results[aid][k] = {**strip(res), 'n_units': len(units), 'units': list(units), **extra,
+                                   'W_frames': W, 'W_s': W / fps, 'window_frames': L, 'window_s': L / fps}
                 meta = dict(analysis_id=aid, family=an.family, **an.meta, prefix=prefix, pooling=FP, **s,
                             n_units=len(units), setting=k)
                 rows += tidy_rows(meta, res, an.directions)
                 print(f'{aid} {k}: selected={res["selected"]} dropped={res["n_dropped"]}', flush=True)
                 if s == PRIMARY or (s['window'] == 'trim30' and s['threshold_q'] == 0.95 and s['transform'] == 'none'
                                     and s['test'] == 't' and s['correction'] == 'bonferroni'):
-                    cz = censored(s['threshold_q'])
+                    cz = censored(s['threshold_q'], L)
                     if an.family == 'A':
                         _, Ca, Cb = C.paired(cz, design, an.genotype, *an.stages, 'v', wa, wb, prefix)
                         Cc = np.vstack([Ca, Cb])
@@ -232,7 +272,7 @@ def main():
                     tested = np.setdiff1d(np.arange(Cc.shape[1]), res['dropped'])
                     ct = Cc[:, tested]
                     cens_rows.append({'analysis_id': aid, 'prefix': prefix, 'window': s['window'],
-                                      'n_tested': len(tested), 'censored_cell_frac': float(ct.mean()),
+                                      'W_s': W / fps, 'window_s': L / fps, 'n_tested': len(tested), 'censored_cell_frac': float(ct.mean()),
                                       'median_latent_censored_frac': float(np.median(ct.mean(0))),
                                       'n_latents_censored_over_half': int((ct.mean(0) > 0.5).sum()),
                                       'n_latents_never_censored': int((ct.mean(0) == 0).sum())})
@@ -245,16 +285,18 @@ def main():
     cens.to_csv(out / 'censoring.csv', index=False)
 
     rng = np.random.default_rng(0)
-    sm = summ(0.95)
     sanity = {'thresholds_n_frames': n_used, 'nulls': {}, 'fps': fps,
-              'censoring_primary_overall': float(cens[cens['window'] == 'full']['censored_cell_frac'].mean())}
+              'common_window_s': {k: v / fps for k, v in W_an.items()}, 'n_trim': args.n_trim, 'n_match': n_match,
+              'censoring_primary_overall': float(cens[cens['window'] == 'common']['censored_cell_frac'].mean())}
     an2 = D.analysis(D.null_two)
     anp = D.analysis(D.null_paired) if D.null_paired else None
     for prefix in PREFIXES if args.n_shuffles > 0 else ():
+        sm = summ(0.95, W_an[an2.id])
         _, Z, T = C.two_sample(sm, an2.select(design), 'v', 'full', prefix, an2.unit)
         cnt = [len(neural_effect_search(Z, rng.permutation(T))['selected']) for _ in range(args.n_shuffles)]
         sanity['nulls'][f'p{prefix}'] = {f'{an2.id}_{D.shuffle_word}_shuffle_n_selected': cnt}
         if anp is not None:
+            sm = summ(0.95, W_an[anp.id])
             _, Za, Zb = C.paired(sm, design, anp.genotype, *anp.stages, 'v', 'full', 'full', prefix)
             ca = []
             for _ in range(args.n_shuffles):
@@ -264,30 +306,39 @@ def main():
         print(f'nulls p{prefix}:', sanity['nulls'][f'p{prefix}'], flush=True)
     sanity['runtime_s'] = time.time() - t_start
     (out / 'sanity.json').write_text(json.dumps(C.to_jsonable(sanity), indent=1))
-    write_reports(out, tidy, cens, design, D, sm, censored(0.95), sanity, args.sae, FP)
+    write_reports(out, tidy, cens, design, D, {a: censored(0.95, w) for a, w in W_an.items()}, sanity, args.sae, FP)
     print(f'done in {time.time() - t_start:.0f}s -> {out}', flush=True)
 
 
-def write_reports(out, tidy, cens, design, D, sm, cz, sanity, sae, FP):
+def write_reports(out, tidy, cens, design, D, cz_an, sanity, sae, FP):
+    """cz_an: {analysis_id: censored indicators of the primary (common) window, q 0.95}."""
     names = list(SENS)
     L = [f'# NES summary ({FP} frame values, LATENCY outcome): {sae}', '',
          f'Outcome = time (s) from the start of the window to the first bout of each latent. Bout as the event-rate '
          f'runs: frame value codes_{FP} > the latent\'s pooled q-quantile threshold (treatment-agnostic, '
-         f'{sanity["thresholds_n_frames"]} sampled frames, seed 0), min 1 frame. Videos with no bout get the window '
-         'length (right-censored). tau > 0 = later first bout in the treated arm (family B) / at the later stage '
-         '(family A). Primary: q 0.95, t-test, Bonferroni alpha 0.05, full window. rank = the same NES on per-latent '
+         f'{sanity["thresholds_n_frames"]} sampled frames, seed 0), min 1 frame. Common window: bouts are looked for '
+         'only in the first W s of every video, W = the shortest video of the analysis (W per analysis below), and '
+         'videos with no bout there get W (right-censored at W), so videos of different lengths are compared on the '
+         'same window. tau > 0 = later first bout in the treated arm (family B) / at the later stage '
+         '(family A). Primary: q 0.95, t-test, Bonferroni alpha 0.05, common window. trim30 = window [30 s, W). '
+         'matched = last min(n_match, W) frames of habituation vs the first min(n_match, W) frames of the later '
+         'stage. rank = the same NES on per-latent '
          'ranks (ties averaged: all censored videos tie). No nuisance conditioning.', '',
-         f'Censoring (primary, full window, tested latents): mean over analyses / prefixes of the censored cell '
+         f'Common window W (s) per analysis: '
+         + ', '.join(f'{k} {v:g}' for k, v in sanity['common_window_s'].items()) + '.', '',
+         f'Censoring (primary, common window, tested latents): mean over analyses / prefixes of the censored cell '
          f'fraction = {sanity["censoring_primary_overall"]:.3f}; per analysis in censoring.csv.', '',
          'Robustness columns: Y = also selected (any round) under that single change; "-" = not applicable. '
          'cens = censored fraction of the selected latent in each arm (control / treated; family A: stage a / b).', '']
     for an in D.analyses:
         aid = an.id
-        L.append(f'## {aid}' + (f' ({an.meta.get("confound")})' if an.meta.get('confound') else ''))
+        L.append(f'## {aid}' + (f' ({an.meta.get("confound")})' if an.meta.get('confound') else '')
+                 + f' - W = {sanity["common_window_s"][aid]:g} s')
+        cz = cz_an[aid]
         for prefix in PREFIXES:
             sub = tidy[(tidy['analysis_id'] == aid) & (tidy['prefix'] == prefix) & (tidy['setting'] == skey(prefix, PRIMARY))]
             nd = int(sub['n_dropped'].iloc[0])
-            c = cens[(cens['analysis_id'] == aid) & (cens['prefix'] == prefix) & (cens['window'] == 'full')].iloc[0]
+            c = cens[(cens['analysis_id'] == aid) & (cens['prefix'] == prefix) & (cens['window'] == 'common')].iloc[0]
             ps = sub[sub['round'] > 0].sort_values('round')
             head = (f'- prefix {prefix}: {len(ps)} selected ({nd} dropped; censored cells {c.censored_cell_frac:.2f}, '
                     f'{int(c.n_latents_censored_over_half)}/{int(c.n_tested)} latents censored in > half the videos)')
@@ -324,7 +375,9 @@ def write_reports(out, tidy, cens, design, D, sm, cz, sanity, sae, FP):
             {'analysis_id': r['analysis_id'], 'prefix': int(r['prefix']), 'round': int(r['round']),
              'direction': r['direction'], 'tau_s': float(r['tau']), 'p': float(r['p'])})
     (out / 'selected_neurons.json').write_text(json.dumps(
-        {'sae': sae, 'settings': f'primary (codes_{FP}, latency to first bout q0.95, t, bonferroni, full window)',
+        {'sae': sae, 'settings': f'primary (codes_{FP}, latency to first bout q0.95, t, bonferroni, common window: '
+                                 'first W s of every video, W = shortest video of the analysis)',
+         'common_window_s': sanity['common_window_s'],
          'neurons': {str(j): v for j, v in sorted(union.items())}}, indent=1))
 
 
