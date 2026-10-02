@@ -286,8 +286,10 @@ const VIDS = () => DATA.videos || ALL.videos, OBS = () => DATA.obs || ALL.obs;
 const aSubj = () => DATA.subject==='ant' ? 'an ant' : 'a mouse';
 /* per-video values of the current outcome for the current neuron: in its entry, or in the outcome's bundle file */
 function valsOf(n){
-  const V = (n.vals||{})[state.outcome]; if(V) return V;
-  const F = GOT[rfile()]; return F && F.vals && F.vals[state.outcome] ? F.vals[state.outcome][state.neuron] : undefined;
+  const F = GOT[rfile()];
+  const V = (n.vals||{})[state.outcome] || (F && F.vals && F.vals[state.outcome] ? F.vals[state.outcome][state.neuron] : undefined);
+  const W = V && isLat() ? latW() : null;   // latency: first-bout time capped at the comparison's common window W
+  return W==null ? V : V.map(v => v==null ? v : Math.min(v, W));
 }
 function clipLabel(v){
   if(ANTS()){ const [e, t, d, b, p] = VIDS()[v]; return `${e} · t=${t} · day ${d} · ${OBS()[v][0]} · batch ${b} · pos ${p}`; }
@@ -309,13 +311,15 @@ function longLabel(a){
   return `het vs wt in stage ${a.stage} (${STAGE_LONG[a.stage]})`;
 }
 const tauTip = () => (ANTS() ? 'tau: effect size in the outcome unit: mean of the treated videos minus mean of the control videos.' : TAU_TIP)
-  + (isLat() ? ' Latency: tau > 0 = a later first bout; a video without a bout counts as the video length (censored).' : '');
-/* latency outcomes: DATA.lwin[outcome] = per-video window length (s); a value at the window length is censored (no bout) */
+  + (isLat() ? ` Latency: tau > 0 = a later first bout, measured in the first ${latW()} s of every video of the comparison; a video without a bout there counts as ${latW()} s (censored).` : '');
+/* latency outcomes: DATA.lwin[outcome] = {analysis: W (s)}, the common window of that comparison (first W s of every
+   video); the per-video first-bout times are capped at W, and a value at W is censored (no bout in the window) */
 const isLat = () => (outcome()||{}).kind==='latency';
 const lwin = () => (DATA.lwin||{})[state.outcome];
-const isCens = (v, i) => { const L = lwin(); return !!L && v!=null && v >= L[i]*(1-1e-4); };
+const latW = () => { const L = lwin(); if(!L) return null; return L[state.aid] ?? Math.min(...Object.values(L)); };
+const isCens = (v, i) => { const W = latW(); return W!=null && v!=null && v >= W*(1-1e-4); };
 const censTip = c => c.map(([lab,k,n])=>`${lab} ${k}/${n}`).join(', ');
-const censChip = c => c ? `<span class="chip na" title="Censored videos (no bout in the video: latency set to the video length): ${esc(censTip(c))}">cens ${c.reduce((s,x)=>s+x[1],0)}/${c.reduce((s,x)=>s+x[2],0)}</span>` : '';
+const censChip = c => c ? `<span class="chip na" title="Censored videos (no bout in the first ${latW()} s: latency set to ${latW()} s): ${esc(censTip(c))}">cens ${c.reduce((s,x)=>s+x[1],0)}/${c.reduce((s,x)=>s+x[2],0)}</span>` : '';
 /* mask + motion SAEs: DATA.change_share[j] = share of neuron j's decoder weight on the change half of the input */
 const CS_TIP = 'Change share: fraction of the neuron\'s decoder weight (squared norm) on the change half of the input [token, token − token 1 s earlier]; 0% = only what is there, 100% = only how it moves.';
 const csOf = j => DATA.change_share ? DATA.change_share[j] : null;
@@ -564,7 +568,7 @@ function groupTable(n){
   VIDS().forEach((v,i) => { if(V[i]==null) return; const k = `${v[0]}|${v[1]}`; (g[k] = g[k] || {e:v[0], t:v[1], y:[]}).y.push(V[i]); });
   return Object.values(g).sort((p,q)=>p.e.localeCompare(q.e) || p.t-q.t).map(x => { const s = meanCI(x.y); return {experiment:x.e, T:x.t, mean:s.m, lo:s.lo, hi:s.hi, n:s.n}; });
 }
-const owhat = o => o.kind==='latency' ? 'latency to first bout (s)' : o.bout ? o.unit : `mean codes_${o.codes}`;
+const owhat = o => o.kind==='latency' ? `latency to first bout (s, first ${latW()} s)` : o.bout ? o.unit : `mean codes_${o.codes}`;
 function chartTable(j, n){
   if(ANTS()){ const o = outcome(); return {T:groupTable(n)||[], what:`${owhat(o)} per video (full videos)`}; }
   if(SUB() || !n.table || isLat()){
@@ -700,7 +704,7 @@ function renderDetail(){
   if(r) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${r.tau>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${P_TIP}">p ${fmtP(r.p)}</span>`;
   if(rt) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${rt[1]>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(rt[1])} ${esc(outcome().unit)}</span> · <span class="tip" title="First-round t-test p-value, above the Bonferroni threshold: not selected by NES">p ${fmtP(rt[2])} · not selected</span>`;
   const cens = r ? r.cens : rt ? rt[3] : null;
-  if(cens) h+=` · <span class="tip" title="Videos of this comparison without a bout of this neuron: their latency is set to the video length (right-censored). ${esc(censTip(cens))}">censored ${esc(censTip(cens))}</span>`;
+  if(cens) h+=` · <span class="tip" title="Videos of this comparison without a bout of this neuron in the first ${latW()} s: their latency is set to ${latW()} s (right-censored). ${esc(censTip(cens))}">censored ${esc(censTip(cens))}</span>`;
   if(csOf(j)!=null) h+=` · <span class="tip" title="${CS_TIP}">change share ${Math.round(csOf(j)*100)}%</span>`;
   h+=`</span></div>`;
   if(hits) h+=`<div class="tags" aria-label="Found in">${hits.hits.map(({a:b,r:x})=>`<button type="button" class="tag ${cmp&&b.id===state.aid?'cur':x.tau>0?'up':'down'}" data-aid="${b.id}" title="${esc(longLabel(b))}: tau ${fmtTau(x.tau)} ${esc(outcome().unit)}, p ${fmtP(x.p)}. Open this comparison">${shortLabel(b)}${x.tau>0?'▲':'▼'}</button>`).join('')}</div>`;
@@ -847,7 +851,7 @@ function poolPanel(n, a){
   });
   s += '</svg>';
   const sm = rows.map(r => `${r.name} ${r.s.m.toPrecision(3)} [${r.s.lo.toPrecision(3)}, ${r.s.hi.toPrecision(3)}], n ${r.s.n}`).join(' · ');
-  const cn = lat ? `<p class="note">Censored (no bout, latency = video length${a.family==='A'?'':', hollow dots'}): ${esc(censTip(cens))}</p>` : '';
+  const cn = lat ? `<p class="note">Censored (no bout in the first ${latW()} s, latency = ${latW()} s${a.family==='A'?'':', hollow dots'}): ${esc(censTip(cens))}</p>` : '';
   return `<div class="lg"><span>${esc(lg)} · black = mean, 95% CI</span></div>${s}<p class="note mono">${esc(sm)}</p>${cn}`;
 }
 

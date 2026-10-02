@@ -33,11 +33,12 @@ with the raw treatment numbers, "t=2 vs t=8"), a confound note from each analysi
 (VIEW 'top', so comparisons without NES selections can be browsed).
 
 Outcome controls: Temporal Aggregation (event rate = bouts/min, average time = per-video mean, latency = seconds to
-the first bout, right-censored at the video length) x Spatial aggregation (max pooling, average pooling, SOMP). The
+the first bout within the comparison's common window W, right-censored at W) x Spatial aggregation (max pooling, average pooling, SOMP). The
 core outcomes (--outcome / DEFAULT_OUTCOMES) keep their data files; extra_outcomes adds the other poolings found in
 their summary.csv, the sibling result sets <res>_<aggregation> (<sae>_mean, <sae>_somp) and the latency runs
 (<res>/<P>_latency/, scripts/eci/run_nes_latency.py; per-video values and censoring from _cache/latency*.npz) as
-<tag>_x.json bundles (full cohort only). Latency rows carry the censored videos per arm (side panel, per-video
+<tag>_x.json bundles (full cohort only; latency: primary window 'common', the per-video values capped by the page
+at each analysis's W from result.json, LATENCY_AGGS = max / mean). Latency rows carry the censored videos per arm (side panel, per-video
 panel). Mask + motion SAEs carry each neuron's change share (decoder weight on the change half of the input).
 
 Data-driven: everything comes from the result sets (summary.csv files written by the NES runs); only
@@ -204,7 +205,8 @@ OUTCOME_KINDS = [('rate', 'event rate', 'Bouts per minute: runs of frames above 
                  ('time', 'average time', 'Per-video mean over time of the neuron\'s frame value '
                   '(scripts/eci/run_nes.py)'),
                  ('latency', 'latency', 'Seconds from the start of the video to the neuron\'s first bout (same '
-                  'threshold as the event rate); a video without a bout gets the video length (right-censored) '
+                  'threshold as the event rate), within the first W seconds of every video of the comparison; a video '
+                  'without a bout there gets W (right-censored) '
                   '(scripts/eci/run_nes_latency.py)')]
 # Data-driven: an aggregation <id> is offered for an SAE when its NES results exist (the pooling column of the
 # SAE's own summary.csv files, or a sibling result set <sae>_<id>). A pairwise / zone aggregation is added by
@@ -217,6 +219,8 @@ CHUNK_BYTES = 200_000                 # target size of one neuron data file (ass
 # map, charts and per-video values; they show clips when another outcome's search gives them some (same codes key).
 # This keeps the clip set inside the artifact's 1 GiB asset store.
 CLIP_KINDS = ('rate', 'time')
+# Spatial aggregations whose latency runs are shown (SOMP latency is left out: ~40 % censored, degenerate)
+LATENCY_AGGS = ('max', 'mean')
 K = 16                                # clips picked per row (picks.json); VIEW kr of them are rendered
 BLOCKS = ('top', 'top_heat', 'least', 'least_heat')  # the blocks of one clip page, in page order
 LENGTHS = {'frame': 1, '1s': 5, '3s': 15}
@@ -241,6 +245,7 @@ CHIP = {('test', 'signflip'): ('flip', 'sign-flip permutation test instead of th
         ('outcome_type', 'mean'): ('mean', 'per-video mean activation as the outcome'),
         ('window', 'matched'): ('match', 'time-matched windows across stages'),
         ('window', 'full'): ('full', 'full videos'),
+        ('window', 'common'): ('common', 'common window: the first W seconds of every video of the analysis'),
         ('transform', 'rank'): ('rank', 'latencies replaced by their ranks (censored videos tie), a Mann-Whitney-like '
                                 'test, instead of raw seconds'),
         ('prefix', 128): ('128', 'searching only the first 128 neurons'),
@@ -406,7 +411,7 @@ def extra_outcomes(cfg):
         for s in sorted(rdir_of(d).glob('*_latency/summary.csv')):
             P = {'maxpool': 'max', 'meanpool': 'mean'}.get(s.parent.name[:-len('_latency')], s.parent.name[:-len('_latency')])
             agg = agg0 or P
-            if ('latency', agg) in have:
+            if ('latency', agg) in have or agg not in LATENCY_AGGS:
                 continue
             t = cfg.trim(pd.read_csv(s))
             try:
@@ -418,7 +423,7 @@ def extra_outcomes(cfg):
             name = 'SOMP' if agg == 'somp' else f'{agg}-pool'
             out.append({'label': f'Latency to first bout ({name})', 'dir': s.parent, 'tidy': t, 'primary': prim,
                         'codes': agg, 'pool': P, 'kind': 'latency', 'agg': agg, 'extra': True, 'cache': d / '_cache',
-                        'lfile': lf.name, 'unit': 's', 'short': 'latency', 'id': f'xlatency{agg}'})
+                        'lfile': lf.name, 'unit': 's', 'short': 'latency', 'id': f'xlatency{agg}', 'pwin': 'common'})
             have.add(('latency', agg))
     for o in out:
         print(f'[{cfg.tag}] extra outcome {o["label"]!r} ({o["kind"]} x {o["agg"]}): {o["dir"]} primary {o["primary"]}')
@@ -549,9 +554,10 @@ def match(t, spec):
 
 
 def primary_rows(o):
-    """The outcome's primary setting, full-video window only (the page shows full videos only)."""
+    """The outcome's primary setting, primary window only (full videos; latency runs: 'common', the first W frames
+    of every video of the analysis). The page keys these searches by window 'full' (search_results)."""
     t = o['tidy']
-    return t[match(t, o['primary']) & (t['window'] == 'full').values]
+    return t[match(t, o['primary']) & (t['window'] == o.get('pwin', 'full')).values]
 
 
 def mean_outcome(o):
@@ -582,9 +588,23 @@ def is_latency(o):
     return o['primary']['outcome_type'] == 'latency'
 
 
+def latency_W(o, aid):
+    """W (frames) of latency outcome o in analysis aid: the common window (first W frames of every video of the
+    analysis, scripts/eci/run_nes_latency.py), from <outcome dir>/<aid>/result.json [primary setting] 'W_frames'."""
+    prim = primary_rows(o)
+    h = prim[prim['analysis_id'] == aid]
+    r = read_json(o['dir'] / aid / 'result.json')[h['setting'].iloc[0]]
+    W = {int(read_json(o['dir'] / aid / 'result.json')[x]['W_frames']) for x in h['setting'].unique()}
+    if len(W) != 1:
+        raise SystemExit(f'{o["dir"]}/{aid}: several W over the primary settings {W}')
+    assert int(r['window_frames']) == int(r['W_frames']), r
+    return W.pop()
+
+
 def latency_frames(o):
     """(Index of observation_id, (n_obs, m) first-bout frame index in the full video (= its length when no bout),
-    (n_obs,) video length in frames) from the latency run's cache (scripts/eci/run_nes_latency.py)."""
+    (n_obs,) video length in frames) from the latency run's cache (scripts/eci/run_nes_latency.py). Uncapped: the
+    latency of an analysis = min(index, W) (latency_W), censored where index >= W."""
     k = ('lat', str(o['cache'] / o['lfile']), o['primary']['threshold_q'])
     if k not in _rates:
         f = np.load(o['cache'] / o['lfile'])
@@ -603,7 +623,7 @@ def video_outcome(cfg, o):
     if o['extra'] and not f.exists():
         print(f'[{cfg.tag}] WARNING: {f} missing: no per-video values for {o["label"]!r}')
         return None
-    if is_latency(o):
+    if is_latency(o):  # uncapped first-bout time (s); the page caps it at the analysis's W (DATA.lwin)
         ids, lat, _ = latency_frames(o)
         return ids, lat / cfg.dom.fps
     if is_bout(o):
@@ -1644,14 +1664,14 @@ def analysis_meta(cfg, aid, r0):
 
 
 def censored_arms(cfg, o, aid):
-    """Latency outcome o, analysis aid: ((n_videos, m) bool censored (no bout in the video: latency = its length)
+    """Latency outcome o, analysis aid: ((n_videos, m) bool censored (no bout in the first W frames: latency = W)
     over the page's video list, [(arm label, (n_videos,) mask)] of the two arms (ants: control / treated videos;
     mice A: that genotype's videos of stage a / stage b; B: het / wt videos of that stage)."""
     vm = _vt(cfg.dom)[0]
     ids, lat, nf = latency_frames(o)
     ix = ids.get_indexer(vm['observation_id'].astype(str))
     assert (ix >= 0).all(), 'videos missing from the latency cache'
-    cz = lat[ix] >= nf[ix][:, None]
+    cz = lat[ix] >= latency_W(o, aid)  # no bout in the analysis's common window (first W frames)
     m0, m1 = contrast_groups(cfg, aid, vm)
     an = cfg.dom.analysis(aid)
     if cfg.dom is not MICE:
@@ -1696,17 +1716,18 @@ def search_results(cfg, outs, analyses=None, others=None, top=False):
                                  'rob': robustness(o, oth, aid, int(prefix), window, j, words)})
                     if cz is not None:  # latency: censored videos per arm (side panel)
                         rows[-1]['cens'] = cens_of(*cz, j)
-                results[f'{o["id"]}|{aid}|{int(prefix)}|{window}'] = {
+                wk = 'full'  # the page's key for the primary window (latency: the common window)
+                results[f'{o["id"]}|{aid}|{int(prefix)}|{wk}'] = {
                     'n_tested_total': int(h['n_tested_total'].iloc[0]), 'rows': rows}
                 rf = o['dir'] / aid / 'result.json'
                 stop = read_json(rf).get(h['setting'].iloc[0], {}).get('stopped') if rf.exists() else None
                 if stop:  # NES stopped early (no residual degrees of freedom left)
-                    results[f'{o["id"]}|{aid}|{int(prefix)}|{window}']['stopped'] = str(stop)
+                    results[f'{o["id"]}|{aid}|{int(prefix)}|{wk}']['stopped'] = str(stop)
                 if top and cfg.view['top']:
                     tr = top_rows(cfg, o, aid, prefix, window)
                     if cz is not None:  # [neuron, tau, p, censored per arm]
                         tr = [x + [cens_of(*cz, x[0])] for x in tr]
-                    results[f'{o["id"]}|{aid}|{int(prefix)}|{window}']['top'] = tr
+                    results[f'{o["id"]}|{aid}|{int(prefix)}|{wk}']['top'] = tr
     return results
 
 
@@ -1827,8 +1848,19 @@ def page_data(cfg):
         if cfg.view['top']:  # every neuron of the page gets every outcome's values (chart, per-video panel)
             js = sorted(set(js) | set(neurons.get(o['codes'], {})) | listed[o['id']], key=int)
         vals[o['id']] = {j: [sig4(v) for v in Y[ix, int(j)]] for j in js}
-        print(f'[{cfg.tag}] page: {o["label"]}: tau recomputed from per-video values vs summary.csv, '
-              f'max relative diff {tau_check(vm, vals[o["id"]], xres if o["extra"] else results, o["id"], dom=cfg.dom):.2e}')
+        if is_latency(o):  # per analysis: values capped at its W (as the page shows them)
+            wr = 0.0
+            for aid in cfg.order:
+                if not (primary_rows(o)['analysis_id'] == aid).any():
+                    continue
+                Ws = latency_W(o, aid) / cfg.dom.fps
+                cv = {j: [min(v, Ws) for v in V] for j, V in vals[o['id']].items()}
+                wr = max(wr, tau_check(vm, cv, {k: R for k, R in xres.items() if k.split('|')[1] == aid}, o['id'], dom=cfg.dom))
+            print(f'[{cfg.tag}] page: {o["label"]}: tau recomputed from per-video values capped at W vs summary.csv, '
+                  f'max relative diff {wr:.2e}')
+        else:
+            print(f'[{cfg.tag}] page: {o["label"]}: tau recomputed from per-video values vs summary.csv, '
+                  f'max relative diff {tau_check(vm, vals[o["id"]], xres if o["extra"] else results, o["id"], dom=cfg.dom):.2e}')
         for name, v in subsets.items():
             if o['extra']:
                 continue
@@ -1844,12 +1876,10 @@ def page_data(cfg):
             ids, Y = video_outcome(cfg, o)
             ix = ids.get_indexer(vm['observation_id'].astype(str))
             vals[o['id']].update({j: [sig4(v) for v in Y[ix, int(j)]] for j in miss})
-    # latency outcomes: per-video window length (s, the page's video order); a value equal to it is censored
-    lwin = {}
-    for o in allo:
-        if is_latency(o) and o['id'] in vals:
-            ids, _, nf = latency_frames(o)
-            lwin[o['id']] = [sig4(v) for v in nf[ids.get_indexer(vm['observation_id'].astype(str))] / cfg.dom.fps]
+    # latency outcomes: {analysis: W (s)}, the common window; the page caps the per-video values at W and marks a
+    # value at W censored
+    lwin = {o['id']: {aid: sig4(latency_W(o, aid) / cfg.dom.fps) for aid in analyses if (primary_rows(o)['analysis_id'] == aid).any()}
+            for o in allo if is_latency(o) and o['id'] in vals}
     cs = change_share(cfg)
     if cs is not None:
         print(f'[{cfg.tag}] page: change share of the decoder rows (motion SAE): median {np.median(cs):.3f}, '
