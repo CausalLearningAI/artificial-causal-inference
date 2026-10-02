@@ -13,6 +13,9 @@ Parts (all CPU, all from files already on disk):
             5-fold grouped by video, C = 0.1) -> frame-level and video-level Welch p for treatment; the single
             latent most correlated with grooming (frame corr) and its frame / video p; NES with frames as units
             and no correction (paper protocol) and with videos as units (Bonferroni).
+  position  (GPU recommended; not in the default --parts) patch-position share on held-out foreground tokens with
+            each SAE's own input (raw / background-subtracted / motion): share of the input-token variance and the
+            variance-weighted eta^2 of the latents on the patch position (chance-corrected).
   nes       primary NES (codes_max, per-video mean, t, Bonferroni, full window) / bouts (bout rate, q 0.95, gap 0)
             results of the runs: selected neurons per analysis and prefix (tau, p), the
             label-shuffle null (number selected per shuffle) and, for ants pairs, the recording-day confound flag.
@@ -97,10 +100,96 @@ def latents(codes_dir, a, ok, y, stride):
         dfree = np.maximum(auc, 1 - auc)
         top = np.argsort(-dfree)[:5]
         res[f'best_latent_{pool}'] = [{'latent': int(j), 'auc': float(auc[j])} for j in top]
+        res[f'n_latents_auc_gt065_{pool}'] = int((dfree > 0.65).sum())
         if pool == 'max':
             sub = np.arange(0, len(rows), stride)
             _, res['readout_auc_max'] = readout(X[sub], y[rows][sub], pd.factorize(a['observation_id'].values[rows][sub])[0])
             res['readout_stride'] = stride
+    return res
+
+
+def position(sae_dir, n_tokens=2_000_000, seed=0, chunk=65536):
+    """Patch-position share on held-out foreground tokens (the SAE's own validation units, up to n_tokens tokens,
+    seeded uniform sample), with the SAE's own input (raw / background-subtracted / [token, change]):
+      input_token_share   share of the normalized SAE-input variance (summed over dims) explained by the position
+                          (motion SAEs: also per half)
+      latent_share        per latent eta^2 of its activation on the position (threshold inference), averaged with
+                          weights = the latent's activation variance (the pilot's 'eta_pos weighted'), median, and
+                          the fraction of latents with eta^2 > 0.3"""
+    import torch
+    from src.eci.foreground import RULES, FgTokenStore, obs_rows, subtract_background_np
+    from src.eci.sae import load_sae
+    dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    sae, norm, ck = load_sae(sae_dir / 'sae.pt', dev)
+    m = json.loads((sae_dir / 'metrics.json').read_text())
+    args = m['args']
+    dom = get_domain(args.get('domain', 'mice'))
+    _, is_val_row = dom.val_split(args['val_from'], args.get('split_seed', 0))
+    tdir = Path(args['tokens_dir'])
+    store = FgTokenStore(tdir if tdir.is_absolute() else REPO / tdir)
+    idx = [np.nonzero(is_val_row[store.row(s)])[0] for s in range(len(store.dirs))]
+    n_all = sum(len(i) for i in idx)
+    rng = np.random.default_rng(seed)
+    keep = np.sort(rng.choice(n_all, min(n_tokens, n_all), replace=False))
+    offs = np.cumsum([0] + [len(i) for i in idx])
+    D = int(ck.get('motion_delta', 0) or 0)
+    xs, ps = [], []
+    for s in range(len(store.dirs)):
+        k = keep[(keep >= offs[s]) & (keep < offs[s + 1])] - offs[s]
+        if not len(k):
+            continue
+        ii = idx[s][k]
+        t = np.asarray(store.tokens(s)[ii])
+        if ck.get('bg_sub', False):
+            bg_dir = args.get('bg_dir') or str(dom.eci_dir / 'fg448/background')
+            t = subtract_background_np(t, store.row(s)[ii], store.pos(s)[ii], bg_dir, obs_rows(dom.ann_path),
+                                       RULES[ck.get('fg_rule', 'fg448')])
+        if D > 0:
+            t = np.concatenate([t, (np.asarray(store.tokens(s)[ii]).astype(np.float32) - store.prev(s)[ii]).astype(np.float16)], 1)
+        xs.append(t)
+        ps.append(store.pos(s)[ii].astype(np.int64))
+    X, P = np.concatenate(xs), torch.from_numpy(np.concatenate(ps)).to(dev)
+    N, L = len(X), sae.n_latents
+    S = torch.zeros(1024, L, dtype=torch.float64, device=dev)
+    c = torch.zeros(1024, dtype=torch.float64, device=dev)
+    s1 = torch.zeros(L, dtype=torch.float64, device=dev)
+    s2 = torch.zeros_like(s1)
+    d_in = X.shape[1]
+    T = torch.zeros(1024, d_in, dtype=torch.float64, device=dev)
+    t1 = torch.zeros(d_in, dtype=torch.float64, device=dev)
+    t2 = torch.zeros_like(t1)
+    with torch.no_grad():
+        for a in range(0, N, chunk):
+            x = norm(torch.from_numpy(X[a:a + chunk]).to(dev))
+            z = sae.encode(x, mode='threshold').double()
+            lab = P[a:a + chunk]
+            S.index_add_(0, lab, z)
+            c.index_add_(0, lab, torch.ones_like(lab, dtype=torch.float64))
+            s1 += z.sum(0); s2 += z.pow(2).sum(0)
+            xd = x.double()
+            T.index_add_(0, lab, xd)
+            t1 += xd.sum(0); t2 += xd.pow(2).sum(0)
+    G = int((c > 0).sum())
+
+    def share(Sg, a1, a2):
+        ss = a2 - a1.pow(2) / N
+        e = ((Sg[c > 0].pow(2) / c[c > 0, None]).sum(0) - a1.pow(2) / N)
+        return e, ss
+
+    corr = lambda e: e - (G - 1) / (N - G) * (1 - e)
+    eb, ssb = share(T, t1, t2)
+    res = {'n_tokens': int(N), 'n_positions': G, 'motion_delta': D, 'bg_sub': bool(ck.get('bg_sub', False)),
+           'input_token_share': float(corr(eb.sum() / ssb.sum()))}
+    if D > 0:
+        h = d_in // 2
+        res['input_token_share_static'] = float(corr(eb[:h].sum() / ssb[:h].sum()))
+        res['input_token_share_change'] = float(corr(eb[h:].sum() / ssb[h:].sum()))
+    el, ssl = share(S, s1, s2)
+    eta = corr(el / ssl.clamp_min(1e-12)).clamp_min(0)
+    w = ssl / ssl.sum()
+    eta_np = eta.cpu().numpy()
+    res['latent_share'] = {'weighted': float((w * eta).sum()), 'median': float(np.median(eta_np[ssl.cpu().numpy() > 0])),
+                           'frac_gt03': float((eta_np > 0.3).mean())}
     return res
 
 
@@ -172,6 +261,7 @@ def main():
     p.add_argument('--nes-root', default=None, help='default the domain NES root')
     p.add_argument('--nes-sub', default='', help="e.g. 'pairs' (ants analysis set)")
     p.add_argument('--stride', type=int, default=5)
+    p.add_argument('--position-tokens', type=int, default=2_000_000, help="'position' part: held-out tokens used")
     p.add_argument('--out-dir', default=str(REPO / 'results/vision/eci_encoders'))
     args = p.parse_args()
     dom = get_domain(args.domain)
@@ -190,6 +280,8 @@ def main():
             r['health'] = health(dom.eci_dir / 'sae' / sae, codes)
         if 'latents' in parts:
             r['latents'] = latents(codes, a, ok, y, args.stride)
+        if 'position' in parts:
+            r['position'] = position(dom.eci_dir / 'sae' / sae, args.position_tokens)
         if 'poc' in parts and args.domain == 'ants':
             r['poc'] = poc(codes, a, y)
         if 'nes' in parts:
