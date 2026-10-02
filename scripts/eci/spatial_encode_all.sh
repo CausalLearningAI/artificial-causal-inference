@@ -14,7 +14,7 @@
 #SBATCH --error=logs/eci_spatial_enc_%A_%a.err
 #SBATCH --array=0-23
 #SBATCH --time=06:00:00
-#SBATCH --partition=gpu100
+#SBATCH --partition=gpu
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=160G

@@ -163,6 +163,8 @@ class SpatialEncoder:
         self.run = _Runner([sae_path], bg_dir, ann_path, device, frame_paths, dataset_dir)
         if self.run.deltas != [0]:
             raise ValueError('static-token SAEs only (motion_delta 0)')
+        if getattr(self.run, 'bg_sub', False):
+            raise ValueError('background-subtracted SAE inputs are not supported here')
         self.sae, self.norm = self.run.saes[0]
         self.m = self.sae.n_latents
         self.frame_paths, self.dataset_dir = frame_paths, Path(dataset_dir)

@@ -7,7 +7,7 @@
 #SBATCH --output=logs/eci_spatial_merge_%j.out
 #SBATCH --error=logs/eci_spatial_merge_%j.err
 #SBATCH --time=06:00:00
-#SBATCH --partition=gpu100
+#SBATCH --partition=gpu
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
