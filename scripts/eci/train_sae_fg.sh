@@ -38,6 +38,14 @@
 #   ants 0.880 / 0.840 / 0.832; contact readout 0.809 / 0.793 / 0.816, grooming 0.955 / 0.925 / 0.950; patch-position
 #   share of the latents mice 0.24 / 0.11 / 0.13, ants 0.16 / 0.18 / 0.09. Neither input clearly beats the reference.
 #
+#   Odor-aligned frames (fg_background.sh / fg_extract_train.sh with --align odor; checkpoint records align='odor', so
+#   fg_encode_all.sh rotates the frames and reads fg448al/background):
+#   EXTRA_ARGS="--tokens-dir dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fg448al_fps1 --tag fg448al" \
+#       sbatch --export=ALL -p gpu --gres=gpu:1 --mem=240G --array=0 scripts/eci/train_sae_fg.sh
+#   Measured (results/vision/eci_align/mice/): held-out FVE 0.796/0.827/0.849/0.864 (ref 0.797/0.828/0.848/0.864);
+#   contact readout 0.816 (ref 0.809), best single latent 0.680 (ref 0.745); patch-position share of the latents
+#   0.20 (ref 0.24); arena maps from TR- and BL-corner videos correlate 0.88 (activation-weighted, ref 0.66).
+#
 #SBATCH --job-name=eci_sae_fg
 #SBATCH --output=logs/eci_sae_fg_%A_%a.out
 #SBATCH --error=logs/eci_sae_fg_%A_%a.err
