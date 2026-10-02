@@ -294,7 +294,7 @@ def main():
     sanity = {'thresholds': thr_info, 'nulls': {}, 'nuisance': args.nuisance, 'primary_only': args.primary_only,
               'subgroup': D.subgroup_info(design, args.line, args.sex),
               'skipped': skipped,
-              'n_units': {an.id: int(results[an.id][skey(128, PRIMARY)]['n_units']) for an in analyses}}
+              'n_units': {an.id: int(results[an.id][skey(PREFIXES[0], PRIMARY)]['n_units']) for an in analyses}}
     an2 = D.analysis(D.null_two)  # label shuffle across units (mice: genotype across pools, B stage 2)
     anp = D.analysis(D.null_paired) if D.null_paired else None  # within-unit swap (mice: A het 1->2)
     for prefix in PREFIXES if args.n_shuffles > 0 else ():
