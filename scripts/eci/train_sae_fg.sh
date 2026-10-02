@@ -34,6 +34,10 @@
 #   DOMAIN=ants EXTRA_ARGS="--tokens-dir dataset/ants/eci/train_tokens/dinov2_base_l-1_antsfg_fps1 --bg-sub --tag antsfgbg" ...
 #   DOMAIN=ants EXTRA_ARGS="--tokens-dir dataset/ants/eci/train_tokens/dinov2_base_l-1_antsfg_fps1_d5 --motion --tag antsfgmot" ...
 #
+#   Measured (results/vision/eci_bgmot/<domain>/compare.json): held-out FVE@1024 mice 0.864 ref / 0.824 bg / 0.789 mot,
+#   ants 0.880 / 0.840 / 0.832; contact readout 0.809 / 0.793 / 0.816, grooming 0.955 / 0.925 / 0.950; patch-position
+#   share of the latents mice 0.24 / 0.11 / 0.13, ants 0.16 / 0.18 / 0.09. Neither input clearly beats the reference.
+#
 #SBATCH --job-name=eci_sae_fg
 #SBATCH --output=logs/eci_sae_fg_%A_%a.out
 #SBATCH --error=logs/eci_sae_fg_%A_%a.err
