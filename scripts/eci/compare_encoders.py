@@ -9,6 +9,8 @@ Parts (all CPU, all from files already on disk):
             codes_mean (mice: social contact = any of Y_nn / Y_np / Y_nt, labelled videos only; ants: grooming =
             Y_B2F or Y_Y2F), and a cross-fitted logistic readout over all codes_max (5-fold grouped by video,
             C = 0.1, on every --stride-th labelled frame).
+  bylabel   (not in the default --parts) the same as 'latents' for each label column separately (mice Y_nn / Y_np /
+            Y_nt; codes_max): best single latent, latents with AUC > 0.65, cross-fitted readout.
   poc       ants only, the v2 grooming proof of concept: grooming readout (logistic on codes_max of the v2 frames,
             5-fold grouped by video, C = 0.1) -> frame-level and video-level Welch p for treatment; the single
             latent most correlated with grooming (frame corr) and its frame / video p; NES with frames as units
@@ -108,6 +110,27 @@ def latents(codes_dir, a, ok, y, stride):
     return res
 
 
+def by_label(codes_dir, dom, domain, stride):
+    """'latents' (codes_max) per label column: each label's own labelled frames, positive = label > 0."""
+    cols = LABELS[domain]
+    a = pd.read_csv(dom.ann_path, usecols=['observation_id'] + cols)
+    Xall = np.load(codes_dir / 'codes_max.npy', mmap_mode='r')
+    res = {}
+    for c in cols:
+        rows = np.nonzero(a[c].notna().values)[0]
+        y = a[c].values[rows] > 0
+        X = np.asarray(Xall[rows], dtype=np.float32)
+        auc = auc_cols(X, y)
+        dfree = np.maximum(auc, 1 - auc)
+        top = np.argsort(-dfree)[:5]
+        sub = np.arange(0, len(rows), stride)
+        _, ro = readout(X[sub], y[sub], pd.factorize(a['observation_id'].values[rows][sub])[0])
+        res[c] = {'n_frames': int(len(rows)), 'n_pos': int(y.sum()),
+                  'best_latent_max': [{'latent': int(j), 'auc': float(auc[j])} for j in top],
+                  'n_latents_auc_gt065_max': int((dfree > 0.65).sum()), 'readout_auc_max': ro, 'readout_stride': stride}
+    return res
+
+
 def position(sae_dir, n_tokens=2_000_000, seed=0, chunk=65536):
     """Patch-position share on held-out foreground tokens (the SAE's own validation units, up to n_tokens tokens,
     seeded uniform sample), with the SAE's own input (raw / background-subtracted / [token, change]):
@@ -141,7 +164,8 @@ def position(sae_dir, n_tokens=2_000_000, seed=0, chunk=65536):
         ii = idx[s][k]
         t = np.asarray(store.tokens(s)[ii])
         if ck.get('bg_sub', False):
-            bg_dir = args.get('bg_dir') or str(dom.eci_dir / 'fg448/background')
+            bg_dir = args.get('bg_dir') or str(dom.eci_dir / ('fg448al' if ck.get('align', 'none') != 'none' else 'fg448')
+                                                / 'background')
             t = subtract_background_np(t, store.row(s)[ii], store.pos(s)[ii], bg_dir, obs_rows(dom.ann_path),
                                        RULES[ck.get('fg_rule', 'fg448')])
         if D > 0:
@@ -280,6 +304,8 @@ def main():
             r['health'] = health(dom.eci_dir / 'sae' / sae, codes)
         if 'latents' in parts:
             r['latents'] = latents(codes, a, ok, y, args.stride)
+        if 'bylabel' in parts:
+            r['bylabel'] = by_label(codes, dom, args.domain, args.stride)
         if 'position' in parts:
             r['position'] = position(dom.eci_dir / 'sae' / sae, args.position_tokens)
         if 'poc' in parts and args.domain == 'ants':
