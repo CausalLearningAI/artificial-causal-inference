@@ -43,6 +43,8 @@ Rules (RULES, chosen by name with --rule; the SAE checkpoint records it as 'fg_r
             dilation must not admit bedding); its parameters are tuned on the ants backgrounds with
             scripts/eci/fg_validate.py --domain ants before any token extraction
     all     every patch is foreground (the whole frame at 448, 1024 patches); needs no background
+    frogs   FG_RULE_FROGS: dark frog pixels (frog-free pixel background, dish ROI, near the frame's SLEAP nodes), no
+            DINOv2 cue; backgrounds from scripts/eci/frogs_background.py
 
 Background-subtracted SAE input (train_sae_fg.py --bg-sub, checkpoint 'bg_sub'): token - the video's background
 token at the same patch position and time block (the rule's background, bg_seg for fg448 / v3 / ants: the masked
@@ -83,6 +85,7 @@ Functions / classes:
     load_background             one video's saved background file
     obs_rows                    observation -> contiguous annotations.csv rows
     segment_of                  time block of a frame for bg_seg
+    near_nodes, frog_pixels     rule 'frogs': pixels near the frame's SLEAP nodes; dark frog pixels
     FgBackgrounds               all videos' backgrounds, mask(tokens, grey, rows) for any batch;
                                 background(rows) = the background tokens of a batch (background-subtracted input)
     leak_mask, fill_leaks       background positions that are the animal itself; filled from clean neighbours
@@ -125,7 +128,15 @@ FG_RULE_V3 = {**FG_RULE, 'dilate_requires_dark': True}
 FG_RULE_ANTS = {**FG_RULE_V3}
 # whole frame: no background, no threshold, every patch kept (foreground_parts / FgBackgrounds.mask)
 FG_RULE_ALL = {'all': True}
-RULES = {'fg448': FG_RULE, 'v3': FG_RULE_V3, 'ants': FG_RULE_ANTS, 'all': FG_RULE_ALL}
+# frogs: one dark froglet per backlit dish (src/eci/domain.py FrogsDomain). No DINOv2 background and no feature cue: a
+# pixel is frog when it is darker than the video's frog-free pixel background by > dark_rel, inside the dish ROI and
+# within near_px of a SLEAP node of that frame (anywhere in the ROI when no node was predicted). The dark dish rim,
+# labels and static debris are dark in the background too, so they never count. Patches with a frog-pixel fraction >
+# dark_frac form the core (limbs are thin: 0.05, not 0.15), then the 1-patch dilation onto patches with any frog pixel
+# (as v3). Backgrounds: scripts/eci/frogs_background.py (pix_bg, roi, per-row SLEAP nodes at 512 px).
+FG_RULE_FROGS = {'frogs': True, 'background': 'frog_free', 'dark_rel': 30, 'dark_frac': 0.05, 'near_px': 16,
+                 'use_dark': True, 'drop_isolated': False, 'dilate': 1, 'dilate_requires_dark': True}
+RULES = {'fg448': FG_RULE, 'v3': FG_RULE_V3, 'ants': FG_RULE_ANTS, 'all': FG_RULE_ALL, 'frogs': FG_RULE_FROGS}
 
 MASK_ENCODER = 'dinov2_base'
 # input resolution per encoder: 32 x 32 patches for both (448 / 14 = 512 / 16 = 32)
@@ -348,8 +359,15 @@ def segment_of(rows, sample_rows, seg_bounds):
 def load_background(bg_dir, observation_id, rule=FG_RULE, device='cpu'):
     """-> dict: bg (n_seg or 1, 1024, d) float32 tensor, pix_bg (512, 512) uint8 tensor,
     thr float, rows / seg_bounds (to place frames in time blocks, see segment_of), src (bg_dir, observation_id,
-    rule) for input_background, align (the frame alignment the file was computed on, absent = 'none')."""
+    rule) for input_background, align (the frame alignment the file was computed on, absent = 'none').
+    Rule 'frogs': pix_bg, roi (512, 512) bool, nodes (n_rows, K, 2) float32 SLEAP nodes of every row of the video
+    (512 px, NaN = not predicted), lo (the video's first annotations.csv row), align, src."""
     z = np.load(Path(bg_dir) / f'{observation_id}.npz')
+    if rule.get('frogs', False):
+        return {'pix_bg': torch.from_numpy(z['pix_bg']).to(device), 'roi': torch.from_numpy(z['roi']).to(device),
+                'nodes': torch.from_numpy(z['nodes'].astype(np.float32)).to(device), 'lo': int(z['lo']),
+                'rows': z['rows'], 'src': (bg_dir, observation_id, rule),
+                'align': str(z['align']) if 'align' in z.files else 'none'}
     key = rule['background']
     bg = z[key].astype(np.float32)
     bg = bg if bg.ndim == 3 else bg[None]
@@ -358,6 +376,31 @@ def load_background(bg_dir, observation_id, rule=FG_RULE, device='cpu'):
     return {'bg': torch.from_numpy(bg).to(device), 'pix_bg': torch.from_numpy(z['pix_bg']).to(device),
             'thr': thr, 'rows': z['rows'], 'seg_bounds': seg_bounds, 'src': (bg_dir, observation_id, rule),
             'align': str(z['align']) if 'align' in z.files else 'none'}
+
+
+@torch.no_grad()
+def near_nodes(nodes, r, size=FRAME_PX):
+    """nodes (B, K, 2) float x, y (NaN = not predicted) -> (B, size, size) bool: pixel centre within r of a node of
+    its frame; a frame without any node is True everywhere."""
+    c = torch.arange(size, device=nodes.device, dtype=torch.float32) + 0.5
+    out = torch.zeros((nodes.shape[0], size, size), dtype=torch.bool, device=nodes.device)
+    for k in range(nodes.shape[1]):
+        x, y = nodes[:, k, 0], nodes[:, k, 1]
+        ok = torch.isfinite(x) & torch.isfinite(y)
+        dx2 = (c[None] - torch.where(ok, x, 0)[:, None]) ** 2  # (B, size)
+        dy2 = (c[None] - torch.where(ok, y, 0)[:, None]) ** 2
+        out |= ((dy2[:, :, None] + dx2[:, None, :]) < r * r) & ok[:, None, None]
+    none = ~(torch.isfinite(nodes[..., 0]).any(1))
+    out[none] = True
+    return out
+
+
+@torch.no_grad()
+def frog_pixels(grey, pix_bg, roi, nodes, rule=FG_RULE_FROGS):
+    """grey (B, 512, 512) uint8, pix_bg (512, 512) uint8, roi (512, 512) bool, nodes (B, K, 2) -> (B, 512, 512) bool
+    frog pixels of rule 'frogs' (FG_RULE_FROGS)."""
+    dark = (pix_bg.float()[None] - grey.float()) > rule['dark_rel']
+    return dark & roi[None] & near_nodes(nodes, rule['near_px'])
 
 
 # fg_background.py defaults: a time block needs MIN_SEG_FRAMES frames free of the dark cue at a position (else the
@@ -467,6 +510,16 @@ class FgBackgrounds:
         k = self.obs_index(rows)
         out = torch.zeros(tokens.shape[:2], dtype=torch.bool, device=tokens.device)
         dist = torch.zeros(tokens.shape[:2], dtype=torch.float32, device=tokens.device)
+        if self.rule.get('frogs', False):  # pixel cue only (FG_RULE_FROGS); dist stays 0
+            for kk in np.unique(k):
+                sel = np.nonzero(k == kk)[0]
+                b = self.get(self.ids[kk])
+                sel_t = torch.from_numpy(sel).to(tokens.device)
+                nodes = b['nodes'][torch.from_numpy(rows[sel] - b['lo']).to(b['nodes'].device)].to(tokens.device)
+                px = frog_pixels(grey[sel_t], b['pix_bg'].to(tokens.device), b['roi'].to(tokens.device), nodes, self.rule)
+                dk = F.avg_pool2d(px.float()[:, None], PATCH_PX).flatten(1)
+                out[sel_t] = foreground_mask(dist[sel_t], dk, float('inf'), self.rule)
+            return out, dist
         for kk in np.unique(k):
             sel = np.nonzero(k == kk)[0]
             b = self.get(self.ids[kk])
@@ -484,6 +537,8 @@ class FgBackgrounds:
         """(B, 1024, d) float32 background tokens of a batch of rows for the background-subtracted input: the rule's
         background (bg_seg: the video's empty-arena median token at each position, in the frame's time block), leaked
         positions filled from clean neighbours (input_background)."""
+        if self.rule.get('frogs', False):
+            raise ValueError("rule 'frogs' has no background tokens (pixel cue only)")
         rows = np.asarray(rows)
         k = self.obs_index(rows)
         out = None
