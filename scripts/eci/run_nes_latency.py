@@ -26,7 +26,8 @@ are replaced by their ranks (average ranks for ties, e.g. all censored videos ti
 paired rank test).
 
 Analyses, families and units as scripts/eci/run_nes.py (src/eci/domain.py). Primary: latency, q 0.95, t-test,
-Bonferroni alpha 0.05, common window (window 'common' in summary.csv), prefixes 128 and 1024 (or --prefixes).
+Bonferroni alpha 0.05, common window (window 'common' in summary.csv), prefixes 128, 256 and 1024 (or --prefixes;
+the nulls of 128 / 1024 keep the shared seed-0 draws, other prefixes their own, run_nes.null_rng).
 Sensitivities (one change each): q 0.90, q 0.99, trim30 (window = frames [30 s, W): starts after the first 30 s,
 latency counted from there, censored at W - 30 s), BH, rank, signflip (family A), matched (family A 1->2 and 4->5:
 the last n_match frames of habituation vs the first frames of the later stage, both capped at min(n_match, W)).
@@ -60,7 +61,7 @@ sys.path.insert(0, str(ROOT / 'src'))
 from eci import contrasts as C  # noqa: E402
 from eci.domain import DOMAINS, get_domain  # noqa: E402
 from eci.nes import neural_effect_search, paired_effect_search  # noqa: E402
-from run_nes import resolve_prefixes  # noqa: E402
+from run_nes import null_rng, resolve_prefixes  # noqa: E402
 
 QS = (0.90, 0.95, 0.99)  # the bout runs' quantiles (same cached thresholds)
 # runner window -> (contrasts window of stage a / control, of stage b / treated); every window is capped at the
@@ -71,7 +72,7 @@ PRIMARY = dict(outcome_type='latency', threshold_q=0.95, transform='none', test=
 SENS = {'q0.90': dict(threshold_q=0.90), 'q0.99': dict(threshold_q=0.99), 'trim30': dict(window='trim30'),
         'BH': dict(correction='bh'), 'rank': dict(transform='rank'), 'signflip': dict(test='signflip'),
         'matched': dict(window='matched')}
-PREFIXES = (128, 1024)
+PREFIXES = (128, 256, 1024)
 
 
 def applicable(name, an):
@@ -167,7 +168,7 @@ def main():
     ap.add_argument('--n-trim', type=int, default=150)
     ap.add_argument('--n-thr-sample', type=int, default=2_000_000)
     ap.add_argument('--n-shuffles', type=int, default=20)
-    ap.add_argument('--prefixes', default='128,1024')
+    ap.add_argument('--prefixes', default='128,256,1024')
     ap.add_argument('--subdir', default='')
     args = ap.parse_args()
     global PREFIXES
@@ -290,7 +291,9 @@ def main():
               'censoring_primary_overall': float(cens[cens['window'] == 'common']['censored_cell_frac'].mean())}
     an2 = D.analysis(D.null_two)
     anp = D.analysis(D.null_paired) if D.null_paired else None
+    rng0 = rng
     for prefix in PREFIXES if args.n_shuffles > 0 else ():
+        rng = null_rng(rng0, prefix)
         sm = summ(0.95, W_an[an2.id])
         _, Z, T = C.two_sample(sm, an2.select(design), 'v', 'full', prefix, an2.unit)
         cnt = [len(neural_effect_search(Z, rng.permutation(T))['selected']) for _ in range(args.n_shuffles)]

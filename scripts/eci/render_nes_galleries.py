@@ -59,12 +59,8 @@ def robustness(tidy, aid, prefix, neuron, family):
             flags[name] = '-'
             continue
         flags[name] = 'Y' if neuron in RN.selected_set(tidy, aid, prefix=prefix, **{**PRIM, **ov}) else 'N'
-    if prefix == 1024 and neuron >= 128:
-        flags['other_prefix'] = '-'
-    else:
-        other_prefix = [p for p in RN.PREFIXES if p != prefix][0]
-        other_sel = RN.selected_set(tidy, aid, prefix=other_prefix, **PRIM)
-        flags['other_prefix'] = 'Y' if neuron in other_sel else 'N'
+    flags['other_prefix'] = RN.other_prefix_mark(neuron, prefix, sorted(int(p) for p in tidy['prefix'].unique()),
+                                                 lambda p: RN.selected_set(tidy, aid, prefix=p, **PRIM))
     return flags
 
 

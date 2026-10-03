@@ -266,6 +266,7 @@ CHIP = {('test', 'signflip'): ('flip', 'sign-flip permutation test instead of th
         ('transform', 'rank'): ('rank', 'latencies replaced by their ranks (censored videos tie), a Mann-Whitney-like '
                                 'test, instead of raw seconds'),
         ('prefix', 128): ('128', 'searching only the first 128 neurons'),
+        ('prefix', 256): ('256', 'searching only the first 256 neurons'),
         ('prefix', 1024): ('1024', 'searching all 1024 neurons')}
 LINES, SEXES = MICE.subgroups['line'], MICE.subgroups['sex']
 SUBSETS = [f'{l}_{x}' for l in ('all',) + LINES for x in ('all',) + SEXES if (l, x) != ('all', 'all')]
@@ -1521,7 +1522,7 @@ def robustness(o, others, aid, prefix, window, neuron, words=('mouse', 'mice')):
     chips = []
     for f, v in alts:
         g = t[match(t, dict(base, **{f: v}))]
-        if f == 'prefix' and v == 128 and neuron >= 128:
+        if f == 'prefix' and neuron >= v:  # not searchable at that prefix
             val = '-'
         else:
             val = ('Y' if neuron in set(g['neuron'].dropna().astype(int)) else 'N') if len(g) else '-'
@@ -1845,7 +1846,8 @@ def page_data(cfg):
     if det_p.exists() and o0 is not None:
         det = pd.read_csv(det_p, dtype=str)
         names = {'flip': 'rob_signflip', 'BH': 'rob_BH', 'max': 'rob_max-pool', 'rate': 'rob_rate',
-                 'match': 'rob_matched', '128': 'rob_other_prefix', '1024': 'rob_other_prefix'}
+                 'match': 'rob_matched', '128': 'rob_other_prefix', '256': 'rob_other_prefix',
+                 '1024': 'rob_other_prefix'}
         bad = 0
         for _, d in det.iterrows():
             rr = [x for x in results[f'{o0["id"]}|{d["analysis_id"]}|{d["prefix"]}|full']['rows']

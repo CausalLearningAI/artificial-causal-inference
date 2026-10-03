@@ -10,7 +10,8 @@ are descriptive only (undefined at 0 bouts, so never tested).
 
 Analyses (as scripts/eci/run_nes.py): family A = paired stage transition within genotype
 (het/wt x 1->2, 2->3, 4->5, 5->6; unit = pool), family B = het vs wt within stage 1..6.
-Primary: bout rate, q = 0.95, gap 0, t-test, Bonferroni, windows full and trim30, prefixes 128 and 1024.
+Primary: bout rate, q = 0.95, gap 0, t-test, Bonferroni, windows full and trim30, prefixes 128, 256 and 1024
+(--prefixes; the nulls of 128 / 1024 keep the shared seed-0 draws, other prefixes their own, run_nes.null_rng).
 Sensitivity (one change from the full-window primary): signflip (A), BH, q 0.90, q 0.99,
 merge gap 2, time-matched window (A 1->2, 4->5), outcome = per-video mean of codes_max, and
 min2hyst (bout_rule 1 in summary.csv): hysteresis bouts that enter above thr(0.95), exit when
@@ -28,7 +29,9 @@ Subgroups (--line ash1l|kdm6b|kmt5b, --sex f|m, default all): units restricted t
 line and / or sex before the search (as scripts/eci/run_nes.py); thresholds and per-video summaries stay
 full-cohort (label-free). Output defaults to <out-root>/<sae>/subsets/<line>_<sex>/maxpool_bouts/.
 Analyses with fewer than --min-units units per arm are skipped (sanity.json 'skipped').
---primary-only: only the primary setting (full window, both prefixes), no sensitivity columns.
+--primary-only: only the primary setting (full window, every prefix), no sensitivity columns.
+--period adjust|drop: camera period for family B (as scripts/eci/run_nes.py --period: family B only, periods with one
+genotype dropped, 'adjust' conditions on the period indicators from round 0) -> <sae>/[subsets/..]/period_<mode>/<P>_bouts/.
 --n-shuffles 0 skips the sanity nulls.
 
 Domains (--domain, default mice; src/eci/domain.py): analyses, design, paths, fps and the default
@@ -61,10 +64,11 @@ sys.path.insert(0, str(ROOT / 'src'))
 from eci import contrasts as C  # noqa: E402
 from eci.domain import DOMAINS, get_domain  # noqa: E402
 from eci.nes import active_neurons, neural_effect_search, paired_effect_search  # noqa: E402
+from run_nes import camera_period, null_rng, other_prefix_mark  # noqa: E402
 
 FPS = 5.0  # mice; main() sets the domain's frame rate
 FP = 'max'  # per-frame pooling of the codes (--frame-pooling); main() sets it
-PREFIXES = (128, 1024)
+PREFIXES = (128, 256, 1024)
 QS = (0.90, 0.95, 0.99)
 CONFIGS = [(0.90, 0), (0.95, 0), (0.99, 0), (0.95, 2), (0.95, 0, 0.90, 2)]  # (quantile, merge gap[, exit q, min len])
 HYST = (0.95, 0, 0.90, 2)  # bout_rule 1
@@ -154,7 +158,9 @@ def main():
     ap.add_argument('--min-units', type=int, default=5, help='skip an analysis with fewer units per arm')
     ap.add_argument('--primary-only', action='store_true')
     ap.add_argument('--frame-pooling', default='max', help='per-frame values = <codes>/codes_<this>.npy')
-    ap.add_argument('--prefixes', default='128,1024', help="as scripts/eci/run_nes.py ('all' = every column, one prefix)")
+    ap.add_argument('--prefixes', default='128,256,1024', help="as scripts/eci/run_nes.py ('all' = every column, one prefix)")
+    ap.add_argument('--period', default='none', choices=('none', 'adjust', 'drop'),
+                    help='camera-period handling for family B (scripts/eci/run_nes.py); not none = family B only')
     args = ap.parse_args()
     global FPS, FP
     FP = args.frame_pooling
@@ -172,6 +178,8 @@ def main():
         args.subdir = f'subsets/{C.subset_name(args.line, args.sex)}'
     if args.analysis_set != 'core' and not args.subdir:
         args.subdir = args.analysis_set
+    if args.period != 'none':
+        args.subdir = str(Path(args.subdir) / f'period_{args.period}')
     t_start = time.time()
     global ARTEFACTS
     ARTEFACTS = ARTEFACTS_EP20 if args.sae in [f'matryoshka_btk_1024_k16_ep20_s0{x}' for x in ('', '_somp', '_mean')] else {}
@@ -230,6 +238,9 @@ def main():
     if args.nuisance == 'nfg':
         nfg_v = C.video_nfg(codes_dir / 'n_fg.npy', dfull, args.n_match, args.n_trim)
         cov = {(w, 'v'): nfg_v[w][:, None] for w in C.WINDOWS}
+    design, pcov, pinfo = camera_period(D, design, dfull, args.period)
+    if pcov is not None:
+        cov = pcov if cov is None else {k: np.column_stack([cov[k], pcov[k]]) for k in cov}
 
     def nuis_paired(geno, a, b, wa, wb):
         return None if cov is None else C.paired(cov, design, geno, a, b, 'v', wa, wb)[1:]
@@ -241,6 +252,9 @@ def main():
     analyses = []  # the domain's Analysis objects with enough units, in domain order
     for an in D.analyses:
         aid = an.id
+        if an.family == 'A' and args.period != 'none':
+            skipped.append({'analysis_id': aid, 'reason': 'camera period is constant within a pool'})
+            continue
         if an.family == 'A':
             n = len(C.paired(msum, design, an.genotype, *an.stages, 'mean')[0])
             sk = {'analysis_id': aid, 'n_units': n} if n < args.min_units else None
@@ -293,11 +307,13 @@ def main():
     sm = summ_for(PRIMARY)
     sanity = {'thresholds': thr_info, 'nulls': {}, 'nuisance': args.nuisance, 'primary_only': args.primary_only,
               'subgroup': D.subgroup_info(design, args.line, args.sex),
-              'skipped': skipped,
+              'skipped': skipped, 'period': pinfo,
               'n_units': {an.id: int(results[an.id][skey(PREFIXES[0], PRIMARY)]['n_units']) for an in analyses}}
     an2 = D.analysis(D.null_two)  # label shuffle across units (mice: genotype across pools, B stage 2)
-    anp = D.analysis(D.null_paired) if D.null_paired else None  # within-unit swap (mice: A het 1->2)
+    anp = D.analysis(D.null_paired) if D.null_paired and args.period == 'none' else None  # within-unit swap (A het 1->2)
+    rng0 = rng
     for prefix in PREFIXES if args.n_shuffles > 0 else ():
+        rng = null_rng(rng0, prefix)
         _, Z, T = C.two_sample(sm, an2.select(design), 'v', 'full', prefix, an2.unit)
         cnt = [len(neural_effect_search(Z, rng.permutation(T), nuisance=nuis_two(an2, 'full'))['selected'])
                for _ in range(args.n_shuffles)]
@@ -461,15 +477,13 @@ def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, s
             L += [f'- prefix {prefix}: {len(ps)} selected ({nd} dropped); trim30 selects {ntrim}', '',
                   '| round | neuron | direction | tau (bouts/min) | p | med dur (s) | ' + ' | '.join(names) +
                   ' | other prefix | mean-pool | size-adj | artefact flag |', '|' + '---|' * (10 + len(names))]
-            others = [p for p in PREFIXES if p != prefix]
-            other = select(tidy, aid, others[0], PRIMARY) if others else {}
             mp = prev.get(aid, {}).get(prefix, {}).get('meanpool', [])
             rows = unit_rows(design, an)
             for _, r in ps.iterrows():
                 j = int(r['neuron'])
                 marks = ['Y' if j in select(tidy, aid, prefix, {**PRIMARY, **SENS[n]}) else 'N'
                          if applicable(n, an) else '-' for n in names]
-                op = '-' if (prefix == 1024 and j >= 128) or len(PREFIXES) == 1 else ('Y' if j in other else 'N')
+                op = other_prefix_mark(j, prefix, PREFIXES, lambda p: select(tidy, aid, p, PRIMARY))
                 md = np.nanmedian(o['median_dur'][rows, j]) if np.isfinite(o['median_dur'][rows, j]).any() else np.nan
                 L.append(f'| {int(r["round"])} | {j} | {r["direction"]} | {r["tau"]:.3g} | {r["p"]:.2e} | {md:.2f} | '
                          + ' | '.join(marks) + f' | {op} | {"Y" if j in mp else "N"} | '
@@ -497,11 +511,18 @@ def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, s
     for aid, v in prev.items():
         for prefix, d in v.items():
             L.append(f'| {aid} | {prefix} | {d["meanpool"]} | {d["bouts"]} | {d["overlap"]} |')
+    if sanity.get('period'):
+        pi = sanity['period']
+        L += ['', '## Camera period', '', f'--period {pi["mode"]}: family B only; periods dropped (one genotype only) '
+              f'{pi["dropped_periods"]} ({pi["n_videos_dropped"]} videos); '
+              + (f'indicators {pi["indicators"]} (reference {pi["reference"]}) conditioned on from round 0. '
+                 if pi['indicators'] else 'no covariate. ')
+              + f'Videos per period and T (1 = treatment): {pi["counts"]}']
     L += ['', '## Sanity checks (primary setting)', '']
     for p, v in sanity['nulls'].items():
         v2 = v[f'{D.null_two}_{D.shuffle_word}_shuffle_n_selected']
         L.append(f'- {p}: {D.text["null_two_bouts"]}, {len(v2)} shuffles: NES selected {v2}')
-        if D.null_paired:
+        if D.null_paired and f'{D.null_paired}_stage_swap_n_selected' in v:  # not run with --period
             va = v[f'{D.null_paired}_stage_swap_n_selected']
             L.append(f'- {p}: {D.text["null_paired_bouts"]}, {len(va)} swaps: NES selected {va}')
     if 'size_check' in sanity:
