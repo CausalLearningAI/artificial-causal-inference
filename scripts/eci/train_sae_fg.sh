@@ -46,6 +46,11 @@
 #   contact readout 0.816 (ref 0.809), best single latent 0.680 (ref 0.745); patch-position share of the latents
 #   0.20 (ref 0.24); arena maps from TR- and BL-corner videos correlate 0.88 (activation-weighted, ref 0.66).
 #
+#   Odor-aligned FULL frame ff448al (rule all, 25% patches; ~205 GB store, so ~2x the fg448al memory):
+#   EXTRA_ARGS="--tokens-dir dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_ff448al_fps1_pf25 --tag ff448al" \
+#       sbatch --export=ALL -p gpu --gres=gpu:1 --mem=480G --array=0 scripts/eci/train_sae_fg.sh
+#   (whole chain with dependencies: scripts/eci/ff448al_chain.sh)
+#
 #SBATCH --job-name=eci_sae_fg
 #SBATCH --output=logs/eci_sae_fg_%A_%a.out
 #SBATCH --error=logs/eci_sae_fg_%A_%a.err

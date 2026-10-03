@@ -24,6 +24,11 @@
 #   EXTRA_ARGS="--align odor" sbatch --export=ALL -p gpu scripts/eci/fg_extract_train.sh
 #     -> dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fg448al_fps1
 #
+#   odor-aligned FULL frame (ff448al, no mask, rule all, 25% of the 1024 patches per 1 fps frame; no backgrounds read;
+#   whole chain: scripts/eci/ff448al_chain.sh):
+#   EXTRA_ARGS="--rule all --patch-frac 0.25 --align odor --out-dir dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_ff448al_fps1_pf25" \
+#       sbatch --export=ALL -p gpu scripts/eci/fg_extract_train.sh
+#
 #   motion stores (token 5 frames = 1 s earlier, prev.f16; same frames / mask as the default store), mice 208 GB, ants 21 GB:
 #   EXTRA_ARGS="--motion-delta 5 --out-dir dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_fg448_fps1_d5" \
 #       sbatch --export=ALL -p gpu --mem=180G scripts/eci/fg_extract_train.sh
