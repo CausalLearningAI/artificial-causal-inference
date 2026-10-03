@@ -85,7 +85,9 @@ abbr[title],.tip{text-decoration:underline dotted var(--faint);cursor:help}
 .fa{display:grid;grid-template-columns:auto repeat(4,minmax(58px,1fr));gap:4px;align-items:stretch}
 .fa .rh{font:500 12px var(--mono);color:var(--muted);align-self:center;padding-right:4px}
 .fa .ch{font-size:11.5px;color:var(--muted);text-align:center;line-height:1.2;align-self:end}
-.fb{display:grid;grid-template-columns:repeat(6,minmax(48px,1fr));gap:4px}
+.fb{display:grid;grid-template-columns:repeat(6,minmax(58px,1fr));gap:4px}
+.bcol{display:grid;grid-template-rows:1fr auto;gap:4px;min-width:0}
+.fb .ch{font-size:11.5px;color:var(--muted);text-align:center;line-height:1.2;align-self:end}
 .cb{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:5px 6px;cursor:pointer;display:grid;gap:0;text-align:center;min-width:0}
 .cb .t{font:500 12px var(--sans)}
 .cb .c{font:500 13px var(--mono)}
@@ -237,6 +239,7 @@ function need(path){
 }
 const loadMsg = path => FAIL[path] ? `<div class="empty">Could not load ${esc(path)} (${esc(FAIL[path])})</div>` : '<div class="loading">Loading…</div>';
 const STAGE = {1:'H,S',2:'O,S',3:'P,S',4:'H,F',5:'O,F',6:'P,F'};
+const PHASE = {1:'Habituation<br>Social',2:'Odor<br>Social',3:'Post<br>Social',4:'Habituation<br>Fear',5:'Odor<br>Fear',6:'Post<br>Fear'};
 const STAGE_LONG = {1:'habituation, social odor',2:'social odor',3:'post, social odor',4:'habituation, fear odor',5:'fear odor',6:'post, fear odor'};
 const TRANS = {'1to2':'Social H→O','2to3':'Social O→P','4to5':'Fear H→O','5to6':'Fear O→P'};
 const TAU_TIP = 'tau: effect size in the outcome unit. A: mean paired change from the first to the second stage. B: het minus wt.';
@@ -405,9 +408,9 @@ function antPicker(){
   const cnt = a => { const R = res(a.id); return R.loading ? '·' : R.rows.length; };
   E.innerHTML = exps.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join('');
   C.innerHTML = tvals(cur.experiment).map(t=>{ const ok = AN.some(a=>a.experiment===cur.experiment && a.control===t);
-    return `<option value="${t}"${ok?'':' disabled'}>t=${t}${ok?'':' (no comparison)'}</option>`; }).join('');
+    return `<option value="${t}"${ok?'':' disabled'}>${t}</option>`; }).join('');
   T.innerHTML = tvals(cur.experiment).filter(t=>t!==cur.control).map(t=>{ const a = find(cur.experiment, cur.control, t);
-    return `<option value="${t}"${a?'':' disabled'}>t=${t}${a ? ` · ${cnt(a)} found${a.confound?' ⚠':''}` : ' (not run)'}</option>`; }).join('');
+    return `<option value="${t}"${a?'':' disabled'}>${t}</option>`; }).join('');
   E.value = cur.experiment; C.value = String(cur.control); T.value = String(cur.treatment);
   const n = cnt(cur);
   $('#apN').innerHTML = `<span title="${esc(longLabel(cur))}">${n} found</span>${cur.confound?` · <span class="tip" title="${esc(cur.confound)}">⚠ confounded</span>`:''}`;
@@ -438,7 +441,7 @@ function buildControls(){
   if(!ants) for(let s=1;s<=6;s++){
     const id=`B_stage${s}`, a=analysis(id); if(!a) continue;
     const R=res(id), n=R.loading?'·':R.rows.length;
-    B.insertAdjacentHTML('beforeend', `<button type="button" class="cb${n?'':' zero'}" data-aid="${id}" aria-pressed="${state.view==='cmp'&&state.aid===id}" title="${esc(longLabel(a))}: ${n} found"><span class="t">${s} · ${STAGE[s]}</span><span class="c">${n}</span></button>`);
+    B.insertAdjacentHTML('beforeend', `<div class="bcol"><span class="ch">Phase ${s}<br>${PHASE[s]}</span><button type="button" class="cb${n?'':' zero'}" data-aid="${id}" aria-pressed="${state.view==='cmp'&&state.aid===id}" title="${esc(longLabel(a))}: ${n} found"><span class="c">${n}</span></button></div>`);
   }
   for(const b of document.querySelectorAll('.cb')) b.onclick=()=>{ state.view='cmp'; state.aid=b.dataset.aid; state.neuron=null; render(); };
   // outcome kind x spatial aggregation: a pair without NES results is a disabled button
@@ -504,10 +507,10 @@ function chipsHTML(r){
 function renderCmpList(){
   const a=analysis(state.aid), R=res(), S=$('#side');
   const nu = nUnits(a), unit = a.family==='A' ? `${nu} paired pools` : `${nu} videos`;
-  let h=`<div class="side-head"><h2 title="${esc(longLabel(a))}">${esc(label(a))}</h2><span class="meta">${SUB()?`${esc(subLabel())} · `:''}${unit} · ${R.n_tested_total||0} tested · <span class="tip" title="${tauTip()}">τ</span> in ${esc(outcome().unit)}</span></div>`;
+  let h=`<div class="side-head">${ANTS() ? '' : `<h2 title="${esc(longLabel(a))}">${esc(label(a))}</h2>`}<span class="meta">${SUB()?`${esc(subLabel())} · `:''}${unit} · ${R.n_tested_total||0} tested · <span class="tip" title="${tauTip()}">τ</span> in ${esc(outcome().unit)}</span></div>`;
   if(R.stopped) h+=`<p class="warnbox one" title="${esc(R.stopped)}">NES stopped early: the search ran out of degrees of freedom after the neurons listed here (${esc(R.stopped.split(':')[0])}).</p>`;
   // top-by-p list (domains with DATA.top): the smallest first-round p that NES did not select
-  const top = (R.top||[]).filter(([j]) => !R.rows.some(r=>r.neuron===j));
+  const top = (R.top||[]).filter(([j]) => !R.rows.some(r=>r.neuron===j)).sort((x,y)=>x[2]-y[2]).slice(0,3);   // at most 3
   if(!R.rows.length){
     if(R.loading){ S.innerHTML = h+loadMsg(rfile()); return; }
     if(!top.length){ state.neuron=null; S.innerHTML = h+`<div class="empty">${R.notrun ? 'Not run for this subgroup (full cohort only)' : R.skipped ? 'Not run: too few pools' : 'None found'}</div>`; return; }
