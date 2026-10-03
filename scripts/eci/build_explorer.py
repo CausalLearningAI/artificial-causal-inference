@@ -1,5 +1,5 @@
 """
-Build the NES explorer page "Exploratory Causal Inference x Mice / Ants": <out>/index.html + <out>/assets/.
+Build the NES explorer page "Exploratory Causal Inference x Mice / Ants / Frogs": <out>/index.html + <out>/assets/.
 
 The page design is scripts/eci/explorer_template.html (the user's hand-edited version of the
 published page); this script fills its `const ALL = /*__DATA__*/null` with the core data of one or more
@@ -10,12 +10,13 @@ page fetches on demand (assets/data/) and writes the media they reference.
 One command, all steps, incremental (GPU needed for the patch and arena steps):
     sbatch scripts/eci/build_explorer.sh
 or directly (on a GPU node):
-    python scripts/eci/build_explorer.py            # default: DEFAULT_RES (mice fg448al, ff448al; ants antsfg, antsfull)
+    python scripts/eci/build_explorer.py            # default: DEFAULT_RES (mice fg448al, ff448al; ants antsfg, antsfull;
+                                                    # frogs frogsfg, frogsfull)
     python scripts/eci/build_explorer.py --res results/vision/mice/eci/nes/<sae> [--res ...]
 Without --res: DEFAULT_RES (the representations that earned their place); --discover adds every other finished
 SAE result set under the domains' NES roots (discover_res; MODELS names it on the model bar, else model_of
 derives its values). The SAE is the basename of each --res; its domain (src/eci/domain.py: mice,
-ants) is the NES root the result set lies under, with the analysis set covering its summary.csv analyses
+ants, frogs) is the NES root the result set lies under, with the analysis set covering its summary.csv analyses
 (ants 'pairs': every treatment pair of an experiment). Its full per-frame codes (<domain eci dir>/codes/<sae>/), its training tokens
 (tokens_dir in the SAE's metrics.json) and, for fg448 representations, the per-video backgrounds (codes
 config.json 'backgrounds') must exist. Output: <first res>/explorer/ (publish the folder). The last step
@@ -29,7 +30,10 @@ change) and B (het vs wt), gene line / sex subgroups. Ants (VIEW): one family, t
 one experiment, picked with Experiment / Control / Treatment selectors over the analyses on disk (labelled
 with the raw treatment numbers, "t=2 vs t=8"), a confound note from each analysis's metadata 'confound'
 (CONFOUND_FALLBACK when missing), the recording day on every clip and the top-by-p neurons of every search
-(VIEW 'top', so comparisons without NES selections can be browsed).
+(VIEW 'top', so comparisons without NES selections can be browsed). Frogs (VIEW 'arm'): the same treated vs control
+page, the arms being the groups (WT control, FoxP1 / En1 mutant; one video per frog, hour 1), the session in place of
+the recording day, a domain note under the title (VIEW 'note') and the recording-session checks
+(scripts/eci/session_check.py, session_checks) in place of the mice camera-period checks.
 
 Outcome controls: Temporal Aggregation (event rate = bouts/min, average time = per-video mean, latency = seconds to
 the first bout within the comparison's common window W, right-censored at W) x Spatial aggregation (max pooling, average pooling, SOMP). The
@@ -149,18 +153,23 @@ from src.eci.domain import get_domain  # noqa: E402
 
 MICE = get_domain('mice')  # stage labels, analysis ids / order, gene lines and sexes, experiment.csv
 ANTS = get_domain('ants')  # experiments, treatments, recording days, analysis ids / order
+FROGS = get_domain('frogs')  # groups (WT, FoxP1, En1), sessions, analysis ids / order
+DOMS = (MICE, ANTS, FROGS)
 TEMPLATE = ROOT / 'scripts/eci/explorer_template.html'
 DATASET = ROOT / 'dataset'
 NES = 'results/vision/mice/eci/nes'
 ANES = 'results/vision/ants/eci/nes'
+FNES = 'results/vision/frogs/eci/nes'
 # The representations on the page (the ones that earned their place): per domain the foreground-mask SAE and the
 # full-frame SAE. DINOv3, background-subtracted and mask + motion SAEs (fg448mot, antsfgmot) are left out on purpose
 # (they did not beat these), as is the old mice full-frame SAE ep20 (224 center crop, unaligned): their result sets
 # stay on disk (--res brings one back). The mice mask SAE is the odor-aligned fg448al (every video turned so the odor
 # corner is top right; it replaced fg448). The mice full-frame SAE is the odor-aligned ff448al (whole frame at 448,
-# rule 'all' = every patch, scripts/eci/ff448al_chain.sh; it replaced ep20).
+# rule 'all' = every patch, scripts/eci/ff448al_chain.sh; it replaced ep20). Frogs: the frog mask SAE frogsfg
+# (foreground rule 'frogs', src/eci/foreground.py) and the full-frame SAE frogsfull (scripts/eci/frogs_chain.sh).
 DEFAULT_RES = [f'{NES}/matryoshka_btk_1024_k16_fg448al_s0', f'{NES}/matryoshka_btk_1024_k16_ff448al_s0',
-               f'{ANES}/matryoshka_btk_1024_k16_antsfg_s0', f'{ANES}/matryoshka_btk_1024_k16_antsfull_s0']
+               f'{ANES}/matryoshka_btk_1024_k16_antsfg_s0', f'{ANES}/matryoshka_btk_1024_k16_antsfull_s0',
+               f'{FNES}/matryoshka_btk_1024_k16_frogsfg_s0', f'{FNES}/matryoshka_btk_1024_k16_frogsfull_s0']
 # without --res: DEFAULT_RES (first = page default); with --discover also every other finished SAE result set
 # found under the domains' NES roots (discover_res: <root>/<sae>/summary.csv + SUMMARY.md, full codes merged,
 # not an aggregation sibling <sae>_mean / <sae>_somp)
@@ -178,13 +187,16 @@ MODELS = {
     'matryoshka_btk_1024_k16_antsfg_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'ants mask'},
     'matryoshka_btk_1024_k16_antsfull_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'full frame'},
     'matryoshka_btk_1024_k16_fg448mot_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mask + motion'},
-    'matryoshka_btk_1024_k16_antsfgmot_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mask + motion'}}
+    'matryoshka_btk_1024_k16_antsfgmot_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mask + motion'},
+    'matryoshka_btk_1024_k16_frogsfg_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'frog mask'},
+    'matryoshka_btk_1024_k16_frogsfull_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'full frame'}}
 MODEL_TIPS = {
     ('encoder', 'DINOv2'): 'DINOv2 patch features',
     ('sae', 'Matryoshka'): 'Matryoshka BatchTopK sparse autoencoder, 1024 neurons, k = 16',
     ('input', 'mouse mask'): 'Whole frame at 448 px; SAE trained on the mouse (foreground) patches only',
     ('input', 'full frame'): 'SAE trained on all patches of the frame (animals and background)',
     ('input', 'ants mask'): 'Whole frame at 448 px; SAE trained on the ant (foreground) patches only',
+    ('input', 'frog mask'): 'Whole frame at 448 px; SAE trained on the frog (foreground) patches only',
     ('input', 'mask + motion'): 'Foreground patches only, as the mask SAE, but each patch is described by its token '
                                 'and its change over the last second ([token_t, token_t - token_(t-5)], 5 frames '
                                 'at 5 fps, both halves scaled equally)'}
@@ -209,6 +221,28 @@ MODEL_NOTES = {
 # one-latent 'pointwise_threshold') and day_adjusted.csv (round test with the recording day as a covariate).
 # PERIOD_OUTCOME: page outcome kind -> its outcome name in those files.
 PERIOD_OUTCOME = {'time': 'mean', 'rate': 'bout_rate'}
+# Frogs: group and recording session are fully confounded. Read-only checks of the primary picks
+# (scripts/eci/session_check.py; session_checks): per outcome, <set>/session_check/session_flags.json (per latent:
+# within-group session score, the group it is attained in; family-wise 'threshold', one-latent 'pointwise_threshold')
+# and loso.csv (leave-one-session-out re-test of each pick). Same outcome names as PERIOD_OUTCOME.
+# Frogs: what the page says under the title (data, contrasts, the session confound and what to trust), and its hover
+# text (the details).
+FROGS_NOTE = ('Xenopus juvenile froglets (Sweeney group, ISTA), filmed top-down, one frog per dish; hour 1, one video per '
+              'frog: 13 WT, 14 FoxP1 gRNA1 half, 8 En1 gRNA4 half. Half = one side of the body CRISPR-edited; videos are '
+              'mirrored so the mutant side is always the frog\'s right. Caveat: each group was filmed in its own '
+              'recording sessions, so group is fully confounded with session and date. The strongest evidence of a real '
+              'phenotype is a neuron that becomes one-sided in FoxP1 frogs only (a session cannot create a body-side '
+              'asymmetry). En1 vs WT: nothing in the primary search (max pooling); its few picks under other '
+              'aggregations look like session or degenerate effects.',
+              'Comparisons: FoxP1 vs WT and En1 vs WT (one video = one frog, tau = mutant minus WT). Two chains: frog '
+              'mask (frog patches only) and full frame; DINOv2 -> Matryoshka SAE -> NES at 5 fps. All frogs are '
+              'genotyped. 5 of the 13 WT videos are mirrored at random too, to balance the mirrored dish labels. No '
+              'recording session holds WT and mutant frogs, so the session check (each discovery\'s chips) can only '
+              'measure how much a neuron varies between sessions of one group and whether a pick survives dropping any '
+              'one session; it cannot separate group from session. With 21-27 frogs per comparison, late NES rounds '
+              'can be degenerate fits (huge tau, tiny p), and latency picks with p far below 1e-20 come from censoring '
+              'ties: read both with caution. En1: the full-frame average-pooling pick 97 is a dish-wide background '
+              'neuron (likely a session artefact).')
 # Per domain: page title word, subject words of the tooltips, top-by-p list length and clip rendering.
 # top = per search, the N neurons with the smallest first-round p that NES did not select (listed on the
 # page, so comparisons where nothing is selected can still be browsed); 0 = none.
@@ -229,7 +263,18 @@ VIEW = {'mice': {'title': 'Mice', 'subject': 'mouse', 'subjects': 'mice', 'top':
                  'tile': 224, 'cols': 8, 'kr': 16, 'crop': None, 'crf': 30, 'keep': None, 'vnote': ''},
         'ants': {'title': 'Ants', 'subject': 'ant', 'subjects': 'ants', 'top': 10, 'cmp_top': False,
                  'tile': 320, 'cols': 4, 'kr': 8, 'crop': None, 'crf': 27, 'keep': {'v2': None, 'v3': (2, 6, 8)},
-                 'drop': ('v3_6_vs_8',), 'vnote': 'v2 (t=1, 2) and v3 t=2, 6, 8'}}
+                 'drop': ('v3_6_vs_8',), 'vnote': 'v2 (t=1, 2) and v3 t=2, 6, 8'},
+        # frogs: one experiment (exp, hour 1 of every frog); the arms are the design column 'arm' (group, its values in
+        # 'arms' order, control first), the recording session ('day' column) stands where the ants' recording day does;
+        # clips: tiles cut around each top clip's activation peak (crop 160 source px of the 512 px frame, the frog is
+        # ~80 px long; least rows: the whole frame); note = the domain note shown under the title and its hover text;
+        # top 3 = what the page lists (it shows at most 3 top-by-p neurons per search)
+        'frogs': {'title': 'Frogs', 'subject': 'frog', 'subjects': 'frogs', 'top': 3, 'cmp_top': False,
+                  'tile': 224, 'cols': 8, 'kr': 8, 'crop': 160, 'crf': 28, 'keep': None, 'vnote': '',
+                  'exp': 'hour 1', 'arm': 'group', 'arms': ('WT', 'FoxP1', 'En1'), 'day': 'session',
+                  'size_text': 'with frog size (foreground patch count: how much of the frame the frog covers, '
+                               'i.e. its posture and stretch) as a covariate (round-1 test)',
+                  'note': FROGS_NOTE}}
 # analysis metadata 'confound' missing (older result sets): these analyses keep their known confound note
 CONFOUND_FALLBACK = {'v3_2_vs_8': 'recording day: t=8 only on day C (brighter arena), t=2 only on days A/B'}
 # The page's two outcome controls. Outcome kind: event rate (bouts per minute above the threshold,
@@ -319,7 +364,7 @@ def domain_of(res):
     """The domain whose NES root (src/eci/domain.py nes_root) contains the result set, with the analysis set
     (get_domain(name, analysis_set), when the domain has several) that covers every analysis id of the
     result set's summary.csv files (e.g. ants 'pairs' = every treatment pair of an experiment)."""
-    for d in (MICE, ANTS):
+    for d in DOMS:
         if res.resolve().is_relative_to(d.nes_root.resolve()):
             sets = getattr(type(d), 'analysis_sets', ('core',))
             if len(sets) < 2:
@@ -333,7 +378,7 @@ def domain_of(res):
                 if ids <= set(dd.analysis_ids()):
                     return dd
             raise SystemExit(f'{res}: analyses {sorted(ids)} not covered by any analysis set {sets} of {d.name}')
-    raise SystemExit(f'{res}: not under a domain NES root ({MICE.nes_root}, {ANTS.nes_root})')
+    raise SystemExit(f'{res}: not under a domain NES root ({", ".join(str(d.nes_root) for d in DOMS)})')
 
 
 def discover_res(discover=False):
@@ -347,7 +392,7 @@ def discover_res(discover=False):
     if not discover:
         return out
     aggs = tuple(f'_{g}' for g, _, _ in AGGS)
-    for d in (MICE, ANTS):
+    for d in DOMS:
         for r in sorted(p for p in d.nes_root.glob('*') if p.is_dir()):
             if (str(r.resolve()) in out or r.name.endswith(aggs) or not (r / 'summary.csv').exists()
                     or not (r / 'SUMMARY.md').exists() or not (d.eci_dir / 'codes' / r.name / 'DONE').exists()):
@@ -386,7 +431,7 @@ def model_of(cfg):
     word) and representation (fg448 = '<subject> mask', else 'full frame')."""
     if cfg.sae in MODELS:
         return MODELS[cfg.sae]
-    word = {'mice': 'mouse', 'ants': 'ants'}.get(cfg.dom.name, cfg.dom.name)
+    word = {'mice': 'mouse', 'ants': 'ants', 'frogs': 'frog'}.get(cfg.dom.name, cfg.dom.name)
     return {'encoder': 'DINOv2', 'sae': cfg.sae.split('_')[0].capitalize(),
             'input': f'{word} mask' if cfg.rep == 'fg448' else 'full frame'}
 
@@ -580,7 +625,11 @@ class Cfg:
               f'artefact flags {sorted(self.artefact)}')
 
     def trim(self, t):
-        """summary.csv rows of the analyses shown (self.order) and the prefixes shown (PAGE_PREFIXES)."""
+        """summary.csv rows of the analyses shown (self.order) and the prefixes shown (PAGE_PREFIXES). A run where no
+        search selected anything writes no per-neuron columns: they are added empty."""
+        for c in ('neuron', 'tau', 'se', 't', 'df', 'p', 'threshold', 'n_tested', 'direction'):
+            if c not in t.columns:
+                t = t.assign(**{c: np.nan})
         return t[t['analysis_id'].astype(str).isin(self.order) & t['prefix'].isin(PAGE_PREFIXES)].reset_index(drop=True)
 
 
@@ -916,7 +965,20 @@ def contrast_groups(cfg, aid, vids):
 
 
 # ---------------------------------------------------------------------- step: data
-GROUP_COLS = {'mice': ('genotype', 'stage'), 'ants': ('experiment', 'T')}  # histogram / table groups
+GROUP_COLS = {'mice': ('genotype', 'stage'), 'ants': ('experiment', 'T'),
+              'frogs': ('experiment', 'group')}  # histogram / table groups (frogs: experiment = VIEW 'exp')
+
+
+def arm_of(view, v):
+    """An arm value as the page holds it: the treatment number (ants, int) or the group name (frogs, VIEW 'arm')."""
+    return str(v) if view.get('arm') else int(v)
+
+
+def with_exp(view, df):
+    """df with the column 'experiment' = VIEW 'exp' added when the domain has a single unnamed experiment (frogs)."""
+    if view.get('exp') and 'experiment' not in df.columns:
+        df['experiment'] = view['exp']
+    return df
 
 
 def day_label(d):
@@ -925,19 +987,22 @@ def day_label(d):
 
 
 def clip_group(x):
-    """Group of a clip in the logs: 'het|S2' (mice), 'v3 t=8 day C' (ants)."""
+    """Group of a clip in the logs: 'het|S2' (mice), 'v3 t=8 day C' (ants), 'hour 1 t=FoxP1 day 153' (frogs)."""
     return f'{x["genotype"]}|S{x["stage"]}' if 'stage' in x else f'{x["experiment"]} t={x["T"]} day {x["day"]}'
 
 
-def group_table(vids, y):
-    """Ants: per (experiment, T) the mean over videos of the per-video values y, 95% t-CI, n videos."""
+def group_table(vids, y, view=None):
+    """Ants: per (experiment, T) the mean over videos of the per-video values y, 95% t-CI, n videos (frogs: T = the
+    group, VIEW 'arm')."""
     from scipy import stats
+    view = view or {}
+    arm = view.get('arm', 'T')
     rows = []
-    for (e, t), g in pd.DataFrame({'e': vids['experiment'].astype(str), 't': vids['T'].astype(int),
-                                   'y': y}).groupby(['e', 't']):
+    for (e, t), g in pd.DataFrame({'e': with_exp(view, vids.copy())['experiment'].astype(str),
+                                   't': vids[arm].astype(str if view.get('arm') else int), 'y': y}).groupby(['e', 't']):
         v = g['y'].values.astype(np.float64)
         h = stats.t.ppf(0.975, len(v) - 1) * v.std(ddof=1) / np.sqrt(len(v)) if len(v) > 1 else 0.0
-        rows.append({'experiment': e, 'T': int(t), 'mean': float(v.mean()), 'lo': float(v.mean() - h),
+        rows.append({'experiment': e, 'T': arm_of(view, t), 'mean': float(v.mean()), 'lo': float(v.mean() - h),
                      'hi': float(v.mean() + h), 'n': int(len(v))})
     return rows
 
@@ -989,16 +1054,20 @@ def step_data(cfg, overwrite):
     src = load_full_codes(cfg.sae, DATASET, ROOT / 'data', domain=cfg.vdom)
     meta = src.meta
     fp = meta['frame_path'].values
-    g0, g1 = GROUP_COLS[cfg.dom.name]  # histogram groups: 'genotype|stage' (mice), 'experiment|T' (ants)
+    with_exp(cfg.view, meta)  # frogs: experiment = VIEW 'exp'
+    # histogram groups: 'genotype|stage' (mice), 'experiment|T' (ants), 'experiment|group' (frogs)
+    g0, g1 = GROUP_COLS[cfg.dom.name]
+    gv = (lambda c: c.astype(str)) if cfg.view.get('arm') else (lambda c: c.astype(int).astype(str))
     # frames of the kept videos (VIEW 'keep'): histogram, firing rate, bar scale and tables use only these
     fkeep = keep_mask(cfg.view, meta) if cfg.view['keep'] is not None else slice(None)
-    gkeys = sorted({f'{g}|{int(s)}' for g, s in zip(meta[g0][fkeep], meta[g1][fkeep])})
-    gid = pd.Index(gkeys).get_indexer(meta[g0].astype(str) + '|' + meta[g1].astype(int).astype(str))
+    gkeys = sorted({f'{g}|{s}' for g, s in zip(meta[g0][fkeep], gv(meta[g1][fkeep]))})
+    gid = pd.Index(gkeys).get_indexer(meta[g0].astype(str) + '|' + gv(meta[g1]))
     obs, fidx = meta['observation_id'].values, meta['frame_idx'].values
     if cfg.dom is MICE:
         stg, gen, pool = meta['stage'].values, meta['genotype'].values, meta['pool'].astype(str).values
-    else:
-        exp_, trt, day = meta['experiment'].astype(str).values, meta['T'].values, meta['recording_date'].astype(str).values
+    else:  # ants: treatment T and recording day; frogs: group and recording session (VIEW 'arm', 'day')
+        exp_, trt, day = (meta['experiment'].astype(str).values, meta[cfg.view.get('arm', 'T')].values,
+                          meta[cfg.view.get('day', 'recording_date')].astype(str).values)
     for key, miss in missing.items():
         if not miss:
             continue
@@ -1028,7 +1097,7 @@ def step_data(cfg, overwrite):
                 if cfg.dom is MICE:
                     c.update(stage=int(stg[start]), genotype=str(gen[start]), pool=str(pool[start]))
                 else:
-                    c.update(experiment=exp_[start], T=int(trt[start]), day=day_label(day[start]))
+                    c.update(experiment=exp_[start], T=arm_of(cfg.view, trt[start]), day=day_label(day[start]))
                 return c
             clips = {'all': {}}
             for aid in want[key][j]:
@@ -1058,7 +1127,7 @@ def step_data(cfg, overwrite):
             if cfg.dom is MICE:
                 tab = stage_genotype_table(SimpleNamespace(videos=vids, video_mean=vmean), i).to_dict('records')
             else:
-                tab = group_table(vids[vkeep], vmean[vkeep, i])
+                tab = group_table(vids[vkeep], vmean[vkeep, i], cfg.view)
             store[str(j)] = {
                 'v': PICKS_V, 'vset': vset, 'clips': clips,
                 'firing_rate': float((xi > 0).mean()),
@@ -1346,9 +1415,12 @@ def font(size, bold=False):
 
 
 def tile_text(c):
-    """Label burnt into a clip's tiles: 'S2 O,S · het · rd11_2 Test' (mice), 'v3 t=8 · day C · 3_21_4' (ants)."""
+    """Label burnt into a clip's tiles: 'S2 O,S · het · rd11_2 Test' (mice), 'v3 t=8 · day C · 3_21_4' (ants),
+    'FoxP1_153_2' (frogs: the video name = group, session, dish slot)."""
     if 'stage' in c:
         return f'S{c["stage"]} {STAGE_LABEL[c["stage"]]} · {c["genotype"]} · {short_obs(c["obs"])[0]}'
+    if isinstance(c['T'], str):
+        return c['obs']
     return f'{c["experiment"]} t={c["T"]} · day {c["day"]} · {c["obs"]}'
 
 
@@ -1591,7 +1663,7 @@ CHECK_TEXT = {('test', 'signflip'): ('flip', 'with a permutation (sign-flip) tes
               ('transform', 'rank'): ('rank', 'with ranks (a Mann-Whitney-like test) instead of raw seconds')}
 
 
-def robustness(o, others, aid, prefix, window, neuron, words=('mouse', 'mice')):
+def robustness(o, others, aid, prefix, window, neuron, words=('mouse', 'mice'), size_text=None):
     """Robustness checks of one discovered neuron, in plain words: [[key, text, 'Y' / 'N' / '-', note], ...] where
     Y = still selected (any round) when ONE setting changes (or by another outcome's primary search), N = not, '-' =
     not run. The bout threshold quantiles are one check (Y only when every quantile passes; note = the partial result),
@@ -1634,8 +1706,8 @@ def robustness(o, others, aid, prefix, window, neuron, words=('mouse', 'mice')):
     if sz is not None:
         g = sz[(sz['analysis_id'] == aid) & (sz['prefix'] == prefix) & (sz['window'] == window) & (sz['neuron'] == neuron)]
         val = ('Y' if bool(g['survives'].iloc[0]) else 'N') if len(g) else '-'
-        out.append(['size', f'with {words[0]} size (foreground patch count: how spread out or huddled the {words[1]} '
-                    'are) as a covariate (round-1 test)', val, ''])
+        out.append(['size', size_text or f'with {words[0]} size (foreground patch count: how spread out or huddled the '
+                    f'{words[1]} are) as a covariate (round-1 test)', val, ''])
     for o2 in others:
         g = primary_rows(o2)
         g = g[(g['analysis_id'] == aid) & (g['prefix'] == prefix) & (g['window'] == window)]
@@ -1737,12 +1809,15 @@ def video_table_ants():
 
 def page_data_clip(x):
     """[video index (page video list of the clip's domain), mean activation] of one clip; the page builds
-    the tooltip label 'S<stage> <label> · <genotype> · <name> · <time> · pool <pool>' (mice) or
-    '<experiment> · t=<T> · day <d> · <video> · batch <b> · pos <p>' (ants) from the video list."""
+    the tooltip label 'S<stage> <label> · <genotype> · <name> · <time> · pool <pool>' (mice),
+    '<experiment> · t=<T> · day <d> · <video> · batch <b> · pos <p>' (ants) or '<group> · session <s> · <video> ·
+    slot <k> · mutant side <side>' (frogs: T = the group name) from the video list."""
     if 'stage' not in x:
-        _, videos, _, vidx = _vt(ANTS)
+        frogs = isinstance(x['T'], str)
+        _, videos, _, vidx = _vt(FROGS if frogs else ANTS)
         i = vidx[x['obs']]
-        assert (videos[i][0], videos[i][1], videos[i][2]) == (x['experiment'], int(x['T']), x['day']), x['obs']
+        assert (videos[i][0], videos[i][1], videos[i][2]) == (x['experiment'], x['T'] if frogs else int(x['T']),
+                                                              x['day']), x['obs']
         return [i, sig4(x['act'])]
     vm, videos, _, vidx = _vt()
     i = vidx[x['obs']]
@@ -1750,10 +1825,22 @@ def page_data_clip(x):
     return [i, sig4(x['act'])]
 
 
+def video_table_frogs():
+    """Frogs video list (experiment.csv order): [[experiment (VIEW 'exp'), group, session, dish slot, mutant side] ...],
+    [[observation id, 'session <s>'] ...], {observation_id: index}. Mutant side: the side of the body edited (half
+    crispants; the video is mirrored so that it is the right), '' for WT."""
+    vm = with_exp(VIEW['frogs'], FROGS.video_meta().reset_index(drop=True))
+    side = vm['mutant_side'].fillna('').astype(str)
+    videos = [[str(e), str(g), str(s), int(k), d] for e, g, s, k, d in zip(vm['experiment'], vm['group'], vm['session'],
+                                                                          vm['slot'], side)]
+    return vm, videos, [[str(o), f'session {s}'] for o, s in zip(vm['observation_id'], vm['session'])], \
+        {o: i for i, o in enumerate(vm['observation_id'].astype(str))}
+
+
 def _vt(dom=MICE):
     k = f'vt_{dom.name}'
     if k not in _rates:
-        _rates[k] = video_table() if dom is MICE else video_table_ants()
+        _rates[k] = video_table() if dom is MICE else video_table_frogs() if dom is FROGS else video_table_ants()
     return _rates[k]
 
 
@@ -1788,7 +1875,7 @@ def page_clips(cfg, key, j, n, where):
     info: {kind: [[video, mean], ...]}, pk: top clip peaks (clip_peaks)}}} of one neuron; where = {L: {page id:
     (pack name, page index)}} (packs.json). Page p of a pack = frames [p w, (p + 1) w); the page holds BLOCKS of
     VIEW kr tiles."""
-    pz = np.load(patch_file(cfg, key, j)) if cfg.rep == 'fg448' else None
+    pz = np.load(patch_file(cfg, key, j)) if cfg.rep == 'fg448' and not cfg.crop else None  # zoom: whole-frame tiles
     out = {}
     for src in n['clips']:
         for L in SHOW_LENGTHS:
@@ -1815,8 +1902,9 @@ def analysis_meta(cfg, aid, r0):
         else:
             conf = m.get('confound', CONFOUND_FALLBACK.get(aid, ''))
         conf = conf if isinstance(conf, str) else ''
-        return {'id': aid, 'family': 'B', 'experiment': m['experiment'], 'control': int(m['control']),
-                'treatment': int(m['treatment']), 'confound': conf, 'n_units': int(r0['n_units'])}
+        return {'id': aid, 'family': 'B', 'experiment': m.get('experiment', cfg.view.get('exp')),
+                'control': arm_of(cfg.view, m['control']), 'treatment': arm_of(cfg.view, m['treatment']),
+                'confound': conf, 'n_units': int(r0['n_units'])}
     return ({'id': aid, 'family': 'A', 'genotype': r0['genotype'], 'stages': stages_of(aid),
              'n_units': int(r0['n_units'])} if aid.startswith('A') else
             {'id': aid, 'family': 'B', 'stage': int(r0['stage']), 'n_units': int(r0['n_units'])})
@@ -1833,7 +1921,9 @@ def censored_arms(cfg, o, aid):
     cz = lat[ix] >= latency_W(o, aid)  # no bout in the analysis's common window (first W frames)
     m0, m1 = contrast_groups(cfg, aid, vm)
     an = cfg.dom.analysis(aid)
-    if cfg.dom is not MICE:
+    if cfg.dom is FROGS:
+        labs = (an.meta['control'], an.meta['treatment'])
+    elif cfg.dom is not MICE:
         labs = (f't={an.meta["control"]}', f't={an.meta["treatment"]}')
     elif an.family == 'A':
         labs = tuple(f'stage {x}' for x in an.stages)
@@ -1872,7 +1962,8 @@ def search_results(cfg, outs, analyses=None, others=None, top=False):
                     j = int(r['neuron'])
                     rows.append({'round': int(r['round']), 'neuron': j, 'tau': float(r['tau']), 'p': float(r['p']),
                                  'threshold': float(r['threshold']), 'n_tested': int(r['n_tested']),
-                                 'rob': robustness(o, oth, aid, int(prefix), window, j, words)})
+                                 'rob': robustness(o, oth, aid, int(prefix), window, j, words,
+                                                   cfg.view.get('size_text'))})
                     if cz is not None:  # latency: censored videos per arm (side panel)
                         rows[-1]['cens'] = cens_of(*cz, j)
                 wk = 'full'  # the page's key for the primary window (latency: the common window)
@@ -1954,6 +2045,65 @@ def period_checks(cfg, results, xres, subsets):
               f'{sum(v[0] >= e["thr"] for v in e["lat"].values())} period-dependent (>= {e["thr"]}), '
               f'{sum(e["pthr"] <= v[0] < e["thr"] for v in e["lat"].values())} possibly (>= {e["pthr"]}); '
               f'day-adjusted {n_day} of {n_rows} family-B selections ({n_bad} file rows without a page selection)')
+        out[o['id']] = e
+    return out
+
+
+def session_checks(cfg, results, xres):
+    """Frogs recording-session checks (scripts/eci/session_check.py) of the SAE's mean-activation and event-rate
+    outcomes (core or extra): {outcome id: {'thr', 'pthr', 'lat': {neuron: [score, group, p_perm]}, 'loso':
+    {'<analysis>|<prefix>': {neuron: [p_max, worst session, survives, sessions, same sign]}}}}. score = how much the
+    neuron's per-video outcome varies between the recording sessions of one group (eta^2 of the within-group ranks on
+    session, max over the groups; group = where it is attained), thr = family-wise threshold, pthr = one-latent
+    threshold; loso = the leave-one-session-out re-test of each pick (survives = p_max below the round's threshold and
+    tau keeps its sign in every drop). Files: <set>/session_check/ of the result set whose session_flags.json 'pooling'
+    is the outcome's spatial aggregation (the SAE's own, else <sae>_<agg>). 'lat' covers the neurons of the outcome's
+    searches on the page; 'loso' rows must match a selection on the page (analysis, prefix, round, neuron, tau), else
+    they are left out with a warning. {} for other domains or when no outcome has the files."""
+    if cfg.dom is not FROGS:
+        return {}
+    out = {}
+    for o in cfg.outcomes + cfg.extras:
+        if o['kind'] not in PERIOD_OUTCOME:
+            continue
+        d = next((x / 'session_check' for x in (cfg.res, cfg.res.parent / f'{cfg.res.name}_{o["agg"]}')
+                  if (x / 'session_check' / 'session_flags.json').exists()
+                  and read_json(x / 'session_check' / 'session_flags.json')['pooling'] == o['agg']), None)
+        if d is None:
+            print(f'[{cfg.tag}] page: no session_check for {o["label"]!r} ({o["kind"]} x {o["agg"]})')
+            continue
+        SF = read_json(d / 'session_flags.json')
+        F = SF['outcomes'].get(PERIOD_OUTCOME[o['kind']])
+        if F is None:
+            continue
+        lat, groups = F['latents'], F['groups_scored']
+        R = xres if o['extra'] else results
+        js = {r['neuron'] for k, v in R.items() if k.startswith(o['id'] + '|') for r in v['rows']}
+        e = {'thr': F['threshold'], 'pthr': F['pointwise_threshold'],
+             'lat': {str(j): [round(float(lat['score'][j]), 4), groups[int(lat['group'][j])], sig4(lat['p_perm'][j])]
+                     for j in sorted(js)}}
+        lo = pd.read_csv(d / 'loso.csv')
+        lo = lo[(lo['outcome'] == PERIOD_OUTCOME[o['kind']]) & lo['prefix'].isin(PAGE_PREFIXES)]
+        n_bad = 0
+        for _, r in lo.iterrows():
+            rows = R.get(f'{o["id"]}|{r["analysis_id"]}|{int(r["prefix"])}|full', {}).get('rows', [])
+            hit = [x for x in rows if x['neuron'] == int(r['neuron']) and x['round'] == int(r['round'])
+                   and abs(x['tau'] - r['tau']) <= 1e-3 * max(1.0, abs(r['tau']))]
+            if not hit:
+                n_bad += 1
+                print(f'[{cfg.tag}] WARNING leave-one-session-out {o["label"]!r} {r["analysis_id"]} p{int(r["prefix"])} '
+                      f'round {int(r["round"])} neuron {int(r["neuron"])}: no matching selection on the page, left out')
+                continue
+            ok = bool(r['p_max_below']) and bool(r['same_sign'])
+            e.setdefault('loso', {}).setdefault(f'{r["analysis_id"]}|{int(r["prefix"])}', {})[str(int(r['neuron']))] = \
+                [sig4(r['p_max']), str(r['worst_session']), int(ok), int(r['n_sessions']), int(bool(r['same_sign']))]
+        n_rows = sum(len(v['rows']) for k, v in R.items() if k.startswith(o['id'] + '|'))
+        n_lo = sum(len(v) for v in e.get('loso', {}).values())
+        print(f'[{cfg.tag}] page: session checks {o["label"]!r} from {d}: {len(js)} neurons, '
+              f'{sum(v[0] >= e["thr"] for v in e["lat"].values())} session-dependent (>= {e["thr"]}), '
+              f'{sum(e["pthr"] <= v[0] < e["thr"] for v in e["lat"].values())} possibly (>= {e["pthr"]}); '
+              f'leave-one-session-out {n_lo} of {n_rows} selections, {sum(x[2] for v in e.get("loso", {}).values() for x in v.values())} '
+              f'survive ({n_bad} file rows without a page selection)')
         out[o['id']] = e
     return out
 
@@ -2113,7 +2263,8 @@ def page_data(cfg):
         print(f'[{cfg.tag}] page: change share of the decoder rows (motion SAE): median {np.median(cs):.3f}, '
               f'quartiles {np.quantile(cs, 0.25):.3f} / {np.quantile(cs, 0.75):.3f}')
     return {'sae': cfg.sae, 'tag': cfg.tag, 'model': model_of(cfg), 'rep': cfg.rep, 'outcomes': outcomes,
-            'period': period_checks(cfg, results, xres, subsets), 'lwin': lwin, 'change_share': None if cs is None else [round(float(x), 3) for x in cs],
+            'period': period_checks(cfg, results, xres, subsets), 'session': session_checks(cfg, results, xres),
+            'lwin': lwin, 'change_share': None if cs is None else [round(float(x), 3) for x in cs],
             'otables': otables, 'artefact': sorted(int(j) for j in cfg.artefact),
             'subsets': subsets,
             'analyses': [analyses[a] for a in cfg.order if a in analyses], 'results': results, 'neurons': neurons,
@@ -2151,7 +2302,8 @@ def split_data(d, data_dir, inline):
     core = {k: d[k] for k in ('sae', 'tag', 'model', 'rep', 'outcomes', 'analyses', 'artefact', 'artefact_text',
                               'arena_note', 'n_frames', 'montage')}
     core['subsets'] = {name: {k: v for k, v in S.items() if k != 'results'} for name, S in d['subsets'].items()}
-    for k in ('lwin', 'change_share', 'period'):  # only SAEs that have them (latency, motion SAEs, period checks)
+    for k in ('lwin', 'change_share', 'period', 'session'):  # only SAEs that have them (latency, motion SAEs,
+        # mice period checks, frogs session checks)
         if d.get(k):
             core[k] = d[k]
     core['rfiles'], core['pre'] = {}, {}
@@ -2228,6 +2380,8 @@ def split_data(d, data_dir, inline):
         core.update(videos=d['videos'], obs=d['obs'])
     if v['vnote']:
         core['vnote'] = v['vnote']
+    if v.get('arm'):  # frogs: arm values in display order (control first), the domain note and its hover text
+        core.update(arms=list(v['arms']), dnote=v['note'][0], dnote_tip=v['note'][1])
     if d['sae'] in MODEL_NOTES:
         core['note'] = MODEL_NOTES[d['sae']]
     return core, files

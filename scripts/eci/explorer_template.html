@@ -159,6 +159,7 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
 .hd{display:grid;gap:6px}
 .note{font-size:12px;color:var(--muted);max-width:62ch}
+.note.dnote{max-width:118ch;font-size:12.5px}
 @media (max-width:900px){.main,.main.wide,.two{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:560px){
   .cgrid{--per:2}
@@ -190,6 +191,7 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
     </div>
   </nav>
 
+  <p class="note dnote" id="domNote" hidden></p>
   <p class="note" id="modelNote" hidden></p>
   <p class="warnbox one" id="subNote" hidden></p>
   <p class="warnbox one" id="cfNote" hidden></p>
@@ -204,11 +206,11 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
       <div class="fb" id="famB"></div>
     </div>
     <div class="fam" id="antPick" hidden>
-      <h3 class="tip" title="Treated minus control videos within one experiment (unit = video); t = treatment number. Pairs without NES results are disabled.">Treated vs control</h3>
+      <h3 class="tip" id="apH" title="Treated minus control videos within one experiment (unit = video); t = treatment number. Pairs without NES results are disabled.">Treated vs control</h3>
       <div class="apick">
-        <span class="opt"><label for="apE">Experiment</label><select id="apE" class="sel"></select></span>
+        <span class="opt" id="apEo"><label for="apE">Experiment</label><select id="apE" class="sel"></select></span>
         <span class="opt"><label for="apC">Control</label><select id="apC" class="sel"></select></span>
-        <span class="opt"><label for="apT">Treatment</label><select id="apT" class="sel"></select></span>
+        <span class="opt"><label for="apT" id="apTl">Treatment</label><select id="apT" class="sel"></select></span>
         <span class="cnt" id="apN"></span>
       </div>
     </div>
@@ -287,11 +289,17 @@ function neuron(j){
   const F = need(nf.files[nf.of[j]]); return F ? (F.by ? F.by[outcome().codes][j] : F.neurons[j]) : null;
 }
 const nfilePath = j => { const nf = DATA.nfile[outcome().codes]; return nf && (j in nf.of) ? nf.files[nf.of[j]] : null; };
-/* domains: mice (the shared ALL.videos list: pool, stage, genotype, line, sex) or ants (the SAE's own list:
-   experiment, treatment T, recording day, batch, position; one family of treated vs control comparisons) */
-const ANTS = () => DATA.domain==='ants';
+/* domains: mice (the shared ALL.videos list: pool, stage, genotype, line, sex), ants (the SAE's own list:
+   experiment, treatment T, recording day, batch, position; one family of treated vs control comparisons) or frogs
+   (the SAE's own list: experiment 'hour 1', group, recording session, dish slot, mutant side; the same treated vs
+   control page with the groups as arms, DATA.arms in display order, control first). GEN = a treated vs control
+   domain (ants or frogs). */
+const ANTS = () => DATA.domain==='ants', FROGS = () => DATA.domain==='frogs', GEN = () => ANTS() || FROGS();
 const VIDS = () => DATA.videos || ALL.videos, OBS = () => DATA.obs || ALL.obs;
-const aSubj = () => DATA.subject==='ant' ? 'an ant' : 'a mouse';
+const aSubj = () => DATA.subject==='ant' ? 'an ant' : DATA.subject==='frog' ? 'the frog' : 'a mouse';
+/* an arm value as shown: treatment number 't=2' (ants) or the group name 'FoxP1' (frogs) */
+const armL = v => typeof v === 'number' ? `t=${v}` : String(v);
+const armOrd = v => typeof v === 'number' ? v : (DATA.arms||[]).indexOf(v);
 /* per-video values of the current outcome for the current neuron: in its entry, or in the outcome's bundle file */
 function valsOf(n){
   const F = GOT[rfile()];
@@ -300,25 +308,29 @@ function valsOf(n){
   return W==null ? V : V.map(v => v==null ? v : Math.min(v, W));
 }
 function clipLabel(v){
+  if(FROGS()){ const [, g, s, k, side] = VIDS()[v]; return `${g} · session ${s} · ${OBS()[v][0]} · slot ${k}${side?` · mutant side ${side} (shown right)`:''}`; }
   if(ANTS()){ const [e, t, d, b, p] = VIDS()[v]; return `${e} · t=${t} · day ${d} · ${OBS()[v][0]} · batch ${b} · pos ${p}`; }
   const [p, s, g] = ALL.videos[v], [name, when] = ALL.obs[v];
   return `S${s} ${STAGE[s]} · ${g} · ${name} · ${when} · pool ${p}`;
 }
 function label(a){
+  if(FROGS()) return `${a.treatment} vs ${a.control}`;
   if(a.experiment) return `${a.experiment} · t=${a.control} vs t=${a.treatment}`;
   if(a.family==='A') return `${a.genotype} · ${TRANS[a.id.split('_')[2]]}`;
   return `het vs wt · stage ${a.stage} (${STAGE[a.stage]})`;
 }
 function shortLabel(a){
+  if(FROGS()) return `${a.treatment} vs ${a.control}`;
   if(a.experiment) return `${a.experiment} ${a.control}vs${a.treatment}`;
   return a.family==='A' ? `${a.genotype} ${a.stages[0]}→${a.stages[1]}` : `B${a.stage}`;
 }
 function longLabel(a){
+  if(FROGS()) return `${a.treatment} frogs vs ${a.control} frogs (one video per frog, ${a.experiment})${a.confound?` (confounded with the ${a.confound})`:''}`;
   if(a.experiment) return `${a.experiment}: t=${a.treatment} videos vs t=${a.control} videos${a.confound?` (confounded with the ${a.confound})`:''}`;
   if(a.family==='A') return `${a.genotype}, stage ${a.stages[0]} (${STAGE_LONG[a.stages[0]]}) → stage ${a.stages[1]} (${STAGE_LONG[a.stages[1]]})`;
   return `het vs wt in stage ${a.stage} (${STAGE_LONG[a.stage]})`;
 }
-const tauTip = () => (ANTS() ? 'tau: effect size in the outcome unit: mean of the treated videos minus mean of the control videos.' : TAU_TIP)
+const tauTip = () => (FROGS() ? 'tau: effect size in the outcome unit: mean of the mutant frogs minus mean of the WT frogs (one video per frog).' : ANTS() ? 'tau: effect size in the outcome unit: mean of the treated videos minus mean of the control videos.' : TAU_TIP)
   + (isLat() ? ` Latency: tau > 0 = a later first bout, measured in the first ${latW()} s of every video of the comparison; a video without a bout there counts as ${latW()} s (censored).` : '');
 /* latency outcomes: DATA.lwin[outcome] = {analysis: W (s)}, the common window of that comparison (first W s of every
    video); the per-video first-bout times are capped at W, and a value at W is censored (no bout in the window) */
@@ -335,7 +347,7 @@ const censChip = c => c && c.reduce((s,x)=>s+x[1],0) > 0.2 * c.reduce((s,x)=>s+x
    shuffles), pthr = one-neuron threshold. day[aid|prefix][j] = [p with the recording day as covariate, p, survives].
    Chips: 'day' (robustness, Y / N) and, only when the discovery looks due to the period (score >= thr, or score >= pthr
    and the day-adjusted re-test fails), a warning chip 'camera period'. */
-const perB = () => { const a = analysis(state.aid); return !ANTS() && state.view==='cmp' && a && a.family==='B' && state.window==='full'; };
+const perB = () => { const a = analysis(state.aid); return !GEN() && state.view==='cmp' && a && a.family==='B' && state.window==='full'; };
 function periodInfo(j){
   const P = (DATA.period||{})[state.outcome]; if(!P || !perB()) return {warn:'', day:null};
   const D = !SUB() && P.day ? (P.day[`${state.aid}|${state.prefix}`]||{})[j] : null;
@@ -347,6 +359,25 @@ function periodInfo(j){
     warn = `<span class="chip warn" title="${esc(tip)}">⚠ camera period</span>`;
   }
   const day = D ? ['day', `with the recording day as a covariate (p ${fmtP(D[0])}; ${fmtP(D[1])} without)`, D[2] ? 'Y' : 'N', ''] : null;
+  return {warn, day};
+}
+/* frogs: recording-session checks of the current outcome (DATA.session[outcome], scripts/eci/session_check.py). Group
+   and session are fully confounded (no session holds two groups). lat[j] = [score, group, p_perm]: how much neuron j's
+   outcome varies between the recording sessions of one group (eta^2 of the within-group ranks on session, max over the
+   groups), thr = family-wise threshold, pthr = one-neuron threshold. loso[aid|prefix][j] = [p_max, worst session,
+   survives, sessions, same sign]: the pick re-tested once per session with that session left out. Chips: 'session'
+   (robustness, Y / N) and, only when the neuron looks session-driven (score >= thr, or score >= pthr and the
+   leave-one-session-out re-test fails), a warning chip 'session'. */
+function sessionInfo(j){
+  const P = (DATA.session||{})[state.outcome]; if(!P || state.view!=='cmp' || state.window!=='full') return {warn:'', day:null};
+  const D = P.loso ? (P.loso[`${state.aid}|${state.prefix}`]||{})[j] : null, L = P.lat[j];
+  const sc = L ? `; within-group session score ${L[0].toFixed(3)} (${L[1]} frogs, permutation p ${fmtP(L[2])}; family-wise threshold ${P.thr})` : '';
+  let warn = '';
+  if(L && (L[0] >= P.thr || (L[0] >= P.pthr && D && !D[2]))){
+    const tip = `Recording session: among the ${L[1]} frogs, this neuron's outcome differs between recording sessions (score ${L[0].toFixed(3)}, ${L[0] >= P.thr ? `above the family-wise threshold ${P.thr}` : `above the one-neuron threshold ${P.pthr}`})${D ? `; with session ${D[1]} left out p is ${fmtP(D[0])}, ${D[2] ? 'still' : 'no longer'} below the round's threshold` : ''}. Group and session are confounded, so a session-driven neuron can look like a group effect.`;
+    warn = `<span class="chip warn" title="${esc(tip)}">⚠ session</span>`;
+  }
+  const day = D ? ['session', `when any one recording session is left out (${D[3]} sessions; worst: session ${D[1]}, p ${fmtP(D[0])}${D[4] ? '' : ', tau changes sign'})${sc}`, D[2] ? 'Y' : 'N', ''] : null;
   return {warn, day};
 }
 const CS_TIP = 'Change share: fraction of the neuron\'s decoder weight (squared norm) on the change half of the input [token, token − token 1 s earlier]; 0% = only what is there, 100% = only how it moves.';
@@ -421,7 +452,8 @@ function antPicker(){
   const AN = DATA.analyses, cur = analysis(state.aid) || AN[0];
   const E = $('#apE'), C = $('#apC'), T = $('#apT');
   const exps = [...new Set(AN.map(a=>a.experiment))];
-  const tvals = e => [...new Set([...VIDS().filter(v=>v[0]===e).map(v=>+v[1]), ...AN.filter(a=>a.experiment===e).flatMap(a=>[a.control, a.treatment])])].sort((p,q)=>p-q);
+  const conv = FROGS() ? (x => x) : (x => +x);   // arm values: group names (frogs) or treatment numbers (ants)
+  const tvals = e => [...new Set([...VIDS().filter(v=>v[0]===e).map(v=>conv(v[1])), ...AN.filter(a=>a.experiment===e).flatMap(a=>[a.control, a.treatment])])].sort((p,q)=>armOrd(p)-armOrd(q));
   const find = (e, c, t) => AN.find(a => a.experiment===e && a.control===c && a.treatment===t);
   const cnt = a => { const R = res(a.id); return R.loading ? '·' : R.rows.length; };
   E.innerHTML = exps.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join('');
@@ -435,9 +467,13 @@ function antPicker(){
   const go = a => { if(a && a.id!==state.aid){ state.view='cmp'; state.aid=a.id; state.neuron=null; render(); } };
   E.onchange = () => { const e = E.value, L = AN.filter(a=>a.experiment===e);
     go(L.find(a=>a.control===cur.control && a.treatment===cur.treatment) || L.find(a=>a.control===cur.control) || L[0]); };
-  C.onchange = () => { const c = +C.value, L = AN.filter(a=>a.experiment===cur.experiment && a.control===c);
+  C.onchange = () => { const c = conv(C.value), L = AN.filter(a=>a.experiment===cur.experiment && a.control===c);
     go(L.find(a=>a.treatment===cur.treatment) || L[0]); };
-  T.onchange = () => go(find(cur.experiment, cur.control, +T.value));
+  T.onchange = () => go(find(cur.experiment, cur.control, conv(T.value)));
+  // frogs: a single experiment (hour 1), the treatment is the mutant group
+  $('#apEo').hidden = FROGS(); $('#apTl').textContent = FROGS() ? 'Mutant' : 'Treatment';
+  $('#apH').textContent = FROGS() ? 'Mutant vs WT' : 'Treated vs control';
+  $('#apH').title = FROGS() ? 'Mutant minus WT frogs (one video per frog, hour 1). En1 and FoxP1 are each compared with WT; FoxP1 vs En1 is not searched.' : 'Treated minus control videos within one experiment (unit = video); t = treatment number. Pairs without NES results are disabled.';
 }
 
 /* prefixes searched for the current outcome (outcome().prefixes); a prefix without results falls back to the first */
@@ -448,7 +484,7 @@ function fixPrefix(){
 }
 function buildControls(){
   const PX = fixPrefix();
-  const A=$('#famA'), ants=ANTS();
+  const A=$('#famA'), ants=GEN();   // treated vs control picker: ants and frogs
   A.parentElement.hidden = ants; $('#famB').parentElement.hidden = ants; $('#antPick').hidden = !ants;
   if(ants) antPicker();
   if(!ants){
@@ -489,7 +525,10 @@ function buildControls(){
   const MN = $('#modelNote'); MN.hidden = !DATA.note; if(DATA.note) MN.textContent = `ⓘ ${DATA.note}`;
   const ca = analysis(state.aid), CN = $('#cfNote');
   CN.hidden = !(state.view==='cmp' && ca && ca.confound);
-  if(!CN.hidden) CN.textContent = `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip shows its recording day: check whether a neuron follows the lighting or the behavior.`;
+  if(!CN.hidden) CN.textContent = FROGS() ? `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip names its video (group_session_slot) and the clip rows count their sessions: a neuron found in one session only is suspect; a one-sided (left/right) change in FoxP1 only cannot come from a session.`
+                                           : `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip shows its recording day: check whether a neuron follows the lighting or the behavior.`;
+  const DN = $('#domNote'); DN.hidden = !DATA.dnote;   // domain note (frogs): data and caveat; its details on hover
+  if(DATA.dnote) DN.innerHTML = `ⓘ ${esc(DATA.dnote)}${DATA.dnote_tip ? ` <span class="tip" title="${esc(DATA.dnote_tip)}">More</span>` : ''}`;
   const S = SUB(), NB = $('#subNote');
   NB.hidden = !S;
   if(S){
@@ -517,7 +556,7 @@ for(const t of document.querySelectorAll('.tab')) t.onclick=()=>{ state.view=t.d
 /* one summary chip "robust k/n" over the plain-words checks of a discovery (r.rob [key, text, Y/N/-, note], plus the
    day-adjusted re-test for mice family B), then warning chips only (camera period, artefact) */
 function chipsHTML(r){
-  const pi = periodInfo(r.neuron), C = r.rob.concat(pi.day ? [pi.day] : []);
+  const pi = FROGS() ? sessionInfo(r.neuron) : periodInfo(r.neuron), C = r.rob.concat(pi.day ? [pi.day] : []);
   const run = C.filter(c => c[2]!=='-'), k = run.filter(c => c[2]==='Y').length, n = run.length;
   const lines = C.map(([, text, v, note]) => `${v==='Y'?'✓ still found':v==='N'?'✗ not found':'· not run:'} ${text}${note?` (${note})`:''}`);
   const cls = !n ? 'na' : k/n >= 0.75 ? 'Y' : k/n >= 0.4 ? 'warn2' : 'na';
@@ -529,7 +568,7 @@ function chipsHTML(r){
 function renderCmpList(){
   const a=analysis(state.aid), R=res(), S=$('#side');
   const nu = nUnits(a), unit = a.family==='A' ? `${nu} paired pools` : `${nu} videos`;
-  let h=`<div class="side-head">${ANTS() ? '' : `<h2 title="${esc(longLabel(a))}">${esc(label(a))}</h2>`}<span class="meta">${SUB()?`${esc(subLabel())} · `:''}${unit} · ${R.n_tested_total||0} tested · <span class="tip" title="${tauTip()}">τ${!ANTS()&&a.family==='B'?' = het − wt':''}</span> in ${esc(outcome().unit)}</span></div>`;
+  let h=`<div class="side-head">${GEN() ? '' : `<h2 title="${esc(longLabel(a))}">${esc(label(a))}</h2>`}<span class="meta">${SUB()?`${esc(subLabel())} · `:''}${unit} · ${R.n_tested_total||0} tested · <span class="tip" title="${tauTip()}">τ${FROGS()?` = ${esc(a.treatment)} − ${esc(a.control)}`:!ANTS()&&a.family==='B'?' = het − wt':''}</span> in ${esc(outcome().unit)}</span></div>`;
   if(R.stopped) h+=`<p class="warnbox one" title="${esc(R.stopped)}">NES stopped early: the search ran out of degrees of freedom after the neurons listed here (${esc(R.stopped.split(':')[0])}).</p>`;
   // top-by-p list (domains with DATA.top): the smallest first-round p that NES did not select
   const top = (R.top||[]).filter(([j]) => !R.rows.some(r=>r.neuron===j)).sort((x,y)=>x[2]-y[2]).slice(0,3);   // at most 3
@@ -603,16 +642,16 @@ function subTable(n){
   }
   return T;
 }
-/* ants: per (experiment, treatment) the mean of the tested per-video values over its videos, 95% CI */
+/* ants / frogs: per (experiment, treatment or group) the mean of the tested per-video values over its videos, 95% CI */
 function groupTable(n){
   const V = valsOf(n); if(!V) return null;
   const g = {};
   VIDS().forEach((v,i) => { if(V[i]==null) return; const k = `${v[0]}|${v[1]}`; (g[k] = g[k] || {e:v[0], t:v[1], y:[]}).y.push(V[i]); });
-  return Object.values(g).sort((p,q)=>p.e.localeCompare(q.e) || p.t-q.t).map(x => { const s = meanCI(x.y); return {experiment:x.e, T:x.t, mean:s.m, lo:s.lo, hi:s.hi, n:s.n}; });
+  return Object.values(g).sort((p,q)=>p.e.localeCompare(q.e) || armOrd(p.t)-armOrd(q.t)).map(x => { const s = meanCI(x.y); return {experiment:x.e, T:x.t, mean:s.m, lo:s.lo, hi:s.hi, n:s.n}; });
 }
 const owhat = o => o.kind==='latency' ? `latency to first bout (s, first ${latW()} s)` : o.bout ? o.unit : `mean codes_${o.codes}`;
 function chartTable(j, n){
-  if(ANTS()){ const o = outcome(); return {T:groupTable(n)||[], what:`${owhat(o)} per video (full videos)`}; }
+  if(GEN()){ const o = outcome(); return {T:groupTable(n)||[], what:`${owhat(o)} per video (full videos)`}; }
   if(SUB() || !n.table || isLat()){
     const o = outcome();
     return {T:subTable(n)||[], what:`${owhat(o)} per video (full videos, ${subLabel()})`};
@@ -627,7 +666,7 @@ function histSVG(n, a){
   const norm = c => { const s = c.reduce((p,q)=>p+q, 0) || 1; return c.map(v => v / s); };
   const series = [{c:norm(H.counts.all), col:'var(--faint)', fill:true, name:'all frames'}];
   if(a){
-    const keys = a.experiment ? [[`${a.experiment}|${a.control}`,'var(--wt)',`t=${a.control}`],[`${a.experiment}|${a.treatment}`,'var(--het)',`t=${a.treatment}`]]
+    const keys = a.experiment ? [[`${a.experiment}|${a.control}`,'var(--wt)',armL(a.control)],[`${a.experiment}|${a.treatment}`,'var(--het)',armL(a.treatment)]]
                : a.family==='A' ? [[`${a.genotype}|${a.stages[0]}`,'var(--wt)',`stage ${a.stages[0]}`],[`${a.genotype}|${a.stages[1]}`,'var(--het)',`stage ${a.stages[1]}`]]
                                 : [[`wt|${a.stage}`,'var(--wt)','wt'],[`het|${a.stage}`,'var(--het)','het']];
     for(const [k,col,name] of keys) if(H.counts[k]) series.push({c:norm(H.counts[k]), col, name});
@@ -724,9 +763,9 @@ function chartGroups(T, hl){
     const k=`${t.experiment}|${t.T}`, col = k===hl[0] ? 'var(--wt)' : k===hl[1] ? 'var(--het)' : 'var(--ink)';
     if(i && T[i-1].experiment!==t.experiment) s+=`<line x1="${x(i)-bw/2}" x2="${x(i)-bw/2}" y1="${m.t}" y2="${H-m.b+30}" stroke="var(--line)"/>`;
     if(!i || T[i-1].experiment!==t.experiment) s+=`<text x="${x(i)-bw/2+3}" y="${H-m.b+29}" font-size="10" fill="var(--muted)" ${F}>${esc(t.experiment)}</text>`;
-    s+=`<text x="${x(i)}" y="${H-m.b+15}" text-anchor="middle" font-size="11" fill="var(--ink)" ${F}>t=${t.T}</text>`;
+    s+=`<text x="${x(i)}" y="${H-m.b+15}" text-anchor="middle" font-size="11" fill="var(--ink)" ${F}>${esc(armL(t.T))}</text>`;
     s+=`<line x1="${x(i)}" x2="${x(i)}" y1="${y(t.lo)}" y2="${y(t.hi)}" stroke="${col}" stroke-width="2"/>`;
-    s+=`<circle cx="${x(i)}" cy="${y(t.mean)}" r="3.8" fill="${col}" stroke="#fff" stroke-width="1.2"><title>${esc(t.experiment)} t=${t.T}: ${t.mean.toPrecision(3)} [${t.lo.toPrecision(3)}, ${t.hi.toPrecision(3)}], ${t.n} videos</title></circle>`;
+    s+=`<circle cx="${x(i)}" cy="${y(t.mean)}" r="3.8" fill="${col}" stroke="#fff" stroke-width="1.2"><title>${esc(t.experiment)} ${esc(armL(t.T))}: ${t.mean.toPrecision(3)} [${t.lo.toPrecision(3)}, ${t.hi.toPrecision(3)}], ${t.n} videos</title></circle>`;
   });
   return s+'</svg>';
 }
@@ -743,7 +782,7 @@ function renderDetail(){
   const hits = allFound().find(x=>x.neuron===j);
   let h=`<div class="dh"><div class="l"><h2>Neuron ${j}</h2>
     <span class="facts">${n.firing_rate!=null?`<span class="tip" title="Fraction of all ${(DATA.n_frames/1e6).toFixed(2)} M frames where the neuron is active">fires ${(n.firing_rate*100).toFixed(1)}%</span>`:''}`;
-  if(r) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${r.tau>0?'up':'down'}" title="${tauTip()}">τ${!ANTS()&&a&&a.family==='B'?' (het − wt)':''} ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${P_TIP}">p ${fmtP(r.p)}</span>`;
+  if(r) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${r.tau>0?'up':'down'}" title="${tauTip()}">τ${FROGS()&&a?` (${esc(a.treatment)} − ${esc(a.control)})`:!ANTS()&&a&&a.family==='B'?' (het − wt)':''} ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${P_TIP}">p ${fmtP(r.p)}</span>`;
   const pc = r ? chipsHTML(r) : '';
   if(pc) h+=` · <span class="chips" style="display:inline-flex">${pc}</span>`;
   if(rt) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${rt[1]>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(rt[1])} ${esc(outcome().unit)}</span> · <span class="tip" title="First-round t-test p-value, above the Bonferroni threshold: not selected by NES">p ${fmtP(rt[2])} · not selected</span>`;
@@ -772,7 +811,7 @@ function renderDetail(){
     ? `The ${KR} highest single frames of this neuron (codes_${cd}), at most one per video: each video's highest frame, videos ranked by it.`
     : `Windows of ${w} consecutive frames (${LAB[L]} at 5 fps). In each video, the window with the highest MEAN activation (codes_${cd}) over its ${w} frames; the ${KR} videos with the highest such mean, ranked. Sustained events, not one-frame peaks.`) + cropTip;
   const silent = C.least_rule==='silent';
-  const pool = ca ? (ca.experiment ? ` among the t=${ca.control} and t=${ca.treatment} videos of ${ca.experiment}` : ca.family==='A' ? ` among the ${ca.genotype} videos of stages ${ca.stages[0]} and ${ca.stages[1]}` : ` among the het and wt videos of stage ${ca.stage}`) : '';
+  const pool = ca ? (FROGS() ? ` among the ${ca.control} and ${ca.treatment} frogs` : ca.experiment ? ` among the t=${ca.control} and t=${ca.treatment} videos of ${ca.experiment}` : ca.family==='A' ? ` among the ${ca.genotype} videos of stages ${ca.stages[0]} and ${ca.stages[1]}` : ` among the het and wt videos of stage ${ca.stage}`) : '';
   const leastTip = silent
     ? `${L==='frame'?'Frames':`Windows of ${w} consecutive frames`} where the neuron is exactly 0${L==='frame'?'':' on every frame'} (codes_${cd}): one picked at random in each of ${M.K} random videos${pool} (fixed seed)${KR<M.K?`; the first ${KR} are shown`:''}.`
     : `Fewer than ${M.K} videos${pool} contain a ${what} where the neuron is 0${L==='frame'?'':' on every frame'}, so these are the ${M.K} videos whose lowest-mean ${what} is lowest, that ${what} in each${KR<M.K?` (the first ${KR} shown)`:''}. Not silent: the neuron is weakly active here.`;
@@ -781,17 +820,17 @@ function renderDetail(){
   let split = '';
   if(ca){  // one row: the top windows among every video of the comparison; count them per stage / genotype / treatment
     const cnt = {};
-    for(const [v] of C.info.top){ const [, st, g] = VIDS()[v]; const k = ca.experiment ? `t=${st}` : ca.family==='A' ? `stage ${st}` : g; cnt[k] = (cnt[k]||0)+1; }
-    const keys = ca.experiment ? [`t=${ca.control}`, `t=${ca.treatment}`] : ca.family==='A' ? ca.stages.map(s=>`stage ${s}`) : ['het','wt'];
+    for(const [v] of C.info.top){ const [, st, g] = VIDS()[v]; const k = ca.experiment ? armL(st) : ca.family==='A' ? `stage ${st}` : g; cnt[k] = (cnt[k]||0)+1; }
+    const keys = ca.experiment ? [armL(ca.control), armL(ca.treatment)] : ca.family==='A' ? ca.stages.map(s=>`stage ${s}`) : ['het','wt'];
     split = ' · ' + keys.map(k=>`${cnt[k]||0} ${k}`).join(', ');
   }
-  if(ANTS()){  // recording day of the top clips (the arena lighting differs between days)
+  if(GEN()){  // recording day (ants: the arena lighting differs between days) or recording session (frogs) of the top clips
     const days = {};
     for(const [v] of C.info.top){ const d = VIDS()[v][2]; days[d] = (days[d]||0)+1; }
-    split += ' · day ' + Object.keys(days).sort().map(d=>`${d} ${days[d]}`).join(', ');
+    split += (FROGS() ? ' · session ' : ' · day ') + Object.keys(days).sort().map(d=>`${d} ${days[d]}`).join(', ');
   }
   const cmpName = analysis(state.aid) ? shortLabel(analysis(state.aid)) : '';
-  const FROMTIP = {all:`Clips chosen among all ${VIDS().length} videos${DATA.vnote?` (${DATA.vnote})`:''}`, cmp:hasCmp ? (ANTS() ? `Clips chosen among the videos entering ${cmpName}: its control and treated videos. Each tile shows its experiment, treatment and recording day.` : `Clips chosen among the videos entering ${cmpName} (full cohort, whatever line / sex is selected): A = that genotype's videos in both stages; B = het and wt videos of that stage. Each tile shows its stage and genotype.`) : `Neuron ${j} is not found in ${cmpName} in the full-cohort search: no clips from this comparison.`};
+  const FROMTIP = {all:`Clips chosen among all ${VIDS().length} videos${DATA.vnote?` (${DATA.vnote})`:''}`, cmp:hasCmp ? (FROGS() ? `Clips chosen among the frogs entering ${cmpName}: its WT and mutant frogs. Each tile shows its video (group_session_slot).` : ANTS() ? `Clips chosen among the videos entering ${cmpName}: its control and treated videos. Each tile shows its experiment, treatment and recording day.` : `Clips chosen among the videos entering ${cmpName} (full cohort, whatever line / sex is selected): A = that genotype's videos in both stages; B = het and wt videos of that stage. Each tile shows its stage and genotype.`) : `Neuron ${j} is not found in ${cmpName} in the full-cohort search: no clips from this comparison.`};
   h+=`<div class="clipbar">
       <span class="opt"><span class="tip" title="Which videos the clips are chosen from">Clips from</span>${seg('f',srcId==='all'?'all':'cmp',['all','cmp'],v=>v==='cmp'?`this comparison${cmpName?` (${esc(cmpName)})`:''}`:'all videos',FROMTIP,v=>v==='cmp'&&!hasCmp)}</span>
       <span class="opt"><span class="tip" title="What is selected and shown: single frames, or windows of ${Object.entries(M.lengths).filter(([,w])=>w>1).map(([k,w])=>`${w} (${LAB[k]})`).join(' or ')} consecutive frames ranked by their mean activation">Length</span>${seg('l',state.len,Object.keys(M.lengths),v=>LAB[v])}</span>
@@ -829,10 +868,11 @@ function renderDetail(){
 const arenaHTML = () => `<div class="arena">${DATA.arena.bg ? `<img class="bg" src="${DATA.arena.bg}" alt="">` : ''}<canvas id="arenaC"></canvas></div><div class="scale">low <i></i> high</div>`;
 
 function chartsHTML(j, n, cmp, a, hl, ct){
-  if(ANTS()) return `<div class="two"><div class="chart"><h3 class="tip" title="${esc(ct.what)}: mean ± 95% CI over the videos of each experiment and treatment; shaded = current comparison">By treatment · ${esc(ct.what.split(' (')[0])}</h3>
-      <div class="lg"><span><span class="dot" style="background:var(--wt)"></span>control</span><span><span class="dot" style="background:var(--het)"></span>treated</span></div>
+  const FR = FROGS();
+  if(GEN()) return `<div class="two"><div class="chart"><h3 class="tip" title="${esc(ct.what)}: mean ± 95% CI over the videos of each ${FR ? 'group (one video per frog)' : 'experiment and treatment'}; shaded = current comparison">By ${FR ? 'group' : 'treatment'} · ${esc(ct.what.split(' (')[0])}</h3>
+      <div class="lg"><span><span class="dot" style="background:var(--wt)"></span>control${FR ? ' (WT)' : ''}</span><span><span class="dot" style="background:var(--het)"></span>${FR ? 'mutant' : 'treated'}</span></div>
       ${ct.T.length ? chartGroups(ct.T,hl) : '<div class="pend">no per-video values</div>'}</div>
-    <div class="chart"><h3 class="tip" title="The per-video values NES tests (raw). A round-1 τ is exactly the treated minus control difference of means; a later-round τ is adjusted for the neurons selected before it.">Per-video values</h3>${cmp ? poolPanel(n, a) : '<div class="pend">pick a comparison</div>'}</div></div>`;
+    <div class="chart"><h3 class="tip" title="The per-video values NES tests (raw). A round-1 τ is exactly the ${FR ? 'mutant minus WT' : 'treated minus control'} difference of means; a later-round τ is adjusted for the neurons selected before it.">Per-video values</h3>${cmp ? poolPanel(n, a) : '<div class="pend">pick a comparison</div>'}</div></div>`;
   const np = SUB() ? SUB().n_het_pools : 36;
   return `<div class="two"><div class="chart"><h3 class="tip" title="${esc(ct.what)}: mean ± 95% CI over ${np} pools per genotype; shaded = current comparison">By stage and genotype · ${esc(ct.what.split(' (')[0])}${SUB()?` · ${esc(subLabel())}`:''}</h3>
       <div class="lg"><span><span class="dot" style="background:var(--wt)"></span>wt</span><span><span class="dot" style="background:var(--het)"></span>het</span></div>
@@ -865,8 +905,8 @@ function poolPanel(n, a){
   const arm = (name, col, ix) => { ix = ix.filter(i=>V[i]!=null); if(lat) cens.push([name, ix.filter(i=>isCens(V[i],i)).length, ix.length]); return {name, col, v:ix.map(i=>V[i]), c:lat ? ix.map(i=>isCens(V[i],i)) : null}; };
   const idx = f => VIDS().map((vv,i)=>f(vv)?i:null).filter(i=>i!=null);
   if(a.experiment){  // ants: control and treated videos of the experiment
-    for(const [t, col] of [[a.control,'var(--wt)'],[a.treatment,'var(--het)']]) rows.push(arm(`t=${t}`, col, idx(vv=>vv[0]===a.experiment&&vv[1]===t)));
-    axis = `${a.experiment} value (${u})`; lg = 'dot = one video';
+    for(const [t, col] of [[a.control,'var(--wt)'],[a.treatment,'var(--het)']]) rows.push(arm(armL(t), col, idx(vv=>vv[0]===a.experiment&&vv[1]===t)));
+    axis = `${a.experiment} value (${u})`; lg = FROGS() ? 'dot = one frog (video)' : 'dot = one video';
   } else if(a.family==='A'){
     const [s0, s1] = a.stages, by = {};
     ALL.videos.forEach((v,i) => { const [p,s,g] = v; if(inSub(v) && g===a.genotype && (s===s0||s===s1)) (by[p] = by[p]||{})[s] = V[i]; });
