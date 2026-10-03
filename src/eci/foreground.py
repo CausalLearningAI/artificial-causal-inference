@@ -54,7 +54,8 @@ Encoders (FgEncoder): the foreground mask is ALWAYS computed from DINOv2-base to
 per-video backgrounds above are DINOv2 quantities). The SAE tokens come from the chosen encoder: 'dinov2_base'
 (default, the same tokens as the mask) or 'dinov3_base' (DINOv3 ViT-B/16, whole 512 px frame, no resize, patch 16
 -> the same 32 x 32 grid; each patch is exactly the 16 x 16 pixel block that dark_fraction pools; CLS and the 4
-register tokens are dropped). Both encoders therefore see identical foreground patches.
+register tokens are dropped) or 'dinov3_small' (DINOv3 ViT-S/16, 384-dim tokens, otherwise the same as 'dinov3_base').
+Both encoders therefore see identical foreground patches.
 
 Odor alignment (--align odor, tag 'fg448al'; mice only): every frame of a video is rotated by a multiple of 90 degrees
 (lossless, before DINOv2 and before the grey frame of the dark cue) so that the video's odor corner
@@ -128,7 +129,7 @@ RULES = {'fg448': FG_RULE, 'v3': FG_RULE_V3, 'ants': FG_RULE_ANTS, 'all': FG_RUL
 
 MASK_ENCODER = 'dinov2_base'
 # input resolution per encoder: 32 x 32 patches for both (448 / 14 = 512 / 16 = 32)
-ENCODER_RESOLUTION = {'dinov2_base': RESOLUTION, 'dinov3_base': FRAME_PX}
+ENCODER_RESOLUTION = {'dinov2_base': RESOLUTION, 'dinov3_base': FRAME_PX, 'dinov3_small': FRAME_PX}
 ENCODERS = tuple(ENCODER_RESOLUTION)
 
 # frame alignment (module docstring): name -> per-video rotation. 'odor': np.rot90 / PIL ROTATE_90 counter-clockwise

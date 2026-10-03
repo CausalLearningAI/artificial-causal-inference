@@ -16,7 +16,7 @@ Functions:
     build_frame_table   one row per frame on disk, with pool/stage/genotype metadata
     sample_frames       stratified-in-time sampling (n per observation, seeded jitter)
     sample_frames_stride  every stride-th frame per observation (1 fps = stride 5), seeded offset
-    load_encoder        DINOv2 (or DINOv3, name 'dinov3_base') model + its standard processor at a given resolution
+    load_encoder        DINOv2 (or DINOv3: 'dinov3_base' ViT-B/16, 'dinov3_small' ViT-S/16) model + its processor
     extract_tokens      writes patch tokens / CLS / metadata to an output directory
 """
 
@@ -31,8 +31,9 @@ import pandas as pd
 import torch
 from PIL import Image
 
-MODEL_IDS = {'dinov2_base': 'facebook/dinov2-base', 'dinov3_base': 'facebook/dinov3-vitb16-pretrain-lvd1689m'}
-PATCH_SIZES = {'dinov2_base': 14, 'dinov3_base': 16}
+MODEL_IDS = {'dinov2_base': 'facebook/dinov2-base', 'dinov3_base': 'facebook/dinov3-vitb16-pretrain-lvd1689m',
+             'dinov3_small': 'facebook/dinov3-vits16-pretrain-lvd1689m'}
+PATCH_SIZES = {'dinov2_base': 14, 'dinov3_base': 16, 'dinov3_small': 16}
 STAGES = {('H', 'S'): 1, ('O', 'S'): 2, ('P', 'S'): 3, ('H', 'F'): 4, ('O', 'F'): 5, ('P', 'F'): 6}
 
 
