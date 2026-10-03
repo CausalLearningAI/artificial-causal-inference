@@ -116,8 +116,10 @@ abbr[title],.tip{text-decoration:underline dotted var(--faint);cursor:help}
 .chip.N{background:var(--soft);color:var(--faint);text-decoration:line-through}
 .chip.na{color:var(--faint);box-shadow:inset 0 0 0 1px var(--line)}
 .chip.warn{background:var(--warn-bg);color:var(--warn)}
-.chip.warn2{color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn-bg)}
+.chip.warn2{background:var(--warn-bg);color:var(--warn);opacity:.75}
 .chip.F{background:var(--soft);color:var(--muted)}
+.interp{font-size:13px;margin:2px 0 8px;max-width:90ch}
+.topd summary{cursor:pointer;font-size:12.5px;color:var(--muted);padding:6px 0}
 .empty{padding:12px;border:1px dashed var(--line);border-radius:6px;color:var(--muted);font-size:13px}
 
 /* all-neurons table */
@@ -157,7 +159,6 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
 .hd{display:grid;gap:6px}
 .note{font-size:12px;color:var(--muted);max-width:62ch}
-.camnote{margin:0;max-width:none}
 @media (max-width:900px){.main,.main.wide,.two{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:560px){
   .cgrid{--per:2}
@@ -172,7 +173,7 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
   <header>
     <h1 id="title">Exploratory Causal Inference x <select id="domSel" class="tsel" aria-label="Domain" title="Experimental domain: its videos, comparisons and models"></select></h1>
     <div class="model" id="modelBar" role="group" aria-label="Model">
-      <span class="opt" id="prefixOpt"><span class="tip" title="Search only the first 128 or 256 neurons (coarse Matryoshka prefixes) or all 1024. 128 is the main search; 1024 is exploratory">Neurons</span><span class="seg" id="prefixSeg"><button type="button" data-p="128" title="Search the first 128 neurons (the coarse Matryoshka prefix): the main search">128</button><button type="button" data-p="256" title="Search the first 256 neurons (the next Matryoshka prefix)">256</button><button type="button" data-p="1024" title="Exploratory: search all 1024 neurons. Many fine-grained neurons, a stricter correction, less interpretable picks">1024</button></span></span>
+      <span class="opt" id="prefixOpt"><span class="tip" title="Search only the first 128 or the first 256 neurons (coarse Matryoshka prefixes). 128 is the main search">Neurons</span><span class="seg" id="prefixSeg"><button type="button" data-p="128" title="Search the first 128 neurons (the coarse Matryoshka prefix): the main search">128</button><button type="button" data-p="256" title="Search the first 256 neurons (the next Matryoshka prefix)">256</button></span></span>
     </div>
   </header>
 
@@ -192,7 +193,6 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
   <p class="note" id="modelNote" hidden></p>
   <p class="warnbox one" id="subNote" hidden></p>
   <p class="warnbox one" id="cfNote" hidden></p>
-  <p class="note camnote" id="camNote" hidden></p>
 
   <section class="picker" id="picker" aria-label="Choose a comparison">
     <div class="fam">
@@ -245,7 +245,7 @@ const STAGE = {1:'H,S',2:'O,S',3:'P,S',4:'H,F',5:'O,F',6:'P,F'};
 const PHASE = {1:'Habituation<br>Social',2:'Odor<br>Social',3:'Post<br>Social',4:'Habituation<br>Fear',5:'Odor<br>Fear',6:'Post<br>Fear'};
 const STAGE_LONG = {1:'habituation, social odor',2:'social odor',3:'post, social odor',4:'habituation, fear odor',5:'fear odor',6:'post, fear odor'};
 const TRANS = {'1to2':'Social H→O','2to3':'Social O→P','4to5':'Fear H→O','5to6':'Fear O→P'};
-const TAU_TIP = 'tau: effect size in the outcome unit. A: mean paired change from the first to the second stage. B: het minus wt.';
+const TAU_TIP = 'tau: effect size in the outcome unit. A: mean paired change from the first to the second stage. B: het − wt (mean of the het videos minus mean of the wt videos; positive = higher in het).';
 const P_TIP = 'p: t-test p-value. Found = p below the Bonferroni threshold of that search round.';
 const state = {sae:DATA0.sae, from:'all', len:'1s', view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:128, window:'full', neuron:null, heat:true, sort:'count', line:'all', sex:'all', nper:8};
 try{ Object.assign(state, JSON.parse(localStorage.getItem('nes-atlas')||'{}')); }catch(e){}
@@ -327,28 +327,27 @@ const lwin = () => (DATA.lwin||{})[state.outcome];
 const latW = () => { const L = lwin(); if(!L) return null; return L[state.aid] ?? Math.min(...Object.values(L)); };
 const isCens = (v, i) => { const W = latW(); return W!=null && v!=null && v >= W*(1-1e-4); };
 const censTip = c => c.map(([lab,k,n])=>`${lab} ${k}/${n}`).join(', ');
-const censChip = c => c ? `<span class="chip na" title="Censored videos (no bout in the first ${latW()} s: latency set to ${latW()} s): ${esc(censTip(c))}">cens ${c.reduce((s,x)=>s+x[1],0)}/${c.reduce((s,x)=>s+x[2],0)}</span>` : '';
+const censChip = c => c && c.reduce((s,x)=>s+x[1],0) > 0.2 * c.reduce((s,x)=>s+x[2],0) ? `<span class="chip na" title="Censored videos (no bout in the first ${latW()} s: latency set to ${latW()} s): ${esc(censTip(c))}">cens ${c.reduce((s,x)=>s+x[1],0)}/${c.reduce((s,x)=>s+x[2],0)}</span>` : '';
 /* mask + motion SAEs: DATA.change_share[j] = share of neuron j's decoder weight on the change half of the input */
 /* mice family B: camera-period checks of the current outcome (DATA.period[outcome], scripts/eci/period_check.py). The
    search itself is unchanged (all videos). lat[j] = [score, pair, AUC]: how well neuron j's outcome separates the two
    camera periods among the mice of one genotype (best pair); thr = family-wise threshold (5% over all neurons, label
-   shuffles), pthr = one-neuron threshold. day[aid|prefix][j] = [p with the recording day as covariate, p, survives]. */
+   shuffles), pthr = one-neuron threshold. day[aid|prefix][j] = [p with the recording day as covariate, p, survives].
+   Chips: 'day' (robustness, Y / N) and, only when the discovery looks due to the period (score >= thr, or score >= pthr
+   and the day-adjusted re-test fails), a warning chip 'camera period'. */
 const perB = () => { const a = analysis(state.aid); return !ANTS() && state.view==='cmp' && a && a.family==='B' && state.window==='full'; };
-function periodChips(j){
-  const P = (DATA.period||{})[state.outcome]; if(!P || !perB()) return '';
-  let h = '';
-  const L = P.lat[j];
-  if(L && L[0] >= P.pthr){
-    const [sc, pair, auc] = L, strict = sc >= P.thr;
-    const tip = `Camera-period check: among the mice of one genotype (${pair.replace(':','')}; mouse = its 6 videos averaged), this neuron's outcome separates the two camera periods with AUC ${auc.toFixed(3)} (0.5 = no separation, above 0.5 = higher in the first period). Score ${sc.toFixed(3)} ≥ ${strict ? `${P.thr} (family-wise 5% threshold over all 1024 neurons, from label shuffles)` : `${P.pthr} (threshold for one neuron alone, no multiplicity control; family-wise threshold ${P.thr})`}. A genotype difference cannot produce this: the neuron also follows the camera period, so its het vs wt difference may partly be the camera.`;
-    h += `<span class="chip ${strict?'warn':'warn2'}" title="${esc(tip)}">${strict?'period-dependent':'possibly period-dependent'}</span>`;
-  }
+function periodInfo(j){
+  const P = (DATA.period||{})[state.outcome]; if(!P || !perB()) return {warn:'', day:null};
   const D = !SUB() && P.day ? (P.day[`${state.aid}|${state.prefix}`]||{})[j] : null;
-  if(D){
-    const [pd, p, ok] = D;
-    h += `<span class="chip ${ok?'Y':'F'}" title="${esc(`Day-adjusted re-test: this round's test repeated with the recording day (days since the first recording) as a covariate, the earlier picks conditioned on as in NES. p ${fmtP(pd)} with the day, ${fmtP(p)} without. ${ok?'Pass':'Fail'}: p with the day is ${ok?'still':'not'} below this round's Bonferroni threshold (same sign). The main search is unchanged.`)}">day-adj ${fmtP(pd)} (${fmtP(p)}) ${ok?'✓':'✗'}</span>`;
+  const L = P.lat[j];
+  let warn = '';
+  if(L && (L[0] >= P.thr || (L[0] >= P.pthr && D && !D[2]))){
+    const [sc, pair, auc] = L;
+    const tip = `Camera period: this discovery may be due to the recording period. Among the mice of one genotype (${String(pair).replace(':','')}; mouse = its 6 videos averaged) the neuron's outcome separates the two periods with AUC ${auc.toFixed(3)} (0.5 = no separation; score ${sc.toFixed(3)}, ${sc >= P.thr ? `above the family-wise threshold ${P.thr}` : `above the one-neuron threshold ${P.pthr}`})${D ? `; day-adjusted p ${fmtP(D[0])} (${fmtP(D[1])} without the day covariate), ${D[2] ? 'still' : 'no longer'} below the round's threshold` : ''}.`;
+    warn = `<span class="chip warn" title="${esc(tip)}">⚠ camera period</span>`;
   }
-  return h;
+  const day = D ? ['day', `with the recording day as a covariate (p ${fmtP(D[0])}; ${fmtP(D[1])} without)`, D[2] ? 'Y' : 'N', ''] : null;
+  return {warn, day};
 }
 const CS_TIP = 'Change share: fraction of the neuron\'s decoder weight (squared norm) on the change half of the input [token, token − token 1 s earlier]; 0% = only what is there, 100% = only how it moves.';
 const csOf = j => DATA.change_share ? DATA.change_share[j] : null;
@@ -443,7 +442,7 @@ function antPicker(){
 
 /* prefixes searched for the current outcome (outcome().prefixes); a prefix without results falls back to the first */
 function fixPrefix(){
-  const PX = (outcome()||{}).prefixes || [128, 1024];
+  const PX = (outcome()||{}).prefixes || [128];
   if(!PX.includes(state.prefix)) state.prefix = PX.includes(128) ? 128 : PX[0];
   return PX;
 }
@@ -491,12 +490,6 @@ function buildControls(){
   const ca = analysis(state.aid), CN = $('#cfNote');
   CN.hidden = !(state.view==='cmp' && ca && ca.confound);
   if(!CN.hidden) CN.textContent = `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip shows its recording day: check whether a neuron follows the lighting or the behavior.`;
-  const KN = $('#camNote'), cam = ALL.camera;
-  KN.hidden = !(cam && !ants && state.view==='cmp' && ca && ca.family==='B');
-  if(!KN.hidden){
-    KN.textContent = `Camera period (odor-corner group) is unbalanced by genotype: het / wt videos per stage ${Object.entries(cam).map(([g,[h,w]])=>`${g} ${h} / ${w}`).join(', ')}. The periods are months apart (rig, lighting, bedding; the BR camera is also ~4% more zoomed in), so a genotype difference can partly follow the period. No video is dropped and the search is unchanged; each found neuron is checked instead: “period-dependent” = it separates the periods within one genotype, “day-adj” = its test repeated with the recording day as a covariate.`;
-    KN.title = 'The on-screen odor corner marks the recording period (dataset/mice/v1/eci/odor_corner.csv). Checks: scripts/eci/period_check.py. Period-dependent: within-genotype period AUC above the family-wise threshold (5% over all 1024 neurons); possibly: above the threshold for one neuron alone. Day-adj: p with the recording day as a covariate (in brackets without), ✓ = still below the round\'s Bonferroni threshold.';
-  }
   const S = SUB(), NB = $('#subNote');
   NB.hidden = !S;
   if(S){
@@ -521,29 +514,33 @@ for(const b of document.querySelectorAll('#lineSeg button')) b.onclick=()=>setSu
 for(const b of document.querySelectorAll('#sexSeg button')) b.onclick=()=>setSub(state.line, b.dataset.sex);
 for(const t of document.querySelectorAll('.tab')) t.onclick=()=>{ state.view=t.dataset.view; render(); };
 
+/* one summary chip "robust k/n" over the plain-words checks of a discovery (r.rob [key, text, Y/N/-, note], plus the
+   day-adjusted re-test for mice family B), then warning chips only (camera period, artefact) */
 function chipsHTML(r){
-  let h = r.rob.map(([lab,tip,v]) => {
-    const cls = v==='Y'?'Y':v==='N'?'N':'na';
-    const what = v==='Y'?'still found':v==='N'?'not found':'not run';
-    return `<span class="chip ${cls}" title="${esc(tip)}: ${what}">${esc(lab)}</span>`;
-  }).join('');
-  if(isArt(r.neuron)) h+=`<span class="chip warn" title="${esc(DATA.artefact_text[r.neuron]||'likely artefact')}">⚠</span>`;
-  return h + periodChips(r.neuron);
+  const pi = periodInfo(r.neuron), C = r.rob.concat(pi.day ? [pi.day] : []);
+  const run = C.filter(c => c[2]!=='-'), k = run.filter(c => c[2]==='Y').length, n = run.length;
+  const lines = C.map(([, text, v, note]) => `${v==='Y'?'✓ still found':v==='N'?'✗ not found':'· not run:'} ${text}${note?` (${note})`:''}`);
+  const cls = !n ? 'na' : k/n >= 0.75 ? 'Y' : k/n >= 0.4 ? 'warn2' : 'na';
+  let h = C.length ? `<span class="chip ${cls}" title="${esc(`Robustness: still selected when one choice of the analysis changes.\n${lines.join('\n')}`)}">robust ${k}/${n}</span>` : '';
+  if(isArt(r.neuron)) h+=`<span class="chip warn" title="${esc(DATA.artefact_text[r.neuron]||'likely artefact')}">⚠ artefact</span>`;
+  return h + pi.warn;
 }
 
 function renderCmpList(){
   const a=analysis(state.aid), R=res(), S=$('#side');
   const nu = nUnits(a), unit = a.family==='A' ? `${nu} paired pools` : `${nu} videos`;
-  let h=`<div class="side-head">${ANTS() ? '' : `<h2 title="${esc(longLabel(a))}">${esc(label(a))}</h2>`}<span class="meta">${SUB()?`${esc(subLabel())} · `:''}${unit} · ${R.n_tested_total||0} tested · <span class="tip" title="${tauTip()}">τ</span> in ${esc(outcome().unit)}</span></div>`;
+  let h=`<div class="side-head">${ANTS() ? '' : `<h2 title="${esc(longLabel(a))}">${esc(label(a))}</h2>`}<span class="meta">${SUB()?`${esc(subLabel())} · `:''}${unit} · ${R.n_tested_total||0} tested · <span class="tip" title="${tauTip()}">τ${!ANTS()&&a.family==='B'?' = het − wt':''}</span> in ${esc(outcome().unit)}</span></div>`;
   if(R.stopped) h+=`<p class="warnbox one" title="${esc(R.stopped)}">NES stopped early: the search ran out of degrees of freedom after the neurons listed here (${esc(R.stopped.split(':')[0])}).</p>`;
   // top-by-p list (domains with DATA.top): the smallest first-round p that NES did not select
   const top = (R.top||[]).filter(([j]) => !R.rows.some(r=>r.neuron===j)).sort((x,y)=>x[2]-y[2]).slice(0,3);   // at most 3
   if(!R.rows.length){
     if(R.loading){ S.innerHTML = h+loadMsg(rfile()); return; }
-    if(!top.length){ state.neuron=null; S.innerHTML = h+`<div class="empty">${R.notrun ? 'Not run for this subgroup (full cohort only)' : R.skipped ? 'Not run: too few pools' : 'None found'}</div>`; return; }
+    if(!top.some(t=>t[0]===state.neuron)) state.neuron = null;   // nothing is selected for the user
+    const msg = R.notrun ? 'Not run for this subgroup (full cohort only)' : R.skipped ? 'Not run: too few pools' : 'No neuron discovered';
+    if(!top.length){ S.innerHTML = h+`<div class="empty">${msg}</div>`; return; }
+    renderTop(S, h+`<div class="empty">${msg}</div>`, top, true); return;
   }
-  if(state.neuron===null || !(R.rows.some(r=>r.neuron===state.neuron) || top.some(t=>t[0]===state.neuron))) state.neuron=R.rows.length ? R.rows[0].neuron : top[0][0];
-  if(!R.rows.length){ renderTop(S, h+'<div class="empty">None found</div>', top); return; }
+  if(state.neuron===null || !(R.rows.some(r=>r.neuron===state.neuron) || top.some(t=>t[0]===state.neuron))) state.neuron=R.rows[0].neuron;
   h+='<div class="rows">';
   for(const r of R.rows){
     const up=r.tau>0;
@@ -556,8 +553,10 @@ function renderCmpList(){
   S.innerHTML = h+'</div>';
   for(const b of S.querySelectorAll('.nr')) b.onclick=()=>{ state.neuron=+b.dataset.n; render(); };
 }
-function renderTop(S, h, top){
-  h+=`<h3 class="tip" title="The ${top.length} neurons with the smallest first-round p-value of this search that NES did not select (p above the Bonferroni threshold). Exploratory: not discoveries.">Top ${top.length} by p-value · not selected</h3><div class="rows">`;
+function renderTop(S, h, top, fold){
+  // fold (no discovery): the list is collapsed; opening it lets the user pick one (nothing is selected by default)
+  const open = !fold || state.neuron!==null;
+  h+=`<details class="topd"${open?' open':''}><summary class="tip" title="The ${top.length} neurons with the smallest first-round p-value of this search that NES did not select (p above the Bonferroni threshold). Exploratory: not discoveries.">show top ${top.length} by p-value (not selected)</summary><div class="rows">`;
   for(const [j, tau, p, cens] of top){
     const up=tau>0;
     h+=`<button type="button" class="nr" data-n="${j}" aria-pressed="${j===state.neuron}" title="first-round p ${fmtP(p)}: not selected by NES">
@@ -565,7 +564,7 @@ function renderTop(S, h, top){
       <span class="l1"><span class="${up?'up':'down'}">${up?'▲':'▼'} ${fmtTau(tau)}</span><span class="pv">p ${fmtP(p)}</span>${csHTML(j)}</span>
       <span class="chips"><span class="chip na" title="not selected: p above the round-1 Bonferroni threshold">not selected</span>${censChip(cens)}</span></button>`;
   }
-  S.innerHTML = h+'</div>';
+  S.innerHTML = h+'</div></details>';
   for(const b of S.querySelectorAll('.nr')) b.onclick=()=>{ state.neuron=+b.dataset.n; render(); };
 }
 
@@ -744,8 +743,8 @@ function renderDetail(){
   const hits = allFound().find(x=>x.neuron===j);
   let h=`<div class="dh"><div class="l"><h2>Neuron ${j}</h2>
     <span class="facts">${n.firing_rate!=null?`<span class="tip" title="Fraction of all ${(DATA.n_frames/1e6).toFixed(2)} M frames where the neuron is active">fires ${(n.firing_rate*100).toFixed(1)}%</span>`:''}`;
-  if(r) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${r.tau>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${P_TIP}">p ${fmtP(r.p)}</span>`;
-  const pc = r ? periodChips(j) : '';
+  if(r) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${r.tau>0?'up':'down'}" title="${tauTip()}">τ${!ANTS()&&a&&a.family==='B'?' (het − wt)':''} ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${P_TIP}">p ${fmtP(r.p)}</span>`;
+  const pc = r ? chipsHTML(r) : '';
   if(pc) h+=` · <span class="chips" style="display:inline-flex">${pc}</span>`;
   if(rt) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${rt[1]>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(rt[1])} ${esc(outcome().unit)}</span> · <span class="tip" title="First-round t-test p-value, above the Bonferroni threshold: not selected by NES">p ${fmtP(rt[2])} · not selected</span>`;
   const cens = r ? r.cens : rt ? rt[3] : null;
@@ -754,6 +753,7 @@ function renderDetail(){
   h+=`</span></div>`;
   if(hits) h+=`<div class="tags" aria-label="Found in">${hits.hits.map(({a:b,r:x})=>`<button type="button" class="tag ${cmp&&b.id===state.aid?'cur':x.tau>0?'up':'down'}" data-aid="${b.id}" title="${esc(longLabel(b))}: tau ${fmtTau(x.tau)} ${esc(outcome().unit)}, p ${fmtP(x.p)}. Open this comparison">${shortLabel(b)}${x.tau>0?'▲':'▼'}</button>`).join('')}</div>`;
   h+='</div>';
+  if(n.interp) h+=`<p class="interp"><span class="tip" title="Hypothesis written by Claude (Opus 5.5) from this neuron's top/least clips, heat maps and arena map; not verified.">Claude interpretation</span>: ${esc(n.interp.text)}${n.interp.conf?` <span class="chip ${n.interp.conf==='clear'?'Y':'na'}" title="Claude's confidence in this reading (clear / plausible / unclear)">${esc(n.interp.conf)}</span>`:''}</p>`;
   if(n.artefact) h+=`<div class="warnbox one">⚠ Likely artefact: ${esc(DATA.artefact_text[j]||'')}</div>`;
   if(n.noclip) return renderNoClip(D, h, j, n, cmp, a);
   const cd = outcome().codes, L = state.len, w = M.lengths[L], KR = M.kr || M.K, N = Math.min(state.nper, KR);
@@ -797,6 +797,7 @@ function renderDetail(){
       <span class="opt"><span class="tip" title="What is selected and shown: single frames, or windows of ${Object.entries(M.lengths).filter(([,w])=>w>1).map(([k,w])=>`${w} (${LAB[k]})`).join(' or ')} consecutive frames ranked by their mean activation">Length</span>${seg('l',state.len,Object.keys(M.lengths),v=>LAB[v])}</span>
       ${KR > 8 ? `<span class="opt"><span class="tip" title="Clips shown per row">Clips</span>${seg('k',N,[8,KR].filter((v,i,x)=>x.indexOf(v)===i),v=>v)}</span>` : ''}
       <label class="switch tip" for="heat" title="${esc(heatTip)}"><input type="checkbox" id="heat"${state.heat?' checked':''}> Show where it fires</label>
+      ${C.pk ? `<label class="switch tip" for="zoom" title="Most activated tiles: show the region around where the neuron fires most in that clip, enlarged ${ZOOM}× (tiles are rendered above their display size, so the zoom shows real pixels)"><input type="checkbox" id="zoom"${state.zoom?' checked':''}> Zoom</label>` : ''}
     </div>
     <div class="clips" id="clipsBox">
     <div class="hd"><div class="row"><h3 class="tip" title="${esc(topTip + (ca ? ` Among${pool.replace(' among','')} together.` : ''))}">Most activated</h3><span class="meta">${topMeta}${split}</span></div>${grid('top')}</div>
@@ -875,7 +876,7 @@ function poolPanel(n, a){
     axis = `stage ${s1} − stage ${s0} (${u})`; lg = `dot = one ${a.genotype} pool`;
   } else {
     for(const g of ['wt','het']) rows.push(arm(g, `var(--${g})`, idx(vv=>inSub(vv)&&vv[2]===g&&vv[1]===a.stage)));
-    axis = `stage ${a.stage} value (${u})`; lg = `dot = one video`;
+    axis = `stage ${a.stage} value (${u})`; lg = `dot = one video · τ = het − wt (positive = higher in het)`;
   }
   const W=460, rh=46, m={l:44,r:12,t:8,b:34}, H=m.t+rows.length*rh+m.b;
   for(const r of rows) r.s = meanCI(r.v);
@@ -919,7 +920,7 @@ function stopClips(){
   if(clipRAF) cancelAnimationFrame(clipRAF); clipRAF = null;
   if(clipIO) clipIO.disconnect(); clipIO = null;
 }
-const FPS = 5;
+const FPS = 5, ZOOM = 2;
 /* A host without HTTP Range requests cannot seek inside a pack (seekable ends at 0): the pack is then fetched
    once as a whole and played from a blob URL (kept for the page's lifetime; after one such pack every later
    pack goes straight to the blob path). */
@@ -935,7 +936,7 @@ function startClips(C, nn){
   const w = M.lengths[state.len], still = w === 1, KR = M.kr || M.K;
   const t0 = (C.page || 0) * w / FPS, t1 = t0 + w / FPS, mid = 0.5 / FPS;   // page span; mid = half a frame
   const cs = [...document.querySelectorAll('.cgrid canvas')], vis = new Set();
-  const T = M.tile, BAR = T - 8;
+  const T = M.tile, BAR = T - 8, PK = C.pk || null;
   const thr = nn && nn.bout_thr_bar != null ? nn.bout_thr_bar : null;   // bout threshold on the bar scale (0..1)
   const off = document.createElement('canvas'), ox = off.getContext('2d', {willReadFrequently:true});
   let last = null, onScreen = false, mt = null;
@@ -975,7 +976,13 @@ function startClips(C, nn){
     for(const c of vis){
       const b = C.blocks[c.dataset.kind + (state.heat ? '_heat' : '')], i = +c.dataset.i;
       const k = b * KR + i, sx = (k % cols) * T, sy = Math.floor(k / cols) * T, g = c.getContext('2d');
-      g.drawImage(off, sx, sy, T, BAR, 0, 0, T, BAR);
+      const pk = state.zoom && PK && c.dataset.kind==='top' ? PK[i] : null;
+      if(pk){   // zoom: the region around the clip's activation peak (C.pk, fractions of the tile), enlarged ZOOM x
+        const sw = Math.round(T / ZOOM), sh = Math.round(BAR / ZOOM);
+        const x0 = Math.min(Math.max(Math.round(pk[0] * T - sw / 2), 0), T - sw), y0 = Math.min(Math.max(Math.round(pk[1] * T - sh / 2), 0), BAR - sh);
+        g.imageSmoothingQuality = 'high';
+        g.drawImage(off, sx + x0, sy + y0, sw, sh, 0, 0, T, BAR);
+      } else g.drawImage(off, sx, sy, T, BAR, 0, 0, T, BAR);
       // Burnt-in bar (bottom 5 rows of each tile, orange or blue by row) is re-read at row T-4 and redrawn in one style.
       const px = ox.getImageData(sx, sy + T - 4, T, 1).data;
       let bw = 0; for(let x = 0; x < T; x++){ const r = px[4*x], gg = px[4*x+1], bb = px[4*x+2]; if(Math.max(r,gg,bb) - Math.min(r,gg,bb) > 60) bw = x + 1; else break; }
@@ -985,6 +992,7 @@ function startClips(C, nn){
     }
   };
   $('#heat').addEventListener('change', () => { last = null; });
+  if($('#zoom')) $('#zoom').addEventListener('change', e => { state.zoom = e.target.checked; last = null; save(); });
   const tick = () => {
     if(!document.body.contains(v)){ stopClips(); return; }
     draw();
