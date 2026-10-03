@@ -12,11 +12,12 @@
 #   1. fg_extract_train.sh  -> dataset/mice/v1/eci/train_tokens/dinov2_base_l-1_ff448al_fps1_pf25/  (16 tasks)
 #   2. train_sae_fg.sh      -> dataset/mice/v1/eci/sae/matryoshka_btk_1024_k16_ff448al_s0/  (checkpoint: fg_rule 'all',
 #                              align 'odor', so every later step rotates the frames and takes all 1024 patches)
-#   3. fg_encode_all.sh     -> dataset/mice/v1/eci/codes/matryoshka_btk_1024_k16_ff448al_s0/  codes_max / codes_mean
-#                              (max / mean over all 1024 patches), n_fg (= 1024); 24 shards
-#   4. fg_encode_merge.sh   merge + verify + delete shards
-#   5. somp_encode_all.sh   -> codes/matryoshka_btk_1024_k16_ff448al_s0_somp/  (SOMP over all 1024 patches; 24 shards)
-#   6. somp_encode_merge.sh merge + verify + delete shards, and codes/..._ff448al_s0_mean (links to codes_mean)
+#   3. fused_encode_all.sh  ONE DINOv2 pass per frame (src/eci/fused_encode.py), 24 shards ->
+#                              dataset/mice/v1/eci/codes/matryoshka_btk_1024_k16_ff448al_s0/  codes_max / codes_mean
+#                              (max / mean over all 1024 patches), n_fg (= 1024)
+#                              and codes/matryoshka_btk_1024_k16_ff448al_s0_somp/  (SOMP over all 1024 patches)
+#   4. fused_encode_merge.sh merge + verify + delete shards of both (fg_encode_all.py, somp_encode_all.py), and
+#                              codes/..._ff448al_s0_mean (links to codes_mean)
 #
 # Usage: bash scripts/eci/ff448al_chain.sh            (prints the job ids)
 #        DRY=1 bash scripts/eci/ff448al_chain.sh      (prints the sbatch commands only)
@@ -40,8 +41,6 @@ j1=$(EXTRA_ARGS="--rule all --patch-frac 0.25 --align odor --out-dir $T" \
     run sbatch --parsable --export=ALL -p gpu scripts/eci/fg_extract_train.sh)
 j2=$(EXTRA_ARGS="--tokens-dir $T --tag ff448al" \
     run sbatch --parsable --export=ALL -p gpu --gres=gpu:1 --mem=480G --array=0 $(dep "$j1") scripts/eci/train_sae_fg.sh)
-j3=$(SAE=$SAE run sbatch --parsable --export=ALL $(dep "$j2") scripts/eci/fg_encode_all.sh)
-j4=$(SAE=$SAE run sbatch --parsable --export=ALL $(dep "$j3") scripts/eci/fg_encode_merge.sh)
-j5=$(SAE=$SAE run sbatch --parsable --export=ALL $(dep "$j4") scripts/eci/somp_encode_all.sh)
-j6=$(SAE=$SAE run sbatch --parsable --export=ALL $(dep "$j5") scripts/eci/somp_encode_merge.sh)
-echo "tokens $j1 -> SAE $j2 -> codes $j3 -> merge $j4 -> SOMP $j5 -> merge $j6"
+j3=$(SAE=$SAE run sbatch --parsable --export=ALL $(dep "$j2") scripts/eci/fused_encode_all.sh)
+j4=$(SAE=$SAE run sbatch --parsable --export=ALL $(dep "$j3") scripts/eci/fused_encode_merge.sh)
+echo "tokens $j1 -> SAE $j2 -> fused codes + SOMP $j3 -> merge + verify + _mean link $j4"
