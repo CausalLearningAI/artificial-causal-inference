@@ -10,7 +10,7 @@ page fetches on demand (assets/data/) and writes the media they reference.
 One command, all steps, incremental (GPU needed for the patch and arena steps):
     sbatch scripts/eci/build_explorer.sh
 or directly (on a GPU node):
-    python scripts/eci/build_explorer.py            # default: DEFAULT_RES (mice fg448al; ants antsfg, antsfull)
+    python scripts/eci/build_explorer.py            # default: DEFAULT_RES (mice fg448al, ff448al; ants antsfg, antsfull)
     python scripts/eci/build_explorer.py --res results/vision/mice/eci/nes/<sae> [--res ...]
 Without --res: DEFAULT_RES (the representations that earned their place); --discover adds every other finished
 SAE result set under the domains' NES roots (discover_res; MODELS names it on the model bar, else model_of
@@ -157,10 +157,9 @@ ANES = 'results/vision/ants/eci/nes'
 # full-frame SAE. DINOv3, background-subtracted and mask + motion SAEs (fg448mot, antsfgmot) are left out on purpose
 # (they did not beat these), as is the old mice full-frame SAE ep20 (224 center crop, unaligned): their result sets
 # stay on disk (--res brings one back). The mice mask SAE is the odor-aligned fg448al (every video turned so the odor
-# corner is top right; it replaced fg448). The mice full-frame SAE ff448al (odor-aligned whole frame at 448, rule
-# 'all', scripts/eci/ff448al_chain.sh) is in MODELS and is supported by every step (as antsfull, plus the alignment);
-# add f'{NES}/matryoshka_btk_1024_k16_ff448al_s0' here once its NES result sets are written (run_nes*.py).
-DEFAULT_RES = [f'{NES}/matryoshka_btk_1024_k16_fg448al_s0',
+# corner is top right; it replaced fg448). The mice full-frame SAE is the odor-aligned ff448al (whole frame at 448,
+# rule 'all' = every patch, scripts/eci/ff448al_chain.sh; it replaced ep20).
+DEFAULT_RES = [f'{NES}/matryoshka_btk_1024_k16_fg448al_s0', f'{NES}/matryoshka_btk_1024_k16_ff448al_s0',
                f'{ANES}/matryoshka_btk_1024_k16_antsfg_s0', f'{ANES}/matryoshka_btk_1024_k16_antsfull_s0']
 # without --res: DEFAULT_RES (first = page default); with --discover also every other finished SAE result set
 # found under the domains' NES roots (discover_res: <root>/<sae>/summary.csv + SUMMARY.md, full codes merged,
