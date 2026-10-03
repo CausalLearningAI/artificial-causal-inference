@@ -47,7 +47,9 @@ Functions / classes:
     PatchEncoder            DINOv2 + SAE, per-patch codes for a list of frames
     crop_box                region of the original frame seen by the model
     representation          'crop224' (patch SAEs above) or 'fg448' (foreground SAEs) of an SAE's codes
-    PatchEncoderFG          fg448: whole frame at 448, SAE on foreground patches only (0 elsewhere)
+    PatchEncoderFG          fg448: whole frame at 448, SAE on foreground patches only (0 elsewhere); aligned
+                            SAEs (fg448al) turn the frames first
+    frame_rot90             per-row 90-degree turns of an aligned SAE's frames (None when not aligned)
     make_patch_encoder      the encoder matching an SAE's representation
     frame_box               heatmap placement (x0, y0, size) on the frame for a representation
     plot_neuron             one PNG per neuron
@@ -449,25 +451,32 @@ class PatchEncoderFG:
     """fg448 representation: DINOv2 on the whole frame at 448 (32 x 32 patches), foreground mask from
     the video's stored background + the codes' foreground rule (src/eci/foreground.py RULES, default
     'fg448' = FG_RULE; FgBackgrounds), SAE on the foreground tokens only; non-foreground patches get
-    code 0. Needs the annotations.csv row of every frame (to find its video's background and time block)."""
+    code 0. Needs the annotations.csv row of every frame (to find its video's background and time block).
+    Aligned SAEs (checkpoint 'align', e.g. 'odor' = fg448al): every frame is first turned by its row's
+    90-degree turns (src/eci/foreground.py align_rot90, as src/eci/fg_encode.py does for the full codes) and
+    the backgrounds must record the same alignment; the patch codes are then aligned-frame positions, so
+    the frame they are drawn on must be turned the same way (self.rot, frame_rot90)."""
 
     rep = 'fg448'
 
     def __init__(self, sae_path, bg_dir, ann_path, device='cuda', rule_name='fg448'):
-        from src.eci.foreground import GRID, RULES, FgBackgrounds, load_encoder_fg, obs_rows
+        from src.eci.foreground import GRID, RULES, FgBackgrounds, align_rot90, load_encoder_fg, obs_rows
         self.device = torch.device(device)
         _, self.processor, self.model = load_encoder_fg(device=self.device)
-        self.sae, self.norm, _ = load_sae(sae_path, self.device)
-        self.bgs = FgBackgrounds(bg_dir, obs_rows(ann_path), RULES[rule_name], self.device)
+        self.sae, self.norm, ck = load_sae(sae_path, self.device)
+        self.align = ck.get('align', 'none')
+        self.rot = align_rot90(self.align, ann_path)  # None or (n_rows,) 90-degree CCW turns
+        self.bgs = FgBackgrounds(bg_dir, obs_rows(ann_path), RULES[rule_name], self.device, align=self.align)
         self.grid = GRID
 
     @torch.no_grad()
     def patch_codes(self, paths, neurons, rows, batch_size=32, num_workers=8, return_mask=False):
         """(len(paths), 32, 32, len(neurons)) float32 patch codes (0 off the foreground)
-        [, (len(paths), 32, 32) bool foreground mask]."""
+        [, (len(paths), 32, 32) bool foreground mask]. Aligned SAEs: positions on the turned frame."""
         from src.eci.foreground import FrameDatasetFG, encode_batch
         rows = np.asarray(rows)
-        loader = torch.utils.data.DataLoader(FrameDatasetFG(list(paths), self.processor, rows),
+        rot = None if self.rot is None else self.rot[rows.astype(np.int64)]
+        loader = torch.utils.data.DataLoader(FrameDatasetFG(list(paths), self.processor, rows, rot=rot),
                                              batch_size=batch_size, num_workers=num_workers, shuffle=False)
         nsel = torch.as_tensor(np.asarray(neurons), device=self.device)
         out, masks = [], []
@@ -483,6 +492,19 @@ class PatchEncoderFG:
             masks.append(mask.view(B, self.grid, self.grid).cpu().numpy())
         pc = np.concatenate(out)
         return (pc, np.concatenate(masks)) if return_mask else pc
+
+
+def frame_rot90(sae_name, dataset_dir='dataset', subject='mice', version='v1', domain=None):
+    """Frame alignment of an SAE's codes (codes config.json 'align', absent = 'none'): None, or (n_rows,) int8
+    90-degree counter-clockwise turns per annotations.csv row (src/eci/foreground.py align_rot90). Turn a frame
+    with src/eci/foreground.py rotate_image before drawing that SAE's patch codes or arena map on it."""
+    ds = Path(dataset_dir)
+    cfg = _eci_dir(ds, subject, version, domain) / 'codes' / sae_name / 'config.json'
+    align = json.loads(cfg.read_text()).get('align', 'none') if cfg.exists() else 'none'
+    if align == 'none':
+        return None
+    from src.eci.foreground import align_rot90
+    return align_rot90(align, ds / domain.ann_rel if domain is not None else ds / subject / version / 'annotations.csv')
 
 
 def make_patch_encoder(sae_name, sae_path=None, dataset_dir='dataset', subject='mice', version='v1', device='cuda',

@@ -153,6 +153,7 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
 .hd{display:grid;gap:6px}
 .note{font-size:12px;color:var(--muted);max-width:62ch}
+.camnote{margin:0;max-width:none}
 @media (max-width:900px){.main,.main.wide,.two{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:560px){
   .cgrid{--per:2}
@@ -186,6 +187,7 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
 
   <p class="warnbox one" id="subNote" hidden></p>
   <p class="warnbox one" id="cfNote" hidden></p>
+  <p class="note camnote" id="camNote" hidden></p>
 
   <section class="picker" id="picker" aria-label="Choose a comparison">
     <div class="fam">
@@ -321,6 +323,11 @@ const isCens = (v, i) => { const W = latW(); return W!=null && v!=null && v >= W
 const censTip = c => c.map(([lab,k,n])=>`${lab} ${k}/${n}`).join(', ');
 const censChip = c => c ? `<span class="chip na" title="Censored videos (no bout in the first ${latW()} s: latency set to ${latW()} s): ${esc(censTip(c))}">cens ${c.reduce((s,x)=>s+x[1],0)}/${c.reduce((s,x)=>s+x[2],0)}</span>` : '';
 /* mask + motion SAEs: DATA.change_share[j] = share of neuron j's decoder weight on the change half of the input */
+/* mice family B: genotype p with the camera period (odor-corner group) added, for the selections in DATA.camp */
+const CAM_TIP = 'Genotype p of an OLS on the per-video mean activation (codes_max) over this stage\'s videos, with the camera period (odor-corner group) added; in brackets the same OLS without it. For event-rate selections the mean activation stands in for the bout rate: compare the two OLS values with each other, not with the NES p (scripts/eci/align_confound.py).';
+const camP = j => { const a = analysis(state.aid);
+  if(state.view!=='cmp' || !a || a.family!=='B' || state.window!=='full' || SUB()) return null;
+  const C = ((DATA.camp||{})[state.outcome]||{})[`${a.id}|${state.prefix}`]; return C && C[j] || null; };
 const CS_TIP = 'Change share: fraction of the neuron\'s decoder weight (squared norm) on the change half of the input [token, token − token 1 s earlier]; 0% = only what is there, 100% = only how it moves.';
 const csOf = j => DATA.change_share ? DATA.change_share[j] : null;
 const csHTML = j => { const c = csOf(j); return c==null ? '' : `<span class="pv tip" title="${CS_TIP}">Δ ${Math.round(c*100)}%</span>`; };
@@ -454,6 +461,12 @@ function buildControls(){
   const ca = analysis(state.aid), CN = $('#cfNote');
   CN.hidden = !(state.view==='cmp' && ca && ca.confound);
   if(!CN.hidden) CN.textContent = `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip shows its recording day: check whether a neuron follows the lighting or the behavior.`;
+  const KN = $('#camNote'), cam = ALL.camera;
+  KN.hidden = !(cam && !ants && state.view==='cmp' && ca && ca.family==='B');
+  if(!KN.hidden){
+    KN.textContent = `Camera period (odor-corner group) is unbalanced by genotype: het / wt videos per stage ${Object.entries(cam).map(([g,[h,w]])=>`${g} ${h} / ${w}`).join(', ')}. The camera zoom differs by period, so a genotype difference can partly follow the camera.`;
+    KN.title = 'The on-screen odor corner marks the recording period (dataset/mice/v1/eci/odor_corner.csv). A selected neuron shows its genotype p with the camera period added where it was computed (scripts/eci/align_confound.py).';
+  }
   const S = SUB(), NB = $('#subNote');
   NB.hidden = !S;
   if(S){
@@ -702,6 +715,8 @@ function renderDetail(){
   let h=`<div class="dh"><div class="l"><h2>Neuron ${j}</h2>
     <span class="facts">${n.firing_rate!=null?`<span class="tip" title="Fraction of all ${(DATA.n_frames/1e6).toFixed(2)} M frames where the neuron is active">fires ${(n.firing_rate*100).toFixed(1)}%</span>`:''}`;
   if(r) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${r.tau>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${P_TIP}">p ${fmtP(r.p)}</span>`;
+  const cp = r ? camP(j) : null;
+  if(cp) h+=` · <span class="tip" title="${esc(CAM_TIP)}">camera period added: p ${fmtP(cp[1])} (${fmtP(cp[0])} without)</span>`;
   if(rt) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${rt[1]>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(rt[1])} ${esc(outcome().unit)}</span> · <span class="tip" title="First-round t-test p-value, above the Bonferroni threshold: not selected by NES">p ${fmtP(rt[2])} · not selected</span>`;
   const cens = r ? r.cens : rt ? rt[3] : null;
   if(cens) h+=` · <span class="tip" title="Videos of this comparison without a bout of this neuron in the first ${latW()} s: their latency is set to ${latW()} s (right-censored). ${esc(censTip(cens))}">censored ${esc(censTip(cens))}</span>`;

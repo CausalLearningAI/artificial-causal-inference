@@ -10,7 +10,7 @@ page fetches on demand (assets/data/) and writes the media they reference.
 One command, all steps, incremental (GPU needed for the patch and arena steps):
     sbatch scripts/eci/build_explorer.sh
 or directly (on a GPU node):
-    python scripts/eci/build_explorer.py            # default: DEFAULT_RES (mice fg448, ep20, fg448mot; ants antsfg,
+    python scripts/eci/build_explorer.py            # default: DEFAULT_RES (mice fg448al, ep20, fg448mot; ants antsfg,
                                                     # antsfull, antsfgmot)
     python scripts/eci/build_explorer.py --res results/vision/mice/eci/nes/<sae> [--res ...]
 Without --res: DEFAULT_RES (the representations that earned their place); --discover adds every other finished
@@ -111,6 +111,11 @@ Representations (src/eci/viz.py representation): 'crop224' SAEs are patch SAEs o
 Chips: one per single-setting change from the outcome's primary (summary.csv columns; bout_rule 1 =
 min-2-frame hysteresis bouts 'min2+hyst'), plus 'size' when <outcome dir>/size_adjusted.csv exists.
 Artefact flags (neurons 50, 64, 113) belong to the ep20 SAE only.
+Odor-aligned SAEs (codes config 'align' = 'odor', e.g. fg448al): their frames are turned so the odor corner is at
+the top right (src/eci/foreground.py align_rot90) before DINOv2 (patch step, src/eci/viz.py PatchEncoderFG) and in
+the rendered clips (raw and heat), so clip positions agree with the arena map (aligned backgrounds).
+Mice family B (het vs wt): the page notes that the camera period (odor-corner group) is unbalanced by genotype and,
+per selected neuron, gives the genotype p with the camera period added (CONFOUND_JSON, when the SAE is in it).
 
 Outcome spec (default: bout rate (maxpool_bouts/) + mean activation (.) pooled as the run's primary
 (selected_neurons.json 'settings'), each when its summary.csv exists; applies to every --res):
@@ -145,8 +150,9 @@ NES = 'results/vision/mice/eci/nes'
 ANES = 'results/vision/ants/eci/nes'
 # The representations on the page (the ones that earned their place): per domain the foreground-mask SAE, the
 # full-frame SAE and the mask + motion SAE (input [token_t, token_t - token_(t-5)], scripts/eci/train_sae_fg.py
-# --motion). DINOv3 and background-subtracted SAEs are left out on purpose (they did not beat these).
-DEFAULT_RES = [f'{NES}/matryoshka_btk_1024_k16_fg448_s0', f'{NES}/matryoshka_btk_1024_k16_ep20_s0',
+# --motion). DINOv3 and background-subtracted SAEs are left out on purpose (they did not beat these). The mice mask
+# SAE is the odor-aligned fg448al (every video turned so the odor corner is top right; it replaced fg448).
+DEFAULT_RES = [f'{NES}/matryoshka_btk_1024_k16_fg448al_s0', f'{NES}/matryoshka_btk_1024_k16_ep20_s0',
                f'{NES}/matryoshka_btk_1024_k16_fg448mot_s0',
                f'{ANES}/matryoshka_btk_1024_k16_antsfg_s0', f'{ANES}/matryoshka_btk_1024_k16_antsfull_s0',
                f'{ANES}/matryoshka_btk_1024_k16_antsfgmot_s0']
@@ -161,6 +167,7 @@ ARTEFACT_EP20 = {64, 50, 113}  # ep20 SAE neuron ids; other SAEs get no flags
 MODEL_AXES = [('encoder', 'Encoder'), ('sae', 'SAE'), ('input', 'Input')]
 MODELS = {
     'matryoshka_btk_1024_k16_fg448_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mouse mask'},
+    'matryoshka_btk_1024_k16_fg448al_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mouse mask'},
     'matryoshka_btk_1024_k16_ep20_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'full frame'},
     'matryoshka_btk_1024_k16_antsfg_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'ants mask'},
     'matryoshka_btk_1024_k16_antsfull_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'full frame'},
@@ -175,6 +182,16 @@ MODEL_TIPS = {
     ('input', 'mask + motion'): 'Foreground patches only, as the mask SAE, but each patch is described by its token '
                                 'and its change over the last second ([token_t, token_t - token_(t-5)], 5 frames '
                                 'at 5 fps, both halves scaled equally)'}
+# per-SAE tooltip of an axis value (replaces MODEL_TIPS for the SAE's own value when that SAE is on the page)
+MODEL_SAE_TIPS = {
+    ('matryoshka_btk_1024_k16_fg448al_s0', 'input'): 'Whole frame at 448 px; SAE trained on the mouse (foreground) '
+                                                     'patches only. Odor-aligned: every video rotated so the odor '
+                                                     'corner is top right'}
+# Mice genotype (family B) caveat: the camera period (odor-corner group) is unbalanced by genotype; per primary
+# family-B selection, the genotype p of an OLS on the per-video mean of codes_max without / with the corner group
+# (scripts/eci/align_confound.py). SAEs missing from the file get the design note only.
+CONFOUND_JSON = ROOT / 'results/vision/eci_align/mice/confound.json'
+CONFOUND_KIND = {'mean_activation': ('time', 'max'), 'bouts': ('rate', 'max')}  # its 'kind' -> (outcome kind, agg)
 # Per domain: page title word, subject words of the tooltips, top-by-p list length and clip rendering.
 # top = per search, the N neurons with the smallest first-round p that NES did not select (listed on the
 # page, so comparisons where nothing is selected can still be browsed); 0 = none.
@@ -493,12 +510,16 @@ class Cfg:
         self.noclip = set()  # (codes key, neuron) listed without clips (beyond --max-pages, plan_clips)
         self.clipplan = None  # {codes key: {neuron: contrasts}} given clips (plan_clips)
         self.keys = sorted({o['codes'] for o in self.outcomes + self.extras})  # clip rankings (codes_<key>)
-        from src.eci.viz import representation
+        from src.eci.viz import frame_rot90, representation
         self.rep = representation(self.sae, DATASET, domain=self.vdom)
+        cc = self.dom.eci_dir / 'codes' / self.sae / 'config.json'
+        self.align = json.loads(cc.read_text()).get('align', 'none') if cc.exists() else 'none'
+        self.rot = frame_rot90(self.sae, DATASET, domain=self.vdom)  # None or per-row 90-degree turns (clips)
         self.artefact = ARTEFACT_EP20 if self.sae == 'matryoshka_btk_1024_k16_ep20_s0' else set()
         self.crf = a.crf if a.crf is not None else self.view['crf']
         self.tile, self.cols, self.kr, self.crop = (self.view[k] for k in ('tile', 'cols', 'kr', 'crop'))
-        print(f'[{self.tag}] SAE {self.sae}: representation {self.rep}, artefact flags {sorted(self.artefact)}')
+        print(f'[{self.tag}] SAE {self.sae}: representation {self.rep}, align {self.align}, '
+              f'artefact flags {sorted(self.artefact)}')
 
     def trim(self, t):
         """summary.csv rows of the analyses shown (self.order)."""
@@ -1217,7 +1238,11 @@ def step_arena(cfg, overwrite):
         cc = cfg.dom.eci_dir / 'codes' / cfg.sae / 'config.json'
         bgd = Path(json.loads(cc.read_text()).get('backgrounds', '')) if cc.exists() else None
         if bgd is not None and bgd.is_dir() and str(bgd) != '.':
-            ims = np.stack([np.load(f)['pix_bg'] for f in sorted(bgd.glob('*.npz'))])
+            zs = [np.load(f) for f in sorted(bgd.glob('*.npz'))]
+            bad = [i for i, z in enumerate(zs) if (str(z['align']) if 'align' in z.files else 'none') != cfg.align]
+            if bad:  # aligned SAE: the arena image must be the aligned (turned) backgrounds, and vice versa
+                raise SystemExit(f'{bgd}: {len(bad)} backgrounds whose align differs from the SAE ({cfg.align})')
+            ims = np.stack([z['pix_bg'] for z in zs])
             im = np.median(ims, 0).astype(np.uint8)
             src = f'median of {len(ims)} per-video empty-bedding backgrounds'
         else:  # no stored backgrounds (crop224): median of one frame per video
@@ -1265,11 +1290,13 @@ def crop_origin(maps, rep, W, H, crop):
     return (int(round(min(max(cx - crop / 2, 0), W - crop))), int(round(min(max(cy - crop / 2, 0), H - crop))))
 
 
-def tile_frames(c, frame_path, vmax, color, rep, tile, maps=None, hvmax=None, origin=None, crop=None):
+def tile_frames(c, frame_path, vmax, color, rep, tile, maps=None, hvmax=None, origin=None, crop=None, rot=None):
     """len(c['rows']) labelled tile x tile frames of one clip; a bar at the bottom shows the activation
     of the current frame relative to vmax. maps: (w, grid, grid) patch codes -> heatmap overlaid (scale hvmax).
     origin / crop: the clip is cut to the crop x crop square at origin (source px, crop_origin), else the
-    whole frame is shown."""
+    whole frame is shown. rot: {row: 90-degree CCW turns} of an aligned SAE: each frame is turned first (its patch
+    codes are aligned-frame positions)."""
+    from src.eci.foreground import rotate_image
     from src.eci.viz import _overlay_rgb, frame_box
     import matplotlib
     matplotlib.use('Agg')
@@ -1278,6 +1305,8 @@ def tile_frames(c, frame_path, vmax, color, rep, tile, maps=None, hvmax=None, or
     fs, hh = (8, 12) if tile <= 144 else (int(round(8 * tile / 144)), int(round(12 * tile / 144)))
     for t, r in enumerate(c['rows']):
         im = Image.open(DATASET / frame_path[str(r)]).convert('RGB')
+        if rot is not None:
+            im = rotate_image(im, rot[str(r)])
         if maps is not None:
             a = np.asarray(im)
             im = Image.fromarray(_overlay_rgb(a, maps[t].astype(np.float32), frame_box(rep, a.shape[1], a.shape[0]),
@@ -1327,9 +1356,11 @@ def page_list(cfg, picks):
 
 def _render_page(task):
     """task: (segment path, blocks [(source, block name, kind, heat, clips, bar vmax, patch file)], frame paths,
-    rep, L, crf, (tile, cols, kr, crop)): one page = BLOCKS of kr tiles, cols per row, encoded as one segment.
-    Crop (top rows only): each clip cut around its own activation peak (the same square raw and with heat)."""
-    out, blocks, fp, rep, L, crf, (tile, cols, kr, crop) = task
+    rep, L, crf, (tile, cols, kr, crop)[, rot]): one page = BLOCKS of kr tiles, cols per row, encoded as one segment.
+    Crop (top rows only): each clip cut around its own activation peak (the same square raw and with heat).
+    rot (aligned SAEs): {row: 90-degree CCW turns}, every frame is turned before drawing."""
+    out, blocks, fp, rep, L, crf, (tile, cols, kr, crop), *rest = task
+    rot = rest[0] if rest else None
     w = LENGTHS[L]
     pzs = {}
     blank = [np.zeros((tile, tile, 3), np.uint8)] * w
@@ -1351,7 +1382,7 @@ def _render_page(task):
             if crop and kind == 'top':
                 im0 = Image.open(DATASET / fp[str(c['rows'][0])])
                 org = crop_origin(m, rep, im0.size[0], im0.size[1], crop)
-            cl.append(tile_frames(c, fp, vmax, color, rep, tile, m if heat else None, hv, org, crop))
+            cl.append(tile_frames(c, fp, vmax, color, rep, tile, m if heat else None, hv, org, crop, rot))
         tiles += cl + [blank] * (kr - len(cl))
     rows = [tiles[r:r + cols] for r in range(0, len(tiles), cols)]
     frames = [np.concatenate([np.concatenate([clip[t] for clip in row], 1) for row in rows], 0) for t in range(w)]
@@ -1374,6 +1405,7 @@ def step_render(cfg, overwrite, pack_mb=8.0):
     import os
     picks = json.loads((cfg.work / 'picks.json').read_text())
     fp = picks['frame_path']
+    rot = None if cfg.rot is None else {r: int(cfg.rot[int(r)]) for r in fp}  # aligned SAE: turns per clip row
     cfg.assets.mkdir(parents=True, exist_ok=True)
     pages = page_list(cfg, picks)
     geo = (cfg.tile, cfg.cols, cfg.kr, cfg.crop)
@@ -1392,13 +1424,14 @@ def step_render(cfg, overwrite, pack_mb=8.0):
             blocks = [(src, bn, bn.split('_')[0], None if bn == 'least_heat' and silent else bn.endswith('_heat'),
                        n['clips'][src][L][bn.split('_')[0]], vm[(key, j)], str(pf[(key, j)])) for bn in BLOCKS]
             sig = json.dumps([RENDER_V, cfg.rep, geo, cfg.crf, vm[(key, j)], hv[(key, j)],
-                              [(bn, ht, [x['start'] for x in c[:cfg.kr]]) for _, bn, _, ht, c, _, _ in blocks]])
+                              [(bn, ht, [x['start'] for x in c[:cfg.kr]]) for _, bn, _, ht, c, _, _ in blocks]]
+                             + ([f'align={cfg.align}'] if cfg.rot is not None else []))
             h = hashlib.md5(sig.encode()).hexdigest()
             out = cfg.work / 'seg' / L / f'{h}.mp4'
             segs[L].append((pid, h, out))
             if overwrite or not out.exists():
                 out.parent.mkdir(parents=True, exist_ok=True)
-                tasks.append((out, blocks, fp, cfg.rep, L, cfg.crf, geo))
+                tasks.append((out, blocks, fp, cfg.rep, L, cfg.crf, geo) + ((rot,) if rot is not None else ()))
     tasks = list({str(t[0]): t for t in tasks}.values())
     if tasks:
         nproc = max(1, min(len(tasks), len(os.sched_getaffinity(0))))
@@ -1742,6 +1775,49 @@ def subset_meta(outs):
             'skipped': [x['analysis_id'] for x in sj.get('skipped', [])]}
 
 
+def camera_ps(cfg, results, xres):
+    """Mice genotype caveat (CONFOUND_JSON, scripts/eci/align_confound.py): {outcome id: {'<analysis>|<prefix>':
+    {neuron: [p plain, p with the camera period]}}} for the primary family-B selections of the SAE's mean-activation
+    and bout-rate outcomes with max pooling (core or extra; searches in results / xres, full window). Each entry must
+    be a selection on the page (same analysis, prefix, round and tau); the p values are those of an OLS of the
+    per-video mean of codes_max on genotype without / with the odor-corner group dummies. {} when the SAE is not in
+    the file."""
+    if cfg.dom is not MICE or not CONFOUND_JSON.exists():
+        return {}
+    C = json.loads(CONFOUND_JSON.read_text()).get(cfg.sae)
+    if not C:
+        return {}
+    out, n_bad = {}, 0
+    for r in C:
+        o = next((o for o in cfg.outcomes + cfg.extras if (o['kind'], o['agg']) == CONFOUND_KIND.get(r['kind'])), None)
+        key = f'{o["id"]}|{r["analysis_id"]}|{int(r["prefix"])}|full' if o else None
+        rows = (xres if o['extra'] else results).get(key, {}).get('rows', []) if o else []
+        hit = [x for x in rows if x['neuron'] == int(r['neuron']) and x['round'] == int(r['round'])
+               and abs(x['tau'] - r['tau']) <= 1e-3 * max(1.0, abs(r['tau']))]
+        if not hit or r.get('p_corner') is None:
+            n_bad += 1
+            print(f'[{cfg.tag}] WARNING camera-period p of {r["kind"]} {r["analysis_id"]} p{r["prefix"]} neuron '
+                  f'{r["neuron"]}: no matching selection on the page, left out')
+            continue
+        out.setdefault(o['id'], {}).setdefault(f'{r["analysis_id"]}|{int(r["prefix"])}', {})[str(int(r['neuron']))] = \
+            [sig4(r['p_plain']), sig4(r['p_corner'])]
+    print(f'[{cfg.tag}] page: camera-period p values for {sum(len(v) for o in out.values() for v in o.values())} '
+          f'family-B selections ({n_bad} without a matching selection)')
+    return out
+
+
+def camera_note():
+    """Per corner group, het / wt videos of one stage (the same in every stage) from CONFOUND_JSON, or None."""
+    if not CONFOUND_JSON.exists():
+        return None
+    c = json.loads(CONFOUND_JSON.read_text())['counts']
+    first = next(iter(c.values()))
+    if any(v != first for v in c.values()):
+        raise SystemExit(f'{CONFOUND_JSON}: corner x genotype counts differ between stages')
+    return {g: [int(first[g].get('het', 0)), int(first[g].get('wt', 0))]
+            for g in sorted(first, key=lambda g: -sum(first[g].values()))}
+
+
 def page_data(cfg):
     picks = json.loads((cfg.work / 'picks.json').read_text())
     analyses, outcomes = {}, []
@@ -1885,7 +1961,7 @@ def page_data(cfg):
         print(f'[{cfg.tag}] page: change share of the decoder rows (motion SAE): median {np.median(cs):.3f}, '
               f'quartiles {np.quantile(cs, 0.25):.3f} / {np.quantile(cs, 0.75):.3f}')
     return {'sae': cfg.sae, 'tag': cfg.tag, 'model': model_of(cfg), 'rep': cfg.rep, 'outcomes': outcomes,
-            'lwin': lwin, 'change_share': None if cs is None else [round(float(x), 3) for x in cs],
+            'camp': camera_ps(cfg, results, xres), 'lwin': lwin, 'change_share': None if cs is None else [round(float(x), 3) for x in cs],
             'otables': otables, 'artefact': sorted(int(j) for j in cfg.artefact),
             'subsets': subsets,
             'analyses': [analyses[a] for a in cfg.order if a in analyses], 'results': results, 'neurons': neurons,
@@ -1923,7 +1999,7 @@ def split_data(d, data_dir, inline):
     core = {k: d[k] for k in ('sae', 'tag', 'model', 'rep', 'outcomes', 'analyses', 'artefact', 'artefact_text',
                               'arena_note', 'n_frames', 'montage')}
     core['subsets'] = {name: {k: v for k, v in S.items() if k != 'results'} for name, S in d['subsets'].items()}
-    for k in ('lwin', 'change_share'):  # only SAEs that have them (latency outcomes, motion SAEs)
+    for k in ('lwin', 'change_share', 'camp'):  # only SAEs that have them (latency outcomes, motion SAEs, confound)
         if d.get(k):
             core[k] = d[k]
     core['rfiles'], core['pre'] = {}, {}
@@ -2009,8 +2085,10 @@ def step_page(cfgs, overwrite):
     _, videos, obs, _ = _vt() if has_mice else (None, [], [], None)
     doms = list(dict.fromkeys(c.dom.name for c in cfgs))
     data = {'default': cfgs[0].sae, 'saes': [],
-            'axes': [{'key': k, 'label': lab, 'tips': {v: MODEL_TIPS.get((k, v), v) for v in
-                                                       dict.fromkeys(d['model'][k] for d in saes)}}
+            'axes': [{'key': k, 'label': lab, 'tips': {**{v: MODEL_TIPS.get((k, v), v) for v in
+                                                          dict.fromkeys(d['model'][k] for d in saes)},
+                                                       **{d['model'][k]: MODEL_SAE_TIPS[(d['sae'], k)] for d in saes
+                                                          if (d['sae'], k) in MODEL_SAE_TIPS}}}
                      for k, lab in MODEL_AXES],
             'videos': videos, 'obs': obs,
             'montage': saes[0]['montage'],  # each SAE carries its own (core 'montage'); this = the default's
@@ -2019,6 +2097,9 @@ def step_page(cfgs, overwrite):
                         for x in doms],
             'kinds': [{'id': k, 'label': lab, 'tip': tip} for k, lab, tip in OUTCOME_KINDS],
             'aggs': [{'id': k, 'label': lab, 'tip': tip} for k, lab, tip in AGGS]}
+    cam = camera_note() if has_mice else None
+    if cam:  # mice family B: camera period (odor-corner group) x genotype, het / wt videos per stage
+        data['camera'] = cam
     out = cfgs[0].out
     ddir = out / 'assets' / 'data'
     ddir.mkdir(parents=True, exist_ok=True)

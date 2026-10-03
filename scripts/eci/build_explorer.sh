@@ -2,7 +2,7 @@
 #
 # NES explorer page "Exploratory Causal Inference x Mice / Ants" (scripts/eci/build_explorer.py, design in
 # scripts/eci/explorer_template.html). One page; the title's domain word selects mice / ants, the Model bar the
-# SAEs of that domain (DEFAULT_RES; mice: mouse mask fg448 (default), full frame ep20, mask + motion fg448mot;
+# SAEs of that domain (DEFAULT_RES; mice: mouse mask fg448al (odor-aligned, default), full frame ep20, mask + motion fg448mot;
 # ants: ants mask antsfg, full frame antsfull, mask + motion antsfgmot; ants videos and comparisons restricted to
 # v2 and v3 t=2/6/8, VIEW 'keep'). Every neuron of an event-rate / average-time search gets clips, packed into a
 # few large H.264 files (clip packs; packs whose pages are unchanged keep their name, so their uploaded asset stays
@@ -10,7 +10,7 @@
 # (codes, ffmpeg). Incremental (cache in <res>/_cache/explorer of each SAE).
 #
 # Usage: sbatch -p gpu scripts/eci/build_explorer.sh
-#   Default: DEFAULT_RES -> results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448_s0/explorer/
+#   Default: DEFAULT_RES -> results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer/
 #   Other result sets:  EXTRA_ARGS="--res results/vision/mice/eci/nes/<sae> --res ..." sbatch scripts/eci/build_explorer.sh
 #   (EXTRA_ARGS=--discover adds every other finished result set under the NES roots)
 #   After uploading the packs to the artifact asset store (--asset-map is repeatable, maps are merged):
