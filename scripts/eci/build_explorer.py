@@ -10,8 +10,7 @@ page fetches on demand (assets/data/) and writes the media they reference.
 One command, all steps, incremental (GPU needed for the patch and arena steps):
     sbatch scripts/eci/build_explorer.sh
 or directly (on a GPU node):
-    python scripts/eci/build_explorer.py            # default: DEFAULT_RES (mice fg448al, ep20, fg448mot; ants antsfg,
-                                                    # antsfull, antsfgmot)
+    python scripts/eci/build_explorer.py            # default: DEFAULT_RES (mice fg448al; ants antsfg, antsfull)
     python scripts/eci/build_explorer.py --res results/vision/mice/eci/nes/<sae> [--res ...]
 Without --res: DEFAULT_RES (the representations that earned their place); --discover adds every other finished
 SAE result set under the domains' NES roots (discover_res; MODELS names it on the model bar, else model_of
@@ -67,7 +66,7 @@ Steps (each cached under <res>/_cache/explorer/, incremental):
              over all frames (40 linear bins, all frames and per genotype|stage), the firing rate and the
              stage x genotype table of per-video mean codes.
              -> picks.json
-    patch    per-patch codes of the neuron on every frame of every clip (top and least, all lengths),
+    patch    per-patch codes of the neuron on every frame of every clip (top and least, SHOW_LENGTHS),
              recomputed through DINOv2 + SAE (src/eci/viz.py make_patch_encoder, GPU; crop224 or fg448
              geometry from the SAE's codes config), checked against the stored pooled codes (mean / max;
              SOMP clips show the neuron's SAE patch codes as heat, unchecked). The heat
@@ -77,9 +76,10 @@ Steps (each cached under <res>/_cache/explorer/, incremental):
              frames (fg448: 1 frame per second of every video, codes 0 off the foreground, plus how
              often the patch is foreground); the arena background image. -> arena.npz, assets/<tag>_arena_bg.webp
     render   clip pages: one per codes key x neuron x clip source ('all' videos, each contrast) and length
-             (frame = 1 frame, 1 s = 5, 3 s = 15 at 5 fps) = blocks top, top heat, least, least heat (turbo,
-             the neuron's shared scale) of VIEW kr tiles, cols per row (mice: 144 px whole frames, 16 per
-             row; ants: 256 px full-resolution cuts around each top clip's activation peak, 8 per row). Each
+             (SHOW_LENGTHS: frame = 1 frame, 1 s = 5 at 5 fps; the 3 s picks are not rendered) = blocks top,
+             top heat, least, least heat (turbo, the neuron's shared scale) of VIEW kr tiles, cols per row (mice: 144 px whole frames, 16 per
+             row; ants: 256 px full-resolution cuts around each top clip's activation peak, 8 per row, or with
+             --ants-clips whole the whole frame at --ants-tile px). Each
              page is one cached H.264 segment (<work>/seg/), joined without re-encoding into packs of at
              most --pack-mb MB per SAE and length: page p of a pack = frames [p w, (p + 1) w). A pack of the
              previous build whose pages are all unchanged is kept as it is (same name = same uploaded asset);
@@ -114,8 +114,13 @@ Artefact flags (neurons 50, 64, 113) belong to the ep20 SAE only.
 Odor-aligned SAEs (codes config 'align' = 'odor', e.g. fg448al): their frames are turned so the odor corner is at
 the top right (src/eci/foreground.py align_rot90) before DINOv2 (patch step, src/eci/viz.py PatchEncoderFG) and in
 the rendered clips (raw and heat), so clip positions agree with the arena map (aligned backgrounds).
-Mice family B (het vs wt): the page notes that the camera period (odor-corner group) is unbalanced by genotype and,
-per selected neuron, gives the genotype p with the camera period added (CONFOUND_JSON, when the SAE is in it).
+Mice family B (het vs wt): the page notes that the camera period (odor-corner group,
+dataset/mice/v1/eci/odor_corner.csv) is unbalanced by genotype. No video is dropped and the primary analysis is unchanged; each selected family-B neuron
+carries the read-only checks of scripts/eci/period_check.py (period_checks; <result set>/period_check/ of the
+outcome's pooling: the SAE's own for its primary pooling, <sae>_mean for mean pooling): a period-dependence chip
+when the neuron's within-genotype period AUC score reaches the family-wise threshold ('period-dependent') or the
+one-latent threshold ('possibly period-dependent'), and the day-adjusted re-test (p with the recording day as a
+covariate; pass = still below the round's threshold, same sign).
 
 Outcome spec (default: bout rate (maxpool_bouts/) + mean activation (.) pooled as the run's primary
 (selected_neurons.json 'settings'), each when its summary.csv exists; applies to every --res):
@@ -148,14 +153,15 @@ TEMPLATE = ROOT / 'scripts/eci/explorer_template.html'
 DATASET = ROOT / 'dataset'
 NES = 'results/vision/mice/eci/nes'
 ANES = 'results/vision/ants/eci/nes'
-# The representations on the page (the ones that earned their place): per domain the foreground-mask SAE, the
-# full-frame SAE and the mask + motion SAE (input [token_t, token_t - token_(t-5)], scripts/eci/train_sae_fg.py
-# --motion). DINOv3 and background-subtracted SAEs are left out on purpose (they did not beat these). The mice mask
-# SAE is the odor-aligned fg448al (every video turned so the odor corner is top right; it replaced fg448).
-DEFAULT_RES = [f'{NES}/matryoshka_btk_1024_k16_fg448al_s0', f'{NES}/matryoshka_btk_1024_k16_ep20_s0',
-               f'{NES}/matryoshka_btk_1024_k16_fg448mot_s0',
-               f'{ANES}/matryoshka_btk_1024_k16_antsfg_s0', f'{ANES}/matryoshka_btk_1024_k16_antsfull_s0',
-               f'{ANES}/matryoshka_btk_1024_k16_antsfgmot_s0']
+# The representations on the page (the ones that earned their place): per domain the foreground-mask SAE and the
+# full-frame SAE. DINOv3, background-subtracted and mask + motion SAEs (fg448mot, antsfgmot) are left out on purpose
+# (they did not beat these), as is the old mice full-frame SAE ep20 (224 center crop, unaligned): their result sets
+# stay on disk (--res brings one back). The mice mask SAE is the odor-aligned fg448al (every video turned so the odor
+# corner is top right; it replaced fg448). The mice full-frame SAE ff448al (odor-aligned whole frame at 448, rule
+# 'all', scripts/eci/ff448al_chain.sh) is in MODELS and is supported by every step (as antsfull, plus the alignment);
+# add f'{NES}/matryoshka_btk_1024_k16_ff448al_s0' here once its NES result sets are written (run_nes*.py).
+DEFAULT_RES = [f'{NES}/matryoshka_btk_1024_k16_fg448al_s0',
+               f'{ANES}/matryoshka_btk_1024_k16_antsfg_s0', f'{ANES}/matryoshka_btk_1024_k16_antsfull_s0']
 # without --res: DEFAULT_RES (first = page default); with --discover also every other finished SAE result set
 # found under the domains' NES roots (discover_res: <root>/<sae>/summary.csv + SUMMARY.md, full codes merged,
 # not an aggregation sibling <sae>_mean / <sae>_somp)
@@ -169,6 +175,7 @@ MODELS = {
     'matryoshka_btk_1024_k16_fg448_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mouse mask'},
     'matryoshka_btk_1024_k16_fg448al_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mouse mask'},
     'matryoshka_btk_1024_k16_ep20_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'full frame'},
+    'matryoshka_btk_1024_k16_ff448al_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'full frame'},
     'matryoshka_btk_1024_k16_antsfg_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'ants mask'},
     'matryoshka_btk_1024_k16_antsfull_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'full frame'},
     'matryoshka_btk_1024_k16_fg448mot_s0': {'encoder': 'DINOv2', 'sae': 'Matryoshka', 'input': 'mask + motion'},
@@ -186,12 +193,17 @@ MODEL_TIPS = {
 MODEL_SAE_TIPS = {
     ('matryoshka_btk_1024_k16_fg448al_s0', 'input'): 'Whole frame at 448 px; SAE trained on the mouse (foreground) '
                                                      'patches only. Odor-aligned: every video rotated so the odor '
-                                                     'corner is top right'}
-# Mice genotype (family B) caveat: the camera period (odor-corner group) is unbalanced by genotype; per primary
-# family-B selection, the genotype p of an OLS on the per-video mean of codes_max without / with the corner group
-# (scripts/eci/align_confound.py). SAEs missing from the file get the design note only.
-CONFOUND_JSON = ROOT / 'results/vision/eci_align/mice/confound.json'
-CONFOUND_KIND = {'mean_activation': ('time', 'max'), 'bouts': ('rate', 'max')}  # its 'kind' -> (outcome kind, agg)
+                                                     'corner is top right',
+    ('matryoshka_btk_1024_k16_ff448al_s0', 'input'): 'Whole frame at 448 px; SAE trained on all 1024 patches of the '
+                                                     'frame (mice and background). Odor-aligned: every video rotated '
+                                                     'so the odor corner is top right'}
+# Mice genotype (family B): the camera period (odor-corner group) is unbalanced by genotype. Read-only checks of the
+# primary family-B picks (scripts/eci/period_check.py; period_checks): per outcome, <set>/period_check/
+# period_flags.json (per latent: within-genotype period AUC score, its pair and raw AUC; family-wise 'threshold',
+# one-latent 'pointwise_threshold') and day_adjusted.csv (round test with the recording day as a covariate).
+# PERIOD_OUTCOME: page outcome kind -> its outcome name in those files.
+ODOR_CORNER = MICE.eci_dir / 'odor_corner.csv'
+PERIOD_OUTCOME = {'time': 'mean', 'rate': 'bout_rate'}
 # Per domain: page title word, subject words of the tooltips, top-by-p list length and clip rendering.
 # top = per search, the N neurons with the smallest first-round p that NES did not select (listed on the
 # page, so comparisons where nothing is selected can still be browsed); 0 = none.
@@ -241,6 +253,9 @@ LATENCY_AGGS = ('max', 'mean')
 K = 16                                # clips picked per row (picks.json); VIEW kr of them are rendered
 BLOCKS = ('top', 'top_heat', 'least', 'least_heat')  # the blocks of one clip page, in page order
 LENGTHS = {'frame': 1, '1s': 5, '3s': 15}
+# the lengths rendered and shown (render, page): the 3 s clips are picked (picks.json and the patch files keep them, so
+# their caches stay valid) but not rendered, which keeps the clip packs inside the artifact's 1 GiB asset store
+SHOW_LENGTHS = ('frame', '1s')
 # clip sources of a neuron: 'all' (every video) and one per contrast the neuron is found in (aid)
 KINDS = {'all': ('top', 'least'), 'cmp': ('top', 'least')}
 HIST_BINS = 40
@@ -448,6 +463,33 @@ def extra_outcomes(cfg):
     return out
 
 
+def extra_subsets(cfg):
+    """Subgroup searches of the extra outcomes (event rate / average time, not latency): {subgroup: [outcome, ...]}
+    from the aggregation sibling <sae>_<agg> of each outcome (its subgroup runs, scripts/eci/run_nes_subsets.sh SPECS
+    <sae>_<agg>:<agg>): <sibling>/subsets/<line>_<sex>/summary.csv (average time) or its */summary.csv with that
+    outcome type (event rate). The outcome keeps its primary setting (columns the subgroup table lacks dropped)."""
+    out = {}
+    for o in cfg.extras:
+        if o['kind'] not in CLIP_KINDS:
+            continue
+        sib = cfg.res.parent / f'{cfg.res.name}_{o["agg"]}'
+        for name in SUBSETS:
+            d = sib / 'subsets' / name
+            fs = [d / 'summary.csv'] if o['kind'] == 'time' else sorted(d.glob('*/summary.csv'))
+            for f in fs:
+                if not f.exists():
+                    continue
+                t = cfg.trim(pd.read_csv(f))
+                prim = {k: v for k, v in o['primary'].items() if k in KNOWN or k in t.columns}
+                if not match(t, prim).any():
+                    continue
+                out.setdefault(name, []).append({**o, 'dir': f.parent, 'tidy': t, 'primary': prim})
+                break
+    n = {o['id']: sum(o['id'] in {x['id'] for x in v} for v in out.values()) for o in cfg.extras}
+    print(f'[{cfg.tag}] extra-outcome subgroups: ' + ', '.join(f'{k} {v}' for k, v in n.items() if v))
+    return out
+
+
 class Cfg:
     """One NES result set (one SAE)."""
 
@@ -508,6 +550,7 @@ class Cfg:
             elif outs:
                 raise SystemExit(f'subset {name}: only {len(outs)} of {len(self.outcomes)} outcomes present')
         print(f'[{self.tag}] subgroups: {sorted(self.subsets)}')
+        self.xsubsets = extra_subsets(self)
         self.noclip = set()  # (codes key, neuron) listed without clips (beyond --max-pages, plan_clips)
         self.clipplan = None  # {codes key: {neuron: contrasts}} given clips (plan_clips)
         self.keys = sorted({o['codes'] for o in self.outcomes + self.extras})  # clip rankings (codes_<key>)
@@ -732,12 +775,24 @@ def clip_candidates(cfg):
     return want, seq
 
 
+def full_neurons(cfg):
+    """{(codes key, neuron)} of the full-cohort primary searches (full window, any prefix) of the core outcomes and
+    the extra outcomes that get clips (CLIP_KINDS)."""
+    return {(o['codes'], int(j)) for o in cfg.outcomes + [x for x in cfg.extras if x['kind'] in CLIP_KINDS]
+            for j in primary_rows(o)['neuron'].dropna()}
+
+
+def all_subsets(cfg):
+    """[[subgroup outcome, ...], ...]: the subgroup searches of the core outcomes and of the extra outcomes."""
+    return list(cfg.subsets.values()) + list(cfg.xsubsets.values())
+
+
 def subgroup_neurons(cfg, round1_only=False):
-    """[(codes key, neuron)] found in any subgroup's primary search (full window, any prefix) but not in
-    the full cohort, sorted."""
-    full = {(o['codes'], int(j)) for o in cfg.outcomes for j in primary_rows(o)['neuron'].dropna()}
+    """[(codes key, neuron)] found in any subgroup's primary search (full window, any prefix; core and extra
+    outcomes) but not in the full cohort, sorted."""
+    full = full_neurons(cfg)
     out = set()
-    for outs in cfg.subsets.values():
+    for outs in all_subsets(cfg):
         for o in outs:
             p = primary_rows(o).dropna(subset=['neuron'])
             if round1_only:
@@ -749,9 +804,9 @@ def subgroup_neurons(cfg, round1_only=False):
 def subgroup_hits(cfg):
     """{(codes key, neuron): (number of round-1 hits over the subgroup searches, best p)} of the
     subgroup-only neurons (primary, full window, any prefix / outcome / analysis)."""
-    full = {(o['codes'], int(j)) for o in cfg.outcomes for j in primary_rows(o)['neuron'].dropna()}
+    full = full_neurons(cfg)
     out = {}
-    for outs in cfg.subsets.values():
+    for outs in all_subsets(cfg):
         for o in outs:
             p = primary_rows(o).dropna(subset=['neuron'])
             for j, pv in zip(p[p['round'] == 1]['neuron'].astype(int), p[p['round'] == 1]['p']):
@@ -1020,11 +1075,11 @@ def patch_file(cfg, key, j):
     return cfg.work / 'patch' / f'{pre(key)}{int(j):04d}.npz'
 
 
-def clip_rows(n, kr=K):
+def clip_rows(n, kr=K, lengths=None):
     """{'<source>__<L>__<kind>': rows of the first kr clips (the rendered ones), in clip order} of one neuron
-    (source = 'all' or a contrast id)."""
+    (source = 'all' or a contrast id), every picked length or only those in lengths."""
     return {f'{src}__{L}__{kind}': [r for x in c[kind][:kr] for r in x['rows']] for src, cs in n['clips'].items()
-            for L, c in cs.items() for kind in kinds(src)}
+            for L, c in cs.items() if lengths is None or L in lengths for kind in kinds(src)}
 
 
 def motion_delta(cfg):
@@ -1101,18 +1156,25 @@ class PatchEncoderMotion:
         return (pc, np.concatenate(masks)) if return_mask else pc
 
 
+PATCH_SHARD = (0, 1)  # --patch-shard
+
+
 def step_patch(cfg, overwrite, chunk=6):
     picks = json.loads((cfg.work / 'picks.json').read_text())
     (cfg.work / 'patch').mkdir(parents=True, exist_ok=True)
     todo = []
     for k in cfg.keys:
         for j, n in picks['by_key'].get(k, {}).items():
-            f, rr = patch_file(cfg, k, j), clip_rows(n, cfg.kr)
+            f, rr = patch_file(cfg, k, j), clip_rows(n, cfg.kr, SHOW_LENGTHS)
             sig = hashlib.md5(json.dumps(rr).encode()).hexdigest()
-            # a file made for all K clips also serves (its first kr clips are the rendered ones)
-            ok = {sig, hashlib.md5(json.dumps(clip_rows(n)).encode()).hexdigest()}
+            # a file made for all K clips or for every picked length (3 s included) also serves (its first kr
+            # clips of the shown lengths are the rendered ones)
+            ok = {sig} | {hashlib.md5(json.dumps(clip_rows(n, kk, ls)).encode()).hexdigest()
+                          for kk in (cfg.kr, K) for ls in (None, SHOW_LENGTHS)}
             if overwrite or not f.exists() or str(np.load(f)['sig']) not in ok:
                 todo.append((k, int(j), rr, sig))
+    if PATCH_SHARD[1] > 1:  # --patch-shard i/n: every n-th neuron to do from the i-th (parallel GPU jobs)
+        todo = todo[PATCH_SHARD[0]::PATCH_SHARD[1]]
     if not todo:
         print(f'[{cfg.tag}] patch: cached')
         return
@@ -1416,10 +1478,10 @@ def step_render(cfg, overwrite, pack_mb=8.0):
             vm[(key, int(j))] = n['max_frame'] or 1.0
             pf[(key, int(j))] = patch_file(cfg, key, j)
             hv[(key, int(j))] = float(np.load(pf[(key, int(j))])['vmax'])
-    tasks, segs = [], {L: [] for L in LENGTHS}
+    tasks, segs = [], {L: [] for L in SHOW_LENGTHS}
     for pid, key, j, src in pages:
         n = picks['by_key'][key][str(j)]
-        for L in LENGTHS:
+        for L in SHOW_LENGTHS:
             # silent least clips of pooled codes have all patch codes 0 (heat = raw): the block is left blank
             silent = n['clips'][src][L]['least_rule'] == 'silent' and key in ('max', 'mean')
             blocks = [(src, bn, bn.split('_')[0], None if bn == 'least_heat' and silent else bn.endswith('_heat'),
@@ -1668,7 +1730,7 @@ def page_clips(cfg, key, j, n, where):
     (packs.json). Page p of a pack = frames [p w, (p + 1) w); the page holds BLOCKS of VIEW kr tiles."""
     out = {}
     for src in n['clips']:
-        for L in LENGTHS:
+        for L in SHOW_LENGTHS:
             name, p = where[L][f'{key}|{int(j)}|{src}']
             c = n['clips'][src][L]
             blocks = {bn: i for i, bn in enumerate(BLOCKS)}
@@ -1776,47 +1838,73 @@ def subset_meta(outs):
             'skipped': [x['analysis_id'] for x in sj.get('skipped', [])]}
 
 
-def camera_ps(cfg, results, xres):
-    """Mice genotype caveat (CONFOUND_JSON, scripts/eci/align_confound.py): {outcome id: {'<analysis>|<prefix>':
-    {neuron: [p plain, p with the camera period]}}} for the primary family-B selections of the SAE's mean-activation
-    and bout-rate outcomes with max pooling (core or extra; searches in results / xres, full window). Each entry must
-    be a selection on the page (same analysis, prefix, round and tau); the p values are those of an OLS of the
-    per-video mean of codes_max on genotype without / with the odor-corner group dummies. {} when the SAE is not in
-    the file."""
-    if cfg.dom is not MICE or not CONFOUND_JSON.exists():
+def period_checks(cfg, results, xres, subsets):
+    """Mice family-B camera-period checks (scripts/eci/period_check.py) of the SAE's mean-activation and event-rate
+    outcomes (core or extra): {outcome id: {'thr', 'pthr', 'pair_n', 'lat': {neuron: [score, pair, auc]},
+    'day': {'<analysis>|<prefix>': {neuron: [p_day, p, survives]}}}}. The files are those of the result set whose
+    period_flags.json 'pooling' is the outcome's spatial aggregation (the SAE's own, else <sae>_<agg>). 'lat' covers
+    the neurons of the outcome's family-B searches on the page (full cohort and subgroups); 'day' rows (full cohort) must match a
+    selection on the page (same analysis, prefix, round, neuron and tau), else they are left out with a warning.
+    {} for other domains or when no outcome has the files."""
+    if cfg.dom is not MICE:
         return {}
-    C = json.loads(CONFOUND_JSON.read_text()).get(cfg.sae)
-    if not C:
-        return {}
-    out, n_bad = {}, 0
-    for r in C:
-        o = next((o for o in cfg.outcomes + cfg.extras if (o['kind'], o['agg']) == CONFOUND_KIND.get(r['kind'])), None)
-        key = f'{o["id"]}|{r["analysis_id"]}|{int(r["prefix"])}|full' if o else None
-        rows = (xres if o['extra'] else results).get(key, {}).get('rows', []) if o else []
-        hit = [x for x in rows if x['neuron'] == int(r['neuron']) and x['round'] == int(r['round'])
-               and abs(x['tau'] - r['tau']) <= 1e-3 * max(1.0, abs(r['tau']))]
-        if not hit or r.get('p_corner') is None:
-            n_bad += 1
-            print(f'[{cfg.tag}] WARNING camera-period p of {r["kind"]} {r["analysis_id"]} p{r["prefix"]} neuron '
-                  f'{r["neuron"]}: no matching selection on the page, left out')
+    out = {}
+    for o in cfg.outcomes + cfg.extras:
+        if o['kind'] not in PERIOD_OUTCOME:
             continue
-        out.setdefault(o['id'], {}).setdefault(f'{r["analysis_id"]}|{int(r["prefix"])}', {})[str(int(r['neuron']))] = \
-            [sig4(r['p_plain']), sig4(r['p_corner'])]
-    print(f'[{cfg.tag}] page: camera-period p values for {sum(len(v) for o in out.values() for v in o.values())} '
-          f'family-B selections ({n_bad} without a matching selection)')
+        d = next((x / 'period_check' for x in (cfg.res, cfg.res.parent / f'{cfg.res.name}_{o["agg"]}')
+                  if (x / 'period_check' / 'period_flags.json').exists()
+                  and json.loads((x / 'period_check' / 'period_flags.json').read_text())['pooling'] == o['agg']), None)
+        if d is None:
+            print(f'[{cfg.tag}] page: no period_check for {o["label"]!r} ({o["kind"]} x {o["agg"]})')
+            continue
+        F = json.loads((d / 'period_flags.json').read_text())['outcomes'].get(PERIOD_OUTCOME[o['kind']])
+        if F is None:
+            continue
+        lat = F['latents']
+        R = xres if o['extra'] else results
+        fam_b = {aid for aid in cfg.order if cfg.dom.analysis(aid).family == 'B'}
+        js = {r['neuron'] for RR in [R] + [S['results'] for S in subsets.values()] for k, v in RR.items()
+              if k.startswith(o['id'] + '|') and k.split('|')[1] in fam_b for r in v['rows']}
+        e = {'thr': F['threshold'], 'pthr': F['pointwise_threshold'],
+             'lat': {str(j): [round(float(lat['score'][j]), 4), lat['pair'][j], round(float(lat['auc'][j]), 4)]
+                     for j in sorted(js)}}
+        da = pd.read_csv(d / 'day_adjusted.csv')
+        da = da[da['outcome'] == PERIOD_OUTCOME[o['kind']]]
+        n_bad = 0
+        for _, r in da.iterrows():
+            rows = R.get(f'{o["id"]}|{r["analysis_id"]}|{int(r["prefix"])}|full', {}).get('rows', [])
+            hit = [x for x in rows if x['neuron'] == int(r['neuron']) and x['round'] == int(r['round'])
+                   and abs(x['tau'] - r['tau']) <= 1e-3 * max(1.0, abs(r['tau']))]
+            if not hit:
+                n_bad += 1
+                print(f'[{cfg.tag}] WARNING day-adjusted {o["label"]!r} {r["analysis_id"]} p{int(r["prefix"])} round '
+                      f'{int(r["round"])} neuron {int(r["neuron"])}: no matching selection on the page, left out')
+                continue
+            e.setdefault('day', {}).setdefault(f'{r["analysis_id"]}|{int(r["prefix"])}', {})[str(int(r['neuron']))] = \
+                [sig4(r['p_day']), sig4(r['p']), int(bool(r['survives']))]
+        n_rows = sum(len(v['rows']) for k, v in R.items() if k.startswith(o['id'] + '|') and k.split('|')[1] in fam_b)
+        n_day = sum(len(v) for v in e.get('day', {}).values())
+        print(f'[{cfg.tag}] page: period checks {o["label"]!r} from {d}: {len(js)} family-B neurons, '
+              f'{sum(v[0] >= e["thr"] for v in e["lat"].values())} period-dependent (>= {e["thr"]}), '
+              f'{sum(e["pthr"] <= v[0] < e["thr"] for v in e["lat"].values())} possibly (>= {e["pthr"]}); '
+              f'day-adjusted {n_day} of {n_rows} family-B selections ({n_bad} file rows without a page selection)')
+        out[o['id']] = e
     return out
 
 
 def camera_note():
-    """Per corner group, het / wt videos of one stage (the same in every stage) from CONFOUND_JSON, or None."""
-    if not CONFOUND_JSON.exists():
+    """Mice camera periods (ODOR_CORNER 'odor_corner'): {period: [het, wt videos of one stage]} (the same in every
+    stage, checked), largest period first; None when the file is missing."""
+    if not ODOR_CORNER.exists():
         return None
-    c = json.loads(CONFOUND_JSON.read_text())['counts']
-    first = next(iter(c.values()))
-    if any(v != first for v in c.values()):
-        raise SystemExit(f'{CONFOUND_JSON}: corner x genotype counts differ between stages')
-    return {g: [int(first[g].get('het', 0)), int(first[g].get('wt', 0))]
-            for g in sorted(first, key=lambda g: -sum(first[g].values()))}
+    c = pd.read_csv(ODOR_CORNER, usecols=['stage', 'genotype', 'odor_corner'])
+    t = c.groupby(['stage', 'odor_corner', 'genotype']).size().unstack(fill_value=0)
+    first = t.loc[t.index.levels[0][0]]
+    if any(not t.loc[st].equals(first) for st in t.index.levels[0]):
+        raise SystemExit(f'{ODOR_CORNER}: period x genotype counts differ between stages')
+    return {g: [int(first.loc[g].get('het', 0)), int(first.loc[g].get('wt', 0))]
+            for g in sorted(first.index, key=lambda g: -int(first.loc[g].sum()))}
 
 
 def page_data(cfg):
@@ -1828,7 +1916,8 @@ def page_data(cfg):
                          'bout': is_bout(o),
                          'setting': ', '.join(f'{k} {v:g}' if isinstance(v, float) else f'{k} {v}'
                                               for k, v in o['primary'].items()),
-                         'kind': o['kind'], 'agg': o['agg']})
+                         'kind': o['kind'], 'agg': o['agg'],
+                         'prefixes': sorted(int(x) for x in primary_rows(o)['prefix'].unique())})
     results = search_results(cfg, cfg.outcomes, analyses, top=True)
     # extra outcomes: full cohort only (the subgroup runs are primary-only); cross-outcome chips = the core
     # outcomes of the other kind
@@ -1836,10 +1925,13 @@ def page_data(cfg):
                           top=True)
     subsets = {}
     for name, outs in cfg.subsets.items():
-        subsets[name] = {'results': search_results(cfg, outs), **subset_meta(outs)}
+        xouts = cfg.xsubsets.get(name, [])  # extra outcomes' subgroup searches (aggregation siblings)
+        subsets[name] = {'results': {**search_results(cfg, outs),
+                                     **search_results(cfg, xouts, others=lambda o: [x for x in outs if x['kind'] != o['kind']])},
+                         **subset_meta(outs)}
         print(f'[{cfg.tag}] page: subgroup {name}: ' + ', '.join(
             f'{o["id"]} {sum(len(R["rows"]) for k, R in subsets[name]["results"].items() if k.startswith(o["id"] + "|"))} hits'
-            for o in outs))
+            for o in outs + xouts))
     # consistency check of the chips against the stored table (mean-pool result set, full window)
     det_p = cfg.res / 'galleries/stats_detail.csv'
     o0 = next((o for o in cfg.outcomes if mean_outcome(o) and o['dir'] == cfg.res), None)
@@ -1940,7 +2032,7 @@ def page_data(cfg):
             print(f'[{cfg.tag}] page: {o["label"]}: tau recomputed from per-video values vs summary.csv, '
                   f'max relative diff {tau_check(vm, vals[o["id"]], xres if o["extra"] else results, o["id"], dom=cfg.dom):.2e}')
         for name, v in subsets.items():
-            if o['extra']:
+            if is_latency(o):
                 continue
             l, x = name.split('_')
             sm = vm[((vm['line'] == l) | (l == 'all')) & ((vm['sex'] == x) | (x == 'all'))]
@@ -1963,7 +2055,7 @@ def page_data(cfg):
         print(f'[{cfg.tag}] page: change share of the decoder rows (motion SAE): median {np.median(cs):.3f}, '
               f'quartiles {np.quantile(cs, 0.25):.3f} / {np.quantile(cs, 0.75):.3f}')
     return {'sae': cfg.sae, 'tag': cfg.tag, 'model': model_of(cfg), 'rep': cfg.rep, 'outcomes': outcomes,
-            'camp': camera_ps(cfg, results, xres), 'lwin': lwin, 'change_share': None if cs is None else [round(float(x), 3) for x in cs],
+            'period': period_checks(cfg, results, xres, subsets), 'lwin': lwin, 'change_share': None if cs is None else [round(float(x), 3) for x in cs],
             'otables': otables, 'artefact': sorted(int(j) for j in cfg.artefact),
             'subsets': subsets,
             'analyses': [analyses[a] for a in cfg.order if a in analyses], 'results': results, 'neurons': neurons,
@@ -1971,7 +2063,7 @@ def page_data(cfg):
             'n_frames': int(sum(next(iter(picks['by_key'][cfg.keys[0]].values()))['hist']['counts']['all'])),
             'xresults': xres, 'xids': [o['id'] for o in cfg.extras],
             'montage': {'K': K, 'kr': cfg.kr, 'cols': cfg.cols, 'tile': cfg.tile, 'crop': cfg.crop,
-                        'lengths': dict(LENGTHS)},
+                        'lengths': {L: LENGTHS[L] for L in SHOW_LENGTHS}},
             'domain': cfg.dom.name, 'obs': _vt(cfg.dom)[2]}
 
 
@@ -2001,7 +2093,7 @@ def split_data(d, data_dir, inline):
     core = {k: d[k] for k in ('sae', 'tag', 'model', 'rep', 'outcomes', 'analyses', 'artefact', 'artefact_text',
                               'arena_note', 'n_frames', 'montage')}
     core['subsets'] = {name: {k: v for k, v in S.items() if k != 'results'} for name, S in d['subsets'].items()}
-    for k in ('lwin', 'change_share', 'camp'):  # only SAEs that have them (latency outcomes, motion SAEs, confound)
+    for k in ('lwin', 'change_share', 'period'):  # only SAEs that have them (latency, motion SAEs, period checks)
         if d.get(k):
             core[k] = d[k]
     core['rfiles'], core['pre'] = {}, {}
@@ -2010,13 +2102,14 @@ def split_data(d, data_dir, inline):
         pre_ = o['id'] + '|'
         R = {'results': {k: v for k, v in (d['xresults'] if o['id'] in xids else d['results']).items()
                          if k.startswith(pre_)},
-             'subsets': {} if o['id'] in xids else {name: {k: v for k, v in S['results'].items() if k.startswith(pre_)}
-                                                    for name, S in d['subsets'].items()}}
+             'subsets': {name: {k: v for k, v in S['results'].items() if k.startswith(pre_)}
+                         for name, S in d['subsets'].items()}}
         f = f'{tag}_r_{o["id"]}.json'
         if o['id'] in xids:
             X['results'].update(R['results'])
             for name, S in R['subsets'].items():
-                X['subsets'].setdefault(name, {}).update(S)
+                if S:
+                    X['subsets'].setdefault(name, {}).update(S)
             X['vals'][o['id']] = d['vals'].get(o['id'], {})
             core['rfiles'][o['id']] = f'{data_dir}/{xf}'
         elif (tag, o['id']) == inline:  # key 'pre:<file>': not a file, the page reads it from ALL
@@ -2204,7 +2297,16 @@ if __name__ == '__main__':
     ap.add_argument('--max-mb', type=float, default=250, help='version size limit (the artifact takes 256 MB)')
     ap.add_argument('--require-fit', action='store_true', help='check fails when the version files do not fit')
     ap.add_argument('--crf', type=int, default=None, help='H.264 quality of the clips (default per domain, VIEW crf)')
+    ap.add_argument('--ants-clips', default='crop', choices=('crop', 'whole'),
+                    help="ant clip tiles: 'crop' (default, VIEW: 256 px full-resolution cuts around each top clip's "
+                         "activation peak) or 'whole' (the whole frame, resized to --ants-tile px)")
+    ap.add_argument('--ants-tile', type=int, default=256, help="tile px of --ants-clips whole")
+    ap.add_argument('--patch-shard', default='0/1', help='i/n: the patch step does every n-th missing neuron from the '
+                    'i-th (n parallel GPU jobs with --steps patch; then one job runs the remaining steps)')
     a = ap.parse_args()
+    PATCH_SHARD = tuple(int(x) for x in a.patch_shard.split('/'))
+    if a.ants_clips == 'whole':  # new segment signatures (geometry) -> new clip packs for the ant SAEs
+        VIEW['ants'].update(crop=None, tile=a.ants_tile)
     res = a.res or discover_res(a.discover)
     r0 = (ROOT / res[0]) if not Path(res[0]).is_absolute() else Path(res[0])
     out = Path(a.out) if a.out else r0 / 'explorer'
