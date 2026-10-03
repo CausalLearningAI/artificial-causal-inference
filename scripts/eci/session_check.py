@@ -114,7 +114,7 @@ def main():
     with open(out / 'session_flags.json', 'w') as f:
         json.dump(flags, f, default=float)
     cols = ['outcome', 'analysis_id', 'prefix', 'round', 'neuron', 'direction', 'tau', 'p', 'threshold', 'n_sessions',
-            'worst_session', 'p_max', 'tau_min_abs', 'same_sign', 'p_max_below']
+            'n_not_estimable', 'worst_session', 'p_max', 'tau_min_abs', 'same_sign', 'p_max_below']
     lo = pd.concat(loso_rows)[cols] if loso_rows else pd.DataFrame(columns=cols)
     lo.to_csv(out / 'loso.csv', index=False)
     lines += ['## Leave-one-session-out re-test (primary picks)', '',

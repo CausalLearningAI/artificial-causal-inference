@@ -84,7 +84,7 @@ def leave_one_session_out(picks, design, values, analyses, level_col='session'):
     picks: rows of one primary setting (round > 0; columns analysis_id, prefix, round, neuron, tau, p, threshold);
     values: (n_obs, m) per-video outcome (full window); analyses: {analysis_id: Analysis}. Returns picks with
     n_sessions, worst_session (the drop with the largest p), p_max, tau_min_abs, same_sign (every drop), p_max_below
-    (p_max < the round threshold)."""
+    (p_max < the round threshold), n_not_estimable (drops whose test has no residual df; left out)."""
     out = []
     for (aid, prefix), grp in picks.groupby(['analysis_id', 'prefix'], sort=False):
         rows = analyses[aid].select(design).sort_values(analyses[aid].unit)
@@ -94,12 +94,22 @@ def leave_one_session_out(picks, design, values, analyses, level_col='session'):
         for r in grp.sort_values('round').to_dict('records'):
             j = int(r['neuron'])
             res = []
+            n_fail = 0
             for s in np.unique(ses):
                 keep = ses != s
-                tab, _ = neural_effect_test(Z[keep], T[keep], prev, cols=[j])
+                try:
+                    tab, _ = neural_effect_test(Z[keep], T[keep], prev, cols=[j])
+                except ValueError:  # a late-round test without that session has no residual df: not estimable
+                    n_fail += 1
+                    continue
                 res.append((s, float(tab.iloc[0]['tau']), float(tab.iloc[0]['p'])))
+            if not res:
+                out.append({**r, 'n_sessions': 0, 'n_not_estimable': n_fail, 'worst_session': '', 'p_max': np.nan,
+                            'tau_min_abs': np.nan, 'same_sign': False, 'p_max_below': False})
+                prev.append(j)
+                continue
             worst = max(res, key=lambda x: x[2])
-            out.append({**r, 'n_sessions': len(res), 'worst_session': worst[0], 'p_max': worst[2],
+            out.append({**r, 'n_sessions': len(res), 'n_not_estimable': n_fail, 'worst_session': worst[0], 'p_max': worst[2],
                         'tau_min_abs': min(abs(t) for _, t, _ in res),
                         'same_sign': all(np.sign(t) == np.sign(r['tau']) for _, t, _ in res),
                         'p_max_below': bool(worst[2] < r['threshold'])})
