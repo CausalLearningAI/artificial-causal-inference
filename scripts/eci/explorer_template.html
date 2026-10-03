@@ -494,7 +494,7 @@ function buildControls(){
   const KN = $('#camNote'), cam = ALL.camera;
   KN.hidden = !(cam && !ants && state.view==='cmp' && ca && ca.family==='B');
   if(!KN.hidden){
-    KN.textContent = `Camera period (odor-corner group) is unbalanced by genotype: het / wt videos per stage ${Object.entries(cam).map(([g,[h,w]])=>`${g} ${h} / ${w}`).join(', ')}. The camera zoom differs by period, so a genotype difference can partly follow the camera. No video is dropped and the search is unchanged; each found neuron is checked instead: “period-dependent” = it separates the periods within one genotype, “day-adj” = its test repeated with the recording day as a covariate.`;
+    KN.textContent = `Camera period (odor-corner group) is unbalanced by genotype: het / wt videos per stage ${Object.entries(cam).map(([g,[h,w]])=>`${g} ${h} / ${w}`).join(', ')}. The periods are months apart (rig, lighting, bedding; the BR camera is also ~4% more zoomed in), so a genotype difference can partly follow the period. No video is dropped and the search is unchanged; each found neuron is checked instead: “period-dependent” = it separates the periods within one genotype, “day-adj” = its test repeated with the recording day as a covariate.`;
     KN.title = 'The on-screen odor corner marks the recording period (dataset/mice/v1/eci/odor_corner.csv). Checks: scripts/eci/period_check.py. Period-dependent: within-genotype period AUC above the family-wise threshold (5% over all 1024 neurons); possibly: above the threshold for one neuron alone. Day-adj: p with the recording day as a covariate (in brackets without), ✓ = still below the round\'s Bonferroni threshold.';
   }
   const S = SUB(), NB = $('#subNote');
