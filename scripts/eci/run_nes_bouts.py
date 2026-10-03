@@ -422,6 +422,8 @@ def compare_meanpool(tidy, prev_csv, analyses, pooling='mean'):
     if not Path(prev_csv).exists():
         return {}
     p = pd.read_csv(prev_csv)
+    if 'neuron' not in p:  # the previous run selected nothing at all
+        p = p.assign(neuron=pd.Series(dtype=float))
     p = p[(p['pooling'] == pooling) & (p['outcome_type'] == 'mean') & (p['test'] == 't') &
           (p['correction'] == 'bonferroni') & (p['window'] == 'full') & (p['round'] > 0)]
     out = {}
