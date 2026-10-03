@@ -149,6 +149,8 @@ def select(tidy, aid, prefix, s):
     t = tidy[(tidy['analysis_id'] == aid) & (tidy['prefix'] == prefix) & (tidy['round'] > 0)]
     for k, v in s.items():
         t = t[t[k] == v]
+    if 'neuron' not in t:  # no search of the run selected anything: summary.csv has no neuron column
+        return {}
     return dict(zip(t['neuron'].astype(int), t['direction']))
 
 

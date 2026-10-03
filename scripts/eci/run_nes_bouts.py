@@ -133,6 +133,8 @@ def select(tidy, aid, prefix, s, round1=False):
         t = t[t[k].isna()] if isinstance(v, float) and np.isnan(v) else t[t[k] == v]
     if round1:
         t = t[t['round'] == 1]
+    if 'neuron' not in t:  # no search of the run selected anything: summary.csv has no neuron column
+        return {}
     return dict(zip(t['neuron'].astype(int), t['direction']))
 
 

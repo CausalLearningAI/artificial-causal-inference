@@ -411,6 +411,8 @@ def selected_set(tidy, aid, **kw):
     s = tidy[(tidy['analysis_id'] == aid) & (tidy['round'] > 0)]
     for k, v in kw.items():
         s = s[s[k] == v]
+    if 'neuron' not in s:  # no search of the run selected anything: summary.csv has no neuron column
+        return {}
     return dict(zip(s['neuron'].astype(int), s['direction']))
 
 
