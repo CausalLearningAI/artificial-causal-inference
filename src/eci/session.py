@@ -12,10 +12,11 @@ NES caches.
    sessions of eta^2 of the within-group RANKS of the per-video outcome on session (between-session sum of squares /
    total sum of squares of the ranks = the tie-corrected Kruskal-Wallis H / (n - 1)), i.e. how well the session
    explains the latent among frogs of ONE group (a group effect cannot produce it). The group attaining the max is
-   kept. Threshold: label-shuffle null; session labels permuted among the frogs of each group (session sizes kept), the
+   kept. Sessions with a single frog are left out of the score. Threshold: label-shuffle null; session labels permuted among the frogs of each group (session sizes kept), the
    score recomputed for every latent and the max over latents taken; threshold = 95th percentile of that max
    (family-wise 5% that any latent is flagged by chance). p_perm = per-latent permutation p (+1 smoothing).
-   What it cannot do: a latent with no within-group session spread can still be a between-group session difference
+   With 2-5 frogs per session the family-wise threshold is close to 1 (measured on frogs v1: 0.98), so in practice
+   the per-latent p_perm is the informative number. What it cannot do: a latent with no within-group session spread can still be a between-group session difference
    (e.g. a dish type used only for one group); not flagged != not confounded.
 
 2. Leave-one-session-out re-test of the primary picks. Each pick of round r is re-tested with the Neural Effect Test
@@ -43,14 +44,18 @@ def _eta2_ranks(R, codes, n_lv):
         return np.where(tot > 0, between / tot, 0.0)
 
 
-def session_scores(design, Y, group_col='group', level_col='session', n_shuffles=1000, seed=0, q=0.95):
+def session_scores(design, Y, group_col='group', level_col='session', n_shuffles=1000, seed=0, q=0.95,
+                   min_per_session=2):
     """Score of every latent (module docstring 1) + label-shuffle null. design rows = videos (obs_row indexes Y).
+    Sessions with fewer than min_per_session frogs are left out of the score (a single frog has no within-session
+    spread and only inflates eta^2: with them, the null max over latents is 1.0 in frogs v1).
     Returns dict: score, group (index into groups), p_perm, group_scores (n_groups, m), null_max, threshold,
-    pointwise_threshold, groups, n_frogs ({group: {session: n}})."""
+    pointwise_threshold, groups, n_frogs ({group: {session: n}}, all sessions)."""
     blocks, groups, n_frogs = [], [], {}
     for g, d in design.groupby(group_col, sort=True):
-        codes, lv = pd.factorize(d[level_col])
         n_frogs[str(g)] = {str(k): int(v) for k, v in d[level_col].value_counts().sort_index().items()}
+        d = d[d.groupby(level_col)[level_col].transform('size') >= min_per_session]
+        codes, lv = pd.factorize(d[level_col])
         if len(lv) < 2:
             continue
         blocks.append((rankdata(Y[d['obs_row'].values], axis=0), codes, len(lv)))
