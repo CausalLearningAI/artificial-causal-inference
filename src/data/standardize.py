@@ -41,7 +41,8 @@ def process_video(
     end_frame: int,
     cfg: DictConfig,
     index: int = None,
-    total: int = None
+    total: int = None,
+    hflip: bool = False
 ) -> bool:
     """
     Process a single video: trim frames, reduce fps and resolution.
@@ -54,6 +55,7 @@ def process_video(
         cfg: Hydra configuration
         index: Current video index (for progress tracking)
         total: Total videos to process (for progress tracking)
+        hflip: Mirror the video left-right first (experiment.csv column 'hflip' = 1; frogs: mutant side to the right)
     
     Returns:
         True if successful, False otherwise
@@ -97,7 +99,7 @@ def process_video(
         '-i', str(input_path),
         '-ss', str(start_time),
         '-t', str(duration),
-        '-vf', f'fps={target_fps},scale={target_resolution}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2',
+        '-vf', ('hflip,' if hflip else '') + f'fps={target_fps},scale={target_resolution}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2',
         '-c:v', cfg.data.video_codec,
         '-b:v', cfg.data.bitrate,
     ]
@@ -205,7 +207,8 @@ def main(cfg: DictConfig):
         if idx > 1:
             progress_str += f" | ~{_format_time(remaining)} remaining"
         
-        if process_video(input_path, output_path, start_frame, end_frame, cfg, idx, total):
+        if process_video(input_path, output_path, start_frame, end_frame, cfg, idx, total,
+                         hflip=entry.get('hflip', '0') == '1'):
             success_count += 1
         else:
             error_count += 1

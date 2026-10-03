@@ -1,0 +1,13 @@
+# Data configuration for frogs (all versions)
+
+source_path: ./data/frogs/${version}/observations/source
+
+# Video processing
+frame_format: rgb24
+target_fps: 5
+target_resolution:
+  width: 512
+  height: 512
+video_codec: libopenh264
+bitrate: 2M
+remove_audio: true

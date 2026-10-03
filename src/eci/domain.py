@@ -23,6 +23,13 @@ Domains:
         dataset/ants/eci/annotations.csv, per-video table dataset/ants/eci/experiment.csv (both
         written by scripts/eci/ants_prepare.py). Primary nuisance: none.
 
+  frogs v1 (Xenopus juvenile froglets, scripts/eci/frogs_prepare.py): hour 1 of 35 frogs, WT 13 / FoxP1 14 / En1 8
+        (half-embryo crispants), one frog per dish, 18,000 frames at 5 fps per video. Unit = video (= frog), family B
+        only: FoxP1_vs_WT, En1_vs_WT. Group is fully confounded with the recording session (no session holds two
+        groups; meta 'confound'). Per-frame table dataset/frogs/eci/annotations.csv, per-video table
+        dataset/frogs/eci/experiment.csv (group, T, session, date, time, slot, hour, animal_id, mutant_side).
+        Primary nuisance: none. Foreground rule 'frogs' (src/eci/foreground.py).
+
 Analysis sets (get_domain(name, analysis_set), runners' --analysis-set; default 'core' = the analyses above,
 unchanged): ants 'pairs' = the 3 core analyses (same ids, meta and order) followed by every other pair of
 treatment values within one experiment, control = the lower treatment number, treatment = the higher
@@ -35,6 +42,7 @@ Functions / classes:
     Domain         base class: paths, fps / n_match, load_design, analyses, subgroups, balance, texts
     MiceDomain     mice v1
     AntsDomain     ants v2 + v3
+    FrogsDomain    frogs v1
     get_domain     (name, analysis set) -> Domain instance (cached)
     DOMAINS        the domain names
 """
@@ -49,7 +57,7 @@ import pandas as pd
 from . import contrasts as C
 
 ROOT = Path(__file__).resolve().parents[2]
-DOMAINS = ('mice', 'ants')
+DOMAINS = ('mice', 'ants', 'frogs')
 
 
 @dataclass
@@ -423,8 +431,82 @@ class AntsDomain(Domain):
         return pd.read_csv(self.experiment_csv)
 
 
+class FrogsDomain(Domain):
+    """Frogs v1 (hour 1 of each frog), unit = video = frog, family B only."""
+    name, title, subjects = 'frogs', 'frogs v1', 'frogs'
+    eci_dir = ROOT / 'dataset/frogs/eci'
+    ann_path = eci_dir / 'annotations.csv'
+    experiment_csv = eci_dir / 'experiment.csv'
+    nes_root = ROOT / 'results/vision/frogs/eci/nes'
+    n_match = 18000  # = the whole 1 h video (no family A, the matched window is unused)
+    fg_rule = 'frogs'
+    duration_col = 'group'
+    null_two, null_paired, frame_analysis, frame_key = 'FoxP1_vs_WT', None, 'FoxP1_vs_WT', 'FoxP1_vs_WT'
+    balance_key, shuffle_word = 'group_balance', 'group'
+    desc_by = ('hour', 'group')  # one phase (hour 1): the descriptives table is group x hour
+    meta_cols = ('group', 'session', 'slot', 'mutant_side')
+    desc_table = ('group', ('WT', 'FoxP1', 'En1'), 'hour', (1,))
+    balance_fields = ('session', 'date', 'slot')
+    CONFOUND = 'recording session: every session holds one group only (WT 157/158/283, FoxP1 9 sessions, En1 220/222/293)'
+    # (control group, treatment group)
+    CONTRASTS = (('WT', 'FoxP1'), ('WT', 'En1'))
+    text = {'window': 'video (hour 1)',
+            'families_nes': 'Family B = mutant vs WT frogs (unit = video = frog, hour 1, tau > 0 = higher in the mutant '
+                            'group); FoxP1 and En1 are half-embryo crispants. Group is fully confounded with the '
+                            'recording session (dish, lighting): no session holds two groups.',
+            'families_bouts': 'Family B = mutant vs WT frogs (unit = video = frog, tau > 0 = more bouts/min in the mutant '
+                              'group); group is fully confounded with the recording session.',
+            'null_two': 'Group labels shuffled across frogs (FoxP1_vs_WT', 'frame': 'group in FoxP1 vs WT',
+            'null_two_bouts': 'group shuffled across frogs (FoxP1_vs_WT)', 'null_paired_bouts': ''}
+
+    def load_design(self):
+        return C.load_design_ants(self.ann_path, self.experiment_csv)
+
+    @property
+    def analyses(self):
+        return [Analysis(f'{t}_vs_{c}', 'B', 'observation_id', {'control': c, 'treatment': t, 'confound': self.CONFOUND},
+                         (f'{t}>{c}', f'{t}<{c}'), arm='group', control=(c,), treatment=(t,))
+                for c, t in self.CONTRASTS]
+
+    def describe(self, design):
+        return f'{len(design)} videos (' + ', '.join(f'{g}: {k}' for g, k in design.groupby('group').size().items()) + ')'
+
+    def balance(self, design):
+        """Per analysis: control / treatment video counts per recording field, chi-square test of independence
+        (fields with one value -> p = 1). Session is confounded with group by design."""
+        from scipy.stats import chi2_contingency
+        out = {}
+        for an in self.analyses:
+            d = an.select(design)
+            arm = np.where(d['T'] == 1, 'treatment', 'control')
+            out[an.id] = {}
+            for c in self.balance_fields:
+                tab = pd.crosstab(d[c].fillna('none').astype(str).values, arm)
+                pval = float(chi2_contingency(tab.values)[1]) if tab.shape[0] > 1 and tab.shape[1] > 1 else 1.0
+                out[an.id][c] = {'counts': {str(k): {g: int(v) for g, v in r.items()} for k, r in tab.iterrows()},
+                                 'chi2_p': pval}
+        return out
+
+    def balance_report(self, sanity):
+        return AntsDomain.balance_report(self, sanity)
+
+    def val_split(self, val_from=None, seed=0, frac=0.1):
+        """About frac of the videos of every group held out (at least 1), seeded."""
+        e = pd.read_csv(self.experiment_csv)
+        rng = np.random.default_rng(seed)
+        val = []
+        for _, g in e.sort_values('observation_id').groupby('group', sort=True):
+            k = max(1, int(round(frac * len(g))))
+            val += sorted(rng.choice(g['observation_id'].values, k, replace=False).tolist())
+        ann = pd.read_csv(self.ann_path, usecols=['observation_id'])
+        return val, ann['observation_id'].isin(val).values
+
+    def video_meta(self):
+        return pd.read_csv(self.experiment_csv)
+
+
 @lru_cache(maxsize=None)
 def get_domain(name='mice', analysis_set='core'):
     if name not in DOMAINS:
         raise ValueError(f'unknown domain {name!r}; known: {DOMAINS}')
-    return {'mice': MiceDomain, 'ants': AntsDomain}[name](analysis_set)
+    return {'mice': MiceDomain, 'ants': AntsDomain, 'frogs': FrogsDomain}[name](analysis_set)

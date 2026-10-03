@@ -1,0 +1,26 @@
+# Dataset configuration for frogs/v1
+
+description: "Xenopus juvenile froglets (Sweeney group, ISTA), one frog per backlit dish, top-down grayscale video. Hour 1 of a 2-h recording of 35 frogs: wild type (WT, 13), half-embryo FoxP1 crispants (14) and half-embryo En1 crispants (8, genotyped). Group is the intervention; it is fully confounded with the recording session. Tables: scripts/eci/frogs_prepare.py."
+
+treatment:
+  column: group
+  type: categorical
+  values: ['WT', 'FoxP1', 'En1']
+
+covariates:
+  session:
+    type: int
+  date:
+    type: string
+  time:
+    type: string
+  slot:
+    type: int
+  animal_id:
+    type: string
+  mutant_side:
+    type: string
+
+outcomes: []
+
+# No outcome_mapping / annotation_format: frogs v1 has no behaviour annotations (annotations: "no").
