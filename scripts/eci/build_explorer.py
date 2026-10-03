@@ -78,8 +78,8 @@ Steps (each cached under <res>/_cache/explorer/, incremental):
     render   clip pages: one per codes key x neuron x clip source ('all' videos, each contrast) and length
              (SHOW_LENGTHS: frame = 1 frame, 1 s = 5 at 5 fps; the 3 s picks are not rendered) = blocks top,
              top heat, least, least heat (turbo, the neuron's shared scale) of VIEW kr tiles, cols per row (mice: 144 px whole frames, 16 per
-             row; ants: 256 px full-resolution cuts around each top clip's activation peak, 8 per row, or with
-             --ants-clips whole the whole frame at --ants-tile px). Each
+             row; ants: the whole frame at 256 px (--ants-tile), 8 per row, or with --ants-clips crop 256 px
+             full-resolution cuts around each top clip's activation peak). Each
              page is one cached H.264 segment (<work>/seg/), joined without re-encoding into packs of at
              most --pack-mb MB per SAE and length: page p of a pack = frames [p w, (p + 1) w). A pack of the
              previous build whose pages are all unchanged is kept as it is (same name = same uploaded asset);
@@ -195,7 +195,14 @@ MODEL_SAE_TIPS = {
                                                      'corner is top right',
     ('matryoshka_btk_1024_k16_ff448al_s0', 'input'): 'Whole frame at 448 px; SAE trained on all 1024 patches of the '
                                                      'frame (mice and background). Odor-aligned: every video rotated '
-                                                     'so the odor corner is top right'}
+                                                     'so the odor corner is top right. Its picks can be setup features '
+                                                     '(odor bag, bedding): see the note under the model bar'}
+# per-SAE note shown under the model bar while that SAE is selected
+MODEL_NOTES = {
+    'matryoshka_btk_1024_k16_ff448al_s0': 'Full frame: the strongest stage-change picks include setup features, e.g. '
+                                          'neurons 45 and 26 light up the odor bag outside the arena in the odor '
+                                          'stages, others the bedding texture. Read them as setup effects, not '
+                                          'behaviour; the mouse mask avoids this.'}
 # Mice genotype (family B): the camera period (odor-corner group) is unbalanced by genotype. Read-only checks of the
 # primary family-B picks (scripts/eci/period_check.py; period_checks): per outcome, <set>/period_check/
 # period_flags.json (per latent: within-genotype period AUC score, its pair and raw AUC; family-wise 'threshold',
@@ -209,8 +216,9 @@ PERIOD_OUTCOME = {'time': 'mean', 'rate': 'bout_rate'}
 # Clips: one page per (codes key, neuron, clip source) = its 4 blocks (top, top heat, least, least heat) of
 # kr tiles (the first kr of the K picked clips), cols tiles per row, tile px; crop = side (source px) of the
 # square cut around the activation peak of each 'top' clip (least rows and crop None: the whole frame);
-# crf = H.264 quality. Mice keep the historical 144 px whole-frame tiles; ant clips are 256 px cuts at
-# full source resolution (the whole 512 px frame at 144 px made the ants ~11 px long).
+# crf = H.264 quality. Mice keep the historical 144 px whole-frame tiles; ant clips show the whole 512 px frame at
+# 256 px (ants ~25-30 px long, colour marks and neighbours visible; at 144 px they were ~11 px long). --ants-clips crop
+# gives the earlier 256 px full-resolution cuts around each top clip's activation peak (legs and antennae, no context).
 # cmp_top = top-by-p neurons also get 'this comparison' clips (ants: no; with 16 treatment pairs x 2 SAEs x 6
 # outcomes that would be ~3000 extra clip pages; every listed neuron still gets its 'all videos' clips).
 # keep = {experiment: treatment values kept, None = all} restricts the domain's videos and comparisons (only the
@@ -219,7 +227,7 @@ PERIOD_OUTCOME = {'time': 'mean', 'rate': 'bout_rate'}
 VIEW = {'mice': {'title': 'Mice', 'subject': 'mouse', 'subjects': 'mice', 'top': 0, 'cmp_top': True,
                  'tile': 144, 'cols': 16, 'kr': 16, 'crop': None, 'crf': 30, 'keep': None, 'vnote': ''},
         'ants': {'title': 'Ants', 'subject': 'ant', 'subjects': 'ants', 'top': 10, 'cmp_top': False,
-                 'tile': 256, 'cols': 8, 'kr': 8, 'crop': 256, 'crf': 27, 'keep': {'v2': None, 'v3': (2, 6, 8)},
+                 'tile': 256, 'cols': 8, 'kr': 8, 'crop': None, 'crf': 27, 'keep': {'v2': None, 'v3': (2, 6, 8)},
                  'vnote': 'v2 (t=1, 2) and v3 t=2, 6, 8'}}
 # analysis metadata 'confound' missing (older result sets): these analyses keep their known confound note
 CONFOUND_FALLBACK = {'v3_2_vs_8': 'recording day: t=8 only on day C (brighter arena), t=2 only on days A/B'}
@@ -2169,6 +2177,8 @@ def split_data(d, data_dir, inline):
         core.update(videos=d['videos'], obs=d['obs'])
     if v['vnote']:
         core['vnote'] = v['vnote']
+    if d['sae'] in MODEL_NOTES:
+        core['note'] = MODEL_NOTES[d['sae']]
     return core, files
 
 
@@ -2296,16 +2306,16 @@ if __name__ == '__main__':
     ap.add_argument('--max-mb', type=float, default=250, help='version size limit (the artifact takes 256 MB)')
     ap.add_argument('--require-fit', action='store_true', help='check fails when the version files do not fit')
     ap.add_argument('--crf', type=int, default=None, help='H.264 quality of the clips (default per domain, VIEW crf)')
-    ap.add_argument('--ants-clips', default='crop', choices=('crop', 'whole'),
-                    help="ant clip tiles: 'crop' (default, VIEW: 256 px full-resolution cuts around each top clip's "
-                         "activation peak) or 'whole' (the whole frame, resized to --ants-tile px)")
-    ap.add_argument('--ants-tile', type=int, default=256, help="tile px of --ants-clips whole")
+    ap.add_argument('--ants-clips', default='whole', choices=('crop', 'whole'),
+                    help="ant clip tiles: 'whole' (default: the whole frame, resized to --ants-tile px) or 'crop' (256 px "
+                         "full-resolution cuts around each top clip's activation peak)")
+    ap.add_argument('--ants-tile', type=int, default=256, help="tile px of the ant clips")
     ap.add_argument('--patch-shard', default='0/1', help='i/n: the patch step does every n-th missing neuron from the '
                     'i-th (n parallel GPU jobs with --steps patch; then one job runs the remaining steps)')
     a = ap.parse_args()
     PATCH_SHARD = tuple(int(x) for x in a.patch_shard.split('/'))
-    if a.ants_clips == 'whole':  # new segment signatures (geometry) -> new clip packs for the ant SAEs
-        VIEW['ants'].update(crop=None, tile=a.ants_tile)
+    # ant clip geometry (part of the segment signatures: a change re-renders only the ant SAEs' packs)
+    VIEW['ants'].update(crop=256 if a.ants_clips == 'crop' else None, tile=256 if a.ants_clips == 'crop' else a.ants_tile)
     res = a.res or discover_res(a.discover)
     r0 = (ROOT / res[0]) if not Path(res[0]).is_absolute() else Path(res[0])
     out = Path(a.out) if a.out else r0 / 'explorer'

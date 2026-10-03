@@ -189,6 +189,7 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
     </div>
   </nav>
 
+  <p class="note" id="modelNote" hidden></p>
   <p class="warnbox one" id="subNote" hidden></p>
   <p class="warnbox one" id="cfNote" hidden></p>
   <p class="note camnote" id="camNote" hidden></p>
@@ -486,6 +487,7 @@ function buildControls(){
   for(const b of document.querySelectorAll('#lineSeg button')){ b.setAttribute('aria-pressed', String(b.dataset.line===state.line)); b.disabled = !subOk(b.dataset.line, state.sex); }
   for(const b of document.querySelectorAll('#sexSeg button')){ b.setAttribute('aria-pressed', String(b.dataset.sex===state.sex)); b.disabled = !subOk(state.line, b.dataset.sex); }
   $('#lineOpt').hidden = $('#sexOpt').hidden = DATA.sub_ui===false;
+  const MN = $('#modelNote'); MN.hidden = !DATA.note; if(DATA.note) MN.textContent = `ⓘ ${DATA.note}`;
   const ca = analysis(state.aid), CN = $('#cfNote');
   CN.hidden = !(state.view==='cmp' && ca && ca.confound);
   if(!CN.hidden) CN.textContent = `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip shows its recording day: check whether a neuron follows the lighting or the behavior.`;
