@@ -595,13 +595,16 @@ function renderCmpList(){
 function renderTop(S, h, top, fold){
   // fold (no discovery): the list is collapsed; opening it lets the user pick one (nothing is selected by default)
   const open = !fold || state.neuron!==null;
-  h+=`<details class="topd"${open?' open':''}><summary class="tip" title="The ${top.length} neurons with the smallest first-round p-value of this search that NES did not select (p above the Bonferroni threshold). Exploratory: not discoveries.">show top ${top.length} by p-value (not selected)</summary><div class="rows">`;
+  h+=`<details class="topd"${open?' open':''}><summary class="tip" title="The ${top.length} neurons with the smallest first-round p-value of this search that NES did not select. Exploratory: not discoveries.">show top ${top.length} by p-value (not selected)</summary><div class="rows">`;
+  const thr1 = 0.05 / (res().n_tested_total || 128);   // round-1 Bonferroni threshold of this search
   for(const [j, tau, p, cens] of top){
-    const up=tau>0;
+    const up=tau>0, sig = p < thr1;
+    const why = sig ? `significant in round 1 (p ${fmtP(p)} < ${fmtP(thr1)}) but not selected: NES picks the largest effect first and, once the selected neurons were conditioned on, this one was no longer significant (it overlaps with them)`
+                    : `not selected: p above the round-1 Bonferroni threshold (${fmtP(thr1)})`;
     h+=`<button type="button" class="nr" data-n="${j}" aria-pressed="${j===state.neuron}" title="first-round p ${fmtP(p)}: not selected by NES">
       <span class="id">#${j}</span>
       <span class="l1"><span class="${up?'up':'down'}">${up?'▲':'▼'} ${fmtTau(tau)}</span><span class="pv">p ${fmtP(p)}</span>${csHTML(j)}</span>
-      <span class="chips"><span class="chip na" title="not selected: p above the round-1 Bonferroni threshold">not selected</span>${censChip(cens)}</span></button>`;
+      <span class="chips"><span class="chip na" title="${esc(why)}">${sig?'explained by the picks':'not selected'}</span>${censChip(cens)}</span></button>`;
   }
   S.innerHTML = h+'</div></details>';
   for(const b of S.querySelectorAll('.nr')) b.onclick=()=>{ state.neuron=+b.dataset.n; render(); };

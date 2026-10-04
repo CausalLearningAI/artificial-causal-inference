@@ -266,11 +266,11 @@ VIEW = {'mice': {'title': 'Mice', 'subject': 'mouse', 'subjects': 'mice', 'top':
                  'drop': ('v3_6_vs_8',), 'vnote': 'v2 (t=1, 2) and v3 t=2, 6, 8'},
         # frogs: one experiment (exp, hour 1 of every frog); the arms are the design column 'arm' (group, its values in
         # 'arms' order, control first), the recording session ('day' column) stands where the ants' recording day does;
-        # clips: tiles cut around each top clip's activation peak (crop 160 source px of the 512 px frame, the frog is
-        # ~80 px long; least rows: the whole frame); note = the domain note shown under the title and its hover text;
+        # clips: whole frames at 320 px as the ants (the frog, ~80 px of the 512 px frame, is ~50 px long; the page's 2x
+        # zoom around each top clip's activation peak shows it at ~100 px); note = the domain note under the title;
         # top 3 = what the page lists (it shows at most 3 top-by-p neurons per search)
         'frogs': {'title': 'Frogs', 'subject': 'frog', 'subjects': 'frogs', 'top': 3, 'cmp_top': False,
-                  'tile': 224, 'cols': 8, 'kr': 8, 'crop': 160, 'crf': 28, 'keep': None, 'vnote': '',
+                  'tile': 320, 'cols': 4, 'kr': 8, 'crop': None, 'crf': 28, 'keep': None, 'vnote': '',
                   'exp': 'hour 1', 'arm': 'group', 'arms': ('WT', 'FoxP1', 'En1'), 'day': 'session',
                   'size_text': 'with frog size (foreground patch count: how much of the frame the frog covers, '
                                'i.e. its posture and stretch) as a covariate (round-1 test)',

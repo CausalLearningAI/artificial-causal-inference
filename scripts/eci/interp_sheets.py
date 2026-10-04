@@ -38,12 +38,14 @@ sys.path.insert(0, str(ROOT))
 import scripts.eci.build_explorer as B  # noqa: E402
 
 N_TILES = 8
-TILE = {'mice': 256, 'ants': 320}
+TILE = {'mice': 256, 'ants': 320, 'frogs': 320}
 TRANS = {'1to2': 'Social H→O', '2to3': 'Social O→P', '4to5': 'Fear H→O', '5to6': 'Fear O→P'}
 
 
 def comparison_label(cfg, aid):
     an = cfg.dom.analysis(aid)
+    if cfg.view.get('arm'):  # frogs: mutant group minus WT
+        return f'{an.meta["treatment"]}−{an.meta["control"]}'
     if cfg.dom is not B.MICE:
         return f'{an.meta["experiment"]} t={an.meta["treatment"]} vs t={an.meta["control"]}'
     if an.family == 'A':
@@ -77,6 +79,8 @@ def video_label(cfg, meta, r):
     m = meta.iloc[int(r)]
     if cfg.dom is B.MICE:
         return f'S{int(m["stage"])} {B.STAGE_LABEL[int(m["stage"])]} · {m["genotype"]} · {m["pool"]}'
+    if cfg.view.get('arm'):  # frogs: group, recording session, video
+        return f'{m[cfg.view["arm"]]} · session {m[cfg.view["day"]]} · {m["observation_id"]}'
     return f'{m["experiment"]} t={int(m["T"])} · day {B.day_label(str(m["recording_date"]))} · {m["observation_id"]}'
 
 
