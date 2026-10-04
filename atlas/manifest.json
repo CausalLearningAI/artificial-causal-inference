@@ -1,16 +1,18 @@
 {
  "artifact": "https://claude.ai/artifact/JfJnP4CqjYWoprEq9dM8Qa",
- "artifact_version": "1791106222-c9ad (version 35)",
+ "artifact_version": "1791108363-0043 (version 36)",
  "published": "2026-10-04",
  "published_from": "work account (riccardo.cadei@ist.ac.at)",
- "build_command": "python scripts/eci/build_explorer.py --steps page,check --out results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v34 --asset-map results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v34/publish_v34/asset_map_v34.json --res <fg448al> --res <ff448al> --res <antsfg> --res <antsfull> (frogs deliberately left out)",
- "build_dir": "results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v34",
- "code_commit": "b8760e8",
+ "build_command": "python scripts/eci/build_explorer.py --steps page,check --out results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v36 --asset-map results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v36/publish_v36/asset_map_v36.json --res fg448al ff448al antsfg antsfull frogsfg frogsfull",
+ "build_dir": "results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v36",
+ "code_commit": "e6da8fa",
  "models": [
-  "mice: mouse mask (fg448al, odor-aligned)",
-  "mice: full frame (ff448al, odor-aligned whole 448 frame)",
+  "mice: mouse mask (fg448al)",
+  "mice: full frame (ff448al)",
   "ants: ants mask (antsfg)",
-  "ants: full frame (antsfull)"
+  "ants: full frame (antsfull)",
+  "frogs: frog mask (frogsfg)",
+  "frogs: full frame (frogsfull)"
  ],
  "archived_from_page": [
   "ep20 (224 crop, unaligned)",
@@ -41,16 +43,18 @@
  },
  "family_B_period_handling": "no data dropped; period-dependent chips (within-genotype AUC, family-wise thr 0.936, pointwise 0.754) + recording-day-adjusted re-test chip (period_check/)",
  "asset_store": {
-  "packs": 77,
-  "bytes": 575481256
+  "packs": 87,
+  "bytes": 643063018
  },
  "backups": "old v32 packs: local copies in results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer/assets and .../fg448_s0/explorer/assets (+ backup_v1790862630-1928/ for the v31 ants packs); old versions remain in the artifact history",
  "version_files": {
-  "index.html": 286057,
+  "index.html": 311202,
   "assets/antsfg_arena_bg.webp": 1578,
   "assets/antsfull_arena_bg.webp": 1578,
   "assets/ff448al_arena_bg.webp": 1654,
   "assets/fg448al_arena_bg.webp": 1654,
+  "assets/frogsfg_arena_bg.webp": 3648,
+  "assets/frogsfull_arena_bg.webp": 3648,
   "assets/data/antsfg_max_0.json": 198882,
   "assets/data/antsfg_max_1.json": 198290,
   "assets/data/antsfg_max_2.json": 194784,
@@ -103,7 +107,21 @@
   "assets/data/fg448al_mean_4.json": 59943,
   "assets/data/fg448al_r_meanactivationma.json": 109839,
   "assets/data/fg448al_somp_0.json": 189116,
-  "assets/data/fg448al_x.json": 679791
+  "assets/data/fg448al_x.json": 679791,
+  "assets/data/frogsfg_max_0.json": 162508,
+  "assets/data/frogsfg_mean_0.json": 157595,
+  "assets/data/frogsfg_r_boutratemaxpool.json": 4175,
+  "assets/data/frogsfg_r_meanactivationma.json": 1768,
+  "assets/data/frogsfg_somp_0.json": 115555,
+  "assets/data/frogsfg_x.json": 58266,
+  "assets/data/frogsfull_max_0.json": 196928,
+  "assets/data/frogsfull_max_1.json": 80690,
+  "assets/data/frogsfull_mean_0.json": 198389,
+  "assets/data/frogsfull_mean_1.json": 33541,
+  "assets/data/frogsfull_r_boutratemaxpool.json": 1150,
+  "assets/data/frogsfull_r_meanactivationma.json": 2331,
+  "assets/data/frogsfull_somp_0.json": 50735,
+  "assets/data/frogsfull_x.json": 73389
  },
- "interpretations": "Claude (Opus 5.5) per-neuron hypotheses from contact sheets, <res>/interp/interpretations.json (fg448al 137, ff448al 119, antsfg 132, antsfull 112); fg448al n112 toned down after spot check"
+ "interpretations": "Claude (Opus 5.5) per-neuron hypotheses for all 6 models (fg448al 137, ff448al 119, antsfg 132, antsfull 112, frogsfg 50, frogsfull 75)"
 }
