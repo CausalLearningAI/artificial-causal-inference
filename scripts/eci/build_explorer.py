@@ -616,7 +616,7 @@ class Cfg:
         self.align = json.loads(cc.read_text()).get('align', 'none') if cc.exists() else 'none'
         self.rot = frame_rot90(self.sae, DATASET, domain=self.vdom)  # None or per-row 90-degree turns (clips)
         self.artefact = ARTEFACT_EP20 if self.sae == 'matryoshka_btk_1024_k16_ep20_s0' else set()
-        # Claude's per-neuron interpretations (<res>/interp/interpretations.json {neuron: {text, conf, tags}}), if any
+        # Claude's per-neuron interpretations (<res>/interp/interpretations.json {neuron: {text, conf, tags, model?}}), if any
         fi = self.res / 'interp' / 'interpretations.json'
         self.interp = {str(k): v for k, v in json.loads(fi.read_text()).items()} if fi.exists() else {}
         self.crf = a.crf if a.crf is not None else self.view['crf']
@@ -2179,7 +2179,7 @@ def page_data(cfg):
                  'bout_thr_bar': (round(min(t / vmax, 1.0), 4) if t is not None and vmax > 0 else None),
                  'arena': arena_of(j)}
             if str(j) in cfg.interp:
-                e['interp'] = {k: cfg.interp[str(j)][k] for k in ('text', 'conf') if k in cfg.interp[str(j)]}
+                e['interp'] = {k: cfg.interp[str(j)][k] for k in ('text', 'conf', 'model') if k in cfg.interp[str(j)]}
             neurons[key][j] = e
         for k2, j in sorted(cfg.noclip):
             if k2 == key:

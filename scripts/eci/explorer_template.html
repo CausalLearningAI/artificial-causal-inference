@@ -1,4 +1,4 @@
-<title>Exploratory Causal Inference x Mice</title>
+<title>do-pilot: ECI &times; Mice</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -58,6 +58,15 @@ abbr[title],.tip{text-decoration:underline dotted var(--faint);cursor:help}
 .apick .sel{font-size:13px;padding:4px 8px}
 .apick .cnt{font:500 12px var(--mono);color:var(--ink)}
 .loading{padding:12px;color:var(--faint);font-size:13px}
+/* experiment details: a closed-by-default toggle under the title, one design description per domain */
+.xdet{margin-top:6px;font-size:12.5px}
+.xdet summary{cursor:pointer;color:var(--accent);width:max-content;max-width:100%}
+.xdet summary:hover{text-decoration:underline}
+.xbox{margin-top:6px;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--soft);color:var(--ink);max-width:110ch;display:grid;gap:4px}
+.xbox dl{margin:0;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 14px}
+.xbox dt{color:var(--muted);font-weight:500}
+.xbox dd{margin:0}
+@media (max-width:560px){.xbox dl{grid-template-columns:minmax(0,1fr)}.xbox dd{margin-bottom:4px}}
 .clipbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:12.5px;color:var(--muted)}
 .cgrid{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:thin;cursor:grab;user-select:none;padding-bottom:4px;--per:4}
 .cgrid.drag{cursor:grabbing;scroll-snap-type:none}
@@ -159,7 +168,6 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
 .hd{display:grid;gap:6px}
 .note{font-size:12px;color:var(--muted);max-width:62ch}
-.note.dnote{max-width:118ch;font-size:12.5px}
 @media (max-width:900px){.main,.main.wide,.two{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:560px){
   .cgrid{--per:2}
@@ -172,7 +180,8 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
 
 <div class="wrap">
   <header>
-    <h1 id="title">Exploratory Causal Inference x <select id="domSel" class="tsel" aria-label="Domain" title="Experimental domain: its videos, comparisons and models"></select></h1>
+    <h1 id="title"><i>do</i>-pilot: Exploratory Causal Inference &times; <select id="domSel" class="tsel" aria-label="Domain" title="Experimental domain: its videos, comparisons and models"></select></h1>
+    <details class="xdet" id="expDet"><summary>experiment details</summary><div class="xbox" id="expBox"></div></details>
     <div class="model" id="modelBar" role="group" aria-label="Model">
       <span class="opt" id="prefixOpt"><span class="tip" title="Search only the first 128 or the first 256 neurons (coarse Matryoshka prefixes). 128 is the main search">Neurons</span><span class="seg" id="prefixSeg"><button type="button" data-p="128" title="Search the first 128 neurons (the coarse Matryoshka prefix): the main search">128</button><button type="button" data-p="256" title="Search the first 256 neurons (the next Matryoshka prefix)">256</button></span></span>
     </div>
@@ -191,8 +200,6 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
     </div>
   </nav>
 
-  <p class="note dnote" id="domNote" hidden></p>
-  <p class="note" id="modelNote" hidden></p>
   <p class="warnbox one" id="subNote" hidden></p>
   <p class="warnbox one" id="cfNote" hidden></p>
 
@@ -247,6 +254,35 @@ const STAGE = {1:'H,S',2:'O,S',3:'P,S',4:'H,F',5:'O,F',6:'P,F'};
 const PHASE = {1:'Habituation<br>Social',2:'Odor<br>Social',3:'Post<br>Social',4:'Habituation<br>Fear',5:'Odor<br>Fear',6:'Post<br>Fear'};
 const STAGE_LONG = {1:'habituation, social odor',2:'social odor',3:'post, social odor',4:'habituation, fear odor',5:'fear odor',6:'post, fear odor'};
 const TRANS = {'1to2':'Social H→O','2to3':'Social O→P','4to5':'Fear H→O','5to6':'Fear O→P'};
+/* "experiment details" under the title: the design of each domain's experiment (facts only, no results) */
+const DETAILS = {
+  mice: [
+    ['Organism', 'Mice from three autism-associated gene lines (ash1l, kdm6b, kmt5b): heterozygous knockout (het) vs wild type (wt).'],
+    ['Filming', 'A pool (a group of four mice of one genotype) is filmed in an arena in six stages: habituation (30 min), odor (15 min) and post (15 min) with a social odor (stages 1–3), then the same three with a fear odor (stages 4–6). One video per stage, analysed at 5 frames per second.'],
+    ['Units', '72 pools (36 het, 36 wt), 432 videos. Per gene line 12 het and 12 wt pools; per sex 18 het and 18 wt pools.'],
+    ['Comparisons', 'A · stage change: paired change between two consecutive stages of the same pool (social H→O, O→P; fear H→O, O→P), within one genotype; unit = pool, τ = later minus earlier stage. B · het vs wt: within one stage; unit = video, τ = het − wt.'],
+    ['Time window', 'The whole video of each stage.'],
+    ['Preprocessing', 'Every video is rotated so the odor corner is at the top right. Mouse-mask models see only the mouse patches; full-frame models see the whole frame, including the setup (odor bag, bedding).'],
+    ['Design caveat', 'The camera period (odor-corner group) is unbalanced by genotype, so het vs wt can pick up recording-period differences; such discoveries carry a “camera period” chip.'],
+  ],
+  ants: [
+    ['Organism', 'Ants: a focal ant and two nestmates marked with orange and blue dots, filmed together.'],
+    ['Filming', 'One 10 min video per group (3000 frames at 5 frames per second). Two experiments: v2 (the ISTAnt dataset) and v3.'],
+    ['Units', 'Unit = video. v2: t=1 (24 videos) vs t=2 (20). v3: t=2 (38), t=6 (34), t=8 (35); the other v3 treatments are not shown. 151 videos in all.'],
+    ['Comparisons', 'Treated vs control videos within one experiment: v2 t=1 vs t=2, v3 t=2 vs t=6, v3 t=2 vs t=8. t = the treatment number; control = the lower number; τ = treated − control.'],
+    ['Time window', 'The whole 10 min video.'],
+    ['Design caveat', 'In v3, t=8 was recorded only on day C (brighter arena) and t=2 and t=6 only on days A and B, so t=2 vs t=8 is confounded with the recording day.'],
+  ],
+  frogs: [
+    ['Organism', 'Xenopus juvenile froglets (Sweeney group, ISTA): wild type (WT) and half-embryo CRISPR mutants, where one side of the body is edited (FoxP1 gRNA1, En1 gRNA4). All frogs are genotyped.'],
+    ['Filming', 'Top-down, one frog per dish. Hour 1 of each frog’s recording, one video per frog (18,000 frames at 5 frames per second).'],
+    ['Units', 'Unit = frog (one video). 35 frogs: 13 WT, 14 FoxP1, 8 En1.'],
+    ['Comparisons', 'FoxP1 vs WT and En1 vs WT (21–27 frogs per comparison); τ = mutant − WT. FoxP1 vs En1 is not searched.'],
+    ['Time window', 'Hour 1 of each frog.'],
+    ['Preprocessing', 'Videos are mirrored where needed so the mutant side is always the frog’s right; 5 of the 13 WT videos are mirrored at random too, to balance the mirrored dish labels.'],
+    ['Design caveat', 'Each group was filmed in its own recording sessions (no session holds both WT and mutant frogs), so group is fully confounded with session and date. The session checks can only measure how much a neuron varies between sessions of one group, and whether a discovery survives dropping any one session.'],
+  ],
+};
 const TAU_TIP = 'tau: effect size in the outcome unit. A: mean paired change from the first to the second stage. B: het − wt (mean of the het videos minus mean of the wt videos; positive = higher in het).';
 const P_TIP = 'p: t-test p-value. Found = p below the Bonferroni threshold of that search round.';
 const state = {sae:DATA0.sae, from:'all', len:'1s', view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:128, window:'full', neuron:null, heat:true, sort:'count', line:'all', sex:'all', nper:8};
@@ -261,8 +297,21 @@ if(!['all','ash1l','kdm6b','kmt5b'].includes(state.line)) state.line = 'all';
 if(!['all','f','m'].includes(state.sex)) state.sex = 'all';
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const fmtP = p => p<1e-3 ? p.toExponential(1).replace('e-','e−') : p.toFixed(4);
-const fmtTau = t => (t>=0?'+':'−')+Math.abs(t).toPrecision(3);
+/* numbers: plain decimals, never exponent notation. fmt3 = 3 significant figures (3170.4 -> 3170, -9273 -> -9270,
+   0.012345 -> 0.0123, 12.44 -> 12.4); p-values: 4 decimals from 0.001, 2 significant figures down to 0.0001,
+   below that '<0.0001' */
+const fmt3 = v => {
+  if(v==null || !isFinite(v)) return String(v);
+  if(v===0) return '0';
+  const r = +(+v).toPrecision(3), a = Math.abs(r);
+  if(a>=1e-6 && a<1e21) return String(r);
+  return r.toFixed(Math.min(100, Math.max(0, 2 - Math.floor(Math.log10(a)))));
+};
+const fmtP = p => p==null || !isFinite(p) ? String(p) : p>=1e-3 ? p.toFixed(4) : p>=1e-4 ? String(+p.toPrecision(2)) : '<0.0001';
+/* interpretation text: escaped, then **word(s)** -> <b>word(s)</b>; the model that wrote it (interp.model, else Opus 5.5) */
+const boldMd = t => esc(t).replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>');
+const interpModel = it => String(it && it.model || 'Opus 5.5').replace(/^claude[\s-]+/i, '');
+const fmtTau = t => (t>=0?'+':'−')+fmt3(Math.abs(t));
 const save = () => { try{ localStorage.setItem('nes-atlas', JSON.stringify(state)); }catch(e){} };
 /* subgroup (gene line x sex): 'all_all' = every pool; otherwise DATA.subsets[name] holds that subgroup's own searches */
 const subName = () => `${state.line}_${state.sex}`;
@@ -431,7 +480,13 @@ function modelBar(){
     el.innerHTML = vals.map(v=>`<option value="${esc(v)}" title="${esc(ax.tips[v]||v)}">${esc(v)}</option>`).join('');
   }
   const d = (ALL.domains||[]).find(x=>x.id===(DATA.domain||'mice'));
-  if(d){ $('#domSel').value = d.id; document.title = `Exploratory Causal Inference x ${d.title}`; }
+  if(d){ $('#domSel').value = d.id; document.title = `do-pilot: ECI \u00d7 ${d.title}`; }
+  const XD = DETAILS[DATA.domain||'mice'], XB = $('#expBox');   // experiment details of the shown domain
+  $('#expDet').hidden = !XD;
+  if(XD && XB.dataset.dom!==(DATA.domain||'mice')){
+    XB.dataset.dom = DATA.domain||'mice';
+    XB.innerHTML = `<dl>${XD.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
+  }
 }
 
 /* every neuron found in any analysis under the current outcome / window / prefix */
@@ -522,13 +577,10 @@ function buildControls(){
   for(const b of document.querySelectorAll('#lineSeg button')){ b.setAttribute('aria-pressed', String(b.dataset.line===state.line)); b.disabled = !subOk(b.dataset.line, state.sex); }
   for(const b of document.querySelectorAll('#sexSeg button')){ b.setAttribute('aria-pressed', String(b.dataset.sex===state.sex)); b.disabled = !subOk(state.line, b.dataset.sex); }
   $('#lineOpt').hidden = $('#sexOpt').hidden = DATA.sub_ui===false;
-  const MN = $('#modelNote'); MN.hidden = !DATA.note; if(DATA.note) MN.textContent = `ⓘ ${DATA.note}`;
   const ca = analysis(state.aid), CN = $('#cfNote');
   CN.hidden = !(state.view==='cmp' && ca && ca.confound);
   if(!CN.hidden) CN.textContent = FROGS() ? `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip names its video (group_session_slot) and the clip rows count their sessions: a neuron found in one session only is suspect; a one-sided (left/right) change in FoxP1 only cannot come from a session.`
                                            : `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip shows its recording day: check whether a neuron follows the lighting or the behavior.`;
-  const DN = $('#domNote'); DN.hidden = !DATA.dnote;   // domain note (frogs): data and caveat; its details on hover
-  if(DATA.dnote) DN.innerHTML = `ⓘ ${esc(DATA.dnote)}${DATA.dnote_tip ? ` <span class="tip" title="${esc(DATA.dnote_tip)}">More</span>` : ''}`;
   const S = SUB(), NB = $('#subNote');
   NB.hidden = !S;
   if(S){
@@ -682,7 +734,7 @@ function histSVG(n, a){
   for(let e = Math.ceil(lo); e <= Math.floor(hi); e++){
     s += `<line x1="${m.l}" x2="${W-m.r}" y1="${y(10**e)}" y2="${y(10**e)}" stroke="var(--line)"/><text x="${m.l-6}" y="${y(10**e)+4}" text-anchor="end" font-size="10.5" fill="var(--muted)" ${F}>1e${e}</text>`;
   }
-  for(let i = 0; i <= 4; i++){ const v = E[0] + i * (E[B] - E[0]) / 4; s += `<text x="${x(v)}" y="${Ht-m.b+15}" text-anchor="middle" font-size="10.5" fill="var(--muted)" ${F}>${+v.toPrecision(3)}</text>`; }
+  for(let i = 0; i <= 4; i++){ const v = E[0] + i * (E[B] - E[0]) / 4; s += `<text x="${x(v)}" y="${Ht-m.b+15}" text-anchor="middle" font-size="10.5" fill="var(--muted)" ${F}>${fmt3(v)}</text>`; }
   for(const S of series){
     const d = S.c.map((v,i) => `${i?'L':'M'}${x(E[i])},${y(v)}H${x(E[i+1])}`).join('');
     s += S.fill ? `<path d="M${x(E[0])},${Ht-m.b}${d.replace(/^M/,'L')}V${Ht-m.b}Z" fill="var(--soft)" stroke="${S.col}" stroke-width="1"/>`
@@ -732,7 +784,7 @@ function chart(T, hl){
   for(const st of hl) s+=`<rect x="${x(st)-bw/2}" y="${m.t}" width="${bw}" height="${H-m.t-m.b}" fill="var(--shade)"/>`;
   for(let v=lo; v<=hi+step/2; v+=step){
     s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/>`;
-    s+=`<text x="${m.l-6}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)" ${F}>${+v.toPrecision(3)}</text>`;
+    s+=`<text x="${m.l-6}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)" ${F}>${fmt3(v)}</text>`;
   }
   for(let st=1;st<=6;st++){
     s+=`<text x="${x(st)}" y="${H-m.b+15}" text-anchor="middle" font-size="11" fill="var(--ink)" ${F}>${st}</text>`;
@@ -743,7 +795,7 @@ function chart(T, hl){
     s+=`<polyline fill="none" stroke="var(--${g})" stroke-width="1.2" stroke-opacity=".45" points="${pts.map(t=>`${x(t.stage)+dx},${y(t.mean)}`).join(' ')}"/>`;
     for(const t of pts){
       s+=`<line x1="${x(t.stage)+dx}" x2="${x(t.stage)+dx}" y1="${y(t.lo)}" y2="${y(t.hi)}" stroke="var(--${g})" stroke-width="2"/>`;
-      s+=`<circle cx="${x(t.stage)+dx}" cy="${y(t.mean)}" r="3.8" fill="var(--${g})" stroke="#fff" stroke-width="1.2"><title>${g}, stage ${t.stage}: ${t.mean.toPrecision(3)} [${t.lo.toPrecision(3)}, ${t.hi.toPrecision(3)}], ${t.n_pools} pools</title></circle>`;
+      s+=`<circle cx="${x(t.stage)+dx}" cy="${y(t.mean)}" r="3.8" fill="var(--${g})" stroke="#fff" stroke-width="1.2"><title>${g}, stage ${t.stage}: ${fmt3(t.mean)} [${fmt3(t.lo)}, ${fmt3(t.hi)}], ${t.n_pools} pools</title></circle>`;
     }
   }
   return s+'</svg>';
@@ -760,7 +812,7 @@ function chartGroups(T, hl){
   T.forEach((t,i) => { if(hl.includes(`${t.experiment}|${t.T}`)) s+=`<rect x="${x(i)-bw/2}" y="${m.t}" width="${bw}" height="${H-m.t-m.b}" fill="var(--shade)"/>`; });
   for(let v=lo; v<=hi+step/2; v+=step){
     s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/>`;
-    s+=`<text x="${m.l-6}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)" ${F}>${+v.toPrecision(3)}</text>`;
+    s+=`<text x="${m.l-6}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)" ${F}>${fmt3(v)}</text>`;
   }
   T.forEach((t,i) => {
     const k=`${t.experiment}|${t.T}`, col = k===hl[0] ? 'var(--wt)' : k===hl[1] ? 'var(--het)' : 'var(--ink)';
@@ -768,7 +820,7 @@ function chartGroups(T, hl){
     if(!i || T[i-1].experiment!==t.experiment) s+=`<text x="${x(i)-bw/2+3}" y="${H-m.b+29}" font-size="10" fill="var(--muted)" ${F}>${esc(t.experiment)}</text>`;
     s+=`<text x="${x(i)}" y="${H-m.b+15}" text-anchor="middle" font-size="11" fill="var(--ink)" ${F}>${esc(armL(t.T))}</text>`;
     s+=`<line x1="${x(i)}" x2="${x(i)}" y1="${y(t.lo)}" y2="${y(t.hi)}" stroke="${col}" stroke-width="2"/>`;
-    s+=`<circle cx="${x(i)}" cy="${y(t.mean)}" r="3.8" fill="${col}" stroke="#fff" stroke-width="1.2"><title>${esc(t.experiment)} ${esc(armL(t.T))}: ${t.mean.toPrecision(3)} [${t.lo.toPrecision(3)}, ${t.hi.toPrecision(3)}], ${t.n} videos</title></circle>`;
+    s+=`<circle cx="${x(i)}" cy="${y(t.mean)}" r="3.8" fill="${col}" stroke="#fff" stroke-width="1.2"><title>${esc(t.experiment)} ${esc(armL(t.T))}: ${fmt3(t.mean)} [${fmt3(t.lo)}, ${fmt3(t.hi)}], ${t.n} videos</title></circle>`;
   });
   return s+'</svg>';
 }
@@ -795,7 +847,7 @@ function renderDetail(){
   h+=`</span></div>`;
   if(hits) h+=`<div class="tags" aria-label="Found in">${hits.hits.map(({a:b,r:x})=>`<button type="button" class="tag ${cmp&&b.id===state.aid?'cur':x.tau>0?'up':'down'}" data-aid="${b.id}" title="${esc(longLabel(b))}: tau ${fmtTau(x.tau)} ${esc(outcome().unit)}, p ${fmtP(x.p)}. Open this comparison">${shortLabel(b)}${x.tau>0?'▲':'▼'}</button>`).join('')}</div>`;
   h+='</div>';
-  if(n.interp) h+=`<p class="interp"><span class="tip" title="Hypothesis written by Claude (Opus 5.5) from this neuron's top/least clips, heat maps and arena map; not verified.">Claude interpretation</span>: ${esc(n.interp.text)}${n.interp.conf?` <span class="chip ${n.interp.conf==='clear'?'Y':'na'}" title="Claude's confidence in this reading (clear / plausible / unclear)">${esc(n.interp.conf)}</span>`:''}</p>`;
+  if(n.interp) h+=`<p class="interp"><span class="tip" title="Hypothesis written by Claude (${esc(interpModel(n.interp))}) from this neuron's top/least clips, heat maps and arena map; not verified."><i>Claude ${esc(interpModel(n.interp))} Interpretation</i></span>: ${boldMd(n.interp.text)}${n.interp.conf?` <span class="chip ${n.interp.conf==='clear'?'Y':'na'}" title="Claude's confidence in this reading (clear / plausible / unclear)">${esc(n.interp.conf)}</span>`:''}</p>`;
   if(n.artefact) h+=`<div class="warnbox one">⚠ Likely artefact: ${esc(DATA.artefact_text[j]||'')}</div>`;
   if(n.noclip) return renderNoClip(D, h, j, n, cmp, a);
   const cd = outcome().codes, L = state.len, w = M.lengths[L], KR = M.kr || M.K, N = Math.min(state.nper, KR);
@@ -928,7 +980,7 @@ function poolPanel(n, a){
   lo = Math.floor(lo/step)*step; hi = Math.ceil(hi/step)*step; if(hi===lo) hi = lo+step;
   const x = v => m.l + (v-lo)/(hi-lo)*(W-m.l-m.r), F = 'font-family="IBM Plex Mono, ui-monospace, monospace"';
   let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Per-pool values">`;
-  for(let v=lo; v<=hi+step/2; v+=step) s += `<line x1="${x(v)}" x2="${x(v)}" y1="${m.t}" y2="${H-m.b}" stroke="var(--line)"/><text x="${x(v)}" y="${H-m.b+14}" text-anchor="middle" font-size="10.5" fill="var(--muted)" ${F}>${+v.toPrecision(3)}</text>`;
+  for(let v=lo; v<=hi+step/2; v+=step) s += `<line x1="${x(v)}" x2="${x(v)}" y1="${m.t}" y2="${H-m.b}" stroke="var(--line)"/><text x="${x(v)}" y="${H-m.b+14}" text-anchor="middle" font-size="10.5" fill="var(--muted)" ${F}>${fmt3(v)}</text>`;
   s += `<line x1="${x(0)}" x2="${x(0)}" y1="${m.t}" y2="${H-m.b}" stroke="var(--ink)" stroke-dasharray="3 3"/>`;
   s += `<text x="${(m.l+W-m.r)/2}" y="${H-4}" text-anchor="middle" font-size="10.5" fill="var(--muted)" ${F}>${esc(axis)}</text>`;
   rows.forEach((r,k) => {
@@ -936,10 +988,10 @@ function poolPanel(n, a){
     s += `<text x="${m.l-6}" y="${y0+4}" text-anchor="end" font-size="11" fill="var(--ink)" ${F}>${r.name}</text>`;
     r.v.forEach((v,i) => { s += r.c && r.c[i] ? `<circle cx="${x(v)}" cy="${y0 - 12 + ((i*0.618034)%1)*24}" r="2.6" fill="none" stroke="${r.col}" stroke-width="1"/>`
                                                : `<circle cx="${x(v)}" cy="${y0 - 12 + ((i*0.618034)%1)*24}" r="2.6" fill="${r.col}" fill-opacity=".5"/>`; });
-    s += `<line x1="${x(r.s.lo)}" x2="${x(r.s.hi)}" y1="${y0}" y2="${y0}" stroke="var(--ink)" stroke-width="2.5"/><line x1="${x(r.s.m)}" x2="${x(r.s.m)}" y1="${y0-10}" y2="${y0+10}" stroke="var(--ink)" stroke-width="2.5"><title>${r.name}: mean ${r.s.m.toPrecision(3)} [${r.s.lo.toPrecision(3)}, ${r.s.hi.toPrecision(3)}], n = ${r.s.n}</title></line>`;
+    s += `<line x1="${x(r.s.lo)}" x2="${x(r.s.hi)}" y1="${y0}" y2="${y0}" stroke="var(--ink)" stroke-width="2.5"/><line x1="${x(r.s.m)}" x2="${x(r.s.m)}" y1="${y0-10}" y2="${y0+10}" stroke="var(--ink)" stroke-width="2.5"><title>${r.name}: mean ${fmt3(r.s.m)} [${fmt3(r.s.lo)}, ${fmt3(r.s.hi)}], n = ${r.s.n}</title></line>`;
   });
   s += '</svg>';
-  const sm = rows.map(r => `${r.name} ${r.s.m.toPrecision(3)} [${r.s.lo.toPrecision(3)}, ${r.s.hi.toPrecision(3)}], n ${r.s.n}`).join(' · ');
+  const sm = rows.map(r => `${r.name} ${fmt3(r.s.m)} [${fmt3(r.s.lo)}, ${fmt3(r.s.hi)}], n ${r.s.n}`).join(' · ');
   const cn = lat ? `<p class="note">Censored (no bout in the first ${latW()} s, latency = ${latW()} s${a.family==='A'?'':', hollow dots'}): ${esc(censTip(cens))}</p>` : '';
   return `<div class="lg"><span>${esc(lg)} · black = mean, 95% CI</span></div>${s}<p class="note mono">${esc(sm)}</p>${cn}`;
 }
