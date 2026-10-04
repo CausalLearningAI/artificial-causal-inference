@@ -41,6 +41,16 @@ arm (family B) / at the later stage (family A). Nulls (primary setting, common w
 cache <nes root>/<sae>/_cache/latency_<P>.npz (first-above frame index in the whole full / last / trim window, NOT
 capped at W: the common-window latency of a video is min(cached index, window length), censored when >= it).
 
+Adjusted vs raw tau: a round-1 tau is the plain difference of mean latencies (bounded by the window length). A tau
+of round >= 2 is NES's ADJUSTED contrast (src/eci/nes.py: each arm's latency regressed on the latents already
+selected, both arms evaluated at the pooled mean of those latents). When an already-selected latent separates the arms
+(e.g. censored in almost every control video, early in every treated one) that point lies outside one arm's data and
+the arm's slope extrapolates, so an adjusted tau can exceed the window and even flip sign (frogs frogsfg max p128
+FoxP1_vs_WT round 4, latent 38: tau -9291 s in a 3601 s window, raw difference +894 s). It is not a latency
+difference. raw_contrast.csv gives, per selected (search, round), the raw contrast of the same latent (two-sample:
+treated mean - control mean; paired: mean of b - a), the arm means / medians and exceeds_window (|tau| > window, raw
+outcome only); SUMMARY.md and selected_neurons.json carry the raw contrast next to tau.
+
 Usage: python scripts/eci/run_nes_latency.py --domain mice --sae matryoshka_btk_1024_k16_fg448_s0 --frame-pooling max
        python scripts/eci/run_nes_latency.py --domain ants --sae matryoshka_btk_1024_k16_antsfg_s0_somp --frame-pooling somp --analysis-set pairs
 """
@@ -145,6 +155,22 @@ def tidy_rows(meta, res, directions):
              'direction': directions[0] if r['tau'] > 0 else directions[1]} for r in res['rounds'].to_dict('records')]
 
 
+def raw_contrast_rows(meta, res, Za, Zb, paired, window_s):
+    """Per selected round: tau (adjusted for the earlier rounds) next to the raw contrast of the same latent.
+    Two-sample: Za = control, Zb = treated rows; paired: Za / Zb = stage a / b of the same units."""
+    out = []
+    for r in res['rounds'].to_dict('records') if len(res['rounds']) else ():
+        j = int(r['neuron'])
+        a, b = Za[:, j], Zb[:, j]
+        raw = float((b - a).mean()) if paired else float(b.mean() - a.mean())
+        out.append({**meta, 'round': int(r['round']), 'neuron': j, 'tau': float(r['tau']), 'tau_raw': raw,
+                    'mean_a': float(a.mean()), 'mean_b': float(b.mean()), 'median_a': float(np.median(a)),
+                    'median_b': float(np.median(b)), 'window_s': window_s,
+                    'exceeds_window': bool(meta['transform'] == 'none' and abs(r['tau']) > window_s),
+                    'sign_flip': bool(np.sign(r['tau']) != np.sign(raw))})
+    return out
+
+
 def select(tidy, aid, prefix, s):
     t = tidy[(tidy['analysis_id'] == aid) & (tidy['prefix'] == prefix) & (tidy['round'] > 0)]
     for k, v in s.items():
@@ -233,7 +259,7 @@ def main():
     def settings(an):
         return [dict(PRIMARY)] + [{**PRIMARY, **ov} for n, ov in SENS.items() if applicable(n, an)]
 
-    rows, results, cens_rows = [], {}, []
+    rows, results, cens_rows, raw_rows = [], {}, [], []
     for an in D.analyses:
         aid = an.id
         results[aid] = {}
@@ -251,18 +277,22 @@ def main():
                         Za, Zb = R[:len(Za)], R[len(Za):]
                     res = paired_effect_search(Za, Zb, correction=s['correction'], test=s['test'])
                     extra = {}
+                    za, zb, is_paired = Za, Zb, True
                 else:
                     units, Z, T = C.two_sample(sm, an.select(design), 'v', wa, prefix, an.unit)
                     if s['transform'] == 'rank':
                         Z = rank_cols(Z)
                     res = neural_effect_search(Z, T, correction=s['correction'])
                     extra = {'n_het': int(T.sum()), 'n_wt': int((1 - T).sum())}
+                    za, zb, is_paired = Z[T == 0], Z[T == 1], False
                 k = skey(prefix, s)
                 results[aid][k] = {**strip(res), 'n_units': len(units), 'units': list(units), **extra,
                                    'W_frames': W, 'W_s': W / fps, 'window_frames': L, 'window_s': L / fps}
                 meta = dict(analysis_id=aid, family=an.family, **an.meta, prefix=prefix, pooling=FP, **s,
                             n_units=len(units), setting=k)
                 rows += tidy_rows(meta, res, an.directions)
+                raw_rows += raw_contrast_rows({'analysis_id': aid, 'family': an.family, 'prefix': prefix, 'setting': k,
+                                               'transform': s['transform']}, res, za, zb, is_paired, L / fps)
                 print(f'{aid} {k}: selected={res["selected"]} dropped={res["n_dropped"]}', flush=True)
                 if s == PRIMARY or (s['window'] == 'trim30' and s['threshold_q'] == 0.95 and s['transform'] == 'none'
                                     and s['test'] == 't' and s['correction'] == 'bonferroni'):
@@ -286,6 +316,11 @@ def main():
     tidy.to_csv(out / 'summary.csv', index=False)
     cens = pd.DataFrame(cens_rows)
     cens.to_csv(out / 'censoring.csv', index=False)
+    raw = pd.DataFrame(raw_rows)
+    raw.to_csv(out / 'raw_contrast.csv', index=False)
+    if len(raw):
+        print(f'adjusted tau outside the window: {int(raw["exceeds_window"].sum())} / {len(raw)} selected rounds; '
+              f'sign opposite to the raw contrast: {int(raw["sign_flip"].sum())}', flush=True)
 
     rng = np.random.default_rng(0)
     sanity = {'thresholds_n_frames': n_used, 'nulls': {}, 'fps': fps,
@@ -311,12 +346,15 @@ def main():
         print(f'nulls p{prefix}:', sanity['nulls'][f'p{prefix}'], flush=True)
     sanity['runtime_s'] = time.time() - t_start
     (out / 'sanity.json').write_text(json.dumps(C.to_jsonable(sanity), indent=1))
-    write_reports(out, tidy, cens, design, D, {a: censored(0.95, w) for a, w in W_an.items()}, sanity, args.sae, FP)
+    write_reports(out, tidy, cens, design, D, {a: censored(0.95, w) for a, w in W_an.items()}, sanity, args.sae, FP,
+                  raw)
     print(f'done in {time.time() - t_start:.0f}s -> {out}', flush=True)
 
 
-def write_reports(out, tidy, cens, design, D, cz_an, sanity, sae, FP):
-    """cz_an: {analysis_id: censored indicators of the primary (common) window, q 0.95}."""
+def write_reports(out, tidy, cens, design, D, cz_an, sanity, sae, FP, raw):
+    """cz_an: {analysis_id: censored indicators of the primary (common) window, q 0.95}; raw: raw_contrast.csv."""
+    rawk = {} if not len(raw) else {(a, k, int(r)): (v, e) for a, k, r, v, e in
+                                    raw[['analysis_id', 'setting', 'round', 'tau_raw', 'exceeds_window']].values}
     names = list(SENS)
     L = [f'# NES summary ({FP} frame values, LATENCY outcome): {sae}', '',
          f'Outcome = time (s) from the start of the window to the first bout of each latent. Bout as the event-rate '
@@ -334,7 +372,11 @@ def write_reports(out, tidy, cens, design, D, cz_an, sanity, sae, FP):
          f'Censoring (primary, common window, tested latents): mean over analyses / prefixes of the censored cell '
          f'fraction = {sanity["censoring_primary_overall"]:.3f}; per analysis in censoring.csv.', '',
          'Robustness columns: Y = also selected (any round) under that single change; "-" = not applicable. '
-         'cens = censored fraction of the selected latent in each arm (control / treated; family A: stage a / b).', '']
+         'cens = censored fraction of the selected latent in each arm (control / treated; family A: stage a / b).',
+         '', 'tau of round >= 2 is ADJUSTED for the latents selected before it (arm-wise regression evaluated at the '
+         'pooled mean of those latents); it is not a latency difference and can exceed the window when an earlier '
+         'latent separates the arms (extrapolation). raw (s) = the plain contrast of the same latent (treated mean - '
+         'control mean; family A: mean of b - a); "!" = |tau| > the window.', '']
     for an in D.analyses:
         aid = an.id
         L.append(f'## {aid}' + (f' ({an.meta.get("confound")})' if an.meta.get('confound') else '')
@@ -350,8 +392,8 @@ def write_reports(out, tidy, cens, design, D, cz_an, sanity, sae, FP):
             if not len(ps):
                 L.append(head.replace(f'{len(ps)} selected', 'nothing selected'))
                 continue
-            L += [head, '', '| round | neuron | direction | tau (s) | p | cens ctl/trt | ' + ' | '.join(names) + ' |',
-                  '|' + '---|' * (6 + len(names))]
+            L += [head, '', '| round | neuron | direction | tau (s) | raw (s) | p | cens ctl/trt | ' + ' | '.join(names)
+                  + ' |', '|' + '---|' * (7 + len(names))]
             for _, r in ps.iterrows():
                 j = int(r['neuron'])
                 marks = ['Y' if j in select(tidy, aid, prefix, {**PRIMARY, **SENS[n]}) else 'N' if applicable(n, an) else '-'
@@ -362,7 +404,9 @@ def write_reports(out, tidy, cens, design, D, cz_an, sanity, sae, FP):
                 else:
                     _, Cc, T = C.two_sample(cz, an.select(design), 'v', 'full', None, an.unit)
                     c0, c1 = Cc[T == 0, j].mean(), Cc[T == 1, j].mean()
-                L.append(f'| {int(r["round"])} | {j} | {r["direction"]} | {r["tau"]:.3g} | {r["p"]:.2e} | {c0:.2f}/{c1:.2f} | '
+                rv, ex = rawk.get((aid, skey(prefix, PRIMARY), int(r['round'])), (np.nan, False))
+                L.append(f'| {int(r["round"])} | {j} | {r["direction"]} | {r["tau"]:.3g}{" !" if ex else ""} | {rv:.3g} | '
+                         f'{r["p"]:.2e} | {c0:.2f}/{c1:.2f} | '
                          + ' | '.join(marks) + ' |')
             L.append('')
         L.append('')
@@ -378,7 +422,8 @@ def write_reports(out, tidy, cens, design, D, cz_an, sanity, sae, FP):
             continue
         union.setdefault(int(r['neuron']), {'hits': []})['hits'].append(
             {'analysis_id': r['analysis_id'], 'prefix': int(r['prefix']), 'round': int(r['round']),
-             'direction': r['direction'], 'tau_s': float(r['tau']), 'p': float(r['p'])})
+             'direction': r['direction'], 'tau_s': float(r['tau']), 'p': float(r['p']),
+             'tau_raw_s': float(rawk.get((r['analysis_id'], r['setting'], int(r['round'])), (np.nan,))[0])})
     (out / 'selected_neurons.json').write_text(json.dumps(
         {'sae': sae, 'settings': f'primary (codes_{FP}, latency to first bout q0.95, t, bonferroni, common window: '
                                  'first W s of every video, W = shortest video of the analysis)',
