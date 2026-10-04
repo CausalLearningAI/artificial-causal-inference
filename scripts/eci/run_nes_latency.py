@@ -48,8 +48,9 @@ already selected, slope shared by both arms; tau = the arm difference at equal v
 of them separated the arms (censored in almost every control video, early in every treated one) that point lay
 outside one arm's data and tau extrapolated past the window and even flipped sign (frogs frogsfg max p128
 FoxP1_vs_WT round 4, latent 38: tau -9291 s in a 3601 s window, raw difference +894 s). Such a round is now
-untestable (nes.check_overlap: each arm needs >= 3 units inside the common range of every selected latent) and the
-search stops there (result.json 'stopped'). raw_contrast.csv gives, per selected (search, round), the raw contrast of the same latent (two-sample:
+untestable (nes.check_overlap: each arm needs >= 3 units inside the common range of every selected latent; paired:
+>= 3 pools on each side of a zero change) and the search stops there (result.json 'stopped'); a latent whose own
+adjustment direction has no such support is untestable (p = 1) in its round. raw_contrast.csv gives, per selected (search, round), the raw contrast of the same latent (two-sample:
 treated mean - control mean; paired: mean of b - a), the arm means / medians and exceeds_window (|tau| > window, raw
 outcome only); SUMMARY.md and selected_neurons.json carry the raw contrast next to tau.
 

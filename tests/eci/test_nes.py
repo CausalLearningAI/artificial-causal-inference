@@ -29,7 +29,7 @@ from scipy import stats
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from eci.nes import (  # noqa: E402
-    _ols_contrast, _onehot, check_overlap, make_strata, neural_effect_search, neural_effect_test, paired_effect_search,
+    _ols_contrast, _onehot, check_overlap, check_overlap_paired, make_strata, neural_effect_search, neural_effect_test, paired_effect_search,
     paired_effect_test, unit_means,
 )
 
@@ -156,9 +156,14 @@ def test_recovery_strong_effect():
     assert out['two-sample n=72']['exact'] >= 0.7, out['two-sample n=72']
     for k in ('two-sample n=720', 'paired n=72', 'paired n=360'):
         assert out[k]['exact'] >= 0.85, (k, out[k])
-    # false_disc ~ alpha is nominal: the final, stopping round is itself a family tested at alpha
+    # false_disc ~ alpha is nominal: the final, stopping round is itself a family tested at alpha.
+    # Paired n=36: neuron 0 changes by 2 noise sd, so only ~3 of 36 pools have a change <= 0 and the round-2 test
+    # (the change of neuron 1 at D_0 = 0) is often outside the data: since 2026-10-04 that round is untestable
+    # (check_overlap_paired) and the search stops. Measured at 200 sims (seed 101): exact 0.300 with the rule,
+    # 0.495 without (the leakage here is exactly linear, so the old extrapolation happened to be right); 57% of the
+    # searches stop on the rule. At 72 pools: 0.900 vs 0.935.
     for k in ('paired n=36', 'paired sign-flip n=36'):
-        assert out[k]['first_true'] >= 0.95 and out[k]['exact'] >= 0.3 and out[k]['false_disc'] <= 0.2, (k, out[k])
+        assert out[k]['first_true'] >= 0.95 and out[k]['exact'] >= 0.1 and out[k]['false_disc'] <= 0.2, (k, out[k])
 
 
 def test_fwer_global_null():
@@ -443,6 +448,47 @@ def test_shared_slope_recovers_effect():
     print(f'    {n_sim} sims: mean tau {taus.mean():.3f} (true 0.8), sd {taus.std():.3f}, 95% CI coverage {cover / n_sim:.3f}')
     assert abs(taus.mean() - 0.8) < 0.03 and 0.92 <= cover / n_sim <= 0.98
     check_overlap(np.column_stack([1.0 * T + rng.normal(size=72)]), T)  # no error
+
+
+def test_support_along_adjustment_direction():
+    """(e) several conditioning neurons, each overlapping between the arms on its own, while the combination the
+    tested neuron is adjusted along separates them: x1 - x2 = +-2 by arm. The round-level rule passes, the
+    neuron-level rule (common range of the adjustment score s_j = X b_j) makes the neuron untestable; a neuron
+    adjusted along x1 + x2 (overlapping) stays testable (its tau is imprecise: T is nearly collinear with x1 - x2)."""
+    rng = np.random.default_rng(34)
+    T = np.repeat([0, 1], 36)
+    u = rng.normal(0, 3, 72)
+    x1 = u + np.where(T == 1, 1.0, -1.0) + rng.normal(0, 0.3, 72)
+    x2 = u - np.where(T == 1, 1.0, -1.0) + rng.normal(0, 0.3, 72)
+    check_overlap(np.column_stack([x1, x2]), T)  # marginal overlap: no error
+    y_sep = 400 * (x1 - x2) + rng.normal(0, 1, 72)  # adjusted along the separating combination
+    y_ok = 0.5 * (x1 + x2) + 0.3 * T + rng.normal(0, 1, 72)
+    tab, _ = neural_effect_test(np.column_stack([x1, x2, y_sep, y_ok]), T, S=[0, 1], cols=[2, 3])
+    print(f'    separating combination: support {bool(tab["support"][0])}, p {tab["p"][0]}; '
+          f'overlapping combination: support {bool(tab["support"][1])}, tau {tab["tau"][1]:.2f} +- {tab["se"][1]:.2f} (true 0.3)')
+    assert not tab['support'][0] and not tab['testable'][0] and tab['p'][0] == 1.0
+    assert tab['support'][1] and tab['testable'][1]
+
+
+def test_paired_support():
+    """(f) paired: the paired tau is the change of neuron j at D_S = 0 (no change of the found concepts). When the
+    found concept increases in every pool (all D_1 > 0) that point is outside the data: round-level 'no overlap'
+    (the search stops after round 1); with >= 3 pools on each side of 0 the test runs."""
+    rng = np.random.default_rng(35)
+    Za = rng.normal(size=(36, 30))
+    Zb = Za + rng.normal(size=(36, 30))
+    Zb[:, 0] = Za[:, 0] + 3 + np.abs(rng.normal(size=36))  # every pool increases
+    Zb[:, 1] = Za[:, 1] + 2.0 * (Zb[:, 0] - Za[:, 0]) + rng.normal(0, 0.5, 36)  # leaks neuron 0's change
+    try:
+        check_overlap_paired((Zb - Za)[:, [0]])
+        raise AssertionError('expected no overlap')
+    except ValueError as err:
+        assert str(err).startswith('no overlap'), err
+    res = paired_effect_search(Za, Zb)  # round 1 picks neuron 1 or 0 (both change in every pool), round 2 stops
+    assert len(res['selected']) == 1 and 'round 2: no overlap' in res.get('stopped', ''), (res['selected'], res.get('stopped'))
+    D = rng.normal(0.5, 1, 36)
+    check_overlap_paired(D[:, None])  # ~11 pools below 0: no error
+    print(f'    all pools change: selected {res["selected"]}, stopped {res["stopped"]!r}')
 
 
 def main() -> int:
