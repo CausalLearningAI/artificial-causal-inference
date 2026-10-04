@@ -144,10 +144,17 @@ def day_adjusted_picks(picks, design, values, day, analyses):
         prev = []
         for r in grp.to_dict('records'):
             j = int(r['neuron'])
-            tab, info = neural_effect_test(Za, T, [dcol] + prev, cols=[j])
+            try:
+                tab, info = neural_effect_test(Za, T, [dcol] + prev, cols=[j])
+            except ValueError as err:  # e.g. the arms do not overlap on the day (nes.check_overlap): not estimable
+                out.append({**r, 'tau_day': np.nan, 'se_day': np.nan, 'p_day': np.nan, 'df_day': np.nan,
+                            'n_cells': 0, 'n_units': len(T), 'survives': False, 'not_estimable': str(err)})
+                prev.append(j)
+                continue
             t = tab.iloc[0]
             out.append({**r, 'tau_day': float(t['tau']), 'se_day': float(t['se']), 'p_day': float(t['p']),
                         'df_day': float(t['df']), 'n_cells': info['n_cells'], 'n_units': len(T),
-                        'survives': bool(t['p'] < r['threshold'] and np.sign(t['tau']) == np.sign(r['tau']))})
+                        'survives': bool(t['p'] < r['threshold'] and np.sign(t['tau']) == np.sign(r['tau'])),
+                        'not_estimable': ''})
             prev.append(j)
     return pd.DataFrame(out)

@@ -42,12 +42,14 @@ cache <nes root>/<sae>/_cache/latency_<P>.npz (first-above frame index in the wh
 capped at W: the common-window latency of a video is min(cached index, window length), censored when >= it).
 
 Adjusted vs raw tau: a round-1 tau is the plain difference of mean latencies (bounded by the window length). A tau
-of round >= 2 is NES's ADJUSTED contrast (src/eci/nes.py: each arm's latency regressed on the latents already
-selected, both arms evaluated at the pooled mean of those latents). When an already-selected latent separates the arms
-(e.g. censored in almost every control video, early in every treated one) that point lies outside one arm's data and
-the arm's slope extrapolates, so an adjusted tau can exceed the window and even flip sign (frogs frogsfg max p128
-FoxP1_vs_WT round 4, latent 38: tau -9291 s in a 3601 s window, raw difference +894 s). It is not a latency
-difference. raw_contrast.csv gives, per selected (search, round), the raw contrast of the same latent (two-sample:
+of round >= 2 is NES's ADJUSTED contrast (src/eci/nes.py: one regression of the latency on the arm and the latents
+already selected, slope shared by both arms; tau = the arm difference at equal values of those latents). Before
+2026-10-04 each arm had its own slope and the arms were compared at the pooled mean of the selected latents; when one
+of them separated the arms (censored in almost every control video, early in every treated one) that point lay
+outside one arm's data and tau extrapolated past the window and even flipped sign (frogs frogsfg max p128
+FoxP1_vs_WT round 4, latent 38: tau -9291 s in a 3601 s window, raw difference +894 s). Such a round is now
+untestable (nes.check_overlap: each arm needs >= 3 units inside the common range of every selected latent) and the
+search stops there (result.json 'stopped'). raw_contrast.csv gives, per selected (search, round), the raw contrast of the same latent (two-sample:
 treated mean - control mean; paired: mean of b - a), the arm means / medians and exceeds_window (|tau| > window, raw
 outcome only); SUMMARY.md and selected_neurons.json carry the raw contrast next to tau.
 

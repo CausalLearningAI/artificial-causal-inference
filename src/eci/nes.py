@@ -22,11 +22,17 @@ NES (Algorithm 1): run NET on every remaining neuron, reject at alpha / m_remain
 (Algorithm 1, line 6) to S and recurse.
 
 Residualization modes of the two-sample NET (`residualize`):
-  'ols' (default)  Steps A and C done jointly and exactly, per arm t: OLS of Z_j on stratum
-                   indicators + arm-t slopes on Z_S centred at the stratum's pooled mean of Z_S.
-                   The stratum intercepts are the arm-t means of Z_j adjusted to that common
-                   point (Lin 2013 interacted regression), tau = sum_g w_g (c_1g - c_0g) and the
-                   variance is the exact OLS one, per arm, df_t = n_t - rank.
+  'ols' (default)  Steps A and C done jointly and exactly in ONE pooled OLS (ANCOVA): Z_j on
+                   arm x stratum indicators + one slope vector on Z_S SHARED by both arms;
+                   tau = sum_g w_g (a_1g - a_0g) = the arm difference at equal Z_S, the variance
+                   is the exact OLS one (pooled residual variance), df = n - rank.
+                   Until 2026-10-04 each arm had its own slopes and the arms' fits were compared
+                   at the stratum's pooled mean of Z_S (Lin 2013 interacted regression). When an
+                   already-selected neuron nearly separates the arms, that point is outside one
+                   arm's data and tau extrapolated (frogs: -9291 s in a 3601 s latency window,
+                   the raw difference +894 s). The shared slope has no evaluation point; the
+                   overlap rule (check_overlap) makes a round untestable when the arms do not
+                   share enough support on Z_S for ANY linear adjustment to be an interpolation.
                    Why not the paper's plug-in (residuals, then Welch on stratum means): Z_S is
                    post-treatment, so the arm means of Z_S differ by O(1) from the centring point
                    and the slope's estimation error enters tau at the same O(n^-1/2) order as the
@@ -53,6 +59,16 @@ coarse the strata are.
 
 Near-constant neurons (active in < min_active of the units, or zero variance) are not tested
 and do not count in the Bonferroni m. Their count is reported.
+
+Untestable (fixed 2026-10-04; the rules were set before looking at which neurons they affect):
+  * overlap, rounds >= 2 (and nuisance conditioning): for every conditioning column x the common range
+    [max of the arms' minima, min of the arms' maxima] must hold >= min_per_cell (3) units of EACH arm
+    (check_overlap). Otherwise the round is untestable for every neuron (the covariates are shared) and the
+    search stops there with what it selected (result['stopped'] = 'round r: no overlap ...').
+  * zero SE: se <= SE_REL_TOL (1e-6) x the tested outcome's root mean square over the test's units (an exact fit, not
+    evidence; previously only se == 0 exactly was caught and SEs of ~1e-16 gave p down to 1e-177): t = 0,
+    p = 1, table column testable = False; still counted in the Bonferroni m. result['n_untestable'] = the
+    count per round tested. Round 1 without nuisance is the unchanged Welch test.
 
 Paired design (stage transitions, the same pool at stage a and b): see paired_effect_test().
 
@@ -139,13 +155,32 @@ def make_strata(levels, n_strata=2, min_per_cell=3, T=None):
     return np.zeros(n, dtype=np.int64), 0, 1
 
 
-def _t_pvalue(tau, V, den):
+SE_REL_TOL = 1e-6  # an SE below this fraction of the outcome's magnitude is a degenerate (exact) fit, not evidence
+
+
+def _rms(Y):
+    return np.sqrt((np.asarray(Y) ** 2).mean(0))
+
+
+def _t_pvalue(tau, V, den, scale=None):
+    """t statistic, Satterthwaite df (V^2 / den) and two-sided p, plus `testable`.
+
+    Untestable (t = 0, p = 1, testable False): a zero, negative or non-finite variance, or, with `scale` (the
+    tested outcome's root mean square over the units of the test, one per column: its magnitude, so a constant
+    outcome whose SD is only rounding noise is caught too), se <= SE_REL_TOL * scale. Such an SE does
+    not come from noise but from an exact fit (e.g. a latent that fires in 1 of 27 videos, the rest censored, fit
+    exactly by the conditioning set; we measured SEs ~1e-16 and p down to 1e-177 there). The relative rule keeps a
+    floating-point residual of ~1e-16 from passing as a real SE; at the sample sizes here a real SE is at
+    least ~0.01 SD. Untestable neurons stay in the Bonferroni m (conservative, as the old se = 0 -> p = 1 rule)."""
     with np.errstate(divide='ignore', invalid='ignore'):
         se = np.sqrt(V)
-        t = np.where(se > 0, tau / se, 0.0)
+        ok = np.isfinite(se) & (se > 0)
+        if scale is not None:
+            ok &= se > SE_REL_TOL * np.asarray(scale)
+        t = np.where(ok, tau / se, 0.0)
         df = np.where(den > 0, V ** 2 / den, 1.0)
-    p = np.where(se > 0, 2 * stats.t.sf(np.abs(t), df), 1.0)
-    return se, t, df, p
+    p = np.where(ok, 2 * stats.t.sf(np.abs(t), df), 1.0)
+    return se, t, df, p, ok
 
 
 def _ols_contrast(Y, X, a):
@@ -167,17 +202,37 @@ def _onehot(cell):
 
 
 def _two_sample_ols(Y, X, T, cell):
-    """Per arm: Y ~ stratum indicators + slopes on X centred at the stratum pooled mean."""
+    """One pooled OLS (ANCOVA): Y ~ arm x stratum intercepts + ONE slope vector on X shared by both arms.
+
+    tau = sum_g w_g (a_1g - a_0g), w_g = n_g / n: the arm difference at EQUAL X. With a shared slope that
+    difference is the same at every X, so no evaluation point is chosen and nothing is extrapolated between two
+    separately fitted lines (the old per-arm fit compared the arms' lines at the pooled mean of X, which lay
+    outside one arm's data when the arms barely overlapped on X: frogs, tau -9291 s in a 3601 s window).
+    Variance = the exact OLS one (pooled residual variance s^2 h'h, which includes the slope-estimation term),
+    df = n - rank. Returns (tau, V, den, n) with den = V^2 / df for _t_pvalue."""
     G = _onehot(cell)
     w = G.sum(0) / len(cell)
-    Xc = X - G @ (G.T @ X / G.sum(0)[:, None])
-    est, var, dof = [], [], []
-    for t in (1, 0):
-        ix = T == t
-        e, v, d, _ = _ols_contrast(Y[ix], np.column_stack([G[ix], Xc[ix]]), np.r_[w, np.zeros(X.shape[1])])
-        est.append(e), var.append(v), dof.append(d)
-    V = var[0] + var[1]
-    return est[0] - est[1], V, var[0] ** 2 / dof[0] + var[1] ** 2 / dof[1], len(cell)
+    t1 = (T == 1).astype(np.float64)[:, None]
+    A = np.column_stack([G * t1, G * (1 - t1), X - X.mean(0)])
+    tau, V, dof, _ = _ols_contrast(Y, A, np.r_[w, -w, np.zeros(X.shape[1])])
+    return tau, V, V ** 2 / dof, len(cell)
+
+
+def check_overlap(X, T, min_per_arm=3):
+    """Common-support rule of every NES round >= 2 (and of nuisance conditioning). For each conditioning covariate
+    x (column of X): the common range is [max(min x | T=1, min x | T=0), min(max x | T=1, max x | T=0)]; EACH arm
+    must have at least min_per_arm units inside it (min_per_arm = min_per_cell, the per-arm minimum the strata use).
+    Otherwise the arms are compared at X values one of them (nearly) never takes, the adjustment is a pure
+    extrapolation of the regression line, and the round is untestable: raises ValueError('no overlap ...').
+    The covariates are the same for every tested neuron, so this is a property of the round, not of a neuron."""
+    X = np.asarray(X, dtype=np.float64)
+    for c in range(X.shape[1]):
+        x1, x0 = X[T == 1, c], X[T == 0, c]
+        lo, hi = max(x1.min(), x0.min()), min(x1.max(), x0.max())
+        n1, n0 = int(((x1 >= lo) & (x1 <= hi)).sum()), int(((x0 >= lo) & (x0 <= hi)).sum())
+        if min(n1, n0) < min_per_arm:
+            raise ValueError(f'no overlap on conditioning column {c} (common range [{lo:.4g}, {hi:.4g}] holds '
+                             f'{n1} treated / {n0} control units, < {min_per_arm} per arm)')
 
 
 def _stratified_welch(R, T, cell):
@@ -233,6 +288,8 @@ def neural_effect_test(Z, T, S=(), cols=None, n_strata=2, min_per_cell=3, residu
     Y = Z[:, cols]
     if S:
         X = Z[:, S]
+        if residualize in ('ols', 'crossfit'):
+            check_overlap(X, T, min_per_cell)
         cell, k_used, q_used = make_strata(X, n_strata, min_per_cell, T)
     else:
         cell, k_used, q_used = np.zeros(len(T), dtype=np.int64), 0, 1
@@ -244,8 +301,8 @@ def neural_effect_test(Z, T, S=(), cols=None, n_strata=2, min_per_cell=3, residu
         tau, V, den, n_kept = _stratified_welch(Y, T, cell)
     else:
         raise ValueError(f'unknown residualize {residualize!r}')
-    se, t, df, p = _t_pvalue(tau, V, den)
-    table = pd.DataFrame({'neuron': cols, 'tau': tau, 'se': se, 't': t, 'df': df, 'p': p})
+    se, t, df, p, ok = _t_pvalue(tau, V, den, _rms(Y))
+    table = pd.DataFrame({'neuron': cols, 'tau': tau, 'se': se, 't': t, 'df': df, 'p': p, 'testable': ok})
     info = {'n_cells': int(len(np.unique(cell))), 'n_stratifiers': k_used, 'bins': q_used, 'n_units_kept': int(n_kept)}
     return table, info
 
@@ -278,7 +335,7 @@ def _search(test_fn, keep, alpha, correction, select, max_rounds, keep_tables, S
     t0 = time.time()
     tested = np.flatnonzero(keep)
     S0 = list(S0)
-    S, rounds, tables, stopped = [], [], [], None
+    S, rounds, tables, stopped, n_untestable = [], [], [], None, []
     while max_rounds is None or len(S) < max_rounds:
         cols = np.array([j for j in tested if j not in set(S)], dtype=np.int64)
         if len(cols) == 0:
@@ -288,12 +345,13 @@ def _search(test_fn, keep, alpha, correction, select, max_rounds, keep_tables, S
         except ValueError as err:
             # the conditioning set has used up the units (strata x slopes >= units per arm): stop with the
             # neurons selected so far, recorded as result['stopped']; round 1 still fails loud
-            if not S or not str(err).startswith(('no residual df', 'no stratum has')):
+            if not S or not str(err).startswith(('no residual df', 'no stratum has', 'no overlap')):
                 raise
             stopped = f'round {len(S) + 1}: {err}'
             break
         rejected, thr = _reject(table['p'].values, alpha, correction)
         table['significant'] = rejected
+        n_untestable.append(int((~table['testable'].values).sum()))
         if keep_tables or not tables:
             tables.append(table)
         if not rejected.any():
@@ -302,12 +360,12 @@ def _search(test_fn, keep, alpha, correction, select, max_rounds, keep_tables, S
         row = table[table['neuron'] == j].iloc[0]
         rounds.append({'round': len(S) + 1, 'neuron': j, 'tau': row['tau'], 'se': row['se'], 't': row['t'],
                        'df': row['df'], 'p': row['p'], 'threshold': thr, 'n_tested': len(cols),
-                       'n_significant': int(rejected.sum()), **info})
+                       'n_significant': int(rejected.sum()), 'n_untestable': n_untestable[-1], **info})
         S.append(j)
     return {'selected': S, 'rounds': pd.DataFrame(rounds), 'first_round': tables[0] if tables else None,
             'tables': tables if keep_tables else None, 'n_tested': int(keep.sum()),
             'n_dropped': int((~keep).sum()) - len(S0), 'dropped': np.setdiff1d(np.flatnonzero(~keep), S0),
-            'n_nuisance': len(S0),
+            'n_nuisance': len(S0), 'n_untestable': n_untestable,
             'elapsed_s': time.time() - t0, **({'stopped': stopped} if stopped else {})}
 
 
@@ -340,8 +398,9 @@ def neural_effect_search(Z, T, alpha=0.05, correction='bonferroni', select='tau'
     correction: 'bonferroni' (alpha / m_remaining, paper default), 'bh', 'none'.
     select: 'tau' (paper: largest |tau| among the rejected) or 'p' (smallest p).
     max_rounds: cap on |S|. min_active: neurons active in fewer units are not tested. A round whose
-      conditioning set leaves no residual df (or no usable stratum) ends the search with the neurons
-      selected so far and result["stopped"] = the reason (never in round 1, which fails loud).
+      conditioning set leaves no residual df, no usable stratum or no overlap between the arms (check_overlap)
+      ends the search with the neurons selected so far and result["stopped"] = the reason (never in round 1,
+      which fails loud).
     nuisance: optional (n_units,) or (n_units, k) per-unit covariates conditioned on from round 0
       (see the module docstring); with groups, rows are units AFTER averaging (sorted unit ids).
     Returns dict: selected (ordered list), rounds (DataFrame, one row per selected neuron with
@@ -439,16 +498,16 @@ def paired_effect_test(Za, Zb, S=(), cols=None, n_strata=2, min_per_cell=3, resi
     DS = D[:, S] if (S and residualize) else np.zeros((n, 0))
     X = np.column_stack([G, DS])
     tau, V, dof, h = _ols_contrast(Y, X, np.r_[w, np.zeros(DS.shape[1])])
-    se, t, df, p = _t_pvalue(tau, V, V ** 2 / dof)
+    se, t, df, p, ok = _t_pvalue(tau, V, V ** 2 / dof, _rms(Y))
     if test == 'signflip':
         n_perm = int(np.ceil(10 * len(cols) / alpha)) if n_perm is None else n_perm
         e0 = Y - DS @ np.linalg.lstsq(DS, Y, rcond=None)[0] if DS.shape[1] else Y
         U, sv, _ = np.linalg.svd(X, full_matrices=False)
         Q = U[:, sv > sv.max() * 1e-10]
-        p = _signflip_p(e0, h, Q, dof, t, n_perm, np.random.default_rng(seed))
+        p = np.where(ok, _signflip_p(e0, h, Q, dof, t, n_perm, np.random.default_rng(seed)), 1.0)
     elif test != 't':
         raise ValueError(f'unknown test {test!r}')
-    table = pd.DataFrame({'neuron': cols, 'tau': tau, 'se': se, 't': t, 'df': df, 'p': p})
+    table = pd.DataFrame({'neuron': cols, 'tau': tau, 'se': se, 't': t, 'df': df, 'p': p, 'testable': ok})
     info = {'n_cells': int(G.shape[1]), 'n_stratifiers': k_used, 'bins': q_used, 'n_units_kept': n}
     return table, info
 

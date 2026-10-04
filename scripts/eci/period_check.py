@@ -137,7 +137,7 @@ def main():
     with open(out / 'period_flags.json', 'w') as f:
         json.dump(flags, f, default=float)
     cols = ['outcome', 'analysis_id', 'prefix', 'round', 'neuron', 'direction', 'tau', 'p', 'threshold', 'tau_day',
-            'se_day', 'p_day', 'df_day', 'n_cells', 'n_units', 'survives']
+            'se_day', 'p_day', 'df_day', 'n_cells', 'n_units', 'survives', 'not_estimable']
     da = pd.concat(day_rows)[cols] if day_rows else pd.DataFrame(columns=cols)
     da.to_csv(out / 'day_adjusted.csv', index=False)
     lines += ['## Day-adjusted re-test (family B primary picks, all 72 videos per stage)', '',

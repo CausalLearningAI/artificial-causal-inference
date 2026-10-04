@@ -29,7 +29,8 @@ from scipy import stats
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from eci.nes import (  # noqa: E402
-    make_strata, neural_effect_search, neural_effect_test, paired_effect_search, unit_means,
+    _ols_contrast, _onehot, check_overlap, make_strata, neural_effect_search, neural_effect_test, paired_effect_search,
+    paired_effect_test, unit_means,
 )
 
 M, TRUE, LEAKY = 200, {0, 1}, np.arange(2, 12)
@@ -150,7 +151,10 @@ def test_recovery_strong_effect():
                                                                 n_perm=20000) for _ in range(sims)])
     for k, v in out.items():
         print(f'    {k:32s} ' + '  '.join(f'{a} {b:.2f}' for a, b in v.items()))
-    for k in ('two-sample n=72', 'two-sample n=720', 'paired n=72', 'paired n=360'):
+    # two-sample n=72: over 400 sims (seed 100) exact recovery is 0.775 with the shared-slope estimator and 0.770 with
+    # the per-arm one it replaced (2026-10-04); the 0.85 bound held at 40 sims only by luck of the seed (34/40)
+    assert out['two-sample n=72']['exact'] >= 0.7, out['two-sample n=72']
+    for k in ('two-sample n=720', 'paired n=72', 'paired n=360'):
         assert out[k]['exact'] >= 0.85, (k, out[k])
     # false_disc ~ alpha is nominal: the final, stopping round is itself a family tested at alpha
     for k in ('paired n=36', 'paired sign-flip n=36'):
@@ -299,6 +303,146 @@ def test_nuisance_conditioning_paired():
           f'{hit0}/{n_sim} conditioned; true effect recovered {hit1}/{n_sim}; other selections {extra}')
     assert hit0_plain >= 0.7 * n_sim
     assert hit0 <= 0.1 * n_sim and hit1 >= 0.85 * n_sim and extra <= 0.15 * n_sim
+
+
+# ---- 2026-10-04 fix: shared slope (no extrapolation between per-arm fits), overlap rule, zero-SE rule -------------
+
+WINDOW = 3600.8  # frogs latency window (s)
+
+
+def _old_per_arm_tau(Y, X, T):
+    """The estimator before 2026-10-04 (one stratum): per-arm OLS on X, both arms evaluated at the pooled mean of X.
+    Kept here only to show the extrapolation it produced."""
+    Xc = X - X.mean(0)
+    est, var = [], []
+    for t in (1, 0):
+        ix = T == t
+        e, v, _, _ = _ols_contrast(Y[ix], np.column_stack([np.ones(ix.sum()), Xc[ix]]), np.r_[1.0, np.zeros(X.shape[1])])
+        est.append(e), var.append(v)
+    return est[0] - est[1], var[0] + var[1]
+
+
+def test_round1_unchanged_and_degenerate_untestable():
+    """(a) round 1 (nothing conditioned) is still exactly Welch's t-test, in neural_effect_test and as the search's
+    first-round table; a neuron constant within each arm (Welch variance 0, or ~1e-33 from rounding) is untestable
+    (p = 1, testable False) instead of p ~ 0."""
+    rng = np.random.default_rng(30)
+    Z, T = two_sample(rng, 72, 1.0, 0.5)
+    Z[:, 50] = np.where(T == 1, 0.3, 0.1) + 0.2  # constant within arms; float rounding can leave var ~1e-33
+    table, info = neural_effect_test(Z, T)
+    ref = stats.ttest_ind(Z[T == 1], Z[T == 0], equal_var=False)
+    ok = np.arange(Z.shape[1]) != 50
+    assert np.allclose(table['t'][ok], ref.statistic[ok], rtol=1e-12, atol=0)
+    assert np.allclose(table['p'][ok], ref.pvalue[ok], rtol=1e-12, atol=0)
+    assert table['testable'][ok].all() and not table['testable'][50] and table['p'][50] == 1.0
+    fr = neural_effect_search(Z, T)['first_round']
+    assert np.array_equal(fr['p'].values, table['p'].values) and np.array_equal(fr['tau'].values, table['tau'].values)
+    print(f'    round 1: max |p - scipy Welch p| = {np.abs(table["p"][ok] - ref.pvalue[ok]).max():.1e}; '
+          f'constant-within-arm neuron: se {table["se"][50]:.1e}, p {table["p"][50]}, testable {table["testable"][50]}')
+
+
+def _frog38(rng, n_wt_spread):
+    """Frogs neuron-38 shape. x = latency of the round-1 neuron: control (WT, 13) censored at the window except
+    n_wt_spread videos, treated (FoxP1, 14) early (mean ~220 s). y = latency of the tested neuron: y = 2000 + 300 T
+    - 0.3 x + noise in BOTH arms (true direct effect +300 s at equal x), noise sd 150 s."""
+    n0, n1 = 13, 14
+    x0 = np.full(n0, WINDOW)
+    x1 = rng.exponential(220, n1)
+    if n_wt_spread == 1:
+        x0[0] = rng.uniform(100, 1500)
+    else:  # partial overlap: 4 control and 4 treated videos interleaved in [800, 1500] s
+        x0[:4] = [800, 1000, 1200, 1400] + rng.uniform(-50, 50, 4)
+        x1[:4] = [900, 1100, 1300, 1500] + rng.uniform(-50, 50, 4)
+    x = np.r_[x0, x1]
+    T = np.r_[np.zeros(n0), np.ones(n1)].astype(int)
+    y = 2000 + 300 * T - 0.3 * x + rng.normal(0, 150, n0 + n1)
+    return y, x, T
+
+
+def test_extrapolation_neuron38():
+    """(b) the frogs neuron-38 extrapolation. Old per-arm fits compared at the pooled mean of x: |tau| exceeds the
+    window. New code: with 12/13 control videos censored the arms share no support on x -> the round is untestable
+    ('no overlap', the search stops); with partial overlap the shared-slope tau is bounded and near the truth (+300)."""
+    rng = np.random.default_rng(31)
+    old_big, n_sim = 0, 200
+    for _ in range(n_sim):
+        y, x, T = _frog38(rng, 1)
+        Y = y[:, None].copy()
+        # per-arm slopes estimated from noisy latencies: make the treated slope steep as in the real case (-5.3)
+        Y[T == 1, 0] = 2300 - 5.3 * (x[T == 1] - x[T == 1].mean()) + rng.normal(0, 150, (T == 1).sum())
+        tau_old, _ = _old_per_arm_tau(Y, x[:, None], T)
+        old_big += abs(tau_old[0]) > WINDOW
+        try:
+            neural_effect_test(np.column_stack([x, Y]), T, S=[0], cols=[1])
+            raise AssertionError('expected no overlap')
+        except ValueError as err:
+            assert str(err).startswith('no overlap'), err
+    assert old_big >= 0.9 * n_sim, old_big
+    # one search: round 1 picks x (huge raw effect), round 2 must stop with 'no overlap', not select y
+    y, x, T = _frog38(rng, 1)
+    Zs = np.column_stack([x, 2300 - 5.3 * (x - 220) * T + rng.normal(0, 150, 27), rng.normal(size=(27, 20))])
+    res = neural_effect_search(Zs, T)
+    assert res['selected'][:1] == [0] and 'no overlap' in res.get('stopped', ''), res.get('stopped')
+    # partial overlap (4 + 4 videos in the common range): bounded, near the true +300
+    err_new, err_old, taus = [], [], []
+    for _ in range(n_sim):
+        y, x, T = _frog38(rng, 4)
+        tab, _ = neural_effect_test(np.column_stack([x, y]), T, S=[0], cols=[1])
+        taus.append(tab['tau'][0])
+        err_new.append(abs(tab['tau'][0] - 300))
+        err_old.append(abs(_old_per_arm_tau(y[:, None], x[:, None], T)[0][0] - 300))
+    taus = np.array(taus)
+    print(f'    neuron-38 shape, {n_sim} sims: old |tau| > window in {old_big}/{n_sim}; new = no overlap in {n_sim}/{n_sim}; '
+          f'search stopped: {res["stopped"]!r}')
+    print(f'    partial overlap: new tau mean {taus.mean():.0f} (true 300), max |tau| {np.abs(taus).max():.0f}; '
+          f'median abs error new {np.median(err_new):.0f} s vs old {np.median(err_old):.0f} s')
+    assert np.abs(taus).max() < WINDOW and abs(taus.mean() - 300) < 60 and np.median(err_new) < np.median(err_old)
+
+
+def test_zero_se_untestable():
+    """(c) a neuron constant in one arm and in the other except one video that the conditioning neuron fits exactly
+    (the frogsfull neuron-618 shape: fires in 1 of 27 videos): residuals are 0, SE ~1e-13 -> untestable, p = 1.
+    The old per-arm estimator gave a non-zero tau over an SE of ~0 (p ~ 0) there."""
+    T = np.r_[np.zeros(13), np.ones(14)].astype(int)
+    x = np.zeros(27)
+    x[-1], x[-5:-2] = 1.0, [0.2, 0.4, 0.6]  # selected neuron (overlap at 0: 13 / 11 units)
+    y = np.full(27, WINDOW)
+    y[-1] = 100.0  # the one video where the tested neuron fires
+    y[-5:-2] = WINDOW - 3500.8 * np.array([0.2, 0.4, 0.6])  # on the same line: exact fit within the treated arm
+    tab, _ = neural_effect_test(np.column_stack([x, y]), T, S=[0], cols=[1])
+    tau_old, V_old = _old_per_arm_tau(y[:, None], x[:, None], T)
+    p_old = 2 * stats.t.sf(abs(tau_old[0]) / np.sqrt(V_old[0]), 10) if V_old[0] > 0 else 1.0
+    print(f'    one-video neuron: old tau {tau_old[0]:.1f}, se {np.sqrt(V_old[0]):.1e}, p {p_old:.1e}; '
+          f'new tau {tab["tau"][0]:.1e}, se {tab["se"][0]:.1e}, p {tab["p"][0]}, testable {tab["testable"][0]}')
+    assert not tab['testable'][0] and tab['p'][0] == 1.0
+    # paired: a neuron whose change is constant across pools is untestable as well
+    rng = np.random.default_rng(32)
+    Za = rng.normal(size=(36, 5))
+    Zb = Za.copy()
+    Zb[:, 0] += 0.7
+    Zb[:, 1:] += rng.normal(size=(36, 4))
+    ptab, _ = paired_effect_test(Za, Zb)
+    assert not ptab['testable'][0] and ptab['p'][0] == 1.0 and ptab['testable'][1:].all()
+
+
+def test_shared_slope_recovers_effect():
+    """(d) a real direct effect with overlapping covariates: x is shifted by T (a found concept, d = 1 sd) and y =
+    0.5 x + 0.8 T + noise. The shared-slope tau given x recovers 0.8 (unbiased) with ~95% CI coverage; the overlap
+    rule does not fire."""
+    rng = np.random.default_rng(33)
+    taus, cover, n_sim = [], 0, 400
+    T = np.repeat([0, 1], 36)
+    for _ in range(n_sim):
+        x = 1.0 * T + rng.normal(size=72)
+        y = 0.5 * x + 0.8 * T + rng.normal(size=72)
+        tab, info = neural_effect_test(np.column_stack([x, y]), T, S=[0], cols=[1])
+        r = tab.iloc[0]
+        taus.append(r['tau'])
+        cover += abs(r['tau'] - 0.8) <= stats.t.ppf(0.975, r['df']) * r['se']
+    taus = np.array(taus)
+    print(f'    {n_sim} sims: mean tau {taus.mean():.3f} (true 0.8), sd {taus.std():.3f}, 95% CI coverage {cover / n_sim:.3f}')
+    assert abs(taus.mean() - 0.8) < 0.03 and 0.92 <= cover / n_sim <= 0.98
+    check_overlap(np.column_stack([1.0 * T + rng.normal(size=72)]), T)  # no error
 
 
 def main() -> int:
