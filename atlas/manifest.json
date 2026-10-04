@@ -44,7 +44,7 @@
  "family_B_period_handling": "no data dropped; period-dependent chips (within-genotype AUC, family-wise thr 0.936, pointwise 0.754) + recording-day-adjusted re-test chip (period_check/)",
  "asset_store": {
   "packs": 87,
-  "bytes": 643063018
+  "bytes": 643064018
  },
  "backups": "old v32 packs: local copies in results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer/assets and .../fg448_s0/explorer/assets (+ backup_v1790862630-1928/ for the v31 ants packs); old versions remain in the artifact history",
  "version_files": {
