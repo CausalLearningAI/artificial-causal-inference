@@ -72,6 +72,12 @@ Untestable (fixed 2026-10-04). One support rule: an adjusted comparison is repor
     conditioning neurons each can overlap marginally while the combination the neuron is adjusted along does
     not (frogs full frame, mean pool, latency: 13-15 conditioning neurons on 27 frogs gave |tau| up to 31241 s
     in a 3601 s window with the round-level rule alone). Table column support = False, p = 1.
+  * range: an adjusted tau larger than any difference the data can show is an extrapolation whatever the
+    support counts say: two-sample |tau_j| <= max - min of Z_j over the test's units, paired |tau_j| <= the
+    largest |change| of neuron j. Else support = False. (Added after the rerun with the two rules above still
+    left mice stage-change latency taus of up to 8187 s in a 900 s window: the stratum intercepts of the paired
+    regression extrapolate inside strata whose pools all changed; requiring the support rule in every stratum
+    instead cut exact recovery of the paired simulation at 72 pools from 0.935 to 0.23, so it was not used.)
   * zero SE: se <= SE_REL_TOL (1e-6) x the tested outcome's root mean square over the test's units (an exact fit, not
     evidence; previously only se == 0 exactly was caught and SEs of ~1e-16 gave p down to 1e-177): t = 0,
     p = 1, table column testable = False; still counted in the Bonferroni m. result['n_untestable'] = the
@@ -226,7 +232,8 @@ def _two_sample_ols(Y, X, T, cell):
     Xc = X - X.mean(0)
     A = np.column_stack([G * t1, G * (1 - t1), Xc])
     tau, V, dof, _ = _ols_contrast(Y, A, np.r_[w, -w, np.zeros(X.shape[1])])
-    return tau, V, V ** 2 / dof, len(cell), _two_sample_support(Xc @ (np.linalg.pinv(A) @ Y)[-X.shape[1]:], T, Y)
+    support = _two_sample_support(Xc @ (np.linalg.pinv(A) @ Y)[-X.shape[1]:], T, Y) & (np.abs(tau) <= np.ptp(Y, 0))
+    return tau, V, V ** 2 / dof, len(cell), support
 
 
 def _two_sample_support(s, T, Y, min_per_arm=3):
@@ -550,8 +557,8 @@ def paired_effect_test(Za, Zb, S=(), cols=None, n_strata=2, min_per_cell=3, resi
         check_overlap_paired(DS, min_per_cell)
     X = np.column_stack([G, DS])
     tau, V, dof, h = _ols_contrast(Y, X, np.r_[w, np.zeros(DS.shape[1])])
-    support = _paired_support(DS @ (np.linalg.pinv(X) @ Y)[G.shape[1]:], Y, min_per_cell) if DS.shape[1] else \
-        np.ones(len(cols), dtype=bool)
+    support = _paired_support(DS @ (np.linalg.pinv(X) @ Y)[G.shape[1]:], Y, min_per_cell) & \
+        (np.abs(tau) <= np.abs(Y).max(0)) if DS.shape[1] else np.ones(len(cols), dtype=bool)
     se, t, df, p, ok = _t_pvalue(tau, V, V ** 2 / dof, _rms(Y), support)
     if test == 'signflip':
         n_perm = int(np.ceil(10 * len(cols) / alpha)) if n_perm is None else n_perm
