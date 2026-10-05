@@ -112,6 +112,14 @@ def _cos(a, b):
     return torch.nn.functional.cosine_similarity(a.float(), b.float(), dim=1, eps=1e-8)
 
 
+def _cos_fg(a, b):
+    """_cos, with 1 for rows that are zero in both (a frame with an empty foreground mask has zero codes in both
+    passes: agreement, not a misalignment; tadpole frames where the tadpole hides under the dish rim). Any run whose
+    checks passed with _cos had no such row, so its checks are unchanged."""
+    both0 = (a.float().abs().sum(1) == 0) & (b.float().abs().sum(1) == 0)
+    return torch.where(both0, torch.ones_like(both0, dtype=torch.float32), _cos(a, b))
+
+
 def encode_somp_shard(enc, lo, hi, shard_dir, ref_codes_max, batch_size=128, num_workers=16):
     """Rows [lo, hi) -> shard_dir (memmaps + shard.json + DONE); resumable like encode_fg_shard."""
     shard_dir = Path(shard_dir)
@@ -214,7 +222,7 @@ def verify_somp(out_dir, enc, n_rows, ranges, n_check=64, seed=0, chunk=65536):
     ref_c = torch.cat(got['codes_somp'])
     ref_i = torch.cat(got['somp_idx']).numpy()
     st_c = torch.from_numpy(np.asarray(cs[rows]))
-    cos = _cos(st_c, ref_c)
+    cos = _cos_fg(st_c, ref_c)
     same_set = float(np.mean([set(a) == set(b) for a, b in zip(np.asarray(idx[rows]), ref_i)]))
     other = np.sort(np.random.default_rng(seed + 1).integers(0, n_rows, n_check))
     res['recompute'] = {'n_frames': n_check, 'rows': rows.tolist(), 'cos_min': float(cos.min()),

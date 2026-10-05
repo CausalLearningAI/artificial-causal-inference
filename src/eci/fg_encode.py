@@ -263,9 +263,11 @@ def verify_fg_codes(out_dir, sae_path, bg_dir, ann_path, dataset_dir='dataset', 
     [ref] = encode_rows(rows, frame_paths, [sae_path], bg_dir, ann_path, dataset_dir, batch_size=16, num_workers=8,
                         device=device)
 
+    from src.eci.somp_encode import _cos_fg
+
     def cmp(a, b):
         a, b = torch.from_numpy(np.asarray(a, dtype=np.float32)), torch.from_numpy(np.asarray(b, dtype=np.float32))
-        cos = torch.nn.functional.cosine_similarity(a, b, dim=1)
+        cos = _cos_fg(a, b)  # rows zero in both (empty mask) agree
         return {'max_abs_diff': float((a - b).abs().max()), 'cos_min': float(cos.min()),
                 'active_set_mismatch_frac': float(((a > 0) != (b > 0)).float().mean())}
     other = np.sort(np.random.default_rng(seed + 1).integers(0, len(frame_paths), n_check))

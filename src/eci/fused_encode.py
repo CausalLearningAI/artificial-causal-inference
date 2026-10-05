@@ -32,7 +32,7 @@ import numpy as np
 import torch
 
 from src.eci.fg_encode import fg_sae_pool
-from src.eci.somp_encode import SompEncoder, _cos
+from src.eci.somp_encode import SompEncoder, _cos, _cos_fg
 
 
 class FusedEncoder(SompEncoder):
@@ -89,7 +89,7 @@ def encode_fused_shard(enc, lo, hi, fg_shard_dir, somp_shard_dir, batch_size=128
         assert r[0] == lo + cur
         B = len(r)
         o = enc.fused_batch(item, r)
-        cos_all.append(_cos(o['somp_codes_max'].half(), o['codes_max'].half()).cpu())
+        cos_all.append(_cos_fg(o['somp_codes_max'].half(), o['codes_max'].half()).cpu())
         nf = o['n_fg'].short().cpu().numpy()
         mf['codes_max'][cur:cur + B] = o['codes_max'].half().cpu().numpy()
         mf['codes_mean'][cur:cur + B] = o['codes_mean'].half().cpu().numpy()
