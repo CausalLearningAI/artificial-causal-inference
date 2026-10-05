@@ -6,6 +6,7 @@
 #
 # Usage: SPECS="matryoshka_btk_1024_k16_frogsfg_s0:max matryoshka_btk_1024_k16_frogsfg_s0_mean:mean" \
 #            sbatch --export=ALL scripts/eci/session_check.sh
+#        tadpoles, session and sub-stage checks: DOMAIN=tadpoles LEVELS="session substage" SPECS=... sbatch ...
 #
 #SBATCH --job-name=eci_session
 #SBATCH --output=logs/eci_session_%j.out
@@ -26,5 +27,8 @@ cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 mkdir -p logs
 
 for spec in ${SPECS:?set SPECS}; do
-    python -u scripts/eci/session_check.py --domain "${DOMAIN:-frogs}" --sae "${spec%%:*}" --pooling "${spec##*:}" ${EXTRA_ARGS:-}
+    for level in ${LEVELS:-session}; do
+        python -u scripts/eci/session_check.py --domain "${DOMAIN:-frogs}" --sae "${spec%%:*}" --pooling "${spec##*:}" \
+            --level "$level" ${EXTRA_ARGS:-}
+    done
 done

@@ -29,6 +29,12 @@ Domains:
         groups; meta 'confound'). Per-frame table dataset/frogs/eci/annotations.csv, per-video table
         dataset/frogs/eci/experiment.csv (group, T, session, date, time, slot, hour, animal_id, mutant_side).
         Primary nuisance: none. Foreground rule 'frogs' (src/eci/foreground.py).
+  tadpoles (frogs stage 44-48, Xenopus tadpoles NF 44-48, scripts/eci/frogs_prepare.py --stage 44-48): hour 1 of 173
+        tadpoles, WT 47 / FoxP1 39 / En1 37 / Scrambled 50 (A1 18 + A3 32 pooled; all 2025) whole-embryo crispants,
+        one per dish; 5 excluded (tadpole visible in < 50% of its crops: WT 1, FoxP1 2, En1 2) -> 168. Frames = 5 fps 96 px BODY CROPS at 512 px (scripts/eci/tadpoles_crops.py). Unit = video
+        (= tadpole), family B only: FoxP1_vs_WT, En1_vs_WT (main), FoxP1_vs_Scrambled, En1_vs_Scrambled (secondary).
+        Group is fully confounded with the recording session. Per-frame table dataset/frogs/eci_tadpole/annotations.csv,
+        per-video table dataset/frogs/eci_tadpole/experiment.csv (+ line, substage). Foreground rule 'tadpoles'.
 
 Analysis sets (get_domain(name, analysis_set), runners' --analysis-set; default 'core' = the analyses above,
 unchanged): ants 'pairs' = the 3 core analyses (same ids, meta and order) followed by every other pair of
@@ -43,10 +49,12 @@ Functions / classes:
     MiceDomain     mice v1
     AntsDomain     ants v2 + v3
     FrogsDomain    frogs v1
+    TadpolesDomain frogs stage 44-48 (tadpole body crops)
     get_domain     (name, analysis set) -> Domain instance (cached)
     DOMAINS        the domain names
 """
 
+import os
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -57,7 +65,7 @@ import pandas as pd
 from . import contrasts as C
 
 ROOT = Path(__file__).resolve().parents[2]
-DOMAINS = ('mice', 'ants', 'frogs')
+DOMAINS = ('mice', 'ants', 'frogs', 'tadpoles')
 
 
 @dataclass
@@ -505,8 +513,47 @@ class FrogsDomain(Domain):
         return pd.read_csv(self.experiment_csv)
 
 
+class TadpolesDomain(FrogsDomain):
+    """Frogs stage 44-48 (hour 1 of each tadpole, body crops), unit = video = tadpole, family B only."""
+    name, title, subjects = 'tadpoles', 'frogs 44-48 (tadpoles)', 'tadpoles'
+    # TADPOLE_TAG (environment, default empty) suffixes the eci and results dirs: a small test run on a subset of the
+    # videos (frogs_prepare.py --stage 44-48 --step tables --subset) never mixes with the full run
+    TAG = os.environ.get('TADPOLE_TAG', '')
+    eci_dir = ROOT / f'dataset/frogs/eci_tadpole{TAG}'
+    ann_path = eci_dir / 'annotations.csv'
+    experiment_csv = eci_dir / 'experiment.csv'
+    nes_root = ROOT / f'results/vision/frogs/eci_tadpole{TAG}/nes'
+    n_match = 18000
+    fg_rule = 'tadpoles'
+    meta_cols = ('group', 'line', 'session', 'slot', 'substage')
+    desc_table = ('group', ('WT', 'FoxP1', 'En1', 'Scrambled'), 'hour', (1,))
+    balance_fields = ('session', 'date', 'slot', 'substage')
+    CONFOUND = ('recording session: every session holds one group only (WT 11 sessions 2022-23, FoxP1 9 2022-23, '
+                'En1 7 2023, Scrambled 10 all 2025)')
+    # (control, treatment): main = vs WT, secondary = vs Scrambled (A1 + A3)
+    CONTRASTS = (('WT', 'FoxP1'), ('WT', 'En1'), ('Scrambled', 'FoxP1'), ('Scrambled', 'En1'))
+    text = {'window': 'video (hour 1)',
+            'families_nes': 'Family B = mutant vs control tadpoles (unit = video = tadpole, hour 1, tau > 0 = higher in '
+                            'the mutant group); FoxP1 and En1 are whole-embryo crispants, controls WT and Scrambled '
+                            '(gRNA A1 + A3, recorded 2025 only). Group is fully confounded with the recording session.',
+            'families_bouts': 'Family B = mutant vs control tadpoles (unit = video = tadpole, tau > 0 = more bouts/min in '
+                              'the mutant group); group is fully confounded with the recording session.',
+            'null_two': 'Group labels shuffled across tadpoles (FoxP1_vs_WT', 'frame': 'group in FoxP1 vs WT',
+            'null_two_bouts': 'group shuffled across tadpoles (FoxP1_vs_WT)', 'null_paired_bouts': ''}
+
+    def load_design(self):
+        d = C.load_design_ants(self.ann_path, self.experiment_csv)
+        for c in ('session', 'substage', 'line'):
+            d[c] = d[c].fillna('').astype(str)
+        return d
+
+    def video_meta(self):
+        return pd.read_csv(self.experiment_csv, dtype={'session': str, 'substage': str, 'line': str})
+
+
 @lru_cache(maxsize=None)
 def get_domain(name='mice', analysis_set='core'):
     if name not in DOMAINS:
         raise ValueError(f'unknown domain {name!r}; known: {DOMAINS}')
-    return {'mice': MiceDomain, 'ants': AntsDomain, 'frogs': FrogsDomain}[name](analysis_set)
+    return {'mice': MiceDomain, 'ants': AntsDomain, 'frogs': FrogsDomain,
+            'tadpoles': TadpolesDomain}[name](analysis_set)

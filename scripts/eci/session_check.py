@@ -19,7 +19,14 @@ Writes <nes>/<sae>/session_check/:
                       worst session, same_sign
   SUMMARY.md
 
+--level substage (tadpoles, domain 'tadpoles'): the same two checks with the developmental sub-stage of the file name
+(47, 47-48, 45-46, ...) in place of the session: does a latent track the sub-stage WITHIN a group (flag), and does a
+pick rest on one sub-stage (leave-one-sub-stage-out)? Writes <nes>/<sae>/substage_check/ (same files). Sub-stage is
+constant within a session, so it is a coarser grouping of the sessions; sub-stages pooled over sessions can still
+differ in recording date / setup.
+
 Usage: python scripts/eci/session_check.py --sae matryoshka_btk_1024_k16_frogsfg_s0 --pooling max
+       python scripts/eci/session_check.py --domain tadpoles --sae <sae> --pooling max --level substage
 """
 
 import argparse
@@ -48,11 +55,13 @@ def main():
     ap.add_argument('--n-shuffles', type=int, default=1000)
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--out-root', default=None)
+    ap.add_argument('--level', default='session', choices=('session', 'substage'),
+                    help='grouping within a group: recording session (default) or developmental sub-stage')
     args = ap.parse_args()
     t_start = time.time()
     D = get_domain(args.domain)
     nes = Path(args.out_root or D.nes_root) / args.sae
-    out = nes / 'session_check'
+    out = nes / ('session_check' if args.level == 'session' else f'{args.level}_check')
     out.mkdir(parents=True, exist_ok=True)
     design = D.load_design()
     if not np.array_equal(design['obs_row'].values, np.arange(len(design))):
@@ -74,7 +83,7 @@ def main():
                             'Group and session are fully confounded (no session holds two groups). The flag measures '
                             'session dependence WITHIN a group; it cannot separate group from session.', '']
     for oc, Y in values.items():
-        s = SC.session_scores(design, Y, n_shuffles=args.n_shuffles, seed=args.seed)
+        s = SC.session_scores(design, Y, level_col=args.level, n_shuffles=args.n_shuffles, seed=args.seed)
         flagged = s['score'] > s['threshold']
         picks = primary_picks(tidies[oc], args.pooling, oc == 'bout_rate')
         disc = []
@@ -105,12 +114,16 @@ def main():
                   f'{d["score"]:.3f} | {d["group"]} | {d["p_perm"]:.3g} | {"FLAG" if d["flagged"] else ""} |' for d in disc]
         lines.append('')
         if len(picks):
-            lo = SC.leave_one_session_out(picks, design, Y, analyses)
+            lo = SC.leave_one_session_out(picks, design, Y, analyses, level_col=args.level)
             lo.insert(0, 'outcome', oc)
             loso_rows.append(lo)
         print(f'{oc}: threshold {s["threshold"]:.4f}, flagged {int(flagged.sum())}, picks flagged '
               f'{sum(d["flagged"] for d in disc)}/{len(disc)}', flush=True)
 
+    if args.level != 'session':  # the session texts above apply with the sub-stage in place of the session
+        flags['level'] = args.level
+        lines.insert(1, f'\nLEVEL = {args.level}: every "session" below means the developmental {args.level} (file '
+                        f'name), not the recording session.')
     with open(out / 'session_flags.json', 'w') as f:
         json.dump(flags, f, default=float)
     cols = ['outcome', 'analysis_id', 'prefix', 'round', 'neuron', 'direction', 'tau', 'p', 'threshold', 'n_sessions',

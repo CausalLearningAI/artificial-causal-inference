@@ -45,6 +45,10 @@ Rules (RULES, chosen by name with --rule; the SAE checkpoint records it as 'fg_r
     all     every patch is foreground (the whole frame at 448, 1024 patches); needs no background
     frogs   FG_RULE_FROGS: dark frog pixels (frog-free pixel background, dish ROI, near the frame's SLEAP nodes), no
             DINOv2 cue; backgrounds from scripts/eci/frogs_background.py
+    tadpoles  FG_RULE_TADPOLES: rule 'frogs' on the 5 fps BODY CROPS of the stage 44-48 tadpoles
+            (scripts/eci/tadpoles_crops.py): the tadpole-free background and the dish ROI are full source-frame
+            planes, cropped per frame with the frame's crop box and resized to 512 (crop_planes); SLEAP nodes in crop
+            coordinates; backgrounds from scripts/eci/tadpoles_background.py
 
 Background-subtracted SAE input (train_sae_fg.py --bg-sub, checkpoint 'bg_sub'): token - the video's background
 token at the same patch position and time block (the rule's background, bg_seg for fg448 / v3 / ants: the masked
@@ -86,6 +90,7 @@ Functions / classes:
     obs_rows                    observation -> contiguous annotations.csv rows
     segment_of                  time block of a frame for bg_seg
     near_nodes, frog_pixels     rule 'frogs': pixels near the frame's SLEAP nodes; dark frog pixels
+    crop_planes, tadpole_pixels rule 'tadpoles': per-frame background / ROI crops; dark tadpole pixels
     FgBackgrounds               all videos' backgrounds, mask(tokens, grey, rows) for any batch;
                                 background(rows) = the background tokens of a batch (background-subtracted input)
     leak_mask, fill_leaks       background positions that are the animal itself; filled from clean neighbours
@@ -136,7 +141,15 @@ FG_RULE_ALL = {'all': True}
 # (as v3). Backgrounds: scripts/eci/frogs_background.py (pix_bg, roi, per-row SLEAP nodes at 512 px).
 FG_RULE_FROGS = {'frogs': True, 'background': 'frog_free', 'dark_rel': 30, 'dark_frac': 0.05, 'near_px': 16,
                  'use_dark': True, 'drop_isolated': False, 'dilate': 1, 'dilate_requires_dark': True}
-RULES = {'fg448': FG_RULE, 'v3': FG_RULE_V3, 'ants': FG_RULE_ANTS, 'all': FG_RULE_ALL, 'frogs': FG_RULE_FROGS}
+# tadpoles (stage 44-48 body crops, src/eci/domain.py TadpolesDomain): as 'frogs' in crop coordinates (512 crop px =
+# 96 source px, 5.33 crop px per source px; the tadpole is ~38 source px long and 3-10 wide). Tuned on the crop mask
+# sheets (scripts/eci/tadpoles_sheets.py, 7 videos x 10 frames): dark_rel 30 (the froglet value) keeps head, trunk and
+# the proximal tail only; 15 covers the tail to near its tip with no background pixels in the sheets (the near-node
+# restriction keeps the dish rim out; frames without nodes use the whole dish ROI and still showed only the tadpole).
+# near_px 40 crop px = 7.5 source px around the midline nodes.
+FG_RULE_TADPOLES = {**FG_RULE_FROGS, 'crop': True, 'background': 'tadpole_free', 'dark_rel': 15, 'near_px': 40}
+RULES = {'fg448': FG_RULE, 'v3': FG_RULE_V3, 'ants': FG_RULE_ANTS, 'all': FG_RULE_ALL, 'frogs': FG_RULE_FROGS,
+         'tadpoles': FG_RULE_TADPOLES}
 
 MASK_ENCODER = 'dinov2_base'
 # input resolution per encoder: 32 x 32 patches for both (448 / 14 = 512 / 16 = 32)
@@ -363,6 +376,13 @@ def load_background(bg_dir, observation_id, rule=FG_RULE, device='cpu'):
     Rule 'frogs': pix_bg, roi (512, 512) bool, nodes (n_rows, K, 2) float32 SLEAP nodes of every row of the video
     (512 px, NaN = not predicted), lo (the video's first annotations.csv row), align, src."""
     z = np.load(Path(bg_dir) / f'{observation_id}.npz')
+    if rule.get('crop', False):  # rule 'tadpoles': padded source-frame planes + per-row crop boxes
+        return {'pix_bg': torch.from_numpy(z['pix_bg']).to(device), 'roi': torch.from_numpy(z['roi']).to(device),
+                'x0': torch.from_numpy(z['x0'].astype(np.int64)).to(device),
+                'y0': torch.from_numpy(z['y0'].astype(np.int64)).to(device), 'side': int(z['side']),
+                'pad': int(z['pad']), 'nodes': torch.from_numpy(z['nodes'].astype(np.float32)).to(device),
+                'lo': int(z['lo']), 'rows': z['rows'], 'src': (bg_dir, observation_id, rule),
+                'align': str(z['align']) if 'align' in z.files else 'none'}
     if rule.get('frogs', False):
         return {'pix_bg': torch.from_numpy(z['pix_bg']).to(device), 'roi': torch.from_numpy(z['roi']).to(device),
                 'nodes': torch.from_numpy(z['nodes'].astype(np.float32)).to(device), 'lo': int(z['lo']),
@@ -401,6 +421,30 @@ def frog_pixels(grey, pix_bg, roi, nodes, rule=FG_RULE_FROGS):
     frog pixels of rule 'frogs' (FG_RULE_FROGS)."""
     dark = (pix_bg.float()[None] - grey.float()) > rule['dark_rel']
     return dark & roi[None] & near_nodes(nodes, rule['near_px'])
+
+
+@torch.no_grad()
+def crop_planes(b, rel, size=FRAME_PX):
+    """Rule 'tadpoles': b = load_background dict, rel (B,) long tensor of rows - b['lo'] -> (pix_bg (B, size, size)
+    float32, roi (B, size, size) bool): the padded source-frame background / dish ROI cut with each frame's crop box
+    (x0, y0, side, in source px; the planes are padded by b['pad'] px) and resized to size (bilinear / nearest), as
+    the crop frames were cut from the edge-padded source frame and resized (scripts/eci/tadpoles_crops.py)."""
+    ar = torch.arange(b['side'], device=rel.device)
+    yy = b['y0'][rel][:, None] + b['pad'] + ar[None]
+    xx = b['x0'][rel][:, None] + b['pad'] + ar[None]
+    bg = b['pix_bg'][yy[:, :, None], xx[:, None, :]].float()
+    roi = b['roi'][yy[:, :, None], xx[:, None, :]].float()
+    bg = F.interpolate(bg[:, None], size=(size, size), mode='bilinear', align_corners=False)[:, 0]
+    roi = F.interpolate(roi[:, None], size=(size, size), mode='nearest')[:, 0] > 0.5
+    return bg, roi
+
+
+@torch.no_grad()
+def tadpole_pixels(grey, pix_bg, roi, nodes, rule=FG_RULE_TADPOLES):
+    """grey (B, 512, 512) uint8 crops, pix_bg (B, 512, 512) float, roi (B, 512, 512) bool, nodes (B, K, 2) crop px
+    -> (B, 512, 512) bool tadpole pixels of rule 'tadpoles' (as frog_pixels, per-frame planes)."""
+    dark = (pix_bg - grey.float()) > rule['dark_rel']
+    return dark & roi & near_nodes(nodes, rule['near_px'])
 
 
 # fg_background.py defaults: a time block needs MIN_SEG_FRAMES frames free of the dark cue at a position (else the
@@ -516,7 +560,12 @@ class FgBackgrounds:
                 b = self.get(self.ids[kk])
                 sel_t = torch.from_numpy(sel).to(tokens.device)
                 nodes = b['nodes'][torch.from_numpy(rows[sel] - b['lo']).to(b['nodes'].device)].to(tokens.device)
-                px = frog_pixels(grey[sel_t], b['pix_bg'].to(tokens.device), b['roi'].to(tokens.device), nodes, self.rule)
+                if self.rule.get('crop', False):  # rule 'tadpoles': per-frame crops of the background planes
+                    pbg, roi = crop_planes(b, torch.from_numpy(rows[sel] - b['lo']).to(b['x0'].device))
+                    px = tadpole_pixels(grey[sel_t], pbg.to(tokens.device), roi.to(tokens.device), nodes, self.rule)
+                else:
+                    px = frog_pixels(grey[sel_t], b['pix_bg'].to(tokens.device), b['roi'].to(tokens.device), nodes,
+                                     self.rule)
                 dk = F.avg_pool2d(px.float()[:, None], PATCH_PX).flatten(1)
                 out[sel_t] = foreground_mask(dist[sel_t], dk, float('inf'), self.rule)
             return out, dist
