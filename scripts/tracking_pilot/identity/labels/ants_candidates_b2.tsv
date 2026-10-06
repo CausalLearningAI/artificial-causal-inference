@@ -1,0 +1,21 @@
+row	video	tracklet	f_start	f_end	track_id	crops	frames	label	batch
+a2000	3_1_1	32	481	631	3	standin_blob_000481_3.jpg;standin_blob_000511_3.jpg;standin_blob_000571_3.jpg;standin_blob_000631_3.jpg	481;511;571;631		2
+a2001	3_1_1	156	3769	3919	23	standin_blob_003769_23.jpg;standin_blob_003793_23.jpg;standin_blob_003829_23.jpg;standin_blob_003919_23.jpg	3769;3793;3829;3919		2
+a2002	3_1_1	101	3985	4165	9	standin_blob_003985_9.jpg;standin_blob_004045_9.jpg;standin_blob_004105_9.jpg;standin_blob_004165_9.jpg	3985;4045;4105;4165		2
+a2003	3_1_1	172	3991	4141	27	standin_blob_003991_27.jpg;standin_blob_004021_27.jpg;standin_blob_004081_27.jpg;standin_blob_004141_27.jpg	3991;4021;4081;4141		2
+a2004	3_1_1	393	5755	6067	73	standin_blob_005755_73.jpg;standin_blob_005815_73.jpg;standin_blob_005905_73.jpg;standin_blob_006067_73.jpg	5755;5815;5905;6067		2
+a2005	3_1_1	629	9643	9853	103	standin_blob_009643_103.jpg;standin_blob_009703_103.jpg;standin_blob_009763_103.jpg;standin_blob_009853_103.jpg	9643;9703;9763;9853		2
+a2006	3_1_1	709	9649	9799	117	standin_blob_009649_117.jpg;standin_blob_009679_117.jpg;standin_blob_009739_117.jpg;standin_blob_009799_117.jpg	9649;9679;9739;9799		2
+a2007	3_1_1	828	10813	10987	129	standin_blob_010813_129.jpg;standin_blob_010843_129.jpg;standin_blob_010915_129.jpg;standin_blob_010987_129.jpg	10813;10843;10915;10987		2
+a2008	3_1_1	873	10861	10975	130	standin_blob_010861_130.jpg;standin_blob_010891_130.jpg;standin_blob_010933_130.jpg;standin_blob_010975_130.jpg	10861;10891;10933;10975		2
+a2009	3_1_1	856	11485	11611	129	standin_blob_011485_129.jpg;standin_blob_011509_129.jpg;standin_blob_011551_129.jpg;standin_blob_011611_129.jpg	11485;11509;11551;11611		2
+a2010	3_1_1	864	11731	11941	129	standin_blob_011731_129.jpg;standin_blob_011791_129.jpg;standin_blob_011851_129.jpg;standin_blob_011941_129.jpg	11731;11791;11851;11941		2
+a2011	3_1_1	912	11749	11929	139	standin_blob_011749_139.jpg;standin_blob_011809_139.jpg;standin_blob_011869_139.jpg;standin_blob_011929_139.jpg	11749;11809;11869;11929		2
+a2012	3_1_1	998	14821	14971	139	standin_blob_014821_139.jpg;standin_blob_014851_139.jpg;standin_blob_014911_139.jpg;standin_blob_014971_139.jpg	14821;14851;14911;14971		2
+a2013	3_1_1	1033	15133	15373	153	standin_blob_015133_153.jpg;standin_blob_015193_153.jpg;standin_blob_015283_153.jpg;standin_blob_015373_153.jpg	15133;15193;15283;15373		2
+a2014	3_1_1	1054	15139	15289	157	standin_blob_015139_157.jpg;standin_blob_015169_157.jpg;standin_blob_015229_157.jpg;standin_blob_015289_157.jpg	15139;15169;15229;15289		2
+a2015	3_6_6	475	15319	15499	52	standin_blob_015319_52.jpg;standin_blob_015379_52.jpg;standin_blob_015439_52.jpg;standin_blob_015499_52.jpg	15319;15379;15439;15499		2
+a2016	3_6_6	526	17083	17935	76	standin_blob_017083_76.jpg;standin_blob_017377_76.jpg;standin_blob_017659_76.jpg;standin_blob_017935_76.jpg	17083;17377;17659;17935		2
+a2017	3_21_2	340	7507	7651	32	standin_blob_007507_32.jpg;standin_blob_007537_32.jpg;standin_blob_007597_32.jpg;standin_blob_007651_32.jpg	7507;7537;7597;7651		2
+a2018	3_21_2	758	14191	14341	83	standin_blob_014191_83.jpg;standin_blob_014221_83.jpg;standin_blob_014281_83.jpg;standin_blob_014341_83.jpg	14191;14221;14281;14341		2
+a2019	3_21_2	734	14203	14353	82	standin_blob_014203_82.jpg;standin_blob_014233_82.jpg;standin_blob_014293_82.jpg;standin_blob_014353_82.jpg	14203;14233;14293;14353		2

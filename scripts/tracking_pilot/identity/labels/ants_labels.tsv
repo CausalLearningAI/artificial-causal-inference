@@ -1,0 +1,77 @@
+row	video	tracklet	f_start	f_end	track_id	crops	frames	label	note	batch
+a000	3_1_1	2	1	649	1	standin_blob_000001_1.jpg;standin_blob_000211_1.jpg;standin_blob_000433_1.jpg;standin_blob_000649_1.jpg	1;211;433;649	yellow		1
+a001	3_1_1	4	685	3019	1	standin_blob_000685_1.jpg;standin_blob_001435_1.jpg;standin_blob_002233_1.jpg;standin_blob_003019_1.jpg	685;1435;2233;3019	yellow		1
+a002	3_1_1	84	3523	3763	9	standin_blob_003523_9.jpg;standin_blob_003601_9.jpg;standin_blob_003673_9.jpg;standin_blob_003763_9.jpg	3523;3601;3673;3763	blue		1
+a003	3_1_1	146	3649	3829	24	standin_blob_003649_24.jpg;standin_blob_003739_24.jpg;standin_blob_003793_24.jpg;standin_blob_003829_24.jpg	3649;3739;3793;3829	yellow		1
+a004	3_1_1	148	3889	4321	26	standin_blob_003889_26.jpg;standin_blob_004033_26.jpg;standin_blob_004183_26.jpg;standin_blob_004321_26.jpg	3889;4033;4183;4321	yellow		1
+a005	3_1_1	103	4243	4717	9	standin_blob_004243_9.jpg;standin_blob_004399_9.jpg;standin_blob_004543_9.jpg;standin_blob_004717_9.jpg	4243;4399;4543;4717	blue		1
+a006	3_1_1	368	5419	5677	67	standin_blob_005419_67.jpg;standin_blob_005461_67.jpg;standin_blob_005515_67.jpg;standin_blob_005677_67.jpg	5419;5461;5515;5677	yellow		1
+a007	3_1_1	296	5719	6103	54	standin_blob_005719_54.jpg;standin_blob_005809_54.jpg;standin_blob_005929_54.jpg;standin_blob_006103_54.jpg	5719;5809;5929;6103	blue		1
+a008	3_1_1	443	6349	6529	88	standin_blob_006349_88.jpg;standin_blob_006409_88.jpg;standin_blob_006457_88.jpg;standin_blob_006529_88.jpg	6349;6409;6457;6529	yellow		1
+a009	3_1_1	307	6361	6565	54	standin_blob_006361_54.jpg;standin_blob_006421_54.jpg;standin_blob_006481_54.jpg;standin_blob_006565_54.jpg	6361;6421;6481;6565	skip	dark gaster with faint blue tinge in one crop: unsure	1
+a010	3_1_1	579	7495	8185	101	standin_blob_007495_101.jpg;standin_blob_007705_101.jpg;standin_blob_007945_101.jpg;standin_blob_008185_101.jpg	7495;7705;7945;8185	yellow		1
+a011	3_1_1	641	8809	9079	110	standin_blob_008809_110.jpg;standin_blob_008899_110.jpg;standin_blob_008989_110.jpg;standin_blob_009079_110.jpg	8809;8899;8989;9079	blue		1
+a012	3_1_1	621	8821	9631	103	standin_blob_008821_103.jpg;standin_blob_009103_103.jpg;standin_blob_009355_103.jpg;standin_blob_009631_103.jpg	8821;9103;9355;9631	focal		1
+a013	3_1_1	666	9589	10213	112	standin_blob_009589_112.jpg;standin_blob_009799_112.jpg;standin_blob_010003_112.jpg;standin_blob_010213_112.jpg	9589;9799;10003;10213	blue		1
+a014	3_1_1	766	11017	11323	121	standin_blob_011017_121.jpg;standin_blob_011089_121.jpg;standin_blob_011197_121.jpg;standin_blob_011323_121.jpg	11017;11089;11197;11323	blue		1
+a015	3_1_1	966	11707	13825	140	standin_blob_011707_140.jpg;standin_blob_012475_140.jpg;standin_blob_013129_140.jpg;standin_blob_013825_140.jpg	11707;12475;13129;13825	yellow		1
+a016	3_1_1	899	12007	12403	139	standin_blob_012007_139.jpg;standin_blob_012121_139.jpg;standin_blob_012259_139.jpg;standin_blob_012403_139.jpg	12007;12121;12259;12403	blue		1
+a017	3_1_1	975	12067	12643	146	standin_blob_012067_146.jpg;standin_blob_012229_146.jpg;standin_blob_012409_146.jpg;standin_blob_012643_146.jpg	12067;12229;12409;12643	focal		1
+a018	3_1_1	929	13081	13351	139	standin_blob_013081_139.jpg;standin_blob_013171_139.jpg;standin_blob_013261_139.jpg;standin_blob_013351_139.jpg	13081;13171;13261;13351	blue		1
+a019	3_1_1	982	13087	14359	150	standin_blob_013087_150.jpg;standin_blob_013471_150.jpg;standin_blob_013885_150.jpg;standin_blob_014359_150.jpg	13087;13471;13885;14359	focal		1
+a020	3_1_1	984	13873	14587	151	standin_blob_013873_151.jpg;standin_blob_014113_151.jpg;standin_blob_014347_151.jpg;standin_blob_014587_151.jpg	13873;14113;14347;14587	yellow		1
+a021	3_1_1	943	13957	14287	139	standin_blob_013957_139.jpg;standin_blob_014047_139.jpg;standin_blob_014167_139.jpg;standin_blob_014287_139.jpg	13957;14047;14167;14287	blue		1
+a022	3_1_1	988	14725	15007	153	standin_blob_014725_153.jpg;standin_blob_014815_153.jpg;standin_blob_014887_153.jpg;standin_blob_015007_153.jpg	14725;14815;14887;15007	yellow		1
+a023	3_1_1	1010	14845	17965	156	standin_blob_014845_156.jpg;standin_blob_015823_156.jpg;standin_blob_016849_156.jpg;standin_blob_017965_156.jpg	14845;15823;16849;17965	focal		1
+a024	3_1_1	1005	15475	15745	153	standin_blob_015475_153.jpg;standin_blob_015553_153.jpg;standin_blob_015655_153.jpg;standin_blob_015745_153.jpg	15475;15553;15655;15745	blue		1
+a025	3_6_6	0	1	1591	0	standin_blob_000001_0.jpg;standin_blob_000511_0.jpg;standin_blob_001051_0.jpg;standin_blob_001591_0.jpg	1;511;1051;1591	skip	crop contains two touching ants (detector merged them)	1
+a026	3_6_6	311	13	1603	1	standin_blob_000013_1.jpg;standin_blob_000523_1.jpg;standin_blob_001063_1.jpg;standin_blob_001603_1.jpg	13;523;1063;1603	blue		1
+a027	3_6_6	9	1723	2209	0	standin_blob_001723_0.jpg;standin_blob_001873_0.jpg;standin_blob_002029_0.jpg;standin_blob_002209_0.jpg	1723;1873;2029;2209	skip	crop contains two touching ants (detector merged them)	1
+a028	3_6_6	318	1735	2011	3	standin_blob_001735_3.jpg;standin_blob_001825_3.jpg;standin_blob_001915_3.jpg;standin_blob_002011_3.jpg	1735;1825;1915;2011	blue		1
+a029	3_6_6	20	2575	2785	0	standin_blob_002575_0.jpg;standin_blob_002635_0.jpg;standin_blob_002695_0.jpg;standin_blob_002785_0.jpg	2575;2635;2695;2785	skip	crop contains two touching ants (detector merged them)	1
+a030	3_6_6	120	5419	6649	0	standin_blob_005419_0.jpg;standin_blob_005809_0.jpg;standin_blob_006229_0.jpg;standin_blob_006649_0.jpg	5419;5809;6229;6649	skip	crop contains two touching ants (detector merged them)	1
+a031	3_6_6	144	6853	8323	0	standin_blob_006853_0.jpg;standin_blob_007723_0.jpg;standin_blob_008023_0.jpg;standin_blob_008323_0.jpg	6853;7723;8023;8323	skip	crop contains two touching ants (detector merged them)	1
+a032	3_6_6	373	9841	10087	36	standin_blob_009841_36.jpg;standin_blob_009913_36.jpg;standin_blob_010003_36.jpg;standin_blob_010087_36.jpg	9841;9913;10003;10087	yellow		1
+a033	3_6_6	382	10369	11347	38	standin_blob_010369_38.jpg;standin_blob_010705_38.jpg;standin_blob_011017_38.jpg;standin_blob_011347_38.jpg	10369;10705;11017;11347	yellow		1
+a034	3_6_6	254	10765	14113	0	standin_blob_010765_0.jpg;standin_blob_011857_0.jpg;standin_blob_012973_0.jpg;standin_blob_014113_0.jpg	10765;11857;12973;14113	skip	crop contains two touching ants (detector merged them)	1
+a035	3_6_6	401	11995	14125	38	standin_blob_011995_38.jpg;standin_blob_012685_38.jpg;standin_blob_013405_38.jpg;standin_blob_014125_38.jpg	11995;12685;13405;14125	yellow		1
+a036	3_6_6	259	14191	14641	0	standin_blob_014191_0.jpg;standin_blob_014341_0.jpg;standin_blob_014491_0.jpg;standin_blob_014641_0.jpg	14191;14341;14491;14641	skip	crop contains two touching ants (detector merged them)	1
+a037	3_6_6	417	14353	14563	50	standin_blob_014353_50.jpg;standin_blob_014413_50.jpg;standin_blob_014473_50.jpg;standin_blob_014563_50.jpg	14353;14413;14473;14563	yellow		1
+a038	3_6_6	419	14653	15583	52	standin_blob_014653_52.jpg;standin_blob_014953_52.jpg;standin_blob_015253_52.jpg;standin_blob_015583_52.jpg	14653;14953;15253;15583	yellow		1
+a039	3_6_6	260	14671	15601	0	standin_blob_014671_0.jpg;standin_blob_014971_0.jpg;standin_blob_015271_0.jpg;standin_blob_015601_0.jpg	14671;14971;15271;15601	skip	crop contains two touching ants (detector merged them)	1
+a040	3_6_6	261	15631	15931	0	standin_blob_015631_0.jpg;standin_blob_015721_0.jpg;standin_blob_015811_0.jpg;standin_blob_015931_0.jpg	15631;15721;15811;15931	skip	crop contains two touching ants (detector merged them)	1
+a041	3_6_6	424	16027	16363	57	standin_blob_016027_57.jpg;standin_blob_016123_57.jpg;standin_blob_016243_57.jpg;standin_blob_016363_57.jpg	16027;16123;16243;16363	yellow		1
+a042	3_6_6	272	16051	16381	0	standin_blob_016051_0.jpg;standin_blob_016141_0.jpg;standin_blob_016261_0.jpg;standin_blob_016381_0.jpg	16051;16141;16261;16381	skip	crop contains two touching ants (detector merged them)	1
+a043	3_6_6	282	16561	16801	0	standin_blob_016561_0.jpg;standin_blob_016621_0.jpg;standin_blob_016711_0.jpg;standin_blob_016801_0.jpg	16561;16621;16711;16801	skip	crop contains two touching ants (detector merged them)	1
+a044	3_21_2	0	1	5767	0	standin_blob_000001_0.jpg;standin_blob_001891_0.jpg;standin_blob_003769_0.jpg;standin_blob_005767_0.jpg	1;1891;3769;5767	yellow		1
+a045	3_21_2	9	2641	3811	1	standin_blob_002641_1.jpg;standin_blob_003121_1.jpg;standin_blob_003331_1.jpg;standin_blob_003811_1.jpg	2641;3121;3331;3811	skip	crop contains two touching ants (detector merged them)	1
+a046	3_21_2	146	5803	6421	20	standin_blob_005803_20.jpg;standin_blob_005971_20.jpg;standin_blob_006211_20.jpg;standin_blob_006421_20.jpg	5803;5971;6211;6421	blue		1
+a047	3_21_2	168	6169	6439	21	standin_blob_006169_21.jpg;standin_blob_006259_21.jpg;standin_blob_006349_21.jpg;standin_blob_006439_21.jpg	6169;6259;6349;6439	focal		1
+a048	3_21_2	183	6187	6649	23	standin_blob_006187_23.jpg;standin_blob_006337_23.jpg;standin_blob_006499_23.jpg;standin_blob_006649_23.jpg	6187;6337;6499;6649	yellow		1
+a049	3_21_2	326	6943	7351	33	standin_blob_006943_33.jpg;standin_blob_007051_33.jpg;standin_blob_007201_33.jpg;standin_blob_007351_33.jpg	6943;7051;7201;7351	yellow		1
+a050	3_21_2	257	7015	7375	28	standin_blob_007015_28.jpg;standin_blob_007135_28.jpg;standin_blob_007255_28.jpg;standin_blob_007375_28.jpg	7015;7135;7255;7375	focal		1
+a051	3_21_2	302	7033	7363	32	standin_blob_007033_32.jpg;standin_blob_007123_32.jpg;standin_blob_007243_32.jpg;standin_blob_007363_32.jpg	7033;7123;7243;7363	blue		1
+a052	3_21_2	312	7687	7903	32	standin_blob_007687_32.jpg;standin_blob_007735_32.jpg;standin_blob_007831_32.jpg;standin_blob_007903_32.jpg	7687;7735;7831;7903	blue		1
+a053	3_21_2	476	11491	11701	58	standin_blob_011491_58.jpg;standin_blob_011545_58.jpg;standin_blob_011587_58.jpg;standin_blob_011701_58.jpg	11491;11545;11587;11701	focal		1
+a054	3_21_2	650	14083	14797	78	standin_blob_014083_78.jpg;standin_blob_014305_78.jpg;standin_blob_014557_78.jpg;standin_blob_014797_78.jpg	14083;14305;14557;14797	focal		1
+a055	3_21_2	666	15013	15559	78	standin_blob_015013_78.jpg;standin_blob_015193_78.jpg;standin_blob_015373_78.jpg;standin_blob_015559_78.jpg	15013;15193;15373;15559	focal		1
+a2000	3_1_1	32	481	631	3	standin_blob_000481_3.jpg;standin_blob_000511_3.jpg;standin_blob_000571_3.jpg;standin_blob_000631_3.jpg	481;511;571;631	blue		2
+a2001	3_1_1	156	3769	3919	23	standin_blob_003769_23.jpg;standin_blob_003793_23.jpg;standin_blob_003829_23.jpg;standin_blob_003919_23.jpg	3769;3793;3829;3919	focal		2
+a2002	3_1_1	101	3985	4165	9	standin_blob_003985_9.jpg;standin_blob_004045_9.jpg;standin_blob_004105_9.jpg;standin_blob_004165_9.jpg	3985;4045;4105;4165	blue		2
+a2003	3_1_1	172	3991	4141	27	standin_blob_003991_27.jpg;standin_blob_004021_27.jpg;standin_blob_004081_27.jpg;standin_blob_004141_27.jpg	3991;4021;4081;4141	focal		2
+a2004	3_1_1	393	5755	6067	73	standin_blob_005755_73.jpg;standin_blob_005815_73.jpg;standin_blob_005905_73.jpg;standin_blob_006067_73.jpg	5755;5815;5905;6067	focal		2
+a2005	3_1_1	629	9643	9853	103	standin_blob_009643_103.jpg;standin_blob_009703_103.jpg;standin_blob_009763_103.jpg;standin_blob_009853_103.jpg	9643;9703;9763;9853	focal		2
+a2006	3_1_1	709	9649	9799	117	standin_blob_009649_117.jpg;standin_blob_009679_117.jpg;standin_blob_009739_117.jpg;standin_blob_009799_117.jpg	9649;9679;9739;9799	yellow		2
+a2007	3_1_1	828	10813	10987	129	standin_blob_010813_129.jpg;standin_blob_010843_129.jpg;standin_blob_010915_129.jpg;standin_blob_010987_129.jpg	10813;10843;10915;10987	yellow		2
+a2008	3_1_1	873	10861	10975	130	standin_blob_010861_130.jpg;standin_blob_010891_130.jpg;standin_blob_010933_130.jpg;standin_blob_010975_130.jpg	10861;10891;10933;10975	focal		2
+a2009	3_1_1	856	11485	11611	129	standin_blob_011485_129.jpg;standin_blob_011509_129.jpg;standin_blob_011551_129.jpg;standin_blob_011611_129.jpg	11485;11509;11551;11611	focal		2
+a2010	3_1_1	864	11731	11941	129	standin_blob_011731_129.jpg;standin_blob_011791_129.jpg;standin_blob_011851_129.jpg;standin_blob_011941_129.jpg	11731;11791;11851;11941	focal		2
+a2011	3_1_1	912	11749	11929	139	standin_blob_011749_139.jpg;standin_blob_011809_139.jpg;standin_blob_011869_139.jpg;standin_blob_011929_139.jpg	11749;11809;11869;11929	blue		2
+a2012	3_1_1	998	14821	14971	139	standin_blob_014821_139.jpg;standin_blob_014851_139.jpg;standin_blob_014911_139.jpg;standin_blob_014971_139.jpg	14821;14851;14911;14971	blue		2
+a2013	3_1_1	1033	15133	15373	153	standin_blob_015133_153.jpg;standin_blob_015193_153.jpg;standin_blob_015283_153.jpg;standin_blob_015373_153.jpg	15133;15193;15283;15373	blue		2
+a2014	3_1_1	1054	15139	15289	157	standin_blob_015139_157.jpg;standin_blob_015169_157.jpg;standin_blob_015229_157.jpg;standin_blob_015289_157.jpg	15139;15169;15229;15289	yellow		2
+a2015	3_6_6	475	15319	15499	52	standin_blob_015319_52.jpg;standin_blob_015379_52.jpg;standin_blob_015439_52.jpg;standin_blob_015499_52.jpg	15319;15379;15439;15499	yellow		2
+a2016	3_6_6	526	17083	17935	76	standin_blob_017083_76.jpg;standin_blob_017377_76.jpg;standin_blob_017659_76.jpg;standin_blob_017935_76.jpg	17083;17377;17659;17935	yellow		2
+a2017	3_21_2	340	7507	7651	32	standin_blob_007507_32.jpg;standin_blob_007537_32.jpg;standin_blob_007597_32.jpg;standin_blob_007651_32.jpg	7507;7537;7597;7651	blue		2
+a2018	3_21_2	758	14191	14341	83	standin_blob_014191_83.jpg;standin_blob_014221_83.jpg;standin_blob_014281_83.jpg;standin_blob_014341_83.jpg	14191;14221;14281;14341	blue		2
+a2019	3_21_2	734	14203	14353	82	standin_blob_014203_82.jpg;standin_blob_014233_82.jpg;standin_blob_014293_82.jpg;standin_blob_014353_82.jpg	14203;14233;14293;14353	yellow	orange dot dim but visible	2

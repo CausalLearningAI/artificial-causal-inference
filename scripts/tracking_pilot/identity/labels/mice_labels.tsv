@@ -1,0 +1,226 @@
+row	video	tracklet	f_start	f_end	track_id	crops	frames	label	batch	note
+m1000	rd25	4	90	390	1	standin_blob_000090_1.jpg;standin_blob_000165_1.jpg;standin_blob_000240_1.jpg;standin_blob_000390_1.jpg	90;165;240;390	skip	1	
+m1001	rd25	43	1980	2160	17	standin_blob_001980_17.jpg;standin_blob_002040_17.jpg;standin_blob_002100_17.jpg;standin_blob_002160_17.jpg	1980;2040;2100;2160	skip	1	
+m1002	rd25	79	3975	4095	29	standin_blob_003975_29.jpg;standin_blob_004005_29.jpg;standin_blob_004050_29.jpg;standin_blob_004095_29.jpg	3975;4005;4050;4095	skip	1	
+m1003	rd25	156	5340	5565	55	standin_blob_005340_55.jpg;standin_blob_005415_55.jpg;standin_blob_005490_55.jpg;standin_blob_005565_55.jpg	5340;5415;5490;5565	skip	1	
+m1004	rd25	246	6675	6840	78	standin_blob_006675_78.jpg;standin_blob_006720_78.jpg;standin_blob_006780_78.jpg;standin_blob_006840_78.jpg	6675;6720;6780;6840	skip	1	
+m1005	rd25	349	7620	8535	105	standin_blob_007620_105.jpg;standin_blob_007920_105.jpg;standin_blob_008220_105.jpg;standin_blob_008535_105.jpg	7620;7920;8220;8535	skip	1	
+m1006	rd25	439	9150	9285	130	standin_blob_009150_130.jpg;standin_blob_009195_130.jpg;standin_blob_009240_130.jpg;standin_blob_009285_130.jpg	9150;9195;9240;9285	skip	1	
+m1007	rd25	534	10665	11100	162	standin_blob_010665_162.jpg;standin_blob_010800_162.jpg;standin_blob_010935_162.jpg;standin_blob_011100_162.jpg	10665;10800;10935;11100	m2_head	1	
+m1008	rd25	762	14835	15045	218	standin_blob_014835_218.jpg;standin_blob_014895_218.jpg;standin_blob_014955_218.jpg;standin_blob_015045_218.jpg	14835;14895;14955;15045	m2_head	1	
+m1009	rd25	884	17385	17580	263	standin_blob_017385_263.jpg;standin_blob_017460_263.jpg;standin_blob_017520_263.jpg;standin_blob_017580_263.jpg	17385;17460;17520;17580	skip	1	
+m1010	rd25	1071	19665	19890	317	standin_blob_019665_317.jpg;standin_blob_019740_317.jpg;standin_blob_019815_317.jpg;standin_blob_019890_317.jpg	19665;19740;19815;19890	skip	1	
+m1011	rd25	1177	21480	24000	332	standin_blob_021480_332.jpg;standin_blob_022515_332.jpg;standin_blob_023070_332.jpg;standin_blob_024000_332.jpg	21480;22515;23070;24000	skip	1	
+m1012	rd25	1340	24690	25725	358	standin_blob_024690_358.jpg;standin_blob_025170_358.jpg;standin_blob_025350_358.jpg;standin_blob_025725_358.jpg	24690;25170;25350;25725	skip	1	
+m1013	rd25	1404	30045	30945	382	standin_blob_030045_382.jpg;standin_blob_030285_382.jpg;standin_blob_030495_382.jpg;standin_blob_030945_382.jpg	30045;30285;30495;30945	m2_head	1	
+m1014	rd25	1686	35220	35400	420	standin_blob_035220_420.jpg;standin_blob_035310_420.jpg;standin_blob_035355_420.jpg;standin_blob_035400_420.jpg	35220;35310;35355;35400	skip	1	
+m1015	rd25	1754	36630	36900	447	standin_blob_036630_447.jpg;standin_blob_036720_447.jpg;standin_blob_036810_447.jpg;standin_blob_036900_447.jpg	36630;36720;36810;36900	skip	1	
+m1016	rd25	1825	37905	38340	467	standin_blob_037905_467.jpg;standin_blob_038040_467.jpg;standin_blob_038190_467.jpg;standin_blob_038340_467.jpg	37905;38040;38190;38340	m2_head	1	
+m1017	rd25	1936	38955	39930	491	standin_blob_038955_491.jpg;standin_blob_039180_491.jpg;standin_blob_039510_491.jpg;standin_blob_039930_491.jpg	38955;39180;39510;39930	m2_head	1	
+m1018	rd25	2111	41550	42420	513	standin_blob_041550_513.jpg;standin_blob_041925_513.jpg;standin_blob_042225_513.jpg;standin_blob_042420_513.jpg	41550;41925;42225;42420	skip	1	
+m1019	rd25	2134	43170	43860	526	standin_blob_043170_526.jpg;standin_blob_043335_526.jpg;standin_blob_043560_526.jpg;standin_blob_043860_526.jpg	43170;43335;43560;43860	skip	1	
+m1020	rd25	2206	44835	45405	543	standin_blob_044835_543.jpg;standin_blob_045015_543.jpg;standin_blob_045195_543.jpg;standin_blob_045405_543.jpg	44835;45015;45195;45405	skip	1	
+m1021	rd25	2288	46185	46680	565	standin_blob_046185_565.jpg;standin_blob_046380_565.jpg;standin_blob_046545_565.jpg;standin_blob_046680_565.jpg	46185;46380;46545;46680	skip	1	
+m1022	rd25	2367	47085	47550	580	standin_blob_047085_580.jpg;standin_blob_047235_580.jpg;standin_blob_047385_580.jpg;standin_blob_047550_580.jpg	47085;47235;47385;47550	m2_head	1	
+m1023	rd25	2402	47880	48330	586	standin_blob_047880_586.jpg;standin_blob_048030_586.jpg;standin_blob_048180_586.jpg;standin_blob_048330_586.jpg	47880;48030;48180;48330	skip	1	
+m1024	rd25	2463	48870	49245	604	standin_blob_048870_604.jpg;standin_blob_048990_604.jpg;standin_blob_049110_604.jpg;standin_blob_049245_604.jpg	48870;48990;49110;49245	skip	1	
+m1025	rd25	2537	50145	50310	640	standin_blob_050145_640.jpg;standin_blob_050205_640.jpg;standin_blob_050265_640.jpg;standin_blob_050310_640.jpg	50145;50205;50265;50310	m2_head	1	
+m1026	rd25	2566	50565	50685	647	standin_blob_050565_647.jpg;standin_blob_050595_647.jpg;standin_blob_050640_647.jpg;standin_blob_050685_647.jpg	50565;50595;50640;50685	skip	1	
+m1027	rd25	2753	51480	51600	708	standin_blob_051480_708.jpg;standin_blob_051510_708.jpg;standin_blob_051555_708.jpg;standin_blob_051600_708.jpg	51480;51510;51555;51600	skip	1	
+m1028	rd25	2838	52350	52605	730	standin_blob_052350_730.jpg;standin_blob_052425_730.jpg;standin_blob_052515_730.jpg;standin_blob_052605_730.jpg	52350;52425;52515;52605	m2_head	1	
+m1029	rd25	2940	53325	54000	757	standin_blob_053325_757.jpg;standin_blob_053475_757.jpg;standin_blob_053715_757.jpg;standin_blob_054000_757.jpg	53325;53475;53715;54000	m3_middle	1	
+m1030	rd32	6	60	225	2	standin_blob_000060_2.jpg;standin_blob_000150_2.jpg;standin_blob_000180_2.jpg;standin_blob_000225_2.jpg	60;150;180;225	m2_head	1	
+m1031	rd32	135	780	885	36	standin_blob_000780_36.jpg;standin_blob_000810_36.jpg;standin_blob_000840_36.jpg;standin_blob_000885_36.jpg	780;810;840;885	m3_middle	1	
+m1032	rd32	301	1770	1890	81	standin_blob_001770_81.jpg;standin_blob_001800_81.jpg;standin_blob_001845_81.jpg;standin_blob_001890_81.jpg	1770;1800;1845;1890	m1_none	1	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m1033	rd32	399	2445	2565	105	standin_blob_002445_105.jpg;standin_blob_002475_105.jpg;standin_blob_002520_105.jpg;standin_blob_002565_105.jpg	2445;2475;2520;2565	m1_none	1	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m1034	rd32	472	2985	3090	129	standin_blob_002985_129.jpg;standin_blob_003015_129.jpg;standin_blob_003045_129.jpg;standin_blob_003090_129.jpg	2985;3015;3045;3090	skip	1	
+m1035	rd32	730	4515	4635	198	standin_blob_004515_198.jpg;standin_blob_004545_198.jpg;standin_blob_004575_198.jpg;standin_blob_004635_198.jpg	4515;4545;4575;4635	m4_back	1	moderate confidence
+m1036	rd32	898	5385	5655	245	standin_blob_005385_245.jpg;standin_blob_005475_245.jpg;standin_blob_005595_245.jpg;standin_blob_005655_245.jpg	5385;5475;5595;5655	m1_none	1	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m1037	rd32	961	5940	6030	266	standin_blob_005940_266.jpg;standin_blob_005970_266.jpg;standin_blob_006000_266.jpg;standin_blob_006030_266.jpg	5940;5970;6000;6030	m2_head	1	
+m1038	rd32	1332	7545	7635	389	standin_blob_007545_389.jpg;standin_blob_007575_389.jpg;standin_blob_007605_389.jpg;standin_blob_007635_389.jpg	7545;7575;7605;7635	m4_back	1	
+m1039	rd32	1338	7980	8100	391	standin_blob_007980_391.jpg;standin_blob_007995_391.jpg;standin_blob_008040_391.jpg;standin_blob_008100_391.jpg	7980;7995;8040;8100	m2_head	1	
+m1040	rd32	1415	8415	8565	417	standin_blob_008415_417.jpg;standin_blob_008460_417.jpg;standin_blob_008505_417.jpg;standin_blob_008565_417.jpg	8415;8460;8505;8565	m1_none	1	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m1041	rd32	1544	9195	9300	455	standin_blob_009195_455.jpg;standin_blob_009225_455.jpg;standin_blob_009255_455.jpg;standin_blob_009300_455.jpg	9195;9225;9255;9300	m3_middle	1	
+m1042	rd32	1833	10680	10800	528	standin_blob_010680_528.jpg;standin_blob_010710_528.jpg;standin_blob_010755_528.jpg;standin_blob_010800_528.jpg	10680;10710;10755;10800	m4_back	1	
+m1043	rd32	1988	11475	11580	560	standin_blob_011475_560.jpg;standin_blob_011505_560.jpg;standin_blob_011535_560.jpg;standin_blob_011580_560.jpg	11475;11505;11535;11580	m3_middle	1	
+m1044	rd32	2182	12495	12615	618	standin_blob_012495_618.jpg;standin_blob_012525_618.jpg;standin_blob_012555_618.jpg;standin_blob_012615_618.jpg	12495;12525;12555;12615	m2_head	1	
+m1045	rd32	2460	13980	14130	709	standin_blob_013980_709.jpg;standin_blob_014010_709.jpg;standin_blob_014070_709.jpg;standin_blob_014130_709.jpg	13980;14010;14070;14130	m1_none	1	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m1046	rd32	2581	14715	14820	751	standin_blob_014715_751.jpg;standin_blob_014745_751.jpg;standin_blob_014775_751.jpg;standin_blob_014820_751.jpg	14715;14745;14775;14820	m2_head	1	
+m1047	rd32	2599	14835	14925	754	standin_blob_014835_754.jpg;standin_blob_014850_754.jpg;standin_blob_014895_754.jpg;standin_blob_014925_754.jpg	14835;14850;14895;14925	m4_back	1	
+m1048	rd32	2636	15270	15405	767	standin_blob_015270_767.jpg;standin_blob_015300_767.jpg;standin_blob_015345_767.jpg;standin_blob_015405_767.jpg	15270;15300;15345;15405	m3_middle	1	
+m1049	rd32	2710	15900	16035	790	standin_blob_015900_790.jpg;standin_blob_015930_790.jpg;standin_blob_015960_790.jpg;standin_blob_016035_790.jpg	15900;15930;15960;16035	skip	1	
+m1050	rd32	2751	16305	16470	802	standin_blob_016305_802.jpg;standin_blob_016350_802.jpg;standin_blob_016410_802.jpg;standin_blob_016470_802.jpg	16305;16350;16410;16470	m2_head	1	
+m1051	rd32	3017	17955	18135	887	standin_blob_017955_887.jpg;standin_blob_018015_887.jpg;standin_blob_018075_887.jpg;standin_blob_018135_887.jpg	17955;18015;18075;18135	m4_back	1	
+m1052	rd32	3094	18435	18615	915	standin_blob_018435_915.jpg;standin_blob_018495_915.jpg;standin_blob_018555_915.jpg;standin_blob_018615_915.jpg	18435;18495;18555;18615	m2_head	1	
+m1053	rd32	3258	19605	19755	965	standin_blob_019605_965.jpg;standin_blob_019650_965.jpg;standin_blob_019695_965.jpg;standin_blob_019755_965.jpg	19605;19650;19695;19755	m2_head	1	
+m1054	rd32	3325	20115	20250	984	standin_blob_020115_984.jpg;standin_blob_020160_984.jpg;standin_blob_020205_984.jpg;standin_blob_020250_984.jpg	20115;20160;20205;20250	m4_back	1	
+m1055	rd32	3441	20820	20910	1024	standin_blob_020820_1024.jpg;standin_blob_020835_1024.jpg;standin_blob_020880_1024.jpg;standin_blob_020910_1024.jpg	20820;20835;20880;20910	m1_none	1	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m1056	rd32	3709	22155	22545	1108	standin_blob_022155_1108.jpg;standin_blob_022245_1108.jpg;standin_blob_022380_1108.jpg;standin_blob_022545_1108.jpg	22155;22245;22380;22545	m2_head	1	
+m1057	rd32	3884	23145	23265	1151	standin_blob_023145_1151.jpg;standin_blob_023175_1151.jpg;standin_blob_023220_1151.jpg;standin_blob_023265_1151.jpg	23145;23175;23220;23265	m3_middle	1	
+m1058	rd32	4420	26025	26190	1304	standin_blob_026025_1304.jpg;standin_blob_026055_1304.jpg;standin_blob_026145_1304.jpg;standin_blob_026190_1304.jpg	26025;26055;26145;26190	m1_none	1	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m1059	rd32	4470	26670	26790	1316	standin_blob_026670_1316.jpg;standin_blob_026700_1316.jpg;standin_blob_026745_1316.jpg;standin_blob_026790_1316.jpg	26670;26700;26745;26790	m2_head	1	
+m1060	rd18	0	0	360	0	standin_blob_000000_0.jpg;standin_blob_000120_0.jpg;standin_blob_000240_0.jpg;standin_blob_000360_0.jpg	0;120;240;360	m2_head	1	
+m1061	rd18	12	360	765	4	standin_blob_000360_4.jpg;standin_blob_000495_4.jpg;standin_blob_000630_4.jpg;standin_blob_000765_4.jpg	360;495;630;765	m1_none	1	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m1062	rd18	65	810	915	21	standin_blob_000810_21.jpg;standin_blob_000840_21.jpg;standin_blob_000870_21.jpg;standin_blob_000915_21.jpg	810;840;870;915	m1_none	1	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m1063	rd18	52	1185	1275	13	standin_blob_001185_13.jpg;standin_blob_001215_13.jpg;standin_blob_001245_13.jpg;standin_blob_001275_13.jpg	1185;1215;1245;1275	m3_middle	1	
+m1064	rd18	157	1650	1815	44	standin_blob_001650_44.jpg;standin_blob_001695_44.jpg;standin_blob_001755_44.jpg;standin_blob_001815_44.jpg	1650;1695;1755;1815	m2_head	1	
+m1065	rd18	195	2145	2250	52	standin_blob_002145_52.jpg;standin_blob_002175_52.jpg;standin_blob_002220_52.jpg;standin_blob_002250_52.jpg	2145;2175;2220;2250	m4_back	1	
+m1066	rd18	279	2535	2625	72	standin_blob_002535_72.jpg;standin_blob_002565_72.jpg;standin_blob_002595_72.jpg;standin_blob_002625_72.jpg	2535;2565;2595;2625	m2_head	1	
+m1067	rd18	312	3030	3120	82	standin_blob_003030_82.jpg;standin_blob_003060_82.jpg;standin_blob_003090_82.jpg;standin_blob_003120_82.jpg	3030;3060;3090;3120	m1_none	1	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m1068	rd18	409	4095	4290	122	standin_blob_004095_122.jpg;standin_blob_004155_122.jpg;standin_blob_004215_122.jpg;standin_blob_004290_122.jpg	4095;4155;4215;4290	skip	1	
+m1069	rd18	469	4455	4575	145	standin_blob_004455_145.jpg;standin_blob_004500_145.jpg;standin_blob_004530_145.jpg;standin_blob_004575_145.jpg	4455;4500;4530;4575	m2_head	1	
+m1070	rd18	538	5175	5370	174	standin_blob_005175_174.jpg;standin_blob_005235_174.jpg;standin_blob_005295_174.jpg;standin_blob_005370_174.jpg	5175;5235;5295;5370	m3_middle	1	
+m1071	rd18	592	5610	5895	190	standin_blob_005610_190.jpg;standin_blob_005700_190.jpg;standin_blob_005790_190.jpg;standin_blob_005895_190.jpg	5610;5700;5790;5895	skip	1	
+m1072	rd18	721	6480	6975	208	standin_blob_006480_208.jpg;standin_blob_006585_208.jpg;standin_blob_006795_208.jpg;standin_blob_006975_208.jpg	6480;6585;6795;6975	m3_middle	1	
+m1073	rd18	745	7905	8250	220	standin_blob_007905_220.jpg;standin_blob_008010_220.jpg;standin_blob_008130_220.jpg;standin_blob_008250_220.jpg	7905;8010;8130;8250	m3_middle	1	
+m1074	rd18	796	8415	8595	230	standin_blob_008415_230.jpg;standin_blob_008475_230.jpg;standin_blob_008535_230.jpg;standin_blob_008595_230.jpg	8415;8475;8535;8595	m4_back	1	moderate confidence
+m1075	rd18	872	10020	10320	259	standin_blob_010020_259.jpg;standin_blob_010110_259.jpg;standin_blob_010200_259.jpg;standin_blob_010320_259.jpg	10020;10110;10200;10320	m1_none	1	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m1076	rd18	1000	10830	12270	266	standin_blob_010830_266.jpg;standin_blob_011310_266.jpg;standin_blob_011790_266.jpg;standin_blob_012270_266.jpg	10830;11310;11790;12270	skip	1	
+m1077	rd18	1063	12510	13230	282	standin_blob_012510_282.jpg;standin_blob_012900_282.jpg;standin_blob_013065_282.jpg;standin_blob_013230_282.jpg	12510;12900;13065;13230	skip	1	
+m1078	rd18	927	12720	12840	262	standin_blob_012720_262.jpg;standin_blob_012750_262.jpg;standin_blob_012795_262.jpg;standin_blob_012840_262.jpg	12720;12750;12795;12840	m2_head	1	
+m1079	rd18	1120	15045	15795	319	standin_blob_015045_319.jpg;standin_blob_015405_319.jpg;standin_blob_015585_319.jpg;standin_blob_015795_319.jpg	15045;15405;15585;15795	skip	1	
+m1080	rd18	1125	16080	17025	322	standin_blob_016080_322.jpg;standin_blob_016350_322.jpg;standin_blob_016740_322.jpg;standin_blob_017025_322.jpg	16080;16350;16740;17025	skip	1	
+m1081	rd18	1186	17070	18810	327	standin_blob_017070_327.jpg;standin_blob_018060_327.jpg;standin_blob_018435_327.jpg;standin_blob_018810_327.jpg	17070;18060;18435;18810	m1_none	1	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m1082	rd18	1213	18015	18810	331	standin_blob_018015_331.jpg;standin_blob_018270_331.jpg;standin_blob_018540_331.jpg;standin_blob_018810_331.jpg	18015;18270;18540;18810	skip	1	
+m1083	rd18	1451	21375	21495	336	standin_blob_021375_336.jpg;standin_blob_021390_336.jpg;standin_blob_021435_336.jpg;standin_blob_021495_336.jpg	21375;21390;21435;21495	m2_head	1	
+m1084	rd18	1640	21855	22620	424	standin_blob_021855_424.jpg;standin_blob_022005_424.jpg;standin_blob_022290_424.jpg;standin_blob_022620_424.jpg	21855;22005;22290;22620	skip	1	
+m1085	rd18	1699	22680	23520	437	standin_blob_022680_437.jpg;standin_blob_022860_437.jpg;standin_blob_023175_437.jpg;standin_blob_023520_437.jpg	22680;22860;23175;23520	m3_middle	1	moderate confidence
+m1086	rd18	1760	23865	24930	455	standin_blob_023865_455.jpg;standin_blob_024315_455.jpg;standin_blob_024615_455.jpg;standin_blob_024930_455.jpg	23865;24315;24615;24930	m3_middle	1	
+m1087	rd18	1787	24420	24630	466	standin_blob_024420_466.jpg;standin_blob_024480_466.jpg;standin_blob_024555_466.jpg;standin_blob_024630_466.jpg	24420;24480;24555;24630	skip	1	
+m1088	rd18	1806	25035	25260	473	standin_blob_025035_473.jpg;standin_blob_025110_473.jpg;standin_blob_025185_473.jpg;standin_blob_025260_473.jpg	25035;25110;25185;25260	m1_none	1	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m1089	rd18	1856	25545	25920	487	standin_blob_025545_487.jpg;standin_blob_025620_487.jpg;standin_blob_025770_487.jpg;standin_blob_025920_487.jpg	25545;25620;25770;25920	m3_middle	1	
+m2000	rd25	6	420	600	1	standin_blob_000420_1.jpg;standin_blob_000480_1.jpg;standin_blob_000540_1.jpg;standin_blob_000600_1.jpg	420;480;540;600	skip	2	
+m2001	rd25	31	1110	1380	7	standin_blob_001110_7.jpg;standin_blob_001200_7.jpg;standin_blob_001290_7.jpg;standin_blob_001380_7.jpg	1110;1200;1290;1380	skip	2	
+m2002	rd25	65	3300	3450	22	standin_blob_003300_22.jpg;standin_blob_003330_22.jpg;standin_blob_003390_22.jpg;standin_blob_003450_22.jpg	3300;3330;3390;3450	skip	2	
+m2003	rd25	85	3990	4095	31	standin_blob_003990_31.jpg;standin_blob_004020_31.jpg;standin_blob_004050_31.jpg;standin_blob_004095_31.jpg	3990;4020;4050;4095	skip	2	
+m2004	rd25	137	4620	4905	51	standin_blob_004620_51.jpg;standin_blob_004710_51.jpg;standin_blob_004800_51.jpg;standin_blob_004905_51.jpg	4620;4710;4800;4905	skip	2	
+m2005	rd25	217	5610	6180	69	standin_blob_005610_69.jpg;standin_blob_005760_69.jpg;standin_blob_005970_69.jpg;standin_blob_006180_69.jpg	5610;5760;5970;6180	skip	2	
+m2006	rd25	247	6855	7395	78	standin_blob_006855_78.jpg;standin_blob_007035_78.jpg;standin_blob_007215_78.jpg;standin_blob_007395_78.jpg	6855;7035;7215;7395	skip	2	
+m2007	rd25	334	7560	8775	103	standin_blob_007560_103.jpg;standin_blob_007575_103.jpg;standin_blob_007605_103.jpg;standin_blob_008775_103.jpg	7560;7575;7605;8775	skip	2	
+m2008	rd25	355	8580	8670	107	standin_blob_008580_107.jpg;standin_blob_008610_107.jpg;standin_blob_008640_107.jpg;standin_blob_008670_107.jpg	8580;8610;8640;8670	skip	2	
+m2009	rd25	430	9120	9300	126	standin_blob_009120_126.jpg;standin_blob_009180_126.jpg;standin_blob_009240_126.jpg;standin_blob_009300_126.jpg	9120;9180;9240;9300	skip	2	
+m2010	rd25	463	9750	10035	139	standin_blob_009750_139.jpg;standin_blob_009825_139.jpg;standin_blob_009900_139.jpg;standin_blob_010035_139.jpg	9750;9825;9900;10035	skip	2	
+m2011	rd25	679	12195	12795	198	standin_blob_012195_198.jpg;standin_blob_012375_198.jpg;standin_blob_012585_198.jpg;standin_blob_012795_198.jpg	12195;12375;12585;12795	skip	2	
+m2012	rd25	821	15825	16140	236	standin_blob_015825_236.jpg;standin_blob_015930_236.jpg;standin_blob_016020_236.jpg;standin_blob_016140_236.jpg	15825;15930;16020;16140	skip	2	
+m2013	rd25	850	16500	16590	249	standin_blob_016500_249.jpg;standin_blob_016530_249.jpg;standin_blob_016560_249.jpg;standin_blob_016590_249.jpg	16500;16530;16560;16590	skip	2	
+m2014	rd25	889	17865	18285	265	standin_blob_017865_265.jpg;standin_blob_018000_265.jpg;standin_blob_018120_265.jpg;standin_blob_018285_265.jpg	17865;18000;18120;18285	skip	2	
+m2015	rd25	985	18810	18960	289	standin_blob_018810_289.jpg;standin_blob_018840_289.jpg;standin_blob_018900_289.jpg;standin_blob_018960_289.jpg	18810;18840;18900;18960	skip	2	
+m2016	rd25	1093	20505	20805	324	standin_blob_020505_324.jpg;standin_blob_020595_324.jpg;standin_blob_020700_324.jpg;standin_blob_020805_324.jpg	20505;20595;20700;20805	m1_none	2	moderate confidence
+m2017	rd25	1214	23190	23430	347	standin_blob_023190_347.jpg;standin_blob_023220_347.jpg;standin_blob_023310_347.jpg;standin_blob_023430_347.jpg	23190;23220;23310;23430	skip	2	
+m2018	rd25	1336	24465	24570	355	standin_blob_024465_355.jpg;standin_blob_024495_355.jpg;standin_blob_024525_355.jpg;standin_blob_024570_355.jpg	24465;24495;24525;24570	skip	2	pale patch between mid-back and rump: m3 vs m4 undecidable -> skip
+m2019	rd25	1353	25410	25590	366	standin_blob_025410_366.jpg;standin_blob_025455_366.jpg;standin_blob_025500_366.jpg;standin_blob_025590_366.jpg	25410;25455;25500;25590	skip	2	pale patch between mid-back and rump: m3 vs m4 undecidable -> skip
+m2020	rd25	1524	32430	32850	394	standin_blob_032430_394.jpg;standin_blob_032490_394.jpg;standin_blob_032685_394.jpg;standin_blob_032850_394.jpg	32430;32490;32685;32850	m2_head	2	
+m2021	rd25	1540	33015	33465	397	standin_blob_033015_397.jpg;standin_blob_033150_397.jpg;standin_blob_033285_397.jpg;standin_blob_033465_397.jpg	33015;33150;33285;33465	skip	2	
+m2022	rd25	1747	36345	36600	445	standin_blob_036345_445.jpg;standin_blob_036420_445.jpg;standin_blob_036510_445.jpg;standin_blob_036600_445.jpg	36345;36420;36510;36600	skip	2	
+m2023	rd25	1751	36915	37230	446	standin_blob_036915_446.jpg;standin_blob_037095_446.jpg;standin_blob_037170_446.jpg;standin_blob_037230_446.jpg	36915;37095;37170;37230	skip	2	
+m2024	rd25	1775	37305	37845	448	standin_blob_037305_448.jpg;standin_blob_037485_448.jpg;standin_blob_037665_448.jpg;standin_blob_037845_448.jpg	37305;37485;37665;37845	skip	2	
+m2025	rd25	1843	38565	38730	474	standin_blob_038565_474.jpg;standin_blob_038610_474.jpg;standin_blob_038670_474.jpg;standin_blob_038730_474.jpg	38565;38610;38670;38730	skip	2	
+m2026	rd25	1942	39225	39855	492	standin_blob_039225_492.jpg;standin_blob_039345_492.jpg;standin_blob_039660_492.jpg;standin_blob_039855_492.jpg	39225;39345;39660;39855	skip	2	
+m2027	rd25	2015	40845	40995	505	standin_blob_040845_505.jpg;standin_blob_040890_505.jpg;standin_blob_040935_505.jpg;standin_blob_040995_505.jpg	40845;40890;40935;40995	skip	2	
+m2028	rd25	2114	42510	42885	513	standin_blob_042510_513.jpg;standin_blob_042645_513.jpg;standin_blob_042720_513.jpg;standin_blob_042885_513.jpg	42510;42645;42720;42885	skip	2	
+m2029	rd25	2143	43890	44010	530	standin_blob_043890_530.jpg;standin_blob_043920_530.jpg;standin_blob_043965_530.jpg;standin_blob_044010_530.jpg	43890;43920;43965;44010	skip	2	
+m2030	rd25	2165	44535	44760	530	standin_blob_044535_530.jpg;standin_blob_044565_530.jpg;standin_blob_044730_530.jpg;standin_blob_044760_530.jpg	44535;44565;44730;44760	skip	2	
+m2031	rd25	2233	45420	45510	555	standin_blob_045420_555.jpg;standin_blob_045435_555.jpg;standin_blob_045465_555.jpg;standin_blob_045510_555.jpg	45420;45435;45465;45510	skip	2	
+m2032	rd25	2267	45750	45915	559	standin_blob_045750_559.jpg;standin_blob_045810_559.jpg;standin_blob_045840_559.jpg;standin_blob_045915_559.jpg	45750;45810;45840;45915	m1_none	2	moderate confidence
+m2033	rd25	2356	47085	47190	578	standin_blob_047085_578.jpg;standin_blob_047115_578.jpg;standin_blob_047145_578.jpg;standin_blob_047190_578.jpg	47085;47115;47145;47190	skip	2	
+m2034	rd25	2369	47565	47835	581	standin_blob_047565_581.jpg;standin_blob_047655_581.jpg;standin_blob_047745_581.jpg;standin_blob_047835_581.jpg	47565;47655;47745;47835	skip	2	
+m2035	rd25	2424	48180	48585	589	standin_blob_048180_589.jpg;standin_blob_048315_589.jpg;standin_blob_048450_589.jpg;standin_blob_048585_589.jpg	48180;48315;48450;48585	skip	2	
+m2036	rd25	2426	48600	48705	589	standin_blob_048600_589.jpg;standin_blob_048630_589.jpg;standin_blob_048660_589.jpg;standin_blob_048705_589.jpg	48600;48630;48660;48705	skip	2	
+m2037	rd25	2395	49410	49560	584	standin_blob_049410_584.jpg;standin_blob_049455_584.jpg;standin_blob_049500_584.jpg;standin_blob_049560_584.jpg	49410;49455;49500;49560	skip	2	
+m2038	rd25	2515	49860	49995	629	standin_blob_049860_629.jpg;standin_blob_049905_629.jpg;standin_blob_049950_629.jpg;standin_blob_049995_629.jpg	49860;49905;49950;49995	skip	2	pale patch between mid-back and rump: m3 vs m4 undecidable -> skip
+m2039	rd25	2601	50445	50610	661	standin_blob_050445_661.jpg;standin_blob_050490_661.jpg;standin_blob_050550_661.jpg;standin_blob_050610_661.jpg	50445;50490;50550;50610	m2_head	2	
+m2040	rd25	2629	50835	50955	672	standin_blob_050835_672.jpg;standin_blob_050865_672.jpg;standin_blob_050910_672.jpg;standin_blob_050955_672.jpg	50835;50865;50910;50955	skip	2	
+m2041	rd25	2689	51105	51465	690	standin_blob_051105_690.jpg;standin_blob_051195_690.jpg;standin_blob_051300_690.jpg;standin_blob_051465_690.jpg	51105;51195;51300;51465	skip	2	
+m2042	rd25	2755	51615	51825	708	standin_blob_051615_708.jpg;standin_blob_051675_708.jpg;standin_blob_051735_708.jpg;standin_blob_051825_708.jpg	51615;51675;51735;51825	skip	2	
+m2043	rd25	2876	52665	52785	749	standin_blob_052665_749.jpg;standin_blob_052695_749.jpg;standin_blob_052740_749.jpg;standin_blob_052785_749.jpg	52665;52695;52740;52785	skip	2	
+m2044	rd25	2953	53310	53790	765	standin_blob_053310_765.jpg;standin_blob_053490_765.jpg;standin_blob_053670_765.jpg;standin_blob_053790_765.jpg	53310;53490;53670;53790	skip	2	
+m2045	rd32	107	480	630	27	standin_blob_000480_27.jpg;standin_blob_000510_27.jpg;standin_blob_000585_27.jpg;standin_blob_000630_27.jpg	480;510;585;630	skip	2	
+m2046	rd32	160	1020	1230	47	standin_blob_001020_47.jpg;standin_blob_001080_47.jpg;standin_blob_001125_47.jpg;standin_blob_001230_47.jpg	1020;1080;1125;1230	skip	2	
+m2047	rd32	186	1485	1605	47	standin_blob_001485_47.jpg;standin_blob_001515_47.jpg;standin_blob_001560_47.jpg;standin_blob_001605_47.jpg	1485;1515;1560;1605	skip	2	
+m2048	rd32	362	2250	2385	96	standin_blob_002250_96.jpg;standin_blob_002295_96.jpg;standin_blob_002340_96.jpg;standin_blob_002385_96.jpg	2250;2295;2340;2385	m2_head	2	
+m2049	rd32	391	2445	2595	101	standin_blob_002445_101.jpg;standin_blob_002490_101.jpg;standin_blob_002535_101.jpg;standin_blob_002595_101.jpg	2445;2490;2535;2595	m3_middle	2	
+m2050	rd32	461	2925	3045	127	standin_blob_002925_127.jpg;standin_blob_002955_127.jpg;standin_blob_003000_127.jpg;standin_blob_003045_127.jpg	2925;2955;3000;3045	m2_head	2	
+m2051	rd32	647	4065	4185	172	standin_blob_004065_172.jpg;standin_blob_004095_172.jpg;standin_blob_004140_172.jpg;standin_blob_004185_172.jpg	4065;4095;4140;4185	m2_head	2	
+m2052	rd32	782	4695	4785	214	standin_blob_004695_214.jpg;standin_blob_004725_214.jpg;standin_blob_004755_214.jpg;standin_blob_004785_214.jpg	4695;4725;4755;4785	m2_head	2	
+m2053	rd32	854	5130	5220	233	standin_blob_005130_233.jpg;standin_blob_005160_233.jpg;standin_blob_005190_233.jpg;standin_blob_005220_233.jpg	5130;5160;5190;5220	m4_back	2	
+m2054	rd32	869	5430	5550	237	standin_blob_005430_237.jpg;standin_blob_005460_237.jpg;standin_blob_005520_237.jpg;standin_blob_005550_237.jpg	5430;5460;5520;5550	m2_head	2	
+m2055	rd32	952	5745	5865	262	standin_blob_005745_262.jpg;standin_blob_005760_262.jpg;standin_blob_005805_262.jpg;standin_blob_005865_262.jpg	5745;5760;5805;5865	m4_back	2	
+m2056	rd32	1037	6225	6315	295	standin_blob_006225_295.jpg;standin_blob_006255_295.jpg;standin_blob_006285_295.jpg;standin_blob_006315_295.jpg	6225;6255;6285;6315	m2_head	2	
+m2057	rd32	1337	7680	7785	391	standin_blob_007680_391.jpg;standin_blob_007710_391.jpg;standin_blob_007740_391.jpg;standin_blob_007785_391.jpg	7680;7710;7740;7785	m2_head	2	
+m2058	rd32	1343	7800	7965	394	standin_blob_007800_394.jpg;standin_blob_007845_394.jpg;standin_blob_007905_394.jpg;standin_blob_007965_394.jpg	7800;7845;7905;7965	m1_none	2	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m2059	rd32	1390	8160	8250	409	standin_blob_008160_409.jpg;standin_blob_008190_409.jpg;standin_blob_008220_409.jpg;standin_blob_008250_409.jpg	8160;8190;8220;8250	m4_back	2	
+m2060	rd32	1527	9015	9180	450	standin_blob_009015_450.jpg;standin_blob_009075_450.jpg;standin_blob_009135_450.jpg;standin_blob_009180_450.jpg	9015;9075;9135;9180	m1_none	2	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m2061	rd32	1515	9060	9405	448	standin_blob_009060_448.jpg;standin_blob_009120_448.jpg;standin_blob_009360_448.jpg;standin_blob_009405_448.jpg	9060;9120;9360;9405	m2_head	2	
+m2062	rd32	1789	10245	10350	514	standin_blob_010245_514.jpg;standin_blob_010260_514.jpg;standin_blob_010320_514.jpg;standin_blob_010350_514.jpg	10245;10260;10320;10350	m4_back	2	
+m2063	rd32	1829	10515	10605	526	standin_blob_010515_526.jpg;standin_blob_010545_526.jpg;standin_blob_010575_526.jpg;standin_blob_010605_526.jpg	10515;10545;10575;10605	m4_back	2	
+m2064	rd32	1834	10815	10980	528	standin_blob_010815_528.jpg;standin_blob_010860_528.jpg;standin_blob_010920_528.jpg;standin_blob_010980_528.jpg	10815;10860;10920;10980	skip	2	pale patch between mid-back and rump: m3 vs m4 undecidable -> skip
+m2065	rd32	2075	12015	12150	590	standin_blob_012015_590.jpg;standin_blob_012060_590.jpg;standin_blob_012105_590.jpg;standin_blob_012150_590.jpg	12015;12060;12105;12150	m2_head	2	
+m2066	rd32	2099	12030	12135	596	standin_blob_012030_596.jpg;standin_blob_012060_596.jpg;standin_blob_012090_596.jpg;standin_blob_012135_596.jpg	12030;12060;12090;12135	m1_none	2	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m2067	rd32	2263	12795	12900	644	standin_blob_012795_644.jpg;standin_blob_012840_644.jpg;standin_blob_012870_644.jpg;standin_blob_012900_644.jpg	12795;12840;12870;12900	m3_middle	2	
+m2068	rd32	2468	14040	14205	711	standin_blob_014040_711.jpg;standin_blob_014055_711.jpg;standin_blob_014100_711.jpg;standin_blob_014205_711.jpg	14040;14055;14100;14205	m4_back	2	
+m2069	rd32	2580	14505	14700	751	standin_blob_014505_751.jpg;standin_blob_014595_751.jpg;standin_blob_014640_751.jpg;standin_blob_014700_751.jpg	14505;14595;14640;14700	m2_head	2	
+m2070	rd32	2598	14715	14820	754	standin_blob_014715_754.jpg;standin_blob_014745_754.jpg;standin_blob_014775_754.jpg;standin_blob_014820_754.jpg	14715;14745;14775;14820	m4_back	2	
+m2071	rd32	2609	14850	15060	757	standin_blob_014850_757.jpg;standin_blob_014910_757.jpg;standin_blob_014985_757.jpg;standin_blob_015060_757.jpg	14850;14910;14985;15060	m3_middle	2	
+m2072	rd32	2620	15045	15135	763	standin_blob_015045_763.jpg;standin_blob_015075_763.jpg;standin_blob_015105_763.jpg;standin_blob_015135_763.jpg	15045;15075;15105;15135	m4_back	2	
+m2073	rd32	2669	15570	15855	777	standin_blob_015570_777.jpg;standin_blob_015645_777.jpg;standin_blob_015735_777.jpg;standin_blob_015855_777.jpg	15570;15645;15735;15855	m2_head	2	
+m2074	rd32	2657	15600	15705	772	standin_blob_015600_772.jpg;standin_blob_015630_772.jpg;standin_blob_015660_772.jpg;standin_blob_015705_772.jpg	15600;15630;15660;15705	m4_back	2	
+m2075	rd32	2742	16185	16485	799	standin_blob_016185_799.jpg;standin_blob_016335_799.jpg;standin_blob_016410_799.jpg;standin_blob_016485_799.jpg	16185;16335;16410;16485	m3_middle	2	
+m2076	rd32	2825	16680	16785	819	standin_blob_016680_819.jpg;standin_blob_016710_819.jpg;standin_blob_016740_819.jpg;standin_blob_016785_819.jpg	16680;16710;16740;16785	m3_middle	2	
+m2077	rd32	2835	16815	16920	822	standin_blob_016815_822.jpg;standin_blob_016860_822.jpg;standin_blob_016890_822.jpg;standin_blob_016920_822.jpg	16815;16860;16890;16920	m1_none	2	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m2078	rd32	3034	18150	18330	890	standin_blob_018150_890.jpg;standin_blob_018210_890.jpg;standin_blob_018270_890.jpg;standin_blob_018330_890.jpg	18150;18210;18270;18330	m2_head	2	
+m2079	rd32	3086	18465	18615	911	standin_blob_018465_911.jpg;standin_blob_018510_911.jpg;standin_blob_018555_911.jpg;standin_blob_018615_911.jpg	18465;18510;18555;18615	m4_back	2	
+m2080	rd32	3230	19395	19500	957	standin_blob_019395_957.jpg;standin_blob_019425_957.jpg;standin_blob_019470_957.jpg;standin_blob_019500_957.jpg	19395;19425;19470;19500	m2_head	2	
+m2081	rd32	3267	19740	19890	969	standin_blob_019740_969.jpg;standin_blob_019785_969.jpg;standin_blob_019830_969.jpg;standin_blob_019890_969.jpg	19740;19785;19830;19890	skip	2	
+m2082	rd32	3318	20115	20250	982	standin_blob_020115_982.jpg;standin_blob_020160_982.jpg;standin_blob_020205_982.jpg;standin_blob_020250_982.jpg	20115;20160;20205;20250	skip	2	
+m2083	rd32	3294	20355	20475	973	standin_blob_020355_973.jpg;standin_blob_020415_973.jpg;standin_blob_020445_973.jpg;standin_blob_020475_973.jpg	20355;20415;20445;20475	m2_head	2	
+m2084	rd32	3458	20925	21030	1030	standin_blob_020925_1030.jpg;standin_blob_020955_1030.jpg;standin_blob_020985_1030.jpg;standin_blob_021030_1030.jpg	20925;20955;20985;21030	m4_back	2	
+m2085	rd32	3620	21600	21735	1077	standin_blob_021600_1077.jpg;standin_blob_021660_1077.jpg;standin_blob_021690_1077.jpg;standin_blob_021735_1077.jpg	21600;21660;21690;21735	m3_middle	2	
+m2086	rd32	3813	22740	23040	1138	standin_blob_022740_1138.jpg;standin_blob_022830_1138.jpg;standin_blob_022935_1138.jpg;standin_blob_023040_1138.jpg	22740;22830;22935;23040	m1_none	2	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m2087	rd32	4085	24075	24390	1204	standin_blob_024075_1204.jpg;standin_blob_024180_1204.jpg;standin_blob_024285_1204.jpg;standin_blob_024390_1204.jpg	24075;24180;24285;24390	m2_head	2	
+m2088	rd32	4110	24345	24540	1215	standin_blob_024345_1215.jpg;standin_blob_024390_1215.jpg;standin_blob_024450_1215.jpg;standin_blob_024540_1215.jpg	24345;24390;24450;24540	m3_middle	2	
+m2089	rd32	4468	26490	26640	1316	standin_blob_026490_1316.jpg;standin_blob_026535_1316.jpg;standin_blob_026580_1316.jpg;standin_blob_026640_1316.jpg	26490;26535;26580;26640	m2_head	2	
+m2090	rd18	4	0	285	2	standin_blob_000000_2.jpg;standin_blob_000090_2.jpg;standin_blob_000180_2.jpg;standin_blob_000285_2.jpg	0;90;180;285	m1_none	2	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m2091	rd18	35	600	780	12	standin_blob_000600_12.jpg;standin_blob_000660_12.jpg;standin_blob_000720_12.jpg;standin_blob_000780_12.jpg	600;660;720;780	m2_head	2	
+m2092	rd18	36	795	915	12	standin_blob_000795_12.jpg;standin_blob_000825_12.jpg;standin_blob_000870_12.jpg;standin_blob_000915_12.jpg	795;825;870;915	m2_head	2	
+m2093	rd18	48	930	1125	13	standin_blob_000930_13.jpg;standin_blob_000990_13.jpg;standin_blob_001065_13.jpg;standin_blob_001125_13.jpg	930;990;1065;1125	m3_middle	2	
+m2094	rd18	101	1290	1425	27	standin_blob_001290_27.jpg;standin_blob_001335_27.jpg;standin_blob_001380_27.jpg;standin_blob_001425_27.jpg	1290;1335;1380;1425	m2_head	2	
+m2095	rd18	129	1350	1815	37	standin_blob_001350_37.jpg;standin_blob_001515_37.jpg;standin_blob_001665_37.jpg;standin_blob_001815_37.jpg	1350;1515;1665;1815	m3_middle	2	
+m2096	rd18	151	1845	2130	43	standin_blob_001845_43.jpg;standin_blob_001965_43.jpg;standin_blob_002040_43.jpg;standin_blob_002130_43.jpg	1845;1965;2040;2130	m1_none	2	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m2097	rd18	220	2235	2400	58	standin_blob_002235_58.jpg;standin_blob_002280_58.jpg;standin_blob_002340_58.jpg;standin_blob_002400_58.jpg	2235;2280;2340;2400	m1_none	2	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m2098	rd18	251	2415	2880	69	standin_blob_002415_69.jpg;standin_blob_002565_69.jpg;standin_blob_002715_69.jpg;standin_blob_002880_69.jpg	2415;2565;2715;2880	m3_middle	2	
+m2099	rd18	283	2685	2775	72	standin_blob_002685_72.jpg;standin_blob_002715_72.jpg;standin_blob_002745_72.jpg;standin_blob_002775_72.jpg	2685;2715;2745;2775	m2_head	2	
+m2100	rd18	331	3135	3240	89	standin_blob_003135_89.jpg;standin_blob_003165_89.jpg;standin_blob_003195_89.jpg;standin_blob_003240_89.jpg	3135;3165;3195;3240	m3_middle	2	
+m2101	rd18	406	3960	4065	122	standin_blob_003960_122.jpg;standin_blob_003990_122.jpg;standin_blob_004035_122.jpg;standin_blob_004065_122.jpg	3960;3990;4035;4065	m4_back	2	
+m2102	rd18	445	4290	4425	137	standin_blob_004290_137.jpg;standin_blob_004320_137.jpg;standin_blob_004380_137.jpg;standin_blob_004425_137.jpg	4290;4320;4380;4425	skip	2	
+m2103	rd18	487	4590	4965	152	standin_blob_004590_152.jpg;standin_blob_004710_152.jpg;standin_blob_004830_152.jpg;standin_blob_004965_152.jpg	4590;4710;4830;4965	m1_none	2	moderate confidence
+m2104	rd18	514	4755	5160	163	standin_blob_004755_163.jpg;standin_blob_004830_163.jpg;standin_blob_005070_163.jpg;standin_blob_005160_163.jpg	4755;4830;5070;5160	m4_back	2	
+m2105	rd18	549	5220	5325	181	standin_blob_005220_181.jpg;standin_blob_005250_181.jpg;standin_blob_005280_181.jpg;standin_blob_005325_181.jpg	5220;5250;5280;5325	m4_back	2	moderate confidence
+m2106	rd18	612	5595	5895	196	standin_blob_005595_196.jpg;standin_blob_005685_196.jpg;standin_blob_005790_196.jpg;standin_blob_005895_196.jpg	5595;5685;5790;5895	m3_middle	2	
+m2107	rd18	626	5955	6135	197	standin_blob_005955_197.jpg;standin_blob_006015_197.jpg;standin_blob_006075_197.jpg;standin_blob_006135_197.jpg	5955;6015;6075;6135	m2_head	2	
+m2108	rd18	734	6945	7620	213	standin_blob_006945_213.jpg;standin_blob_007125_213.jpg;standin_blob_007290_213.jpg;standin_blob_007620_213.jpg	6945;7125;7290;7620	m1_none	2	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m2109	rd18	737	7575	7725	215	standin_blob_007575_215.jpg;standin_blob_007635_215.jpg;standin_blob_007680_215.jpg;standin_blob_007725_215.jpg	7575;7635;7680;7725	m3_middle	2	
+m2110	rd18	754	8265	8355	221	standin_blob_008265_221.jpg;standin_blob_008295_221.jpg;standin_blob_008325_221.jpg;standin_blob_008355_221.jpg	8265;8295;8325;8355	m1_none	2	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m2111	rd18	825	8820	9075	237	standin_blob_008820_237.jpg;standin_blob_008910_237.jpg;standin_blob_009015_237.jpg;standin_blob_009075_237.jpg	8820;8910;9015;9075	m3_middle	2	
+m2112	rd18	858	9165	9735	253	standin_blob_009165_253.jpg;standin_blob_009345_253.jpg;standin_blob_009525_253.jpg;standin_blob_009735_253.jpg	9165;9345;9525;9735	m4_back	2	
+m2113	rd18	877	10410	10725	261	standin_blob_010410_261.jpg;standin_blob_010515_261.jpg;standin_blob_010605_261.jpg;standin_blob_010725_261.jpg	10410;10515;10605;10725	m4_back	2	
+m2114	rd18	1012	12060	12315	270	standin_blob_012060_270.jpg;standin_blob_012120_270.jpg;standin_blob_012195_270.jpg;standin_blob_012315_270.jpg	12060;12120;12195;12315	m3_middle	2	
+m2115	rd18	1002	12330	12465	266	standin_blob_012330_266.jpg;standin_blob_012375_266.jpg;standin_blob_012420_266.jpg;standin_blob_012465_266.jpg	12330;12375;12420;12465	m4_back	2	
+m2116	rd18	1054	12630	12840	281	standin_blob_012630_281.jpg;standin_blob_012690_281.jpg;standin_blob_012765_281.jpg;standin_blob_012840_281.jpg	12630;12690;12765;12840	m3_middle	2	
+m2117	rd18	1083	13575	13995	298	standin_blob_013575_298.jpg;standin_blob_013710_298.jpg;standin_blob_013845_298.jpg;standin_blob_013995_298.jpg	13575;13710;13845;13995	m3_middle	2	
+m2118	rd18	1094	14070	14730	305	standin_blob_014070_305.jpg;standin_blob_014280_305.jpg;standin_blob_014505_305.jpg;standin_blob_014730_305.jpg	14070;14280;14505;14730	skip	2	
+m2119	rd18	1118	15180	15600	318	standin_blob_015180_318.jpg;standin_blob_015240_318.jpg;standin_blob_015300_318.jpg;standin_blob_015600_318.jpg	15180;15240;15300;15600	m3_middle	2	
+m2120	rd18	1128	15795	16320	323	standin_blob_015795_323.jpg;standin_blob_015930_323.jpg;standin_blob_016065_323.jpg;standin_blob_016320_323.jpg	15795;15930;16065;16320	m2_head	2	
+m2121	rd18	1183	16575	17025	325	standin_blob_016575_325.jpg;standin_blob_016665_325.jpg;standin_blob_016830_325.jpg;standin_blob_017025_325.jpg	16575;16665;16830;17025	m2_head	2	
+m2122	rd18	1185	17085	17400	326	standin_blob_017085_326.jpg;standin_blob_017175_326.jpg;standin_blob_017265_326.jpg;standin_blob_017400_326.jpg	17085;17175;17265;17400	m2_head	2	
+m2123	rd18	1193	17640	17850	329	standin_blob_017640_329.jpg;standin_blob_017700_329.jpg;standin_blob_017775_329.jpg;standin_blob_017850_329.jpg	17640;17700;17775;17850	m3_middle	2	
+m2124	rd18	1569	20880	20985	389	standin_blob_020880_389.jpg;standin_blob_020910_389.jpg;standin_blob_020940_389.jpg;standin_blob_020985_389.jpg	20880;20910;20940;20985	skip	2	
+m2125	rd18	1616	21540	21810	417	standin_blob_021540_417.jpg;standin_blob_021600_417.jpg;standin_blob_021735_417.jpg;standin_blob_021810_417.jpg	21540;21600;21735;21810	skip	2	
+m2126	rd18	1618	21630	22005	418	standin_blob_021630_418.jpg;standin_blob_021840_418.jpg;standin_blob_021915_418.jpg;standin_blob_022005_418.jpg	21630;21840;21915;22005	skip	2	
+m2127	rd18	1686	22290	22620	430	standin_blob_022290_430.jpg;standin_blob_022380_430.jpg;standin_blob_022500_430.jpg;standin_blob_022620_430.jpg	22290;22380;22500;22620	m1_none	2	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m2128	rd18	1748	23580	23940	451	standin_blob_023580_451.jpg;standin_blob_023685_451.jpg;standin_blob_023790_451.jpg;standin_blob_023940_451.jpg	23580;23685;23790;23940	skip	2	
+m2129	rd18	1758	23685	23940	454	standin_blob_023685_454.jpg;standin_blob_023760_454.jpg;standin_blob_023835_454.jpg;standin_blob_023940_454.jpg	23685;23760;23835;23940	m1_none	2	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
+m2130	rd18	1784	24225	24360	466	standin_blob_024225_466.jpg;standin_blob_024270_466.jpg;standin_blob_024315_466.jpg;standin_blob_024360_466.jpg	24225;24270;24315;24360	skip	2	
+m2131	rd18	1797	24735	24840	470	standin_blob_024735_470.jpg;standin_blob_024765_470.jpg;standin_blob_024795_470.jpg;standin_blob_024840_470.jpg	24735;24765;24795;24840	skip	2	
+m2132	rd18	1783	24945	25170	465	standin_blob_024945_465.jpg;standin_blob_025020_465.jpg;standin_blob_025095_465.jpg;standin_blob_025170_465.jpg	24945;25020;25095;25170	m2_head	2	
+m2133	rd18	1812	25275	25380	476	standin_blob_025275_476.jpg;standin_blob_025305_476.jpg;standin_blob_025335_476.jpg;standin_blob_025380_476.jpg	25275;25305;25335;25380	m2_head	2	
+m2134	rd18	1822	25320	25530	480	standin_blob_025320_480.jpg;standin_blob_025380_480.jpg;standin_blob_025455_480.jpg;standin_blob_025530_480.jpg	25320;25380;25455;25530	m1_none	2	no patch seen; rump visible in >=2 crops (a hidden or regrown back patch cannot be excluded)
