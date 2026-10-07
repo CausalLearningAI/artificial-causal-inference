@@ -683,6 +683,182 @@ def contact_sheets(args, A, lab, valid, tok, pos, lens, models, own, loc, lout, 
                                            for e in index]))
 
 
+# ---------------------------------------------------------------------------------------------- regional (ants)
+DEPLOYED_ANTS = REPO / 'dataset/ants/eci/sae/matryoshka_btk_1024_k16_antsfg_s0/sae.pt'
+VOR_D = 2.0
+
+
+def ants_anchors(lab):
+    """Per eval frame (grid units = px / 16): focal body centroid, yellow / blue colour-dot positions; ok = all present.
+    Same anchors as scripts/eci/diag_ants_pairs.py ('mark' anchor, focal = body centroid)."""
+    cols = ['focal_x', 'focal_y', 'mark_yellow_x', 'mark_yellow_y', 'mark_blue_x', 'mark_blue_y']
+    A = np.full((len(lab), 6), np.nan)
+    for (exp, obs), g in lab.groupby(['experiment', 'obs']):
+        t = pd.read_csv(REPO / 'dataset/ants' / exp / 'tracking' / f'{obs}.csv').set_index('frame_idx')
+        A[g.index.values] = t.reindex(g['frame_idx'].values)[cols].values / 16.0
+    return A, np.isfinite(A).all(1)
+
+
+def rank_auc(S, y):
+    """AUROC of every column of S (n, m) (any sign, ties averaged) for bool y (n,)."""
+    from scipy.stats import rankdata
+    R = rankdata(S, axis=0)
+    P = y.sum()
+    N = len(y) - P
+    return (R[y].sum(0) - P * (P + 1) / 2) / (P * N)
+
+
+RCTX = {}
+
+
+def analyse_regional(name):
+    import warnings
+    warnings.simplefilter('ignore', RuntimeWarning)
+    C = RCTX
+    ys = np.asarray(np.load(C['dir'] / f'reg_{name}_Y.npy', mmap_mode='r'), dtype=np.float32)[C['ok']]
+    bs = np.asarray(np.load(C['dir'] / f'reg_{name}_B.npy', mmap_mode='r'), dtype=np.float32)[C['ok']]
+    y, b = C['y'][C['ok']], C['b'][C['ok']]
+    ry = ssp.align_columns(ys, y[:, None])
+    rb = ssp.align_columns(bs, b[:, None])
+    one = y ^ b
+    disc = rank_auc((ys - bs)[one], y[one])
+    half = C['half'][C['ok']][one]
+    cf = []
+    for ha in (0, 1):
+        a_, t_ = half == ha, half != ha
+        da = rank_auc((ys - bs)[one][a_], y[one][a_])
+        j = int(np.argmax(da))
+        cf.append({'neuron': j, 'select_disc': float(da[j]),
+                   'test_disc': float(rank_auc((ys - bs)[one][t_][:, [j]], y[one][t_])[0])})
+    return name, {'y2f_auc': ry['auc'][:, 0], 'y2f_ap': ry['ap'][:, 0], 'y2f_top1': ry['prec_top'][:, 0],
+                  'b2f_auc': rb['auc'][:, 0], 'b2f_ap': rb['ap'][:, 0], 'b2f_top1': rb['prec_top'][:, 0],
+                  'disc': disc, 'crossfit': cf, 'n_ok': int(C['ok'].sum()), 'n_one': int(one.sum())}
+
+
+@torch.no_grad()
+def cmd_regional(args):
+    """Ants: read every neuron over the windows whose CENTRE lies within VOR_D grid units of the focal body centroid and
+    is closer to the yellow colour dot than to the blue one (yellow region) or the reverse (blue region) -- the
+    'mark_vor2' rule of scripts/eci/diag_ants_pairs.py, applied to window centres (S1: the patch centre, identical to
+    the diagnostic). Y2F is scored with the yellow-region max, B2F with the blue-region max, Y2F-vs-B2F with their
+    difference among frames with exactly one of the two. Frames without all anchors are excluded (as there)."""
+    assert args.domain == 'ants'
+    dev = torch.device('cuda')
+    torch.backends.cuda.matmul.allow_tf32 = False
+    out = Path(args.out_dir)
+    loc = local_dir()
+    idx = ssp.StoreIndex('ants')
+    _, ev, _, _, _, _ = idx.split('ants', N_TRAIN['ants'], 0)
+    ev = np.sort(ev)
+    if args.max_eval_frames:
+        ev = ev[:args.max_eval_frames]
+    lab, beh, valid = eval_labels('ants', idx, ev)
+    A, ok = ants_anchors(lab)
+    log(f'ants regional: {len(ev):,} eval frames, {ok.sum():,} with focal centroid + both colour dots')
+    tok, pos, lens = stage(idx, ev, loc / 'eval')
+    scales = scale_table('ants')
+    models = {(cfg, sd): load_sae(out / 'sae' / f'{cfg}_s{sd}' / 'sae.pt', dev)[:2] for cfg in CONFIGS
+              for sd in args.seeds}
+    dep = load_sae(DEPLOYED_ANTS, dev)[:2]
+    sets = {f'{c}_s{sd}': (c, sd, c) for c in SCALE_NAMES for sd in args.seeds}
+    sets.update({f'joint@{s}_s{sd}': ('joint', sd, s) for sd in args.seeds for s in SCALE_NAMES})
+    sets['deployed'] = ('deployed', 0, 'S1')
+    F_, m = len(ev), 1024
+    reg = {k: [np.lib.format.open_memmap(loc / f'reg_{k}_{r}.npy', 'w+', np.float16, (F_, m)) for r in 'YB']
+           for k in sets}
+    At = torch.from_numpy(np.nan_to_num(A, nan=-1e4)).float().to(dev)
+    t0 = time.time()
+    for f0, f1, T, P, L in iter_chunks(tok, pos, lens, args.chunk_frames, dev):
+        nf = f1 - f0
+        a = At[f0:f1]
+        for si, (s, (side, stride, mf)) in enumerate(scales.items()):
+            feats, frame, win = window_tokens(T, P, L, side, stride, mf)
+            cy = win[:, 0].float() + side / 2
+            cx = win[:, 1].float() + side / 2
+            w = a[frame]
+            df = torch.hypot(cx - w[:, 0], cy - w[:, 1])
+            dy = torch.hypot(cx - w[:, 2], cy - w[:, 3])
+            db = torch.hypot(cx - w[:, 4], cy - w[:, 5])
+            inY = (df <= VOR_D) & (dy < db)
+            inB = (df <= VOR_D) & (db < dy)
+            for k, (cfg, seed, sc) in sets.items():
+                if sc != s:
+                    continue
+                if cfg == 'deployed':
+                    sae, norm = dep
+                    x = norm(feats[:, :D_TOKEN])  # the raw patch token (mean = max = the token at S1)
+                else:
+                    sae, norm = models[(cfg, seed)]
+                    fb = torch.cat([feats, onehot(len(feats), si, dev)], 1) if cfg == 'joint' else feats
+                    x = norm(fb)
+                z = sae.encode(x, mode='threshold')
+                for r_, msk in ((0, inY), (1, inB)):
+                    mx = torch.zeros(nf, m, device=dev)
+                    if msk.any():
+                        mx.index_reduce_(0, frame[msk], z[msk], 'amax', include_self=True)
+                    reg[k][r_][f0:f1] = mx.cpu().numpy().astype(np.float16)
+    log(f'  regional encoding done in {time.time() - t0:.0f}s')
+    for k in sets:
+        for r_ in reg[k]:
+            r_.flush()
+    names = list(sets)
+    for sd in args.seeds:  # joint read-outs: own scale (from the evaluate step) and max over scales
+        own = np.load(out / 'eval' / f'joint_scales_s{sd}.npz')['own']
+        for ri, r in enumerate('YB'):
+            Z = np.stack([np.asarray(reg[f'joint@{s}_s{sd}'][ri]) for s in SCALE_NAMES])
+            np.save(loc / f'reg_joint_own_s{sd}_{r}.npy',
+                    np.take_along_axis(Z, own[None, None, :].repeat(Z.shape[1], 1), 0)[0])
+            np.save(loc / f'reg_joint_allmax_s{sd}_{r}.npy', Z.max(0))
+        names += [f'joint_own_s{sd}', f'joint_allmax_s{sd}']
+    vids = sorted(lab.obs.unique())
+    RCTX.update(dir=loc, ok=ok, y=lab['groom_yellow'].values, b=lab['groom_blue'].values,
+                half=lab.obs.map({v: i % 2 for i, v in enumerate(vids)}).values)
+    with get_context('fork').Pool(args.workers) as pool:
+        R = dict(pool.imap_unordered(analyse_regional, names))
+    S = json.loads((out / 'summary.json').read_text())['per_set']
+    (out / 'regional').mkdir(parents=True, exist_ok=True)
+    per = {}
+    for k in names:
+        r = R[k]
+        np.savez(out / 'regional' / f'{k}.npz', **{q: v for q, v in r.items() if isinstance(v, np.ndarray)})
+        e = {'n_ok_frames': r['n_ok'], 'n_exactly_one': r['n_one'],
+             'best_disc_neuron': int(np.argmax(r['disc'])), 'best_disc': float(r['disc'].max()),
+             'crossfit_test_disc': float(np.mean([c['test_disc'] for c in r['crossfit']])), 'crossfit': r['crossfit']}
+        pre = {'n90': 90} if k == 'deployed' else {
+            'groom_any': S[k]['groom_any']['neuron'], 'groom_yellow': S[k]['groom_yellow']['neuron'],
+            'groom_blue': S[k]['groom_blue']['neuron'], 'y_vs_b_framemax': S[k]['y_vs_b']['neuron']}
+        for tag, j in pre.items():
+            e[f'at_{tag}'] = {'neuron': int(j), 'y2f_auroc': float(r['y2f_auc'][j]), 'y2f_ap': float(r['y2f_ap'][j]),
+                              'b2f_auroc': float(r['b2f_auc'][j]), 'b2f_ap': float(r['b2f_ap'][j]),
+                              'disc_auroc': float(r['disc'][j])}
+            if k != 'deployed':
+                e[f'at_{tag}']['framemax_groom_any_auroc'] = S[k]['groom_any']['auroc'] if tag == 'groom_any' else None
+        per[k] = e
+    agg = {}
+    for kd in dict.fromkeys(k.rsplit('_s', 1)[0] if k != 'deployed' else k for k in names):
+        ks = [k for k in names if (k.rsplit('_s', 1)[0] if k != 'deployed' else k) == kd]
+        agg[kd] = {}
+        for q in ('best_disc', 'crossfit_test_disc'):
+            v = [per[k][q] for k in ks]
+            agg[kd][q] = {'mean': float(np.mean(v)), 'sd': float(np.std(v, ddof=1)) if len(v) > 1 else 0.0}
+        for tag in [t for t in per[ks[0]] if t.startswith('at_')]:
+            agg[kd][tag] = {}
+            for q in ('y2f_auroc', 'y2f_ap', 'b2f_auroc', 'b2f_ap', 'disc_auroc'):
+                v = [per[k][tag][q] for k in ks]
+                agg[kd][tag][q] = {'mean': float(np.mean(v)), 'sd': float(np.std(v, ddof=1)) if len(v) > 1 else 0.0}
+    (out / 'regional_summary.json').write_text(json.dumps({'rule': f'mark_vor{VOR_D:g} on window centres',
+                                                           'per_set': per, 'mean_sd': agg}, indent=1))
+    f = lambda d: f"{d['mean']:.3f}+-{d['sd']:.3f}"  # noqa: E731
+    log('config | read-at neuron | Y2F AUROC (yellow region) | Y2F AP | B2F AUROC (blue region) | B2F AP | disc AUROC')
+    for kd, d in agg.items():
+        for tag in [t for t in d if t.startswith('at_')]:
+            x = d[tag]
+            log(f"{kd} | {tag} | {f(x['y2f_auroc'])} | {f(x['y2f_ap'])} | {f(x['b2f_auroc'])} | {f(x['b2f_ap'])} | "
+                f"{f(x['disc_auroc'])}")
+        log(f"{kd} | best regional-disc neuron (in-sample) {f(d['best_disc'])} | cross-fitted by video halves "
+            f"{f(d['crossfit_test_disc'])}")
+
+
 def print_table(S):
     """Config x label table of summary.json (mean +- sd over seeds)."""
     ms = S['mean_sd']
@@ -719,7 +895,7 @@ def cmd_table(args):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('cmd', choices=['selftest', 'train', 'evaluate', 'table'])
+    p.add_argument('cmd', choices=['selftest', 'train', 'evaluate', 'table', 'regional'])
     p.add_argument('--domain', default='mice', choices=['mice', 'ants'])
     p.add_argument('--out-dir')
     p.add_argument('--seeds', type=int, nargs='+', default=[0, 1, 2])
@@ -732,7 +908,7 @@ def main():
     p.add_argument('--max-eval-frames', type=int, default=0, help='smoke tests only')
     p.add_argument('--workers', type=int, default=8)
     args = p.parse_args()
-    {'selftest': cmd_selftest, 'train': cmd_train, 'evaluate': cmd_evaluate, 'table': cmd_table}[args.cmd](args)
+    {'selftest': cmd_selftest, 'train': cmd_train, 'evaluate': cmd_evaluate, 'table': cmd_table, 'regional': cmd_regional}[args.cmd](args)
 
 
 if __name__ == '__main__':

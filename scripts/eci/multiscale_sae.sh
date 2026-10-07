@@ -1,9 +1,11 @@
 #!/bin/bash
 #
-# Tracker-free multi-scale SAEs (scripts/eci/multiscale_sae.py). STEP = selftest | train | evaluate.
+# Tracker-free multi-scale SAEs (scripts/eci/multiscale_sae.py). STEP = selftest | train | evaluate | regional.
 #   train     stage the train frames to /localhome, build window pools, 6 configs x 3 seeds -> $OUT/sae/
 #   evaluate  stage the eval frames, encode, align, size control, discrimination, proxies, contact sheets
 #             -> $OUT/{eval,align,codes_best,sheets}/, $OUT/summary.json (copied back once at the end)
+#   regional  ants only, after evaluate: yellow-dot / blue-dot Voronoi read near the focal (diag_ants_pairs.py rule
+#             mark_vor2 on window centres) for every config + the deployed SAE -> $OUT/regional*/
 # GPU jobs go to the 'gpu' partition (not gpu100), excluding gpu150 (11 GB 2080 Ti) and gpu242 (GPU 0 failed 2026-10-06).
 #
 # Usage (chain, per domain):
@@ -44,4 +46,6 @@ case ${STEP} in
     python -u scripts/eci/multiscale_sae.py train --domain $DOMAIN --out-dir $OUT --cap $CAP $EXTRA ;;
   evaluate)
     python -u scripts/eci/multiscale_sae.py evaluate --domain $DOMAIN --out-dir $OUT $EXTRA ;;
+  regional)
+    python -u scripts/eci/multiscale_sae.py regional --domain ants --out-dir $OUT $EXTRA ;;
 esac
