@@ -76,6 +76,8 @@ from src.mice_behavior.truth import read_truth                             # noq
 from src.mice_behavior.phase_ate import (                                  # noqa: E402
     TRANSITIONS, classical, pool_deltas, ppci, ppi)
 from event_eval import postprocess, runs                                   # noqa: E402
+from src.mice_behavior.window import (                                     # noqa: E402
+    WIN, WINDOW_NAME, PHASE_WINDOW_MIN, phase_of, take, window_mask)
 
 FRAME = ROOT / 'results' / 'vision' / 'mice' / 'frame'
 OUT = FRAME / '_figures'
@@ -171,10 +173,11 @@ UNITS = {'events': 'bouts per minute', 'time': 'occupancy (pp)',
          'decay': 'decay (mean onset, min)'}
 ALL_UNITS = ('events', 'time', 'decay')
 
-# DECAY = the mean START TIME of a phase's bouts, in minutes, inside a common 15-minute window.
-# Flat process -> 7.5; front-loaded -> lower; back-loaded -> higher. O and P run exactly 15
-# minutes so their whole recording is the window; only H (30 min) is truncated by it, which is
-# what makes the three phases comparable at all.
+# DECAY = the mean START TIME of a phase's bouts, in minutes, measured from the start of the
+# phase's 15-minute estimation window (src/mice_behavior/window.py). Flat process -> 7.5;
+# front-loaded -> lower; back-loaded -> higher. O and P run exactly 15 minutes so their whole
+# recording is the window; H (30 min) contributes its LAST 15 minutes, so its onsets are counted
+# from minute 15.
 #
 # THIS REPLACED A FRONT-LOADING FRACTION (bouts in minutes 0-5 / bouts in minutes 0-15, flat ->
 # 0.33) on 2026-08-24, for three reasons:
@@ -184,10 +187,11 @@ ALL_UNITS = ('events', 'time', 'decay')
 #     information in the onset times;
 #   * it was a ratio of two correlated counts, so its sampling distribution was awkward, where a
 #     mean has an ordinary standard error.
-# A Delta on this unit reads directly: "the exposure pushes bouts X minutes later into the phase".
+# A Delta on this unit reads directly: "the exposure pushes bouts X minutes later into the window".
 # Both are undefined when a recording has no bout in the window, which is unavoidable.
 #
-# THE MEDIAN ONSET WAS TESTED AND IS WORSE, on every axis this report decides units by:
+# THE MEDIAN ONSET WAS TESTED AND IS WORSE (measured 2026-08-24 under the earlier first-15
+# window), on every axis this report decides units by:
 #
 #                    within-cell CV nt / nn   mean rDelta   worst-cell rDelta   CI width
 #     mean onset           0.511 / 0.375          0.502           0.293           3.096
@@ -199,34 +203,32 @@ ALL_UNITS = ('events', 'time', 'decay')
 # the worst-cell rDelta drop from 0.293 to 0.174 is. The median wins only on resolved contrasts
 # (6/8 against 5/8), which this report explicitly refuses to choose on. Median robustness would be
 # worth having if late onsets were measurement error; here they are the phenomenon.
-WIN15 = int(15 * 60 * FPS)
-
+#
 # THE OBSERVATION WINDOW, and it applies to every unit.
 # ====================================================
-# Section 02b's decision: match the first 15 minutes of EVERY phase. H is 9,000 frames (30 min at
-# 5 fps), O and P are 4,500 (15 min), so capping at WIN15 truncates H alone and leaves O and P
-# bit-for-bit identical -- which is why O->P is unaffected by the choice and only H->O moves.
+# Defined ONCE, in src/mice_behavior/window.py, and imported by every builder the report reads:
+# H contributes minutes 15-30, O and P their whole 15 minutes. Decided 2026-10-07 with the
+# neuroscientists (it replaced "the first 15 minutes of every phase"): the exposure is compared
+# against the settled baseline that immediately precedes it. O->P is bit-for-bit unaffected by the
+# choice, since both of its phases are 15 minutes long; only H->O moves.
 #
-# The reason is a confound, not tidiness: every phase is a separate recording the experimenter
-# starts by opening the cage, and the onset spike that follows is LARGEST in P, where the odour is
-# removed. A response peaking when the odour is taken away is handling, not odour, so matching
-# onset position puts it on both sides of every contrast, where it cancels.
-#
-# The grid used to be cut on the full recording while 02b said otherwise. It no longer is. `decay`
-# was always windowed (mean_onset caps at WIN15); events and time now are too, which is what makes
-# the three units describe the same stretch of tape.
-WINDOW = WIN15
+# Per-frame arrays here are stride 1 with index == frame_idx (val_probs.npz, sorted by gi, and
+# pred_dense_*.npz), so the window is a slice. The CSV aggregates (`po_*`, `p_*_t*`) are over the
+# WHOLE recording and cannot be windowed after the fact, so they are never read.
+WIN15 = WIN
 
 
-def in_window(frame_idx) -> np.ndarray:
-    """Boolean mask for the matched window. Frame indices are 0-based within an observation."""
-    return np.asarray(frame_idx) < WINDOW
+def in_window(phase, frame_idx) -> np.ndarray:
+    """Boolean mask for the estimation window. Frame indices are 0-based within an observation."""
+    return window_mask(phase, frame_idx)
 
 
-def mean_onset(starts) -> float:
-    """Mean bout-onset minute inside the first 15 minutes. NaN, not 0, when there are none."""
+def mean_onset(starts, phase) -> float:
+    """Mean bout-onset minute, counted from the window's start. NaN, not 0, when there are none.
+
+    `starts` are frame indices relative to the WINDOW (0 = the window's first frame)."""
     s = np.asarray(starts, dtype=float)
-    s = s[s < WIN15]
+    s = s[(s >= 0) & (s < WIN)]
     return float(s.mean() / FPS / 60.0) if len(s) else np.nan
 
 
@@ -236,15 +238,17 @@ def labelled_truth() -> pd.DataFrame:
     a = read_truth().sort_values(['observation_id', 'frame_idx'])
     rows = []
     for oid, g in a.groupby('observation_id', sort=False):
-        g = g[in_window(g['frame_idx'].to_numpy())]          # 02b's matched window
+        ph = phase_of(oid)
+        g = g[in_window(ph, g['frame_idx'].to_numpy())]      # the estimation window
         n = len(g); rec = {'observation_id': oid}
-        fi = g['frame_idx'].to_numpy()
+        assert n == WIN, f'{oid}: {n} annotated frames in the window, expected {WIN}'
+        fi = g['frame_idx'].to_numpy() - g['frame_idx'].to_numpy()[0]   # relative to the window
         for lab in LABELS:
             v = g['Y_' + lab].to_numpy()
             rec[f't_time_{lab}'] = v.mean() * 100
             starts = (v == 1) & (np.r_[0, v[:-1]] == 0)
             rec[f't_events_{lab}'] = int(starts.sum()) / (n / FPS / 60)
-            rec[f't_decay_{lab}'] = mean_onset(fi[starts])
+            rec[f't_decay_{lab}'] = mean_onset(fi[starts], ph)
         rows.append(rec)
     return pd.DataFrame(rows)
 
@@ -293,7 +297,8 @@ def out_of_fold_predictions(folds=FOLDS):
     rows = []
     for k in folds:
         for oid, g in frames[k].groupby('obs', sort=False):
-            g = g.iloc[:WINDOW]                              # frames are stride 1, sorted by gi
+            # frames are stride 1, sorted by gi, so position == frame_idx and the window is a slice
+            g = take(g, oid)
             n = len(g); mins = n / FPS / 60
             rec = {'observation_id': oid, 'fold': k}
             for lab in LABELS:
@@ -301,9 +306,8 @@ def out_of_fold_predictions(folds=FOLDS):
                 rec[f'f_time_{lab}'] = p.mean() * 100
                 bouts = runs(postprocess(p >= taus[k][lab], 1, 1))
                 rec[f'f_events_{lab}'] = len(bouts) / mins
-                # gi is sorted within an observation and every frame is present, so position ==
-                # frame_idx and a run's start index is its frame number
-                rec[f'f_decay_{lab}'] = mean_onset([b[0] for b in bouts])
+                # a run's start index is its frame number counted from the window's start
+                rec[f'f_decay_{lab}'] = mean_onset([b[0] for b in bouts], phase_of(oid))
             rows.append(rec)
     mean_tau = {lab: float(np.mean([taus[k][lab] for k in folds])) for lab in LABELS}
     return pd.DataFrame(rows), taus, mean_tau
@@ -340,7 +344,7 @@ def dense_predictions(version: str, mean_tau: dict, folds=FOLDS):
                 for o in rec.observation_id:
                     if o not in z.files:
                         time_.append(np.nan); ev.append(np.nan); continue
-                    q = z[o][:WINDOW, j].astype(np.float32)
+                    q = take(z[o], o)[:, j].astype(np.float32)
                     time_.append(float(q.mean()) * 100)
                     ev.append(len(runs(postprocess(q >= mean_tau[lab], 1, 1)))
                               / (len(q) / FPS / 60))
@@ -350,7 +354,8 @@ def dense_predictions(version: str, mean_tau: dict, folds=FOLDS):
                 j = LABELS.index(lab)
                 rec[f'f_decay_{lab}'] = [
                     mean_onset([b[0] for b in runs(postprocess(
-                        z[o][:WINDOW, j].astype(np.float32) >= mean_tau[lab], 1, 1))])
+                        take(z[o], o)[:, j].astype(np.float32) >= mean_tau[lab], 1, 1))],
+                        phase_of(o))
                     if o in z.files else np.nan for o in rec.observation_id]
         else:
             # Without the npz the window cannot be applied, and an unwindowed number would be
@@ -369,17 +374,46 @@ def dense_predictions(version: str, mean_tau: dict, folds=FOLDS):
 
 
 # ------------------------------------------------------------------------------------ the grid
-def strata_of(exp_df, version):
-    """('all', mask) plus one entry per stratum: line x genotype on v1, line on v2."""
-    out = [('all', 'all pools', np.ones(len(exp_df), bool))]
-    if version == 'v1':
-        for line in sorted(exp_df.line.unique()):
-            for g in ('wt', 'het'):
-                out.append((f'{line}_{g}', f'{line} · {g}',
-                            (exp_df.line == line).to_numpy() & (exp_df.genotype == g).to_numpy()))
-    else:
-        for line in sorted(exp_df.line.unique()):
-            out.append((f'{line}', f'{line} · mixed', (exp_df.line == line).to_numpy()))
+SEX_NICE = {'m': 'male', 'f': 'female'}
+LINES = ('ash1l', 'kdm6b', 'kmt5b')
+
+
+def stratum_id(line='all', geno='all', sex='all') -> str:
+    """'all', or the non-'all' parts joined in the order line, genotype, sex.
+
+    The order keeps every id the grid used before the sex split ('ash1l_wt' on v1, 'ash1l' on v2),
+    so a reader of the old line x genotype strata still finds them. report_chart.html builds the
+    SAME id from its controls -- change one, change both.
+    """
+    parts = [x for x in (line, geno, sex) if x != 'all']
+    return '_'.join(parts) if parts else 'all'
+
+
+def strata_of(pools: pd.DataFrame, version):
+    """Every (line, genotype, sex) combination the effects figure can ask for, 'all' included.
+
+    v1: line {all + 3} x genotype {all, wt, het} x sex {all, m, f} = 36 strata. v2 cages are
+    mixed-genotype (3 wt + 1 het), so v2 has no genotype axis: line x sex = 12 strata. Returns
+    (id, label, line, geno, sex, mask over `pools`) -- the mask is over pools, one row each.
+    """
+    out = []
+    genos = ('all', 'wt', 'het') if version == 'v1' else ('all',)
+    for line in ('all',) + LINES:
+        for g in genos:
+            for sx in ('all', 'm', 'f'):
+                m = np.ones(len(pools), bool)
+                if line != 'all':
+                    m &= (pools.line == line).to_numpy()
+                if g != 'all':
+                    m &= (pools.genotype == g).to_numpy()
+                if sx != 'all':
+                    m &= (pools.sex == sx).to_numpy()
+                bits = [line if line != 'all' else None,
+                        g if g != 'all' else ('mixed' if version == 'v2' and line != 'all'
+                                              and sx == 'all' else None),
+                        SEX_NICE.get(sx)]
+                lab = ' · '.join(b for b in bits if b) or 'all pools'
+                out.append((stratum_id(line, g, sx), lab, line, g, sx, m))
     return out
 
 
@@ -444,7 +478,7 @@ def main():
                 if p.exists():
                     print(f'      single fold {t}: {pd.read_csv(p)["po_" + lab].mean():7.3f}')
 
-    cells, missing = [], []
+    cells, missing, strata_meta = [], [], {}
     for pkey, P in per_pred.items():
       human = P['spec']['human']
       for version, labdf, unldf in (('v1', P['lab'], P['u1']), ('v2', None, P['u2'])):
@@ -465,14 +499,14 @@ def main():
             for lab in LABELS:
                 for u in ALL_UNITS:
                     frame[f't_{u}_{lab}'] = np.nan
-        for sid, snice, _ in strata_of(exp_df.drop_duplicates('pool'), version):
-            if sid == 'all':
-                sub = frame
-            elif version == 'v1':
-                line, g = sid.rsplit('_', 1)
-                sub = frame[(frame.line == line) & (frame.genotype == g)]
-            else:
-                sub = frame[frame.line == sid]
+        pools = exp_df.drop_duplicates('pool').reset_index(drop=True)
+        ann = set(exp_df.loc[exp_df.annotation_file.notna(), 'pool']) if version == 'v1' else set()
+        for sid, snice, line, g, sx, mask in strata_of(pools, version):
+            keep = set(pools.pool[mask])
+            sub = frame[frame.pool.isin(keep)]
+            strata_meta.setdefault(version, {})[sid] = {
+                'label': snice, 'line': line, 'geno': g, 'sex': sx,
+                'n_pools': len(keep), 'n_annotated': len(keep & ann)}
             for unit in ALL_UNITS:
                 for lab in LABELS:
                     tcol, fcol = f't_{unit}_{lab}', f'f_{unit}_{lab}'
@@ -518,9 +552,16 @@ def main():
             'deployed': prime_key,
             'design': {
                 'v1': {'pools': 72, 'per_line_genotype': 12, 'annotated_pools': 24,
-                       'strata': 'line x genotype (6)'},
+                       'strata': 'line {all,3} x genotype {all,wt,het} x sex {all,m,f} (36)'},
                 'v2': {'pools': 36, 'per_line': 12, 'annotated_pools': 0,
-                       'composition': '3 wt + 1 het per cage', 'strata': 'line (3)'}},
+                       'composition': '3 wt + 1 het per cage',
+                       'strata': 'line {all,3} x sex {all,m,f} (12)'}},
+            # Pool counts per stratum, so the figure can say "n/a -- k annotated pools" instead
+            # of leaving a hole where an interval cannot exist.
+            'strata': strata_meta,
+            # The estimation window, from src/mice_behavior/window.py, in minutes per phase.
+            'window': {'name': WINDOW_NAME,
+                       'minutes': {p: list(v) for p, v in PHASE_WINDOW_MIN.items()}},
             'missing': missing,
         },
         'cells': cells,

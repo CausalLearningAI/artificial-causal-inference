@@ -55,14 +55,24 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from src.mice_behavior.truth import read_truth                              # noqa: E402
+from src.mice_behavior.window import phase_of, window_mask                  # noqa: E402
 
 LABELS = ('Y_nt', 'Y_nn')
 NICE = {'Y_nt': 'nt', 'Y_nn': 'nn'}
 
 
 def load() -> pd.DataFrame:
-    """Per-observation annotated rate joined to the design. 144 rows (the annotated half)."""
+    """Per-observation annotated rate joined to the design. 144 rows (the annotated half).
+
+    Rates are over the report's estimation window (src/mice_behavior/window.py: H minutes 15-30,
+    O and P whole), so the `difference` level below is the estimand as the report measures it.
+    """
     a = read_truth()
+    keep = np.zeros(len(a), bool)
+    for ph in ('H', 'O', 'P'):
+        m = (a.observation_id.map(phase_of) == ph).to_numpy()
+        keep[m] = window_mask(ph, a.frame_idx.to_numpy()[m])
+    a = a[keep]
     obs = a.groupby('observation_id')[list(LABELS)].mean().reset_index()
     e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')
     m = obs.merge(e[['observation_id', 'pool', 'line', 'genotype', 'phase', 'odor', 'annotator']],

@@ -361,7 +361,7 @@
         + `ERM reverses in <b>${se}</b> cells` + (sd ? `, DERM in ${sd} (its near-zero `
         + `fear-trained biases make the sign moot where the correction has worked)` : '')
         + '. ' : '')
-      + 'Held-out exposure, 15-minute matched window, thresholds rate-matched in rank '
+      + 'Held-out exposure, estimation window (H: last 15 min; O, P: all 15), thresholds rate-matched in rank '
       + 'space per arm. A faint dot past the axis edge is drawn as a caret, never dropped. '
       + 'This split is a LOWER BOUND on deployment bias — the model has seen the test '
       + 'pools’ cages in its own training session — and it cannot feed PPI++.';

@@ -37,6 +37,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.mice_behavior.truth import read_truth                              # noqa: E402
+from src.mice_behavior.window import PHASE_WINDOW_MIN, WINDOW_NAME, window_mask  # noqa: E402
 OUT = ROOT / 'results' / 'vision' / 'mice' / 'frame' / '_figures' / 'decay.json'
 FPS = 5.0
 BEH = (('Y_nt', 'nt', 'nose-to-tail'), ('Y_nn', 'nn', 'nose-to-nose'))
@@ -83,8 +84,11 @@ def build() -> dict:
     segs, t = [], 0.0
     for od, odn in SESSIONS:
         for ph, phn, dur in PHASES:
+            w0, w1 = (int(v) for v in PHASE_WINDOW_MIN[ph])
+            # w0/w1: the estimation window inside this phase, in the phase's own minutes. The bar
+            # spans only that stretch, because it is the phase outcome the report estimates on.
             segs.append(dict(odour=od, odour_label=odn, phase=ph, phase_label=phn,
-                             t0=t, t1=t + dur, dur=dur))
+                             t0=t, t1=t + dur, dur=dur, w0=w0, w1=w1))
             t += dur
 
     series = {}
@@ -105,16 +109,17 @@ def build() -> dict:
                                 mean=[round(float(v), 4) for v in mu],
                                 lo=[round(float(v), 4) for v in lo],
                                 hi=[round(float(v), 4) for v in hi]))
-                # the bar is the mean OF THE PLOTTED CURVE: pool means over the segment, then
-                # the same bootstrap over pools. It is the phase outcome the report estimates on.
-                pm = np.nanmean(x, axis=1)
+                # the bar is the mean OF THE PLOTTED CURVE OVER THE ESTIMATION WINDOW: pool means
+                # over the window's minutes (H: 15-30, O and P: 0-15), then the same bootstrap over
+                # pools. It is the phase outcome the report estimates on.
+                pm = np.nanmean(x[:, s['w0']:s['w1']], axis=1)
                 bmu, blo, bhi = boot_ci(pm[:, None], rng)
                 bars.append(dict(mean=round(float(bmu[0]), 4), lo=round(float(blo[0]), 4),
                                  hi=round(float(bhi[0]), 4),
                                  n=int(np.isfinite(pm).sum())))
             series[unit][key] = dict(seg=pts, bar=bars)
 
-    return dict(meta=dict(n_pools=len(pools), reps=REPS, seed=SEED, fps=FPS,
+    return dict(meta=dict(n_pools=len(pools), reps=REPS, seed=SEED, fps=FPS, window=WINDOW_NAME,
                           total_min=int(sum(s['dur'] for s in segs)),
                           units=[dict(key=k, label=l) for k, l in UNITS],
                           behav=[dict(key=k, label=n) for _, k, n in BEH],
@@ -144,13 +149,16 @@ def _facts_prevalence() -> dict:
             'neg': round(float(1 - (nt | nn).mean()), 6)}
 
 
-def _facts_wt() -> dict:
+def _facts_wt(windowed: bool = True) -> dict:
     """The three wild-type strata: do three lines' unmutated animals behave alike?
 
     Two questions, deliberately at different units, because that is what each one is about.
     LEVEL is a property of a pool, so the unit is the pool (2 per line). The ESTIMAND is measured
     once per pool AND exposure, so the unit is the pool x odour cell (4 per line). Rates are over
-    the whole recording -- this is the raw-level check, before 02's matched window.
+    the report's estimation window (src/mice_behavior/window.py: H minutes 15-30, O and P whole),
+    because the H->O half of this check IS the estimand and has to be measured the way it is.
+    `windowed=False` gives the same check over whole recordings, kept because the LEVEL half is
+    the one the window moves (nose-to-tail p 0.04 over whole recordings).
     """
     import numpy as _np
     from scipy import stats as _st
@@ -161,6 +169,8 @@ def _facts_wt() -> dict:
     a = a.sort_values(['observation_id', 'frame_idx']).merge(e, on='observation_id')
     rows = []
     for oid, g in a.groupby('observation_id', sort=False):
+        if windowed:
+            g = g[window_mask(g.phase.iloc[0], g.frame_idx.to_numpy())]
         r = {'observation_id': oid}
         mins = len(g) / (FPS * 60)
         for lab, _, _ in BEH:
@@ -219,16 +229,19 @@ def facts() -> dict:
                                        'ratio': round(e0 / max(l0, 1e-9), 2)}
             vs = [float(contrast(po[po.odor == od], f'{lab}_{u}', 'H', 'O')[0])
                   for u in ('mean_full', 'mean_first15', 'mean_last15')]
+            # 'last15' is the window the report estimates on (H minutes 15-30 against O's 0-15);
+            # the other two are kept as the sensitivity check the window decision was made from.
             window[key][odn] = {'full': round(vs[0], 2), 'first15': round(vs[1], 2),
                                 'last15': round(vs[2], 2), 'spread': round(max(vs) - min(vs), 2),
-                                'spans_zero': bool(min(vs) * max(vs) < 0)}
+                                'spans_zero': bool(min(vs) * max(vs) < 0), 'reported': 'last15'}
     # O->P is immune to the window rule by construction -- both phases are 15 minutes. Asserted
     # here rather than in the prose, so the claim cannot outlive the schedule it describes.
     op_same = all(_np.isclose(contrast(po[po.odor == od], f'{lab}_mean_full', 'O', 'P')[0],
-                              contrast(po[po.odor == od], f'{lab}_mean_first15', 'O', 'P')[0])
-                  for lab, _ in _B for od, _ in ODOURS)
+                              contrast(po[po.odor == od], f'{lab}_{u}', 'O', 'P')[0])
+                  for lab, _ in _B for od, _ in ODOURS for u in ('mean_first15', 'mean_last15'))
     return {'prevalence': _facts_prevalence(), 'tau': tau, 'onset': onset, 'window': window,
             'curvature': curv, 'op_window_invariant': bool(op_same), 'wt': _facts_wt(),
+            'wt_full': _facts_wt(windowed=False),
             'n_trans': len(TRANS)}
 
 

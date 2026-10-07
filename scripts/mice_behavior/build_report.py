@@ -34,6 +34,22 @@ def inject(tpl: str, token: str, payload: str) -> str:
     return tpl.replace(token, payload)
 
 
+# The keys report_chart.html reads off a cell. The grid carries line x sex x genotype strata for
+# six predictors (17k cells), so the page gets only these, at 4 decimals -- the figure prints 2.
+# report_body.py still reads the full estimates.json, untouched.
+CHART_KEYS = ('exp', 'unit', 'behav', 'stratum', 'odour', 'trans', 'model', 'method',
+              'est', 'lo', 'hi', 'n_lab', 'n_unlab', 'r', 'lam')
+
+
+def chart_payload(est: dict) -> dict:
+    """Row-packed: one key list and one array per cell, unpacked by report_chart.html."""
+    def val(c, k):
+        v = c.get(k)
+        return round(v, 4) if isinstance(v, float) else v
+    return {'meta': est['meta'], 'keys': list(CHART_KEYS),
+            'rows': [[val(c, k) for k in CHART_KEYS] for c in est['cells']]}
+
+
 def enc(p: Path, maxw: int, q: int = 80) -> str:
     im = Image.open(p).convert('RGB')
     if im.width > maxw:
@@ -59,7 +75,7 @@ def main():
         raise SystemExit(f'{est_p} missing -- run scripts/mice_behavior/build_estimates.py first')
     est = json.load(open(est_p))
     chart = (Path(__file__).parent / 'report_chart.html').read_text()
-    chart = inject(chart, '__ESTIMATES_JSON__', json.dumps(est, separators=(',', ':')))
+    chart = inject(chart, '__ESTIMATES_JSON__', json.dumps(chart_payload(est), separators=(',', ':')))
 
     # Same contract for the within-protocol decay figure: a VIEW over decay.json, every series
     # and every phase mean precomputed by build_decay.py from the human labels.

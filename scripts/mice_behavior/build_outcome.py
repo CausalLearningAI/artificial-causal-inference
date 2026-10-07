@@ -74,6 +74,7 @@ from src.mice_behavior.truth import read_truth                               # n
 from src.mice_behavior.phase_ate import TRANSITIONS, pool_deltas             # noqa: E402
 from build_estimates import labelled_truth, out_of_fold_predictions          # noqa: E402
 from event_eval import runs                                                  # noqa: E402
+from src.mice_behavior.window import window_mask                              # noqa: E402
 
 OUT = ROOT / 'results' / 'vision' / 'mice' / 'frame' / '_figures'
 FPS = 5.0
@@ -81,11 +82,22 @@ LABELS = ('nt', 'nn')
 UNITS = ('counts', 'occupancy', 'duration')
 
 
-def per_observation():
-    """All three units per observation, plus every bout length, from the human labels."""
+def per_observation(windowed: bool = True):
+    """All three units per observation, plus every bout length, from the human labels.
+
+    `windowed` (the default) measures each observation on the report's estimation window
+    (src/mice_behavior/window.py: H minutes 15-30, O and P whole) -- that is what every contrast,
+    CV and resolution count below is about. The DISTRIBUTIONS (bout lengths, events per
+    recording) describe the labels themselves, so they are taken over the whole recording.
+    """
+    e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')[
+        ['observation_id', 'pool', 'phase', 'odor']]
+    ph_of = dict(zip(e.observation_id, e.phase))
     a = read_truth().sort_values(['observation_id', 'frame_idx'])
     rows, lens = [], {l: [] for l in LABELS}
     for oid, g in a.groupby('observation_id', sort=False):
+        if windowed:
+            g = g[window_mask(ph_of[oid], g.frame_idx.to_numpy())]
         n = len(g); rec = {'observation_id': oid}
         for l in LABELS:
             v = g['Y_' + l].to_numpy() > 0.5
@@ -95,8 +107,6 @@ def per_observation():
             rec[f'occupancy_{l}'] = v.mean() * 100
             rec[f'duration_{l}'] = (np.mean(L) / FPS) if L else np.nan
         rows.append(rec)
-    e = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')[
-        ['observation_id', 'pool', 'phase', 'odor']]
     return pd.DataFrame(rows).merge(e, on='observation_id'), lens
 
 
@@ -167,10 +177,11 @@ def distributions(t: pd.DataFrame, lens: dict) -> dict:
 
 
 def main():
-    t, lens = per_observation()
+    t, _ = per_observation(windowed=True)            # contrasts, CVs: the estimation window
+    t_full, lens = per_observation(windowed=False)   # distributions: the whole recording
     print(f'{t.observation_id.nunique()} observations, {t.pool.nunique()} pools')
 
-    out = {'units': {}, 'bouts': {}, 'dist': distributions(t, lens)}
+    out = {'units': {}, 'bouts': {}, 'dist': distributions(t_full, lens)}
     for l in LABELS:
         L = np.array(lens[l]); s = np.sort(L)[::-1]
         k = max(1, int(round(0.10 * len(L))))

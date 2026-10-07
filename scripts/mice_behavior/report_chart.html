@@ -3,17 +3,23 @@
      Kept out of report_body.py on purpose: that file is one big f-string, and JS braces in it
      would need doubling everywhere.
 
-     THREE ESTIMATORS, ONE SHARED AXIS
-     =================================
-       CI     human annotations only               -- v1 only
-       PPI++  human + model annotations            -- v1 only
-       PPCI   model annotations only, UNCALIBRATED -- v1 and v2
+     THREE ESTIMATORS, TWO AXES
+     ==========================
+       CI     human annotations only               -- v1 only    behaviour scale
+       PPI++  human + model annotations            -- v1 only    behaviour scale
+       PPCI   model annotations only, UNCALIBRATED -- v1 and v2  MODEL scale
 
-     All three are drawn against one axis so they can be read against each other directly. The
-     caveat that comes with that: PPCI is not calibrated to the labels, so it is on the model's
-     scale -- predicted rates run above true ones, more so for nose-to-nose -- and its DISTANCE
-     from zero is not comparable to the other two. Its sign and its pattern across cells are. The
-     note under the figure says so; the axis does not try to say it structurally. -->
+     CI and PPI++ share an axis, so PPI++ can be read against the CI it narrows. PPCI is not
+     calibrated to the labels -- predicted rates run above true ones -- so its distance from zero
+     is not comparable to theirs, and it gets its OWN axis in every panel. Its sign and its
+     pattern across cells are what it claims.
+
+     CONTROLS: experiment (v1 | v2 | all), outcome, behaviour, line, sex, predictor. With
+     experiment = all the three genotype groups sit side by side: wt (v1 pure-wt cages), het (v1
+     pure-het cages) and mixed (v2 cages, 3 wt + 1 het). The stratum id is built here exactly as
+     build_estimates.stratum_id builds it. A combination that cannot carry an estimator (v2 has no
+     labels; a stratum with fewer than two annotated pools has no clustered interval) draws an
+     explicit "n/a" row naming why, never a blank. -->
 <style>
 .ate{--s-ci:#2a78d6;--s-ppi:#1baf7a;--s-ppci:#eb6834;
      --ate-surface:var(--surface);--ate-grid:var(--line)}
@@ -54,11 +60,8 @@
 .ate-legend i{width:11px;height:11px;border-radius:50%;display:inline-block;
               box-shadow:0 0 0 2px var(--ate-surface)}
 .ate-panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:0}
-.ate-panels.strata{grid-template-columns:repeat(2,minmax(0,1fr))}
 .ate-colhead{font-family:var(--mono);font-size:.68rem;letter-spacing:.11em;text-transform:uppercase;
              color:var(--ink-2);padding:10px 16px 0}
-@media(max-width:680px){.ate-panels.strata{grid-template-columns:minmax(0,1fr)}
-  .ate-colhead:nth-of-type(2){display:none}}
 .ate-panel{padding:6px 16px 16px;min-width:0}
 .ate svg{width:100%;height:auto;display:block;overflow:visible}
 .ate-note{font-family:var(--mono);font-size:.72rem;line-height:1.6;color:var(--ink-3);
@@ -85,41 +88,45 @@
 <script>
 (function () {
   const DATA = __ESTIMATES_JSON__;
-  const cells = DATA.cells || [];
+  // build_report.py row-packs the grid (one key list, one array per cell); unpack it once
+  const cells = DATA.cells || (DATA.rows || []).map(r =>
+    Object.fromEntries(DATA.keys.map((k, i) => [k, r[i]])));
+  const META = DATA.meta || {};
+  const STRATA = META.strata || {};
   const METHODS = [
     { key: 'ci', name: 'CI', long: 'CI (human annotations)', v: '--s-ci',
-      why: 'The mean human-scored within-pool difference over the 24 annotated pools. '
+      why: 'The mean human-scored within-pool difference over the annotated pools. '
            + 'No model anywhere.' },
     { key: 'ppi', name: 'PPI++', long: 'PPI++ (human + AI annotations)', v: '--s-ppi',
-      why: 'Adds the 48 unannotated pools, with a rectifier fitted on the annotated ones. '
+      why: 'Adds the unannotated pools, with a rectifier fitted on the annotated ones. '
            + 'Unbiased for ANY predictor, so the model can only move the variance.' },
-    { key: 'ppci', name: 'PPCI', long: 'PPCI (AI annotations)', v: '--s-ppci',
+    { key: 'ppci', name: 'PPCI', long: 'PPCI (AI annotations, own axis)', v: '--s-ppci',
       why: 'The mean MODEL within-pool difference over every pool, uncalibrated. Needs no '
            + 'annotation anywhere, which is why it is the only estimator that exists on v2. '
            + 'On the model’s scale: read its sign and its pattern, not its magnitude.' },
   ];
   const M = Object.fromEntries(METHODS.map(m => [m.key, m]));
+  const BLOCKS = [
+    { key: 'beh', methods: ['ci', 'ppi'], title: 'behaviour scale · CI, PPI++' },
+    { key: 'mod', methods: ['ppci'], title: 'model scale · PPCI, uncalibrated' },
+  ];
   const AXIS = { events: 'change in bouts per minute', time: 'change in occupancy (pp)',
                  decay: 'change in decay (mean onset, min)' };
+  const AXIS_MODEL = { events: 'change in predicted bouts per minute',
+                       time: 'change in predicted occupancy (pp)',
+                       decay: 'change in predicted decay (min)' };
   const ODOURS = [['fear', 'FEAR exposure'], ['social', 'SOCIAL exposure']];
-  const TRANS = [['H->O', 'exposure ON   H → O'], ['O->P', 'exposure OFF   O → P']];
-  const state = {
-    exp: 'v1', unit: 'events', behav: 'nn', model: null, view: 'all', trans: 'H->O', table: false,
-  };
+  const TRANS = [['H->O', 'ON  H → O'], ['O->P', 'OFF  O → P']];
+  const LINES = ['all', 'ash1l', 'kdm6b', 'kmt5b'];
+  const SEXES = [['all', 'all'], ['m', 'male'], ['f', 'female']];
+  const state = { exp: 'v1', unit: 'events', behav: 'nn', model: null, line: 'all', sex: 'all',
+                  table: false };
   const uniq = (k) => [...new Set(cells.map(c => c[k]))];
   /* The default predictor is the DEPLOYED one, READ FROM THE PAYLOAD rather than named here:
-     build_estimates.py writes meta.deployed and report_body.py's PRIME reads the same field, so
-     promoting a predictor is one edit there and the figure can never open on a model the prose
-     beside it does not speak for. Falls back to whatever is present if the field is missing or
-     names a predictor that did not make it into the grid. */
-  const DEPLOYED = DATA.meta.deployed;
+     build_estimates.py writes meta.deployed and report_body.py's PRIME reads the same field. */
+  const DEPLOYED = META.deployed;
   state.model = uniq('model').includes(DEPLOYED) ? DEPLOYED : uniq('model')[0];
-  /* One entry per predictor that supplies f. The control is here because which model carries the
-     estimate is a choice the reader should see being made. SHORT names win: these are button
-     labels in a segmented control, and meta.predictors carries sentence-length descriptions that
-     would blow out the toolbar. The payload is the fallback, so a predictor nobody named here
-     still shows up as prose rather than as a bare directory name. */
-  const MODEL_NICE = Object.assign({}, DATA.meta.predictors || {}, {
+  const MODEL_NICE = Object.assign({}, META.predictors || {}, {
     xfit_dense: 'SSL encoder, ERM',
     xfit_bit6_dense: 'BitFit-6, ERM',
     xfit_derm_dense: 'DERM',
@@ -127,15 +134,9 @@
     xfit_bit6_derm_dense: 'BitFit-6, DERM',
     xfit_bit6_derm_popw_dense: 'BitFit-6, DERM (pop. weights)',
   });
-  /* The deployed predictor is marked in the control itself, so a reader who has switched away
-     from it can see which button is the one the prose speaks for. */
   const modelName = (m) => (MODEL_NICE[m] || m) + (m === DEPLOYED ? ' • deployed' : '');
-  /* Each predictor's own tag ("the ERM comparison", "the accuracy leader", "deployed"), pulled
-     from meta.predictors's sentence-length description rather than retyped here, so it cannot
-     drift from build_estimates.py's PREDICTORS dict. Only the popup has room to show one per
-     option; the old flat toolbar did not, which is why MODEL_NICE above keeps names short. */
   const predictorTag = (m) => {
-    const nice = (DATA.meta.predictors || {})[m] || '';
+    const nice = (META.predictors || {})[m] || '';
     const parts = nice.split(/\s+--\s+/);
     return parts.length > 1 ? parts[parts.length - 1].trim() : '';
   };
@@ -144,12 +145,29 @@
   const css = (n) => getComputedStyle($('ate')).getPropertyValue(n).trim();
   const fmt = (x, d = 2) => (x == null || !isFinite(x) ? '—'
     : (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(d));
-  /* One shared listener for "click outside closes the predictor popup", registered once on
-     document rather than per-render, since controls() rebuilds the whole bar (and a fresh popup)
-     on every render(). Reassigned to the live popup's own close check each time one is built; a
-     stale reference left over from a rebuilt bar just closes an already-closed menu, harmlessly. */
   let closePredPopup = null;
   document.addEventListener('click', (ev) => { if (closePredPopup) closePredPopup(ev); });
+
+  /* Same rule as build_estimates.stratum_id: the non-'all' parts in the order line, genotype,
+     sex, joined by '_' -- or 'all'. */
+  const sid = (line, geno, sex) => [line, geno, sex].filter(x => x !== 'all').join('_') || 'all';
+  /* The groups one view compares. v1 / v2: that cohort's pools in the chosen line and sex.
+     all: the three genotype groups side by side, each in the chosen line and sex. */
+  function groups() {
+    const one = (exp, geno, name) => {
+      const id = sid(state.line, geno, state.sex);
+      const st = (STRATA[exp] || {})[id] || {};
+      return { exp, id, name, n: st.n_pools, k: st.n_annotated || 0 };
+    };
+    if (state.exp === 'all') {
+      return [one('v1', 'wt', 'wt · v1 cages'), one('v1', 'het', 'het · v1 cages'),
+              one('v2', 'all', 'mixed · v2 cages')];
+    }
+    return [one(state.exp, 'all', state.exp)];
+  }
+  const sexNice = (s) => (SEXES.find(x => x[0] === s) || [s, s])[1];
+  const sliceName = () => [state.line === 'all' ? 'all lines' : state.line,
+                           state.sex === 'all' ? 'both sexes' : sexNice(state.sex)].join(' · ');
 
   // ---------------------------------------------------------------- controls
   function seg(label, key, opts) {
@@ -167,13 +185,6 @@
     });
     wrap.append(l, box); return wrap;
   }
-  /* The predictor control is a popup, not a fourth-wide row of buttons: a segmented control that
-     lied about button width was the old problem (MODEL_NICE keeps names short for exactly that
-     reason). The popup drops that constraint -- the trigger shows the same short name+deployed-tag
-     the old selected button did, and every option in the menu gets its own tag from
-     meta.predictors, which the toolbar never had room for. Keeps the same button+aria-pressed
-     shape per option as seg() uses elsewhere, so a reader tabbing through sees one consistent
-     control idiom. */
   function predictorPopup(models) {
     const wrap = document.createElement('div'); wrap.className = 'ate-ctl';
     const l = document.createElement('span'); l.className = 'lab'; l.textContent = 'predictor';
@@ -210,60 +221,61 @@
   }
   function controls() {
     const bar = $('ate-bar'); bar.textContent = '';
+    const np = (v) => (STRATA[v] || {}).all ? STRATA[v].all.n_pools : '';
     bar.append(
-      seg('experiment', 'exp', [['v1', 'v1  · 72 pools'], ['v2', 'v2  · 36 pools']]),
-      // Section 02's language, and its ordering: the LEVEL and the TIMING are the two chosen
-      // outcomes; occupancy is the alternative 02a rejected, kept last so the pattern can be
-      // checked against it without reading as a peer.
+      seg('experiment', 'exp', [['v1', `v1 · ${np('v1')} pools`], ['v2', `v2 · ${np('v2')} pools`],
+        ['all', 'all · wt / het / mixed']]),
       seg('outcome', 'unit', [['events', 'events · bouts/min'],
         ['decay', 'timing · decay, min'], ['time', 'occupancy · the alternative']]),
       seg('behaviour', 'behav', [['nn', 'nose-to-nose'], ['nt', 'nose-to-tail']]),
-      seg('breakdown', 'view', [['all', 'all pools'],
-        ['strata', state.exp === 'v1' ? 'by line × genotype' : 'by line']]),
-      // A one-option control is a control that lies about there being a choice, so the predictor
-      // popup only appears once a second predictor is in the payload. It arrives on its own:
-      // build_estimates.py emits every cross-fitted set whose folds have all landed.
+      seg('line', 'line', LINES.map(l => [l, l])),
+      seg('sex', 'sex', SEXES),
       ...(uniq('model').length > 1 ? [predictorPopup(uniq('model'))] : []),
+      seg('table', 'table', [[false, 'chart'], [true, 'chart + table']]),
     );
-    if (state.view === 'strata') {
-      bar.append(seg('transition', 'trans', TRANS.map(([k, n]) => [k, n.replace(/\s+/g, ' ')])));
-    }
-    bar.append(seg('table', 'table', [[false, 'chart'], [true, 'chart + table']]));
   }
 
-  function pick(odour, stratum, trans) {
-    return cells.filter(c => c.exp === state.exp && c.unit === state.unit
-      && c.behav === state.behav && c.model === state.model
-      && c.stratum === stratum && c.odour === odour && c.trans === trans
-      && c.est != null && isFinite(c.est))
-      .sort((a, b) => METHODS.findIndex(m => m.key === a.method)
-        - METHODS.findIndex(m => m.key === b.method));
+  function cellOf(g, odour, trans, method) {
+    return cells.find(c => c.exp === g.exp && c.unit === state.unit && c.behav === state.behav
+      && c.model === state.model && c.stratum === g.id && c.odour === odour
+      && c.trans === trans && c.method === method) || null;
   }
-  const strataOf = () => {
-    const seen = new Map();
-    cells.filter(c => c.exp === state.exp && c.stratum !== 'all')
-      .forEach(c => seen.set(c.stratum, c.stratum_label));
-    return [...seen.entries()];
-  };
+  const plural = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
+  /* A mark, or the reason there is none. Never null: an empty slot in this figure is a bug. */
+  function slot(g, odour, trans, method) {
+    const na = (why) => ({ na: true, method, trans, group: g, text: 'n/a — ' + why });
+    if (method !== 'ppci' && g.exp === 'v2') return na('v2 has no annotated pools');
+    const c = cellOf(g, odour, trans, method);
+    if (!c) return na('not estimated for this predictor');
+    if (method !== 'ppci' && g.k < 2) {
+      return na(plural(g.k, 'annotated pool') + ' here: no clustered interval');
+    }
+    const ok = c.est != null && isFinite(c.est) && c.lo != null && isFinite(c.lo)
+      && c.hi != null && isFinite(c.hi);
+    if (!ok) {
+      // on `decay` a pool needs an onset in BOTH phases' windows, so these counts can fall
+      // below the stratum's pool count
+      if (method === 'ppci') {
+        return na(plural(c.n_unlab || 0, 'pool') + ' with a defined predicted value: no interval');
+      }
+      if ((c.n_lab || 0) < 2) {
+        return na(plural(c.n_lab || 0, 'annotated pool') + ' with a defined value: no interval');
+      }
+      return na(plural(c.n_unlab || 0, 'unannotated pool') + ' with a defined value: '
+        + 'PPI++ needs 2');
+    }
+    return Object.assign({ group: g }, c);
+  }
 
   // ---------------------------------------------------------------- scale over everything drawn
-  /* An interval built on 2 pools has ONE degree of freedom: t = 12.7, so it spans several bouts
-     per minute and is uninformative by construction. Letting it set the shared domain would crush
-     every other panel to a few pixels -- which is what the wild-type strata did, since annotation
-     gave them 2 pools each against the heterozygous strata's 6. Such intervals therefore do not
-     set the scale; they are drawn CLIPPED with an arrow cap, which says "continues past the axis"
-     instead of silently rescaling everyone else. Estimates always count, so no dot is off-scale.
-     The test is n_lab for BOTH t-interval methods, not just CI: PPI++ takes its quantile from the
-     same t_{n-1} on the same labelled pools (phase_ate._t), so a 2-pool PPI++ interval is exactly
-     as wide-by-construction as the CI beside it and would dominate the axis just the same.
-     PPCI is exempt, and must be: it carries no t quantile at all -- its interval is a percentile
-     bootstrap over the n_unlab pools it averages -- so its width has nothing to do with n_lab.
-     Testing n_lab alone would mute every v2 PPCI interval, since v2 has no labels anywhere and
-     every one of its cells reports n_lab = 0. */
+  /* An interval built on 2 pools has ONE degree of freedom (t = 12.7), so it is uninformative by
+     construction; it is drawn CLIPPED with an arrow cap instead of setting the shared domain.
+     The test applies to both t-interval methods (CI and PPI++ take the same t_{n-1}); PPCI is
+     exempt -- its interval is a percentile bootstrap over the pools it averages. */
   const SETS_SCALE = (c) => c.n_lab >= 3 || c.method === 'ppci';
   function domain(list) {
     let lo = 0, hi = 0;
-    list.forEach(c => {
+    list.filter(c => !c.na).forEach(c => {
       const vs = SETS_SCALE(c) ? [c.lo, c.hi, c.est] : [c.est];
       vs.forEach(v => {
         if (v != null && isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
@@ -306,209 +318,195 @@
     node.addEventListener('blur', hide);
   }
 
-  /* One panel = one exposure (main view) or one stratum x exposure (strata view). Inside it, one
-     BLOCK per scale: the human-annotation estimators share an axis in behaviour units, PPCI gets
-     its own axis in model units. Rows inside a block are the phase transitions, so the methods
-     that ARE comparable sit stacked against each other -- the whole point is to read PPI++ against
-     the CI it is trying to narrow. */
-  function panel(title, rows, dom, showAxis) {
-    const labelled = rows.some(r => r.label);
-    const W = 480, L = labelled ? 118 : 14, R = 58, rowH = 26, groupPad = 16, top = 26;
-    const bodyH = rows.reduce((h, r) => h + r.marks.length * rowH + groupPad, 0);
-    const H = top + bodyH + (showAxis ? 40 : 12);
-    const x = (v) => L + (v - dom[0]) / (dom[1] - dom[0]) * (W - L - R);
-    const mono = 'ui-monospace,monospace';
+  /* One panel = one exposure. Two stacked BLOCKS, each with its own axis: the behaviour scale
+     (CI, PPI++) and the model scale (PPCI). Rows are transition x group; each row carries one
+     line per method of its block -- a mark, or an explicit n/a. */
+  function panel(title, blocks, doms) {
+    const W = 480, L = 128, R = 58, rowH = 24, groupPad = 12, mono = 'ui-monospace,monospace';
+    const blockH = (b) => 22 + b.rows.reduce((h, r) => h + r.slots.length * rowH + groupPad, 0)
+      + 40;
+    const H = 22 + blocks.reduce((h, b) => h + blockH(b), 0);
     const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img',
-      'aria-label': `${title}. ${rows.length} phase transitions.` });
-
-    ticks(dom).forEach(t => {
-      svg.appendChild(el('line', { x1: x(t), x2: x(t), y1: top - 8, y2: top + bodyH,
-        stroke: css('--ate-grid'), 'stroke-width': t === 0 ? 1.6 : 0.8 }));
-      if (showAxis) {
-        const tx = el('text', { x: x(t), y: top + bodyH + 16, 'text-anchor': 'middle',
-          fill: css('--ink-3'), 'font-size': 9.5, 'font-family': mono });
-        tx.textContent = (t > 0 ? '+' : '') + t; svg.appendChild(tx);
-      }
-    });
-    if (showAxis) {
-      const ax = el('text', { x: (L + W - R) / 2, y: top + bodyH + 33, 'text-anchor': 'middle',
-        fill: css('--ink-3'), 'font-size': 9.5, 'font-family': mono });
-      ax.textContent = AXIS[state.unit]; svg.appendChild(ax);
-    }
+      'aria-label': `${title}. ${blocks.map(b => b.title).join('; ')}.` });
     const ttl = el('text', { x: 0, y: 12, fill: css('--ink-2'), 'font-size': 10.5,
       'font-weight': 600, 'font-family': mono });
     ttl.textContent = title; svg.appendChild(ttl);
+    let top = 22;
+    blocks.forEach(b => {
+      const dom = doms[b.key];
+      const x = (v) => L + (v - dom[0]) / (dom[1] - dom[0]) * (W - L - R);
+      const bt = el('text', { x: 0, y: top + 10, fill: css('--ink-3'), 'font-size': 9,
+        'letter-spacing': '.06em', 'font-family': mono });
+      bt.textContent = b.title.toUpperCase(); svg.appendChild(bt);
+      const bodyTop = top + 22;
+      const bodyH = b.rows.reduce((h, r) => h + r.slots.length * rowH + groupPad, 0);
+      ticks(dom).forEach(t => {
+        svg.appendChild(el('line', { x1: x(t), x2: x(t), y1: bodyTop - 6, y2: bodyTop + bodyH,
+          stroke: css('--ate-grid'), 'stroke-width': t === 0 ? 1.6 : 0.8 }));
+        const tx = el('text', { x: x(t), y: bodyTop + bodyH + 14, 'text-anchor': 'middle',
+          fill: css('--ink-3'), 'font-size': 9.5, 'font-family': mono });
+        tx.textContent = (t > 0 ? '+' : '') + t; svg.appendChild(tx);
+      });
+      const ax = el('text', { x: (L + W - R) / 2, y: bodyTop + bodyH + 29, 'text-anchor': 'middle',
+        fill: css('--ink-3'), 'font-size': 9.5, 'font-family': mono });
+      ax.textContent = (b.key === 'mod' ? AXIS_MODEL : AXIS)[state.unit]; svg.appendChild(ax);
 
-    let y = top + 12;
-    rows.forEach(row => {
-      if (row.label) {
+      let y = bodyTop + 10;
+      b.rows.forEach(row => {
         const rl = el('text', { x: 0, y: y + 3, fill: css('--ink-3'), 'font-size': 9.5,
           'font-family': mono });
         rl.textContent = row.label; svg.appendChild(rl);
-      }
-      const ref = row.marks.find(c => c.method === 'ci');
-      const refW = ref && ref.lo != null ? ref.hi - ref.lo : null;
-      row.marks.forEach(c => {
-        const col = css(M[c.method].v);
-        const hasCI = c.lo != null && isFinite(c.lo) && c.hi != null && isFinite(c.hi);
-        const g = el('g', { class: 'ate-mark', tabindex: 0, role: 'button' });
-        if (hasCI) {
+        if (row.sub) {
+          const r2 = el('text', { x: 0, y: y + 15, fill: css('--ink-3'), 'font-size': 8.5,
+            'font-family': mono, opacity: 0.8 });
+          r2.textContent = row.sub; svg.appendChild(r2);
+        }
+        const ref = row.slots.find(c => c.method === 'ci' && !c.na);
+        const refW = ref ? ref.hi - ref.lo : null;
+        row.slots.forEach(c => {
+          const col = css(M[c.method].v);
+          const g = el('g', { class: 'ate-mark', tabindex: 0, role: 'button' });
+          if (c.na) {
+            g.setAttribute('data-na', '1');
+            const t = el('text', { x: L + 4, y: y + 3.4, fill: col, 'font-size': 9.5,
+              'font-style': 'italic', 'font-family': mono });
+            t.textContent = `${M[c.method].name}  ${c.text}`; g.appendChild(t);
+            tip(g, `<b>${M[c.method].long}</b> · ${row.label}<br>${c.text}`);
+            svg.appendChild(g); y += rowH; return;
+          }
           const clipLo = c.lo < dom[0], clipHi = c.hi > dom[1];
           const xa = clipLo ? x(dom[0]) : x(c.lo), xb = clipHi ? x(dom[1]) : x(c.hi);
-          g.appendChild(el('line', { x1: xa, x2: xb, y1: y, y2: y, stroke: col,
-            'stroke-width': 2,
+          g.appendChild(el('line', { x1: xa, x2: xb, y1: y, y2: y, stroke: col, 'stroke-width': 2,
             'stroke-linecap': (clipLo || clipHi) ? 'butt' : 'round' }));
-          // arrow cap = "continues past the axis", never a silent truncation
           if (clipLo) g.appendChild(el('path', { d: `M${xa - 5},${y}L${xa + 1},${y - 3.6}`
             + `L${xa + 1},${y + 3.6}Z`, fill: col }));
           if (clipHi) g.appendChild(el('path', { d: `M${xb + 5},${y}L${xb - 1},${y - 3.6}`
             + `L${xb - 1},${y + 3.6}Z`, fill: col }));
-        }
-        // a hollow mark for PPCI: same axis, but a reminder its scale is the model's
-        const solid = c.method !== 'ppci';
-        g.appendChild(el('circle', { cx: x(c.est), cy: y, r: 4.6,
-          fill: solid ? col : css('--ate-surface'), stroke: solid ? css('--ate-surface') : col,
-          'stroke-width': 2 }));
-        const resolved = hasCI && c.lo * c.hi > 0;
-        const vl = el('text', { x: W - R + 8, y: y + 3.4, fill: css('--ink-2'),
-          'font-size': 9.5, 'font-weight': resolved ? 600 : 400, 'font-family': mono });
-        vl.textContent = fmt(c.est); g.appendChild(vl);
-        let sh = '';
-        if (refW && c.method === 'ppi' && hasCI) {
-          const dd = 100 * (1 - (c.hi - c.lo) / refW);
-          sh = `<br>CI width vs CI: <b>${dd >= 0 ? '−' : '+'}${Math.abs(dd).toFixed(0)}%</b>`;
-        }
-        tip(g, `<b>${M[c.method].long}</b> · ${(row.label || title).replace(/\s+/g, ' ')}<br>`
-          + `${fmt(c.est)} &nbsp;95% CI [${fmt(c.lo)}, ${fmt(c.hi)}]`
-          + (c.method === 'ppci' ? ' &nbsp;<i>(model scale)</i>' : '') + '<br>'
-          + `${c.n_lab} annotated${c.n_unlab ? ' / ' + c.n_unlab + ' predicted' : ''} pools`
-          + (c.r != null ? `<br>within-cell r = ${c.r.toFixed(2)}` : '')
-          + (c.lam != null ? `<br>λ = ${c.lam.toFixed(3)}` : '')
-          + sh + `<br><span style="opacity:.7">${M[c.method].why}</span>`);
-        svg.appendChild(g);
-        y += rowH;
+          const solid = c.method !== 'ppci';
+          g.appendChild(el('circle', { cx: x(c.est), cy: y, r: 4.6,
+            fill: solid ? col : css('--ate-surface'), stroke: solid ? css('--ate-surface') : col,
+            'stroke-width': 2 }));
+          const resolved = c.lo * c.hi > 0;
+          const vl = el('text', { x: W - R + 8, y: y + 3.4, fill: css('--ink-2'),
+            'font-size': 9.5, 'font-weight': resolved ? 600 : 400, 'font-family': mono });
+          vl.textContent = fmt(c.est); g.appendChild(vl);
+          let sh = '';
+          if (refW && c.method === 'ppi') {
+            const dd = 100 * (1 - (c.hi - c.lo) / refW);
+            sh = `<br>CI width vs CI: <b>${dd >= 0 ? '−' : '+'}${Math.abs(dd).toFixed(0)}%</b>`;
+          }
+          tip(g, `<b>${M[c.method].long}</b> · ${title} · ${row.label}`
+            + (row.sub ? ` (${row.sub})` : '') + '<br>'
+            + `${fmt(c.est)} &nbsp;95% CI [${fmt(c.lo)}, ${fmt(c.hi)}]`
+            + (c.method === 'ppci' ? ' &nbsp;<i>(model scale)</i>' : '') + '<br>'
+            + `${c.n_lab} annotated${c.n_unlab ? ' / ' + c.n_unlab + ' predicted' : ''} pools`
+            + (c.r != null ? `<br>within-cell r = ${c.r.toFixed(2)}` : '')
+            + (c.lam != null ? `<br>λ = ${c.lam.toFixed(3)}` : '')
+            + sh + `<br><span style="opacity:.7">${M[c.method].why}</span>`);
+          svg.appendChild(g);
+          y += rowH;
+        });
+        y += groupPad;
       });
-      y += groupPad;
+      top += blockH(b);
     });
     return svg;
   }
 
   // ---------------------------------------------------------------- table view (relief + a11y)
-  function table(groups) {
+  function table(rows) {
     const box = $('ate-tbl'); box.textContent = ''; box.hidden = !state.table;
     if (!state.table) return;
     const d = document.createElement('div'); d.className = 'scroll';
     const t = document.createElement('table');
-    t.innerHTML = '<thead><tr><th>panel</th><th>transition</th><th>estimator</th><th>estimate</th>'
-      + '<th>95% CI</th><th>CI width</th><th>vs CI</th><th>pools</th><th>scale</th></tr></thead>';
+    t.innerHTML = '<thead><tr><th>exposure</th><th>transition</th><th>group</th><th>estimator</th>'
+      + '<th>estimate</th><th>95% CI</th><th>CI width</th><th>vs CI</th><th>pools</th>'
+      + '<th>scale</th></tr></thead>';
     const tb = document.createElement('tbody');
-    groups.forEach(g => {
-      const ref = g.marks.find(c => c.method === 'ci');
-      const refW = ref && ref.lo != null ? ref.hi - ref.lo : null;
-      g.marks.forEach(c => {
-        const w = (c.lo != null && isFinite(c.lo)) ? c.hi - c.lo : null;
-        // A CI width on the MODEL's scale is not comparable to one on the behaviour's scale, so
-        // PPCI gets no shrinkage figure rather than a meaningless one.
-        const rel = (refW && w && c.method === 'ppi')
-          ? (100 * (1 - w / refW) >= 0 ? '−' : '+')
-            + Math.abs(100 * (1 - w / refW)).toFixed(0) + '%' : '—';
+    rows.forEach(({ odour, trans, group, slots }) => {
+      const ref = slots.find(c => c.method === 'ci' && !c.na);
+      const refW = ref ? ref.hi - ref.lo : null;
+      slots.forEach(c => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${g.panel}</td><td>${c.trans}</td><td>${M[c.method].name}</td>`
-          + `<td>${fmt(c.est)}</td><td>[${fmt(c.lo)}, ${fmt(c.hi)}]</td>`
-          + `<td>${w == null ? '—' : w.toFixed(2)}</td><td>${rel}</td>`
-          + `<td>${c.n_lab}${c.n_unlab ? ' + ' + c.n_unlab : ''}</td>`
-          + `<td>${c.method === 'ppci' ? 'model (sign only)' : 'behaviour'}</td>`;
+        const head = `<td>${odour}</td><td>${trans}</td><td>${group}</td>`
+          + `<td>${M[c.method].name}</td>`;
+        if (c.na) {
+          tr.innerHTML = head + `<td colspan="6">${c.text}</td>`;
+        } else {
+          const w = c.hi - c.lo;
+          const rel = (refW && c.method === 'ppi')
+            ? (100 * (1 - w / refW) >= 0 ? '−' : '+')
+              + Math.abs(100 * (1 - w / refW)).toFixed(0) + '%' : '—';
+          tr.innerHTML = head + `<td>${fmt(c.est)}</td><td>[${fmt(c.lo)}, ${fmt(c.hi)}]</td>`
+            + `<td>${w.toFixed(2)}</td><td>${rel}</td>`
+            + `<td>${c.n_lab}${c.n_unlab ? ' + ' + c.n_unlab : ''}</td>`
+            + `<td>${c.method === 'ppci' ? 'model (sign only)' : 'behaviour'}</td>`;
+        }
         tb.appendChild(tr);
       });
     });
     t.appendChild(tb); d.appendChild(t); box.appendChild(d);
   }
 
-  function legend() {
+  function legend(gs) {
     const lg = $('ate-legend'); lg.textContent = '';
-    const avail = new Set(cells.filter(c => c.exp === state.exp).map(c => c.method));
+    const labelled = gs.some(g => g.exp === 'v1' && g.k >= 2);
     METHODS.forEach(m => {
       const s = document.createElement('span');
       const i = document.createElement('i'); i.style.background = css(m.v);
       const t = document.createElement('span'); t.textContent = m.long;
-      if (!avail.has(m.key)) { s.style.opacity = '.4'; t.textContent = m.long + ' — n/a here'; }
+      if (m.key !== 'ppci' && !labelled) {
+        s.style.opacity = '.4'; t.textContent = m.long + ' — n/a here';
+      }
       s.append(i, t); lg.appendChild(s);
     });
+    const pools = document.createElement('span'); pools.style.color = 'var(--ink-3)';
+    pools.textContent = sliceName() + ': ' + gs.map(g => `${g.name} ${g.n ?? '?'} pools, `
+      + `${g.k} annotated`).join(' · ');
+    lg.appendChild(pools);
   }
 
   function render() {
-    controls(); legend();
-    const panels = $('ate-panels'); panels.textContent = ''; panels.classList.remove('strata');
+    controls();
+    const gs = groups();
+    legend(gs);
+    const panels = $('ate-panels'); panels.textContent = '';
+    const many = gs.length > 1;
+    // every slot of the view, built first so both axes share one domain across the two panels
+    const view = ODOURS.map(([od, nice]) => ({
+      od, nice,
+      blocks: BLOCKS.map(b => ({
+        key: b.key, title: b.title,
+        rows: TRANS.flatMap(([tr, tn]) => gs.map(g => ({
+          label: many ? `${tn.replace(/\s+/g, ' ')}` : tn,
+          sub: many ? g.name : '',
+          trans: tr, group: g,
+          slots: b.methods.map(m => slot(g, od, tr, m)) }))),
+      })),
+    }));
+    const doms = {};
+    BLOCKS.forEach(b => {
+      doms[b.key] = domain(view.flatMap(p => p.blocks.find(x => x.key === b.key).rows
+        .flatMap(r => r.slots)));
+    });
     const flat = [];
-    // one shared domain over everything this view draws
-    const all = [];
-    if (state.view === 'all') {
-      ODOURS.forEach(([od]) => TRANS.forEach(([tr]) => all.push(...pick(od, 'all', tr))));
-    } else {
-      strataOf().forEach(([sid]) => ODOURS.forEach(([od]) =>
-        all.push(...pick(od, sid, state.trans))));
-    }
-    const dom = domain(all);
+    view.forEach(p => {
+      const d = document.createElement('div'); d.className = 'ate-panel';
+      d.appendChild(panel(p.nice, p.blocks, doms));
+      panels.appendChild(d);
+      TRANS.forEach(([tr]) => gs.forEach(g => flat.push({
+        odour: p.od, trans: tr, group: g.name,
+        slots: p.blocks.flatMap(b => b.rows.filter(r => r.trans === tr && r.group === g)
+          .flatMap(r => r.slots)) })));
+    });
 
-    if (state.view === 'all') {
-      ODOURS.forEach(([od, nice]) => {
-        const rows = TRANS.map(([tr, tn]) => ({ label: tn, marks: pick(od, 'all', tr) }))
-          .filter(r => r.marks.length);
-        if (!rows.length) return;
-        rows.forEach(r => r.marks.forEach(c => flat.push({ panel: nice, marks: [c] })));
-        const d = document.createElement('div'); d.className = 'ate-panel';
-        d.appendChild(panel(nice, rows, dom, true));
-        panels.appendChild(d);
-      });
-    } else {
-      const st = strataOf();
-      panels.classList.add('strata');
-      ODOURS.forEach(([, nice]) => {
-        const h = document.createElement('div'); h.className = 'ate-colhead';
-        h.textContent = nice; panels.appendChild(h);
-      });
-      st.forEach(([sid, slab], ri) => {
-        const last = ri === st.length - 1;
-        ODOURS.forEach(([od, nice]) => {
-          const marks = pick(od, sid, state.trans);
-          const d = document.createElement('div'); d.className = 'ate-panel';
-          if (marks.length) {
-            marks.forEach(c => flat.push({ panel: `${slab} · ${nice}`, marks: [c] }));
-            d.appendChild(panel(slab, [{ label: '', marks }], dom, last));
-          }
-          panels.appendChild(d);
-        });
-      });
-    }
-
-    if (!panels.querySelector('svg')) {
-      const e = document.createElement('div'); e.className = 'ate-empty';
-      e.textContent = 'No estimate for this combination yet.';
-      panels.appendChild(e);
-    }
-
-    $('ate-note').innerHTML = 'Bars are 95% intervals, clustered on pool. Hollow marks are on '
-      + 'the model\u2019s scale, not the behaviour\u2019s.';
-    if (0) $('ate-note').innerHTML =
-      (state.exp === 'v1'
-        ? '<b>v1</b> has 24 of its 72 pools annotated, so all three estimators exist and the model '
-          + 'can be checked against human labels.'
-        : '<b>v2</b> has none of its 36 pools annotated. CI and PPI++ are undefined here — one '
-          + '<em>is</em> the labels, the other needs them for its rectifier — so PPCI is the only '
-          + 'estimator that exists, which is the case it was built for.')
-      + ' Bold numbers resolve (95% CI excludes zero). Hover any mark for n, r, λ and PPI++’s CI '
-      + 'change against CI.'
-      + '<br><b>PPCI is uncalibrated</b>, so it is on the model’s scale — drawn hollow, and on the '
-      + 'shared axis its <em>sign and pattern</em> are comparable but its distance from zero is not.'
-      + (state.view === 'strata'
-        ? ' An arrow cap means the interval continues past the axis; the wild-type strata have '
-          + '2 annotated pools each against the heterozygous strata’s 6.'
-        : '');
-    table(flat.reduce((acc, f) => {
-      const g = acc.find(x => x.panel === f.panel);
-      if (g) g.marks.push(...f.marks); else acc.push({ panel: f.panel, marks: [...f.marks] });
-      return acc;
-    }, []));
+    const win = (META.window || {}).name || '';
+    $('ate-note').innerHTML = 'Bars are 95% intervals, clustered on pool; bold values resolve. '
+      + 'CI and PPI++ share the behaviour-scale axis; PPCI (hollow) has its own model-scale axis '
+      + '&mdash; read its sign and pattern, not its distance from zero. An arrow cap means the '
+      + 'interval runs past the axis (a 2-pool interval has one degree of freedom). '
+      + (win ? `Window: ${win} against all of O and P.` : '');
+    table(flat);
   }
 
   render();

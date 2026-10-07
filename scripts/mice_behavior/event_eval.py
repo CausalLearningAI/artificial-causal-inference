@@ -49,6 +49,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+from src.mice_behavior.window import take                                  # noqa: E402
 FRAME_DIR = ROOT / 'results' / 'vision' / 'mice' / 'frame'
 FPS = 5.0
 
@@ -81,7 +82,11 @@ def overlap_counts(true_m, pred_m):
     return det, len(tb), hit, len(pb)
 
 
-def evaluate(tag, merge_gap, min_len, thresholds):
+def evaluate(tag, merge_gap, min_len, thresholds, window: bool = True):
+    """Event P/R/F1 over whole recordings; the per-observation COUNTS (and so r_level, r_delta,
+    true/pred bouts per minute) on the report's estimation window when `window` is set --
+    src/mice_behavior/window.py: H minutes 15-30, O and P whole -- because r_delta is a property
+    of the estimand and must be measured on the stretch of tape the estimand uses."""
     d = np.load(FRAME_DIR / tag / 'val_probs.npz', allow_pickle=True)
     exp = pd.read_csv(ROOT / 'data' / 'mice' / 'v1' / 'experiment.csv')[
         ['observation_id', 'pool', 'phase', 'odor']]
@@ -106,6 +111,8 @@ def evaluate(tag, merge_gap, min_len, thresholds):
         best = curve.loc[curve.f1.idxmax()]
         # count agreement at the best-F1 operating point -- the causal-relevant quantity
         for oid, g in df.groupby('obs', sort=False):
+            if window:
+                g = take(g, oid)                  # sorted by gi, stride 1: position == frame
             tm = g['y_' + lab].to_numpy() > 0.5
             pm = postprocess(g['p_' + lab].to_numpy() >= best.thr, merge_gap, min_len)
             mins = len(g) / FPS / 60

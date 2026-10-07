@@ -35,6 +35,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from event_eval import postprocess, runs                                   # noqa: E402
+from src.mice_behavior.window import take                                  # noqa: E402
 
 FRAME = ROOT / 'results' / 'vision' / 'mice' / 'frame'
 OUT = FRAME / '_figures'
@@ -46,7 +47,11 @@ THR = {'single': {'nt': 0.85, 'nn': 0.95}, 'deployed': {'nt': 0.90, 'nn': 0.87}}
 
 
 def per_observation(which, exp, unann_obs, single_val):
-    """Per-observation occupancy and bouts/min for one predictor, on the 52-pool set."""
+    """Per-observation occupancy and bouts/min for one predictor, on the 52-pool set.
+
+    Measured on the report's estimation window (src/mice_behavior/window.py: H minutes 15-30, O
+    and P whole). Both caches are stride 1 with index == frame_idx, so the window is a slice.
+    """
     if which == 'single':
         z = {k: v.astype(np.float32) for k, v in
              np.load(FRAME / SINGLE / 'pred_dense_v1.npz', allow_pickle=True).items()
@@ -68,6 +73,7 @@ def per_observation(which, exp, unann_obs, single_val):
     thr = THR[which]
     rows = []
     for o, p in z.items():
+        p = take(p, o)
         n = len(p); r = {'observation_id': o}
         for j, lab in enumerate(('nt', 'nn')):
             r[f'time_{lab}'] = float(p[:, j].mean() * 100)

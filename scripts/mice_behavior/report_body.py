@@ -84,6 +84,15 @@ def wcell(behav, odour, k):
     return f"{C['window'][behav][odour][k]:+.2f}".replace('-', '&minus;')
 
 
+# THE WINDOW-SENSITIVE CELL, chosen by the data: the H->O cell whose estimate moves most across
+# the three windows. It used to be named by hand as nose-to-nose under social.
+_WSENS = max(((b, o) for b in C['window'] for o in C['window'][b]),
+             key=lambda k: C['window'][k[0]][k[1]]['spread'])
+wsens_cell = f"{_BNICE[_WSENS[0]]} under {_WSENS[1]}"
+wsens_note = (' &mdash; the sign depends on which half of H is used'
+              if C['window'][_WSENS[0]][_WSENS[1]]['spans_zero'] else '')
+
+
 # THE ONSET SPIKE. The prose quotes one cell as the illustration, and it used to name it by hand
 # -- which is how it came to quote the single cell where P is NOT the largest. The cell is chosen
 # here, by the margin P leads its own phases by, so the example can only ever be one that holds.
@@ -120,18 +129,83 @@ def ac(level, behav, field):
     return f"{d[field]:.2f}"
 
 
+# THE CEILING VERDICT, computed. It used to say the annotator "stops mattering once the rate is
+# differenced within a pool -- on both behaviours". On H's last 15 minutes that is no longer true
+# for nose-to-tail, so the sentence is built from which rows resolve.
+_ac_sig = {(lv, b) for lv in ('observation', 'difference') for b in ('nt', 'nn')
+           if A['levels'][lv][b]['p'] < 0.05}
+
+
+def _ac_list(level):
+    return [b for b in ('nt', 'nn') if (level, b) in _ac_sig]
+
+
+_acd = _ac_list('difference')
+story_ann = ('.' if not _acd else
+             f" &mdash; but test it: on {' and '.join(_BNICE[b] for b in _acd)} the annotator "
+             'still explains more of the within-cage difference than chance (03), so here it '
+             'does not fully cancel.')
+ceil_head = (' &mdash; and the estimand is largely protected from it' if not _acd else
+             f" &mdash; and on {' and '.join(_BNICE[b] for b in _acd)} the estimand is not "
+             'protected from it')
+ceil_verdict = (
+    ('<b>Who scored a recording moves its measured rate on '
+     + ' and '.join(_BNICE[b] for b in _ac_list('observation'))
+     + f" ({ac('observation','nt','eta2')} against {ac('observation','nt','chance')} chance on "
+       'nose-to-tail)' if _ac_list('observation') else
+     '<b>Who scored a recording does not move its measured rate beyond chance')
+    + (', and stops mattering once the rate is differenced within a pool.</b>' if not _acd else
+       f", and on {' and '.join(_BNICE[b] for b in _acd)} it still matters after the rate is "
+       'differenced within a pool</b> ('
+       + '; '.join(f"{ac('difference', b, 'eta2')} against {ac('difference', b, 'chance')} "
+                   f"chance, p = {ac('difference', b, 'p')}" for b in _acd)
+       + '). So for that behaviour the label noise bounds r&Delta; itself: best attainable '
+       + '; '.join(f"r&Delta; &le; {ac('difference', b, 'r_max')}" for b in _acd)
+       + ', against &le; ' + ac('observation', 'nt', 'r_max') + ' on the rate.')
+    + (' On ' + ' and '.join(_BNICE[b] for b in ('nt', 'nn')
+                             if b not in _ac_list('observation') and b not in _acd)
+       + ' neither the rate nor the difference departs from chance, so this test bounds '
+         'nothing there.'
+       if any(b not in _ac_list('observation') and b not in _acd for b in ('nt', 'nn')) else ''))
+
+
 def ac_cls(level, behav):
     """Marked LOW when the annotator explains more than chance, HIGH when it does not."""
     d = A['levels'][level][behav]
     return " class='lo'" if d['p'] < 0.05 else " class='hi'"
 
 
-def wt(behav, what, field='p'):
-    """The three wild-type strata: one-way ANOVA across the three lines' unmutated animals."""
-    d = C['wt']['behav'][behav][what]
+def wt(behav, what, field='p', src='wt'):
+    """The three wild-type strata: one-way ANOVA across the three lines' unmutated animals.
+
+    `src` 'wt' is the estimation window; 'wt_full' the same test over whole recordings."""
+    d = C[src]['behav'][behav][what]
     if field == 'means':
         return ' / '.join(f"{v:.2f}" for v in d['means'])
     return f"{d['p']:.2f}"
+
+
+def wt_cls(behav, what, src='wt'):
+    return " class='lo'" if C[src]['behav'][behav][what]['p'] < 0.05 else ''
+
+
+# The verdict, computed: which rows of the wild-type table resolve at 5%.
+_wt_sig = {(src, what, b) for src in ('wt', 'wt_full') for what in ('ho', 'level')
+           for b in ('nt', 'nn') if what in C[src]['behav'][b]
+           and C[src]['behav'][b][what]['p'] < 0.05}
+_wt_ho = [b for b in ('nt', 'nn') if ('wt', 'ho', b) in _wt_sig]
+_wt_lvl_full = [b for b in ('nt', 'nn') if ('wt_full', 'level', b) in _wt_sig]
+_wt_lvl_win = [b for b in ('nt', 'nn') if ('wt', 'level', b) in _wt_sig]
+wt_verdict = (
+    ('<b>On the estimand the three lines agree for both behaviours.</b> '
+     if not _wt_ho else
+     f"<b>On the estimand the lines differ on {' and '.join(_BNICE[b] for b in _wt_ho)}.</b> ")
+    + (f"The only resolved difference is the {' and '.join(_BNICE[b] for b in _wt_lvl_full)} "
+       'level over whole recordings, which is gone inside the estimation window: line background '
+       'moves the raw level a little and cancels in the contrast.'
+       if _wt_lvl_full and not _wt_lvl_win else
+       'No level difference resolves either.' if not (_wt_lvl_full or _wt_lvl_win) else
+       f"The level differs on {' and '.join(_BNICE[b] for b in sorted(set(_wt_lvl_full + _wt_lvl_win)))}."))
 
 
 def run(tag):
@@ -143,6 +217,18 @@ def dist(behav, bucket, field):
     """Error-distance statistics for the deployed model, from examples.json."""
     m = next(x for x in X['models'] if x['key'] == 'xfit')
     return m['annotated'][behav]['buckets'][bucket]['dist'][field]
+
+
+def rob_miss(unit):
+    """05.3's sign disagreements, named with both predictors' values, instead of a typed claim."""
+    miss = [c for c in R['cells'] if c['unit'] == unit and not c['same_sign']]
+    if not miss:
+        return ' &mdash; every one'
+    u = 'bouts/min' if unit == 'events' else 'pp'
+    num = lambda x: f"{x:+.3f}".replace('-', '&minus;')
+    return '; ' + ' and '.join(
+        f"{_BNICE[c['behav']]} &middot; {c['odour']} &middot; {c['trans'].replace('->', '&rarr;')} "
+        f"differs ({num(c['deployed'])} against {num(c['single'])} {u})" for c in miss)
 
 
 def rr(tag):
@@ -215,6 +301,12 @@ def narrowing(model, unit):
     """
     r = _narrow(model, [unit])
     return f'{100 * sum(r) / len(r):.1f}%'
+
+
+def ceiling_share(model=None):
+    """Measured mean narrowing as a share of the design's ceiling, 1 - sqrt(n/(n+N))."""
+    r = _narrow(model or PRIME, _UNITS3)
+    return f"{100 * (sum(r) / len(r)) / (1 - D['ppi_bound']['floor']):.0f}%"
 
 
 def narrowing_all(model, what='mean'):
@@ -302,29 +394,36 @@ def ddecay(behav, odour, trans, method='ci'):
     return '<td%s>%s%s</td>' % (CLS if hit else '', val, '*' if hit else '')
 
 
-def _dspan(trans):
-    """The eight Delta-decay cells the table below prints, summarised.
-
-    Read off the SAME cells the table renders -- deployed predictor, human labels, all pools --
-    so the sentence and the table can never disagree. It used to be a typed range, and it did.
-    """
-    v = [c['est'] for c in E['cells']
-         if c['exp'] == 'v1' and c['unit'] == 'decay' and c['stratum'] == 'all'
-         and c['model'] == PRIME and c['method'] == 'ci' and c['trans'] == trans]
-    return v
+def _cicell(behav, odour, trans, unit='events'):
+    return next(c for c in E['cells'] if c['exp'] == 'v1' and c['unit'] == unit
+                and c['model'] == PRIME and c['stratum'] == 'all' and c['behav'] == behav
+                and c['odour'] == odour and c['trans'] == trans and c['method'] == 'ci')
 
 
-def dspan(trans, what='range'):
-    v = sorted(abs(x) for x in _dspan(trans))
-    if what == 'max':
-        return f'{v[-1]:.1f}'
-    return f'{v[0]:.1f}&ndash;{v[-1]:.1f}'
+def ldir(behav, odour, trans='H->O', unit='events'):
+    """'rises' / 'falls' when the human-only 95% interval excludes zero, else 'is flat'."""
+    c = _cicell(behav, odour, trans, unit)
+    if c['lo'] is not None and c['lo'] > 0:
+        return 'rises'
+    if c['hi'] is not None and c['hi'] < 0:
+        return 'falls'
+    return 'is flat'
 
 
-# "every sign is positive turning the odour on and negative turning it off" is a claim about all
-# eight cells, so it is checked rather than asserted.
-assert (all(x > 0 for x in _dspan('H->O')) and all(x < 0 for x in _dspan('O->P'))), (
-    'section 03 says every Delta-decay sign is + on H->O and - on O->P; the grid no longer agrees')
+# THE TIMING HEADLINE, checked rather than asserted. Under the last-15 window it reads: withdrawing
+# the odour pulls bouts EARLIER in every cell, and turning it on pushes them LATER under social and
+# (unresolved) earlier under fear. The build fails if the grid stops saying that, instead of
+# leaving a sentence the numbers no longer support.
+_dec_sign = {(b, o, t): _cicell(b, o, t, 'decay')['est'] for b in ('nt', 'nn')
+             for o in ('fear', 'social') for t in ('H->O', 'O->P')}
+assert all(v < 0 for (b, o, t), v in _dec_sign.items() if t == 'O->P'), (
+    'section 03 says withdrawing the odour moves decay earlier in every cell; the grid disagrees')
+assert all(_dec_sign[(b, 'social', 'H->O')] > 0 for b in ('nt', 'nn')), (
+    'section 03 says social pushes onsets later at H->O; the grid disagrees')
+assert all(_dec_sign[(b, 'fear', 'H->O')] < 0 for b in ('nt', 'nn')), (
+    'section 03 says fear moves onsets earlier at H->O; the grid disagrees')
+_dec_fear_res = sum(1 for b in ('nt', 'nn') if (lambda c: c['lo'] is not None
+                    and c['lo'] * c['hi'] > 0)(_cicell(b, 'fear', 'H->O', 'decay')))
 
 
 def _n_resolved(method):
@@ -363,9 +462,55 @@ def decay_n(what='range'):
     return f'{min(n)}&ndash;{max(n)}' if what == 'range' else n
 
 
+# 04.3's two tables. Their r-delta cells were typed in and went stale; every cell now reads
+# models.json and the column leader is marked by computation.
+_SSL_ROWS = [('stock, frozen', 'res448_k2_frozen_d4photo_decay30_seed1'),
+             ('SSL, frozen', 'res448_k2_frozen_d4photo_sslinit'),
+             ('BitFit-6 on stock', 'res448_k2_bit6_d4'),
+             ('BitFit-6 on SSL', 'res448_k2_bit6_d4_sslinit')]
+_SSL_K = (('ap', '.4f'), ('f1_nt', '.3f'), ('f1_nn', '.3f'), ('rd_nt', '.3f'), ('rd_nn', '.3f'))
+_ssl_best = {k: max(run(t)[k] for _, t in _SSL_ROWS) for k, _ in _SSL_K}
+_HICLS = ' class="hi"'
+_LOCLS = ' class="lo"'
+ssl_rows = '\n        '.join(
+    f'<tr><td>{nice}</td>' + ''.join(
+        f'<td{_HICLS if run(t)[k] == _ssl_best[k] else ""}>{format(run(t)[k], f)}</td>'
+        for k, f in _SSL_K) + '</tr>' for nice, t in _SSL_ROWS)
+ssl_behind = _WORD[sum(1 for k, _ in _SSL_K
+                       if run('res448_k2_bit6_d4_sslinit')[k] < run('res448_k2_bit6_d4')[k])]
+_SEED2 = {'stock': ('res448_k2_bit6_d4', 'res448_k2_bit6_d4_seed1'),
+          'ssl': ('res448_k2_bit6_d4_sslinit', 'res448_k2_bit6_d4_sslinit_seed1')}
+
+
+def _seed2(which, k):
+    a, b = _SEED2[which]
+    return (run(a)[k] + run(b)[k]) / 2
+
+
+def seed2_rd(which):
+    """Two-seed mean r-delta cells, the larger of the two rows in bold."""
+    other = 'ssl' if which == 'stock' else 'stock'
+    out = ''
+    for k in ('rd_nt', 'rd_nn'):
+        v = _seed2(which, k)
+        out += f"<td>{'<b>' if v > _seed2(other, k) else ''}{v:.3f}{'</b>' if v > _seed2(other, k) else ''}</td>"
+    return out
+
+
 def rr2(tag, which):
     """One r-delta value, so a table cell can carry its own highlight class."""
     return f"{run(tag)['rd_' + which]:.3f}"
+
+
+# The seed-noise warning in 04: one configuration's two seeds against the spread of the whole
+# candidate pool, on nose-to-tail. Computed, because "a spread wider than the range across every
+# arm" was a typed claim and the estimation window made it false.
+_sp = abs(run('res448_k2_frozen_d4photo_ermH5M')['rd_nt']
+          - run('res448_k2_frozen_d4photo_ermH5M_s1')['rd_nt'])
+_cr = [r['rd_nt'] for r in M['runs'] if r['role'] == 'model candidate']
+seed_rd_spread = f'{_sp:.2f}'
+cand_rd_range = f'{max(_cr) - min(_cr):.2f}'
+seed_rd_word = 'unusable' if _sp > max(_cr) - min(_cr) else 'noisy'
 
 
 # Section 05's shortlist. Named here, scored from models.json, so the table cannot drift from the
@@ -397,6 +542,11 @@ _cand = [r for r in M['runs'] if r['role'] == 'model candidate']
 _by_ap = sorted(_cand, key=lambda r: -r['ap'])
 _by_rd = sorted(_cand, key=lambda r: -(r['rd_nt'] + r['rd_nn']) / 2)
 _ord = lambda i: f'{i}{"th" if 11 <= i % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(i % 10, "th")}'
+_cands = sorted((r for r in M['runs'] if r['role'] == 'model candidate'),
+                key=lambda r: -r['rd_nt'])
+bit6_rd_rank = _ord([r['tag'] for r in _cands].index('res448_k2_bit6_d4') + 1)
+
+
 rk_ap_on_rd = _ord(_by_rd.index(_by_ap[0]) + 1)
 rk_rd_on_ap = _ord(_by_ap.index(_by_rd[0]) + 1)
 
@@ -759,12 +909,23 @@ def des(version, key):
     return E['meta']['design'][version][key]
 
 
-# v1's strata are line x genotype; the LINE count is what the biology bullet needs, and counting
-# the distinct line prefixes is the only place it is derivable without retyping it. Spelled out
+def _ann_cell(geno):
+    """Annotated pools in ONE line x sex x genotype cell of v1 -- equal across cells, asserted."""
+    v = {x['n_annotated'] for x in E['meta']['strata']['v1'].values()
+         if x['geno'] == geno and x['line'] != 'all' and x['sex'] != 'all'}
+    assert len(v) == 1, f'line x sex x {geno} cells differ in annotated pools: {v}'
+    return v.pop()
+
+
+line_names = ' / '.join(sorted({x['line'] for x in E['meta']['strata']['v1'].values()
+                               if x['line'] != 'all'}))
+
+
+# v1's strata are line x genotype x sex (meta.strata); the LINE count is what the biology bullet
+# needs, and reading it off the strata table is the only place it is derivable without retyping it. Spelled out
 # because section 00 is prose, and "In 3 lines" reads as a table cell that wandered into a
 # sentence.
-n_lines = len({c['stratum'].rsplit('_', 1)[0] for c in E['cells']
-               if c['exp'] == 'v1' and c['stratum'] != 'all'})
+n_lines = len({v['line'] for v in E['meta']['strata']['v1'].values() if v['line'] != 'all'})
 n_lines_word = _WORD.get(n_lines, str(n_lines))
 
 
@@ -799,6 +960,44 @@ def eb24cut(behav, back=''):
     f = D['estimand_bias']['families'][behav]
     e, d = f[f'ERM \u00b7 24 pools{back}']['mean'], f[f'DERM \u00b7 24 pools{back}']['mean']
     return f'{100 * (1 - abs(d) / abs(e)):.0f}%' if e else '&mdash;'
+
+
+def eb_which(key='paired_xfit'):
+    """The behaviours on which the paired ERM-minus-DERM test resolves with DERM nearer zero."""
+    f = D['estimand_bias']['families']
+    ok = [b for b in ('nt', 'nn') if f[b][key]['p'] < 0.05
+          and f[b][key]['diff'] * (1 if f[b]['ERM \u00b7 24 pools']['mean'] > 0 else -1) > 0]
+    if len(ok) == 2:
+        return 'both behaviours'
+    if ok:
+        return f"{_BNICE[ok[0]]} only"
+    return 'neither behaviour'
+
+
+def eb_row(behav, fam):
+    """One row of 04.6's deployment cross-fit table, verdict and colour computed."""
+    f = D['estimand_bias']['families'][behav]
+    r, e = f[f'{fam} \u00b7 24 pools'], f['ERM \u00b7 24 pools']
+    res = r['lo'] * r['hi'] > 0
+    if fam == 'ERM':
+        v = ('resolved &mdash; a real bias, ' + ('larger than the effect' if r['share_of_truth'] > 1
+                                                else f"{r['share_of_truth']:.2f}&times; the effect")
+             if res else 'not resolved')
+        cls = " class='lo'" if res else ''
+        vcls = cls
+    else:
+        smaller = abs(r['mean']) < abs(e['mean'])
+        pr = f['paired_xfit']
+        v = (('still resolved, but ' if res else 'not resolved; ')
+             + f"{abs(100 * (1 - abs(r['mean']) / abs(e['mean']))):.0f}% "
+             + ('smaller' if smaller else 'larger')
+             + f" (paired p = {eb24p(behav, 'p')})"
+             + (' &mdash; and it has crossed zero' if r['mean'] * e['mean'] < 0 else ''))
+        cls = ''
+        vcls = " class='hi'" if smaller and pr['p'] < 0.05 else ''
+    return (f'<tr><td>{_BNICE[behav]} &middot; <b>{fam}</b></td><td{cls}>{eb24(behav, fam)}</td>'
+            f"<td{cls}>{eb24(behav, fam, 'ci')}</td><td{cls}>{eb24(behav, fam, 'share')}</td>"
+            f'<td{vcls}>{v}</td></tr>')
 
 
 def eb24p(behav, field, key='paired_xfit'):
@@ -848,6 +1047,53 @@ derm_rep_rows = '\n        '.join(
     for lab, dback, eback, key in _REPS for b in ('nt', 'nn'))
 # BACKBONES, not rows: distinct ERM controls. The population-weight row reuses row three's.
 n_reps_word = _WORD.get(len({r[2] for r in _REPS}), str(len({r[2] for r in _REPS})))
+
+
+# 04.3's DERM-on-SSL table and its verdict, computed: which DERM cells sit nearer zero than their
+# own ERM control, which paired tests resolve, and where ERM had little bias to remove.
+_SSL4 = [('nt', '', 'paired_xfit', 'stock'), ('nt', SSL, 'paired_xfit_ssl', 'SSL'),
+         ('nn', '', 'paired_xfit', 'stock'), ('nn', SSL, 'paired_xfit_ssl', 'SSL')]
+
+
+def _ssl_cell(b, back, key):
+    f = D['estimand_bias']['families'][b]
+    e, d = f[f'ERM \u00b7 24 pools{back}'], f[f'DERM \u00b7 24 pools{back}']
+    return e, d, f[key]
+
+
+ssl_cells = '\n        '.join(
+    f"<tr><td>{_BNICE[b]} &middot; {nm} encoder</td><td>{eb24(b, 'ERM', 'share', back)}</td>"
+    f"<td{_HICLS if abs(d['mean']) < abs(e['mean']) else _LOCLS}>"
+    f"{eb24(b, 'DERM', 'share', back)}</td>"
+    f"<td>{'<b>' if pr['p'] < 0.05 else ''}{eb24p(b, 'p', key)}{'</b>' if pr['p'] < 0.05 else ''}"
+    f"</td></tr>"
+    for b, back, key, nm in _SSL4 for e, d, pr in [_ssl_cell(b, back, key)])
+_ssl_near = [(b, nm) for b, back, key, nm in _SSL4
+             for e, d, pr in [_ssl_cell(b, back, key)] if abs(d['mean']) < abs(e['mean'])]
+_ssl_res = [(b, nm) for b, back, key, nm in _SSL4
+            for e, d, pr in [_ssl_cell(b, back, key)]
+            if pr['p'] < 0.05 and abs(d['mean']) < abs(e['mean'])]
+_ssl_small = [(b, nm, e['share_of_truth']) for b, back, key, nm in _SSL4
+              for e, d, pr in [_ssl_cell(b, back, key)] if e['share_of_truth'] < 0.5]
+ssl_summary = (
+    f"<b>DERM sits nearer zero than its ERM control in {_WORD[len(_ssl_near)]} of the four cells, "
+    f"and the paired test resolves in {_WORD[len(_ssl_res)]}"
+    + (f" ({', '.join(f'{_BNICE[b]} on {nm}' for b, nm in _ssl_res)})" if _ssl_res else '')
+    + '.</b> '
+    + (('Where ERM carried little bias to begin with &mdash; '
+        + ', '.join(f"{_BNICE[b]} on {nm} at {sh:.2f}&times; the effect" for b, nm, sh in _ssl_small)
+        + ' &mdash; DERM has nothing to take out and the paired test is null, which is what the '
+        'mechanism predicts when there is no shortcut left. ') if _ssl_small else ''))
+
+
+def ssl_vs_prime():
+    nm = {'events': 'the level', 'decay': 'the timing', 'time': 'occupancy'}
+    behind = [u for u in ('events', 'decay', 'time')
+              if float(narrowing('xfit_derm_ssl_dense', u).rstrip('%'))
+              < float(narrowing(PRIME, u).rstrip('%'))]
+    k = 'all three outcomes' if len(behind) == 3 else f'{_WORD[len(behind)]} of the three outcomes'
+    return k + ' (' + ', '.join(f"{nm[u]} {narrowing('xfit_derm_ssl_dense', u)} against "
+                                f"{narrowing(PRIME, u)}" for u in behind) + ')'
 
 
 def eb_backbone_ratio(behav, fam):
@@ -936,6 +1182,24 @@ def sign_agree(model, unit='events'):
             if p and k and p['est'] is not None and k['est'] is not None
             and (p['est'] > 0) == (k['est'] > 0))
     return f'{n}/{len(KEY8)}'
+
+
+def sign_miss_note(model, unit='events'):
+    """Names the cells where PPCI and the classical estimate disagree in sign, with the classical
+    value and whether its interval covers zero -- the story used to name one miss by hand."""
+    miss = [(b, o, t, k) for b, o, t in KEY8
+            for p in [_cell(model, 'ppci', b, o, t, unit)]
+            for k in [_cell(model, 'ci', b, o, t, unit)]
+            if p and k and p['est'] is not None and k['est'] is not None
+            and (p['est'] > 0) != (k['est'] > 0)]
+    if not miss:
+        return ''
+    num = lambda x: f"{x:+.2f}".replace('-', '&minus;')
+    bits = [f"{_BNICE[b]} &middot; {o} &middot; {t.replace('->', '&rarr;')}, classical "
+            f"{num(k['est'])}"
+            + (' (interval covers zero)' if k['lo'] is None or k['lo'] * k['hi'] <= 0 else
+               ' (resolved)') for b, o, t, k in miss]
+    return '; the miss' + ('es are ' if len(miss) > 1 else ' is ') + ' and '.join(bits)
 
 
 def _widths(model, method, unit='events'):
@@ -1094,6 +1358,290 @@ def ood_absmean(fam):
     return '{:.3f}'.format(sum(v) / len(v)) if len(v) == 4 else '&mdash;'
 
 
+def seed_cover_clause(fam):
+    """'every one of its 12 seed x cell intervals covers zero' / 'k of its 12 ... cover zero'."""
+    k, n = seed_cover(fam), seed_sd(fam, 'n')
+    return (f'every one of its {n} seed&nbsp;&times;&nbsp;cell intervals covers zero' if k ==
+            'every one' else f'{k} of its {n} seed&nbsp;&times;&nbsp;cell intervals cover zero')
+
+
+def seed_cover(fam):
+    """How many of the family's seed x cell intervals cover zero, as 'every one' or 'k'."""
+    tags = _SEED_ARMS[fam]
+    cells = [_OS['arms'][t]['cells'][lab][tr] for t in tags if t in _OS.get('arms', {})
+             for lab in ('nt', 'nn') for tr in _TR
+             if _OS['arms'][t].get('cells', {}).get(lab, {}).get(tr)]
+    k = sum(1 for c in cells if c['lo'] * c['hi'] <= 0)
+    return 'every one' if k == len(cells) else f'{k}'
+
+
+def ood_story():
+    """The story's out-of-distribution sentence about ERM, phrased from the numbers."""
+    r = _OS['arms']['trF_erm_last']['cells']['nt']['H->O']
+    f, y = r['pred_dF'], r['true_dY']
+    num = lambda x: f"{x:+.3f}".replace('-', '&minus;')
+    res = r['lo'] * r['hi'] > 0
+    if f * y < 0:
+        what = 'it reports an effect of the opposite sign' + (', a resolved bias' if res else '')
+    elif abs(f) < abs(y):
+        what = f'it recovers {abs(f / y):.0%} of the true effect'
+    else:
+        what = f'it inflates the true effect {abs(f / y):.1f}&times;'
+    return (f'{what} ({num(f)} bouts per minute of nose-to-tail where the human annotations say '
+            f'{num(y)})')
+
+
+def indist_story():
+    """Which behaviours the 24-pool cross-fit's paired ERM-vs-DERM test resolves on, at 5%."""
+    f = D['estimand_bias']['families']
+    res = [b for b in ('nt', 'nn') if f[b]['paired_xfit']['p'] < 0.05]
+    p = lambda b: f"p = {eb24p(b, 'p')}"
+    if len(res) == 2:
+        return f"the bias falls on both behaviours ({p('nt')} and {p('nn')})"
+    if res:
+        other = [b for b in ('nt', 'nn') if b not in res][0]
+        return (f"the bias falls on {_BNICE[res[0]]} ({p(res[0])}) and does not resolve on "
+                f"{_BNICE[other]} ({p(other)})")
+    return f"neither reduction resolves ({p('nt')} and {p('nn')})"
+
+
+def _social_res():
+    r = _OS.get('paired', {}).get('train_social_popw', {})
+    return [(lab, tr) for lab in ('nt', 'nn') for tr in _TR
+            if r.get(lab, {}).get(tr) and r[lab][tr]['p'] < 0.05]
+
+
+def social_null():
+    """The negative control, counted: resolved paired ERM-DERM cells when trained on social."""
+    res = _social_res()
+    if not res:
+        return 'DERM and ERM coincide in all four cells'
+    return (f'DERM and ERM coincide in {_WORD[4 - len(res)]} of the four cells; the exception is '
+            + ' and '.join(f"{_BNICE[lab]}&rsquo;s {'ON' if tr == 'H->O' else 'OFF'} leg "
+                           f"(p = {os_pair('train_social_popw', lab, 'p', tr)})" for lab, tr in res))
+
+
+def odour_story():
+    """The biology clause of the headline-contribution bullet, from the level cells."""
+    d = {(b, o): ldir(b, o) for b in ('nt', 'nn') for o in ('fear', 'social')}
+    if d[('nt', 'fear')] == d[('nt', 'social')] and d[('nn', 'fear')] == d[('nn', 'social')]:
+        return 'the two odours act alike on both behaviours'
+    return ('the two odours act differently: turning the odour on, nose-to-nose '
+            f"{d[('nn', 'fear')]} under fear and {d[('nn', 'social')]} under social, nose-to-tail "
+            f"{d[('nt', 'fear')]} under fear and {d[('nt', 'social')]} under social")
+
+
+def ood_close():
+    """Which behaviours the seed-averaged exposure-split test resolves on (ON leg, DERM nearer 0)."""
+    r = _OS.get('seed_avg', {}).get('train_fear_popw_seedavg', {})
+    ok = [b for b in ('nt', 'nn') if r.get(b, {}).get('H->O')
+          and r[b]['H->O']['p'] < 0.05
+          and abs(r[b]['H->O']['derm_mean']) < abs(r[b]['H->O']['erm_mean'])]
+    p = lambda b: f"p = {os_savg(b, 'H->O', 'p')}"
+    if len(ok) == 2:
+        return f"corrected weights reduce the imported bias on both behaviours ({p('nt')}, {p('nn')})"
+    if ok:
+        o = [b for b in ('nt', 'nn') if b not in ok][0]
+        return (f"corrected weights reduce the imported bias on {_BNICE[ok[0]]} ({p(ok[0])}), "
+                f"not on {_BNICE[o]} ({p(o)})")
+    return f"corrected weights reduce neither behaviour's imported bias ({p('nt')}, {p('nn')})"
+
+
+def os_pp(direction, behav, trans='H->O'):
+    """'p = 0.0012' or 'p &lt; 0.0001' for one paired exposure-split cell."""
+    v = os_pair(direction, behav, 'p', trans)
+    return f'p {v}' if v.startswith('&lt;') else f'p = {v}'
+
+
+def os_rel(arm, behav='nt', trans='H->O'):
+    """How an arm's estimate relates to the truth on one cell, in words."""
+    r = _OS['arms'][arm]['cells'][behav][trans]
+    f, y = r['pred_dF'], r['true_dY']
+    if f * y < 0:
+        return ' &mdash; the opposite sign'
+    return f" &mdash; {abs(f / y):.2f}&times; the effect"
+
+
+_pm_nt = _OS.get('arms', {}).get('trF_derm_last_popw', {}).get('cells', {}).get('nt', {})
+popw_mirror_note = (
+    'Under the corrected weights the fear-trained legs stop mirroring '
+    f"({os_('trF_derm_last_popw','nt')} and {os_('trF_derm_last_popw','nt','O->P')} share a sign)."
+    if _pm_nt and _pm_nt['H->O']['mean'] * _pm_nt['O->P']['mean'] > 0 else
+    'Under the corrected weights the fear-trained legs still carry opposite signs '
+    f"({os_('trF_derm_last_popw','nt')} and {os_('trF_derm_last_popw','nt','O->P')}), so the "
+    'O-phase offset is smaller, not gone.')
+
+
+def seed_cover_lab(fam, lab):
+    tags = _SEED_ARMS[fam]
+    cells = [_OS['arms'][t]['cells'][lab]['H->O'] for t in tags
+             if _OS.get('arms', {}).get(t, {}).get('cells', {}).get(lab, {}).get('H->O')]
+    k = sum(1 for c in cells if c['lo'] * c['hi'] <= 0)
+    return 'all' if k == len(cells) else f'{k} of {len(cells)}'
+
+
+def seed_sign_lab(fam, lab):
+    v = [_OS['arms'][t]['cells'][lab]['H->O']['mean'] for t in _SEED_ARMS[fam]
+         if _OS.get('arms', {}).get(t, {}).get('cells', {}).get(lab, {}).get('H->O')]
+    if v and all(x < 0 for x in v):
+        return ', every one negative'
+    if v and all(x > 0 for x in v):
+        return ', every one positive'
+    return ''
+
+
+def savg_others():
+    """The three seed-averaged cells besides the headline, with their p values."""
+    r = _OS.get('seed_avg', {}).get('train_fear_popw_seedavg', {})
+    cells = [(lab, tr) for lab in ('nt', 'nn') for tr in _TR if (lab, tr) != ('nt', 'H->O')
+             and r.get(lab, {}).get(tr)]
+    res = [c for c in cells if r[c[0]][c[1]]['p'] < 0.05]
+    lst = ', '.join(f"{_BNICE[lab]} {'ON' if tr == 'H->O' else 'OFF'} p = {os_savg(lab, tr, 'p')}"
+                    for lab, tr in cells)
+    return (f'the other three cells do not resolve ({lst})' if not res else
+            f'of the other three cells {len(res)} resolve ({lst})')
+
+
+def social_null_head():
+    res = _social_res()
+    return ('every paired cell is null' if not res else
+            f'{_WORD[4 - len(res)]} of the four paired cells are null')
+
+
+def social_specific():
+    res = _social_res()
+    if not res:
+        return ('The correction is <b>confound-specific, not a blanket regulariser</b> &mdash; it '
+                'appears exactly where the confound sits in the training distribution and nowhere '
+                'else.')
+    return ('The correction is <b>mostly confound-specific</b>: the one social-trained cell that '
+            'moves is ' + ' and '.join(
+                f"{_BNICE[lab]}&rsquo;s {'ON' if tr == 'H->O' else 'OFF'} leg "
+                f"(paired {os_pair('train_social_popw', lab, 'd', tr)}, "
+                f"{os_pp('train_social_popw', lab, tr)})" for lab, tr in res) + '.')
+
+
+def agree_dir():
+    """Behaviours on which DERM sits nearer zero than ERM in BOTH designs (cross-fit, split)."""
+    f = D['estimand_bias']['families']
+    r = _OS.get('seed_avg', {}).get('train_fear_popw_seedavg', {})
+    ok = [b for b in ('nt', 'nn')
+          if abs(f[b]['DERM \u00b7 24 pools']['mean']) < abs(f[b]['ERM \u00b7 24 pools']['mean'])
+          and r.get(b, {}).get('H->O')
+          and abs(r[b]['H->O']['derm_mean']) < abs(r[b]['H->O']['erm_mean'])]
+    return ' and '.join(_BNICE[b] for b in ok) if ok else 'neither behaviour'
+
+
+def crit_a(behav):
+    """04.6 criterion (a): who is nearer zero, and whether the paired test resolves."""
+    f = D['estimand_bias']['families'][behav]
+    e, d, pr = f['ERM \u00b7 24 pools']['mean'], f['DERM \u00b7 24 pools']['mean'], f['paired_xfit']
+    win = 'DERM' if abs(d) < abs(e) else 'ERM'
+    if pr['p'] < 0.05:
+        return (f'<td class="{"hi" if win == "DERM" else "lo"}">{win} &middot; paired p '
+                f"{eb24p(behav, 'p')} &mdash; this encoder only</td>")
+    return f"<td>tie &middot; paired p {eb24p(behav, 'p')}, {win} nominally nearer zero</td>"
+
+
+def crit_c():
+    a, b = sign_agree(ERM_REF), sign_agree(PRIME)
+    ka, kb = int(a.split('/')[0]), int(b.split('/')[0])
+    if ka == kb:
+        return 'tie'
+    return f"{'DERM' if kb > ka else 'ERM'} by {abs(kb - ka)} cell{'s' if abs(kb - ka) > 1 else ''}"
+
+
+def crit_e():
+    return f"{float(seed_sd('DERM')) / float(seed_sd('ERM')):.0%}"
+
+
+def weak_nt():
+    pr = D['estimand_bias']['families']['nt']['paired_xfit']
+    return ('the paired reduction resolves but neither level does &mdash; DERM is being promoted on '
+            'a difference, not on a demonstrated ERM failure.' if pr['p'] < 0.05 else
+            f"the paired difference does not resolve either (p = {eb24p('nt', 'p')}): "
+            'nose-to-tail gives no in-distribution evidence either way.')
+
+
+def weak_ood():
+    """The seed-averaged exposure-split cells where ERM's |bias| is nominally the smaller."""
+    r = _OS.get('seed_avg', {}).get('train_fear_popw_seedavg', {})
+    cells = [(lab, tr) for lab in ('nt', 'nn') for tr in _TR if r.get(lab, {}).get(tr)
+             and abs(r[lab][tr]['erm_mean']) < abs(r[lab][tr]['derm_mean'])]
+    if not cells:
+        return 'No seed-averaged out-of-distribution cell has a smaller ERM bias.'
+    lst = ', '.join(f"{_BNICE[lab]} {'ON' if tr == 'H->O' else 'OFF'} (p = {os_savg(lab, tr, 'p')})"
+                    for lab, tr in cells)
+    return (f'{_WORD[len(cells)].capitalize()} of the four seed-averaged out-of-distribution '
+            f'cells {"has" if len(cells) == 1 else "have"} a nominally smaller ERM bias: {lst}.')
+
+
+def ssl_behind_n():
+    k = sum(1 for u in ('events', 'decay', 'time')
+            if float(narrowing('xfit_derm_ssl_dense', u).rstrip('%'))
+            < float(narrowing(ERM_REF, u).rstrip('%')))
+    return 'all three' if k == 3 else f'{_WORD[k]} of the three'
+
+
+def null_breakdown(model):
+    """Refused cells of one predictor, counted by estimator and outcome."""
+    from collections import Counter
+    c = Counter((x['method'], x['unit']) for x in E['cells']
+                if x['model'] == model and x['est'] is None)
+    nm = {'ci': 'CI', 'ppi': 'PPI++', 'ppci': 'PPCI'}
+    un = {'events': 'level', 'decay': 'timing', 'time': 'occupancy'}
+    return ', '.join(f'{v} {nm[m]} on the {un[u]}' for (m, u), v in sorted(c.items(),
+                                                                          key=lambda kv: -kv[1]))
+
+
+def flip_note():
+    miss = [(b, o, t) for b, o, t in KEY8
+            for e, d in [(_cell(ERM_REF, 'ppci', b, o, t), _cell(PRIME, 'ppci', b, o, t))]
+            if e and d and e['est'] is not None and d['est'] is not None
+            and (e['est'] > 0) != (d['est'] > 0)]
+    if not miss:
+        return ' Sign and pattern are what PPCI claims, and none of them moved.'
+    num = lambda x: f"{x:+.3f}".replace('-', '&minus;')
+    return (' The v1 cell' + ('s' if len(miss) > 1 else '') + ' that changed: '
+            + '; '.join(f"{_BNICE[b]} &middot; {o} &middot; {t.replace('->', '&rarr;')} "
+                        f"({num(_cell(ERM_REF, 'ppci', b, o, t)['est'])} under ERM, "
+                        f"{num(_cell(PRIME, 'ppci', b, o, t)['est'])} under DERM, classical "
+                        f"{num(_cell(PRIME, 'ci', b, o, t)['est'])})" for b, o, t in miss) + '.')
+
+
+def nar_cmp(a, b):
+    """Mean PPI++ narrowing of predictor a against b on each outcome, plus a's per-cell wins on
+    the level, phrased with who leads."""
+    nm = {'events': 'the level', 'decay': 'the timing', 'time': 'occupancy'}
+    bits = []
+    for u in ('events', 'decay', 'time'):
+        x, y = narrowing(a, u), narrowing(b, u)
+        lead = 'ahead' if float(x.rstrip('%')) > float(y.rstrip('%')) else 'behind'
+        bits.append(f"{nm[u]} {x} against {y}, {lead}"
+                    + (f" (tighter per cell in {narrower_than(a, b, u)})" if u == 'events' else ''))
+    return '; '.join(bits)
+
+
+def sign_cmp(a, b):
+    nm = {'events': 'the level', 'decay': 'the timing', 'time': 'occupancy'}
+    return ', '.join(f"{sign_agree(a, u)} against {sign_agree(b, u)} on {nm[u]}"
+                     for u in ('events', 'decay', 'time'))
+
+
+def bit_vs_prime():
+    f = D['estimand_bias']['families']
+    near = {b: ('BitFit-6 ERM' if abs(f[b]['ERM \u00b7 24 pools' + BIT]['mean'])
+                < abs(f[b]['DERM \u00b7 24 pools']['mean']) else 'the deployed arm')
+            for b in ('nt', 'nn')}
+    exc = [nm for nm, k in (('BitFit-6 ERM', 'ERM \u00b7 24 pools' + BIT),
+                            ('the deployed arm', 'DERM \u00b7 24 pools'))
+           if f['nn'][k]['lo'] * f['nn'][k]['hi'] > 0]
+    s_ = (f"{near['nt']} is nearer zero on nose-to-tail and {near['nn']} on nose-to-nose"
+          if near['nt'] != near['nn'] else f"{near['nt']} is nearer zero on both")
+    return s_ + (f"; on nose-to-nose {' and '.join(exc)} "
+                 f"{'both exclude' if len(exc) == 2 else 'excludes'} zero" if exc else '')
+
+
 def ap_mean(which):
     """Macro AP, mean over three cross-fitting folds. CONTEXT ONLY -- never a promotion criterion."""
     d = {'DERM': xfd, 'ERM': xfe, 'deployed_erm': xf, 'BitFit': xfb, 'DERM_ssl': xfds}[which]
@@ -1120,6 +1668,7 @@ _prime_behind = sum(1 for u in ('events', 'decay', 'time')
                     if float(narrowing(PRIME, u).rstrip('%'))
                     < float(narrowing('xfit_bit6_dense', u).rstrip('%')))
 _prime_behind_word = _WORD.get(_prime_behind, str(_prime_behind))
+_prime_behind_all = 'all' if _prime_behind == 3 else _prime_behind_word
 
 # The r-delta leader among the cross-fits is not the AP leader. Both used to be BitFit-6 and the
 # sentence below named it for both; the fifth row beats it on r-delta nose-to-tail, so the clause
@@ -1310,13 +1859,13 @@ BODY = f'''
 <div class="wrap">
 
 <header class="top"><div class="measure">
-  <p class="eyebrow">Mice v1 / v2 &middot; status &middot; 26 August 2026</p>
+  <p class="eyebrow">Mice v1 / v2 &middot; status &middot; 7 October 2026</p>
   <h1>Genotype under hormonal exposure</h1>
   <p class="lede">Three ASD-associated mouse lines, wild-type against heterozygous carriers of the
   same knockout, filmed in cages of four before, during and after two hormonal exposures. The
   programme asks how the genotype changes social behaviour. This report covers the step in front of
-  that: <b>the effect of the exposure</b> &mdash; overall and broken down by line &times; genotype
-  &mdash; and the vision model that has to carry it to the 84 pools nobody has annotated.</p>
+  that: <b>the effect of the exposure</b> &mdash; overall and broken down by line, sex and
+  genotype &mdash; and the vision model that has to carry it to the 84 pools nobody has annotated.</p>
 </div></header>
 
 <section><div class="measure">
@@ -1349,32 +1898,29 @@ BODY = f'''
     frame &mdash; one with no behaviour in it at all &mdash; already says which phase it came from:
     a probe reads exposure against not-exposure at {probe()} balanced accuracy. A classifier
     trained by ordinary empirical risk minimisation absorbs that phase prior and carries it into
-    the causal estimate as a constant offset on the treated phase. Out of distribution it halves
-    the true effect ({os_('trF_erm_last','nt','H->O','pred_dF')} bouts per minute where the human
-    annotations say {os_('trF_erm_last','nt','H->O','true_dY')}), the size of the error is a draw
-    of the random seed, and <b>no accuracy metric shows any of it</b>.</li>
+    the causal estimate as a constant offset on the treated phase. Out of distribution
+    {ood_story()}, the size of the error is a draw of the random seed, and <b>no accuracy metric
+    shows any of it</b>.</li>
 
     <li><b>The repair.</b> Population-weighted DERM removes the prior in the training objective
-    rather than after the fact. Out of distribution every one of its
-    {seed_sd('DERM','n')} seed&nbsp;&times;&nbsp;cell intervals covers zero. On nose-to-tail the
+    rather than after the fact. Out of distribution {seed_cover_clause('DERM')}. On nose-to-tail the
     means are near zero too, largest {seed_sd('DERM','max_abs','nt')} bouts per minute against
     ERM's {seed_sd('ERM','max_abs','nt')}; on nose-to-nose both families sit further out
     ({seed_sd('DERM','max_abs','nn')} against {seed_sd('ERM','max_abs','nn')}), which is the
-    behaviour 04.6 shows the offset story does not fit. It recovers the human-annotation effect
-    outright ({os_('trF_derm_last_popw','nt','H->O','pred_dF')} against the true
-    {os_('trF_derm_last_popw','nt','H->O','true_dY')}). In distribution the bias falls on both
-    behaviours over the same 48 paired units (p = {eb24p('nt','p')} and {eb24p('nn','p')}). And
-    the negative control is clean: trained in the direction where the confound is absent, DERM and
-    ERM coincide. DERM is the deployed predictor for every effect reported here.</li>
+    behaviour 04.6 shows the offset story does not fit. On the headline cell it
+    {'misses' if os_('trF_derm_last_popw','nt','H->O','resolved') else 'recovers'} the
+    human-annotation effect ({os_('trF_derm_last_popw','nt','H->O','pred_dF')} against the true
+    {os_('trF_derm_last_popw','nt','H->O','true_dY')}). In distribution, over the same
+    {eb24p('nt','n_units')} paired units, {indist_story()}. And the negative control:
+    trained in the direction where the confound is absent, {social_null()}. DERM is the deployed
+    predictor for every effect reported here.</li>
 
     <li><b>Deployment, in distribution and out.</b> Effects are estimated on the first cohort
     ({des('v1','annotated_pools')} annotated cages carrying all {des('v1','pools')}) and
     reproduced on the second ({des('v2','pools')} cages, no labels anywhere), with the
     exposure split serving as the out-of-distribution stress test. Label-free PPCI agrees in sign
-    with the classical human-only estimator in {sign_agree(PRIME)} of the eight headline cells;
-    the single miss is a cell whose classical value is {lvl('nn','social')} bouts per minute
-    &mdash; indistinguishable from no effect, where a sign is not a claim either estimator is
-    making.</li>
+    with the classical human-only estimator in {sign_agree(PRIME)} headline
+    cells{sign_miss_note(PRIME)}.</li>
 
     <li><b>Heterogeneity, and where we stop.</b> Beyond the average exposure effect, every effect
     is stratified by line, genotype and sex &mdash; conditional effects, not one number for the
@@ -1390,13 +1936,14 @@ BODY = f'''
     <ul>
       <li><b>Validate on the estimand, not on average precision.</b> Prediction metrics reward the
       confound: the accuracy leader here is not the predictor we deploy. Decision thresholds must
-      be rate-matched rather than tuned in probability space, and phase means must be
-      time-windowed &mdash; without a matched window a within-phase habituation artefact flips
-      signs.</li>
+      be rate-matched rather than tuned in probability space, and phase means must be taken on a
+      window fixed in advance on biological grounds &mdash; here {wsens_cell}&rsquo;s H&rarr;O
+      effect is {wcell(*_WSENS,'first15')} on H&rsquo;s first 15 minutes and
+      {wcell(*_WSENS,'last15')} on its last 15.</li>
       <li><b>A homogeneous annotated subsample scored by heterogeneous annotators is fine</b>
       &mdash; provided the design cancels the annotator inside the contrast. Here every cage is
-      scored by one annotator across all its phases, so the annotator cancels within the
-      within-cage difference.</li>
+      scored by one annotator across all its phases, so a scorer&rsquo;s constant offset cancels
+      in the within-cage difference{story_ann}</li>
       <li><b>Strongly unbalanced annotations need weighted losses and prevalence-corrected
       environment weights.</b> Weights estimated on the balanced training subsample actively
       mislead: they collapsed the environment-variance ratio the objective is built on and
@@ -1411,7 +1958,7 @@ BODY = f'''
     </ul></li>
 
     <li class="run"><b>[open: what to claim as the single headline contribution]</b> &mdash; the
-    biology (two odours act differently, and oppositely on the two behaviours), the method (the
+    biology ({odour_story()}), the method (the
     visible-treatment confound and its repair), or the deployment itself (a causal estimate on a
     cohort with zero annotations). The three are currently weighted about equally, which is
     usually a sign none of them is being claimed hard enough.</li>
@@ -1448,7 +1995,7 @@ BODY = f'''
       <tr><td>pools &times; observations</td><td>72 &times; 6 = 432</td><td>36 &times; 6 = 216</td></tr>
       <tr><td>design</td><td><b>12 per line &times; genotype</b><br>3 &times; 2 &times; 12 = 72</td><td><b>12 per line</b><br>3 &times; 12 = 36</td></tr>
       <tr><td>genotype</td><td>pure cage: 36 wt, 36 het</td><td>mixed cage: <b>3 wt + 1 het</b> per cage</td></tr>
-      <tr><td>strata</td><td class="hi">6 (line &times; genotype)</td><td class="hi">3 (line)</td></tr>
+      <tr><td>strata in the effects figure</td><td class="hi">line &times; sex &times; genotype: 12 cells of 6 pools</td><td class="hi">line &times; sex: 6 cells of 6 pools</td></tr>
       <tr><td>lines</td><td colspan="2"><i>Ash1l</i> / <i>Kdm6b</i> / <i>Kmt5b</i>, 1:1:1, sexes balanced within every line</td></tr>
       <tr><td>annotated pools</td><td class="hi">24 of 72</td><td class="lo">0 of 36</td></tr>
       <tr><td>annotated observations</td><td class="hi">144 of 432</td><td class="lo">0 of 216</td></tr>
@@ -1461,7 +2008,7 @@ BODY = f'''
     </tbody></table></div></div>
 <div class="measure">
   <p><b>What is identified here, and what is not.</b> The programme's question is the genotype. This
-  report reports the exposure &mdash; overall and within each line &times; genotype stratum &mdash;
+  report reports the exposure &mdash; overall and within each line, sex and genotype stratum &mdash;
   because that is the contrast the design identifies cleanly, and because the genotype contrast is
   currently limited by annotation rather than by biology.</p>
   <div class="scroll"><table>
@@ -1469,25 +2016,29 @@ BODY = f'''
     <tbody>
       <tr><td><b>exposure</b>, per stratum</td><td><em>within</em> a pool, across phases</td>
         <td class="hi">identified &mdash; cage, genotype, sex, annotator and line background all
-        cancel, because the same four animals scored by the same person supply both sides</td></tr>
+        cancel as constant offsets, because the same four animals scored by the same person supply
+        both sides (03 tests whether the annotator also moves the difference)</td></tr>
       <tr><td><b>genotype</b>, on v1</td><td>between cages</td>
         <td class="lo">weak: annotation is 3:1 het-enriched (18 het / 6 wt) and annotator is
         confounded with genotype &mdash; one scorer took 18 het observations and no wild-type,
-        another 3 wild-type and no het. Each wild-type stratum has 2 pools.</td></tr>
+        another 3 wild-type and no het. Each line &times; wild-type stratum has 2 annotated
+        pools, one per sex.</td></tr>
       <tr><td><b>genotype</b>, on v2</td><td>within a cage</td>
         <td class="lo">not identified at all: <code>genotype</code> is the string
         <code>mixed</code> on all 216 observations, the per-frame labels drop the annotator's animal
         indices, and the model emits one label per frame rather than per animal</td></tr>
     </tbody></table></div>
   <div class="note"><b>A negative control the design provides for free.</b> The three wild-type
-  strata are three different lines' <em>unmutated</em> animals, so they should behave alike. On raw
-  rates they do not quite: nose-to-tail differs across the three ({wt('nt','level','means')}
-  bouts per minute, one-way ANOVA p = {wt('nt','level')}), while nose-to-nose is flat
-  (p = {wt('nn','level')}). On the estimand &mdash; the within-pool H&rarr;O difference &mdash;
-  they agree closely for both behaviours (nt p = {wt('nt','ho')}, nn p = {wt('nn','ho')}). Line background shifts the <em>level</em> and cancels in the <em>contrast</em>,
-  which is the same pattern the annotator effect shows in section 03. With 2 annotated pools per
-  wild-type stratum this is the weakest test on the page in both directions: neither result would
-  survive much scrutiny, and it is the first thing more annotation would fix.</div>
+  strata are three lines&rsquo; <em>unmutated</em> animals, so they should behave alike.
+  <div class="scroll" style="margin-top:11px"><table>
+    <thead><tr><th>one-way ANOVA across the three lines, wt pools</th><th>nose-to-tail</th><th>nose-to-nose</th></tr></thead>
+    <tbody>
+      <tr><td>H&rarr;O difference, estimation window &mdash; the estimand</td><td{wt_cls('nt','ho')}>p = {wt('nt','ho')}</td><td{wt_cls('nn','ho')}>p = {wt('nn','ho')}</td></tr>
+      <tr><td>level, estimation window</td><td{wt_cls('nt','level')}>p = {wt('nt','level')}</td><td{wt_cls('nn','level')}>p = {wt('nn','level')}</td></tr>
+      <tr><td>level, whole recordings</td><td{wt_cls('nt','level','wt_full')}>p = {wt('nt','level',src='wt_full')}</td><td{wt_cls('nn','level','wt_full')}>p = {wt('nn','level',src='wt_full')}</td></tr>
+    </tbody></table></div>
+  {wt_verdict} With 2 annotated pools per wild-type stratum this is the weakest test on the page in
+  both directions, and the first thing more annotation would fix.</div>
   <div class="note"><b>Estimand.</b> The mean <em>within-pool</em> change in behaviour across one
   phase transition, per exposure, per stratum. The unit of analysis is the <b>pool</b>, clustered.
   Consecutive transitions only &mdash; H&rarr;O and O&rarr;P; P&minus;H is their sum, not an
@@ -1506,8 +2057,9 @@ BODY = f'''
       <tr><td>what counts as ONE event</td><td>a <b>bout</b> &mdash; one uninterrupted run of
         annotated frames. Defined at 5&nbsp;fps, so a real bout split by a two-frame gap becomes
         two</td><td>&mdash;</td></tr>
-      <tr><td>over what WINDOW</td><td>the <b>first 15 minutes</b> of every phase, matched. H runs
-        30 minutes, so half of it is discarded</td><td>next</td></tr>
+      <tr><td>over what WINDOW</td><td>the <b>last 15 minutes of H</b> (minutes 15&ndash;30)
+        against all 15 minutes of O and of P. H runs 30 minutes, so its first half is
+        discarded</td><td>next</td></tr>
       <tr><td>what you MEASURE</td><td><b>a level</b>, how often a bout starts, and <b>a
         timing</b>, when in the phase they start</td><td>02a, 02b</td></tr>
     </tbody></table></div>
@@ -1527,23 +2079,24 @@ BODY = f'''
   equal lengths, so any window rule leaves it bit-for-bit identical, checked in all four cells.
   What the choice is worth on H&rarr;O:</p>
   <div class="scroll"><table>
-    <thead><tr><th>H &rarr; O</th><th>full H (30 min)</th><th>first 15</th><th>last 15</th><th>spread</th></tr></thead>
+    <thead><tr><th>H &rarr; O, bouts/min</th><th>full H (30 min)</th><th>first 15 of H</th><th>last 15 of H &middot; <b>reported</b></th><th>spread</th></tr></thead>
     <tbody>
       <tr><td>nt &middot; fear</td>{wrow('nt','fear')}</tr>
       <tr><td>nt &middot; social</td>{wrow('nt','social')}</tr>
       <tr><td>nn &middot; fear</td>{wrow('nn','fear')}</tr>
       <tr><td>nn &middot; social</td>{wrow('nn','social')}</tr>
     </tbody></table></div>
-  <p><b>Matching the first 15 minutes settles a confound, not just an inconsistency.</b> Every
-  phase is a separate recording the experimenter starts by opening the cage, and the onset spike
-  that follows is largest in <b>P</b> &mdash; where the odour is <em>removed</em> &mdash; in
-  {n_onset_p} of 4 cells (first-2-min over last-2-min rate, {onset_cell}: {onset_vals}).
-  A response peaking when the odour is taken away is handling, not odour, so matching onset position
-  puts it on both sides of every contrast, where it cancels. Every estimate in this report is cut
-  that way, so <b>&ldquo;first 15&rdquo; is the column the figures report</b> and the other two are
-  the sensitivity around it. Nose-to-nose under social is the cell that depended on it:
-  {wcell('nn','social','full')} on the full window against {wcell('nn','social','first15')}
-  matched.</p>
+  <p><b>The reported window is H&rsquo;s last 15 minutes</b> &mdash; the settled baseline right
+  before the exposure, which is the comparison the neuroscientists asked for (decided 7 October
+  2026; it replaces the first 15 minutes of every phase). The choice is not cosmetic: on
+  {wsens_cell} the H&rarr;O estimate is {wcell(*_WSENS,'full')} on the full window,
+  {wcell(*_WSENS,'first15')} on the first 15 and {wcell(*_WSENS,'last15')} on the last
+  15{wsens_note}. <b>What it costs:</b> every recording starts with the experimenter opening the
+  cage, and the burst that follows is largest in <b>P</b> &mdash; where the odour is
+  <em>removed</em> &mdash; in {n_onset_p} of 4 cells (first-2-min over last-2-min rate,
+  {onset_cell}: {onset_vals}), so it is handling, not odour. H&rsquo;s last 15 minutes contain no
+  such burst and O&rsquo;s window opens with one, so <b>H&rarr;O now carries that handling burst
+  on the O side only</b>. O&rarr;P does not: both of its windows open at the cage.</p>
 
   <div class="sub">
     <p class="q">02a &middot; the level</p>
@@ -1586,17 +2139,18 @@ BODY = f'''
     <p class="q">02b &middot; the timing</p>
     <h3>When in the phase behaviour happens</h3>
     <p>The same non-stationarity makes <em>when</em> a bout starts an outcome in its own right.
-    Measured as the <b>mean onset time</b> of a phase's bouts, inside the same matched window:</p>
+    Measured as the <b>mean onset time</b> of a phase's bouts inside the same window, counted from
+    the window's start (minute 15 for H, minute 0 for O and P):</p>
   </div>
   <div class="eqn"><math display="block"><mrow><mi>decay</mi><mo>=</mo>
     <mfrac><mn>1</mn><mrow><mo>|</mo><mi>B</mi><mo>|</mo></mrow></mfrac>
     <munder><mo>&#x2211;</mo><mrow><mi>b</mi><mo>&#x2208;</mo><mi>B</mi></mrow></munder>
     <mi>onset</mi><mo>(</mo><mi>b</mi><mo>)</mo>
     <mo>,</mo><mspace width="1.2em"/>
-    <mi>B</mi><mo>=</mo><mrow><mo>{{</mo><mtext>bouts starting in minutes&#xA0;0&#x2013;15</mtext>
+    <mi>B</mi><mo>=</mo><mrow><mo>{{</mo><mtext>bouts starting in the 15-minute window</mtext>
     <mo>}}</mo></mrow></mrow></math></div>
   <p>In minutes, so it interprets itself: a <b>flat process gives 7.5</b>, half the window, and a
-  difference reads as <em>&ldquo;the exposure pushes bouts X minutes later into the phase&rdquo;</em>.
+  difference reads as <em>&ldquo;the exposure pushes bouts X minutes later into the window&rdquo;</em>.
   Model-free, per-observation, and needing no exponential &mdash; a fitted slope does not survive
   here, with log-linearity rejected in {curv} cells. It beats a front-loading fraction, whose null
   was an artefact of its own nesting, and the median, which discards the late tail where a flatter
@@ -1607,9 +2161,10 @@ BODY = f'''
   <div class="sechead"><p class="eyebrow">03 &middot; Effects</p>
   <h2>Every estimate, in one figure</h2></div>
   <p>Both outcomes section 02 settled on &mdash; <b>the level</b> (bouts per minute) and <b>the
-  timing</b> (decay, mean onset in minutes) &mdash; for every cohort, behaviour and breakdown.
-  Occupancy is there too, as the alternative 02a rejected, so the pattern can be checked against it.
-  One panel per exposure, both phase transitions in each, and <b>three estimators</b>:</p>
+  timing</b> (decay, mean onset in minutes) &mdash; for every cohort, behaviour, line and sex, on
+  the window 02 fixed (H&rsquo;s last 15 minutes against all of O and P). Occupancy is there too,
+  as the alternative 02a rejected. One panel per exposure, both transitions in each, and <b>three
+  estimators</b>:</p>
   <div class="scroll"><table>
     <thead><tr><th>estimator</th><th>annotations it uses</th><th>cohorts</th><th>reads as</th></tr></thead>
     <tbody>
@@ -1621,24 +2176,41 @@ BODY = f'''
         <td class="hi">v1 (72) and v2 (36)</td>
         <td class="lo">sign and pattern only &mdash; it is on the model's scale</td></tr>
     </tbody></table></div>
-  <p>PPCI needs no annotation anywhere, which is why it is the only estimator that exists on v2 at
-  all. Sections 04 and 05 say how far that model can be trusted &mdash; and where more than one
-  cross-fitted predictor is available the figure gains a <b>predictor</b> control, so the same
-  estimate can be read against a change of model rather than resting on one.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>control</th><th>options</th><th>pools per cell (annotated)</th></tr></thead>
+    <tbody>
+      <tr><td><b>experiment</b></td><td>v1 &middot; v2 &middot; <b>all</b> &mdash; the three
+        genotype groups side by side: <b>wt</b> (v1 wild-type cages), <b>het</b> (v1
+        heterozygous cages), <b>mixed</b> (v2 cages, 3 wt + 1 het)</td>
+        <td>v1 72 ({des('v1','annotated_pools')}), v2 36 (0)</td></tr>
+      <tr><td><b>line</b> &middot; <b>sex</b></td><td>all / {line_names} &middot; all / male /
+        female; filter whatever the experiment control shows</td>
+        <td>one line &times; sex &times; genotype cell: 6 ({_ann_cell('wt')} wt, {_ann_cell('het')}
+        het, 0 mixed)</td></tr>
+      <tr><td><b>predictor</b></td><td>the {n_pred_word} cross-fitted models; deployed is
+        DERM</td><td>&mdash;</td></tr>
+    </tbody></table></div>
+  <p>PPCI needs no annotation, so it is the only estimator on v2. CI and PPI++ need at least two
+  annotated pools with a defined value for a clustered interval; where a cell has fewer &mdash;
+  every v2 cell, every wild-type line &times; sex cell ({_ann_cell('wt')} annotated pool), and
+  timing cells where too few pools have an onset in the window &mdash; the figure prints an
+  explicit <em>n/a</em> with the count instead of a mark. Sections 04 and 05 say how far
+  the model behind PPCI can be trusted.</p>
 </div>
   <div class="figwrap">{CHART}</div>
 <div class="measure">
-  <p><b>The level: the two exposures act differently, and one acts in opposite directions on the two
-  behaviours.</b> Turning the odour on, nose-to-nose rises under fear ({lvl('nn','fear')}) and is
-  flat under social ({lvl('nn','social')}), while nose-to-tail rises under fear
-  ({lvl('nt','fear')}) and <em>falls</em> under social ({lvl('nt','social')}). Withdrawing it
-  reverses nose-to-nose under both ({lvl('nn','fear','O->P')} and {lvl('nn','social','O->P')}).
-  Each exposure is reported separately throughout, never pooled.</p>
-  <p><b>The timing: every sign is positive turning the odour on and negative turning it off.</b>
-  Bouts start <b>{dspan('H->O')} minutes later</b> into the phase once the odour is on, and up to
-  {dspan('O->P','max')} minutes earlier once it is withdrawn &mdash; the exposure flattens the habituation curve and
-  withdrawing it restores fast habituation. Not how much behaviour the odour triggers, but how long
-  it holds attention.</p>
+  <p><b>The level.</b> Turning the odour on, nose-to-nose {ldir('nn','fear')} under fear
+  ({lvl('nn','fear')}) and {ldir('nn','social')} under social ({lvl('nn','social')});
+  nose-to-tail {ldir('nt','fear')} under fear ({lvl('nt','fear')}) and {ldir('nt','social')} under
+  social ({lvl('nt','social')}). Withdrawing it, nose-to-nose {ldir('nn','fear','O->P')} under fear
+  ({lvl('nn','fear','O->P')}) and {ldir('nn','social','O->P')} under social
+  ({lvl('nn','social','O->P')}). Bouts per minute, human labels; &ldquo;flat&rdquo; means the 95%
+  interval covers zero. Each exposure is reported separately, never pooled.</p>
+  <p><b>The timing: withdrawing the odour pulls bouts earlier in all four cells; turning it on
+  depends on the exposure.</b> Under social, bouts start later into the window once the odour is
+  on &mdash; the exposure holds attention, as the rising O&middot;social curve in 02 shows; under
+  fear the H&rarr;O shift is negative, resolved in {_dec_fear_res} of 2 cells. H&rsquo;s last 15
+  minutes hold few bouts, so many pools have no onset there to compare.</p>
   <div class="scroll"><table>
     <thead><tr><th>&Delta;decay, minutes, human labels</th><th>nt &middot; fear</th><th>nt &middot; social</th><th>nn &middot; fear</th><th>nn &middot; social</th></tr></thead>
     <tbody>
@@ -1701,8 +2273,8 @@ BODY = f'''
     of having annotated all {_PB['n'] + _PB['N']} pools. The bound depends on the <em>design</em>
     only: 24 of 72, and nothing about the model. Measured today across all
     {narrowing_all(PRIME,'n')} all-pool cells of the three outcomes, the mean narrowing is
-    <b>{narrowing_all(PRIME)}</b>, best cell {narrowing_all(PRIME,'max')} &mdash; so about a third
-    of the available ceiling is in hand and the rest is entirely r&Delta;.</p>
+    <b>{narrowing_all(PRIME)}</b>, best cell {narrowing_all(PRIME,'max')} &mdash; so
+    {ceiling_share()} of the available ceiling is in hand and the rest is entirely r&Delta;.</p>
   </div>
 
   <div class="scroll"><table>
@@ -1714,8 +2286,7 @@ BODY = f'''
   in the bound. And <b>annotating more pools raises the ceiling itself</b>: the floor is
   &radic;(n/(n+N)), so moving 20 pools from unlabelled to labelled changes what a perfect model
   could ever be worth &mdash; which is why more annotation beats every modelling change in section 04.</p>
-  <div class="note"><b>The second ceiling is the labels &mdash; and the estimand is largely
-  protected from it.</b> No observation in v1 was scored twice, so agreement cannot be measured
+  <div class="note"><b>The second ceiling is the labels{ceil_head}.</b> No observation in v1 was scored twice, so agreement cannot be measured
   directly; the design bounds it instead, because within a genotype group the six pools are
   exchangeable yet different people scored them. Decomposing variance with annotator as the factor,
   against a permutation that reshuffles annotators inside the same cells &mdash; one estimator,
@@ -1732,19 +2303,13 @@ BODY = f'''
       <tr><td><b>within-pool difference &mdash; nn</b></td><td{ac_cls('difference','nn')}>{ac('difference','nn','eta2')}</td>
         <td>{ac('difference','nn','chance')}</td><td{ac_cls('difference','nn')}>{ac('difference','nn','p')}</td></tr>
     </tbody></table></div>
-  <b>Who scored a recording moves its measured rate on nose-to-tail
-  ({ac('observation','nt','eta2')} against {ac('observation','nt','chance')} chance), and stops
-  mattering once the rate is differenced within a pool &mdash; on both behaviours, both at
-  chance.</b> On nose-to-nose even the level is at chance, so for that behaviour this test bounds
-  nothing. The <em>model's</em> bias splits the same way and more sharply: annotator explains
+  {ceil_verdict} The <em>model's</em> bias, for comparison: annotator explains
   {nui('nn','annotator','level')} of its nose-to-nose <em>level</em> bias against
-  {nui('nn','annotator','delta')} of the phase <em>difference</em>. The three wild-type strata in
-  section 01 cancel the same way. So a label-noise ceiling computed
-  on <em>rates</em> (best attainable r &le; {ac('observation','nt','r_max')} on
-  nose-to-tail) constrains level correlations, <b>not r&Delta;</b>. What bounds r&Delta; is
-  <em>within</em>-annotator inconsistency between two phases, which no design without replication
-  can separate from real change. Double-scoring 15&ndash;20 observations is the only way to get it,
-  and the only way to know how much of the model's remaining error is addressable.</div>
+  {nui('nn','annotator','delta')} of the phase <em>difference</em>, and
+  {nui('nt','annotator','level')} against {nui('nt','annotator','delta')} on nose-to-tail.
+  Rates and differences here use the same window as every estimate (H&rsquo;s last 15 minutes).
+  Double-scoring 15&ndash;20 observations is the only way to separate annotator from cage, and
+  the only way to know how much of the model's remaining error is addressable.</div>
   <div class="note warnbox"><b>Not a ceiling, but the last thing to know about these three:
   CI and PPI++ do not target quite the same population.</b> Annotation is <b>3:1 het-enriched</b> (18 het / 6 wt against a 36/36 design), so CI estimates the
   effect <em>in the annotated pools</em> while PPI++ pulls in 48 unannotated ones that are
@@ -1870,12 +2435,14 @@ BODY = f'''
         training selects on.</td></tr>
     </tbody></table></div>
   <div class="note warnbox"><b>r&Delta; is the ranking key, and on the standing split its
-  nose-to-tail value is unusable.</b> It rests on <b>16 points</b> there (4 pools &times; 2 exposures
-  &times; 2 transitions) at a threshold fitted to those same pools. How bad that is has been
-  measured: two runs of one configuration differing only in <em>seed</em> give
+  nose-to-tail value is {seed_rd_word}.</b> It rests on <b>16 points</b> there (4 pools &times; 2
+  exposures &times; 2 transitions) at a threshold fitted to those same pools. How bad that is has
+  been measured: two runs of one configuration differing only in <em>seed</em> give
   r&Delta;&nbsp;nt of {rr2('res448_k2_frozen_d4photo_ermH5M','nt')} and
-  {rr2('res448_k2_frozen_d4photo_ermH5M_s1','nt')} &mdash; a spread wider than the range across
-  every arm below. Nose-to-nose is far steadier (0.77&ndash;0.80 across the same pairs).
+  {rr2('res448_k2_frozen_d4photo_ermH5M_s1','nt')}, a spread of {seed_rd_spread} against a range
+  of {cand_rd_range} across the {M['meta']['n_candidates']} candidate arms. Nose-to-nose:
+  {rr2('res448_k2_frozen_d4photo_ermH5M','nn')} and
+  {rr2('res448_k2_frozen_d4photo_ermH5M_s1','nn')}.
   Only the cross-fitted folds, which hold out all 24 annotated pools, give either an honest
   denominator. So every table below reports AP <em>and</em> r&Delta;, and their Spearman correlation
   across the {M['meta']['n_candidates']} candidates is only
@@ -1903,8 +2470,7 @@ BODY = f'''
       <tr><td>04.6</td><td><b>objective</b></td><td>DERM &mdash; deconfound against phase</td>
         <td>&minus;0.02 against a matched control<br><span style="opacity:.65">the expected price, not a cost</span></td>
         <td class="hi">cuts a resolved estimand bias by {eb24cut('nn')} on nose-to-nose
-        (p = {eb24p('nn','p')}); on the exposure split, corrected weights close the imported
-        bias on both behaviours</td></tr>
+        (p = {eb24p('nn','p')}); on the exposure split, {ood_close()}</td></tr>
     </tbody></table></div>
   <p class="defn"><b>Read every &Delta; against 0.015.</b> Seed noise spans 0.004&ndash;0.016
   across the seven configurations now run at two seeds, so 04.1, 04.2 and 04.4 clear it and 04.3
@@ -1970,8 +2536,8 @@ BODY = f'''
     patch features &mdash; matches and then beats full fine-tuning: <b>{run('res448_k2_bit6_d4')['ap']:.4f}
     with 70,656 trainable encoder parameters against 0.5243 with 42.5 M</b>, a 602&times; cut. So
     the gain is not extra capacity: adding capacity to the <em>head</em> instead does nothing at all
-    (04.5). It also carries the best r&Delta; of any arm on nose-to-tail apart from full fine-tuning
-    ({run('res448_k2_bit6_d4')['rd_nt']:.3f}), so this is not an AP-only win.</p>
+    (04.5). On nose-to-tail r&Delta; it ranks {bit6_rd_rank} of the {M['meta']['n_candidates']}
+    candidates ({run('res448_k2_bit6_d4')['rd_nt']:.3f}), so this is not an AP-only win.</p>
     <div class="note"><b>Two checks on that comparison.</b> The BitFit arms ran with
     <code>d4</code> augmentation against a <code>d4_photo</code> control; against the
     <em>matched</em> <code>d4</code> control (0.4187) BitFit-6 is <b>+0.122</b>, so the mismatch
@@ -2013,25 +2579,22 @@ BODY = f'''
     <div class="scroll"><table>
       <thead><tr><th></th><th>macro AP</th><th>event F1 nt</th><th>event F1 nn</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
       <tbody>
-        <tr><td>stock, frozen</td><td>0.4200</td><td>0.421</td><td>0.490</td><td>0.417</td><td>0.768</td></tr>
-        <tr><td>SSL, frozen</td><td>0.4622</td><td>0.432</td><td>0.489</td><td>0.455</td><td class="hi">0.902</td></tr>
-        <tr><td>BitFit-6 on stock</td><td class="hi">0.5409</td><td>0.473</td><td class="hi">0.553</td><td class="hi">0.669</td><td>0.872</td></tr>
-        <tr><td>BitFit-6 on SSL</td><td>0.5127</td><td class="hi">0.476</td><td>0.527</td><td>0.626</td><td>0.760</td></tr>
+        {ssl_rows}
       </tbody></table></div>
     <p>SSL alone is worth +0.042 AP and the <b>best nose-to-nose r&Delta; of any run</b>, for zero
     labels &mdash; and it is the only intervention that reaches v2, which is why it is the encoder
     every number in section 05 rests on. Fine-tuning on top of it is worth a further +0.051 AP. But
     fine-tuning <em>stock</em> reaches higher still (0.5409 against 0.5127), and the SSL start is
-    behind on three of the five metrics. Event F1 is the exception, where the two are level.</p>
+    behind on {ssl_behind} of the five metrics.</p>
     <div class="note"><b>Settled: SSL and BitFit do not stack on AP, and it does not matter for the
     estimate.</b> Both arms now have two seeds.
     <div class="scroll" style="margin-top:11px"><table>
       <thead><tr><th>BitFit-6 starting from</th><th>macro AP (2 seeds)</th><th>event F1 nt / nn</th><th>r&Delta; nt</th><th>r&Delta; nn</th></tr></thead>
       <tbody>
         <tr><td>stock DINOv2</td><td class="hi">0.5365 &nbsp;<span style="opacity:.6">(0.5409, 0.5321)</span></td>
-          <td>0.446 / <b>0.545</b></td><td>0.641</td><td><b>0.826</b></td></tr>
+          <td>0.446 / <b>0.545</b></td>{seed2_rd('stock')}</tr>
         <tr><td>the SSL encoder</td><td>0.5058 &nbsp;<span style="opacity:.6">(0.5127, 0.4989)</span></td>
-          <td><b>0.473</b> / 0.521</td><td><b>0.649</b></td><td>0.804</td></tr>
+          <td><b>0.473</b> / 0.521</td>{seed2_rd('ssl')}</tr>
       </tbody></table></div>
     On macro AP the gap is <b>+0.031</b> for stock, about 2.2&times; the widest seed spread, so it
     clears noise: the two interventions substitute rather than compose. <b>On every other metric
@@ -2052,26 +2615,9 @@ BODY = f'''
       <thead><tr><th>bias as a share of the true effect</th><th>ERM</th><th>DERM</th>
         <th>paired p, {eb24p('nt','n_units','paired_xfit_ssl')} units</th></tr></thead>
       <tbody>
-        <tr><td>nose-to-tail &middot; stock encoder</td><td>{eb24('nt','ERM','share')}</td>
-          <td class="hi">{eb24('nt','DERM','share')}</td><td>{eb24p('nt','p')}</td></tr>
-        <tr><td>nose-to-tail &middot; SSL encoder</td>
-          <td class="lo">{eb24('nt','ERM','share',SSL)}</td>
-          <td class="hi">{eb24('nt','DERM','share',SSL)}</td>
-          <td>{eb24p('nt','p','paired_xfit_ssl')}</td></tr>
-        <tr><td>nose-to-nose &middot; stock encoder</td><td>{eb24('nn','ERM','share')}</td>
-          <td class="hi">{eb24('nn','DERM','share')}</td><td>{eb24p('nn','p')}</td></tr>
-        <tr><td>nose-to-nose &middot; SSL encoder</td><td>{eb24('nn','ERM','share',SSL)}</td>
-          <td>{eb24('nn','DERM','share',SSL)}</td>
-          <td class="lo">{eb24p('nn','p','paired_xfit_ssl')} &mdash; null</td></tr>
+        {ssl_cells}
       </tbody></table></div>
-    <b>DERM cuts the bias in the three cells that have bias to cut. The fourth is a null.</b> That
-    fourth cell &mdash; nose-to-nose on the SSL encoder &mdash; is the one where ERM was already
-    near-unbiased, at {eb24('nn','ERM','share',SSL)} of the true effect; DERM moves it to
-    {eb24('nn','DERM','share',SSL)}, nominally the wrong way and nowhere near resolvable
-    (p = {eb24p('nn','p','paired_xfit_ssl')}). That is the behaviour the mechanism predicts when
-    there is no shortcut left to take out, and this project has seen it once before: trained on the
-    social exposure, where the O/H prevalence ratio is {oh_span('social')}, every paired cell came
-    out null.
+    {ssl_summary}
     <br><br><b>Two things cut against reading that as a clean story.</b>
     <br><b>(1) Why ERM on the SSL encoder carries so much less nose-to-nose bias than ERM on stock
     &mdash; {eb24('nn','ERM','share',SSL)} against {eb24('nn','ERM','share')}, a
@@ -2091,10 +2637,9 @@ BODY = f'''
     {ap_mean('DERM_ssl')} on SSL, {ap_mean('ERM')} &rarr; {ap_mean('DERM')} on stock. That is what
     dropping the phase prior is expected to cost, not evidence against the objective.
     <br><br><b>Verdict on SSL: nothing on the estimand recommends it.</b> DERM on the SSL encoder
-    narrows the PPI++ interval <em>less</em> than the deployed DERM on two of the three outcomes
-    (the level {narrowing('xfit_derm_ssl_dense','events')} against {narrowing(PRIME,'events')}, the
-    timing {narrowing('xfit_derm_ssl_dense','decay')} against {narrowing(PRIME,'decay')}), and its
-    own ERM control carries {eb_backbone_ratio('nt','ERM')} the nose-to-tail bias of the stock one.
+    narrows the PPI++ interval <em>less</em> than the deployed DERM on {ssl_vs_prime()}, and its
+    own ERM control carries a nose-to-tail bias of {eb24('nt','ERM','share',SSL)} the effect against
+    the stock one's {eb24('nt','ERM','share')}.
     SSL's one unique selling point was reaching the v2 cohort with no labels, and that is moot now
     that the deployed stock predictor has dense v2 passes. The accuracy results above are not
     refuted: the label-free AP gain and the best nose-to-nose r&Delta; of any single-split run both
@@ -2166,8 +2711,9 @@ BODY = f'''
     one arm that reaches the band's edge, patch self-attention at +0.014, has a single seed and no
     held-out predictions, so it has no r&Delta; and cannot be promoted on AP alone. Two things do
     follow. The <b>region-preserving head matches the 5.03 M plain one at under a tenth of the
-    size</b> and carries a better r&Delta;,
-    which is why it appears in section 05's shortlist. And the head the objective arms and the
+    size</b>, with r&Delta; {rr('res448_k2_frozen_d4photo_rgrid4')} against
+    {rr('res448_k2_frozen_d4photo_ermH5M')} (nt / nn), which is why it appears in section 05's
+    shortlist. And the head the objective arms and the
     deployment folds all use is the <em>plain</em> 5.03 M one, the weakest of the five &mdash;
     a legacy of the launcher, and the reason those arms are only ever compared to their own matched
     controls.</p>
@@ -2221,20 +2767,12 @@ BODY = f'''
       <thead><tr><th></th><th>mean a<sub>O</sub>&minus;a<sub>H</sub></th><th>95% CI</th>
         <th>against the true effect</th><th></th></tr></thead>
       <tbody>
-        <tr><td>nose-to-nose &middot; <b>ERM</b></td><td class="lo">{eb24('nn','ERM')}</td>
-          <td class="lo">{eb24('nn','ERM','ci')}</td><td class="lo">{eb24('nn','ERM','share')}</td>
-          <td class="lo">resolved &mdash; a real bias, larger than the effect</td></tr>
-        <tr><td>nose-to-nose &middot; <b>DERM</b></td><td>{eb24('nn','DERM')}</td>
-          <td>{eb24('nn','DERM','ci')}</td><td>{eb24('nn','DERM','share')}</td>
-          <td class="hi">still resolved, but {eb24cut('nn')} smaller</td></tr>
-        <tr><td>nose-to-tail &middot; <b>ERM</b></td><td>{eb24('nt','ERM')}</td>
-          <td>{eb24('nt','ERM','ci')}</td><td>{eb24('nt','ERM','share')}</td>
-          <td>not resolved</td></tr>
-        <tr><td>nose-to-tail &middot; <b>DERM</b></td><td>{eb24('nt','DERM')}</td>
-          <td>{eb24('nt','DERM','ci')}</td><td>{eb24('nt','DERM','share')}</td>
-          <td>not resolved &mdash; and it has crossed zero</td></tr>
+        {eb_row('nn','ERM')}
+        {eb_row('nn','DERM')}
+        {eb_row('nt','ERM')}
+        {eb_row('nt','DERM')}
       </tbody></table></div>
-    <p><b>On the stock encoder DERM reduces the estimand bias on both behaviours, paired over the
+    <p><b>On the stock encoder DERM reduces the estimand bias on {eb_which()}, paired over the
     same {eb24p('nt','n_units')} units.</b>
     On nose-to-nose ERM's bias is {eb24('nn','ERM')} bouts per minute &mdash; resolved on its own
     interval and {eb24('nn','ERM','share')} the size of the effect being estimated &mdash; and
@@ -2275,8 +2813,9 @@ BODY = f'''
     <br><br><b>So the correction is backbone-dependent, and this is the boundary of the claim.</b>
     DERM subtracts one constant per environment, so it can only help in proportion to the
     shortcut its own training run took up &mdash; and how much that is turns out to depend on the
-    encoder, which nobody predicted. On the encoder the report deploys it is a repair on both
-    behaviours; on the most accurate encoder available, with the same weight estimate, it is not.
+    encoder, which nobody predicted. On the encoder the report deploys it is a resolved repair on
+    {eb_which()}; on the most accurate encoder available, with the same weight estimate, it is
+    not.
     All three cross-backbone DERM arms use that same estimate (the training subsample), so the
     comparison across backbones is matched.
     <br><br><b>The weight estimate moves the BitFit-6 result, and that is the fourth row.</b>
@@ -2348,8 +2887,8 @@ BODY = f'''
     nose-to-tail: 1.55&times; where the population says {envratio('nt','fear')}).</p>
     {ODOUR}
     <p class="defn">Bias in the transition, bouts per minute, on the held-out exposure.
-    {os_('trF_erm','nt',what='n_pools')} pools per direction, 72 observations per arm, inside 02b's
-    15-minute window. Zero bias means raw PPCI reproduces the human-annotation effect on a
+    {os_('trF_erm','nt',what='n_pools')} pools per direction, 72 observations per arm, on the report's
+    estimation window (H&rsquo;s last 15 minutes, O and P whole). Zero bias means raw PPCI reproduces the human-annotation effect on a
     session the model never trained on.</p>
 
     <div class="note"><b>On nose-to-tail the bias is a single offset sitting on the O phase
@@ -2359,60 +2898,54 @@ BODY = f'''
     uncorrected-weight arms they do on nose-to-tail in <b>{mirror('nt')}</b> and on nose-to-nose in
     only {mirror('nn')}. Combined with ERM reversing sign in {reverses()} cells when the training
     direction flips &mdash; both nose-to-tail cells among them &mdash; the nose-to-tail shortcut is
-    not just real, it is <b>localised on the treatment phase</b> &mdash; and the signature reads in reverse, because under the corrected weights the
-    fear-trained legs stop mirroring ({os_('trF_derm_last_popw','nt')} and
-    {os_('trF_derm_last_popw','nt','O->P')} share a sign). Nose-to-nose's defect is the gain error
-    two paragraphs down, which no per-environment constant can touch.</div>
+    not just real, it is <b>localised on the treatment phase</b>. {popw_mirror_note}
+    Nose-to-nose&rsquo;s bias does not have this shape; two paragraphs down.</div>
 
     <p><b>Trained on fear &mdash; where the O phase carries {oh_span('fear')} the prevalence of H
-    &mdash; the corrected weights close the imported bias.</b> On nose-to-tail's ON leg ERM is
-    biased by {os_('trF_erm_last','nt')}: the truth is
+    &mdash; the corrected weights shrink the imported bias on nose-to-tail.</b> On its ON leg ERM
+    is biased by {os_('trF_erm_last','nt')}: the truth is
     {os_('trF_erm_last','nt','H->O','true_dY')} bouts per minute and it estimates
-    {os_('trF_erm_last','nt','H->O','pred_dF')}, half the effect. Corrected DERM is biased by
-    {os_('trF_derm_last_popw','nt')}, estimating
-    {os_('trF_derm_last_popw','nt','H->O','pred_dF')} &mdash; the human-annotation effect,
-    reproduced by raw PPCI on a session the model never trained on. Paired on the same 24 pools
-    the difference is {os_pair('train_fear_popw','nt','d')} at
-    p {os_pair('train_fear_popw','nt','p')}. The OFF leg improves too
-    ({os_('trF_erm_last','nt','O->P')}, resolved on its own interval, to
-    {os_('trF_derm_last_popw','nt','O->P')}) but the paired difference does not resolve
-    (p {os_pair('train_fear_popw','nt','p','O->P')}).</p>
+    {os_('trF_erm_last','nt','H->O','pred_dF')}{os_rel('trF_erm_last')}. Corrected DERM is biased
+    by {os_('trF_derm_last_popw','nt')}, estimating
+    {os_('trF_derm_last_popw','nt','H->O','pred_dF')}{' &mdash; the human-annotation effect, reproduced by raw PPCI on a session the model never trained on' if not os_('trF_derm_last_popw','nt','H->O','resolved') else ''}.
+    Paired on the same 24 pools the difference is {os_pair('train_fear_popw','nt','d')} at
+    {os_pp('train_fear_popw','nt')}. The OFF leg moves from
+    {os_('trF_erm_last','nt','O->P')}{', resolved on its own interval,' if os_('trF_erm_last','nt','O->P','resolved') else ''}
+    to {os_('trF_derm_last_popw','nt','O->P')}, and that paired difference does
+    {'' if _OS['paired']['train_fear_popw']['nt']['O->P']['p'] < 0.05 else 'not '}resolve
+    ({os_pp('train_fear_popw','nt','O->P')}).</p>
 
-    <p><b>And it replicates across seeds.</b> Over three seeds of the same pair, every corrected
-    DERM interval covers zero, and on nose-to-tail the mean is near zero too; the largest |mean|
+    <p><b>And it replicates across seeds.</b> Over three seeds of the same pair,
+    {seed_cover_clause('DERM')}, and on nose-to-tail the mean is near zero too; the largest |mean|
     anywhere is {os_popw_max}, on {os_popw_max_cell}. Meanwhile ERM's imported bias is itself a
     draw of the seed &mdash;
     {os_('trF_erm_last','nt')}, {os_('trF_erm_last_s1','nt')}, {os_('trF_erm_last_s2','nt')} on
     the headline cell. How much of the shortcut ERM picks up is luck; DERM removes the channel
     rather than the draw. Averaging each pool over the three seeds first, the paired difference on
     that cell is {os_savg('nt')} (ERM {os_savg('nt','H->O','erm_mean')} against DERM
-    {os_savg('nt','H->O','derm_mean')}) at p = {os_savg('nt','H->O','p')}; the other three cells,
-    where ERM's average bias is already small, do not resolve. The per-seed arms are in the
-    figure's variant control.</p>
+    {os_savg('nt','H->O','derm_mean')}) at p = {os_savg('nt','H->O','p')}; {savg_others()}. The
+    per-seed arms are in the figure's variant control.</p>
 
-    <div class="note"><b>On nose-to-nose the case rests on the seed replicates, not on one arm.</b>
-    Under the subsample's weights DERM read {os_('trF_derm_last','nn')} of bias against ERM's
-    {os_('trF_erm_last','nn')} &mdash; the finding an earlier version of this section rested on,
-    and on the corrected truth <em>neither interval excludes zero</em>
-    ({os_('trF_derm_last','nn',what='ci')} and {os_('trF_erm_last','nn',what='ci')}), so that
-    comparison resolves nothing and the word &ldquo;introduced&rdquo; has been dropped from it.
-    What does survive is that the population weights sit at zero and stay there across three seeds:
-    {os_('trF_derm_last_popw','nn')}, {os_('trF_derm_last_popw_s1','nn')} and
-    {os_('trF_derm_last_popw_s2','nn')}. What survives as a defect on nose-to-nose
-    is a gain error, not an offset: trained on social it estimates
-    {os_('trS_erm_last','nn','H->O','pred_dF')} where the truth is
-    {os_('trS_erm_last','nn','H->O','true_dY')} &mdash;
-    {os_gain('trS_erm_last','nn')} the effect. DERM adds one
-    constant per environment and has no term that touches the gain &mdash; that correction is
+    <div class="note"><b>On nose-to-nose neither objective is unbiased on the ON leg.</b> Under the
+    subsample's weights DERM reads {os_('trF_derm_last','nn')} of bias against ERM's
+    {os_('trF_erm_last','nn')} ({os_('trF_derm_last','nn',what='ci')} and
+    {os_('trF_erm_last','nn',what='ci')}; paired {os_pp('train_fear_last','nn')}). The population
+    weights read {os_('trF_derm_last_popw','nn')}, {os_('trF_derm_last_popw_s1','nn')} and
+    {os_('trF_derm_last_popw_s2','nn')} over three seeds &mdash; {seed_cover_lab('DERM','nn')} of
+    those intervals covering zero{seed_sign_lab('DERM','nn')} &mdash; and seed-averaged they do not
+    separate from ERM ({os_savg('nn','H->O','erm_mean')} against
+    {os_savg('nn','H->O','derm_mean')}, p = {os_savg('nn','H->O','p')}). Trained on social, ERM
+    estimates {os_('trS_erm_last','nn','H->O','pred_dF')} where the truth is
+    {os_('trS_erm_last','nn','H->O','true_dY')} &mdash; {os_gain('trS_erm_last','nn')} the effect.
+    DERM adds one constant per environment, so a gain error is out of its reach; that correction is
     what the rectifier in PPI++ already is.</div>
 
-    <p><b>Trained on social every paired cell is null &mdash; and that is the mechanism's own
-    negative control.</b> The social session's O/H prevalence is {oh_span('social')} against fear's
+    <p><b>Trained on social, {social_null_head()} &mdash; the mechanism's own negative
+    control.</b> The social session's O/H prevalence is {oh_span('social')} against fear's
     {oh_span('fear')}, so its training distribution carries almost nothing to correct, and DERM
     correctly corrects almost nothing
-    (nose-to-tail ON: {os_('trS_erm_last','nt')} against {os_('trS_derm_last_popw','nt')}). The
-    correction is <b>confound-specific, not a blanket regulariser</b> &mdash; it appears exactly
-    where the confound sits in the training distribution and nowhere else. ERM's residual bias in
+    (nose-to-tail ON: {os_('trS_erm_last','nt')} against {os_('trS_derm_last_popw','nt')}).
+    {social_specific()} ERM's residual bias in
     this direction (OFF leg {os_('trS_erm_last','nt','O->P')}, resolved) is the fear session's
     larger effects not being tracked, which no reweighting of the training distribution can
     supply.</p>
@@ -2434,7 +2967,8 @@ BODY = f'''
     seen the other exposure of the same cage and animals, so its bias here is smaller than on a
     pool it has never seen &mdash; useful precisely because a large lower bound is a strong
     statement. It cannot feed PPI++ &mdash; the rectifier would sit on pools the model trained on;
-    the deployment-valid comparison is the cross-fit above, which agrees in direction. And the seed
+    the deployment-valid comparison is the cross-fit above, which agrees in direction on
+    {agree_dir()}. And the seed
     coverage is uneven: {os_seed_note}</div>
 
     <h3>Why DERM is the deployed predictor</h3>
@@ -2448,23 +2982,23 @@ BODY = f'''
       <tbody>
         <tr><td>(a) in-distribution bias &middot; nose-to-tail</td>
           <td>{eb24('nt','ERM')}</td><td>{eb24('nt','DERM')}</td>
-          <td class="hi">DERM &middot; paired p {eb24p('nt','p')} &mdash; this encoder only</td></tr>
+          {crit_a('nt')}</tr>
         <tr><td>(a) in-distribution bias &middot; nose-to-nose</td>
           <td>{eb24('nn','ERM')}</td><td>{eb24('nn','DERM')}</td>
-          <td class="hi">DERM &middot; paired p {eb24p('nn','p')} &mdash; this encoder only</td></tr>
+          {crit_a('nn')}</tr>
         <tr><td>(b) out-of-distribution bias, seed-averaged</td>
           <td>{ood_absmean('ERM')}</td><td>{ood_absmean('DERM')}</td>
           <td class="hi">DERM &middot; p {os_savg('nt','H->O','p')} headline</td></tr>
         <tr><td>(c) PPCI sign agreement with CI</td>
           <td>{sign_agree(ERM_REF)}</td><td>{sign_agree(PRIME)}</td>
-          <td>tie &middot; same cell missed</td></tr>
+          <td>{crit_c()}</td></tr>
         <tr><td>(d) PPI++ interval width, mean</td>
           <td>{ppi_width(ERM_REF)}</td><td>{ppi_width(PRIME)}</td>
           <td>DERM &middot; narrower in {ppi_width(PRIME,'narrower')}, but unmatched
             &mdash; see below</td></tr>
         <tr><td>(e) seed SD of the out-of-distribution bias</td>
           <td>{seed_sd('ERM')}</td><td>{seed_sd('DERM')}</td>
-          <td class="hi">DERM &middot; about half</td></tr>
+          <td class="hi">DERM &middot; {crit_e()} of ERM&rsquo;s</td></tr>
         <tr><td class="lo">macro AP &mdash; context, <em>not</em> a criterion</td>
           <td class="lo">{ap_mean('ERM')}</td><td class="lo">{ap_mean('DERM')}</td>
           <td class="lo">ERM &mdash; which is the point</td></tr>
@@ -2487,13 +3021,9 @@ BODY = f'''
     the confound is counted.</p>
     <div class="note"><b>Where the case is weakest, stated plainly.</b> Nose-to-tail&rsquo;s
     in-distribution bias interval covers zero for <em>both</em> objectives
-    ({eb24('nt','ERM','ci')} for ERM, {eb24('nt','DERM','ci')} for DERM), so on that behaviour the
-    paired reduction resolves but neither level does &mdash; DERM is being promoted on a
-    difference, not on a demonstrated ERM failure. Two of the four seed-averaged
-    out-of-distribution cells (both OFF legs) have a nominally smaller ERM bias; both are inside
-    noise (p = {os_savg('nt','O->P','p')} nose-to-tail, {os_savg('nn','O->P','p')} nose-to-nose)
-    and neither reverses the mean over the four cells. And one of the eight PPI++ widths is wider
-    under DERM. On the matched criteria &mdash; (a), (b) and (e) &mdash; no criterion favours ERM
+    ({eb24('nt','ERM','ci')} for ERM, {eb24('nt','DERM','ci')} for DERM), and {weak_nt()}
+    {weak_ood()} And {_WORD[8 - int(ppi_width(PRIME,'narrower').split('/')[0])]} of the eight
+    PPI++ widths are wider under DERM. On the matched criteria &mdash; (a), (b) and (e) &mdash; no criterion favours ERM
     outside noise, which is the bar that was set. On the unmatched one it is less clean, below.
     <br><br><b>One comparison is matched and one is not.</b> Criteria (a), (b) and (e) hold
     everything but the objective fixed &mdash; same stock encoder, same 0.52&nbsp;M head, same
@@ -2508,22 +3038,20 @@ BODY = f'''
     {narrowing('xfit_derm_ssl_dense','events')} against {narrowing(ERM_REF,'events')} on the level,
     {narrowing('xfit_derm_ssl_dense','decay')} against {narrowing(ERM_REF,'decay')} on the timing,
     {narrowing('xfit_derm_ssl_dense','time')} against {narrowing(ERM_REF,'time')} on occupancy
-    &mdash; behind on two of the three. <b>So (d)&rsquo;s advantage in the table belongs to the
+    &mdash; behind on {ssl_behind_n()}. <b>So (d)&rsquo;s advantage in the table belongs to the
     change of encoder and head, not to the objective.</b> It stays in the table as what a reader of
     section 03 experiences, with that said. The promotion rests on (a), (b) and (e), which were
     matched to begin with.</div>
 
     <p><b>Where this leaves the three open threads.</b>
-    <b>(i) Out of distribution the split is decisive and seed-robust.</b> On the fear-trained
-    headline cell the seed-averaged paired difference is {os_savg('nt')} at
+    <b>(i) Out of distribution the split resolves on the headline cell, seed-averaged.</b> On the
+    fear-trained nose-to-tail ON leg the paired difference is {os_savg('nt')} at
     p = {os_savg('nt','H->O','p')}, and corrected DERM&rsquo;s bias sits within
     &plusmn;{seed_sd('DERM','max_abs')} bouts per minute in all
-    {seed_sd('DERM','n')} seed&nbsp;&times;&nbsp;cell combinations, every one of the twelve
-    intervals covering zero. The negative control is clean: trained on the social direction, where
-    the O/H prevalence ratio is {oh_span('social')} and there is nothing to correct, DERM and ERM
-    coincide
+    {seed_sd('DERM','n')} seed&nbsp;&times;&nbsp;cell combinations; {seed_cover_clause('DERM')}. The negative control: trained on the social direction, where the O/H
+    prevalence ratio is {oh_span('social')} and there is little to correct, {social_null()}
     (nose-to-tail ON {os_('trS_erm_last','nt')} against {os_('trS_derm_last_popw','nt')}).
-    <b>(ii) In distribution the 24-pool cross-fit reduces the bias on both behaviours, on the
+    <b>(ii) In distribution the 24-pool cross-fit reduces the bias on {eb_which()}, on the
     encoder that is deployed</b> &mdash; p = {eb24p('nt','p')} nose-to-tail and
     p = {eb24p('nn','p')} nose-to-nose, paired over the same {eb24p('nt','n_units')} units
     &mdash; with the caveat above that nose-to-tail&rsquo;s own interval still covers zero, and
@@ -2533,27 +3061,19 @@ BODY = f'''
     26 August 2026, so DERM now supplies every PPCI estimate on v1&rsquo;s 72 pools and v2&rsquo;s
     36 &mdash; the same coverage the ERM cross-fit had, on the same three folds.</p>
 
-    <p class="defn">The grid is complete for every predictor in the sense that matters: <b>every
-    cell of the design is present and accounted for &mdash; none is missing</b>. Of the DERM
-    predictor&rsquo;s {n_cells(PRIME)} cells, {n_null(PRIME)} carry no estimate, and all
-    {n_null(PRIME)} are the same guarded refusal: the decay outcome under PPI++ on the two-pool
-    genotype substrata ({null_strata(PRIME)}), where a single annotated recording has a defined
-    onset. That guard is applied identically to all {n_pred_word} predictors &mdash; the ERM grid refuses
-    {n_null(ERM_REF)} cells, all {n_null(ERM_REF,'ppi')} of them that same PPI++ case. It refuses
-    more of them than DERM does because PPI++ needs a pool the annotator <em>and</em> the model
-    both give an onset for, and which pools those are is the one thing about a refusal a predictor
-    can move; summed over all {n_pred_word} predictors the number of cells where the <b>classical</b>
-    estimate is refused is {n_null_ci_all()}. A guarded refusal is a decision the builder made and
-    logged, not a hole in the grid.</p>
+    <p class="defn"><b>Every cell of the grid is present; the empty ones are guarded refusals,
+    and the figure prints each as an explicit n/a.</b> Of the DERM predictor&rsquo;s
+    {n_cells(PRIME)} cells, {n_null(PRIME)} carry no estimate: {null_breakdown(PRIME)}. All sit
+    either in a stratum with fewer than two annotated pools or on the timing outcome, where a pool
+    needs an onset inside both phases&rsquo; windows and H&rsquo;s last 15 minutes often hold
+    none. The classical refusals are model-free &mdash; {n_null_ci_all()} summed over all
+    {n_pred_word} predictors, the same {n_null(PRIME,'ci')} cells in each.</p>
 
-    <div class="note"><b>The flip changed magnitudes and not one sign.</b> Switching section 03's
-    deployed predictor from the ERM cross-fit to DERM leaves the PPCI sign unchanged in
-    {ppci_sign_stable()} of the eight v1 key cells and {ppci_sign_stable_v2()} of the eight on v2
-    &mdash; the cohort with no labels at all, where PPCI is the only estimator that exists. Since
-    sign and pattern are the only things PPCI is licensed to claim, the promotion moves what the
-    report says about <em>size</em> without moving anything it says about <em>direction</em>. The
-    magnitudes do move, mostly toward the human-annotation values, but PPCI is on the model's
-    scale and this page never reads one as a rate.</div>
+    <div class="note"><b>The flip and PPCI&rsquo;s sign.</b> Switching section 03's deployed
+    predictor from the ERM cross-fit to DERM leaves the PPCI sign unchanged in
+    {ppci_sign_stable()} v1 key cells and {ppci_sign_stable_v2()} on v2 &mdash; the cohort with no
+    labels, where PPCI is the only estimator.{flip_note()} PPCI is on the model's scale and this
+    page never reads one as a rate.</div>
 
     <p><b>Does the model behind section 03's estimates use DERM, then?</b> {derm_pred_note}</p>
     </div>
@@ -2592,7 +3112,8 @@ BODY = f'''
   <b>r&Delta; itself</b> &mdash; which section 03's bound says is the only thing that matters
   &mdash; cannot be estimated any other way: in sample it is inflated by the model having seen the
   labels, and on the standing 4-pool split it rests on 16 points, where two seeds of one
-  configuration give 0.183 and 0.853. So cross-fitting is not PPI++ hygiene that model ranking
+  configuration give {rr2('res448_k2_frozen_d4photo_ermH5M','nt')} and
+  {rr2('res448_k2_frozen_d4photo_ermH5M_s1','nt')}. So cross-fitting is not PPI++ hygiene that model ranking
   happens to inherit; <b>it is what makes ranking possible at all</b>. <b>PPCI uses no labels
   anywhere, so neither of those two constraints binds it</b> &mdash; but that does not make the
   highest-AP model its best choice. PPCI has no rectifier and no <math><mi>&#x3BB;</mi></math>, so
@@ -2626,47 +3147,26 @@ BODY = f'''
   of interval on the outcome section 02a chose and several times that on the one 02b added:
   <b>the accuracy gap and the estimator gap are neither the same size nor in the same place</b>.
   <br><br><b>And the deployed DERM cross-fit does give some of that up.</b> It sits
-  {abs(xfd['ap'] - xfb['ap']):.3f} AP behind BitFit-6, and on the same eight cells it buys less
-  precision too: on the <em>level</em> {narrowing(PRIME, 'events')} against BitFit's
-  {narrowing('xfit_bit6_dense', 'events')} &mdash; nominally DERM's only lead, but that is a mean
-  over eight cells, and per cell DERM's interval is the tighter in
-  {narrower_than(PRIME, 'xfit_bit6_dense')} of them, so it is a tie; on the <em>timing</em>
-  {narrowing(PRIME, 'decay')} against {narrowing('xfit_bit6_dense', 'decay')}, the widest gap of
-  the three; on occupancy {narrowing(PRIME, 'time')} against
-  {narrowing('xfit_bit6_dense', 'time')}. PPCI also signs with
-  the classical estimator in {sign_agree(PRIME, 'time')} of the occupancy cells against BitFit's
-  {sign_agree('xfit_bit6_dense', 'time')}; on the level and the timing the two tie
-  ({sign_agree(PRIME)} and {sign_agree(PRIME, 'decay')}, both models).
-  <br><br><b>Neither DERM twin rescues it.</b> On the SSL encoder DERM is behind the deployed arm
-  on the level and the timing ({narrowing('xfit_derm_ssl_dense', 'events')} and
-  {narrowing('xfit_derm_ssl_dense', 'decay')}) and ahead of it on occupancy
-  ({narrowing('xfit_derm_ssl_dense', 'time')} against {narrowing(PRIME, 'time')}) &mdash; 04.3 has
-  that comparison in full. On BitFit-6, DERM is behind its own ERM control on the level and the
-  timing ({narrowing('xfit_bit6_derm_dense', 'events')} and
-  {narrowing('xfit_bit6_derm_dense', 'decay')} against {narrowing('xfit_bit6_dense', 'events')}
-  and {narrowing('xfit_bit6_dense', 'decay')}) and marginally ahead on occupancy
-  ({narrowing('xfit_bit6_derm_dense', 'time')} against {narrowing('xfit_bit6_dense', 'time')}).
-  Its one clear win is sign agreement: {sign_agree('xfit_bit6_derm_dense')},
-  {sign_agree('xfit_bit6_derm_dense', 'decay')} and
-  {sign_agree('xfit_bit6_derm_dense', 'time')} on the level, the timing and occupancy, against
-  the deployed arm's {sign_agree(PRIME)}, {sign_agree(PRIME, 'decay')} and
-  {sign_agree(PRIME, 'time')}.
-  <br><br><b>So the deployed predictor is behind BitFit-6 on {_prime_behind_word} of the three
-  outcomes and on occupancy sign agreement.</b> That is the cost. <b>What it buys holds against
-  its own matched control and nowhere else.</b> Hold the encoder and the head fixed and change
-  only the objective, and DERM carries less of the phase shortcut into the estimate than the ERM
-  arm it was promoted over: paired over {eb24p('nt', 'n_units')}
-  pool&nbsp;&times;&nbsp;exposure units, p = {eb24p('nt', 'p')} nose-to-tail and
-  p = {eb24p('nn', 'p')} nose-to-nose (04.6). <b>Against BitFit-6 ERM it is false on both
-  behaviours.</b> Mean a<sub>O</sub>&minus;a<sub>H</sub> is {eb24('nt', 'ERM', back=BIT)} for
-  BitFit-6 ERM against the deployed arm's {eb24('nt', 'DERM')} on nose-to-tail, and
-  {eb24('nn', 'ERM', back=BIT)} against {eb24('nn', 'DERM')} on nose-to-nose &mdash; BitFit-6 ERM
-  is nearer zero on both, and it is the deployed arm's nose-to-nose interval that excludes zero
-  ({eb24('nn', 'DERM', 'ci')}). Switching BitFit-6 to DERM moves nose-to-nose <em>away</em> from
-  zero, and that resolves: paired ERM minus DERM {eb24p('nn', 'diff', 'paired_xfit_bit6')} bouts
-  per minute over the same units, p = {eb24p('nn', 'p', 'paired_xfit_bit6')}. Summed over the two
-  behaviours the deployed arm's |bias| ranks {eb_absrank('DERM')} cross-fitted arms. Nothing on this page says DERM is the more
-  precise predictor or, against BitFit-6, the less biased one; it is neither.
+  {abs(xfd['ap'] - xfb['ap']):.3f} AP behind BitFit-6. Mean PPI++ narrowing over the same eight
+  cells, DERM against BitFit-6: {nar_cmp(PRIME, 'xfit_bit6_dense')}. PPCI sign agreement with the
+  classical estimator: {sign_cmp(PRIME, 'xfit_bit6_dense')}.
+  <br><br><b>Neither DERM twin rescues it.</b> DERM on the SSL encoder against the deployed arm:
+  {nar_cmp('xfit_derm_ssl_dense', PRIME)} (04.3 has it in full). DERM on BitFit-6 against its own
+  ERM control: {nar_cmp('xfit_bit6_derm_dense', 'xfit_bit6_dense')}, with sign agreement
+  {sign_cmp('xfit_bit6_derm_dense', 'xfit_bit6_dense')}.
+  <br><br><b>So the deployed predictor is behind BitFit-6 on {_prime_behind_all} of the three
+  outcomes.</b> That is the cost. <b>What it buys holds against its own matched control, and
+  there on {eb_which()}.</b> Hold the encoder and the head fixed and change only the objective:
+  paired over {eb24p('nt', 'n_units')} pool&nbsp;&times;&nbsp;exposure units, p = {eb24p('nt', 'p')}
+  nose-to-tail and p = {eb24p('nn', 'p')} nose-to-nose (04.6). <b>Against BitFit-6 ERM</b>, mean
+  a<sub>O</sub>&minus;a<sub>H</sub> is {eb24('nt', 'ERM', back=BIT)} for BitFit-6 ERM against the
+  deployed arm's {eb24('nt', 'DERM')} on nose-to-tail, and {eb24('nn', 'ERM', back=BIT)} against
+  {eb24('nn', 'DERM')} on nose-to-nose &mdash; {bit_vs_prime()}. Switching BitFit-6 to DERM moves
+  nose-to-nose <em>away</em> from zero, and that resolves: paired ERM minus DERM
+  {eb24p('nn', 'diff', 'paired_xfit_bit6')} bouts per minute over the same units,
+  p = {eb24p('nn', 'p', 'paired_xfit_bit6')}. Summed over the two behaviours the deployed arm's
+  |bias| ranks {eb_absrank('DERM')} cross-fitted arms. Nothing on this page says DERM is the more
+  precise predictor or, against BitFit-6, the less biased one overall.
   <br><br><b>Then why is BitFit-6 not deployed?</b> Because the criterion the promotion actually
   turned on is a different one: out-of-distribution bias on the exposure split &mdash; train on
   one exposure session, test on the other &mdash; where on the nose-to-tail ON leg ERM imports
@@ -2703,7 +3203,7 @@ BODY = f'''
       <tr><td>v2 (target cohort)</td><td>36</td><td>216</td><td>5.8&ndash;11.4%</td><td>8.1&ndash;12.1%</td><td>plausible, shifted up</td></tr>
     </tbody></table></div>
   <p>Ranges are over the six phase &times; exposure cells, and over the <em>whole</em> recording
-  rather than 02b's matched window &mdash; these describe the model's output, not an estimate, and
+  rather than the estimation window &mdash; these describe the model's output, not an estimate, and
   the estimates in section 03 are all windowed. Nothing collapses or saturates, and the v2
   detections show genuine contact. Predicted occupancy runs about <b>5&times; above truth</b>
   throughout &mdash; part calibration offset, part the deliberate prior shift in training &mdash;
@@ -2712,10 +3212,11 @@ BODY = f'''
   than the behaviour's, which is why it is drawn hollow in the effects figure and why nothing on
   this page reads a PPCI magnitude as a rate. A fivefold offset that is the <em>same</em> in every
   phase would still cancel in a within-pool difference; what would not cancel is the part that moves
-  with the phase, and section 04.6 measures that part at {eb('nt','ERM')} bouts/min on nose-to-tail
-  &mdash; {eb('nt','ERM','share')} the pooled true effect, on an interval too wide to resolve. It is
-  the largest open threat to PPCI on this page, and it is the reason the deployed predictor is now
-  the DERM cross-fit rather than an ERM one.</p>
+  with the phase, and 04.6 measures that part on the deployment cross-fit: for ERM
+  {eb24('nt','ERM')} bouts/min on nose-to-tail and {eb24('nn','ERM')} on nose-to-nose
+  ({eb24('nn','ERM','share')} the true effect, {'resolved' if eb24('nn','ERM','resolved') else 'not resolved'}),
+  for the deployed DERM {eb24('nt','DERM')} and {eb24('nn','DERM')}. That moving part is the
+  open threat to PPCI on this page.</p>
   <div class="note"><b>This figure has not caught up with the promotion.</b> The thumbnails and the
   occupancy table above are the <b>ERM</b> cross-fit's, from a payload built before DERM was
   deployed. They are still the right picture of what a frame classifier of this family gets right
@@ -2743,18 +3244,16 @@ BODY = f'''
     </tbody></table></div>
   <p><b>On bouts per minute the two agree in
   {R['meta']['sign_agreement']['events']['agree']} of
-  {R['meta']['sign_agreement']['events']['of']} cells &mdash; every one.</b> On occupancy they agree
-  in {R['meta']['sign_agreement']['time']['agree']} of
-  {R['meta']['sign_agreement']['time']['of']}, and both disagreements are cells where the ERM
-  value is within 0.5 pp of zero. So PPCI's sign and pattern are a property of the behaviour, not of
-  the predictor, across a change that nearly halves the calibration error and adds
-  {run(R['meta']['single'])['ap'] - xf['ap']:.2f} macro AP.
-  Magnitudes do move &mdash; which is exactly why the report never quotes one.</p>
+  {R['meta']['sign_agreement']['events']['of']} cells{rob_miss('events')}.</b> On occupancy they
+  agree in {R['meta']['sign_agreement']['time']['agree']} of
+  {R['meta']['sign_agreement']['time']['of']}{rob_miss('time')}. That is how far PPCI's sign
+  survives a change that nearly halves the calibration error and adds {run(R['meta']['single'])['ap'] - xf['ap']:.2f} macro
+  AP. Magnitudes do move &mdash; which is exactly why the report never quotes one.</p>
   <p class="defn">This check was run on the two <b>ERM</b> predictors and predates the promotion of
   the DERM cross-fit; it has not been recomputed on it. What it establishes &mdash; that PPCI's
   sign survives a change of model &mdash; is if anything a weaker demand than 04.6's, where the
   deployed DERM grid agrees with the classical estimator in {sign_agree(PRIME)} of the eight key
-  cells, the same {sign_agree(ERM_REF)} the ERM grid manages and on the same cell.</p>
+  cells, against {sign_agree(ERM_REF)} for the ERM grid.</p>
 </div></section>
 
 
@@ -2769,20 +3268,17 @@ BODY = f'''
       <tr><td>1</td><td>deploy DERM as the headline predictor</td>
         <td><b>done &mdash; 26 August 2026</b></td>
         <td>every PPCI estimate on this page, on both cohorts, is now the DERM cross-fit. Promoted
-        on the estimand, not on accuracy: in-distribution bias paired down on both behaviours
+        on the estimand, not on accuracy: in-distribution bias paired down on {eb_which()}
         (p = {eb24p('nt','p')} nose-to-tail, p = {eb24p('nn','p')} nose-to-nose), out-of-distribution
         mean |bias| {ood_absmean('ERM')} &rarr; {ood_absmean('DERM')}, seed SD
         {seed_sd('ERM')} &rarr; {seed_sd('DERM')}, PPI++ intervals narrower in
-        {ppi_width(PRIME,'narrower')} of the key cells and PPCI sign agreement unchanged at
-        {sign_agree(PRIME)}. The full table, including where the case is weakest, is in 04.6</td></tr>
+        {ppi_width(PRIME,'narrower')} of the key cells and PPCI sign agreement
+        {sign_agree(ERM_REF)} &rarr; {sign_agree(PRIME)}. The full table, including where the case is weakest, is in 04.6</td></tr>
       <tr><td>2</td><td>promote the cross-fitted BitFit-6, or fold DERM into it</td>
         <td>open &mdash; a decision, not a build step</td>
         <td>BitFit-6 leads on accuracy ({xfb['ap']:.3f} against {xfd['ap']:.3f}) and on measured
-        PPI++ narrowing on two of the three outcomes &mdash; the timing
-        {narrowing('xfit_bit6_dense','decay')} against {narrowing(PRIME,'decay')} and occupancy
-        {narrowing('xfit_bit6_dense','time')} against {narrowing(PRIME,'time')}, with the deployed
-        predictor ahead only on the level ({narrowing(PRIME,'events')} against
-        {narrowing('xfit_bit6_dense','events')}). But it trains with plain ERM, so it carries the
+        PPI++ narrowing on {_prime_behind_all} of the three outcomes:
+        {nar_cmp('xfit_bit6_dense', PRIME)}. But it trains with plain ERM, so it carries the
         phase shortcut 04.6 disqualifies &mdash; the two axes are not comparable and BitFit's win is
         on the one that does not decide. The move that would have settled it &mdash; a <b>BitFit-6
         backbone trained with DERM</b>, cross-fitted over the same three folds &mdash; has since
@@ -2792,8 +3288,9 @@ BODY = f'''
         nose-to-nose <em>away</em> from zero ({eb24p('nn','diff','paired_xfit_bit6')},
         p = {eb24p('nn','p','paired_xfit_bit6')}) and the population arm moves it nowhere
         (p = {eb24p('nn','p','paired_xfit_bit6_popw')}); {_bs_gate}. The other
-        crossing &mdash; DERM on the SSL encoder, 04.3 &mdash; cut the bias without improving the
-        intervals. So this row is now a decision on evidence, not a compute request</td></tr>
+        crossing &mdash; DERM on the SSL encoder, 04.3 &mdash; resolved no bias reduction
+        (p = {eb24p('nt','p','paired_xfit_ssl')} and {eb24p('nn','p','paired_xfit_ssl')}) and
+        narrowed the intervals less. So this row is now a decision on evidence, not a compute request</td></tr>
       <tr><td>3</td><td>seed replicates of the <em>social</em>-trained pair</td>
         <td>{os_absent_note}</td>
         <td>the fear-trained pair now has three seeds each and 04.6's headline is

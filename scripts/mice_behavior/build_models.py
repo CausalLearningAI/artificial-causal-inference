@@ -183,7 +183,12 @@ def main():
             print(f'  [skip] {d.name}: {e}'); continue
         rows.append({
             'tag': d.name,
-            'role': ROLE.get(d.name, 'model candidate'),
+            # Every exposure-split arm (`odour_*`), not only the four the ROLE map names: the
+            # `_last`, `_popw`, seed and BitFit variants were falling through to 'model candidate'
+            # and entering the AP-vs-rDelta Spearman the report quotes, against the rule stated
+            # above ("not comparable to anything trained on both").
+            'role': ROLE.get(d.name, 'exposure split' if d.name.startswith('odour_')
+                             else 'model candidate'),
             'ap': round(float(ap), 4),
             'f1_nt': round(float(res['nt']['best'].f1), 3),
             'f1_nn': round(float(res['nn']['best'].f1), 3),

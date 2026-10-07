@@ -19,8 +19,12 @@ THREE CANDIDATE UNITS
 =====================
 mean_full   the phase mean over the whole recording. The current outcome, and the one with the
             length artefact.
-mean_15     the phase mean over the first 15 minutes of EVERY phase. Assumption-free: it does
-            not model the decay, it just stops comparing unequal windows.
+mean_first15 / mean_last15
+            the phase mean over a 15-minute window of every phase -- H's first or LAST 15
+            minutes; O and P are 15 minutes long, so both columns hold their whole recording.
+            Assumption-free: it does not model the decay, it just stops comparing unequal
+            windows. mean_last15 is the window the report estimates on (decided 2026-10-07,
+            src/mice_behavior/window.py).
 amp_t0      the decay-corrected rate at phase onset. Each minute's count is de-trended to t=0
             with exp(-b*t), b from that cell's pooled Poisson fit, then averaged. Length-
             invariant by construction -- this is the "initial amplitude" idea.
@@ -44,8 +48,10 @@ WHAT THE NUMBERS SAY (see the tables this prints)
 RECOMMENDATION
 ==============
 - O->P: keep the phase mean. It is immune to the window by construction.
-- H->O: use the matched 15-minute window. It is assumption-free and it is the only contrast the
-  choice touches.
+- H->O: use a 15-minute window. It is assumption-free and it is the only contrast the choice
+  touches. DECIDED 2026-10-07 with the neuroscientists: H's LAST 15 minutes (the settled baseline
+  right before the exposure) -- `mean_last15`. The price, stated in section 4 below: O's onset
+  spike now lands on one side of H->O only.
 - Report the habituation slope per phase as its own effect. Do not build the headline on a
   t=0 extrapolation.
 

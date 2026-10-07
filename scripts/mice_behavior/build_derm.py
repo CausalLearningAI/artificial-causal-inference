@@ -110,7 +110,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from src.mice_behavior.truth import read_truth                              # noqa: E402
 from event_eval import runs, postprocess                                    # noqa: E402
-from build_estimates import WINDOW, labelled_truth                          # noqa: E402
+from build_estimates import labelled_truth                                  # noqa: E402
+from src.mice_behavior.window import WIN, take                              # noqa: E402
 
 FRAME = ROOT / 'results' / 'vision' / 'mice' / 'frame'
 OUT = FRAME / '_figures'
@@ -282,8 +283,10 @@ def match_threshold(tag: str, l: str, exp: pd.DataFrame):
     """
     d = np.load(FRAME / tag / 'val_probs.npz', allow_pickle=True)
     j = LABELS.index(l)
-    df = pd.DataFrame({'obs': d['obs'], 'p': d['probs'][:, j], 'y': d['labels'][:, j]})
-    gs = [g for _, g in df.groupby('obs', sort=False)]
+    df = pd.DataFrame({'obs': d['obs'], 'gi': d['gi'], 'p': d['probs'][:, j],
+                       'y': d['labels'][:, j]}).sort_values(['obs', 'gi'])
+    # the estimation window (H minutes 15-30, O and P whole), as everywhere else on the page
+    gs = [take(g, o) for o, g in df.groupby('obs', sort=False)]
     T = sum(len(runs(g['y'].to_numpy() > 0.5)) for g in gs)
     arrs = [g['p'].to_numpy() for g in gs]
     th, P = rate_match(lambda t: sum(len(runs(postprocess(a >= t, 1, 1))) for a in arrs), T,
@@ -292,7 +295,7 @@ def match_threshold(tag: str, l: str, exp: pd.DataFrame):
         print(f'  !! {tag} {l}: rate match off by {100 * (P - T) / T:+.1f}% at thr {th:.4f} '
               f'-- the estimand bias below carries that as calibration', flush=True)
     rows = []
-    for oid, g in df.groupby('obs', sort=False):
+    for oid, g in ((g_.obs.iloc[0], g_) for g_ in gs):
         mins = len(g) / FPS / 60
         rows.append({'observation_id': oid,
                      'true': len(runs(g['y'].to_numpy() > 0.5)) / mins,
@@ -484,7 +487,8 @@ def estimand_bias(exp: pd.DataFrame, families: dict) -> dict:
         d = np.load(FRAME / tag / 'val_probs.npz', allow_pickle=True)
         df = pd.DataFrame({'obs': d['obs'], 'gi': d['gi'], 'p': d['probs'][:, j],
                            'y': d['labels'][:, j]}).sort_values(['obs', 'gi'])
-        gs = [(o, g) for o, g in df.groupby('obs', sort=False)]
+        # the estimation window (H minutes 15-30, O and P whole), as everywhere else on the page
+        gs = [(o, take(g, o)) for o, g in df.groupby('obs', sort=False)]
         T = sum(len(runs(g['y'].to_numpy() > 0.5)) for _, g in gs)
         # rate_match(), NOT a fixed grid. This path had its own 0.005 grid capped below 1.0, which
         # is finer than match_threshold()'s but fails the same way on a DERM arm whose probability
@@ -784,7 +788,7 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
         m = m[m.odor == test_od].reset_index(drop=True)
         arm = {'tag': tag, 'train_odour': train_od, 'test_odour': test_od,
                'n_obs': int(len(m)), 'n_pools': int(m.pool.nunique()),
-               'window_min': round(WINDOW / FPS / 60, 1), 'thr': {}, 'behav': {}}
+               'window_min': round(WIN / FPS / 60, 1), 'thr': {}, 'behav': {}}
         # TWO CONVENTIONS THIS BLOCK GOT WRONG ONCE, both of which corrupt a_O - a_H:
         #
         # (1) THE WINDOW. It read the CSV's `p_*_t*` columns, which aggregate over the WHOLE
@@ -804,8 +808,9 @@ def odour_split(exp_full: pd.DataFrame) -> dict:
         #     spend the one degree of freedom the estimand allows -- the global scale -- and
         #     whatever phase-dependence survives cannot be explained away as calibration.
         z = np.load(npz, allow_pickle=True)
-        seq = {o: z[o][:WINDOW].astype(np.float32) for o in m.observation_id if o in z.files}
-        mins = WINDOW / FPS / 60
+        # the estimation window (src/mice_behavior/window.py): H minutes 15-30, O and P whole
+        seq = {o: take(z[o], o).astype(np.float32) for o in m.observation_id if o in z.files}
+        mins = WIN / FPS / 60
         for lab in LABELS:
             j = LABELS.index(lab)
             have = [o for o in m.observation_id if o in seq]

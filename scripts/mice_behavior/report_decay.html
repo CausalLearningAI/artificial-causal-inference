@@ -166,17 +166,28 @@
     // --- per phase: mean bar behind, then band, then line
     SEGS.forEach((s, i) => {
       const col = css('--p-' + s.phase), b = d.bar[i], p = d.seg[i];
+      // The bar spans the phase's ESTIMATION WINDOW only (w0-w1, in the phase's own minutes):
+      // H's last 15 minutes, all of O and P. Older payloads without w0/w1 fall back to the phase.
+      const w0 = s.t0 + (s.w0 ?? 0), w1 = s.t0 + (s.w1 ?? s.dur);
       // 2px surface gap on each side so adjacent bars never touch
-      const bx = x(s.t0) + 1, bw = x(s.t1) - x(s.t0) - 2;
+      const bx = x(w0) + 1, bw = x(w1) - x(w0) - 2;
+      if (w0 > s.t0) {
+        // the stretch outside the window: drawn, but marked as not entering any estimate
+        svg.appendChild(el('rect', { x: x(s.t0) + 1, y: TOP, width: x(w0) - x(s.t0) - 2,
+          height: PH, fill: css('--ink'), opacity: 0.035 }));
+        svg.appendChild(txt('not in the estimate', { x: (x(s.t0) + x(w0)) / 2, y: TOP + 12,
+          'text-anchor': 'middle', fill: css('--ink-3'), 'font-size': 9 }));
+      }
       const g = el('g', { class: 'dec-mark', tabindex: 0, role: 'button' });
       g.appendChild(el('rect', { x: bx, y: y(b.mean), width: bw, height: y(0) - y(b.mean),
         fill: col, opacity: 0.08 }));
       g.appendChild(el('line', { x1: bx, x2: bx + bw, y1: y(b.mean), y2: y(b.mean),
         stroke: col, 'stroke-width': 2.6 }));
       tip(g, `<b>${s.odour_label} &middot; ${s.phase} ${PHN[s.phase]}</b><br>`
-        + `phase mean ${b.mean.toFixed(2)} ${unitLabel()}<br>`
+        + `window mean ${b.mean.toFixed(2)} ${unitLabel()}<br>`
         + `95% CI [${b.lo.toFixed(2)}, ${b.hi.toFixed(2)}] over ${b.n} pools<br>`
-        + `minutes ${s.t0}–${s.t1} &middot; ${s.dur} min long`);
+        + `window: minutes ${s.w0 ?? 0}–${s.w1 ?? s.dur} of the phase `
+        + `&middot; the phase is ${s.dur} min long`);
       svg.appendChild(g);
 
       // 95% band, then the trace. One polyline PER PHASE: the six recordings are separate
@@ -202,7 +213,7 @@
         y: TOP + PH + 33, 'text-anchor': 'middle', fill: col, 'font-size': 10.5,
         'font-weight': 600 }));
       // direct value label on the bar -- identity and magnitude never rest on colour alone
-      svg.appendChild(txt(b.mean.toFixed(2), { x: (x(s.t0) + x(s.t1)) / 2, y: y(b.mean) - 7,
+      svg.appendChild(txt(b.mean.toFixed(2), { x: (x(w0) + x(w1)) / 2, y: y(b.mean) - 7,
         'text-anchor': 'middle', fill: css('--ink-2'), 'font-size': 11.5, 'font-weight': 600,
         stroke: css('--dec-surface'), 'stroke-width': 3.5, 'paint-order': 'stroke' }));
     });
@@ -242,7 +253,7 @@
         + `(${p.t[k] - 0.5}–${p.t[k] + 0.5} of the protocol)<br>`
         + `<b>${p.mean[k].toFixed(2)}</b> ${unitLabel()} `
         + `&middot; 95% CI [${p.lo[k].toFixed(2)}, ${p.hi[k].toFixed(2)}]<br>`
-        + `phase mean ${b.mean.toFixed(2)}`;
+        + `window mean ${b.mean.toFixed(2)}`;
       tt.style.opacity = '1';
       const tr = tt.getBoundingClientRect();
       tt.style.left = Math.min(ev.clientX + 14, innerWidth - tr.width - 10) + 'px';
@@ -262,13 +273,14 @@
     M.behav.forEach(b => {
       const d = DATA.series[state.unit][b.key];
       const h = document.createElement('h5');
-      h.textContent = `${b.label} · phase means, ${unitLabel()}`;
+      h.textContent = `${b.label} · window means, ${unitLabel()}`;
       const w = document.createElement('div'); w.className = 'scroll';
-      w.innerHTML = '<table><thead><tr><th>session</th><th>phase</th><th>minutes</th>'
+      w.innerHTML = '<table><thead><tr><th>session</th><th>phase</th>'
+        + '<th>window, min of the phase</th>'
         + '<th>mean</th><th>95% CI</th><th>pools</th></tr></thead><tbody>'
         + SEGS.map((s, i) => { const r = d.bar[i];
           return `<tr><td>${s.odour_label}</td><td>${s.phase} ${PHN[s.phase]}</td>`
-            + `<td>${s.t0}–${s.t1}</td><td>${r.mean.toFixed(2)}</td>`
+            + `<td>${s.w0 ?? 0}–${s.w1 ?? s.dur} of ${s.dur}</td><td>${r.mean.toFixed(2)}</td>`
             + `<td>[${r.lo.toFixed(2)}, ${r.hi.toFixed(2)}]</td><td>${r.n}</td></tr>`; }).join('')
         + '</tbody></table>';
       box.append(h, w);
@@ -285,7 +297,8 @@
       `<span><i style="background:var(--p-${p})"></i>${p}&nbsp; ${PHN[p]}`
       + `&nbsp; ${p === 'H' ? '30' : '15'} min</span>`).join('')
       + '<span style="color:var(--ink-3)">shaded band = 95% bootstrap over the '
-      + `${M.n_pools} annotated pools &middot; flat bar = that phase&rsquo;s mean</span>`;
+      + `${M.n_pools} annotated pools &middot; flat bar = the mean over the window every `
+      + `estimate uses (H: its last 15 min; O, P: all 15)</span>`;
 
     const dom = domain(), panels = $('dec-panels');
     panels.textContent = '';
