@@ -26,6 +26,8 @@ from common import (IDENTITIES, N_ANIMALS, ROOT, VIDEOS, annotated_window, load_
 from metrics import ants_external, completeness, consistency, mice_external
 from score import apply_scorer, read_pass
 
+BRIDGE = 2  # frames; AMADEUS spike-replaced boxes come as isolated 1-frame runs
+
 
 def ants_annotations(vid, frames):
     p = ROOT / f'data/ants/v3/annotations/{vid}.csv'
@@ -76,23 +78,31 @@ def main():
     ap.add_argument('--tag', default=None, help='output subfolder (default: parent folder of tracks)')
     ap.add_argument('--reread', action='store_true')
     ap.add_argument('--no_audit', action='store_true')
+    ap.add_argument('--dump_every', type=int, default=0, help='save every k-th read crop as JPEG (0 = none)')
     a = ap.parse_args()
     dom, vid = a.domain, a.video
     tag = a.tag or Path(a.tracks).parent.name
     ids, N = IDENTITIES[dom], N_ANIMALS[dom]
     od = out_dir(dom, vid) / tag
     P = dict(DEFAULTS, absence=ABSENCE[dom])
+    P0 = P
     tracks = load_tracks(a.tracks)
     s, e = annotated_window(dom, vid)
     tracks = tracks[(tracks.frame_src >= s) & (tracks.frame_src <= e)]
     if a.reread or not (od / 'feats.parquet').exists():
-        read_pass(dom, vid, tracks, tag)
+        read_pass(dom, vid, tracks, tag, a.dump_every)
     reads_all = apply_scorer(dom, vid, tag)
     out = {}
-    for variant, tr0 in tracks.groupby('variant'):
+    # strict cutter (every not-detected row cuts) and, when the tracker has not-detected rows, the
+    # bridge setting (runs of <= BRIDGE contact-free not-detected rows do not cut), reported side by side
+    settings = [('', P)]
+    if (~tracks.detected).any():
+        settings.append((f'+bridge{BRIDGE}', dict(P, bridge_nondet=BRIDGE)))
+    for (variant, tr0), (suffix, P) in [(vt, st) for vt in tracks.groupby('variant') for st in settings]:
         tr0 = tr0.reset_index(drop=True)
         reads = reads_all[reads_all.variant == variant].drop(columns='variant')
         tr, tab = run_assignment(tr0, reads, ids, N, P)
+        variant = variant + suffix
         pf = per_frame(tr, tab, ids)
         pf.to_parquet(od / f'identity_tracks_{variant}.parquet')
         tab.to_parquet(od / f'tracklets_{variant}.parquet')

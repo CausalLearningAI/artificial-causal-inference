@@ -46,48 +46,63 @@ def read_pass(domain, vid, tracks, tag, dump_every=4, device='cuda'):
     (od / 'crops').mkdir(parents=True, exist_ok=True)
     bg = get_background(domain, vid)
     path = video_path(domain, vid)
-    rows, dino_crops = [], []
     t0 = time.time()
+    # isolated rows of every variant; boxes shared between variants (same frame, same centre) are
+    # read ONCE and the features copied to each (variant, track) row. The video is decoded once.
+    fv = first_frame_index(path)
+    isos, rs, f0 = [], None, None
     for variant, tr in tracks.groupby('variant'):
         g = frame_geometry(tr, DEFAULTS, N_ANIMALS[domain])
         g['iso'] = isolated(g)
-        med_area_src = float(np.median((g.w * g.h)[g.detected]))
         st = frame_stride(tr)
-        rs = max(st, int(round(READ_S[domain] * 30 / st)) * st)
-        # first track frame that exists in the video (ant mkvs start at frame 1)
-        fv = first_frame_index(path)
-        f0 = int(tr.frame_src[tr.frame_src >= fv].min())
-        iso = g[g.iso]
-        iso = iso[(iso.frame_src - f0) % rs == 0]
-        by_f = {f: d for f, d in iso.groupby('frame_src')}
-        last = int(iso.frame_src.max()) + 1 if len(iso) else f0
-        # median single-animal mask area in crop pixels (mice): body area scales with (224/560)^2
-        k = 0
-        for f, img in iter_frames(path, stride=rs, gray=(domain == 'mice'), start=f0, end=last):
-            if f not in by_f:
-                continue
-            for r in by_f[f].itertuples():
-                if domain == 'mice':
-                    c, m, _, ang = marks_mice.aligned_crop(img, bg, MICE_SCALE, r.cx, r.cy)
-                    hf = marks_mice.hand_features(c, m)
-                    rec = {'mask_area': int(m.sum()), 'border': float(np.r_[m[0], m[-1], m[:, 0], m[:, -1]].mean()),
-                           'angle': ang, **{f'h{i}': v for i, v in enumerate(hf)}}
-                    dino_crops.append(c)
-                    im = c
-                else:
-                    F, c = marks_ants.features(img, bg, r.cx, r.cy)
-                    rec = {'blue_px': F[0], 'yellow_px': F[1], 'fg_area': F[2], 'core_area': F[3]}
-                    im = c
-                fn = ''
-                if k % dump_every == 0:
-                    fn = f'{variant}_{f:06d}_{r.track_id}.jpg'
-                    cv2.imwrite(str(od / 'crops' / fn), im, [cv2.IMWRITE_JPEG_QUALITY, 92])
-                rows.append({'variant': variant, 'frame_src': f, 'track_id': r.track_id,
-                             'crop_file': fn, 'n_det': int(r.n_det), **rec})
-                k += 1
-            if f % 9000 < rs:
-                print(f'  {domain}/{vid}/{variant} frame {f} reads {k} ({time.time() - t0:.0f}s)', flush=True)
-    feats = pd.DataFrame(rows)
+        rs_v = max(st, int(round(READ_S[domain] * 30 / st)) * st)
+        f0_v = int(tr.frame_src[tr.frame_src >= fv].min())
+        rs = rs_v if rs is None else rs
+        f0 = f0_v if f0 is None else min(f0, f0_v)
+        iso = g[g.iso].copy()
+        iso['variant'] = variant
+        isos.append(iso)
+    iso = pd.concat(isos, ignore_index=True)
+    iso = iso[(iso.frame_src - f0) % rs == 0]
+    iso['key_x'] = iso.cx.round(2)
+    iso['key_y'] = iso.cy.round(2)
+    uniq = iso.drop_duplicates(['frame_src', 'key_x', 'key_y'])
+    by_f = {f: d for f, d in uniq.groupby('frame_src')}
+    last = int(uniq.frame_src.max()) + 1 if len(uniq) else f0
+    print(f'  {domain}/{vid}: {len(iso)} isolated rows to read, {len(uniq)} unique boxes, '
+          f'read stride {rs}', flush=True)
+    urows, dino_crops = [], []
+    k = 0
+    for f, img in iter_frames(path, stride=rs, gray=(domain == 'mice'), start=f0, end=last):
+        if f not in by_f:
+            continue
+        for r in by_f[f].itertuples():
+            if domain == 'mice':
+                c, m, _, ang = marks_mice.aligned_crop(img, bg, MICE_SCALE, r.cx, r.cy)
+                hf = marks_mice.hand_features(c, m)
+                rec = {'mask_area': int(m.sum()), 'border': float(np.r_[m[0], m[-1], m[:, 0], m[:, -1]].mean()),
+                       'angle': ang, **{f'h{i}': v for i, v in enumerate(hf)}}
+                dino_crops.append(c)
+                im = c
+            else:
+                F, c = marks_ants.features(img, bg, r.cx, r.cy)
+                rec = {'blue_px': F[0], 'yellow_px': F[1], 'fg_area': F[2], 'core_area': F[3]}
+                im = c
+            fn = ''
+            if dump_every > 0 and k % dump_every == 0:
+                fn = f'{r.variant}_{f:06d}_{r.track_id}.jpg'
+                cv2.imwrite(str(od / 'crops' / fn), im, [cv2.IMWRITE_JPEG_QUALITY, 92])
+            urows.append({'frame_src': f, 'key_x': r.key_x, 'key_y': r.key_y, 'crop_file': fn,
+                          '_u': k, **rec})
+            k += 1
+        if f % 9000 < rs:
+            print(f'  {domain}/{vid} frame {f} reads {k} ({time.time() - t0:.0f}s)', flush=True)
+    U = pd.DataFrame(urows)
+    rows = iso[['variant', 'frame_src', 'track_id', 'n_det', 'key_x', 'key_y']].merge(
+        U, on=['frame_src', 'key_x', 'key_y'], how='inner').drop(columns=['key_x', 'key_y'])
+    rows = rows.sort_values(['variant', 'frame_src', 'track_id']).reset_index(drop=True)
+    uidx = rows.pop('_u').values
+    feats = rows
     N = N_ANIMALS[domain]
     area_col = 'mask_area' if domain == 'mice' else 'core_area'
     med = ref_area(feats, area_col, N)
@@ -97,6 +112,7 @@ def read_pass(domain, vid, tracks, tag, dump_every=4, device='cuda'):
         feats['mask_ok'] = (feats.mask_area >= 0.5 * med) & ~feats.too_big & (feats.border < 0.15)
         X = marks_mice.dino_features(np.stack(dino_crops), device=device) if dino_crops else \
             np.zeros((0, 1536), np.float32)
+        X = X[uidx] if len(uidx) else np.zeros((0, X.shape[1]), np.float32)
         np.save(od / 'dino.npy', X.astype(np.float16))
     else:
         feats['mask_ok'] = (feats.core_area >= 0.5 * med) & ~feats.too_big
@@ -158,7 +174,7 @@ def main():
     ap.add_argument('--video', required=True)
     ap.add_argument('--tracks', required=True)
     ap.add_argument('--tag', required=True, help='output subfolder, e.g. standin or amadeus')
-    ap.add_argument('--dump_every', type=int, default=4)
+    ap.add_argument('--dump_every', type=int, default=4, help='0 = no crop JPEGs')
     a = ap.parse_args()
     tracks = load_tracks(a.tracks)
     read_pass(a.domain, a.video, tracks, a.tag, a.dump_every)

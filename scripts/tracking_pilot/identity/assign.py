@@ -37,9 +37,12 @@ Output per (frame, identity): position, state in {confirmed, inferred, unknown},
 import numpy as np
 import pandas as pd
 
+from common import frame_stride
+
 DEFAULTS = {
     'max_gap_s': 0.5, 'vmax': None, 'contact_margin': 0.0, 'oversize': 1.7, 'near': 1.5,
     'count_rule': 'local', 'read_dt': 0.5, 'p_floor': 0.02, 'tau': 3.0, 'absence': None,
+    'bridge_nondet': 0,
 }
 ABSENCE = {'ants': 'focal', 'mice': 'm1_none'}  # the identity defined by NOT carrying a mark
 # vmax in source px / s; None -> 4 median body diagonals per second x 3
@@ -59,6 +62,36 @@ def _median_size(tr, N=None):
     return float(np.percentile(d.w * d.h, 25)), float(np.percentile(np.hypot(d.w, d.h), 25))
 
 
+def obb_corners(cx, cy, w, h, a):
+    """(n,) arrays -> (n, 4, 2) corners of boxes with side w along angle a, h across it."""
+    c, s = np.cos(a), np.sin(a)
+    ux, uy = c * w / 2, s * w / 2
+    vx, vy = -s * h / 2, c * h / 2
+    sx = np.array([1, 1, -1, -1])[None]
+    sy = np.array([1, -1, -1, 1])[None]
+    X = cx[:, None] + sx * ux[:, None] + sy * vx[:, None]
+    Y = cy[:, None] + sx * uy[:, None] + sy * vy[:, None]
+    return np.stack([X, Y], -1)
+
+
+def obb_overlap(cx, cy, w, h, a):
+    """Pairwise overlap of oriented boxes (separating-axis test). -> (n, n) bool."""
+    C = obb_corners(cx, cy, w, h, a)
+    ax = np.stack([np.stack([np.cos(a), np.sin(a)], -1), np.stack([-np.sin(a), np.cos(a)], -1)], 1)
+    n = len(cx)
+    ov = np.zeros((n, n), bool)
+    for i in range(n):
+        for j in range(i + 1, n):
+            sep = False
+            for A in (ax[i, 0], ax[i, 1], ax[j, 0], ax[j, 1]):
+                pi, pj = C[i] @ A, C[j] @ A
+                if pi.max() < pj.min() or pj.max() < pi.min():
+                    sep = True
+                    break
+            ov[i, j] = ov[j, i] = not sep
+    return ov
+
+
 def frame_geometry(tr, P=DEFAULTS, N=None):
     """Per detected row: in_contact (box overlaps another detected box), partners (frozenset of
     track ids it touches), oversize, n_det (detections in that frame). Returns a copy of tr."""
@@ -68,21 +101,32 @@ def frame_geometry(tr, P=DEFAULTS, N=None):
     tr['oversize'] = tr.detected & (tr.w * tr.h > P['oversize'] * med_area)
     tr['n_det'] = tr.groupby('frame_src').detected.transform('sum').astype(int)
     partners = {}
-    for f, g in tr[tr.detected].groupby('frame_src', sort=False):
+    touch_any = {}
+    obb = 'axis_angle' in tr.columns
+    for f, g in tr.groupby('frame_src', sort=False):
         if len(g) < 2:
             continue
-        x0, x1 = (g.cx - g.w / 2 - m).values, (g.cx + g.w / 2 + m).values
-        y0, y1 = (g.cy - g.h / 2 - m).values, (g.cy + g.h / 2 + m).values
-        ov = (x0[:, None] < x1[None]) & (x0[None] < x1[:, None]) & (y0[:, None] < y1[None]) & \
-             (y0[None] < y1[:, None])
+        if obb:
+            ov = obb_overlap(g.cx.values, g.cy.values, g.w.values + 2 * m, g.h.values + 2 * m,
+                             np.nan_to_num(g.axis_angle.values))
+        else:
+            x0, x1 = (g.cx - g.w / 2 - m).values, (g.cx + g.w / 2 + m).values
+            y0, y1 = (g.cy - g.h / 2 - m).values, (g.cy + g.h / 2 + m).values
+            ov = (x0[:, None] < x1[None]) & (x0[None] < x1[:, None]) & (y0[:, None] < y1[None]) & \
+                 (y0[None] < y1[:, None])
         np.fill_diagonal(ov, False)
         ids = g.track_id.values
+        det = g.detected.values
         for a, idx in enumerate(g.index):
             if ov[a].any():
-                partners[idx] = frozenset(ids[ov[a]].tolist())
+                touch_any[idx] = True
+            pa = ov[a] & det
+            if det[a] and pa.any():
+                partners[idx] = frozenset(ids[pa].tolist())
     tr['partners'] = pd.Series(partners, dtype=object).reindex(tr.index)
     tr['partners'] = tr['partners'].apply(lambda v: v if isinstance(v, frozenset) else frozenset())
     tr['in_contact'] = tr.partners.apply(len) > 0
+    tr['touch_any'] = pd.Series(touch_any, dtype=bool).reindex(tr.index, fill_value=False).astype(bool)
     tr.attrs['med_area'], tr.attrs['med_diag'] = med_area, med_diag
     return tr
 
@@ -99,16 +143,45 @@ def make_tracklets(tr, N, P=DEFAULTS):
     med_diag = tr.attrs['med_diag']
     vmax = P['vmax'] or 12.0 * med_diag
     max_gap = P['max_gap_s'] * 30.0
-    det = tr[tr.detected]
+    # BRIDGE (P['bridge_nondet'] = B > 0, default 0 = strict): a run of <= B consecutive
+    # not-detected rows (tracker fill / spike-replaced box) does NOT cut the tracklet when no box
+    # of that run touches any other box (a swap needs a second animal within reach). Bridged rows
+    # carry no mark reads; their (tracker-interpolated) position is output with flag 'bridged'.
+    tr['bridged'] = False
+    B = int(P.get('bridge_nondet', 0) or 0)
+    if B > 0:
+        step0 = frame_stride(tr)
+        br = np.zeros(len(tr), bool)
+        for tid, g in tr.groupby('track_id', sort=False):
+            nd = ~g.detected.values
+            fr = g.frame_src.values
+            ta = g.touch_any.values
+            a = 0
+            while a < len(nd):
+                if not nd[a]:
+                    a += 1
+                    continue
+                b = a
+                while b + 1 < len(nd) and nd[b + 1] and fr[b + 1] - fr[b] <= step0:
+                    b += 1
+                inside = 0 < a and b + 1 < len(nd) and fr[a] - fr[a - 1] <= step0 and fr[b + 1] - fr[b] <= step0
+                if inside and (b - a + 1) <= B and not ta[a:b + 1].any():
+                    br[tr.index.get_indexer(g.index[a:b + 1])] = True
+                a = b + 1
+        tr['bridged'] = br
+    det = tr[tr.detected | tr.bridged]
 
     # count-change events: (frame, x, y) where a track starts or ends (excluding video edges)
     f_first, f_last = det.frame_src.min(), det.frame_src.max()
     ev_cut = {}  # (track_id, frame) -> reason : cut BEFORE this frame's row
     if P['count_rule'] == 'local':
         runs = []
+        # a detection run ends at ANY missing sample (not-detected / filled row or absent row):
+        # that is where a merge / split happens, so neighbours must be cut there
+        step = frame_stride(tr)
         for tid, g in det.groupby('track_id'):
             fr = g.frame_src.values
-            br = np.nonzero(np.diff(fr) > max_gap)[0]
+            br = np.nonzero(np.diff(fr) > step)[0]
             starts = np.r_[0, br + 1]
             ends = np.r_[br, len(fr) - 1]
             for s, e in zip(starts, ends):
@@ -150,9 +223,13 @@ def make_tracklets(tr, N, P=DEFAULTS):
         dt_, cont, ovs = g.detected.values, g.in_contact.values, g.oversize.values
         prt = g.partners.values
         cur, prev = -1, None
+        brg = g.bridged.values
         for a in range(len(idx)):
             if not dt_[a]:
-                cur, prev = -1, None
+                if brg[a] and cur >= 0:
+                    tl[idx[a]] = cur  # bridged: keeps the tracklet, does not move `prev`
+                else:
+                    cur, prev = -1, None
                 continue
             why = None
             if prev is None:
@@ -342,11 +419,12 @@ def per_frame(tr, tab, ids):
                                    right_index=True)
     d = d[d.identity.notna()]
     base = pd.MultiIndex.from_product([frames, ids], names=['frame_src', 'identity']).to_frame(index=False)
-    cols = ['frame_src', 'identity', 'cx', 'cy', 'w', 'h', 'track_id', 'tracklet', 'state', 'conf']
+    cols = ['frame_src', 'identity', 'cx', 'cy', 'w', 'h', 'track_id', 'tracklet', 'state', 'conf', 'bridged']
     d = d[cols].drop_duplicates(['frame_src', 'identity'])
     out = base.merge(d, on=['frame_src', 'identity'], how='left')
     out['state'] = out.state.fillna('unknown')
     out['conf'] = out.conf.fillna(0.0)
+    out['bridged'] = out.bridged.eq(True)
     out['track_id'] = out.track_id.fillna(-1).astype(int)
     out['tracklet'] = out.tracklet.fillna(-1).astype(int)
     return out

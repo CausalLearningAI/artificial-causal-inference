@@ -9,6 +9,7 @@ source-video frame indices').
 Track contract (from the tracker worker), one row per (frame, track):
     frame_src, t_sec, track_id, cx, cy, w, h, heading, detected (bool), conf, variant
 """
+import os
 from pathlib import Path
 import subprocess
 
@@ -16,7 +17,8 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[3]
-RESULTS = ROOT / 'results' / 'tracking_pilot'
+# TP_RESULTS: results root override (a SLURM job points it at its /localhome staging copy)
+RESULTS = Path(os.environ.get('TP_RESULTS', ROOT / 'results' / 'tracking_pilot'))
 FPS = 30.0
 
 IDENTITIES = {
@@ -39,6 +41,9 @@ TRACK_COLS = ['frame_src', 't_sec', 'track_id', 'cx', 'cy', 'w', 'h', 'heading',
 
 
 def video_path(domain, vid):
+    stage = os.environ.get('TP_VIDEO_DIR')  # staged copy of the source video inside a SLURM job
+    if stage and (Path(stage) / VIDEOS[domain][vid]).exists():
+        return Path(stage) / VIDEOS[domain][vid]
     if domain == 'mice':
         return ROOT / 'data/mice/source' / VIDEOS[domain][vid]
     return ROOT / 'data/ants/v3/observations/source' / VIDEOS[domain][vid]
@@ -136,6 +141,10 @@ def load_tracks(path):
     if missing:
         raise ValueError(f'{path}: missing contract columns {missing}; has {list(df.columns)}')
     df = df.copy()
+    if 'axis_angle' in df.columns:
+        # oriented boxes (AMADEUS: w = long side along axis_angle, h = short side). Rows without an
+        # angle fall back to axis-aligned.
+        df['axis_angle'] = df['axis_angle'].astype(float)
     df['frame_src'] = df['frame_src'].astype(int)
     df['track_id'] = df['track_id'].astype(int)
     df['detected'] = df['detected'].astype(bool)

@@ -47,6 +47,21 @@ def select_frames(tr, N, n_random=20, n_merge=20, seed=0):
     return sel
 
 
+def _box(ov, r, sc, color, thick):
+    """Draw the box of row r (oriented when an axis_angle is available) on the overview."""
+    a = getattr(r, 'axis_angle', np.nan)
+    if a is not None and not np.isnan(a):
+        from assign import obb_corners
+        C = obb_corners(np.array([r.cx]), np.array([r.cy]), np.array([r.w]), np.array([r.h]),
+                        np.array([a]))[0] * sc
+        cv2.polylines(ov, [C.astype(np.int32)], True, color, thick)
+        return int(C[:, 0].min()), int(C[:, 1].min())
+    x0, y0 = int((r.cx - r.w / 2) * sc), int((r.cy - r.h / 2) * sc)
+    x1, y1 = int((r.cx + r.w / 2) * sc), int((r.cy + r.h / 2) * sc)
+    cv2.rectangle(ov, (x0, y0), (x1, y1), color, thick)
+    return x0, y0
+
+
 def render(domain, vid, f, pf, tr, ids, title):
     img = read_frame(video_path(domain, vid), f)
     H, W = img.shape[:2]
@@ -59,16 +74,17 @@ def render(domain, vid, f, pf, tr, ids, title):
         x0, y0 = int((r.cx - r.w / 2) * ov_scale), int((r.cy - r.h / 2) * ov_scale)
         x1, y1 = int((r.cx + r.w / 2) * ov_scale), int((r.cy + r.h / 2) * ov_scale)
         if r.track_id not in assigned:
-            cv2.rectangle(ov, (x0, y0), (x1, y1), (128, 128, 128), 1)
-            cv2.putText(ov, f't{r.track_id} ?', (x0, max(y0 - 4, 12)), 0, 0.5, (128, 128, 128), 1, cv2.LINE_AA)
+            x0, y0 = _box(ov, r, ov_scale, (128, 128, 128), 1)
+            tag = '?' if r.detected else 'filled'
+            cv2.putText(ov, f't{r.track_id} {tag}', (x0, max(y0 - 4, 12)), 0, 0.5, (128, 128, 128), 1, cv2.LINE_AA)
     for i in ids:
         q = p.loc[i]
         if q.state == 'unknown' or np.isnan(q.cx):
             continue
         c = COLORS[i]
-        x0, y0 = int((q.cx - q.w / 2) * ov_scale), int((q.cy - q.h / 2) * ov_scale)
-        x1, y1 = int((q.cx + q.w / 2) * ov_scale), int((q.cy + q.h / 2) * ov_scale)
-        cv2.rectangle(ov, (x0, y0), (x1, y1), c, 2 if q.state == 'confirmed' else 1)
+        rr = rows_f[rows_f.track_id == q.track_id]
+        src = rr.iloc[0] if len(rr) else q
+        x0, y0 = _box(ov, src, ov_scale, c, 2 if q.state == 'confirmed' else 1)
         lab = f'{i} [{ST[q.state]} {q.conf:.2f}] t{int(q.track_id)}'
         cv2.putText(ov, lab, (x0, max(y0 - 5, 14)), 0, 0.55, (0, 0, 0), 3, cv2.LINE_AA)
         cv2.putText(ov, lab, (x0, max(y0 - 5, 14)), 0, 0.55, c, 1, cv2.LINE_AA)
@@ -81,7 +97,7 @@ def render(domain, vid, f, pf, tr, ids, title):
     entries = [(i, p.loc[i]) for i in ids]
     for r in rows_f.itertuples():
         if r.track_id not in assigned:
-            entries.append((f'unassigned t{r.track_id}', r))
+            entries.append((f'unassigned t{r.track_id}' + ('' if r.detected else ' (filled)'), r))
     for name, q in entries:
         t = np.full((ins_px + 24, ins_px, 3), 40, np.uint8)
         if not np.isnan(q.cx):
@@ -113,8 +129,8 @@ def make_audit(domain, vid, variant, tr, pf, ids, N, outdir, seed=0):
     for f, kind, note in select_frames(tr, N, seed=seed):
         title = f'{vid} {variant} frame {f} ({f / 30:.1f}s) {kind} {note}'
         im = render(domain, vid, f, pf, tr, ids, title)
-        fn = f'{variant}_{kind}_{f:06d}.png'
-        cv2.imwrite(str(outdir / fn), im)
+        fn = f'{variant}_{kind}_{f:06d}.jpg'
+        cv2.imwrite(str(outdir / fn), im, [cv2.IMWRITE_JPEG_QUALITY, 90])
         p = pf[pf.frame_src == f].set_index('identity')
         rows.append({'file': fn, 'video': vid, 'variant': variant, 'kind': kind, 'frame_src': f,
                      'merge_episode': note,
