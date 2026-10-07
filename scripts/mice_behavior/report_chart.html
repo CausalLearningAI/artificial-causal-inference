@@ -3,16 +3,17 @@
      Kept out of report_body.py on purpose: that file is one big f-string, and JS braces in it
      would need doubling everywhere.
 
-     THREE ESTIMATORS, TWO AXES
+     THREE ESTIMATORS, ONE AXIS
      ==========================
-       CI     human annotations only               -- v1 only    behaviour scale
-       PPI++  human + model annotations            -- v1 only    behaviour scale
-       PPCI   model annotations only, UNCALIBRATED -- v1 and v2  MODEL scale
+       CI     human annotations only               -- v1 only
+       PPI++  human + model annotations            -- v1 only
+       PPCI   model annotations only, UNCALIBRATED -- v1 and v2
 
-     CI and PPI++ share an axis, so PPI++ can be read against the CI it narrows. PPCI is not
-     calibrated to the labels -- predicted rates run above true ones -- so its distance from zero
-     is not comparable to theirs, and it gets its OWN axis in every panel. Its sign and its
-     pattern across cells are what it claims.
+     All three share ONE x-axis per panel, its domain computed over every mark of the view, so
+     PPI++ reads against the CI it narrows and PPCI against both. PPCI is uncalibrated (no human
+     label enters it), so its distance from CI / PPI++ IS the model's bias -- that is why they sit
+     side by side. (Until 2026-10 PPCI was drawn on a separate axis; on the level and the timing
+     its values now sit at the same magnitude as CI's, so the split no longer earned its cost.)
 
      CONTROLS: experiment (v1 | v2 | all), outcome, behaviour, line, sex, predictor. With
      experiment = all the three genotype groups sit side by side: wt (v1 pure-wt cages), het (v1
@@ -100,21 +101,18 @@
     { key: 'ppi', name: 'PPI++', long: 'PPI++ (human + AI annotations)', v: '--s-ppi',
       why: 'Adds the unannotated pools, with a rectifier fitted on the annotated ones. '
            + 'Unbiased for ANY predictor, so the model can only move the variance.' },
-    { key: 'ppci', name: 'PPCI', long: 'PPCI (AI annotations, own axis)', v: '--s-ppci',
+    { key: 'ppci', name: 'PPCI', long: 'PPCI (AI annotations, uncalibrated)', v: '--s-ppci',
       why: 'The mean MODEL within-pool difference over every pool, uncalibrated. Needs no '
            + 'annotation anywhere, which is why it is the only estimator that exists on v2. '
-           + 'On the model’s scale: read its sign and its pattern, not its magnitude.' },
+           + 'No human label enters it, so its distance from CI and PPI++ is the model’s bias.' },
   ];
   const M = Object.fromEntries(METHODS.map(m => [m.key, m]));
+  /* ONE block per panel: the three estimators on one shared axis. */
   const BLOCKS = [
-    { key: 'beh', methods: ['ci', 'ppi'], title: 'behaviour scale · CI, PPI++' },
-    { key: 'mod', methods: ['ppci'], title: 'model scale · PPCI, uncalibrated' },
+    { key: 'all', methods: ['ci', 'ppi', 'ppci'], title: 'CI · PPI++ · PPCI, one shared axis' },
   ];
   const AXIS = { events: 'change in bouts per minute', time: 'change in occupancy (pp)',
                  decay: 'change in decay (mean onset, min)' };
-  const AXIS_MODEL = { events: 'change in predicted bouts per minute',
-                       time: 'change in predicted occupancy (pp)',
-                       decay: 'change in predicted decay (min)' };
   const ODOURS = [['fear', 'FEAR exposure'], ['social', 'SOCIAL exposure']];
   const TRANS = [['H->O', 'ON  H → O'], ['O->P', 'OFF  O → P']];
   const LINES = ['all', 'ash1l', 'kdm6b', 'kmt5b'];
@@ -318,9 +316,8 @@
     node.addEventListener('blur', hide);
   }
 
-  /* One panel = one exposure. Two stacked BLOCKS, each with its own axis: the behaviour scale
-     (CI, PPI++) and the model scale (PPCI). Rows are transition x group; each row carries one
-     line per method of its block -- a mark, or an explicit n/a. */
+  /* One panel = one exposure, ONE axis shared by CI, PPI++ and PPCI. Rows are transition x
+     group; each row carries one line per estimator -- a mark, or an explicit n/a. */
   function panel(title, blocks, doms) {
     const W = 480, L = 128, R = 58, rowH = 24, groupPad = 12, mono = 'ui-monospace,monospace';
     const blockH = (b) => 22 + b.rows.reduce((h, r) => h + r.slots.length * rowH + groupPad, 0)
@@ -349,7 +346,7 @@
       });
       const ax = el('text', { x: (L + W - R) / 2, y: bodyTop + bodyH + 29, 'text-anchor': 'middle',
         fill: css('--ink-3'), 'font-size': 9.5, 'font-family': mono });
-      ax.textContent = (b.key === 'mod' ? AXIS_MODEL : AXIS)[state.unit]; svg.appendChild(ax);
+      ax.textContent = AXIS[state.unit]; svg.appendChild(ax);
 
       let y = bodyTop + 10;
       b.rows.forEach(row => {
@@ -398,7 +395,7 @@
           tip(g, `<b>${M[c.method].long}</b> · ${title} · ${row.label}`
             + (row.sub ? ` (${row.sub})` : '') + '<br>'
             + `${fmt(c.est)} &nbsp;95% CI [${fmt(c.lo)}, ${fmt(c.hi)}]`
-            + (c.method === 'ppci' ? ' &nbsp;<i>(model scale)</i>' : '') + '<br>'
+            + (c.method === 'ppci' ? ' &nbsp;<i>(uncalibrated)</i>' : '') + '<br>'
             + `${c.n_lab} annotated${c.n_unlab ? ' / ' + c.n_unlab + ' predicted' : ''} pools`
             + (c.r != null ? `<br>within-cell r = ${c.r.toFixed(2)}` : '')
             + (c.lam != null ? `<br>λ = ${c.lam.toFixed(3)}` : '')
@@ -421,7 +418,7 @@
     const t = document.createElement('table');
     t.innerHTML = '<thead><tr><th>exposure</th><th>transition</th><th>group</th><th>estimator</th>'
       + '<th>estimate</th><th>95% CI</th><th>CI width</th><th>vs CI</th><th>pools</th>'
-      + '<th>scale</th></tr></thead>';
+      + '<th>labels used</th></tr></thead>';
     const tb = document.createElement('tbody');
     rows.forEach(({ odour, trans, group, slots }) => {
       const ref = slots.find(c => c.method === 'ci' && !c.na);
@@ -440,7 +437,7 @@
           tr.innerHTML = head + `<td>${fmt(c.est)}</td><td>[${fmt(c.lo)}, ${fmt(c.hi)}]</td>`
             + `<td>${w.toFixed(2)}</td><td>${rel}</td>`
             + `<td>${c.n_lab}${c.n_unlab ? ' + ' + c.n_unlab : ''}</td>`
-            + `<td>${c.method === 'ppci' ? 'model (sign only)' : 'behaviour'}</td>`;
+            + `<td>${{ ci: 'human', ppi: 'human + AI', ppci: 'AI only, uncalibrated' }[c.method]}</td>`;
         }
         tb.appendChild(tr);
       });
@@ -472,7 +469,7 @@
     legend(gs);
     const panels = $('ate-panels'); panels.textContent = '';
     const many = gs.length > 1;
-    // every slot of the view, built first so both axes share one domain across the two panels
+    // every slot of the view, built first so ONE domain covers all three estimators in both panels
     const view = ODOURS.map(([od, nice]) => ({
       od, nice,
       blocks: BLOCKS.map(b => ({
@@ -484,11 +481,8 @@
           slots: b.methods.map(m => slot(g, od, tr, m)) }))),
       })),
     }));
-    const doms = {};
-    BLOCKS.forEach(b => {
-      doms[b.key] = domain(view.flatMap(p => p.blocks.find(x => x.key === b.key).rows
-        .flatMap(r => r.slots)));
-    });
+    const shared = domain(view.flatMap(p => p.blocks.flatMap(b => b.rows.flatMap(r => r.slots))));
+    const doms = Object.fromEntries(BLOCKS.map(b => [b.key, shared]));
     const flat = [];
     view.forEach(p => {
       const d = document.createElement('div'); d.className = 'ate-panel';
@@ -502,8 +496,8 @@
 
     const win = (META.window || {}).name || '';
     $('ate-note').innerHTML = 'Bars are 95% intervals, clustered on pool; bold values resolve. '
-      + 'CI and PPI++ share the behaviour-scale axis; PPCI (hollow) has its own model-scale axis '
-      + '&mdash; read its sign and pattern, not its distance from zero. An arrow cap means the '
+      + 'CI, PPI++ and PPCI (hollow) share one axis. PPCI is uncalibrated (no human label enters '
+      + 'it), so read its distance from CI and PPI++ as the model&rsquo;s bias. An arrow cap means the '
       + 'interval runs past the axis (a 2-pool interval has one degree of freedom). '
       + (win ? `Window: ${win} against all of O and P.` : '');
     table(flat);

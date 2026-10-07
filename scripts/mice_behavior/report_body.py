@@ -1238,8 +1238,8 @@ def ppi_width(model, what='mean', unit='events'):
 def ppci_sign_stable(exp='v1'):
     """How many key cells keep their PPCI sign across the prime flip, ERM cross-fit -> DERM.
 
-    The one claim PPCI is licensed to make is sign and pattern, so this -- not a magnitude -- is
-    what has to survive changing the deployed predictor. Counted on both cohorts, because v2 has
+    PPCI is uncalibrated, so its magnitude carries the model's bias; its sign is the least that
+    has to survive changing the deployed predictor. Counted on both cohorts, because v2 has
     no labels and PPCI is the only estimator it has.
     """
     n = same = 0
@@ -1600,7 +1600,7 @@ def flip_note():
             if e and d and e['est'] is not None and d['est'] is not None
             and (e['est'] > 0) != (d['est'] > 0)]
     if not miss:
-        return ' Sign and pattern are what PPCI claims, and none of them moved.'
+        return ' No v1 key cell changed sign.'
     num = lambda x: f"{x:+.3f}".replace('-', '&minus;')
     return (' The v1 cell' + ('s' if len(miss) > 1 else '') + ' that changed: '
             + '; '.join(f"{_BNICE[b]} &middot; {o} &middot; {t.replace('->', '&rarr;')} "
@@ -2174,7 +2174,8 @@ BODY = f'''
         <td class="hi">the same answer, narrower &mdash; unbiased for ANY predictor</td></tr>
       <tr><td><b>PPCI</b></td><td>AI only, uncalibrated</td>
         <td class="hi">v1 (72) and v2 (36)</td>
-        <td class="lo">sign and pattern only &mdash; it is on the model's scale</td></tr>
+        <td class="lo">uncalibrated (no human label enters it), so read its distance from CI and
+        PPI++ as the model's bias</td></tr>
     </tbody></table></div>
   <div class="scroll"><table>
     <thead><tr><th>control</th><th>options</th><th>pools per cell (annotated)</th></tr></thead>
@@ -2756,8 +2757,9 @@ BODY = f'''
         <msub><mi>a</mi><mi>H</mi></msub><mo>)</mo></mrow>
         <mo>&#x23DF;</mo></munder><mtext>what the shortcut becomes</mtext></munder>
     </mrow></math></div>
-    <p>The scale is absorbed by PPI++'s <math><mi>&#x3BB;</mi></math> and never quoted by
-    uncalibrated PPCI. <math><mrow><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo>
+    <p>The scale is absorbed by PPI++'s <math><mi>&#x3BB;</mi></math>; uncalibrated PPCI keeps
+    it, so a <math><mi>b</mi></math> away from 1 moves PPCI off CI on section 03's shared axis
+    without changing its sign. <math><mrow><msub><mi>a</mi><mi>O</mi></msub><mo>&#x2212;</mo>
     <msub><mi>a</mi><mi>H</mi></msub></mrow></math> is the whole risk, and it is what an objective
     change has to be judged on &mdash; in bouts per minute at the rate-matched threshold, never on
     AP. Two designs measure it. The <b>deployment cross-fit</b>: every annotated pool scored by a
@@ -3072,8 +3074,8 @@ BODY = f'''
     <div class="note"><b>The flip and PPCI&rsquo;s sign.</b> Switching section 03's deployed
     predictor from the ERM cross-fit to DERM leaves the PPCI sign unchanged in
     {ppci_sign_stable()} v1 key cells and {ppci_sign_stable_v2()} on v2 &mdash; the cohort with no
-    labels, where PPCI is the only estimator.{flip_note()} PPCI is on the model's scale and this
-    page never reads one as a rate.</div>
+    labels, where PPCI is the only estimator.{flip_note()} PPCI is uncalibrated (no human label
+    enters it), so read its distance from CI and PPI++ as the model's bias.</div>
 
     <p><b>Does the model behind section 03's estimates use DERM, then?</b> {derm_pred_note}</p>
     </div>
@@ -3208,9 +3210,10 @@ BODY = f'''
   detections show genuine contact. Predicted occupancy runs about <b>5&times; above truth</b>
   throughout &mdash; part calibration offset, part the deliberate prior shift in training &mdash;
   so these must never be read as behaviour rates directly. For PPI++ that costs nothing, because
-  &lambda; absorbs the scale. <b>For PPCI it is the whole caveat</b>: PPCI reports this scale rather
-  than the behaviour's, which is why it is drawn hollow in the effects figure and why nothing on
-  this page reads a PPCI magnitude as a rate. A fivefold offset that is the <em>same</em> in every
+  &lambda; absorbs the scale. <b>For PPCI it is the whole caveat</b>: PPCI is uncalibrated (no human
+  label enters it), so whatever of this offset survives the within-pool difference is its bias
+  &mdash; which is why the effects figure draws it on the same axis as CI and PPI++, where that
+  distance can be read off. A fivefold offset that is the <em>same</em> in every
   phase would still cancel in a within-pool difference; what would not cancel is the part that moves
   with the phase, and 04.6 measures that part on the deployment cross-fit: for ERM
   {eb24('nt','ERM')} bouts/min on nose-to-tail and {eb24('nn','ERM')} on nose-to-nose
@@ -3228,8 +3231,9 @@ BODY = f'''
 <div class="measure">
   <div class="sub"><p class="q">05.3 &middot; robustness</p>
   <h3>Is PPCI reading the behaviour, or the model?</h3></div>
-  <p>PPCI is uncalibrated, so it claims sign and pattern rather than magnitude. That claim is only
-  worth something if sign and pattern survive changing the model &mdash; so they were recomputed on
+  <p>PPCI is uncalibrated (no human label enters it), so its distance from CI and PPI++ is the
+  model's bias &mdash; and the least it must get right is the sign and pattern across cells. That
+  is only worth something if sign and pattern survive changing the model &mdash; so they were recomputed on
   a second predictor, with the pools held fixed so the model is the only thing that varies.</p>
   <div class="scroll"><table>
     <thead><tr><th>predictor</th><th>trained on</th><th>macro AP</th><th>predicted/true occupancy</th></tr></thead>
@@ -3248,7 +3252,8 @@ BODY = f'''
   agree in {R['meta']['sign_agreement']['time']['agree']} of
   {R['meta']['sign_agreement']['time']['of']}{rob_miss('time')}. That is how far PPCI's sign
   survives a change that nearly halves the calibration error and adds {run(R['meta']['single'])['ap'] - xf['ap']:.2f} macro
-  AP. Magnitudes do move &mdash; which is exactly why the report never quotes one.</p>
+  AP. Magnitudes do move &mdash; that movement is the model's bias, which section 03's shared
+  axis puts in view.</p>
   <p class="defn">This check was run on the two <b>ERM</b> predictors and predates the promotion of
   the DERM cross-fit; it has not been recomputed on it. What it establishes &mdash; that PPCI's
   sign survives a change of model &mdash; is if anything a weaker demand than 04.6's, where the
