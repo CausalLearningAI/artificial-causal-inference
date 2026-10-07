@@ -7,7 +7,8 @@ Camera-period checks of the mice v1 family-B (het vs wt) NES results of one SAE 
 
 Read-only on the existing NES outputs: uses the per-video caches (<nes>/<sae>/_cache/) and the primary picks of
 <nes>/<sae>/summary.csv (outcome 'mean' = per-video mean activation) and <nes>/<sae>/<P>pool_bouts/summary.csv
-(outcome 'bout_rate', q 0.95, gap 0). The primary analysis is unchanged (unadjusted, all videos).
+(outcome 'bout_rate', q 0.95, gap 0). The primary analysis is unchanged (unadjusted, all videos). Per-video values in
+the primary window of every video (src/eci/domain.py Domain.video_window; mice: habituation = its last 15 min).
 
 Writes <nes>/<sae>/period_check/:
   period_flags.json  per outcome: threshold, null max quantiles, per-latent score / pair / auc / p_perm / br_z /
@@ -32,6 +33,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'src'))
 
+from eci import contrasts as C  # noqa: E402
 from eci import period as P  # noqa: E402
 from eci.domain import get_domain  # noqa: E402
 
@@ -79,14 +81,17 @@ def main():
     vs = load_cache(nes / '_cache' / f'video_summaries_{args.pooling}.npz', design)
     bs = load_cache(nes / '_cache' / f'bout_summaries_max{sfx}.npz', design)
     q, g = BOUT
-    values = {'mean': vs['full__mean'].astype(np.float64),
-              'bout_rate': bs[f'full__{q}__{g}__count'] / (bs['full__n_frames'][:, None] / FPS / 60.0)}
+    wins = D.video_window(design)  # the primary window of every video (mice: habituation = its last 15 min)
+    values = {'mean': C.per_video({w: vs[f'{w}__mean'].astype(np.float64) for w in C.WINDOWS}, wins),
+              'bout_rate': C.per_video({w: bs[f'{w}__{q}__{g}__count'] / (bs[f'{w}__n_frames'][:, None] / FPS / 60.0)
+                                        for w in C.WINDOWS}, wins)}
     tidies = {'mean': pd.read_csv(nes / 'summary.csv'),
               'bout_rate': pd.read_csv(nes / f'{args.pooling}pool_bouts' / 'summary.csv')}
     analyses = {a.id: a for a in D.analyses}
 
     flags = {'sae': args.sae, 'pooling': args.pooling, 'definition': P.__doc__.split('2. Day-adjusted')[0].strip(),
-             'unit': 'mouse (pool): per-video outcome (full window) averaged over the 6 stage videos',
+             'unit': 'mouse (pool): per-video outcome (primary window: habituation = its last 15 min) averaged over '
+                     'the 6 stage videos',
              'pairs': [f'{gn}: {a} vs {b}' for gn, a, b in P.PAIRS], 'n_shuffles': args.n_shuffles,
              'seed': args.seed, 'bout_rule': {'q': q, 'merge_gap': g}, 'outcomes': {}}
     day_rows, lines = [], [f'# Camera-period checks: {args.sae} (codes_{args.pooling})', '']

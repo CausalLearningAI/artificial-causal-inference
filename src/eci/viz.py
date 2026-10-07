@@ -291,11 +291,13 @@ class WindowScan:
     key: str
 
 
-def scan_windows(source, neurons, key='max', lengths=(1, 5, 15), seed=0, log_every=50):
+def scan_windows(source, neurons, key='max', lengths=(1, 5, 15), seed=0, log_every=50, start=None):
     """One pass over the video blocks of source.codes[key][:, neurons] -> {length: WindowScan}.
     Windows are `length` consecutive rows of one video (rows of a video are consecutive frames);
     length 1 = single frames (best = the video's highest frame, silent = a random zero frame).
-    The random silent window uses rng([seed, video, length])."""
+    The random silent window uses rng([seed, video, length]).
+    start: optional (V,) first frame (offset within the video, in _video_blocks order) a window may cover, e.g.
+    src/eci/domain.py Domain.window_start (mice: habituation clips only from minute 15 on); None = 0."""
     Z = source.codes[key]
     neurons = np.asarray(neurons, dtype=np.int64)
     vids = _video_blocks(source.meta, source.info.get('meta_cols', META_COLS))
@@ -306,6 +308,8 @@ def scan_windows(source, neurons, key='max', lengths=(1, 5, 15), seed=0, log_eve
     t0 = time.time()
     ar = np.arange(s)
     for v, (lo, hi) in enumerate(zip(vids['lo'].values, vids['hi'].values)):
+        if start is not None:
+            lo = lo + int(start[v])
         X = np.asarray(Z[lo:hi][:, neurons], dtype=np.float64)
         S = np.vstack([np.zeros((1, s)), np.cumsum(X, 0)])
         C = np.vstack([np.zeros((1, s), np.int64), np.cumsum(X > 0, 0)])

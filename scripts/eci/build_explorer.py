@@ -45,7 +45,10 @@ at each analysis's W from result.json, LATENCY_AGGS = max / mean). Latency rows 
 panel). Mask + motion SAEs carry each neuron's change share (decoder weight on the change half of the input).
 
 Data-driven: everything comes from the result sets (summary.csv files written by the NES runs); only
-the full-video window is shown. The first --outcome is the page default. Every neuron of a search (CLIP_KINDS: event
+the primary window is shown: the full video, except mice habituation (stages 1, 4: its last 15 min, frames 4500-8999,
+since 2026-10-07; src/eci/domain.py MiceDomain.stage_window). Clips, the activation histogram, the firing rate, the
+stage x genotype tables and the per-video values use only the frames of that window (window_starts, video_windows).
+The first --outcome is the page default. Every neuron of a search (CLIP_KINDS: event
 rate, average time, latency) gets clips (clip_candidates / plan_clips; --max-pages caps them, 0 = no cap): found in
 a primary search (core or extra, PAGE_PREFIXES 128 / 256, full window), in its top-by-p list, or only in a subgroup
 search; ranked by the codes the outcome is built from (codes_max, codes_mean, codes_somp from the <sae>_somp
@@ -149,6 +152,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from src.eci.contrasts import per_video  # noqa: E402
 from src.eci.domain import get_domain  # noqa: E402
 
 MICE = get_domain('mice')  # stage labels, analysis ids / order, gene lines and sexes, experiment.csv
@@ -315,6 +319,9 @@ SHOW_LENGTHS = ('frame', '1s')
 KINDS = {'all': ('top', 'least'), 'cmp': ('top', 'least')}
 HIST_BINS = 40
 PICKS_V = 5                          # picks.json entry version (5 = one top row per contrast; 4 = + per-contrast selections)
+# primary window of the picks per domain (window_starts): an entry picked in another window is picked anew. Mice since
+# 2026-10-07: habituation clips, histogram and tables from minute 15 on (frames 4500-8999); other domains: whole videos
+PICKS_WIN = {'mice': 'hlast4500'}
 STAGE_LABEL = MICE.stage_label  # 1 -> 'H,S'
 FONT = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
 FONT_B = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
@@ -331,6 +338,7 @@ CHIP = {('test', 'signflip'): ('flip', 'sign-flip permutation test instead of th
         ('outcome_type', 'rate'): ('rate', 'firing rate (fraction of frames > 0) instead of mean activation'),
         ('outcome_type', 'mean'): ('mean', 'per-video mean activation as the outcome'),
         ('window', 'matched'): ('match', 'time-matched windows across stages'),
+        ('window', 'hwhole'): ('whole H', 'habituation on its whole 30 min instead of its last 15 min'),
         ('window', 'full'): ('full', 'full videos'),
         ('window', 'common'): ('common', 'common window: the first W seconds of every video of the analysis'),
         ('transform', 'rank'): ('rank', 'latencies replaced by their ranks (censored videos tie), a Mann-Whitney-like '
@@ -699,16 +707,27 @@ def is_bout(o):
 _rates = {}
 
 
+def video_windows(cfg, ids, window='full'):
+    """(n_obs,) contrasts window of every video of a NES cache (observation ids ids) under runner window `window`
+    (src/eci/domain.py Domain.video_window: mice habituation = 'last', its last 15 min; else the whole video)."""
+    k = ('win', cfg.dom.name, window, tuple(ids[:3]), len(ids))
+    if k not in _rates:
+        d = cfg.dom.load_design().set_index('observation_id').loc[list(ids)].reset_index()
+        _rates[k] = cfg.dom.video_window(d, window)
+    return _rates[k]
+
+
 def bout_rates(cfg, o, window='full', fps=5.0):
-    """Per-video bouts/min of every neuron (src/eci/contrasts.py bout_outcomes, same cache as
-    scripts/eci/run_nes_bouts.py) -> (Index of observation_id, (n_obs, m) array)."""
+    """Per-video bouts/min of every neuron in the runner window `window` of each video (src/eci/contrasts.py
+    bout_outcomes, same cache as scripts/eci/run_nes_bouts.py) -> (Index of observation_id, (n_obs, m) array)."""
     q, g = o['primary']['threshold_q'], int(o['primary']['merge_gap'])
-    w = {'full': 'full', 'trim30': 'trim', 'matched': 'last'}[window]
-    k = (str(o['cache']), o['pool'], w, q, g)
+    k = (str(o['cache']), o['pool'], window, q, g)
     if k not in _rates:
         f = np.load(o['cache'] / o.get('bfile', f'bout_summaries_{o["pool"]}.npz'))
-        c, nf = f[f'{w}__{q:g}__{g}__count'], f[f'{w}__n_frames']
-        _rates[k] = (pd.Index(f['observation_id'].astype(str)), c / (nf[:, None] / fps / 60.0))
+        ids = pd.Index(f['observation_id'].astype(str))
+        wins = video_windows(cfg, ids, window)
+        _rates[k] = (ids, per_video({w: f[f'{w}__{q:g}__{g}__count'] / (f[f'{w}__n_frames'][:, None] / fps / 60.0)
+                                     for w in set(wins)}, wins))
     return _rates[k]
 
 
@@ -729,21 +748,25 @@ def latency_W(o, aid):
     return W.pop()
 
 
-def latency_frames(o):
-    """(Index of observation_id, (n_obs, m) first-bout frame index in the full video (= its length when no bout),
-    (n_obs,) video length in frames) from the latency run's cache (scripts/eci/run_nes_latency.py). Uncapped: the
-    latency of an analysis = min(index, W) (latency_W), censored where index >= W."""
+def latency_frames(cfg, o):
+    """(Index of observation_id, (n_obs, m) first-bout frame index in the primary window of each video (counted from
+    the window start; = its length when no bout), (n_obs,) window length in frames) from the latency run's cache
+    (scripts/eci/run_nes_latency.py; mice habituation: its last 15 min). Uncapped: the latency of an analysis =
+    min(index, W) (latency_W), censored where index >= W."""
     k = ('lat', str(o['cache'] / o['lfile']), o['primary']['threshold_q'])
     if k not in _rates:
         f = np.load(o['cache'] / o['lfile'])
-        _rates[k] = (pd.Index(f['observation_id'].astype(str)), f[f'full__{o["primary"]["threshold_q"]:.2f}'],
-                     f['nf__full'])
+        ids = pd.Index(f['observation_id'].astype(str))
+        wins = video_windows(cfg, ids)
+        _rates[k] = (ids, per_video({w: f[f'{w}__{o["primary"]["threshold_q"]:.2f}'] for w in set(wins)}, wins),
+                     per_video({w: f[f'nf__{w}'] for w in set(wins)}, wins))
     return _rates[k]
 
 
 def video_outcome(cfg, o):
-    """(Index of observation_id, (n_obs, m)) per-video value of the tested outcome, full videos, as the
-    NES runs computed it: bouts/min, the per-video mean of codes_<pooling>, or the latency to the first bout in
+    """(Index of observation_id, (n_obs, m)) per-video value of the tested outcome, primary window of every video
+    (video_windows; mice habituation: its last 15 min), as the NES runs computed it: bouts/min, the per-video mean
+    of codes_<pooling>, or the latency to the first bout in
     seconds (from the outcome's result set _cache). Extra outcomes whose cache file is missing -> None (page: no
     per-video values)."""
     f = o['cache'] / (o.get('bfile', f'bout_summaries_{o["pool"]}.npz') if is_bout(o) else o['lfile'] if is_latency(o)
@@ -752,14 +775,16 @@ def video_outcome(cfg, o):
         print(f'[{cfg.tag}] WARNING: {f} missing: no per-video values for {o["label"]!r}')
         return None
     if is_latency(o):  # uncapped first-bout time (s); the page caps it at the analysis's W (DATA.lwin)
-        ids, lat, _ = latency_frames(o)
+        ids, lat, _ = latency_frames(cfg, o)
         return ids, lat / cfg.dom.fps
     if is_bout(o):
         return bout_rates(cfg, o, 'full')
     if o['primary']['outcome_type'] != 'mean':
         raise SystemExit(f'per-video values: outcome_type {o["primary"]["outcome_type"]!r} not supported')
     f = np.load(f)
-    return pd.Index(f['observation_id'].astype(str)), f['full__mean']
+    ids = pd.Index(f['observation_id'].astype(str))
+    wins = video_windows(cfg, ids)
+    return ids, per_video({w: f[f'{w}__mean'] for w in set(wins)}, wins)
 
 
 def vmeta():
@@ -1029,6 +1054,22 @@ def codes_array(cfg, src, key):
     return Z
 
 
+def window_starts(cfg, meta, info):
+    """(V,) first frame (offset within the video) of the primary window of every video, in src/eci/viz.py
+    _video_blocks order (src/eci/domain.py Domain.window_start; mice: habituation from frame 4500 = minute 15)."""
+    from src.eci.viz import META_COLS, _video_blocks
+    v = _video_blocks(meta, info.get('meta_cols', META_COLS))
+    return cfg.dom.window_start((v['hi'] - v['lo']).values, v['stage'].values if 'stage' in v else None)
+
+
+def window_frames(cfg, meta, info):
+    """(n_frames,) bool: the frame is inside the primary window of its video (window_starts)."""
+    from src.eci.viz import META_COLS, _video_blocks
+    v = _video_blocks(meta, info.get('meta_cols', META_COLS))
+    off = np.arange(len(meta)) - np.repeat(v['lo'].values, (v['hi'] - v['lo']).values)
+    return off >= np.repeat(window_starts(cfg, meta, info), (v['hi'] - v['lo']).values)
+
+
 def step_data(cfg, overwrite):
     out = cfg.work / 'picks.json'
     res = json.loads(out.read_text()) if out.exists() and not overwrite else {}
@@ -1040,8 +1081,10 @@ def step_data(cfg, overwrite):
     # vset: the kept video set (VIEW 'keep') the entry was picked among (None = every video, the mice entries)
     vset = None if cfg.view['keep'] is None else json.dumps({e: (sorted(t) if t else None)
                                                              for e, t in sorted(cfg.view['keep'].items())})
+    pwin = PICKS_WIN.get(cfg.dom.name)
     missing = {k: sorted(j for j, aids in v.items() if res['by_key'][k].get(str(j), {}).get('v') != PICKS_V
                          or res['by_key'][k][str(j)].get('vset') != vset
+                         or res['by_key'][k][str(j)].get('win') != pwin
                          or sorted(res['by_key'][k][str(j)]['clips']) != sorted(['all'] + aids))
                for k, v in want.items()}
     if not any(missing.values()):
@@ -1058,8 +1101,12 @@ def step_data(cfg, overwrite):
     # histogram groups: 'genotype|stage' (mice), 'experiment|T' (ants), 'experiment|group' (frogs)
     g0, g1 = GROUP_COLS[cfg.dom.name]
     gv = (lambda c: c.astype(str)) if cfg.view.get('arm') else (lambda c: c.astype(int).astype(str))
-    # frames of the kept videos (VIEW 'keep'): histogram, firing rate, bar scale and tables use only these
+    # frames of the kept videos (VIEW 'keep') inside the primary window of their video (mice: habituation from minute
+    # 15): histogram, firing rate, bar scale and tables use only these
     fkeep = keep_mask(cfg.view, meta) if cfg.view['keep'] is not None else slice(None)
+    starts = window_starts(cfg, meta, src.info)
+    if starts.any():
+        fkeep = window_frames(cfg, meta, src.info) & (np.ones(len(meta), bool) if isinstance(fkeep, slice) else fkeep)
     gkeys = sorted({f'{g}|{s}' for g, s in zip(meta[g0][fkeep], gv(meta[g1][fkeep]))})
     gid = pd.Index(gkeys).get_indexer(meta[g0].astype(str) + '|' + gv(meta[g1]))
     obs, fidx = meta['observation_id'].values, meta['frame_idx'].values
@@ -1078,11 +1125,12 @@ def step_data(cfg, overwrite):
         for a in range(0, len(meta), 200_000):
             X[a:a + 200_000] = Z[a:a + 200_000][:, neurons]
         loc = CodeSource('sel', {key: X}, meta, DATASET, dict(src.info))
-        wss = scan_windows(loc, np.arange(len(neurons)), key, tuple(LENGTHS.values()), seed=0)
+        wss = scan_windows(loc, np.arange(len(neurons)), key, tuple(LENGTHS.values()), seed=0,
+                           start=starts if starts.any() else None)
         for ws in wss.values():
             ws.neurons = neurons  # column i of X is neuron neurons[i] (seeds use the neuron id)
         vids = next(iter(wss.values())).videos
-        vmean = np.stack([X[lo:hi].mean(0) for lo, hi in zip(vids['lo'], vids['hi'])])
+        vmean = np.stack([X[lo + st:hi].mean(0) for lo, hi, st in zip(vids['lo'], vids['hi'], starts)])
         # 'all videos' clips: among the kept videos only (every video for mice)
         vkeep = keep_mask(cfg.view, vids) if cfg.view['keep'] is not None else np.ones(len(vids), bool)
         wall = {w: (ws if vkeep.all() else subset_windows(ws, vkeep)) for w, ws in wss.items()}
@@ -1129,7 +1177,7 @@ def step_data(cfg, overwrite):
             else:
                 tab = group_table(vids[vkeep], vmean[vkeep, i], cfg.view)
             store[str(j)] = {
-                'v': PICKS_V, 'vset': vset, 'clips': clips,
+                'v': PICKS_V, 'vset': vset, 'win': pwin, 'clips': clips,
                 'firing_rate': float((xi > 0).mean()),
                 'max_frame': float(xi.max()),
                 'hist': {'edges': [float(f'{e:.5g}') for e in edges],
@@ -1656,6 +1704,7 @@ CHECK_TEXT = {('test', 'signflip'): ('flip', 'with a permutation (sign-flip) tes
               ('correction', 'bh'): ('BH', 'with Benjamini-Hochberg instead of Bonferroni'),
               ('window', 'trim30'): ('trim30', 'when the first 30 s of every video are dropped'),
               ('window', 'matched'): ('match', 'with time-matched windows'),
+              ('window', 'hwhole'): ('whole H', 'when habituation is taken whole (30 min) instead of its last 15 min'),
               ('window', 'full'): ('full', 'on the full videos instead of the common window'),
               ('window', 'common'): ('common', 'on the common window (first W seconds of every video)'),
               ('outcome_type', 'rate'): ('rate', 'when the outcome is the firing rate (share of active frames)'),
@@ -1915,7 +1964,7 @@ def censored_arms(cfg, o, aid):
     over the page's video list, [(arm label, (n_videos,) mask)] of the two arms (ants: control / treated videos;
     mice A: that genotype's videos of stage a / stage b; B: het / wt videos of that stage)."""
     vm = _vt(cfg.dom)[0]
-    ids, lat, nf = latency_frames(o)
+    ids, lat, nf = latency_frames(cfg, o)
     ix = ids.get_indexer(vm['observation_id'].astype(str))
     assert (ix >= 0).all(), 'videos missing from the latency cache'
     cz = lat[ix] >= latency_W(o, aid)  # no bout in the analysis's common window (first W frames)

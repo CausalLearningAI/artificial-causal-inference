@@ -4,15 +4,18 @@ Neural Effect Search (NES) analyses on the mice v1 SAE codes, at video level.
   A  paired stage transitions within one genotype (unit = pool, 36 pairs):
      1->2 social H->O, 2->3 social O->P, 4->5 fear H->O, 5->6 fear O->P; het and wt separately.
      paired_effect_search, test 't' (primary) and 'signflip' (sensitivity).
-     Time-matched sensitivity for the H->O transitions (habituation 9000 frames vs odor 4500):
-     last 4500 frames of habituation vs the whole odor stage.
+     Windows (src/eci/domain.py Domain.window_map): mice habituation (9000 frames, 30 min) is analysed on its LAST
+     4500 frames (minutes 15-30, adjacent to the odor onset) in the primary 'full' and in 'trim30', odor and post
+     on all their 4500 frames (trim30: minus the first 30 s); robustness 'hwhole' = habituation on its whole 30 min
+     (A 1->2, 4->5 and B stage 1, 4; the primary before 2026-10-07, when 'matched' = last 4500 of habituation vs
+     odor was the sensitivity; it now equals the primary).
   B  genotype het vs wt within each stage 1..6 (unit = video, 36 vs 36): neural_effect_search.
   C  pseudo-replication illustration: genotype at stage 2, frame level vs video level.
   Sanity: genotype labels shuffled across pools (stage 2), 20 times.
 
 Grid per analysis: prefix {128, 256, 1024} x pooling {codes_mean, codes_max} x outcome {mean, rate}
 x correction {bonferroni, bh} x window {full, trim30 (first 30 s of every video dropped: handling
-artefacts)} (+ window matched for A 1->2, 4->5) (+ test signflip for A, primary setting only). Primary: codes_mean, outcome mean, test t, bonferroni, full window, both prefixes.
+artefacts)} (+ window hwhole for the analyses with a habituation side) (+ test signflip for A, primary setting only). Primary: codes_mean, outcome mean, test t, bonferroni, full window, both prefixes.
 --primary-pooling max makes codes_max the primary pooling (reports, sign-flip, shuffles, frame-level C)
 and codes_mean its sensitivity. Size check (foreground SAEs, when <codes>/n_fg.npy exists): round-1
 neurons of the primary (full, trim30) re-tested with the per-video mean foreground patch count as a
@@ -84,8 +87,8 @@ PRIMARY = dict(pooling='mean', stat='mean', test='t', correction='bonferroni', w
 PREFIXES = (128, 256, 1024)
 LEGACY_PREFIXES = (128, 1024)  # prefixes of the runs before 256 was added: their nulls keep the shared rng stream
 PERIOD_MODES = ('none', 'adjust', 'drop')
-# window name -> (window of stage a, window of stage b) in contrasts.video_summaries
-WINDOW_MAP = {'full': ('full', 'full'), 'matched': ('last', 'full'), 'trim30': ('trim', 'trim')}
+# runner window name -> (window of stage a, window of stage b) in contrasts.video_summaries: per analysis,
+# Domain.window_map(an) (src/eci/domain.py)
 # neurons the gallery worker identified as recording artefacts (ep20 SAE, prefix 128)
 ARTEFACTS_EP20 = {64: 'white card / experimenter hand at video start', 50: 'white card / experimenter hand at video start',
              113: 'grey arena rim in one camera setup (het ~0.7 vs wt ~0.33 flat over stages)'}
@@ -286,12 +289,13 @@ def main():
                 print(f'{aid}: SKIPPED, {n_a} paired pools < {args.min_units}', flush=True)
                 continue
             results[aid] = {}
-            windows = ['full'] if args.primary_only else ['full', 'trim30'] + (['matched'] if an.matched else [])
+            wm = D.window_map(an)
+            windows = ['full'] if args.primary_only else list(wm)
             for prefix in PREFIXES:
                 for pooling in poolings:
                     for stat in stats_a:
                         for window in windows:
-                            wa, wb = WINDOW_MAP[window]
+                            wa, wb = wm[window]
                             pools, Za, Zb = C.paired(summ[pooling], design, geno, a, b, stat, wa, wb, prefix)
                             for test in tests:
                                 for corr in corrs:
@@ -320,12 +324,15 @@ def main():
             print(f'{aid}: SKIPPED, {int(T0.sum())} het / {int((1 - T0).sum())} wt videos (< {args.min_units})', flush=True)
             continue
         results[aid] = {}
+        wm = D.window_map(an)  # family B: both arms are one stage -> the window of side a
+        settings_b = b_settings + (() if args.primary_only else tuple((st, w) for w in wm if w not in ('full', 'trim30')
+                                                                      for st in ('mean', 'rate')))
         for prefix in PREFIXES:
             for pooling in poolings:
-                for stat, window in b_settings:
-                    pools, Z, T = C.two_sample(summ[pooling], rows, stat, WINDOW_MAP[window][0], prefix, an.unit)
+                for stat, window in settings_b:
+                    pools, Z, T = C.two_sample(summ[pooling], rows, stat, wm[window][0], prefix, an.unit)
                     for corr in corrs:
-                        res = neural_effect_search(Z, T, correction=corr, nuisance=nuis_two(an, WINDOW_MAP[window][0]))
+                        res = neural_effect_search(Z, T, correction=corr, nuisance=nuis_two(an, wm[window][0]))
                         k = key(prefix, pooling, stat, 't', corr, window)
                         results[aid][k] = {**strip(res), 'n_units': len(pools), 'n_het': int(T.sum()),
                                            'n_wt': int((1 - T).sum()), 'units': list(pools)}
@@ -348,12 +355,13 @@ def main():
     rng = np.random.default_rng(0)
     perm = {}
     an0 = D.analysis(D.null_two)
+    w0 = D.window_map(an0)['full'][0]
     for prefix in PREFIXES if args.n_shuffles > 0 else ():
-        pools, Z, T = C.two_sample(summ[pp], an0.select(design), 'mean', 'full', prefix, an0.unit)
+        pools, Z, T = C.two_sample(summ[pp], an0.select(design), 'mean', w0, prefix, an0.unit)
         counts, naive = [], []
         g = null_rng(rng, prefix)
         for _ in range(args.n_shuffles):
-            res = neural_effect_search(Z, g.permutation(T), nuisance=nuis_two(an0, 'full'))
+            res = neural_effect_search(Z, g.permutation(T), nuisance=nuis_two(an0, w0))
             counts.append(len(res['selected'])), naive.append(int(res['first_round']['significant'].sum()))
         perm[prefix] = {'n_selected': counts, 'n_naive_significant': naive}
         print(f'permutation prefix {prefix}: selected {counts} naive {naive}', flush=True)
@@ -390,7 +398,7 @@ def main():
         nfg = C.video_nfg(codes_dir / 'n_fg.npy', dfull, args.n_match)
         t = tidy[(tidy['round'] == 1) & (tidy['pooling'] == pp) & (tidy['outcome_type'] == 'mean') & (tidy['test'] == 't')
                  & (tidy['correction'] == 'bonferroni') & tidy['window'].isin(['full', 'trim30'])]
-        sadj = C.size_adjusted_round1(t, design, {w: summ[pp][(w, 'mean')] for w in C.WINDOWS}, nfg, WINDOW_MAP,
+        sadj = C.size_adjusted_round1(t, design, {w: summ[pp][(w, 'mean')] for w in C.WINDOWS}, nfg, D.window_map,
                                       {a.id: a for a in D.analyses})
         cols = ['analysis_id', 'prefix', 'window', 'neuron', 'direction', 'tau', 'p', 'threshold', 'tau_adj', 'se_adj',
                 'p_adj', 'df_adj', 'slope_nfg', 'survives']
@@ -423,9 +431,12 @@ def write_reports(out, tidy, results, dur, sanity, sae, pp='mean', sadj=None, nu
     alt = 'max' if pp == 'mean' else 'mean'
     sens = {} if primary_only else {  # name -> overrides of the primary setting (same prefix)
         'signflip': dict(test='signflip'), f'{alt}-pool': dict(pooling=alt), 'rate': dict(outcome_type='rate'),
-        'BH': dict(correction='bh'), 'matched': dict(window='matched'), 'trim30': dict(window='trim30')}
+        'BH': dict(correction='bh'), 'matched': dict(window='matched'), 'hwhole': dict(window='hwhole'),
+        'trim30': dict(window='trim30')}
     if alt not in poolings:
         sens.pop(f'{alt}-pool', None)
+    if sens:  # mice: 'hwhole' replaced the 'matched' column (now the primary); other domains: the column set as before
+        sens.pop('matched' if any('hwhole' in D.window_map(a) for a in D.analyses) else 'hwhole')
     sg = sanity.get('subgroup', {})
     prim = dict(pooling=pp, outcome_type='mean', test='t', correction='bonferroni', window='full')
     union = {}
@@ -470,7 +481,7 @@ def write_reports(out, tidy, results, dur, sanity, sae, pp='mean', sadj=None, nu
                 j = int(r['neuron'])
                 marks = []
                 for name, ov in sens.items():
-                    if name == 'signflip' and fam != 'A' or name == 'matched' and not an.matched:
+                    if name == 'signflip' and fam != 'A' or name in ('matched', 'hwhole') and name not in D.window_map(an):
                         marks.append('-')
                         continue
                     marks.append('Y' if j in selected_set(tidy, aid, prefix=prefix, **{**prim, **ov}) else 'N')

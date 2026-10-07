@@ -8,13 +8,15 @@ the same cached thresholds as the bout runs), a frame is above when its value > 
 run of above frames, min 1 frame. The first bout starts at the first above frame, so merge gaps do not change the
 latency. latency = (index of the first above frame in the window) / fps.
 
-Common window: every analysis measures latency in the SAME window for all its videos: the first W frames, W = the
-shortest video among the analysis's videos (Analysis.select rows). Bouts are looked for only inside the window and a
+Common window: every analysis measures latency in the SAME window length for all its videos: the first W frames of
+each video's own window (src/eci/domain.py Domain.window_map: the contrasts window of each side), W = the shortest
+such window among the analysis's videos (Analysis.select rows). Bouts are looked for only inside the window and a
 video with no bout there is right-censored at W. Without this, videos of different lengths are censored at different
-values and the latency difference is the length difference (mice: habituation videos, stages 1 and 4, last 1800 s,
-the others 900 s, so H->O comparisons would compare censoring points; mice W = 900 s in every analysis with an O or
-P stage, 1800 s in B_stage1 / B_stage4; ants: all videos 600 s, W = 600 s). W and the window length are in
-censoring.csv, result.json and SUMMARY.md.
+values and the latency difference is the length difference. Mice (since 2026-10-07): habituation (stages 1 and 4,
+1800 s) is analysed on its LAST 900 s (window 'last': frames 4500-8999, latency counted from minute 15), odor and post
+on their whole 900 s, so W = 900 s in every analysis (B_stage1 / B_stage4 included; before: the first 900 s of
+habituation in H->O and the whole 1800 s in B_stage1 / B_stage4). Ants: all videos 600 s, W = 600 s. W and the
+window length are in censoring.csv, result.json and SUMMARY.md.
 
 Censoring: a video with no bout in the window gets latency = the window length (s), i.e. it is treated as if the
 first bout came at the very end (right-censored at the window length). censoring.csv gives, per analysis and prefix,
@@ -29,8 +31,11 @@ Analyses, families and units as scripts/eci/run_nes.py (src/eci/domain.py). Prim
 Bonferroni alpha 0.05, common window (window 'common' in summary.csv), prefixes 128, 256 and 1024 (or --prefixes;
 the nulls of 128 / 1024 keep the shared seed-0 draws, other prefixes their own, run_nes.null_rng).
 Sensitivities (one change each): q 0.90, q 0.99, trim30 (window = frames [30 s, W): starts after the first 30 s,
-latency counted from there, censored at W - 30 s), BH, rank, signflip (family A), matched (family A 1->2 and 4->5:
-the last n_match frames of habituation vs the first frames of the later stage, both capped at min(n_match, W)).
+latency counted from there, censored at W - 30 s; mice habituation: its last 900 s, as the primary), BH, rank,
+signflip (family A), hwhole (mice, the analyses with a habituation side: habituation from its start, the first W
+frames of the whole 1800 s video, as before 2026-10-07; B_stage1 / B_stage4: W = 1800 s), matched (other domains,
+family A with Analysis.matched: the last n_match frames of stage a vs the first frames of stage b). Every window
+length is the shortest window of the analysis's videos (window_len).
 tau > 0 = LATER first bout in the treated
 arm (family B) / at the later stage (family A). Nulls (primary setting, common window of the null analysis): the domain's two-sample label shuffle
 (mice: genotype across pools, B stage 2; ants: v2_1_vs_2) and, mice, the within-pool stage swap (A het 1->2),
@@ -77,34 +82,46 @@ from eci.nes import neural_effect_search, paired_effect_search  # noqa: E402
 from run_nes import null_rng, resolve_prefixes  # noqa: E402
 
 QS = (0.90, 0.95, 0.99)  # the bout runs' quantiles (same cached thresholds)
-# runner window -> (contrasts window of stage a / control, of stage b / treated); every window is capped at the
-# analysis's common length (window_frames)
-WINDOW_MAP = {'common': ('full', 'full'), 'matched': ('last', 'full'), 'trim30': ('trim', 'trim')}
+# runner window -> (contrasts window of stage a / control, of stage b / treated): window_map(D, an) = Domain.window_map
+# with the primary 'full' named 'common'; every window is capped at the analysis's common length (window_len)
 PRIMARY = dict(outcome_type='latency', threshold_q=0.95, transform='none', test='t', correction='bonferroni',
                window='common')
 SENS = {'q0.90': dict(threshold_q=0.90), 'q0.99': dict(threshold_q=0.99), 'trim30': dict(window='trim30'),
         'BH': dict(correction='bh'), 'rank': dict(transform='rank'), 'signflip': dict(test='signflip'),
-        'matched': dict(window='matched')}
+        'matched': dict(window='matched'), 'hwhole': dict(window='hwhole')}
 PREFIXES = (128, 256, 1024)
+
+
+DOM = None  # the domain; main() sets it
+
+
+def window_map(D, an):
+    """Domain.window_map(an) with the primary 'full' named 'common'."""
+    return {('common' if w == 'full' else w): v for w, v in D.window_map(an).items()}
 
 
 def applicable(name, an):
     if name == 'signflip':
         return an.family == 'A'
-    if name == 'matched':
-        return an.family == 'A' and an.matched
+    if name in ('matched', 'hwhole'):
+        return name in window_map(DOM, an)
     return True
 
 
-def common_frames(an, design):
-    """W (frames) of an analysis: the shortest video among its videos."""
-    return int(an.select(design)['n_frames'].min())
+def side_rows(an, design):
+    """obs_rows of the videos of side a and side b (family A: stage a / b; family B: all videos, both sides)."""
+    d = an.select(design)
+    if an.family == 'A':
+        return tuple(d.loc[d['stage'] == x, 'obs_row'].values for x in an.stages)
+    return d['obs_row'].values, d['obs_row'].values
 
 
-def window_frames(window, W, n_match, n_trim):
-    """Length (frames) of the runner window inside the common window of W frames: the latency is capped (censored)
-    at this value in both arms."""
-    return {'common': W, 'matched': min(n_match, W), 'trim30': W - n_trim}[window]
+def window_len(an, design, nf, wa, wb):
+    """Length (frames) of a runner window of an analysis: the shortest of its videos' own windows (nf: {contrasts
+    window: (n_obs,) frames}); the latency is capped (censored) at this value in both arms. Equals the earlier rule:
+    'common' = the shortest video, 'trim30' = that minus n_trim, 'matched' = min(n_match, the shortest video)."""
+    ra, rb = side_rows(an, design)
+    return int(min(nf[wa][ra].min(), nf[wb][rb].min()))
 
 
 def skey(prefix, s):
@@ -206,6 +223,10 @@ def main():
     FP = args.frame_pooling
     sfx = '' if FP == 'max' else f'_{FP}'
     D = get_domain(args.domain, args.analysis_set)
+    global DOM
+    DOM = D
+    # mice: 'hwhole' replaces the 'matched' sensitivity (now the primary); other domains: the settings as before
+    SENS.pop('matched' if any('hwhole' in D.window_map(a) for a in D.analyses) else 'hwhole')
     if D.nuisance != 'none':
         raise SystemExit('latency runner supports domains without nuisance conditioning only')
     fps = D.fps
@@ -248,15 +269,11 @@ def main():
         return {(w, 'v'): (lat[(w, q)] >= L).astype(float) for w in C.WINDOWS}
 
     def check_len(an, wa, wb, L):  # the capped window must fit inside every video's own window
-        d = an.select(design)
-        if an.family == 'A':
-            ra, rb = (d.loc[d['stage'] == x, 'obs_row'].values for x in an.stages)
-        else:
-            ra = rb = d['obs_row'].values
+        ra, rb = side_rows(an, design)
         if L <= 0 or (nf[wa][ra] < L).any() or (nf[wb][rb] < L).any():
             raise SystemExit(f'{an.id}: window of {L} frames does not fit every video ({wa}/{wb})')
 
-    W_an = {an.id: common_frames(an, design) for an in D.analyses}
+    W_an = {an.id: window_len(an, design, nf, *window_map(D, an)['common']) for an in D.analyses}
     print('common window W (s):', {k: v / fps for k, v in W_an.items()}, flush=True)
 
     def settings(an):
@@ -268,8 +285,8 @@ def main():
         results[aid] = {}
         W = W_an[aid]
         for s in settings(an):
-            wa, wb = WINDOW_MAP[s['window']]
-            L = window_frames(s['window'], W, n_match, args.n_trim)
+            wa, wb = window_map(D, an)[s['window']]
+            L = window_len(an, design, nf, wa, wb)
             check_len(an, wa, wb, L)
             sm = summ(s['threshold_q'], L)
             for prefix in PREFIXES:
@@ -335,12 +352,12 @@ def main():
     for prefix in PREFIXES if args.n_shuffles > 0 else ():
         rng = null_rng(rng0, prefix)
         sm = summ(0.95, W_an[an2.id])
-        _, Z, T = C.two_sample(sm, an2.select(design), 'v', 'full', prefix, an2.unit)
+        _, Z, T = C.two_sample(sm, an2.select(design), 'v', window_map(D, an2)['common'][0], prefix, an2.unit)
         cnt = [len(neural_effect_search(Z, rng.permutation(T))['selected']) for _ in range(args.n_shuffles)]
         sanity['nulls'][f'p{prefix}'] = {f'{an2.id}_{D.shuffle_word}_shuffle_n_selected': cnt}
         if anp is not None:
             sm = summ(0.95, W_an[anp.id])
-            _, Za, Zb = C.paired(sm, design, anp.genotype, *anp.stages, 'v', 'full', 'full', prefix)
+            _, Za, Zb = C.paired(sm, design, anp.genotype, *anp.stages, 'v', *window_map(D, anp)['common'], prefix)
             ca = []
             for _ in range(args.n_shuffles):
                 sw = rng.random(len(Za)) < 0.5
@@ -367,8 +384,11 @@ def write_reports(out, tidy, cens, design, D, cz_an, sanity, sae, FP, raw):
          'videos with no bout there get W (right-censored at W), so videos of different lengths are compared on the '
          'same window. tau > 0 = later first bout in the treated arm (family B) / at the later stage '
          '(family A). Primary: q 0.95, t-test, Bonferroni alpha 0.05, common window. trim30 = window [30 s, W). '
-         'matched = last min(n_match, W) frames of habituation vs the first min(n_match, W) frames of the later '
-         'stage. rank = the same NES on per-latent '
+         + ('Mice: habituation is analysed on its last 900 s (frames 4500-8999, latency counted from minute 15), '
+            'odor and post on their whole 900 s; hwhole = habituation from its start (its first W frames). '
+            if 'hwhole' in SENS else 'matched = last min(n_match, W) frames of habituation vs the first min(n_match, W) '
+            'frames of the later stage. ')
+         + 'rank = the same NES on per-latent '
          'ranks (ties averaged: all censored videos tie). No nuisance conditioning.', '',
          f'Common window W (s) per analysis: '
          + ', '.join(f'{k} {v:g}' for k, v in sanity['common_window_s'].items()) + '.', '',
@@ -401,11 +421,12 @@ def write_reports(out, tidy, cens, design, D, cz_an, sanity, sae, FP, raw):
                 j = int(r['neuron'])
                 marks = ['Y' if j in select(tidy, aid, prefix, {**PRIMARY, **SENS[n]}) else 'N' if applicable(n, an) else '-'
                          for n in names]
+                wa, wb = window_map(D, an)['common']
                 if an.family == 'A':
-                    _, Ca, Cb = C.paired(cz, design, an.genotype, *an.stages, 'v', 'full', 'full')
+                    _, Ca, Cb = C.paired(cz, design, an.genotype, *an.stages, 'v', wa, wb)
                     c0, c1 = Ca[:, j].mean(), Cb[:, j].mean()
                 else:
-                    _, Cc, T = C.two_sample(cz, an.select(design), 'v', 'full', None, an.unit)
+                    _, Cc, T = C.two_sample(cz, an.select(design), 'v', wa, None, an.unit)
                     c0, c1 = Cc[T == 0, j].mean(), Cc[T == 1, j].mean()
                 rv, ex = rawk.get((aid, skey(prefix, PRIMARY), int(r['round'])), (np.nan, False))
                 L.append(f'| {int(r["round"])} | {j} | {r["direction"]} | {r["tau"]:.3g}{" !" if ex else ""} | {rv:.3g} | '

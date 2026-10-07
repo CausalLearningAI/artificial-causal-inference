@@ -17,6 +17,8 @@ sheet <res>/interp/sheets/<tag>_n<j>.png:
            arena.npz) on the arena background, and per occupancy (divided by how often the patch is foreground) for
            mask SAEs
 Aligned SAEs (fg448al, ff448al): frames are turned so the odor corner is top right, as the page does.
+Frames and the firing rate come from the primary window of every video only, as on the page (mice: habituation from
+minute 15 on; build_explorer.window_starts).
 Index: <res>/interp/sheets/index.json [{model, sae, neuron, sheet, firing_rate, found_in, top, least}].
 
 Needs the explorer caches of each result set (<res>/_cache/explorer/arena.npz), the build's arena backgrounds
@@ -197,6 +199,9 @@ def main():
         bgf = Path(a.build) / 'assets' / B.bg_name(cfg)  # the explorer's arena background of the SAE
         bg = Image.open(bgf) if bgf.exists() else None
         fkeep = B.keep_mask(cfg.view, meta) if cfg.view['keep'] is not None else np.ones(len(meta), bool)
+        starts = B.window_starts(cfg, meta, src.info)  # mice: habituation frames from minute 15 on only (as the page)
+        if starts.any():
+            fkeep &= B.window_frames(cfg, meta, src.info)
         pe = make_patch_encoder(cfg.sae, dataset_dir=B.DATASET, domain=cfg.vdom) if todo else None
         index = json.loads((out / 'index.json').read_text()) if (out / 'index.json').exists() and not a.overwrite else []
         index = [e for e in index if e['neuron'] in neurons and e['neuron'] not in todo]
@@ -207,7 +212,7 @@ def main():
             for s0 in range(0, len(meta), 200_000):
                 X[s0:s0 + 200_000] = Z[s0:s0 + 200_000][:, js]
             loc = CodeSource('sel', {'max': X}, meta, B.DATASET, dict(src.info))
-            ws = scan_windows(loc, np.arange(len(js)), 'max', (1,), seed=0)[1]
+            ws = scan_windows(loc, np.arange(len(js)), 'max', (1,), seed=0, start=starts if starts.any() else None)[1]
             ws.neurons = np.array(js)
             vk = B.keep_mask(cfg.view, ws.videos) if cfg.view['keep'] is not None else np.ones(len(ws.videos), bool)
             wk = ws if vk.all() else subset_windows(ws, vk)

@@ -13,7 +13,9 @@ Analyses (as scripts/eci/run_nes.py): family A = paired stage transition within 
 Primary: bout rate, q = 0.95, gap 0, t-test, Bonferroni, windows full and trim30, prefixes 128, 256 and 1024
 (--prefixes; the nulls of 128 / 1024 keep the shared seed-0 draws, other prefixes their own, run_nes.null_rng).
 Sensitivity (one change from the full-window primary): signflip (A), BH, q 0.90, q 0.99,
-merge gap 2, time-matched window (A 1->2, 4->5), outcome = per-video mean of codes_max, and
+merge gap 2, window hwhole (mice, the analyses with a habituation side: habituation on its whole 30 min instead of
+its last 15 min; src/eci/domain.py Domain.window_map; other domains: time-matched window 'matched', family A with
+Analysis.matched), outcome = per-video mean of codes_max, and
 min2hyst (bout_rule 1 in summary.csv): hysteresis bouts that enter above thr(0.95), exit when
 codes_max drops to <= thr(0.90), and last >= 2 frames (src/eci/contrasts.py bout_stats).
 Size check (foreground SAEs, when <codes>/n_fg.npy exists): every round-1 neuron of the primary
@@ -72,7 +74,9 @@ PREFIXES = (128, 256, 1024)
 QS = (0.90, 0.95, 0.99)
 CONFIGS = [(0.90, 0), (0.95, 0), (0.99, 0), (0.95, 2), (0.95, 0, 0.90, 2)]  # (quantile, merge gap[, exit q, min len])
 HYST = (0.95, 0, 0.90, 2)  # bout_rule 1
-WINDOW_MAP = {'full': ('full', 'full'), 'matched': ('last', 'full'), 'trim30': ('trim', 'trim')}
+# runner window -> (contrasts window of stage a, of stage b): per analysis, Domain.window_map(an) (src/eci/domain.py)
+DOM = None  # the domain; main() sets it
+WINS = None  # (n_obs,) contrasts window of every video under the primary 'full' (Domain.video_window); main() sets it
 # neurons flagged as recording artefacts: only valid for the ep20 SAE (neuron ids are SAE-specific)
 ARTEFACTS_EP20 = {64: 'white card / experimenter hand at video start', 50: 'white card / experimenter hand at video start',
                   113: 'grey arena rim in one camera setup'}
@@ -82,7 +86,7 @@ PRIMARY = dict(outcome_type='bout_rate', threshold_q=0.95, merge_gap=0, bout_rul
 # name -> overrides of PRIMARY; applicability filter by analysis id
 SENS = {'trim30': dict(window='trim30'), 'signflip': dict(test='signflip'), 'BH': dict(correction='bh'),
         'q0.90': dict(threshold_q=0.90), 'q0.99': dict(threshold_q=0.99), 'gap2': dict(merge_gap=2),
-        'matched': dict(window='matched'), 'min2hyst': dict(bout_rule=1),
+        'matched': dict(window='matched'), 'hwhole': dict(window='hwhole'), 'min2hyst': dict(bout_rule=1),
         'mean-outcome': dict(outcome_type='mean', threshold_q=np.nan, merge_gap=np.nan, bout_rule=np.nan)}
 
 
@@ -90,9 +94,15 @@ def applicable(name, an):
     """an: src/eci/domain.py Analysis."""
     if name == 'signflip':
         return an.family == 'A'
-    if name == 'matched':
-        return an.family == 'A' and an.matched
+    if name in ('matched', 'hwhole'):
+        return name in DOM.window_map(an)
     return True
+
+
+def primary_outcomes(bs, q=0.95, gap=0):
+    """bout_outcomes in the primary window of every video (WINS; mice: habituation = its last 15 min)."""
+    oo = {w: C.bout_outcomes(bs, w, q, gap, FPS) for w in C.WINDOWS}
+    return {k: C.per_video({w: oo[w][k] for w in C.WINDOWS}, WINS) for k in oo['full']}
 
 
 def settings_for(an):
@@ -168,7 +178,10 @@ def main():
     FP = args.frame_pooling
     sfx = '' if FP == 'max' else f'_{FP}'
     D = get_domain(args.domain, args.analysis_set)
-    global PREFIXES
+    global PREFIXES, DOM, WINS
+    DOM = D
+    # mice: 'hwhole' replaces the 'matched' sensitivity (now the primary); other domains: the settings as before
+    SENS.pop('matched' if any('hwhole' in D.window_map(a) for a in D.analyses) else 'hwhole')
     from run_nes import resolve_prefixes
     PREFIXES = resolve_prefixes(args.prefixes, Path(args.codes_root or D.codes_root) / args.sae / f'codes_{FP}.npy')
     FPS = D.fps
@@ -197,6 +210,7 @@ def main():
     cache.mkdir(parents=True, exist_ok=True)
 
     dfull = D.load_design()
+    WINS = D.video_window(dfull)
     design = D.subset(dfull, args.line, args.sex)  # obs_row still indexes the full-cohort summaries
     print(f'subgroup line={args.line} sex={args.sex}: {D.describe(design)}', flush=True)
     print(f'{len(design)} observations, contiguous row blocks verified; frames per {D.duration_col}:',
@@ -276,7 +290,7 @@ def main():
             if s['test'] == 'signflip' and args.skip_signflip:
                 continue
             sm = summ_for(s)
-            wa, wb = WINDOW_MAP[s['window']]
+            wa, wb = D.window_map(an)[s['window']]
             for prefix in PREFIXES:
                 t0 = time.time()
                 if fam == 'A':
@@ -316,14 +330,16 @@ def main():
     rng0 = rng
     for prefix in PREFIXES if args.n_shuffles > 0 else ():
         rng = null_rng(rng0, prefix)
-        _, Z, T = C.two_sample(sm, an2.select(design), 'v', 'full', prefix, an2.unit)
-        cnt = [len(neural_effect_search(Z, rng.permutation(T), nuisance=nuis_two(an2, 'full'))['selected'])
+        w2 = D.window_map(an2)['full'][0]
+        _, Z, T = C.two_sample(sm, an2.select(design), 'v', w2, prefix, an2.unit)
+        cnt = [len(neural_effect_search(Z, rng.permutation(T), nuisance=nuis_two(an2, w2))['selected'])
                for _ in range(args.n_shuffles)]
         sanity['nulls'][f'p{prefix}'] = {f'{an2.id}_{D.shuffle_word}_shuffle_n_selected': cnt}
         cnt_a = []
         if anp is not None:
-            _, Za, Zb = C.paired(sm, design, anp.genotype, *anp.stages, 'v', 'full', 'full', prefix)
-            Nab = nuis_paired(anp.genotype, *anp.stages, 'full', 'full')
+            wpa, wpb = D.window_map(anp)['full']
+            _, Za, Zb = C.paired(sm, design, anp.genotype, *anp.stages, 'v', wpa, wpb, prefix)
+            Nab = nuis_paired(anp.genotype, *anp.stages, wpa, wpb)
             for _ in range(args.n_shuffles):
                 sw = rng.random(len(Za)) < 0.5
                 Ya, Yb = np.where(sw[:, None], Zb, Za), np.where(sw[:, None], Za, Zb)
@@ -368,7 +384,7 @@ def size_check(tidy, design, codes_dir, values, args, out, prim=None, window_map
             t = t[t[k].isna()] if isinstance(v, float) and np.isnan(v) else t[t[k] == v]
     t = t[t['window'].isin(['full', 'trim30'])]
     vals = {w: values[(w, 'v')] for w in C.WINDOWS}
-    r = C.size_adjusted_round1(t, design, vals, nfg, window_map or WINDOW_MAP, analyses)
+    r = C.size_adjusted_round1(t, design, vals, nfg, window_map or DOM.window_map, analyses)
     cols = ['analysis_id', 'prefix', 'window', 'neuron', 'direction', 'tau', 'p', 'threshold', 'tau_adj', 'se_adj',
             'p_adj', 'df_adj', 'slope_nfg', 'survives']
     r = r[cols] if len(r) else pd.DataFrame(columns=cols)
@@ -392,9 +408,9 @@ def unit_rows(design, an):
 def descriptives(tidy, design, bs, analyses, by=('stage', 'genotype')):
     """Per round-1 neuron of the primary full-window setting (either prefix): median over videos of
     bouts/min, per-video median bout duration (s) and per-video mean bout duration (s), per group of
-    the design columns `by` (mice: stage x genotype; primary q 0.95, gap 0, full window). 'robust' =
+    the design columns `by` (mice: stage x genotype; primary q 0.95, gap 0, primary window of every video). 'robust' =
     also selected under trim30 at that prefix."""
-    o = C.bout_outcomes(bs, 'full', 0.95, 0, FPS)
+    o = primary_outcomes(bs)
     round1 = {}
     for aid in (an.id for an in analyses):
         for prefix in PREFIXES:
@@ -439,7 +455,7 @@ def compare_meanpool(tidy, prev_csv, analyses, pooling='mean'):
 def write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, sae, sadj=None, primary_only=False,
                   D=None):
     D = D or get_domain('mice')
-    o = C.bout_outcomes(bs, 'full', 0.95, 0, FPS)
+    o = primary_outcomes(bs)
     names = [] if primary_only else list(SENS)
     sg = sanity.get('subgroup', {})
     L = [f'# NES summary ({FP}-pool, bout outcomes): {sae}', '',

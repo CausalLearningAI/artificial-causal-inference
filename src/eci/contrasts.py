@@ -22,6 +22,9 @@ Windows (per video):
          habituation adjacent to odor onset, same frame count as the odor stage)
   trim   all frames except the first `n_trim` (default 150 = 30 s): drops the start-of-video
          handling artefacts (white card, experimenter hand) seen in some neurons
+These per-video windows never change; which one each side of an analysis uses is the domain's choice
+(src/eci/domain.py Domain.window_map / video_window). Mice since 2026-10-07: habituation = 'last' (its last
+15 min) in the primary, odor / post = 'full'.
 """
 
 from pathlib import Path
@@ -118,6 +121,17 @@ def video_summaries(codes_path, design, n_match, n_trim=150):
             Xw = X[sl]
             out[(w, 'mean')][i] = Xw.mean(0, dtype=np.float64)
             out[(w, 'rate')][i] = (Xw > 0).mean(0)
+    return out
+
+
+def per_video(values, wins):
+    """values: {contrasts window: (n_obs, ...) array}; wins: (n_obs,) window per video (Domain.video_window)
+    -> (n_obs, ...) array whose row i is values[wins[i]][i]."""
+    wins = np.asarray(wins, dtype=object)
+    out = np.array(values[wins[0]], copy=True)
+    for w in set(wins):
+        m = wins == w
+        out[m] = values[w][m]
     return out
 
 
@@ -429,7 +443,8 @@ def size_adjusted_round1(r1, design, values, nfg, window_map, analyses=None):
 
     r1: DataFrame of round-1 rows (analysis_id, prefix, window, neuron, tau, p, threshold, ...);
     values: {contrasts window ('full'/'last'/'trim'): (n_obs, m) outcome matrix};
-    nfg: video_nfg output; window_map: runner window name -> (window a, window b);
+    nfg: video_nfg output; window_map: runner window name -> (window a, window b), or a callable Analysis -> such a
+    dict (src/eci/domain.py Domain.window_map; needs analyses);
     analyses: {analysis_id: src/eci/domain.py Analysis} (None: the mice ids A_<g>_<tr> / B_stage<s>).
     Returns r1 with tau_adj, se_adj, p_adj, slope_nfg, survives (p_adj < the round-1 threshold and
     the same sign as tau)."""
@@ -437,8 +452,8 @@ def size_adjusted_round1(r1, design, values, nfg, window_map, analyses=None):
     cov = {(w, 'v'): nfg[w][:, None] for w in nfg}
     out = []
     for r in r1.to_dict('records'):
-        j, (wa, wb) = int(r['neuron']), window_map[r['window']]
         an = analyses[r['analysis_id']] if analyses is not None else None
+        j, (wa, wb) = int(r['neuron']), (window_map(an) if callable(window_map) else window_map)[r['window']]
         if (an.family == 'A') if an is not None else r['analysis_id'].startswith('A'):
             if an is not None:
                 g, (a, b) = an.genotype, an.stages

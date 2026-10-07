@@ -261,7 +261,7 @@ const DETAILS = {
     ['Filming', 'A pool (a group of four mice of one genotype) is filmed in an arena in six stages: habituation (30 min), odor (15 min) and post (15 min) with a social odor (stages 1–3), then the same three with a fear odor (stages 4–6). One video per stage, analysed at 5 frames per second.'],
     ['Units', '72 pools (36 het, 36 wt), 432 videos. Per gene line 12 het and 12 wt pools; per sex 18 het and 18 wt pools.'],
     ['Comparisons', 'A · stage change: paired change between two consecutive stages of the same pool (social H→O, O→P; fear H→O, O→P), within one genotype; unit = pool, τ = later minus earlier stage. B · het vs wt: within one stage; unit = video, τ = het − wt.'],
-    ['Time window', 'The whole video of each stage.'],
+    ['Time window', 'Habituation: its last 15 min (minutes 15–30, just before the odor), so every stage is compared on 15 min; odor and post: the whole 15 min video. A “whole H” chip shows whether a finding also holds on the whole 30 min of habituation.'],
     ['Preprocessing', 'Every video is rotated so the odor corner is at the top right. Mouse-mask models see only the mouse patches; full-frame models see the whole frame, including the setup (odor bag, bedding).'],
     ['Design caveat', 'The camera period (odor-corner group) is unbalanced by genotype, so het vs wt can pick up recording-period differences; such discoveries carry a “camera period” chip.'],
   ],
@@ -344,6 +344,9 @@ const nfilePath = j => { const nf = DATA.nfile[outcome().codes]; return nf && (j
    control page with the groups as arms, DATA.arms in display order, control first). GEN = a treated vs control
    domain (ants or frogs). */
 const ANTS = () => DATA.domain==='ants', FROGS = () => DATA.domain==='frogs', GEN = () => ANTS() || FROGS();
+/* the analysed window of every video: mice habituation = its last 15 min (minutes 15–30), everything else the whole video */
+const winTxt = () => GEN() ? 'full videos' : 'habituation: last 15 min';
+const habNote = () => GEN() ? '' : ' (habituation: counted from minute 15)';
 const VIDS = () => DATA.videos || ALL.videos, OBS = () => DATA.obs || ALL.obs;
 const aSubj = () => DATA.subject==='ant' ? 'an ant' : DATA.subject==='frog' ? 'the frog' : 'a mouse';
 /* an arm value as shown: treatment number 't=2' (ants) or the group name 'FoxP1' (frogs) */
@@ -380,7 +383,7 @@ function longLabel(a){
   return `het vs wt in stage ${a.stage} (${STAGE_LONG[a.stage]})`;
 }
 const tauTip = () => (FROGS() ? 'tau: effect size in the outcome unit: mean of the mutant frogs minus mean of the WT frogs (one video per frog).' : ANTS() ? 'tau: effect size in the outcome unit: mean of the treated videos minus mean of the control videos.' : TAU_TIP)
-  + (isLat() ? ` Latency: tau > 0 = a later first bout, measured in the first ${latW()} s of every video of the comparison; a video without a bout there counts as ${latW()} s (censored).` : '');
+  + (isLat() ? ` Latency: tau > 0 = a later first bout, measured in the first ${latW()} s of every video of the comparison${habNote()}; a video without a bout there counts as ${latW()} s (censored).` : '');
 /* latency outcomes: DATA.lwin[outcome] = {analysis: W (s)}, the common window of that comparison (first W s of every
    video); the per-video first-bout times are capped at W, and a value at W is censored (no bout in the window) */
 const isLat = () => (outcome()||{}).kind==='latency';
@@ -709,11 +712,11 @@ function chartTable(j, n){
   if(GEN()){ const o = outcome(); return {T:groupTable(n)||[], what:`${owhat(o)} per video (full videos)`}; }
   if(SUB() || !n.table || isLat()){
     const o = outcome();
-    return {T:subTable(n)||[], what:`${owhat(o)} per video (full videos, ${subLabel()})`};
+    return {T:subTable(n)||[], what:`${owhat(o)} per video (${winTxt()}, ${subLabel()})`};
   }
   const ot = (n.otable||{})[state.outcome];
-  return ot ? {T:ot, what:`${outcome().unit} per video (${state.window==='full'?'full videos':'first 30 s dropped'})`}
-            : {T:n.table, what:`mean codes_${outcome().codes} per video`};
+  return ot ? {T:ot, what:`${outcome().unit} per video (${state.window==='full'?winTxt():'first 30 s dropped'})`}
+            : {T:n.table, what:`mean codes_${outcome().codes} per video (${winTxt()})`};
 }
 /* ---- activation histogram: n.hist = {edges:[B+1], counts:{all:[B], 'het|1':[B], ...}, thr} ---- */
 function histSVG(n, a){
@@ -842,7 +845,7 @@ function renderDetail(){
   if(pc) h+=` · <span class="chips" style="display:inline-flex">${pc}</span>`;
   if(rt) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${rt[1]>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(rt[1])} ${esc(outcome().unit)}</span> · <span class="tip" title="First-round t-test p-value, above the Bonferroni threshold: not selected by NES">p ${fmtP(rt[2])} · not selected</span>`;
   const cens = r ? r.cens : rt ? rt[3] : null;
-  if(cens) h+=` · <span class="tip" title="Videos of this comparison without a bout of this neuron in the first ${latW()} s: their latency is set to ${latW()} s (right-censored). ${esc(censTip(cens))}">censored ${esc(censTip(cens))}</span>`;
+  if(cens) h+=` · <span class="tip" title="Videos of this comparison without a bout of this neuron in the first ${latW()} s${habNote()}: their latency is set to ${latW()} s (right-censored). ${esc(censTip(cens))}">censored ${esc(censTip(cens))}</span>`;
   if(csOf(j)!=null) h+=` · <span class="tip" title="${CS_TIP}">change share ${Math.round(csOf(j)*100)}%</span>`;
   h+=`</span></div>`;
   if(hits) h+=`<div class="tags" aria-label="Found in">${hits.hits.map(({a:b,r:x})=>`<button type="button" class="tag ${cmp&&b.id===state.aid?'cur':x.tau>0?'up':'down'}" data-aid="${b.id}" title="${esc(longLabel(b))}: tau ${fmtTau(x.tau)} ${esc(outcome().unit)}, p ${fmtP(x.p)}. Open this comparison">${shortLabel(b)}${x.tau>0?'▲':'▼'}</button>`).join('')}</div>`;

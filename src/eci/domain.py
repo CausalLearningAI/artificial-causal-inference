@@ -15,7 +15,9 @@ Analysis families (the unit is what gets resampled / tested, never a frame):
 
 Domains:
   mice  v1 (data/mice/DATA_STRUCTURE.md): 72 pools x 6 stages; A = 4 stage transitions x 2 genotypes,
-        B = het vs wt at stages 1..6 (ids and order as the original runs, analysis_ids()).
+        B = het vs wt at stages 1..6 (ids and order as the original runs, analysis_ids()). Habituation (30 min)
+        is analysed on its last 15 min, odor and post on their whole 15 min (MiceDomain.stage_window; robustness
+        window 'hwhole' = the whole 30 min of habituation).
   ants  v2 (ISTAnt, 44 videos, treatment 1 vs 2) and v3 (212 videos, treatments 2/4/6/7/8/9; the
         analyses use 2 vs 6 and 2 vs 8). All videos 3000 frames at 5 fps. Unit = video, family B
         only. v3 t = 8 was recorded only on day C (brighter arena) and t = 2 / 6 only on days A / B,
@@ -80,7 +82,8 @@ class Analysis:
     genotype, stages   family A: the genotype and (stage a, stage b) of the pairs
     where       family B: {design column: value} restricting the rows (e.g. {'stage': 2})
     arm, control, treatment   family B: design column and its values of the two arms (T = 1 treatment)
-    matched     family A: the time-matched window ('last' frames of stage a vs all of stage b) applies
+    matched     family A: the time-matched window ('last' frames of stage a vs all of stage b) applies (base
+                Domain.window_map; mice define their own windows, MiceDomain.stage_window)
     """
     id: str
     family: str
@@ -166,6 +169,26 @@ class Domain:
     def analysis_ids(self):
         return [a.id for a in self.analyses]
 
+    # Runner windows (summary.csv 'window', scripts/eci/run_nes*.py): 'full' = the primary, 'trim30' = the first
+    # n_trim frames of every video dropped, 'matched' (family A with Analysis.matched) = the last n_match frames of
+    # stage a vs all of stage b. window_map gives the contrasts window (src/eci/contrasts.py WINDOWS) of each side.
+    def window_map(self, an):
+        """{runner window: (contrasts window of stage a / the control videos, of stage b / the treated videos)} of
+        analysis an; 'full' is the primary."""
+        m = {'full': ('full', 'full'), 'trim30': ('trim', 'trim')}
+        if an.matched:
+            m['matched'] = ('last', 'full')
+        return m
+
+    def video_window(self, design, window='full'):
+        """(n_obs,) contrasts window of every video of design under runner window `window` (one value per video:
+        the per-video values of the explorer page, the period checks, the bout descriptives)."""
+        return np.full(len(design), {'full': 'full', 'trim30': 'trim'}[window], dtype=object)
+
+    def window_start(self, n_frames, stage=None):
+        """(n_videos,) first frame (offset within the video) of the primary window of each video (clip scanning)."""
+        return np.zeros(len(n_frames), np.int64)
+
     def subset(self, design, line='all', sex='all'):
         """The design restricted to one subgroup (obs_row kept: it indexes the full-cohort arrays)."""
         if (line, sex) != ('all', 'all'):
@@ -194,7 +217,7 @@ class Domain:
 
 
 class MiceDomain(Domain):
-    """Mice v1, exactly the original code paths."""
+    """Mice v1, the original code paths; habituation analysed on its last 15 min (stage_window, since 2026-10-07)."""
     name, title, subjects = 'mice', 'mice v1', 'mice'
     ann_path = ROOT / 'dataset/mice/v1/annotations.csv'
     experiment_csv = ROOT / 'data/mice/v1/experiment.csv'
@@ -210,7 +233,7 @@ class MiceDomain(Domain):
     meta_cols = ('pool', 'stage', 'genotype')
     desc_table = ('genotype', ('het', 'wt'), 'stage', tuple(range(1, 7)))  # row col, rows, column col, columns
     stage_label = {v: f'{p},{o}' for (o, p), v in C.STAGES.items()}  # 1 -> 'H,S'
-    text = {'window': 'stage',
+    text = {'window': 'stage (habituation: its last 15 min)',
             'families_nes': 'Family A = paired stage transition within genotype (unit = pool, tau > 0 = increase from '
                             'stage a to b); family B = het vs wt within stage (unit = video, tau > 0 = higher in het).',
             'families_bouts': 'Family A = paired stage transition within genotype (unit = pool, tau > 0 = more '
@@ -223,13 +246,40 @@ class MiceDomain(Domain):
     def load_design(self):
         return C.load_design(self.ann_path, self.experiment_csv)
 
+    H_STAGES = (1, 4)  # habituation: 9000 frames (30 min) at 5 fps; odor and post 4500 (15 min)
+
+    def stage_window(self, stage, window='full'):
+        """Contrasts window of the videos of one stage. Since 2026-10-07 habituation is analysed on its LAST n_match
+        frames (minutes 15-30, adjacent to the odor onset, as long as odor and post) in the primary 'full' and in
+        'trim30' (the last 15 min never hold the start-of-video handling); odor and post on all their frames
+        ('trim30': without the first n_trim). 'hwhole' (robustness; the primary before 2026-10-07): every stage on
+        all its frames, i.e. habituation on its whole 30 min."""
+        if window == 'hwhole':
+            return 'full'
+        return 'last' if stage in self.H_STAGES else {'full': 'full', 'trim30': 'trim'}[window]
+
+    def window_map(self, an):
+        """'full', 'trim30' and, for the analyses with a habituation side (A 1->2, 4->5; B stage 1, 4), 'hwhole'.
+        Family B: both arms are the same stage."""
+        sides = an.stages if an.family == 'A' else (an.where['stage'],) * 2
+        ws = ('full', 'trim30') + (('hwhole',) if any(s in self.H_STAGES for s in sides) else ())
+        return {w: tuple(self.stage_window(s, w) for s in sides) for w in ws}
+
+    def video_window(self, design, window='full'):
+        return np.array([self.stage_window(s, window) for s in design['stage']], dtype=object)
+
+    def window_start(self, n_frames, stage=None):
+        """Habituation videos: n_frames - n_match (frame 4500 = minute 15); the others 0."""
+        n_frames = np.asarray(n_frames, np.int64)
+        return np.where(np.isin(np.asarray(stage), self.H_STAGES), np.maximum(n_frames - self.n_match, 0), 0)
+
     @property
     def analyses(self):
         out = []
         for g in ('het', 'wt'):
             for tr, (a, b) in C.TRANSITIONS.items():
                 out.append(Analysis(f'A_{g}_{tr}', 'A', 'pool', {'genotype': g, 'stage': '', 'transition': tr},
-                                    ('up', 'down'), genotype=g, stages=(a, b), matched=a in (1, 4)))
+                                    ('up', 'down'), genotype=g, stages=(a, b)))
         for s in range(1, 7):
             out.append(Analysis(f'B_stage{s}', 'B', 'pool', {'genotype': 'het_vs_wt', 'stage': s, 'transition': ''},
                                 ('het>wt', 'het<wt'), where={'stage': s}, arm='genotype', control=('wt',),
