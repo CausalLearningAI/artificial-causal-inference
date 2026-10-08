@@ -12,6 +12,16 @@
 # checkpoints in tools/sam2_ckpt (SAM 2.1 hiera large / base-plus from dl.fbaipublicfiles.com).
 # Inputs are staged to /localhome/$USER/$SLURM_JOB_ID and removed at the end.
 #
+# Measured 2026-10-08 (results/vision/eci_split_test/<domain>/table.json, visual_check.json; % of held-out frames split
+# correctly by the pre-registered automatic rule, contact | non-contact; visual = Claude's count on 50 contact sheets):
+#   mice  blob 19.8 | 27.1 (visual 8%)   slots A_k5 47.2 | 42.2 (32%)   A_k6 14.1   A_k5seed 19.1
+#         SAM B1npk 74.9 | 73.0 (74%)    B1npk native 1024 px 74.6 | 74.1    B2 67.8 | 50.1 (60%), but 95.1 | 94.2 on the
+#         frames with a clean start frame within 10 s (coverage 71.3% | 53.2%; visual 30/31)   AMADEUS boxes (pilot
+#         videos, long-term tracking) 78.4 | 88.7. Post-hoc hybrid B2-else-B1npk 85.8 | 77.2 (visual 46/50).
+#   ants  blob 5.6 | 57.3 (4%)   slots A_k4 24.7 | 39.2 (26%)   SAM B1n 34.0 | 52.2 (18%)   per-ant zoom B1nz 30.7 | 75.9
+#         B2 7.8 | 35.8 (covered contact frames 13.7, coverage 51.8%)   AMADEUS (pilot = train videos) 80.3 | 95.5.
+#   Gate (>= 85% contact, automatic and visual): no method passes either domain.
+#
 # Usage:
 #   DOMAIN=mice STEP=select sbatch --export=ALL --partition=defaultp --gres=none --time=02:00:00 scripts/eci/split_test.sh
 #   DOMAIN=mice STEP=slots  sbatch --export=ALL scripts/eci/split_test.sh
