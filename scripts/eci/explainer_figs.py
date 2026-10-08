@@ -262,16 +262,23 @@ def run_domain(name, cfg, tmp, n_cand=40, n_video=40):
         ax.set_xticks([]); ax.set_yticks([])
     ax = fig.add_subplot(gs[1, 3]); ax.axis('off')
     ax.text(0, 1, 'Mask rule (src/eci/foreground.py)\n\n'
-            f'rule "{cfg["rule"]}" = FG_RULE + dilate_requires_dark\n'
+            f'rule "{cfg["rule"]}" = FG_RULE' + (' + dilate_requires_dark' if rule.get('dilate_requires_dark') else '') + '\n'
             '1. token cue: cosine distance of the patch token to the video\'s\n   background token (same position, nearest of 4 time blocks)\n'
             f'   > video threshold {thr:.3f}; isolated patches dropped\n   -> {int(feat.sum())} patches\n'
             '2. dark cue: fraction of 16x16 px that are dark (grey < 60 and\n   > 40 below the video\'s pixel background) > 0.15\n'
             f'   -> {int(dkc.sum())} patches\n'
-            '3. core = 1 OR 2, then dilate by 1 patch; new\n   patches must contain >= 1 dark pixel\n'
+            + ('3. core = 1 OR 2, then dilate by 1 patch; new\n   patches must contain >= 1 dark pixel\n'
+               if rule.get('dilate_requires_dark') else
+               '3. core = 1 OR 2, then dilate by 1 patch (every\n   neighbour of a core patch is added; no dark-pixel\n   requirement)\n') +
             f'   -> {int(mask.sum())} kept\n\n'
             + ('Mice: frame rotated by k x 90 deg so the odor corner is\ntop right (here k = %d), mask and SAE use the aligned frame.' % k_rot
                if cfg['align'] == 'odor' else 'No frame alignment for ants.'),
             va='top', fontsize=9, family='monospace')
+    if name == 'ants':
+        ax.text(0, 0.30, 'Only 2 of the 3 ants are visible in this frame.\nTracking csv (3_15_9, frame 1249): n_blobs = 2; the blue and\n'
+                'yellow marks (147,392) and (186,403) are 40 px apart\ninside ONE merged blob, so the third ant touches another\n'
+                '(the grooming contact), not hidden or off the lid. It is not\nseparable in the image; the kept patches cover both blobs.',
+                va='top', fontsize=9, family='monospace', color='#7b241c')
     # (e) aggregation
     ax = fig.add_subplot(gs[2, 0])
     xs = np.arange(len(neurons)); w = 0.38
@@ -348,8 +355,8 @@ def schematic():
     ws = 2.4
     txt = ['Video frame\n512 x 512 px stored\n(5 fps; native 824 ants /\n2064 mice, 30 fps)',
            'DINOv2-base\nframe resized to 448\npatch 14 px: 32 x 32\n= 1024 patch tokens\n(768-d)',
-           'Animal mask\ntoken distance to video\nbackground + dark pixels,\ndilated by 1 patch\n(~tens of 1024 kept)',
-           'Matryoshka SAE\n(per kept patch)\n1024 latents, k = 16,\nprefixes 128/256/512/1024\n-> sparse patch code',
+           'Animal mask\ntoken distance to\nvideo background\n+ dark pixels,\ndilate by 1 patch',
+           'Matryoshka SAE\n(per kept patch)\n1024 latents, k = 16,\nnested prefixes\n-> sparse patch code',
            'MAX over kept patches\n(deployed codes_max;\nmean = alternative)\n-> frame code\n(1024 numbers)',
            'MEAN over frames\nof the video window\n-> video code\n(1024 numbers)',
            'NES\ncompare video codes\nbetween conditions\n(effect + p-value\nper neuron)']
@@ -359,14 +366,15 @@ def schematic():
     for a, b in zip(xs[:-1], xs[1:]):
         arr(a + ws + 0.05, y + 1.3, b - 0.05, y + 1.3)
     # motion option
-    box(6.0, 0.6, 5.2, 2.2, 'MOTION OPTION (SAEs "mot": motion_delta D = 5 frames = 1 s at 5 fps)\nSAE input = [token at t , token at t  minus  token at t-D]\n'
-        '(same patch position, 1536-d). Not used by the deployed\nantsfg / fg448al SAEs (static 768-d token).\nNo optical flow anywhere.', fc='#fcf3cf', ec='#b7950b', fs=10)
-    arr(8.0, 4.2, 8.0, 2.85, ls='--', col='#b7950b')
-    arr(8.6, 2.85, 10.9, 4.2, ls='--', col='#b7950b')
-    ax.text(8.1, 3.5, 'token_t', fontsize=9, color='#b7950b', ha='right')
-    ax.text(0.2, 2.6, 'Mask and tokens use DINOv2 at 448; the mask cue (a) needs per-video\nbackground tokens (median over 4 time blocks of frames without a dark animal)\n(b) dark pixels. Mice only: frame rotated so the odor corner is top right.',
+    box(5.4, 0.5, 8.4, 2.3, 'MOTION OPTION (the "mot" SAEs): D = 5 frames = 1 s at 5 fps\nSAE input = [ token(t) , token(t) - token(t-D) ] at the same patch\n'
+        '(1536-d). Not used by the deployed antsfg / fg448al SAEs\n(static 768-d token). No optical flow anywhere.', fc='#fcf3cf', ec='#b7950b', fs=10)
+    arr(7.2, 4.2, 7.2, 2.85, ls='--', col='#b7950b')
+    arr(11.0, 2.85, 11.0, 4.2, ls='--', col='#b7950b')
+    ax.text(7.35, 3.5, 'patch token(t)', fontsize=9, color='#b7950b', ha='left')
+    ax.text(11.15, 3.5, 'motion input (2 x 768)', fontsize=9, color='#b7950b', ha='left')
+    ax.text(0.2, 3.7, 'Mask and tokens use DINOv2 at 448. The mask needs\nper-video background tokens (median over 4 time blocks)\nand dark pixels. Mice only: frame rotated so the\nodor corner is top right.',
             fontsize=10, va='top')
-    ax.text(13, 2.6, 'Ideal version (not built): native frame -> DINOv2 at 896 -> 64 x 64 patches\n(each patch = 8 px of the 512 frame); needs a new mask, background and SAE.',
+    ax.text(14.2, 3.7, 'Ideal version (not built): native frame ->\nDINOv2 at 896 -> 64 x 64 patches (each patch =\n8 px of the 512 frame); needs a new mask,\nbackground and SAE.',
             fontsize=10, va='top', color='#7b241c')
     ax.set_title('ECI: one frame -> frame code -> video code -> NES (current pipeline)', fontsize=16, loc='left')
     fig.savefig(OUT / 'schematic.png', dpi=130, bbox_inches='tight')
