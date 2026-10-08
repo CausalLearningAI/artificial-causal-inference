@@ -140,7 +140,7 @@ def merged_meta(domain, pos, lens):
 
 
 @torch.no_grad()
-def token_variance(T, transform, dev, chunk=2_000_000):
+def token_variance(T, transform, dev, chunk=250_000):
     """Total variance (sum over dims) of transform(T rows) -- T: CPU fp16 tensor / array."""
     s1 = torch.zeros(D, dtype=torch.float64, device=dev)
     s2, n = 0.0, 0
