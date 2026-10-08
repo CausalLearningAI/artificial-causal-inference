@@ -25,3 +25,6 @@ notebooks/tracking/.pixel_cache/
 # Weights & Biases local run data (synced to the cloud; NFS is at 96%)
 wandb/
 *.whl
+
+# 10-min artifacts superseded by 30-min rebuilds (scripts/05_deploy/extend_30min.py)
+archive/

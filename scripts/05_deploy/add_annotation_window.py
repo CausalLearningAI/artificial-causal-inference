@@ -18,8 +18,8 @@ Edits are text-level: the column is appended at the end of each line, row order,
 cell text and CRLF line endings (and a missing final newline) are kept. The
 result is re-parsed and compared cell by cell against the original: only the
 intended cells may change. Before writing, the original is copied to
-<archive-root>/<version>/experiment.csv (outside data/; refuses to overwrite a
-different archived copy).
+<archive-root>/<version>/data/ants/<version>/experiment.csv (outside data/, mirroring
+the repo-relative path; refuses to overwrite a different archived copy).
 
 Usage:
   python scripts/05_deploy/add_annotation_window.py                 # dry run, all versions
@@ -128,7 +128,7 @@ def main() -> None:
             print(f"   - {','.join(o)}\n   + {','.join(n)}")
         if not args.apply:
             continue
-        arch = args.archive_root / v / "experiment.csv"
+        arch = args.archive_root / v / path.relative_to(ROOT)
         if arch.exists() and arch.read_bytes() != raw:
             sys.exit(f"[ERROR] {arch} exists and differs from {path}; not overwriting the archive")
         arch.parent.mkdir(parents=True, exist_ok=True)
