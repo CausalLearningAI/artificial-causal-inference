@@ -394,6 +394,24 @@ class DatasetGenerator:
                     labels_data[f'Y_{outcome_name}'] = np.nan
                 labels_df = pd.DataFrame(labels_data)
             
+            # Annotated window: experiment.csv column 'annotation_end_frame' (source-fps frame
+            # units, same coordinates as start_frame) marks where the annotations stop. Frames at
+            # or past it get eval_window=False and NaN outcomes (never 0: nobody looked at them).
+            # Empty cell = no limit. Without the column, nothing changes.
+            if 'annotation_end_frame' in experiments.columns:
+                ann_end = exp['annotation_end_frame']
+                if pd.isna(ann_end):
+                    in_window = np.ones(len(labels_df), dtype=bool)
+                else:
+                    offset = int(exp.get('start_frame', 0) or 0)
+                    source_frame = (offset + labels_df['frame_idx'].to_numpy() * (source_fps / target_fps)).astype(int)
+                    in_window = source_frame < int(ann_end)
+                labels_df['eval_window'] = in_window
+                y_cols = [c for c in labels_df.columns if c.startswith('Y_')]
+                if not in_window.all():
+                    labels_df[y_cols] = labels_df[y_cols].astype(float)
+                    labels_df.loc[~in_window, y_cols] = np.nan
+
             # Get treatment
             metadata = exp.to_dict()
             treatment = self.extractor.get_treatment(observation_id, metadata)
@@ -425,8 +443,10 @@ class DatasetGenerator:
             print(f"Warning: Generated empty dataset for {self.subject}/{self.version}")
             return dataset_df
         
-        # Reorder columns: observation_id, frame_idx, fps, frame_path, T, W_*, Y_*
+        # Reorder columns: observation_id, frame_idx, fps, frame_path, T, [eval_window], W_*, Y_*
         base_cols = ['observation_id', 'frame_idx', 'fps', 'frame_path', 'T']
+        if 'eval_window' in dataset_df.columns:
+            base_cols.append('eval_window')
         covariate_cols = sorted([c for c in dataset_df.columns if c.startswith('W_')])
         outcome_cols = sorted([c for c in dataset_df.columns if c.startswith('Y_')])
         

@@ -92,6 +92,43 @@ def _load_tracking_distances(
     }
 
 
+def _eval_window_keep(hf: HFDataset) -> Optional[np.ndarray]:
+    """Boolean mask of rows inside the annotated window (``eval_window`` column,
+    written by get_annotations.py from experiment.csv ``annotation_end_frame``).
+
+    None when the dataset has no such column or every row is inside the window.
+    """
+    if "eval_window" not in hf.column_names:
+        return None
+    keep = hf.select_columns(["eval_window"]).to_pandas()["eval_window"].to_numpy(dtype=bool)
+    return None if keep.all() else keep
+
+
+def _window_embeddings(emb: torch.Tensor, keep: Optional[np.ndarray], what: str) -> torch.Tensor:
+    """Restrict embeddings to the annotated window.
+
+    Accepts a cache with one row per dataset row (rows outside the window are
+    dropped here) or one row per in-window row (a cache extracted before the
+    dataset was extended past the window; warns). Any other length raises.
+    """
+    if keep is None:
+        return emb
+    n_full, n_win = len(keep), int(keep.sum())
+    if len(emb) == n_full:
+        return emb[torch.from_numpy(keep)]
+    if len(emb) == n_win:
+        warnings.warn(
+            f"[PPCIDataset] {what}: cache has {n_win:,} rows = the annotated window only "
+            f"(dataset has {n_full:,}); assuming a legacy cache in window row order",
+            stacklevel=3,
+        )
+        return emb
+    raise ValueError(
+        f"{what}: cache has {len(emb):,} rows, expected {n_full:,} (full dataset) "
+        f"or {n_win:,} (annotated window)"
+    )
+
+
 def _label_encode(values: list) -> torch.Tensor:
     """Map arbitrary values (strings, ints, bools) to consecutive ints."""
     unique = sorted(set(str(v) for v in values))
@@ -547,6 +584,7 @@ class PPCIDataset:
         frame_type: str = "full",
         dist_mode: str = "none",
         dataset_root: str = "./dataset",
+        eval_window_only: bool = True,
         **kwargs,
     ) -> "PPCIDataset":
         """Load HF dataset + embeddings from disk and construct a PPCIDataset.
@@ -567,6 +605,11 @@ class PPCIDataset:
                           For "pov":  each half gets [dist_to_focal, dist_to_other]
                                       from that ant's perspective (2 features per half).
             dataset_root: Root of the dataset directory (default "./dataset").
+            eval_window_only: Keep only frames inside the annotated window when the
+                          dataset has an ``eval_window`` column (default True, for
+                          training and evaluation). The filter runs before any
+                          context window. False keeps every frame (deployment
+                          annotation of the whole video). No column: no effect.
             **kwargs:     Forwarded to PPCIDataset.__init__ (env_cols, n_val_videos, …).
 
         Returns:
@@ -575,12 +618,16 @@ class PPCIDataset:
         from src.dataset.get_dataset import load_dataset
         from src.embedding.get_embeddings import load_embeddings_from_disk
 
-        hf = load_dataset(subject, version, from_disk=True)
+        hf = hf_full = load_dataset(subject, version, from_disk=True)
+        keep = _eval_window_keep(hf) if eval_window_only else None
+        if keep is not None:
+            hf = hf.select(np.flatnonzero(keep))
         use_dist = dist_mode in ("early", "late")
 
         if frame_type == "full":
             emb = load_embeddings_from_disk(subject, version, encoder, token,
-                                            dataset_root=dataset_root, align_to=hf)
+                                            dataset_root=dataset_root, align_to=hf_full)
+            emb = _window_embeddings(emb, keep, f"{subject}/{version}/{encoder}/{token}")
             if use_dist:
                 meta = hf.select_columns(["observation_id", "frame_idx"]).to_pandas()
                 dists = _load_tracking_distances(
@@ -609,11 +656,13 @@ class PPCIDataset:
         emb_blue = load_embeddings_from_disk(subject, version, encoder, token,
                                              dataset_root=dataset_root,
                                              frame_type="pov", pov_identity="blue",
-                                             align_to=hf)
+                                             align_to=hf_full)
         emb_yellow = load_embeddings_from_disk(subject, version, encoder, token,
                                                dataset_root=dataset_root,
                                                frame_type="pov", pov_identity="yellow",
-                                               align_to=hf)
+                                               align_to=hf_full)
+        emb_blue = _window_embeddings(emb_blue, keep, f"{subject}/{version} pov blue/{encoder}/{token}")
+        emb_yellow = _window_embeddings(emb_yellow, keep, f"{subject}/{version} pov yellow/{encoder}/{token}")
 
         # Replace NaN embeddings with zeros (some POV crops fail extraction)
         for name, emb_t in [("blue", emb_blue), ("yellow", emb_yellow)]:

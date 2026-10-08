@@ -155,10 +155,11 @@ def generate_annotations_for_version(
     frame_type = cfg_dict.get("frame_type", "full")
 
     print(f"Loading dataset ants/{version} ({frame_type}, dist_mode={dist_mode}) ...")
+    # eval_window_only=False: label every frame, also past the annotated window
     ds = PPCIDataset.from_disk(
         "ants", version, encoder, token,
         frame_type=frame_type, dist_mode=dist_mode,
-        n_val_videos=0, **DS_KWARGS,
+        n_val_videos=0, eval_window_only=False, **DS_KWARGS,
     )
     if k > 0:
         ds.apply_context_window(k, mode=mode)

@@ -182,6 +182,9 @@ def _create_features(df: pd.DataFrame, config: Dict[str, Any]) -> Features:
         'observation_id': Value('string'),
         'frame_idx': Value('int64'),
     }
+    # Annotated-window flag (get_annotations.py, experiment.csv annotation_end_frame)
+    if 'eval_window' in df.columns:
+        feature_dict['eval_window'] = Value('bool')
 
     # Infer treatment type from config or data
     if 'T' in df.columns:
