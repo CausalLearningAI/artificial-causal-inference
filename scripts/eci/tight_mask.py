@@ -358,14 +358,50 @@ def cmd_sheet(args):
         log(f'{domain}: {od / "mask_sheet.jpg"}')
 
 
+def cmd_onlid(args):
+    """Ants diagnostic (labels used, after the decision rules were fixed): is the yellow-marked ant covered by the old /
+    tight mask when it is on the lid vs not? Coverage = any kept patch within 1 patch of the tracked yellow body
+    centroid (dataset/ants/<v>/tracking, 'mark' anchor of sae_levers). Plus kept patches per frame and the grey
+    contrast |grey - background| at the centroid patch."""
+    import multiscale_sae as ms
+    lab = pd.read_parquet(OUT / 'ants' / 'labels.parquet')
+    z = np.load(OUT / 'ants' / 'mask' / 'masks.npz')
+    idx, _, ev, _, _ = split_frames('ants')
+    k = np.searchsorted(z['frames'], ev)
+    new = np.unpackbits(z['bits'][k], axis=1).astype(bool).reshape(-1, GRID, GRID)
+    old = old_masks(idx, ev).reshape(-1, GRID, GRID)
+    A, ok = ms.ants_anchors(lab)
+    yx, yy = A[:, 2], A[:, 3]
+    v3 = (lab.experiment == 'v3').values
+    has = np.isfinite(yx) & np.isfinite(yy) & v3
+    on = lab.onlid_yellow.values.astype(bool)
+    r = np.clip(np.floor(yy).astype(int, copy=False) if False else np.nan_to_num(np.floor(yy), nan=0).astype(int), 0, GRID - 1)
+    c = np.clip(np.nan_to_num(np.floor(yx), nan=0).astype(int), 0, GRID - 1)
+
+    def cover(m):
+        out = np.zeros(len(m), bool)
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                out |= m[np.arange(len(m)), np.clip(r + dr, 0, GRID - 1), np.clip(c + dc, 0, GRID - 1)]
+        return out
+    co, cn = cover(old), cover(new)
+    res = {'n_v3_frames_with_yellow_anchor': int(has.sum()), 'n_onlid_yellow': int((has & on).sum())}
+    for nm_, m in (('onlid', has & on), ('not_onlid', has & ~on)):
+        res[nm_] = {'yellow_covered_old': float(co[m].mean()), 'yellow_covered_tight': float(cn[m].mean()),
+                    'kept_per_frame_old': float(old[m].sum((1, 2)).mean()),
+                    'kept_per_frame_tight': float(new[m].sum((1, 2)).mean())}
+    (OUT / 'ants' / 'onlid_diag.json').write_text(json.dumps(res, indent=1))
+    log(json.dumps(res))
+
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('cmd', choices=['background', 'choose', 'apply', 'sheet'])
+    p.add_argument('cmd', choices=['background', 'choose', 'apply', 'sheet', 'onlid'])
     p.add_argument('--domains', default='mice,ants')
     p.add_argument('--workers', type=int, default=16)
     p.add_argument('--max-videos', type=int, default=0, help='background smoke test')
     a = p.parse_args()
-    {'background': cmd_background, 'choose': cmd_choose, 'apply': cmd_apply, 'sheet': cmd_sheet}[a.cmd](a)
+    {'background': cmd_background, 'choose': cmd_choose, 'apply': cmd_apply, 'sheet': cmd_sheet, 'onlid': cmd_onlid}[a.cmd](a)
 
 
 if __name__ == '__main__':
