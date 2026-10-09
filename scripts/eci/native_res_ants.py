@@ -631,7 +631,7 @@ def cmd_evaluate(args):
     assert (lab.row.values == F.row.values).all() and (lab.frame_idx.values == F.frame_idx.values).all()
     units = sorted(set(lab.obs))
     half = lab.obs.map({u: i % 2 for i, u in enumerate(units)}).values
-    if not json.loads((OUT / 'plan.json').read_text())['smoke']:
+    if not json.loads((OUT / 'plan.json').read_text()).get('smoke', False):
         assert (half == np.load(LEV / 'half.npy')).all(), 'halves differ from levers'
     l448 = F.n_fg.values.astype(np.int64)
     rank = np.argsort(np.argsort(l448 + np.random.default_rng(0).random(len(l448)) * 1e-3))
