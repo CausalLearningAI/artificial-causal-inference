@@ -57,6 +57,8 @@ import sys
 import time
 from pathlib import Path
 
+from functools import partial
+
 import numpy as np
 import pandas as pd
 
@@ -164,6 +166,11 @@ def main():
     ap.add_argument('--skip-signflip', action='store_true')
     ap.add_argument('--compare-pooling', default='mean', help='pooling of the mean-activation run to compare with')
     ap.add_argument('--nuisance', default=None, choices=('none', 'nfg'), help='default: the domain primary (none)')
+    ap.add_argument('--select', default='tau', choices=('tau', 'p'),
+                    help="NES round pick among the significant neurons: largest |tau| (paper) or smallest p")
+    ap.add_argument('--day', action='store_true',
+                    help='family B: also condition on recording-day indicators (Domain.day_col), days with one arm '
+                         'dropped, analyses whose arms share no day skipped')
     ap.add_argument('--subdir', default='', help='write to <out-root>/<sae>/<subdir>/maxpool_bouts/')
     ap.add_argument('--line', default='all', choices=('all',) + C.LINES)
     ap.add_argument('--sex', default='all', choices=('all',) + C.SEXES)
@@ -178,6 +185,14 @@ def main():
     FP = args.frame_pooling
     sfx = '' if FP == 'max' else f'_{FP}'
     D = get_domain(args.domain, args.analysis_set)
+    global neural_effect_search, paired_effect_search
+    if args.select != 'tau':
+        neural_effect_search = partial(neural_effect_search, select=args.select)
+        paired_effect_search = partial(paired_effect_search, select=args.select)
+    if args.day:
+        if D.day_col is None:
+            raise SystemExit(f'--day: domain {D.name} has no recording-day column')
+        D.day_nuisance = True
     global PREFIXES, DOM, WINS
     DOM = D
     # mice: 'hwhole' replaces the 'matched' sensitivity (now the primary); other domains: the settings as before
@@ -262,7 +277,11 @@ def main():
         return None if cov is None else C.paired(cov, design, geno, a, b, 'v', wa, wb)[1:]
 
     def nuis_two(an, w):
-        return None if cov is None else C.two_sample(cov, an.select(design), 'v', w, unit=an.unit)[1]
+        rows = an.select(design)
+        parts = [] if cov is None else [C.two_sample(cov, rows, 'v', w, unit=an.unit)[1]]
+        dX = C.day_indicators(rows, an.day_col, an.unit) if an.day_col else None
+        parts += [] if dX is None else [dX]
+        return np.column_stack(parts) if parts else None
 
     all_rows, results, skipped = [], {}, []
     analyses = []  # the domain's Analysis objects with enough units, in domain order
@@ -365,9 +384,11 @@ def main():
     desc.to_csv(out / 'round1_descriptives.csv', index=False)
     prev = compare_meanpool(tidy, base / 'summary.csv', analyses, args.compare_pooling)
     sanity['runtime_s'] = time.time() - t_start
+    sanity['select'], sanity['day'] = args.select, D.day_col if args.day else None
     with open(out / 'sanity.json', 'w') as f:
         json.dump(C.to_jsonable(sanity), f, indent=1)
     write_reports(out, tidy, analyses, bs, design, desc, round1, prev, sanity, args.sae, sadj, args.primary_only, D)
+    C.add_settings_note(out / 'SUMMARY.md', args.select, D.day_col if args.day else None)
     print(f'done in {time.time() - t_start:.0f}s -> {out}', flush=True)
 
 

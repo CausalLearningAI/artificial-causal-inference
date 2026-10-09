@@ -73,6 +73,8 @@ import sys
 import time
 from pathlib import Path
 
+from functools import partial
+
 import numpy as np
 import pandas as pd
 
@@ -195,6 +197,11 @@ def main():
     ap.add_argument('--nuisance', default=None, choices=('none', 'nfg'),
                     help='nfg: condition every search on the per-video mean foreground size from round 0 '
                          '(default: the domain primary, none for mice and ants)')
+    ap.add_argument('--select', default='tau', choices=('tau', 'p'),
+                    help="NES round pick among the significant neurons: largest |tau| (paper) or smallest p")
+    ap.add_argument('--day', action='store_true',
+                    help='family B: also condition on recording-day indicators (Domain.day_col), days with one arm '
+                         'dropped, analyses whose arms share no day skipped')
     ap.add_argument('--subdir', default='', help='write to <out-root>/<sae>/<subdir>/')
     ap.add_argument('--line', default='all', choices=('all',) + C.LINES)
     ap.add_argument('--sex', default='all', choices=('all',) + C.SEXES)
@@ -204,6 +211,14 @@ def main():
                     help='camera-period handling for family B (module docstring); not none = family B only')
     args = ap.parse_args()
     D = get_domain(args.domain, args.analysis_set)
+    global neural_effect_search, paired_effect_search
+    if args.select != 'tau':
+        neural_effect_search = partial(neural_effect_search, select=args.select)
+        paired_effect_search = partial(paired_effect_search, select=args.select)
+    if args.day:
+        if D.day_col is None:
+            raise SystemExit(f'--day: domain {D.name} has no recording-day column')
+        D.day_nuisance = True
     global PREFIXES
     PREFIXES = resolve_prefixes(args.prefixes, Path(args.codes_root or D.codes_root) / args.sae / f'codes_{args.primary_pooling}.npy')
     args.codes_root = args.codes_root or str(D.codes_root)
@@ -262,7 +277,11 @@ def main():
         return None if cov is None else C.paired(cov, design, geno, a, b, 'v', wa, wb)[1:]
 
     def nuis_two(an, w):
-        return None if cov is None else C.two_sample(cov, an.select(design), 'v', w, unit=an.unit)[1]
+        rows = an.select(design)
+        parts = [] if cov is None else [C.two_sample(cov, rows, 'v', w, unit=an.unit)[1]]
+        dX = C.day_indicators(rows, an.day_col, an.unit) if an.day_col else None
+        parts += [] if dX is None else [dX]
+        return np.column_stack(parts) if parts else None
 
     all_rows, results, sanity = [], {}, {D.balance_key: D.balance(design), 'nuisance': args.nuisance,
                                          'subgroup': D.subgroup_info(design, args.line, args.sex),
@@ -408,10 +427,12 @@ def main():
         print('size check:', sanity['size_check'], flush=True)
 
     sanity['runtime_s'] = time.time() - t_start
+    sanity['select'], sanity['day'] = args.select, D.day_col if args.day else None
     with open(out / 'sanity.json', 'w') as f:
         json.dump(C.to_jsonable(sanity), f, indent=1)
     write_reports(out, tidy, results, dur, sanity, args.sae, pp, sadj, args.nuisance, args.primary_only, D,
                   all_poolings)
+    C.add_settings_note(out / 'SUMMARY.md', args.select, D.day_col if args.day else None)
     print(f'done in {time.time() - t_start:.0f}s -> {out}', flush=True)
 
 

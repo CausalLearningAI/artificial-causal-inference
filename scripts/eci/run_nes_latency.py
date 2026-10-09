@@ -69,6 +69,8 @@ import sys
 import time
 from pathlib import Path
 
+from functools import partial
+
 import numpy as np
 import pandas as pd
 from scipy.stats import rankdata
@@ -218,11 +220,25 @@ def main():
     ap.add_argument('--n-shuffles', type=int, default=20)
     ap.add_argument('--prefixes', default='128,256,1024')
     ap.add_argument('--subdir', default='')
+    ap.add_argument('--nuisance', default='none', choices=('none', 'nfg'),
+                    help='nfg: condition every search (and the nulls) on the per-video mean foreground patch count of '
+                         'the window (C.video_nfg) from round 0, as scripts/eci/run_nes.py')
+    ap.add_argument('--select', default='tau', choices=('tau', 'p'))
+    ap.add_argument('--day', action='store_true', help='as scripts/eci/run_nes.py --day')
+    ap.add_argument('--min-units', type=int, default=5, help='skip an analysis with fewer units per arm')
     args = ap.parse_args()
     global PREFIXES
     FP = args.frame_pooling
     sfx = '' if FP == 'max' else f'_{FP}'
     D = get_domain(args.domain, args.analysis_set)
+    global neural_effect_search, paired_effect_search
+    if args.select != 'tau':
+        neural_effect_search = partial(neural_effect_search, select=args.select)
+        paired_effect_search = partial(paired_effect_search, select=args.select)
+    if args.day:
+        if D.day_col is None:
+            raise SystemExit(f'--day: domain {D.name} has no recording-day column')
+        D.day_nuisance = True
     global DOM
     DOM = D
     # mice: 'hwhole' replaces the 'matched' sensitivity (now the primary); other domains: the settings as before
@@ -261,6 +277,30 @@ def main():
     t0 = time.time()
     lat, nf = cached_latencies(codes_path, design, cache / f'latency{sfx}.npz', thresholds, n_match, args.n_trim)
     print(f'latencies: {time.time() - t0:.0f}s (thresholds from {n_used} frames)', flush=True)
+    cov = None
+    if args.nuisance == 'nfg':
+        nfg_v = C.video_nfg(codes_dir / 'n_fg.npy', design, n_match, args.n_trim)
+        cov = {(w, 'v'): nfg_v[w][:, None] for w in C.WINDOWS}
+
+    def nuis_paired(an, wa, wb):
+        return None if cov is None else C.paired(cov, design, an.genotype, *an.stages, 'v', wa, wb)[1:]
+
+    def nuis_two(an, w):
+        rows = an.select(design)
+        parts = [] if cov is None else [C.two_sample(cov, rows, 'v', w, unit=an.unit)[1]]
+        dX = C.day_indicators(rows, an.day_col, an.unit) if an.day_col else None
+        parts += [] if dX is None else [dX]
+        return np.column_stack(parts) if parts else None
+
+    analyses, skipped = [], []
+    for an in D.analyses:
+        if an.family == 'B':
+            T0 = an.select(design)['T'].values
+            if min(T0.sum(), (1 - T0).sum()) < args.min_units:
+                skipped.append({'analysis_id': an.id, 'n_treated': int(T0.sum()), 'n_control': int((1 - T0).sum())})
+                print(f'{an.id}: SKIPPED, {skipped[-1]}', flush=True)
+                continue
+        analyses.append(an)
 
     def summ(q, L):  # seconds, inside a window of L frames from the window start; censored = L
         return {(w, 'v'): np.minimum(lat[(w, q)], L) / fps for w in C.WINDOWS}
@@ -273,14 +313,14 @@ def main():
         if L <= 0 or (nf[wa][ra] < L).any() or (nf[wb][rb] < L).any():
             raise SystemExit(f'{an.id}: window of {L} frames does not fit every video ({wa}/{wb})')
 
-    W_an = {an.id: window_len(an, design, nf, *window_map(D, an)['common']) for an in D.analyses}
+    W_an = {an.id: window_len(an, design, nf, *window_map(D, an)['common']) for an in analyses}
     print('common window W (s):', {k: v / fps for k, v in W_an.items()}, flush=True)
 
     def settings(an):
         return [dict(PRIMARY)] + [{**PRIMARY, **ov} for n, ov in SENS.items() if applicable(n, an)]
 
     rows, results, cens_rows, raw_rows = [], {}, [], []
-    for an in D.analyses:
+    for an in analyses:
         aid = an.id
         results[aid] = {}
         W = W_an[aid]
@@ -295,14 +335,15 @@ def main():
                     if s['transform'] == 'rank':
                         R = rank_cols(np.vstack([Za, Zb]))
                         Za, Zb = R[:len(Za)], R[len(Za):]
-                    res = paired_effect_search(Za, Zb, correction=s['correction'], test=s['test'])
+                    res = paired_effect_search(Za, Zb, correction=s['correction'], test=s['test'],
+                                               nuisance=nuis_paired(an, wa, wb))
                     extra = {}
                     za, zb, is_paired = Za, Zb, True
                 else:
                     units, Z, T = C.two_sample(sm, an.select(design), 'v', wa, prefix, an.unit)
                     if s['transform'] == 'rank':
                         Z = rank_cols(Z)
-                    res = neural_effect_search(Z, T, correction=s['correction'])
+                    res = neural_effect_search(Z, T, correction=s['correction'], nuisance=nuis_two(an, wa))
                     extra = {'n_het': int(T.sum()), 'n_wt': int((1 - T).sum())}
                     za, zb, is_paired = Z[T == 0], Z[T == 1], False
                 k = skey(prefix, s)
@@ -353,7 +394,8 @@ def main():
         rng = null_rng(rng0, prefix)
         sm = summ(0.95, W_an[an2.id])
         _, Z, T = C.two_sample(sm, an2.select(design), 'v', window_map(D, an2)['common'][0], prefix, an2.unit)
-        cnt = [len(neural_effect_search(Z, rng.permutation(T))['selected']) for _ in range(args.n_shuffles)]
+        nu2 = nuis_two(an2, window_map(D, an2)['common'][0])
+        cnt = [len(neural_effect_search(Z, rng.permutation(T), nuisance=nu2)['selected']) for _ in range(args.n_shuffles)]
         sanity['nulls'][f'p{prefix}'] = {f'{an2.id}_{D.shuffle_word}_shuffle_n_selected': cnt}
         if anp is not None:
             sm = summ(0.95, W_an[anp.id])
@@ -361,13 +403,23 @@ def main():
             ca = []
             for _ in range(args.n_shuffles):
                 sw = rng.random(len(Za)) < 0.5
-                ca.append(len(paired_effect_search(np.where(sw[:, None], Zb, Za), np.where(sw[:, None], Za, Zb))['selected']))
+                nup = nuis_paired(anp, *window_map(D, anp)['common'])
+                nup = None if nup is None else (np.where(sw[:, None], nup[1], nup[0]), np.where(sw[:, None], nup[0], nup[1]))
+                ca.append(len(paired_effect_search(np.where(sw[:, None], Zb, Za), np.where(sw[:, None], Za, Zb),
+                                                   nuisance=nup)['selected']))
             sanity['nulls'][f'p{prefix}'][f'{anp.id}_stage_swap_n_selected'] = ca
         print(f'nulls p{prefix}:', sanity['nulls'][f'p{prefix}'], flush=True)
     sanity['runtime_s'] = time.time() - t_start
+    sanity.update(nuisance=args.nuisance, select=args.select, day=D.day_col if args.day else None, skipped=skipped)
     (out / 'sanity.json').write_text(json.dumps(C.to_jsonable(sanity), indent=1))
     write_reports(out, tidy, cens, design, D, {a: censored(0.95, w) for a, w in W_an.items()}, sanity, args.sae, FP,
                   raw)
+    C.add_settings_note(out / 'SUMMARY.md', args.select, D.day_col if args.day else None)
+    if args.nuisance == 'nfg':
+        sm = (out / 'SUMMARY.md').read_text()
+        (out / 'SUMMARY.md').write_text(sm.replace('No nuisance conditioning.', 'Nuisance conditioning: every search '
+                                                   'conditions on the per-video mean foreground patch count of the '
+                                                   'window from round 0, as an already-selected latent.'))
     print(f'done in {time.time() - t_start:.0f}s -> {out}', flush=True)
 
 
@@ -402,6 +454,9 @@ def write_reports(out, tidy, cens, design, D, cz_an, sanity, sae, FP, raw):
          'control mean; family A: mean of b - a); "!" = |tau| > the window.', '']
     for an in D.analyses:
         aid = an.id
+        if aid not in sanity['common_window_s']:  # skipped (too few units per arm, e.g. --day with no shared day)
+            L += [f'## {aid}', '- skipped: too few units per arm', '']
+            continue
         L.append(f'## {aid}' + (f' ({an.meta.get("confound")})' if an.meta.get('confound') else '')
                  + f' - W = {sanity["common_window_s"][aid]:g} s')
         cz = cz_an[aid]

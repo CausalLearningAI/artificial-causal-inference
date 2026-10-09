@@ -185,6 +185,42 @@ def two_sample(summ, rows, stat='mean', window='full', prefix=None, unit='pool')
     return d[unit].values, Z, d['T'].values
 
 
+def day_indicators(rows, col, unit):
+    """(n_units, k) float indicators of the recording days of the rows of one two-sample analysis (column col), sorted
+    by unit as two_sample; reference = the most common day (ties: the first in sorted order), one column per other
+    day; None when the rows hold one day. Used as NES nuisance covariates (runners' --day)."""
+    d = rows.sort_values(unit)
+    day = d[col].astype(str).values
+    counts = pd.Series(day).value_counts()
+    ref = sorted(counts[counts == counts.max()].index)[0]
+    levels = sorted(g for g in counts.index if g != ref)
+    if not levels:
+        return None
+    return np.stack([(day == g).astype(np.float64) for g in levels], 1)
+
+
+def search_settings_note(select, day_col):
+    """SUMMARY.md line of the runners' --select / --day settings ('' for the defaults)."""
+    out = []
+    if select == 'p':
+        out.append('Selection: each round adds the significant neuron with the smallest p (ties by |t|), not the '
+                   'largest |tau| (--select p).')
+    if day_col:
+        out.append(f'Recording day: every family B search also conditions on indicators of the recording day '
+                   f'({day_col}, reference = the most common day of the analysis) from round 0; days holding only one '
+                   f'arm are dropped from the analysis, and an analysis whose arms share no day is skipped (--day).')
+    return ' '.join(out)
+
+
+def add_settings_note(summary_md, select, day_col):
+    """Insert search_settings_note after the title line of a runner's SUMMARY.md."""
+    note = search_settings_note(select, day_col)
+    if not note:
+        return
+    L = Path(summary_md).read_text().split('\n')
+    Path(summary_md).write_text('\n'.join(L[:2] + [note, ''] + L[2:]))
+
+
 def frame_matrix(codes_path, design, stage, prefix=None):
     """Raw per-frame codes (n_frames, prefix) float64 of all videos of a stage, with T per frame
     and the video index per frame (for the pseudo-replication illustration)."""

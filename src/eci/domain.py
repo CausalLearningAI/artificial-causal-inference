@@ -84,6 +84,9 @@ class Analysis:
     arm, control, treatment   family B: design column and its values of the two arms (T = 1 treatment)
     matched     family A: the time-matched window ('last' frames of stage a vs all of stage b) applies (base
                 Domain.window_map; mice define their own windows, MiceDomain.stage_window)
+    day_col     family B: design column of the recording day when the NES runs condition on it (runners' --day,
+                Domain.day_nuisance); select() then keeps only the days holding BOTH arms (a day with one arm carries
+                no within-day contrast), so an analysis whose arms share no day has one arm left and is skipped
     """
     id: str
     family: str
@@ -97,6 +100,7 @@ class Analysis:
     control: tuple = ()
     treatment: tuple = ()
     matched: bool = False
+    day_col: str = None
 
     def select(self, design):
         """The design rows of this analysis, in design order. Family B rows get T = 1 (treatment) /
@@ -108,6 +112,9 @@ class Analysis:
             m &= (design[k] == v).values
         d = design[m].copy()
         d['T'] = d[self.arm].isin(self.treatment).astype(int)
+        if self.day_col:  # keep the recording days that hold both arms
+            arms = d.groupby(d[self.day_col].astype(str))['T'].nunique()
+            d = d[d[self.day_col].astype(str).isin(arms[arms == 2].index)]
         return d
 
 
@@ -137,6 +144,8 @@ class Domain:
     text = {}             # report phrases: window, families_nes, families_bouts, null_two, frame,
     #                       null_two_bouts, null_paired_bouts
     analysis_sets = ('core',)  # names accepted by get_domain(name, analysis_set); 'core' = the default analyses
+    day_col = None        # design column of the recording day (ants: recording_date); None = no day conditioning
+    day_nuisance = False  # set by the NES runners' --day: family B analyses get Analysis.day_col = day_col
 
     def __init__(self, analysis_set='core'):
         if analysis_set not in self.analysis_sets:
@@ -349,6 +358,7 @@ class AntsDomain(Domain):
     sources = {'v2': ROOT / 'dataset/ants/v2/annotations.csv', 'v3': ROOT / 'dataset/ants/v3/annotations.csv'}
     raw_experiments = {'v2': ROOT / 'data/ants/v2/experiment.csv', 'v3': ROOT / 'data/ants/v3/experiment.csv'}
     design_cols = ('experiment', 'T', 'batch', 'position', 'annotator', 'recording_date', 'nestbox')
+    day_col = 'recording_date'
     balance_fields = ('batch', 'position', 'annotator', 'recording_date', 'nestbox')
     n_match = 3000  # = the whole 10 min video (no family A, the matched window is unused)
     fg_rule = 'ants'
@@ -424,7 +434,7 @@ class AntsDomain(Domain):
         return [Analysis(f'{e}_{c}_vs_{t}', 'B', 'observation_id',
                          {'experiment': e, 'control': c, 'treatment': t, 'confound': conf},
                          ('treated>control', 'treated<control'), where={'experiment': e}, arm='T',
-                         control=(c,), treatment=(t,))
+                         control=(c,), treatment=(t,), day_col=self.day_col if self.day_nuisance else None)
                 for e, c, t, conf in self.contrasts()]
 
     def analysis_table(self):
