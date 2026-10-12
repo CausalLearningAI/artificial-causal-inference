@@ -16,6 +16,25 @@
 #   STEP=evaluate EXTRA="--domain mice --arms c448 c448dep" sbatch --time=01:15:00 scripts/eci/res_pool.sh
 #   STEP=score  EXTRA="--domain mice --arms n896" sbatch --time=01:30:00 scripts/eci/res_pool.sh
 #   STEP=sheets sbatch --time=00:30:00 scripts/eci/res_pool.sh
+#
+# Measured 2026-10-12 (results/vision/eci_res_pool/summary.json, tables.md; mean over 3 SAE seeds; cf = cross-fitted
+# best neuron; video r ctl = count-controlled held-out per-video mean vs annotated rate). k_top: mice 11 / 45, ants 5 / 21.
+#   c448dep (deployed C1) MAX reproduces eci_combined C1 exactly (max abs diff 0.0, all labels / seeds, both domains).
+#   frame map: dataset frame k = sequential source frame 6k+2 exactly (res_pool_offset.py); native_res seek decode = 6k+3.
+#                      cf AUROC  c448 / n896 / u896      cf AP  c448 / n896          video r ctl (MAX) c448 / n896
+#   mice nose_nose     0.700 / 0.718 / -                 0.051 / 0.054               0.19 / 0.20
+#   mice nose_tail     0.753 / 0.793 / -                 0.049 / 0.060               -0.06 / 0.04
+#   ants groom_any     0.883 / 0.863 / 0.839             0.753 / 0.745               0.46 / 0.55
+#   ants groom_yellow  0.836 / 0.817 / 0.800             0.480 / 0.505               0.34 / 0.33
+#   ants groom_blue    0.842 / 0.836 / 0.812             0.499 / 0.527               0.39 / 0.47
+#   ants onlid_yellow  0.963 / 0.977 / 0.980             0.394 / 0.518               0.89 / 0.82
+#   Decision 1: mice n896 WINS on one criterion only (nose_tail ctl video r +0.105 >= 0.10; AUROC +0.039 but mean 0.793
+#     < c448 best seed 0.796; AP x1.21). Ants n896 does NOT win (groom_any -0.0203 > 0.02 drop; no gain). u896 < c448.
+#   Decision 2: neither TOPK nor MEAN replaces MAX (TOPK passes only mice n896: ctl r +0.052); MAX stays.
+#   Decision 3: with motion there is no ants 896 video drop under MAX (n896 - c448 ctl r mean +0.020); under TOPK +0.052,
+#     MEAN +0.072 (positive on all 4 labels).
+#   Compute: GPU 11.2 h (L40S); mice decode 88.4 CPU-h of ffmpeg (148.8 CPU-h allocated incl. idle cores), over the
+#     80 CPU-h budget; 896 fp32 encode 0.055 GPU-s / frame.
 #SBATCH --job-name=res_pool
 #SBATCH --output=results/vision/eci_res_pool/logs/%x_%A_%a.out
 #SBATCH --time=01:00:00
