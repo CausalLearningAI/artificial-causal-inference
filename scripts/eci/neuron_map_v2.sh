@@ -7,6 +7,7 @@
 #   STEP=prep    DOMAIN=mice|ants  CPU: instance labels per patch, distances, zones, blob sites, strata
 #   STEP=analyse DICT=<dict>       CPU: statistics, old / new classes, anchors, collective, confusion
 #   STEP=sheets  DICT=<dict>       CPU: hand-check contact sheets
+#   STEP=extras  DICT=<dict>       CPU: post-hoc descriptive additions (top-video share, multi-site, cluster sizes)
 # Usage:
 #   DOMAIN=ants STEP=encode sbatch --export=ALL --partition=gpu --gres=gpu:1 --exclude=gpu150,gpu242,gpu230 --cpus-per-task=8 --mem=96G --time=01:00:00 scripts/eci/neuron_map_v2.sh
 #   DOMAIN=ants STEP=prep sbatch --export=ALL --partition=defaultp --cpus-per-task=16 --mem=64G --time=01:00:00 scripts/eci/neuron_map_v2.sh
@@ -35,4 +36,6 @@ case $STEP in
     python -u scripts/eci/neuron_map_v2.py analyse --dict $DICT ${VARIANT:+--variant $VARIANT} ;;
   sheets)
     python -u scripts/eci/neuron_map_v2.py sheets --dict $DICT --workers ${SLURM_CPUS_PER_TASK:-8} ;;
+  extras)
+    python -u scripts/eci/neuron_map_v2.py extras --dict $DICT ;;
 esac

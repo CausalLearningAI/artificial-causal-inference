@@ -1104,6 +1104,25 @@ def _decode_ants(job):
     return obs, out
 
 
+def _decode_mice(job):
+    """Selected 5 fps frames of one standardised mice mp4 (fps=5 then select by output index), decoded locally."""
+    from PIL import Image
+    v, fidx, fpaths, dst = job
+    loc = Path(dst) / v
+    loc.mkdir(parents=True, exist_ok=True)
+    o = np.argsort(fidx)
+    fidx, fpaths = np.asarray(fidx)[o], np.asarray(fpaths)[o]
+    sel = '+'.join(f'eq(n\\,{int(f)})' for f in fidx)
+    subprocess.run(['ffmpeg', '-nostdin', '-loglevel', 'error', '-y', '-i',
+                    str(REPO / f'data/mice/v1/observations/full/{v}.mp4'), '-vf', f'fps=5,select={sel},format=rgb24',
+                    '-vsync', '0', '-start_number', '0', str(loc / 'out_%06d.png')], check=True)
+    files = sorted(loc.glob('out_*.png'))
+    assert len(files) == len(fidx), (v, len(files), len(fidx))
+    out = {p: np.asarray(Image.open(f).convert('RGB')) for p, f in zip(fpaths, files)}
+    shutil.rmtree(loc)
+    return out
+
+
 def sheet_frames(D, picks, tops):
     """-> {neuron: [frame indices (12, evenly spaced in rank over the valid top frames)]}."""
     out = {}
@@ -1194,14 +1213,19 @@ def cmd_sheets(args):
     loc = local_dir()
     imgs, inst = {}, {}
     if d == 'mice':
-        import tarfile
-        shutil.copyfile(PAIRS / 'targets.tar', loc / 'targets.tar')
-        fp = set(D.F.frame_path.values[need])
-        with tarfile.open(loc / 'targets.tar') as t:
-            for m in t.getmembers():
-                if m.isfile() and m.name in fp:
-                    imgs[m.name] = np.asarray(Image.open(t.extractfile(m)).convert('RGB'))
-        (loc / 'targets.tar').unlink()
+        from multiprocessing import get_context
+        sub = D.F.iloc[need]
+        vname = sub.frame_path.str.split('/').str[-2].values
+        jobs = [(v, sub.frame_idx.values[vname == v], sub.frame_path.values[vname == v], str(loc / 'dec'))
+                for v in sorted(set(vname))]
+        with get_context('fork').Pool(args.workers) as pool:
+            for out in pool.imap_unordered(_decode_mice, jobs):
+                imgs.update(out)
+        chk = []
+        for f in need[:3]:
+            a = np.asarray(Image.open(REPO / 'dataset' / D.F.frame_path.values[f]).convert('RGB'), np.int16)
+            chk.append(int(np.abs(a - imgs[D.F.frame_path.values[f]].astype(np.int16)).max()))
+        log(f'  decode check vs dataset JPG (max abs px of 3 frames): {chk}')
         tid_need = {int(D.F.tid.values[f]): f for f in need}
         for pth in sorted(PAIRS.glob('labels_s*.npz')):
             shutil.copyfile(pth, loc / pth.name)
@@ -1292,10 +1316,75 @@ def cmd_sheets(args):
     log(f'{key}: {len(index)} sheets -> {od}')
 
 
+
+# ---------------------------------------------------------------------------------------------- extras (CPU, post hoc)
+def cmd_extras(args):
+    """POST-HOC descriptive additions (decided after the hand-check started, not used by the fixed classes):
+    top-video share per neuron; multi-site flag (n_sites_med >= 2: the neuron fires at >= 2 separate places in its
+    median top frame - the generic 'every animal' neurons of the ants pair class); the animals' own cluster structure
+    (largest number of animals in one touching cluster per frame) overall and in annotated frames."""
+    from scipy import ndimage as ndi
+    key = args.dict
+    D = Data(key)
+    d = D.domain
+    T = pd.read_csv(OUT / key / 'neurons.csv')
+    z = np.load(OUT / key / 'top_frames.npz')
+    tops = [z['flat'][a:b] for a, b in zip(z['off'][:-1], z['off'][1:])]
+    vid = D.P['vid']
+    share = np.zeros(D.M)
+    for j, t in enumerate(tops):
+        if len(t):
+            share[j] = np.bincount(vid[t], weights=D.w[t]).max() / D.w[t].sum()
+    T['top_video_share'] = share
+    T['multi_site'] = T.n_sites_med >= 2
+    E = T[T.eligible]
+    on = E[E.location == 'on-animal']
+    R = {'dict': key, 'note': 'post hoc, descriptive',
+         'video_specific_share_eligible (top_video_share > 0.5)': float((E.top_video_share > 0.5).mean()),
+         'by_class': {}}
+    for nm, sub in (('self', on[on.social == 'self']), ('pair', on[on.social == 'pair']),
+                    ('collective', on[on.social == 'collective']), ('place-bound', E[E.place_bound]),
+                    ('halo', E[E.location == 'halo']), ('plain-background', E[E.location == 'plain-background'])):
+        R['by_class'][nm] = {'n': int(len(sub)), 'multi_site': int(sub.multi_site.sum()),
+                             'video_specific': int((sub.top_video_share > 0.5).sum()),
+                             'median_top_video_share': float(sub.top_video_share.median()) if len(sub) else None}
+    pr = on[on.social == 'pair']
+    R['pair_single_site'] = int((~pr.multi_site).sum())
+    # the animals' own cluster structure
+    if d == 'ants':
+        s8 = np.ones((3, 3), bool)
+        mx = np.zeros(D.nF, np.int8)
+        for i in range(D.nF):
+            b = D.P['bits'][i].reshape(GRID, GRID)
+            lab, n = ndi.label(b > 0, s8)
+            if n == 0:
+                continue
+            acc = np.zeros(n + 1, np.int64)
+            np.bitwise_or.at(acc, lab.ravel(), (b.ravel() & 7).astype(np.int64))
+            mx[i] = POP[acc[1:]].max()
+        F = D.F
+        rows = {'all': np.ones(D.nF, bool), 'groom_any': F.groom_any.values.astype(bool),
+                'onlid_any': (F.onlid_yellow.values | F.onlid_blue.values | F.onlid_focal.values).astype(bool)}
+        R['ant_cluster_size'] = {k: {str(c): float((mx[m] == c).mean()) for c in range(4)} | {'n': int(m.sum())}
+                                 for k, m in rows.items()}
+    else:
+        F = D.F
+        cl = D.P['clus']
+        v = D.P['valid']
+        rows = {'all': v, 'nose_nose': v & F.nose_nose.values.astype(bool), 'nose_tail': v & F.nose_tail.values.astype(bool)}
+        R['mouse_cluster_size_weighted'] = {k: {str(c): float(D.w[m & (cl == c)].sum() / D.w[m].sum()) for c in range(5)}
+                                            | {'n': int(m.sum())} for k, m in rows.items()}
+        R['strata_weighted'] = {s_: float(D.w[D.P['stratum'] == s_].sum() / D.w.sum())
+                                for s_ in ('contact', 'huddle', 'spread', 'partial')}
+    T.to_csv(OUT / key / 'neurons.csv', index=False)
+    (OUT / key / 'extras.json').write_text(json.dumps(R, indent=1))
+    log(f'{key}: extras {json.dumps(R)}')
+
+
 # ---------------------------------------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('step', choices=['encode', 'prep', 'analyse', 'sheets'])
+    ap.add_argument('step', choices=['encode', 'prep', 'analyse', 'sheets', 'extras'])
     ap.add_argument('--domain', choices=['mice', 'ants'])
     ap.add_argument('--dict', choices=list(DICTS))
     ap.add_argument('--workers', type=int, default=8)
