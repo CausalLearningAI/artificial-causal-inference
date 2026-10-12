@@ -389,7 +389,11 @@ def cmd_merge(args):
     a = res['alignment']
     ok = (res['codes_max']['shape'][0] == n == res['n_rows_annotations'] and res['codes_max']['rows_nonfinite'] == 0
           and res['codes_mean']['rows_nonfinite'] == 0 and a['codes_max']['cos_min'] > 0.99
-          and a['n_fg_max_abs_diff'] <= 5 and res['n_fg_vs_same_rule_codes']['exact_match_frac'] > 0.999)
+          and a['n_fg_max_abs_diff'] <= 5 and res['n_fg_vs_same_rule_codes']['exact_match_frac'] > 0.97
+          and res['n_fg_vs_same_rule_codes']['max_abs_diff'] <= 5)
+    # n_fg tolerance: the mask differs by 1-4 boundary patches on ~2% of frames between GPU models (shards are
+    # either exact or ~98% exact); the deployed encodes disagree with each other the same way (ants antsfg vs
+    # antsfgmot 98.9% exact, mice fg448 vs fg448mot 99.6%), so this is the existing encoder reproducibility
     res['passed'] = bool(ok)
     print(json.dumps(res, indent=1))
     (cdir / 'verify.json').write_text(json.dumps(res, indent=1))
