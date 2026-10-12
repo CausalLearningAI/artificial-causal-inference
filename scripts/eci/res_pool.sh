@@ -38,7 +38,9 @@ df -h /localhome | tail -1
 nvidia-smi -L 2>/dev/null || true
 TASK=${TASK:-${SLURM_ARRAY_TASK_ID:-0}}
 P="python -u scripts/eci/res_pool.py"
-if [ "$STEP" = "smoke" ]; then  # GPU chain on the plan --smoke frames of DOMAIN (RP_OUT must point to the smoke dir)
+if [ "$STEP" = "offset" ]; then  # CPU frame-mapping check of the mice native decoding
+  python -u scripts/eci/res_pool_offset.py ${EXTRA:-}
+elif [ "$STEP" = "smoke" ]; then  # GPU chain on the plan --smoke frames of DOMAIN (RP_OUT must point to the smoke dir)
   D=${DOMAIN:-ants}
   $P encode_train --domain $D --arm n896 --workers 4
   $P train --domain $D --arm n896 --steps 200
