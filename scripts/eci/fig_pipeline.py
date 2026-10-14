@@ -497,7 +497,8 @@ def frog_sheets(tmp, n_top=12, stride=25):
 # ------------------------------------------------------------------------------------------------ plotting
 MM = 1 / 25.4
 C_KEPT = '#E69F00'   # accent: kept tokens / selected token (Okabe-Ito orange)
-C_N = '#0072B2'      # the shown neuron (Okabe-Ito blue)
+C_N = '#CC79A7'      # the shown neuron, everywhere (Okabe-Ito reddish purple / pink)
+C_TOK = '#0072B2'    # the chosen token (Okabe-Ito blue)
 C_GREY, C_LIGHT, C_DARK = '#8c8c8c', '#d9d9d9', '#4d4d4d'
 FS, FS_S = 6.0, 5.2
 
@@ -594,14 +595,15 @@ def plot(args):
     ag = 2.8                    # arrow gap between steps
     fw, nvol, dx, dy = 10.0, 9, 1.9, 0.5  # temporal volume
     gw, gg, bw = 2.0, 0.5, 7.0  # vector glyph strip width, gap between the two strips, sparse-bar panel width
+    VPAD = 5.0                  # extra width of the glyph column (room for its title)
     xa = left
     wa = fw + (nvol - 1) * dx
     xb = xa + wa + 5.0
     xs, x = {}, xb
-    for k, w in (('grid', sz), ('zoom', sz), ('vec', 2 * gw + gg + 1.4), ('pre', bw), ('code', bw), ('spatial', sz)):
+    for k, w in (('grid', sz), ('zoom', sz), ('vec', 2 * gw + gg + 1.4 + VPAD), ('pre', bw + 2.0), ('spatial', sz)):
         xs[k] = x
         x += w + ag
-    x += 7.0 - ag
+    x += 9.5 - ag
     xs['trace'] = x
     xs['num'] = W - 0.5 - 11.0
     wt = xs['num'] - 8.0 - xs['trace']
@@ -671,13 +673,13 @@ def plot(args):
             ax.spines[s].set_visible(False)
 
     # headers
-    for xx, lab, title in ((xa, 'a', 'Video'), (xb, 'b', 'One frame, step by step'),
-                           (xs['trace'], 'c', 'Aggregation (one neuron)')):
+    for xx, lab, title in ((xa, 'a', 'Video'), (xb, 'b', 'Frame representation'),
+                           (xs['trace'], 'c', 'Temporal aggregation')):
         txt(xx, 0.6, lab, fontsize=8, weight='bold')
         txt(xx + 2.6, 0.85, title, fontsize=FS)
-    for k, title in (('grid', f'{G} × {G} {enc_label}\ntokens + mask'), ('zoom', 'kept tokens,\none chosen'),
-                     ('vec', 'token\n[x$_t$, Δx]'), ('pre', 'SAE encoder →\nsparse code (top-k)'),
-                     ('spatial', 'neuron on every\nkept token'), ('trace', 'one value per frame'), ('num', 'per video')):
+    for k, title in (('grid', f'{G} × {G} tokens'), ('zoom', 'animals mask'),
+                     ('vec', f'{enc_label}\nrepresentation'), ('pre', 'SAE (top-k)'),
+                     ('spatial', 'neuron spatial\nactivation'), ('num', 'per video')):
         txt(xs[k], 4.1, title, color=C_DARK)
     summ_out = {}
     for ri, d in enumerate(doms):
@@ -728,46 +730,38 @@ def plot(args):
             a.axhline(i, color='w', lw=0.15, alpha=0.6)
             a.axvline(i, color='w', lw=0.15, alpha=0.6)
         edge(a, mk, C_KEPT, 0.4)
-        a.add_patch(matplotlib.patches.Rectangle((sx_, sy), 1, 1, fill=False, ec=C_N, lw=0.9))
+        a.add_patch(matplotlib.patches.Rectangle((sx_, sy), 1, 1, fill=False, ec=C_TOK, lw=0.9))
         a.set_xlim(zx, zx + zs); a.set_ylim(zy + zs, zy)
         zoom_ax = a
         # ---- b3: the chosen token -> [x_t, x_t - x_(t-1 s)] as two slim 768-d glyphs
         vy, vh = y0 + 0.6, sz - 3.2
         lim = float(np.percentile(np.abs(np.r_[A['tok_x'], A['tok_d']]), 98))
         gl = []
-        for j, (v, ec) in enumerate(((A['tok_x'], C_DARK), (A['tok_d'], C_DX))):
-            g_ = ax_mm(xs['vec'] + 0.7 + j * (gw + gg), vy, gw, vh)
+        for j, (v, ec) in enumerate(((A['tok_x'], C_DARK), (A['tok_d'], C_DARK))):
+            g_ = ax_mm(xs['vec'] + 0.7 + VPAD / 2 + j * (gw + gg), vy, gw, vh)
             g_.imshow(v[:, None], aspect='auto', cmap='gray_r', vmin=-lim, vmax=lim, interpolation='nearest')
             g_.set_xticks([]); g_.set_yticks([])
             for s in g_.spines.values():
                 s.set_linewidth(0.5); s.set_color(ec)
             gl.append(g_)
-        txt(xs['vec'] + 0.7 + gw / 2, vy + vh + 0.3, 'x$_t$', ha='center', fontsize=FS_S - 0.6)
-        txt(xs['vec'] + 0.7 + 1.5 * gw + gg, vy + vh + 0.3, 'Δx', ha='center', fontsize=FS_S - 0.6, color=C_DX)
+        txt(xs['vec'] + 0.7 + VPAD / 2 + gw / 2, vy + vh + 0.3, 'x$_t$', ha='center', fontsize=FS_S - 0.6)
+        txt(xs['vec'] + 0.7 + VPAD / 2 + 1.5 * gw + gg, vy + vh + 0.3, 'Δx$_t$', ha='center', fontsize=FS_S - 0.6)
         fig.add_artist(ConnectionPatch(xyA=(sx_ + 1, sy + 0.5), coordsA=zoom_ax.transData, xyB=(0, 0.5),
-                                       coordsB=gl[0].transAxes, color=C_N, lw=0.5, arrowstyle='-|>',
+                                       coordsB=gl[0].transAxes, color=C_TOK, lw=0.5, arrowstyle='-|>',
                                        mutation_scale=4))
         # ---- b4: SAE encoder: dense pre-activations -> sparse code (threshold / top-k), the neuron highlighted
-        pa = ax_mm(xs['pre'], vy, bw, vh)
+        pa = ax_mm(xs['pre'], vy, bw + 2.0, vh)
         bars(pa, A['pre'], len(A['pre']), hi=key, thr=m['sae_theta'])
-        arrow(xs['vec'] + 2 * gw + gg + 1.4 + 0.3, xs['pre'] - 0.3, yc)
-        arrow(xs['pre'] + bw + 0.3, xs['code'] - 0.3, yc)
-        ca = ax_mm(xs['code'], vy, bw, vh)
-        bars(ca, A['tok_code'], len(A['tok_code']), hi=key, sparse=True)
-        txt(xs['pre'], vy + vh + 0.3, '4096', fontsize=FS_S - 0.6, color=C_DARK)
-        txt(xs['code'], vy + vh + 0.3, f'{m["n_active_token_code"]} kept', fontsize=FS_S - 0.6, color=C_DARK)
-        arrow(xs['code'] + bw + 0.3, xs['spatial'] - 0.3, yc)
+        arrow(xs['vec'] + 2 * gw + gg + 1.4 + VPAD / 2 + 0.3, xs['pre'] - 0.3, yc)
+        arrow(xs['pre'] + bw + 2.0 + 0.3, xs['spatial'] - 0.3, yc)
         # ---- b5: the neuron on every kept token (one-hue overlay), -> max -> c
         a = img(xs['spatial'], y0, sz, ec=C_N, lw=0.7)
         hm = A['heat']
         vmh = max(float(hm.max()), 1e-6)
         overlay(a, gt, hm, mk, C_N, vmh, amax=0.9)
         edge(a, mk, C_KEPT, 0.4)
-        a.add_patch(matplotlib.patches.Rectangle((sx_, sy), 1, 1, fill=False, ec=C_N, lw=0.6))
         a.set_xlim(zx, zx + zs); a.set_ylim(zy + zs, zy)
-        hue_bar(xs['spatial'], y0 + sz + 0.7, sz - 3.0, C_N, vmh)
-        txt(xs['spatial'], y0 + sz + 2.0, f'#{key} {DOM[d]["short"]}', color=C_N)
-        arrow(xs['spatial'] + sz + 0.5, xs['trace'] - 0.5, yc, 'spatial\n(max)')
+        arrow(xs['spatial'] + sz + 0.5, xs['trace'] - 3.4, yc, 'spatial\n(max)')  # clear of the y tick labels
         # ---- c: one value per frame (raw), firing raster -> temporal -> per video
         fire, s_ = firing(A, m, args.event)
         summ_out[d] = s_
@@ -778,7 +772,8 @@ def plot(args):
         w0 = int(np.clip(c - nw // 2, 0, max(n - nw, 0)))
         seg, fseg = tr[w0:w0 + nw], fire[w0:w0 + nw]
         tt = np.arange(len(seg)) / FPS
-        a = ax_mm(xs['trace'], y0 + 0.5, wt, sz - 4.6)
+        txt(xs['trace'], y0 - 0.2, f'Neuron {key}: {DOM[d]["short"]}', color=C_N)
+        a = ax_mm(xs['trace'], y0 + 2.3, wt, sz - 6.4)
         a.plot(tt, seg, color=C_N, lw=0.35)
         a.plot([(c - w0) / FPS], [float(tr[c])], 'o', ms=2.0, mfc='none', mec=C_KEPT, mew=0.6)
         if args.event == 'q95':
