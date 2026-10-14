@@ -600,13 +600,13 @@ def plot(args):
     wa = fw + (nvol - 1) * dx
     xb = xa + wa + 5.0
     xs, x = {}, xb
-    for k, w in (('grid', sz), ('zoom', sz), ('vec', 2 * gw + gg + 1.4 + VPAD), ('pre', bw + 2.0), ('spatial', sz)):
+    for k, w in (('grid', sz), ('zoom', sz), ('vec', 2 * gw + gg + 1.4 + VPAD), ('pre', bw + 2.0 + 3.5), ('spatial', sz)):
         xs[k] = x
         x += w + ag
     x += 9.5 - ag
     xs['trace'] = x
     xs['num'] = W - 0.5 - 11.0
-    wt = xs['num'] - 8.0 - xs['trace']
+    wt = xs['num'] - 4.8 - xs['trace']
     H = top_h + row_h * len(doms) + 0.5
     fig = plt.figure(figsize=(W * MM, H * MM))
 
@@ -636,8 +636,8 @@ def plot(args):
     def grey(frame):
         return np.asarray(frame, np.float32).mean(2) / 255
 
-    def overlay(ax, g, val, mk, color, vmax, amax=0.85):
-        ax.imshow(g, cmap='gray', vmin=0, vmax=1, extent=(0, G, G, 0), interpolation='bilinear')
+    def overlay(ax, g, val, mk, color, vmax, amax=0.85, interp='bilinear'):
+        ax.imshow(g, cmap='gray', vmin=0, vmax=1, extent=(0, G, G, 0), interpolation=interp)
         rgba = np.zeros((G, G, 4))
         rgba[..., :3] = to_rgb(color)
         rgba[..., 3] = np.where(mk, amax * np.clip(val / max(vmax, 1e-9), 0, 1), 0)
@@ -674,12 +674,12 @@ def plot(args):
 
     # headers
     for xx, lab, title in ((xa, 'a', 'Video'), (xb, 'b', 'Frame representation'),
-                           (xs['trace'], 'c', 'Temporal aggregation')):
+                           (xs['spatial'], 'c', 'Neural activation')):
         txt(xx, 0.6, lab, fontsize=8, weight='bold')
         txt(xx + 2.6, 0.85, title, fontsize=FS)
     for k, title in (('grid', f'{G} × {G} tokens'), ('zoom', 'animals mask'),
-                     ('vec', f'{enc_label}\nrepresentation'), ('pre', 'SAE (top-k)'),
-                     ('spatial', 'neuron spatial\nactivation'), ('num', 'per video')):
+                     ('vec', f'{enc_label} token\nrepresentation'), ('pre', 'SAE (top-k)\nrepresentation'),
+                     ('spatial', 'frame neural\nactivation'), ('num', 'per video')):
         txt(xs[k], 4.1, title, color=C_DARK)
     summ_out = {}
     for ri, d in enumerate(doms):
@@ -749,19 +749,27 @@ def plot(args):
         fig.add_artist(ConnectionPatch(xyA=(sx_ + 1, sy + 0.5), coordsA=zoom_ax.transData, xyB=(0, 0.5),
                                        coordsB=gl[0].transAxes, color=C_TOK, lw=0.5, arrowstyle='-|>',
                                        mutation_scale=4))
+        txt(xs['vec'] + 0.7 + VPAD / 2 + gw + gg / 2, vy - 0.25, 'per token', ha='center', va='bottom',
+            fontsize=FS_S - 0.6, color=C_TOK)
         # ---- b4: SAE encoder: dense pre-activations -> sparse code (threshold / top-k), the neuron highlighted
         pa = ax_mm(xs['pre'], vy, bw + 2.0, vh)
         bars(pa, A['pre'], len(A['pre']), hi=key, thr=m['sae_theta'])
         arrow(xs['vec'] + 2 * gw + gg + 1.4 + VPAD / 2 + 0.3, xs['pre'] - 0.3, yc)
-        arrow(xs['pre'] + bw + 2.0 + 0.3, xs['spatial'] - 0.3, yc)
         # ---- b5: the neuron on every kept token (one-hue overlay), -> max -> c
-        a = img(xs['spatial'], y0, sz, ec=C_N, lw=0.7)
+        a = img(xs['spatial'], y0, sz, ec='k', lw=0.5)
         hm = A['heat']
         vmh = max(float(hm.max()), 1e-6)
-        overlay(a, gt, hm, mk, C_N, vmh, amax=0.9)
+        overlay(a, np.where(up, gt, 0.93), hm, mk, C_N, vmh, amax=0.9, interp='nearest')  # non-mask tokens blanked
+        for i in range(1, G):
+            a.axhline(i, color='w', lw=0.15, alpha=0.6)
+            a.axvline(i, color='w', lw=0.15, alpha=0.6)
         edge(a, mk, C_KEPT, 0.4)
         a.set_xlim(zx, zx + zs); a.set_ylim(zy + zs, zy)
-        arrow(xs['spatial'] + sz + 0.5, xs['trace'] - 3.4, yc, 'spatial\n(max)')  # clear of the y tick labels
+        # pink arrow: the neuron's bar in the SAE plot -> the token where it peaks
+        fig.add_artist(ConnectionPatch(xyA=(float(A['pre'][key]), float(key)), coordsA=pa.transData,
+                                       xyB=(sx_ + 0.5, sy + 0.5), coordsB=a.transData, color=C_N, lw=0.6,
+                                       arrowstyle='-|>', mutation_scale=4, connectionstyle='arc3,rad=-0.15'))
+        arrow(xs['spatial'] + sz + 0.5, xs['trace'] - 3.4, yc, 'max\npooling')  # clear of the y tick labels
         # ---- c: one value per frame (raw), firing raster -> temporal -> per video
         fire, s_ = firing(A, m, args.event)
         summ_out[d] = s_
@@ -772,7 +780,8 @@ def plot(args):
         w0 = int(np.clip(c - nw // 2, 0, max(n - nw, 0)))
         seg, fseg = tr[w0:w0 + nw], fire[w0:w0 + nw]
         tt = np.arange(len(seg)) / FPS
-        txt(xs['trace'], y0 - 0.2, f'Neuron {key}: {DOM[d]["short"]}', color=C_N)
+        beh = DOM[d]['short'].replace(' ', '\\ ')
+        txt(xs['trace'], y0 - 0.2, f'Neuron {key}: ' + '$\\it{' + beh + '}$', color=C_N)
         a = ax_mm(xs['trace'], y0 + 2.3, wt, sz - 6.4)
         a.plot(tt, seg, color=C_N, lw=0.35)
         a.plot([(c - w0) / FPS], [float(tr[c])], 'o', ms=2.0, mfc='none', mec=C_KEPT, mew=0.6)
@@ -790,7 +799,6 @@ def plot(args):
         r.set_xticks([0, args.window_s])
         r.set_xticklabels(['0', f'{args.window_s / 60:.0f} min'])
         r.tick_params(length=1.0, labelsize=FS_S - 0.6)
-        arrow(xs['trace'] + wt + 0.6, xs['num'] - 0.6, yc, 'temporal')
         lat = f'{s_["latency_s"]:.1f} s' if not s_['censored'] else f'> {s_["latency_s"]:.0f} s'
         for i, (lab, val) in enumerate((('time', f'{100 * s_["time_budget"]:.0f}%'),
                                         ('bouts', f'{s_["bout_rate_per_min"]:.1f}/min'), ('latency', lat))):
