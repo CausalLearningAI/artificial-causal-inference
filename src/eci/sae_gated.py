@@ -29,6 +29,11 @@ Inference (deterministic): p_j = sigmoid(g_j) is the belief; the code is z_j = 1
 Dead-latent loss (AuxK-like): latents that have not been ON under the INFERENCE rule (g > 0 and m > 0) for `dead_tokens`
     training tokens reconstruct the residual with their top-k_aux gate logits; code p_j * m_j (aux_code 'belief') or
     m_j (aux_code 'magnitude' = Gao et al.'s AuxK: the dead latents' pre-activations).
+L0 weighting: 'flat' (default) = lambda * sum_j p_j. 'nested' = sum over Matryoshka prefixes i of lambda * E[L0 of prefix i]
+    (each nested sub-dictionary has its own rate-distortion objective MSE_i + lambda L0_i), i.e. latent j pays lambda times
+    the number of reconstruction terms it enters. With 'flat', late-prefix latents pay the same price for 1 / 4 of the
+    reconstruction value and die (gate16s seed 0: 93% / 56% / 20% / 2.5% alive in the four groups). The constraint is
+    still on the unweighted E[L0].
 Init: 'uniform' (default): W_enc = W_dec^T, b_gate = logit(target / n_latents) for every latent. init_selective(x):
     data-dependent, every latent a sharp detector of its own top target/n_latents share of tokens (see the method).
     With the uniform init, 92% of latents die in the first ~750 steps on the mice C1 tokens (gate16 seed 0: winners
@@ -102,7 +107,7 @@ class MatryoshkaGatedL0SAE(nn.Module):
     sparsity = 'gated_l0'
 
     def __init__(self, d_in=768, n_latents=1024, prefixes=(128, 256, 512, 1024), target_l0=16.0, lam_init=1.0,
-                 lam_lr=0.005, k_aux=512, aux_coef=1 / 32, dead_tokens=2_000_000, aux_code='belief', seed=0):
+                 lam_lr=0.005, k_aux=512, aux_coef=1 / 32, dead_tokens=2_000_000, aux_code='belief', l0_weighting='flat', seed=0):
         super().__init__()
         prefixes = tuple(int(p) for p in prefixes)
         if list(prefixes) != sorted(prefixes) or prefixes[-1] != n_latents:
@@ -114,6 +119,14 @@ class MatryoshkaGatedL0SAE(nn.Module):
         if aux_code not in ('belief', 'magnitude'):
             raise ValueError(aux_code)
         self.aux_code = aux_code
+        if l0_weighting not in ('flat', 'nested'):
+            raise ValueError(l0_weighting)
+        self.l0_weighting = l0_weighting
+        # nested: latent j pays the L0 price once per Matryoshka reconstruction term it enters
+        cw = torch.zeros(n_latents)
+        for m in prefixes:
+            cw[:m] += 1
+        self.register_buffer('l0_cost', cw if l0_weighting == 'nested' else torch.ones(n_latents))
 
         g = torch.Generator().manual_seed(seed)
         W_dec = torch.randn(n_latents, d_in, generator=g)
@@ -194,7 +207,7 @@ class MatryoshkaGatedL0SAE(nn.Module):
         p = torch.sigmoid(g)
         el0 = p.sum(1).mean()
         lam = self.log_lam.exp()
-        loss = rec + lam * el0
+        loss = rec + lam * (p * self.l0_cost).sum(1).mean()
 
         with torch.no_grad():
             fired = ((g > 0) & (mag > 0)).any(0)  # fired = ON under the deterministic inference rule
@@ -276,7 +289,7 @@ def save_gated(path, sae, norm, extra=None):
                 'hparams': {'d_in': sae.d_in, 'n_latents': sae.n_latents, 'prefixes': list(sae.prefixes),
                             'target_l0': sae.target_l0, 'lam_init': sae.lam_init, 'lam_lr': sae.lam_lr,
                             'k_aux': sae.k_aux, 'aux_coef': sae.aux_coef, 'dead_tokens': sae.dead_tokens,
-                            'aux_code': sae.aux_code},
+                            'aux_code': sae.aux_code, 'l0_weighting': sae.l0_weighting},
                 **(extra or {})}, path)
 
 

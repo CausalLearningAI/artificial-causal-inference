@@ -19,6 +19,8 @@ Harness = scripts/eci/sparsity_test.py / quick_repr.py (reused by import), chang
 Arms (3 seeds each): gate16 (target E[L0] = 16), gate8 (target 8): the model as specified (uniform init, belief AuxK).
     gate16s, gate8s (POST HOC, added after gate16 seed 0 collapsed to 310 / 4096 live latents; same rule): selective
     data-dependent init (MatryoshkaGatedL0SAE.init_selective, proj std 5) + AuxK with the magnitude code (Gao et al.).
+    gate16n, gate8n (POST HOC, after gate16s seed 0 still lost 75% of latents, 93% / 56% / 20% / 2.5% alive per
+    Matryoshka group): as *s + NESTED L0 (each prefix's sub-dictionary pays lambda * its own L0; same E[L0] target).
 References (already measured on the same frames, results/vision/eci_sparsity/eval/): btk16, btk8, c448.
 
 Frame read-outs of every latent (cross-fitted best neuron, vjepa.score construction, weighted, prefixes 512 / 4096):
@@ -59,8 +61,11 @@ OUT = Path(os.environ.get('GS_OUT') or REPO / 'results/vision/eci_gated_sae')
 SPE = REPO / 'results/vision/eci_sparsity/eval'
 D, G, WIDTH = 768, 32, 4096
 LABELS = ['nose_nose', 'nose_tail']
-ARMS = {'gate16': 16.0, 'gate8': 8.0, 'gate16s': 16.0, 'gate8s': 8.0}  # *s = selective init + magnitude AuxK
-REFARM = {'gate16': 'btk16', 'gate8': 'btk8', 'gate16s': 'btk16', 'gate8s': 'btk8'}
+# arm -> (target E[L0], selective init + magnitude AuxK, nested L0)
+ARMCFG = {'gate16': (16.0, False, False), 'gate8': (8.0, False, False), 'gate16s': (16.0, True, False),
+          'gate8s': (8.0, True, False), 'gate16n': (16.0, True, True), 'gate8n': (8.0, True, True)}
+ARMS = {a: c[0] for a, c in ARMCFG.items()}
+REFARM = {a: f'btk{int(c[0])}' for a, c in ARMCFG.items()}
 REF = {'nose_nose': {'auroc': 0.692, 'ap': 0.0552, 'top1': 0.122},
        'nose_tail': {'auroc': 0.741, 'ap': 0.0512, 'top1': 0.099}}  # task-quoted c448 (usable, m4096)
 READOUTS = ('noisy', 'max', 'code')
@@ -88,10 +93,10 @@ def train_one(arm, seed, X, steps, out, dev, bs=4096, lr=5e-4, warmup=500, lam_l
     ii = torch.from_numpy(np.sort(g.choice(N, min(500_000, N), replace=False))).to(dev)
     init = X[ii].float()
     norm = TokenNorm(d).to(dev).fit_blocks(init, [D, D], seed=seed)
-    selective = arm.endswith('s')
+    _, selective, nested = ARMCFG[arm]
     sae = MatryoshkaGatedL0SAE(d_in=d, n_latents=WIDTH, prefixes=(WIDTH // 8, WIDTH // 4, WIDTH // 2, WIDTH),
                                target_l0=target, lam_lr=lam_lr, aux_code='magnitude' if selective else 'belief',
-                               seed=seed).to(dev)
+                               l0_weighting='nested' if nested else 'flat', seed=seed).to(dev)
     with torch.no_grad():
         sae.b_dec.copy_(geometric_median(norm(init[:100_000])))
     init_stats = sae.init_selective(norm(init[-65536:])) if selective else None
@@ -128,7 +133,8 @@ def train_one(arm, seed, X, steps, out, dev, bs=4096, lr=5e-4, warmup=500, lam_l
         el0, dl0 = el0 / len(jj), dl0 / len(jj)
     dead = int((sae.tokens_since_fired >= sae.dead_tokens).sum())
     extra = {'config': 'gated_sae', 'arm': arm, 'target_l0': target, 'seed': seed, 'train_frames': 'res_pool mice train',
-             'init': 'selective' if selective else 'uniform', 'init_stats': init_stats, 'aux_code': sae.aux_code}
+             'init': 'selective' if selective else 'uniform', 'init_stats': init_stats, 'aux_code': sae.aux_code,
+             'l0_weighting': sae.l0_weighting}
     save_gated(out / 'sae.pt', sae, norm, extra=extra)
     (out / 'train.json').write_text(json.dumps({
         **extra, 'n_pool': N, 'steps': steps, 'token_presentations': steps * bs, 'train_time_s': time.time() - t0,

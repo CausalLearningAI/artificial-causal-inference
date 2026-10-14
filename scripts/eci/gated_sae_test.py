@@ -181,7 +181,22 @@ def t9_selective_init():
           f"{float(rate.min()):.4f}-{float(rate.max()):.4f}; magnitude head preserved; magnitude aux {logs['aux']:.2f}")
 
 
+def t10_nested():
+    sae = MatryoshkaGatedL0SAE(d_in=16, n_latents=32, prefixes=(8, 16, 32), target_l0=4, l0_weighting='nested', seed=7)
+    assert sae.l0_cost.tolist() == [3.0] * 8 + [2.0] * 8 + [1.0] * 16
+    x = torch.randn(64, 16) * 4
+    torch.manual_seed(0)
+    loss, logs = sae.forward_train(x)
+    p = sae.beliefs(x)
+    pen = sum(float(p[:, :m].sum(1).mean()) for m in sae.prefixes)  # sum over prefixes of E[L0 of prefix]
+    torch.manual_seed(0)
+    flat = MatryoshkaGatedL0SAE(d_in=16, n_latents=32, prefixes=(8, 16, 32), target_l0=4, seed=7)
+    loss_f, logs_f = flat.forward_train(x)
+    assert abs((loss - loss_f).item() - logs['lam'] * (pen - logs['el0'])) < 1e-3 * abs(loss.item())
+    print(f"10 ok: nested L0 cost = sum over prefixes of E[L0_i] ({pen:.3f} vs flat {logs['el0']:.3f})")
+
+
 if __name__ == '__main__':
-    for f in (t9_selective_init, t1_gate_prob, t2_grads, t3_expected_l0, t5_deterministic, t6_noisy_or, t7_temporal, t8_io, t4_dual):
+    for f in (t10_nested, t9_selective_init, t1_gate_prob, t2_grads, t3_expected_l0, t5_deterministic, t6_noisy_or, t7_temporal, t8_io, t4_dual):
         f()
     print('ALL TESTS PASSED')
