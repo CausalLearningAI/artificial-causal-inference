@@ -143,6 +143,9 @@
   const css = (n) => getComputedStyle($('ate')).getPropertyValue(n).trim();
   const fmt = (x, d = 2) => (x == null || !isFinite(x) ? '—'
     : (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(d));
+  /* p for H0: effect = 0, computed by build_estimates.py off the same t or bootstrap as the interval */
+  const pfmt = (p) => (p == null || !isFinite(p) ? '—' : p < 0.001 ? '&lt;0.001'
+    : p < 0.05 && p.toFixed(3) === '0.050' ? p.toFixed(4) : p.toFixed(3));  // never "0.050" on a hit
   let closePredPopup = null;
   document.addEventListener('click', (ev) => { if (closePredPopup) closePredPopup(ev); });
 
@@ -394,7 +397,7 @@
           }
           tip(g, `<b>${M[c.method].long}</b> · ${title} · ${row.label}`
             + (row.sub ? ` (${row.sub})` : '') + '<br>'
-            + `${fmt(c.est)} &nbsp;95% CI [${fmt(c.lo)}, ${fmt(c.hi)}]`
+            + `${fmt(c.est)} &nbsp;95% CI [${fmt(c.lo)}, ${fmt(c.hi)}] &nbsp;p ${pfmt(c.p)}`
             + (c.method === 'ppci' ? ' &nbsp;<i>(uncalibrated)</i>' : '') + '<br>'
             + `${c.n_lab} annotated${c.n_unlab ? ' / ' + c.n_unlab + ' predicted' : ''} pools`
             + (c.r != null ? `<br>within-cell r = ${c.r.toFixed(2)}` : '')
@@ -417,7 +420,7 @@
     const d = document.createElement('div'); d.className = 'scroll';
     const t = document.createElement('table');
     t.innerHTML = '<thead><tr><th>exposure</th><th>transition</th><th>group</th><th>estimator</th>'
-      + '<th>estimate</th><th>95% CI</th><th>CI width</th><th>vs CI</th><th>pools</th>'
+      + '<th>estimate</th><th>95% CI</th><th>p</th><th>CI width</th><th>vs CI</th><th>pools</th>'
       + '<th>labels used</th></tr></thead>';
     const tb = document.createElement('tbody');
     rows.forEach(({ odour, trans, group, slots }) => {
@@ -428,14 +431,14 @@
         const head = `<td>${odour}</td><td>${trans}</td><td>${group}</td>`
           + `<td>${M[c.method].name}</td>`;
         if (c.na) {
-          tr.innerHTML = head + `<td colspan="6">${c.text}</td>`;
+          tr.innerHTML = head + `<td colspan="7">${c.text}</td>`;
         } else {
           const w = c.hi - c.lo;
           const rel = (refW && c.method === 'ppi')
             ? (100 * (1 - w / refW) >= 0 ? '−' : '+')
               + Math.abs(100 * (1 - w / refW)).toFixed(0) + '%' : '—';
           tr.innerHTML = head + `<td>${fmt(c.est)}</td><td>[${fmt(c.lo)}, ${fmt(c.hi)}]</td>`
-            + `<td>${w.toFixed(2)}</td><td>${rel}</td>`
+            + `<td>${pfmt(c.p)}</td><td>${w.toFixed(2)}</td><td>${rel}</td>`
             + `<td>${c.n_lab}${c.n_unlab ? ' + ' + c.n_unlab : ''}</td>`
             + `<td>${{ ci: 'human', ppi: 'human + AI', ppci: 'AI only, uncalibrated' }[c.method]}</td>`;
         }
@@ -495,7 +498,8 @@
     });
 
     const win = (META.window || {}).name || '';
-    $('ate-note').innerHTML = 'Bars are 95% intervals, clustered on pool; bold values resolve. '
+    $('ate-note').innerHTML = 'Bars are 95% intervals, clustered on pool; bold values resolve '
+      + '(p &lt; 0.05 against no change). '
       + 'CI, PPI++ and PPCI (hollow) share one axis. PPCI is uncalibrated (no human label enters '
       + 'it), so read its distance from CI and PPI++ as the model&rsquo;s bias. An arrow cap means the '
       + 'interval runs past the axis (a 2-pool interval has one degree of freedom). '

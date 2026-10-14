@@ -38,7 +38,7 @@ def inject(tpl: str, token: str, payload: str) -> str:
 # six predictors (17k cells), so the page gets only these, at 4 decimals -- the figure prints 2.
 # report_body.py still reads the full estimates.json, untouched.
 CHART_KEYS = ('exp', 'unit', 'behav', 'stratum', 'odour', 'trans', 'model', 'method',
-              'est', 'lo', 'hi', 'n_lab', 'n_unlab', 'r', 'lam')
+              'est', 'lo', 'hi', 'p', 'n_lab', 'n_unlab', 'r', 'lam')
 
 
 def chart_payload(est: dict) -> dict:

@@ -391,7 +391,12 @@ def ddecay(behav, odour, trans, method='ci'):
              and c['trans'] == trans and c['method'] == method)
     hit = c['lo'] is not None and c['lo'] * c['hi'] > 0
     val = f"{c['est']:+.2f}".replace('-', '&minus;')
-    return '<td%s>%s%s</td>' % (CLS if hit else '', val, '*' if hit else '')
+    # p off the same t_{n-1} as the interval (build_estimates.py), so the star and p < 0.05 agree
+    p = c.get('p')
+    pv = ('' if p is None else ' <small>p&nbsp;%s</small>'
+          % ('&lt;0.001' if p < 0.001 else f'{p:.4f}' if p < 0.05 and f'{p:.3f}' == '0.050'
+             else f'{p:.3f}'))
+    return '<td%s>%s%s%s</td>' % (CLS if hit else '', val, '*' if hit else '', pv)
 
 
 def _cicell(behav, odour, trans, unit='events'):
@@ -2218,7 +2223,8 @@ BODY = f'''
       <tr><td>H &rarr; O &nbsp;(odour ON)</td>{ddecay('nt','fear','H->O')}{ddecay('nt','social','H->O')}{ddecay('nn','fear','H->O')}{ddecay('nn','social','H->O')}</tr>
       <tr><td>O &rarr; P &nbsp;(odour OFF)</td>{ddecay('nt','fear','O->P')}{ddecay('nt','social','O->P')}{ddecay('nn','fear','O->P')}{ddecay('nn','social','O->P')}</tr>
     </tbody></table></div>
-  <p class="defn">* = resolves; {n_dec} of 8 do on human labels alone, {n_dec_ppi} of 8 with PPI++.
+  <p class="defn">* = resolves (two-sided t test on pool differences, p &lt; 0.05); {n_dec} of 8 do
+  on human labels alone, {n_dec_ppi} of 8 with PPI++.
   Decay is undefined where a recording has no bout in the window, so the classical n falls to
   {decay_n()} pools by cell &mdash; a property of the <em>annotations</em>, not of the model, and
   the reason the model buys more on the timing than it does on the level.

@@ -16,6 +16,10 @@ THE GRID
     transition  H->O | O->P                    -- consecutive only
     method      CI (human labels, v1) | PPI++ (human+model, v1) | PPCI (model only, both)
 
+Every cell carries est, lo, hi (95%) and p, the two-sided p-value for H0: effect = 0, taken from
+the same machinery as its interval (src/mice_behavior/phase_ate.py): CI and PPI++ a t test with
+the interval's n_lab - 1 df, PPCI its own bootstrap. p is null wherever the interval is.
+
 WHERE EACH INPUT COMES FROM
 ===========================
 truth, v1 labelled
@@ -535,7 +539,9 @@ def main():
                             for e in ests:
                                 if e is None:
                                     continue
-                                cells.append({**base, **e.as_dict()})
+                                # `p` (H0: effect = 0) comes from the estimator itself, off the
+                                # same t or bootstrap as its interval; null wherever it has none
+                                cells.append({**base, 'p': None, **e.as_dict()})
         n = sum(1 for c in cells if c['exp'] == version and c['model'] == pkey)
         print(f'  {pkey} {version}: built {n} estimates')
 

@@ -68,6 +68,10 @@ INTERVALS
 =========
 All three use the SAME t_{n-1} quantile on the same pool-clustered scale, because a shrinkage
 percentage compared across methods is meaningless if one of them used 1.96 and another 2.07.
+
+P-VALUES (H0: effect = 0) come from the machinery of the interval they sit next to, so p < 0.05
+exactly when the 95% interval excludes zero: classical and PPI++ a two-sided t_{n-1} test on
+est / se, PPCI twice the share of its bootstrap draws on the far side of zero.
 """
 from __future__ import annotations
 
@@ -176,6 +180,23 @@ def _t(n: int) -> float:
     return float(stats.t.ppf(0.975, max(n - 1, 1)))
 
 
+# P-VALUES FOR H0: effect = 0, each from the SAME machinery as its method's interval, so that
+# p < 0.05 holds exactly when the 95% interval excludes zero (up to the bootstrap's granularity).
+def _p_t(est: float, se: float, n: int) -> float:
+    """Two-sided t-test p, df = n-1 -- the df `_t(n)` puts on the interval."""
+    if not (np.isfinite(est) and np.isfinite(se)):
+        return float('nan')
+    if se == 0:
+        return 1.0 if est == 0 else 0.0
+    return float(2 * stats.t.sf(abs(est / se), max(n - 1, 1)))
+
+
+def _p_boot(bs) -> float:
+    """Two-sided bootstrap p: twice the share of draws on the far side of zero, capped at 1."""
+    bs = np.asarray(bs, float)
+    return float(min(1.0, 2 * min((bs <= 0).mean(), (bs >= 0).mean())))
+
+
 def pool_deltas(df, true_col, pred_col, odour, transition) -> PoolDeltas:
     """Collapse per-observation rows to one difference per pool, for ONE exposure cell.
 
@@ -216,7 +237,8 @@ def classical(d: PoolDeltas) -> Estimate:
                         {'note': 'n<2: no interval is defined'})
     se = v.std(ddof=1) / np.sqrt(n)
     m, q = float(v.mean()), _t(n)
-    return Estimate('classical', m, m - q * se, m + q * se, n, 0, {'se': float(se)})
+    return Estimate('classical', m, m - q * se, m + q * se, n, 0,
+                    {'se': float(se), 'p': _p_t(m, float(se), n)})
 
 
 def ppi(d: PoolDeltas) -> Estimate:
@@ -275,7 +297,7 @@ def ppi(d: PoolDeltas) -> Estimate:
     se = float(np.sqrt((dy - lam * fl).var(ddof=1) / n + lam ** 2 * fu.var(ddof=1) / N))
     q = _t(n)
     return Estimate('ppi', est, est - q * se, est + q * se, n, N,
-                    {'se': se, 'lam': lam, 'r': d.r()})
+                    {'se': se, 'lam': lam, 'r': d.r(), 'p': _p_t(est, se, n)})
 
 
 def ppci(d: PoolDeltas, k: float = None, k_boot=None, reps: int = 4000,
@@ -324,7 +346,7 @@ def ppci(d: PoolDeltas, k: float = None, k_boot=None, reps: int = 4000,
         bs = [f_all[rng.integers(0, len(f_all), len(f_all))].mean() for _ in range(reps)]
         lo, hi = np.percentile(bs, [2.5, 97.5])
         return Estimate('ppci', est, float(lo), float(hi), int(lab.sum()), len(f_all),
-                        {'scale': 'model (uncalibrated)', 'k': None})
+                        {'scale': 'model (uncalibrated)', 'k': None, 'p': _p_boot(bs)})
     local = k is None
     if local:
         if lab.sum() < 3:
@@ -356,7 +378,7 @@ def ppci(d: PoolDeltas, k: float = None, k_boot=None, reps: int = 4000,
     lo, hi = np.percentile(bs, [2.5, 97.5])
     return Estimate('ppci', est, float(lo), float(hi), int(lab.sum()), len(f_all),
                     {'k': float(k), 'r': d.r(), 'transported': not local,
-                     'scale': 'calibrated to labels'})
+                     'scale': 'calibrated to labels', 'p': _p_boot(bs)})
 
 
 def scale_bootstrap(d: PoolDeltas, reps: int = 4000, seed: int = 0) -> np.ndarray:
