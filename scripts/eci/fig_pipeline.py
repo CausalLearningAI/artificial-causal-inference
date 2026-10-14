@@ -3,17 +3,14 @@ Nature-style multi-panel figure of the ECI (Exploratory Causal Inference) REPRES
 (ants, mice, frogs), the same steps on a real example frame of that domain, from the raw video to the video-level
 summaries of one behaviour-like neuron. Discovery (NES) is not shown.
 
-    a  video              the two 5 fps, 512 px frames one step uses: t - 1 s and t
-    b  DINOv2 + mask      both frames' frozen DINOv2 tokens as PCA-RGB (PCA on the domain's kept tokens of the encoded
-                          candidate frames + the shown frames, PCs 1-3 -> RGB, 1st-99th percentile scaling), the animal
-                          mask outlined, tokens outside it greyed
-    c  token input        kept tokens: x_t (PCA-RGB) next to |x_t - x_(t-1 s)| (difference AFTER encoding, token space)
-    d  SAE code           one neuron's activation on every kept token (display crop around the kept tokens)
-    e  spatial max        max over kept tokens -> the neuron's frame value (one number)
-    f  temporal           HMM event confidence P(ON) (results/vision/eci_event_hmm) over a 2-min window around the
-                          example frame, bouts (P(ON) > 0.5) shaded; --trace q95 = raw value + its q 0.95 threshold
-    g  per-video          time budget (mean P(ON)), bout rate (runs of P(ON) > 0.5 per min), latency (s to the first
-                          P(ON) > 0.5), over the whole analysed clip
+    a  video              filmstrip: 6 frames evenly over the analysed clip on its time axis, the example frame t
+                          (orange) replacing the nearest one
+    b  one frame -> repr. in the order of operations: frames t - 1 s, t -> frozen DINOv2 tokens of each whole frame
+                          (PCA-RGB, PCA on the domain's kept tokens) -> animal mask (frame t) -> token input x_t next to
+                          |x_t - x_(t-1 s)| -> one SAE neuron per kept token -> max over kept tokens (one number)
+    c  temporal           the neuron's RAW frame value over a 2-min window (--window-s), firing raster, and the three
+                          video-level numbers over the whole clip from the firing rule --event (default nonzero = frame
+                          value > 0; q95; hmm): time (fraction firing), bouts (runs of firing frames per min), latency
     All explanatory text lives in results/vision/eci_pipeline_fig/caption.md.
     sheets stage          top-frame sheets of candidate frog neurons (used to choose / describe the frog neuron)
 
@@ -57,6 +54,7 @@ SAE = {'ants': 'matryoshka_btk_4096_k16_antsfgm5_s0', 'mice': 'matryoshka_btk_40
        'frogs': 'matryoshka_btk_4096_k16_frogsfgm5_s0'}
 HMM = REPO / 'results/vision/eci_event_hmm'  # per-frame HMM P(ON) (scripts/eci/event_hmm.py), when present
 MIN_PIECE, MAX_TRY = 3, 48
+N_THUMB = 6  # filmstrip thumbnails over the analysed clip
 # event_hmm per-video tables covering the same clip (mice: the table holds the whole 30-min video, not comparable)
 HMM_REF = {'ants': ('bouts_186_groom_any.csv', 'hmm_mean_p', 'hmm'),
            'frogs': ('per_video.csv', 'mean_p_on', 'hmm_bouts_per_min')}  # clean-mask example search
@@ -316,6 +314,18 @@ def compute_domain(name, cfg, sae_name, tmp, n_cand=200):
     vs = np.load(nes / 'video_summaries_max.npz')
     rate0 = float(vs[f'{w}__rate'][list(vs['observation_id']).index(obs), key])
     lengths['clip_min'] = summ['clip_min']
+    ncl = w1 - w0
+    t_rel = fidx - w0
+    tpos = [int((i + 0.5) * ncl / N_THUMB) for i in range(N_THUMB)]
+    j_ex = int(np.argmin([abs(q - t_rel) for q in tpos]))
+    tpos[j_ex] = t_rel
+    thumbs = []
+    for q in tpos:
+        pth = Path(tmp) / 'thumb' / ann.frame_path.iloc[lo + w0 + q].replace('/', '_')
+        pth.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(REPO / 'dataset' / ann.frame_path.iloc[lo + w0 + q], pth)
+        thumbs.append(np.asarray(Image.open(pth).convert('RGB').resize((192, 192), Image.LANCZOS)))
+    thumbs = np.stack(thumbs)
     hmm = None
     hp = HMM / name / 'posteriors.npz'
     if hp.exists():
@@ -377,6 +387,7 @@ def compute_domain(name, cfg, sae_name, tmp, n_cand=200):
     np.savez_compressed(OUT / 'cache' / f'{name}.npz', native=nat_small, frames=frames, enc_in=enc_in,
                         mask=mask.numpy().reshape(GRID, GRID), motion=motion.reshape(GRID, GRID), heat=heat, code=mx,
                         tok_code=tok_code, trace=tr, above=above, bouts=bouts, pca_t=pca_rgb[0], pca_p=pca_rgb[1],
+                        thumbs=thumbs, thumb_pos=np.array(tpos), thumb_ex=j_ex,
                         mask_p=mask_p.numpy().reshape(GRID, GRID),
                         **({} if hmm is None else dict(p_on=hmm['p_on'], hmm_bouts=hmm['bouts'])))
     json.dump(meta, open(OUT / 'cache' / f'{name}.json', 'w'), indent=1,
@@ -515,184 +526,234 @@ def edge(ax, mk, color, lw):
     ax.set_xlim(0, G); ax.set_ylim(G, 0)
 
 
+EVENT_RULES = ('nonzero', 'q95', 'hmm')  # add e.g. 'topk' here and in firing()
+
+
+def firing(A, m, rule):
+    """Firing frames of the shown neuron over the whole analysed clip + the three video-level summaries.
+    nonzero: frame value (max over kept tokens) > 0, i.e. active on >= 1 kept token; q95: frame value > the neuron's
+    q 0.95 threshold; hmm: P(ON) > 0.5 (time budget = mean P(ON)). Bout = run of consecutive firing frames."""
+    tr = A['trace']
+    if rule == 'nonzero':
+        fire = tr > 0
+        tb = float(fire.mean())
+        assert abs(tb - m['summary']['frac_nonzero']) < 1e-9, (tb, m['summary']['frac_nonzero'])  # = NES 'rate'
+    elif rule == 'q95':
+        fire = tr > m['summary']['threshold']
+        tb = float(fire.mean())
+    elif rule == 'hmm':
+        fire = A['p_on'] > 0.5
+        tb = float(A['p_on'].mean())
+    else:
+        raise ValueError(rule)
+    d = np.diff(np.r_[0, fire.astype(np.int8), 0])
+    st = np.flatnonzero(d == 1)
+    minutes = len(tr) / FPS / 60
+    lat = float(st[0] / FPS) if len(st) else float(len(tr) / FPS)
+    return fire, dict(time_budget=tb, n_bouts=int(len(st)), bout_rate_per_min=float(len(st) / minutes), latency_s=lat,
+                      censored=not len(st), clip_min=float(minutes))
+
+
 def plot(args):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     from matplotlib import font_manager
-    from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Polygon, Rectangle
+    from matplotlib.patches import FancyBboxPatch, Polygon, Rectangle
     fams = [f for f in ('Arial', 'Helvetica', 'Liberation Sans', 'Nimbus Sans', 'DejaVu Sans')
             if any(f == x.name for x in font_manager.fontManager.ttflist)]
-    plt.rcParams.update({'font.family': 'sans-serif', 'font.sans-serif': fams, 'font.size': FS, 'axes.linewidth': 0.5,
-                         'xtick.major.width': 0.5, 'ytick.major.width': 0.5, 'xtick.major.size': 1.5,
-                         'ytick.major.size': 1.5, 'xtick.labelsize': FS_S, 'ytick.labelsize': FS_S,
-                         'xtick.major.pad': 1, 'ytick.major.pad': 1, 'pdf.fonttype': 42, 'ps.fonttype': 42,
+    plt.rcParams.update({'font.family': 'sans-serif', 'font.sans-serif': fams, 'font.size': FS, 'axes.linewidth': 0.4,
+                         'xtick.major.width': 0.4, 'ytick.major.width': 0.4, 'xtick.major.size': 1.2,
+                         'ytick.major.size': 1.2, 'xtick.labelsize': FS_S, 'ytick.labelsize': FS_S,
+                         'xtick.major.pad': 0.8, 'ytick.major.pad': 0.8, 'pdf.fonttype': 42, 'ps.fonttype': 42,
                          'mathtext.default': 'regular', 'mathtext.fontset': 'custom', 'mathtext.it': f'{fams[0]}:italic',
-                         'mathtext.rm': fams[0], 'axes.labelpad': 1})
+                         'mathtext.rm': fams[0], 'axes.labelpad': 0.8})
     log(f'font: {fams[0]}')
     doms = args.domains.split(',')
     data = {d: (dict(np.load(OUT / 'cache' / f'{d}.npz')), json.load(open(OUT / 'cache' / f'{d}.json'))) for d in doms}
     m0 = data[doms[0]][1]
     enc_label = args.encoder_label or m0['encoder_label'].split('-')[0]
-    grid_n = args.grid or m0['grid']
-    all_hmm = args.trace == 'hmm' and all('p_on' in A_ for A_, _ in data.values())
+    G = args.grid or m0['grid']
     # ------------------------------------------------ layout (mm)
     W = 183.0
-    left, top_h, row_h, im = 7.0, 8.5, 24.5, 14.0
-    widths = dict(a=29.0, b=29.0, c=29.0, d=14.0, e=11.0, f=30.0, g=15.0)
-    gap = (W - left - 0.5 - sum(widths.values())) / (len(widths) - 1)
-    xs, x = {}, left
-    for k, w in widths.items():
-        xs[k] = x
-        x += w + gap
-    H = top_h + row_h * len(doms)
+    left, top_h, row_h = 6.8, 8.2, 17.0
+    sz, pg, ag = 9.6, 0.5, 2.6  # mini panel, pair gap, arrow gap
+    tw, tg = 6.0, 0.5           # filmstrip thumbnail, gap
+    xa = left
+    wa = 6 * tw + 5 * tg
+    xb = xa + wa + 3.6
+    steps = [('frames', 2), ('tokens', 2), ('mask', 1), ('input', 2), ('sae', 1), ('max', None)]
+    sx, x = {}, xb
+    for k, n in steps:
+        sx[k] = x
+        x += (2 * sz + pg if n == 2 else sz if n == 1 else 7.0) + ag
+    xc = x - ag + 3.6
+    H = top_h + row_h * len(doms) - 1.0
     fig = plt.figure(figsize=(W * MM, H * MM))
 
-    def ax_mm(x, y, w, h, **kw):  # y measured from the top
-        return fig.add_axes([x / W, 1 - (y + h) / H, w / W, h / H], **kw)
+    def ax_mm(x, y, w, h):
+        return fig.add_axes([x / W, 1 - (y + h) / H, w / W, h / H])
 
     def txt(x, y, s, **kw):
-        kw.setdefault('fontsize', FS)
+        kw.setdefault('fontsize', FS_S)
         kw.setdefault('va', 'top')
-        kw.setdefault('linespacing', 1.1)
+        kw.setdefault('linespacing', 1.05)
         return fig.text(x / W, 1 - y / H, s, **kw)
 
-    def img_ax(x, y, w, h=None, ec=C_DARK, lw=0.4):
-        a = ax_mm(x, y, w, h or w)
+    def img(x, y, w, ec=C_DARK, lw=0.35):
+        a = ax_mm(x, y, w, w)
         a.set_xticks([]); a.set_yticks([])
         for s in a.spines.values():
             s.set_linewidth(lw); s.set_color(ec)
         return a
 
-    heads = dict(a='Video\n(t − 1 s, t)', b=f'Frozen {enc_label} tokens\n+ animal mask',
-                 c='Token input\n[x$_t$, x$_t$ − x$_{t-1\\,s}$]', d='SAE code\n(one neuron)', e='Spatial\nmax',
-                 f='Temporal: ' + ('P(ON)' if all_hmm else 'frame value') + '\n(2-min window)', g='Per-video\nsummary')
-    for k, s in heads.items():
-        txt(xs[k], 0.8, k, fontsize=8, weight='bold')
-        txt(xs[k] + 2.7, 1.05, s, linespacing=1.05)
-
-    def chevron(xc, yc):
-        w, h = 1.1, 2.0
+    def arrow(x0, yc):
+        w, h = 1.0, 1.7
+        xc = x0 + ag / 2
         fig.patches.append(Polygon([((xc - w / 2) / W, 1 - (yc - h / 2) / H), ((xc + w / 2) / W, 1 - yc / H),
                                     ((xc - w / 2) / W, 1 - (yc + h / 2) / H)], closed=True, transform=fig.transFigure,
-                                   fc=C_LIGHT, ec='none'))
+                                   fc='#bdbdbd', ec='none'))
 
     def cbar(x, y, w, cmap, vmax):
-        a = ax_mm(x, y, w, 0.9)
+        a = ax_mm(x, y, w, 0.7)
         a.imshow(np.linspace(0, 1, 128)[None], aspect='auto', cmap=cmap, extent=(0, 1, 0, 1))
         a.set_xticks([]); a.set_yticks([])
         for s in a.spines.values():
-            s.set_linewidth(0.3)
-        txt(x, y + 1.1, '0', fontsize=FS_S, ha='left')
-        txt(x + w, y + 1.1, f'{vmax:.0f}' if vmax >= 10 else f'{vmax:.1f}', fontsize=FS_S, ha='right')
+            s.set_linewidth(0.25)
+        txt(x + w, y + 0.9, f'{vmax:.0f}', ha='right', fontsize=FS_S - 0.4)
+        txt(x, y + 0.9, '0', ha='left', fontsize=FS_S - 0.4)
 
     def greyed(rgb, mk, frame):
-        """PCA-RGB inside the mask, the frame's grey level (lightened) outside."""
-        G = mk.shape[0]
         g = np.asarray(frame, np.float32).mean(2) / 255
         gs = g.reshape(G, 512 // G, G, 512 // G).mean((1, 3))
         out = np.repeat((0.55 + 0.35 * gs)[..., None], 3, 2)
         out[mk] = rgb[mk]
         return out
 
+    # headers: block titles + step titles
+    for xx, lab, title in ((xa, 'a', 'Video'), (xb, 'b', 'One frame → representation'),
+                           (xc, 'c', 'Temporal (one neuron)')):
+        txt(xx, 0.6, lab, fontsize=8, weight='bold')
+        txt(xx + 2.6, 0.85, title, fontsize=FS)
+    for k, title in (('frames', 't − 1 s, t'), ('tokens', f'frozen {enc_label}'), ('mask', 'mask'),
+                     ('input', '[x$_t$, x$_t$ − x$_{t-1\\,s}$]'), ('sae', 'SAE'), ('max', 'max')):
+        txt(sx[k], 4.4, title, color=C_DARK)
     vm_motion = max(float(np.ma.masked_where(~A_['mask'].astype(bool), A_['motion']).max()) for A_, _ in data.values())
+    summ_out = {}
     for ri, d in enumerate(doms):
         A, m = data[d]
         y0 = top_h + ri * row_h
-        G = grid_n
-        txt(0.6, y0 + im / 2, m['name'], fontsize=7, weight='bold', rotation=90, va='center', ha='left')
-        txt(3.6, y0 + im / 2, m['species'], fontsize=FS_S, rotation=90, va='center', ha='left')
-        for k in ('a', 'b', 'c', 'd'):
-            chevron(xs[k] + widths[k] + gap / 2, y0 + im / 2)
+        yc = y0 + sz / 2
         key = m['key']
-        mk, mkp = A['mask'].astype(bool), A['mask_p'].astype(bool)
+        mk = A['mask'].astype(bool)
         zx, zy, zs = zoom_box(mk)
-        sy, sx_ = m['sel_token']
-        hw = (widths['a'] - 1.0) / 2
-        # a video: the two 5 fps frames one step uses
-        for j, (fi, lab) in enumerate(zip((1, 0), ('t − 1 s', 't'))):
-            a = img_ax(xs['a'] + j * (hw + 1.0), y0, hw)
+        txt(0.4, y0 + sz / 2 + 0.6, m['name'], fontsize=6.5, weight='bold', rotation=90, va='center', ha='left')
+        txt(3.3, y0 + sz / 2 + 0.6, m['species'], fontsize=FS_S - 0.6, rotation=90, va='center', ha='left')
+        # ---- a: filmstrip over the analysed clip
+        clip_fr = m['window'][1] - m['window'][0]
+        clip_min = clip_fr / FPS / 60
+        tpos, j_ex = A['thumb_pos'], int(A['thumb_ex'])
+        yt = y0 + 0.8
+        for i in range(len(tpos)):
+            a = img(xa + i * (tw + tg), yt, tw, ec=C_KEPT if i == j_ex else C_DARK, lw=0.8 if i == j_ex else 0.3)
+            a.imshow(A['thumbs'][i], interpolation='lanczos')
+        ta = ax_mm(xa, yt + tw + 1.0, wa, 0.01)
+        ta.set_xlim(0, clip_min); ta.set_yticks([])
+        for s in ('top', 'right', 'left'):
+            ta.spines[s].set_visible(False)
+        step = {10: 5, 15: 5, 60: 20}.get(int(round(clip_min)), max(1, int(clip_min / 3)))
+        ta.set_xticks(np.arange(0, clip_min + 1e-6, step))
+        ta.set_xticklabels([f'{v:.0f}' for v in np.arange(0, clip_min + 1e-6, step)[:-1]] + [f'{clip_min:.0f} min'])
+        ta.tick_params(length=1.0, labelsize=FS_S - 0.4)
+        for i, q in enumerate(tpos):  # connectors from each thumbnail to its time on the axis
+            xq = xa + q / clip_fr * wa
+            xm = xa + i * (tw + tg) + tw / 2
+            fig.lines.append(matplotlib.lines.Line2D([xm / W, xq / W], [1 - (yt + tw) / H, 1 - (yt + tw + 1.0) / H],
+                                                     transform=fig.transFigure, lw=0.3,
+                                                     color=C_KEPT if i == j_ex else C_GREY))
+        # ---- b: one frame -> representation
+        for j, fi in enumerate((1, 0)):  # frames t - 1 s, t
+            a = img(sx['frames'] + j * (sz + pg), y0, sz)
             a.imshow(A['frames'][fi], interpolation='lanczos')
-            a.text(0.05, 0.95, lab, transform=a.transAxes, color='w', fontsize=FS_S, va='top', ha='left')
-        # b frozen DINOv2 tokens (PCA-RGB) + animal mask, both frames, whole frame
-        for j, (rgb, mm_, fi) in enumerate(((A['pca_p'], mkp, 1), (A['pca_t'], mk, 0))):
-            a = img_ax(xs['b'] + j * (hw + 1.0), y0, hw)
-            a.imshow(greyed(rgb, mm_, A['frames'][fi]), extent=(0, G, G, 0), interpolation='nearest')
-            edge(a, mm_, C_KEPT, 0.45)
-        # c token input: x_t (PCA-RGB) next to |x_t - x_(t-1 s)|, kept tokens, zoomed
-        a = img_ax(xs['c'], y0, hw)
+        arrow(sx['frames'] + 2 * sz + pg, yc)
+        for j, rgb in enumerate((A['pca_p'], A['pca_t'])):  # whole-frame tokens, PCA-RGB
+            a = img(sx['tokens'] + j * (sz + pg), y0, sz)
+            a.imshow(rgb, extent=(0, G, G, 0), interpolation='nearest')
+        arrow(sx['tokens'] + 2 * sz + pg, yc)
+        a = img(sx['mask'], y0, sz)  # the mask keeps the animal tokens (frame t)
         a.imshow(greyed(A['pca_t'], mk, A['frames'][0]), extent=(0, G, G, 0), interpolation='nearest')
-        edge(a, mk, C_KEPT, 0.45)
+        edge(a, mk, C_KEPT, 0.35)
+        arrow(sx['mask'] + sz, yc)
+        a = img(sx['input'], y0, sz)  # x_t, kept tokens, zoom
+        a.imshow(greyed(A['pca_t'], mk, A['frames'][0]), extent=(0, G, G, 0), interpolation='nearest')
         a.set_xlim(zx, zx + zs); a.set_ylim(zy + zs, zy)
-        a.text(0.05, 0.95, 'x$_t$', transform=a.transAxes, color='k', fontsize=FS_S, va='top', ha='left')
-        a = img_ax(xs['c'] + hw + 1.0, y0, hw)
-        bg = np.full((G, G), 0.0)
+        a = img(sx['input'] + sz + pg, y0, sz)  # |x_t - x_(t-1 s)|, kept tokens, zoom
         a.imshow(np.ones((G, G, 3)) * 0.85, extent=(0, G, G, 0), interpolation='nearest')
         a.imshow(np.ma.masked_where(~mk, A['motion']), cmap='viridis', vmin=0, vmax=vm_motion, extent=(0, G, G, 0),
                  interpolation='nearest')
         a.set_xlim(zx, zx + zs); a.set_ylim(zy + zs, zy)
-        a.text(0.05, 0.95, '|Δx|', transform=a.transAxes, color='k', fontsize=FS_S, va='top', ha='left')
-        cbar(xs['c'] + hw + 1.0, y0 + im + 0.8, hw, 'viridis', vm_motion)
-        # d SAE code: one neuron on every kept token, zoomed
-        a = img_ax(xs['d'], y0, im, ec=C_N, lw=0.9)
+        cbar(sx['input'] + sz + pg, y0 + sz + 0.6, sz, 'viridis', vm_motion)
+        arrow(sx['input'] + 2 * sz + pg, yc)
+        a = img(sx['sae'], y0, sz, ec=C_N, lw=0.7)  # one neuron per kept token, zoom
         fr = A['frames'][0].astype(np.float32) / 255
         a.imshow(fr.mean(2), cmap='gray', vmin=-0.2, vmax=1.6, extent=(0, G, G, 0), interpolation='bilinear')
         hm = A['heat']
         vmh = max(float(hm.max()), 1e-6)
         a.imshow(np.ma.masked_where(~mk | (hm <= 0), hm), cmap='magma', vmin=0, vmax=vmh, extent=(0, G, G, 0),
                  interpolation='nearest')
-        edge(a, mk, '#ffffff', 0.3)
+        edge(a, mk, '#ffffff', 0.25)
         a.set_xlim(zx, zx + zs); a.set_ylim(zy + zs, zy)
-        cbar(xs['d'], y0 + im + 0.8, im, 'magma', vmh)
-        txt(xs['d'], y0 + im + 4.1, f'#{key} {DOM[d]["short"]}', fontsize=FS_S, color=C_N)
-        # e spatial max -> one number
-        ex = xs['e'] + widths['e'] / 2
-        txt(ex, y0 + 1.6, 'max', fontsize=FS_S, ha='center', color=C_DARK)
-        fig.patches.append(FancyArrowPatch(((ex) / W, 1 - (y0 + 4.0) / H), (ex / W, 1 - (y0 + 7.6) / H),
-                                           transform=fig.transFigure, arrowstyle='-|>', mutation_scale=5, lw=0.6,
-                                           color=C_DARK))
-        bw, bh = widths['e'] - 1.0, 4.0
-        fig.patches.append(FancyBboxPatch(((xs['e'] + 0.5) / W, 1 - (y0 + 8.2 + bh) / H), bw / W, bh / H,
+        cbar(sx['sae'], y0 + sz + 0.6, sz, 'magma', vmh)
+        txt(sx['sae'] + sz + ag, y0 + sz + 0.4, f'#{key}\n{DOM[d]["short"]}', color=C_N)
+        arrow(sx['sae'] + sz, yc)
+        bw, bh = 7.0, 4.2
+        fig.patches.append(FancyBboxPatch((sx['max'] / W, 1 - (yc + bh / 2) / H), bw / W, bh / H,
                                           boxstyle='round,pad=0,rounding_size=0.004', transform=fig.transFigure,
-                                          fc='white', ec=C_N, lw=0.8))
-        txt(ex, y0 + 8.2 + bh / 2, f'{m["frame_code_value"]:.1f}', fontsize=7, weight='bold', ha='center', va='center',
-            color=C_N)
-        # f temporal: P(ON) over a 2-min window around the example frame, bouts shaded
-        use_hmm = args.trace == 'hmm' and 'p_on' in A
-        tr = A['p_on'] if use_hmm else A['trace']
-        s_ = m['hmm_summary'] if use_hmm else m['summary']
-        thr = 0.5 if use_hmm else s_['threshold']
+                                          fc='white', ec=C_N, lw=0.7))
+        txt(sx['max'] + bw / 2, yc, f'{m["frame_code_value"]:.1f}', fontsize=6.5, weight='bold', ha='center',
+            va='center', color=C_N)
+        # ---- c: raw per-frame value over a window around t, firing raster, video-level numbers (whole clip)
+        fire, s_ = firing(A, m, args.event)
+        summ_out[d] = s_
+        tr = A['trace']
         n = len(tr)
+        nw = int(round(args.window_s * FPS))
         c = m['frame_idx'] - m['window'][0]
-        w0 = int(np.clip(c - 300, 0, max(n - 600, 0)))
-        seg = tr[w0:w0 + 600]
+        w0 = int(np.clip(c - nw // 2, 0, max(n - nw, 0)))
+        seg, fseg = tr[w0:w0 + nw], fire[w0:w0 + nw]
         tt = np.arange(len(seg)) / FPS
-        hx, hwid = xs['f'] + 3.4, widths['f'] - 5.6
-        a = ax_mm(hx, y0, hwid, 11.0)
-        on = seg > thr
-        top = 1.0 if use_hmm else float(max(seg.max(), thr)) * 1.05
-        a.fill_between(tt, 0, top, where=on, color=C_N, alpha=0.15, lw=0, step='mid')
-        a.plot(tt, seg, color=C_N, lw=0.45)
-        a.axvline((c - w0) / FPS, color=C_KEPT, lw=0.6)
-        a.set_xlim(0, 120); a.set_ylim(0, top)
-        if use_hmm:
-            a.set_yticks([0, 1]); a.set_yticklabels(['0', '1'])
-        else:
-            a.axhline(thr, color='k', lw=0.4, ls=(0, (2, 1.5))); a.locator_params(axis='y', nbins=2)
-        a.set_xticks([0, 60, 120]); a.set_xticklabels(['0', '60', '120 s'])
+        cw = W - 0.5 - xc
+        nx = xc + cw - 8.3  # numbers column
+        hx, hw_ = xc + 3.0, nx - xc - 6.4
+        a = ax_mm(hx, y0, hw_, sz - 2.0)
+        a.plot(tt, seg, color=C_N, lw=0.35)
+        a.axvline((c - w0) / FPS, color=C_KEPT, lw=0.5)
+        if args.event == 'q95':
+            a.axhline(m['summary']['threshold'], color='k', lw=0.35, ls=(0, (2, 1.5)))
+        a.set_xlim(0, args.window_s); a.set_ylim(0, float(tr.max()) * 1.05)
+        a.set_xticks([]); a.locator_params(axis='y', nbins=2)
         for s in ('top', 'right'):
             a.spines[s].set_visible(False)
-        a.set_ylabel('P(ON)' if use_hmm else f'#{key}', fontsize=FS_S, color=C_N, labelpad=0.5)
-        # g per-video summaries (whole clip)
+        r = ax_mm(hx, y0 + sz - 1.6, hw_, 1.4)
+        on = np.flatnonzero(fseg) / FPS
+        r.vlines(on, 0, 1, color='k', lw=0.15)
+        r.set_xlim(0, args.window_s); r.set_ylim(0, 1); r.set_yticks([])
+        for s in ('top', 'right', 'left'):
+            r.spines[s].set_visible(False)
+        r.set_xticks([0, args.window_s / 2, args.window_s])
+        r.set_xticklabels(['0', f'{args.window_s / 2:.0f}', f'{args.window_s:.0f} s'])
+        r.tick_params(length=1.0, labelsize=FS_S - 0.4)
         lat = f'{s_["latency_s"]:.1f} s' if not s_['censored'] else f'> {s_["latency_s"]:.0f} s'
-        for i, (lab, val) in enumerate((('time budget', f'{100 * s_["time_budget"]:.0f}%'),
-                                        ('bout rate', f'{s_["bout_rate_per_min"]:.1f}/min'), ('latency', lat))):
-            yy = y0 + 0.2 + i * 5.0
-            txt(xs['g'], yy, lab, fontsize=FS_S, color=C_DARK)
-            txt(xs['g'], yy + 2.0, val, fontsize=7, weight='bold')
+        for i, (lab, val) in enumerate((('time', f'{100 * s_["time_budget"]:.0f}%'),
+                                        ('bouts', f'{s_["bout_rate_per_min"]:.1f}/min'), ('latency', lat))):
+            yy = y0 - 0.2 + i * 3.9
+            txt(nx, yy, lab, fontsize=FS_S - 0.6, color=C_DARK)
+            txt(nx, yy + 1.5, val, fontsize=6, weight='bold')
     for fmt in ('pdf', 'png'):
         fig.savefig(OUT / f'fig_pipeline.{fmt}', dpi=args.dpi if fmt == 'png' else 600)
-    log(f'saved {OUT}/fig_pipeline.pdf/.png ({W:.0f} x {H:.0f} mm)')
+    json.dump({'event': args.event, 'window_s': args.window_s, 'summaries': summ_out},
+              open(OUT / 'temporal_summaries.json', 'w'), indent=1)
+    log(f'saved {OUT}/fig_pipeline.pdf/.png ({W:.0f} x {H:.0f} mm); event {args.event}: {summ_out}')
 
 
 def main():
@@ -704,8 +765,11 @@ def main():
     ap.add_argument('--grid', type=int, default=0, help='token-grid side drawn in c (default: from the cache)')
     ap.add_argument('--input-px', type=int, default=0, help='encoder input size drawn in c (default: from the cache)')
     ap.add_argument('--dpi', type=int, default=300)
-    ap.add_argument('--trace', choices=('hmm', 'q95'), default='hmm',
-                    help='f/g: HMM P(ON) (when cached) or the raw frame value with its q 0.95 firing threshold')
+    ap.add_argument('--event', choices=EVENT_RULES, default='nonzero',
+                    help='firing rule of the temporal block: nonzero = frame value > 0 (the neuron is active on at least '
+                         'one kept token); q95 = above the neuron\'s q 0.95 threshold (NES bout / latency event); '
+                         'hmm = HMM P(ON) > 0.5, time budget = mean P(ON)')
+    ap.add_argument('--window-s', type=float, default=120.0, help='temporal block: shown window length (s)')
     args = ap.parse_args()
     if not os.environ.get('SLURM_JOB_ID'):
         raise SystemExit('run through Slurm (scripts/eci/fig_pipeline.sh): no compute or rendering on the login node')
