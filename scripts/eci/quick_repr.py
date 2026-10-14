@@ -41,6 +41,26 @@ Steps
                   sheets (all in /localhome; only JSONs / sheets / SAE checkpoints are written to NFS)
     summary  any  OUT/table.md, OUT/summary.json (reads JSONs only)
 Outputs: results/vision/eci_quick_repr/ (gitignored).
+
+RESULTS (jobs 797079 / 797080 / 797081, RTX 3090, 2026-10-14; 3 SAE seeds; usable frames, prefix 4096; mean +- sd)
+    store check: re-encoded eval t tokens vs BDIR tok448 cos min 0.9999997; train t vs store 0.9999998; t-5 vs d5 0.99996
+    PCA spectrum (T-W): top 10 PCs 47% of variance, 329 PCs for 90%; eps = 0.122 (W01) / 1.22 (W10)
+                       nose_nose AUROC / AP / top-1%                  nose_tail AUROC / AP / top-1%
+    C1 deployed        0.679+-.011 / 0.0517+-.0024 / 0.114+-.007      0.714+-.029 / 0.0485+-.0095 / 0.102+-.017
+    c448 (retrained)   0.692+-.023 / 0.0552+-.0105 / 0.122+-.012      0.741+-.053 / 0.0512+-.0111 / 0.099+-.010
+    W01                0.705+-.016 / 0.0558+-.0087 / 0.099+-.034      0.708+-.045 / 0.0404+-.0136 / 0.103+-.006
+    W10                0.669+-.027 / 0.0543+-.0095 / 0.131+-.021      0.693+-.025 / 0.0335+-.0009 / 0.083+-.005
+    reg                0.681+-.035 / 0.0446+-.0058 / 0.093+-.024      0.730+-.051 / 0.0399+-.0132 / 0.093+-.024
+    L8                 0.657+-.017 / 0.0396+-.0029 / 0.112+-.009      0.677+-.039 / 0.0200+-.0038 / 0.080+-.021
+    L10                0.673+-.006 / 0.0557+-.0020 / 0.135+-.011      0.727+-.010 / 0.0498+-.0052 / 0.107+-.026
+    Verdict: NO arm helps (best AP ratio vs C1 1.08x, best top-1% 0.135; dream 0.40 not approached). W10 seed 0 alone
+    read nn AP 1.25x / top-1% 0.155: a lucky seed, gone at 3 seeds.
+    Supervised ceiling, all 20,000 frames, AUROC / AP (mil_ctx 3 seeds x 5 folds; seed sd of AP <= 0.035):
+                       nn mean_lin     nn mil_ctx      nt mean_lin     nt mil_ctx
+    DINOv2 last (ref)  0.815 / 0.140   0.871 / 0.244   0.817 / 0.075   0.912 / 0.236
+    reg                0.811 / 0.126   0.885 / 0.305   0.817 / 0.078   0.909 / 0.221
+    L8                 0.744 / 0.073   0.828 / 0.172   0.780 / 0.052   0.859 / 0.149
+    L10                0.808 / 0.117   0.860 / 0.215   0.821 / 0.069   0.915 / 0.221
 """
 import argparse
 import json
