@@ -75,6 +75,10 @@ STD = np.array([0.229, 0.224, 0.225], np.float32)
 log = lambda s: print(time.strftime('%H:%M:%S'), s, flush=True)  # noqa: E731
 
 
+def TAG(args):
+    return '' if args.layer in (None, 24) else f'_L{args.layer}'
+
+
 def stage_dir():
     d = Path(os.environ.get('LOCAL_DIR') or '')
     if not str(d).startswith('/localhome'):
@@ -204,7 +208,7 @@ def prep(frames_u8, dev):
     return (x - m) / s
 
 
-def encode_video(model, video, ks, need_frames, n_frames, dev, bs, gpu_t):
+def encode_video(model, video, ks, need_frames, n_frames, dev, bs, gpu_t, layers=None):
     """targets ks of one video -> list of (G*G, D) fp16 numpy (tubelet TUB, all positions)."""
     import torch
     keys = np.array(sorted(need_frames))
@@ -218,11 +222,20 @@ def encode_video(model, video, ks, need_frames, n_frames, dev, bs, gpu_t):
         torch.cuda.synchronize(); t0 = time.time()
         with torch.inference_mode():
             v = X[torch.from_numpy(ci).to(dev)]  # (b, 16, 3, S, S)
-            h = model(pixel_values_videos=v, skip_predictor=True).last_hidden_state
-            assert h.shape[1] == (CLIP // 2) * G * G and h.shape[2] == D, h.shape
-            h = h[:, TUB * G * G:(TUB + 1) * G * G].float().half()
+            if layers is None:
+                h = model(pixel_values_videos=v, skip_predictor=True).last_hidden_state
+                hs = {24: h}
+            else:  # hidden_states[L] = raw residual output of block L (no final LayerNorm), L < n blocks run
+                o = model.encoder(pixel_values_videos=v, output_hidden_states=True)
+                hs = {L: o.hidden_states[L] for L in layers}
+            for L, h in hs.items():
+                assert h.shape[1] == (CLIP // 2) * G * G and h.shape[2] == D, h.shape
+                hs[L] = h[:, TUB * G * G:(TUB + 1) * G * G].float().half().cpu().numpy()
         torch.cuda.synchronize(); gpu_t[0] += time.time() - t0
-        res.extend(list(h.cpu().numpy()))
+        if layers is None:
+            res.extend(list(hs[24]))
+        else:
+            res.extend([{L: hs[L][i] for L in layers} for i in range(len(hs[layers[0]]))])
     return res
 
 
@@ -244,6 +257,10 @@ def cmd_encode(args):
         vids = vids[:args.max_videos]
     st = np.r_[0, np.cumsum(F.n28.values)]
     model = load_model(dev)
+    layers = args.layers or None
+    if layers:  # run only the blocks needed: hidden_states[L] for L <= max(layers) needs max(layers) + 1 blocks
+        model.encoder.layer = model.encoder.layer[:max(layers) + 1]
+    log(f'layers {layers or "last (24, post-LN)"}')
     log(f'{args.split} task {args.task}/{nsh}: {len(vids)} videos, '
         f'{int(F.video.isin(vids).sum())} clips; model {MODEL} crop {model.config.crop_size}')
     stage = stage_dir()
@@ -274,35 +291,40 @@ def cmd_encode(args):
             rows = np.flatnonzero(F.video.values == v)
             ks = F.k.values[rows]
             # frames past the stream end were filled with the last frame, so clamp indices with n=None is exact
-            H = encode_video(model, v, ks, fr, None, dev, args.bs, gpu_t)
+            H = encode_video(model, v, ks, fr, None, dev, args.bs, gpu_t, layers)
             for r, h in zip(rows, H):
                 p = pos[st[r]:st[r + 1]].astype(np.int64)
-                toks.append(h[p]); fids.append(r); lens.append(len(p))
+                toks.append({L: h[L][p] for L in layers} if layers else h[p]); fids.append(r); lens.append(len(p))
             nf_of[v] = n
             nclip += len(rows)
             del fr
             log(f'  {v}: {len(rows)} clips (stream frames {n}); total {nclip} clips [{time.time() - t0:.0f}s, '
                 f'gpu {gpu_t[0]:.0f}s]')
-    tok = np.concatenate(toks)
     name = f'{args.split}_part{args.task:02d}of{nsh:02d}'
-    np.save(stage / f'{name}.npy', tok)
     meta = {'frame': np.array(fids), 'lens': np.array(lens)}
-    np.savez(stage / f'{name}.npz', **meta)
-    info = {'n_clips': nclip, 'n_tokens': int(len(tok)), 'wall_s': round(time.time() - t0, 1),
+    info = {'n_clips': nclip, 'wall_s': round(time.time() - t0, 1),
             'gpu_s': round(gpu_t[0], 1), 'gpu_s_per_clip': gpu_t[0] / max(nclip, 1), 'bs': args.bs,
-            'gpu': torch.cuda.get_device_name(0), 'n_frames_stream': nf_of}
-    (stage / f'{name}.json').write_text(json.dumps(info, indent=1))
-    od = OUT / 'tokens'
-    od.mkdir(parents=True, exist_ok=True)
-    for ext in ('npy', 'npz', 'json'):
-        subprocess.run(['cp', str(stage / f'{name}.{ext}'), str(od / f'{name}.{ext}')], check=True)
+            'gpu': torch.cuda.get_device_name(0), 'layers': layers, 'n_frames_stream': nf_of}
+    for L in (layers or [None]):
+        tok = np.concatenate([t[L] for t in toks] if L is not None else toks)
+        info['n_tokens'] = int(len(tok))
+        sd = stage / (f'L{L}' if L is not None else 'last')
+        sd.mkdir(exist_ok=True)
+        np.save(sd / f'{name}.npy', tok)
+        np.savez(sd / f'{name}.npz', **meta)
+        (sd / f'{name}.json').write_text(json.dumps(info, indent=1))
+        od = OUT / ('tokens' + (f'_L{L}' if L is not None else ''))
+        od.mkdir(parents=True, exist_ok=True)
+        for ext in ('npy', 'npz', 'json'):
+            subprocess.run(['cp', str(sd / f'{name}.{ext}'), str(od / f'{name}.{ext}')], check=True)
+        del tok
     log(f'done: {json.dumps({k: v for k, v in info.items() if k != "n_frames_stream"})}')
 
 
-def load_tokens(split):
+def load_tokens(split, tag=''):
     """-> (tok (N, D) fp16, pos28 (N,), lens (F,)) in the plan's frame order."""
     F, pos = frames_table(split)
-    parts = sorted((OUT / 'tokens').glob(f'{split}_part*of*.npz'))
+    parts = sorted((OUT / ('tokens' + tag)).glob(f'{split}_part*of*.npz'))
     nsh = json.loads((OUT / 'plan' / f'{split}_shards.json').read_text())['n_shards']
     assert len(parts) == nsh, f'{len(parts)}/{nsh} {split} parts'
     fr, ln, tk = [], [], []
@@ -369,12 +391,13 @@ def cmd_probe(args):
     F, _ = frames_table('eval')
     sub = pd.read_parquet(BDIR / 'subset.parquet')
     assert (sub.row.values == F.row.values).all()
-    tok, pos, lens = load_tokens('eval')
+    tag = TAG(args)
+    tok, pos, lens = load_tokens('eval', tag)
     bag = dmp.Bag(np.ascontiguousarray(tok), pos, lens, G, dev)
     res = dmp.cross_validate(bag, sub, sub.w.values, dev, args.probes, args.seeds, None, 'vjepa448', args.steps)
     summ = dmp.summarise(res)
-    (OUT / 'probe').mkdir(parents=True, exist_ok=True)
-    (OUT / 'probe' / 'results.json').write_text(json.dumps({'summary': summ, 'runs': res, 'wall_s': time.time() - t0,
+    (OUT / ('probe' + tag)).mkdir(parents=True, exist_ok=True)
+    (OUT / ('probe' + tag) / 'results.json').write_text(json.dumps({'summary': summ, 'runs': res, 'wall_s': time.time() - t0,
                                                             'gpu': torch.cuda.get_device_name(0)}, indent=1))
     for s in summ:
         log(json.dumps({k: (round(v, 4) if isinstance(v, float) else v) for k, v in s.items()}))
@@ -386,11 +409,12 @@ def cmd_train(args):
     import contact_sae as cs
     dev = torch.device('cuda')
     torch.backends.cuda.matmul.allow_tf32 = True
-    tok, _, _ = load_tokens('train')
+    tag = TAG(args)
+    tok, _, _ = load_tokens('train', tag)
     X = torch.from_numpy(tok).to(dev)
     log(f'train tokens {tuple(X.shape)}')
     for seed in args.seeds:
-        o = OUT / 'sae' / f'vjepa_s{seed}'
+        o = OUT / 'sae' / f'vjepa{tag}_s{seed}'
         if (o / 'sae.pt').exists() and not args.overwrite:
             log(f'[SKIP] {o}'); continue
         cs.train_one(X, [D], 4096, seed, args.steps, o, {'config': 'vjepa_vitl_448_tub3', 'width': 4096}, dev)
@@ -523,8 +547,9 @@ def cmd_eval(args):
     import contact_sae as cs
     half_all = cs.video_units(sub.obs.values)
     log(f'halves (all frames) {np.bincount(half_all).tolist()}')
-    tok, pos, lens = load_tokens('eval')
-    jobs = [(f'vjepa_s{s}', OUT / 'sae' / f'vjepa_s{s}' / 'sae.pt') for s in args.seeds]
+    tag = TAG(args)
+    tok, pos, lens = load_tokens('eval', tag)
+    jobs = [(f'vjepa{tag}_s{s}', OUT / 'sae' / f'vjepa{tag}_s{s}' / 'sae.pt') for s in args.seeds]
     if args.c1:
         jobs += [(f'C1_M5_s{s}', None) for s in (0, 1, 2)]
     for key, ck in jobs:
@@ -562,7 +587,8 @@ def cmd_sheets(args):
     dev = torch.device('cuda')
     F, pos = frames_table('eval')
     sub = pd.read_parquet(BDIR / 'subset.parquet')
-    key = f'vjepa_s{args.sheet_seed}'
+    tag = TAG(args)
+    key = f'vjepa{tag}_s{args.sheet_seed}'
     R = json.loads((OUT / 'eval' / f'{key}.json').read_text())
     picks = []  # (name, neuron, frame rows restricted to, note)
     half = cs.video_units(sub.obs.values)
@@ -579,7 +605,7 @@ def cmd_sheets(args):
         picks.append((f'rand_n{j:04d}', j, np.ones(len(F), bool), f'random eligible neuron, weighted fire rate {rate[j]:.3f}'))
     for j in args.extra_neurons:
         picks.append((f'extra_n{j:04d}', j, np.ones(len(F), bool), f'neuron {j}, weighted fire rate {rate[j]:.3f}'))
-    tok, _, lens = load_tokens('eval')
+    tok, _, lens = load_tokens('eval', tag)
     sae, norm, _ = load_sae(OUT / 'sae' / key / 'sae.pt', dev)
     J = sorted({p[1] for p in picks})
     codes, _, arg = frame_max_tokens(sae, norm, tok, lens, dev, want_arg=J)
@@ -666,6 +692,9 @@ def cmd_sheets(args):
 
 
 # ---------------------------------------------------------------------------------------------- summary
+CFGS = ('C1_M5', 'vjepa', 'vjepa_L12', 'vjepa_L18')
+
+
 def cmd_summary(args):
     E = OUT / 'eval'
     lines = ['# V-JEPA 2 ViT-L (448, tubelet t-1..t) SAE vs C1 (DINOv2 448 + motion) on the B subset (weighted)', '']
@@ -677,7 +706,7 @@ def cmd_summary(args):
                       '|---|---|---|---|---|---|---|---|']
             for b in LABELS:
                 c1ap = None
-                for cfg in ('C1_M5', 'vjepa'):
+                for cfg in CFGS:
                     fsn = sorted(E.glob(f'{cfg}_s*.json'))
                     if not fsn:
                         continue
@@ -690,36 +719,40 @@ def cmd_summary(args):
                     lines.append(f"| {b} | {cfg} | {len(rr)} | {ms(v['cf_auroc'])} | {ms(v['cf_ap'], 4)} | "
                                  f"{ms(v['cf_top1'])} | {ms(v['cf_size_ctrl_auroc'])} | {ratio:.2f} |")
                     summ.setdefault(f'{fs}_m{p}', {}).setdefault(b, {})[cfg] = {**v, 'ap_over_c1': ratio}
-    if (OUT / 'probe' / 'results.json').exists():
-        pr = json.loads((OUT / 'probe' / 'results.json').read_text())['summary']
-        ref = json.loads((BDIR / 'results.json').read_text())['summary']
-        lines += ['', '## supervised ceiling (pool-grouped 5-fold CV, weighted, all 20,000 B frames)', '',
-                  '| label | probe | DINOv2 448 AUROC / AP / size-ctrl | V-JEPA 448 AUROC / AP / size-ctrl |',
-                  '|---|---|---|---|']
+    ref = json.loads((BDIR / 'results.json').read_text())['summary']
+    prs = {t: json.loads((OUT / f'probe{t}' / 'results.json').read_text())['summary']
+           for t in ('', '_L12', '_L18') if (OUT / f'probe{t}' / 'results.json').exists()}
+    if prs:
+        lines += ['', '## supervised ceiling (pool-grouped 5-fold CV, weighted, all 20,000 B frames): AUROC / AP / size-ctrl',
+                  '', '| label | probe | DINOv2 448 | ' + ' | '.join(f'V-JEPA {t or "last (24)"}' for t in prs) + ' |',
+                  '|---|---|---|' + '---|' * len(prs)]
+        f = lambda s: (f"{s[0]['auroc_mean']:.3f} / {s[0]['ap_mean']:.3f} / {s[0]['auroc_size_ctrl_mean']:.3f}"
+                       if s else '-')  # noqa: E731
         for b in LABELS:
-            for p_ in ('mean_lin', 'mil_ctx', 'mil', 'n_fg_only'):
-                a = [s for s in ref if s['res'] == '448_subset' and s['probe'] == p_ and s['behaviour'] == b]
-                c = [s for s in pr if s['probe'] == p_ and s['behaviour'] == b]
-                f = lambda s: (f"{s[0]['auroc_mean']:.3f} / {s[0]['ap_mean']:.3f} / {s[0]['auroc_size_ctrl_mean']:.3f}"
-                               if s else '-')  # noqa: E731
-                if a or c:
-                    lines.append(f'| {b} | {p_} | {f(a)} | {f(c)} |')
-                    summ.setdefault('ceiling', {}).setdefault(b, {})[p_] = {'dinov2': a[0] if a else None,
-                                                                           'vjepa': c[0] if c else None}
+            for p_ in ('mean_lin', 'mil_ctx', 'n_fg_only'):
+                a = [x for x in ref if x['res'] == '448_subset' and x['probe'] == p_ and x['behaviour'] == b]
+                cs_ = {t: [x for x in pr if x['probe'] == p_ and x['behaviour'] == b] for t, pr in prs.items()}
+                if a or any(cs_.values()):
+                    lines.append(f'| {b} | {p_} | {f(a)} | ' + ' | '.join(f(c) for c in cs_.values()) + ' |')
+                    summ.setdefault('ceiling', {}).setdefault(b, {})[p_] = {
+                        'dinov2': a[0] if a else None, **{f'vjepa{t}': (c[0] if c else None) for t, c in cs_.items()}}
     # pre-registered reading on the usable frames (where C1's reference was reported), prefix 4096 and 512
     verdict = {}
     for key in ('usable_m4096', 'usable_m512', 'all_m4096', 'all_m512'):
         if key not in summ:
             continue
-        v = {}
-        for b in LABELS:
-            s = summ[key][b].get('vjepa')
-            if s is None:
-                continue
-            v[b] = {'ap_ge_1.5x_c1': bool(s['ap_over_c1'] >= 1.5), 'top1_ge_0.30': bool(np.mean(s['cf_top1']) >= 0.30),
-                    'dream_top1_ge_0.40': bool(np.mean(s['cf_top1']) >= 0.40)}
-        v['vjepa_helps'] = any(x['ap_ge_1.5x_c1'] or x['top1_ge_0.30'] for x in v.values())
-        verdict[key] = v
+        for cfg in CFGS[1:]:
+            v = {}
+            for b in LABELS:
+                s_ = summ[key][b].get(cfg)
+                if s_ is None:
+                    continue
+                v[b] = {'ap_ge_1.5x_c1': bool(s_['ap_over_c1'] >= 1.5),
+                        'top1_ge_0.30': bool(np.mean(s_['cf_top1']) >= 0.30),
+                        'dream_top1_ge_0.40': bool(np.mean(s_['cf_top1']) >= 0.40)}
+            if v:
+                v['helps'] = any(x['ap_ge_1.5x_c1'] or x['top1_ge_0.30'] for x in v.values())
+                verdict.setdefault(key, {})[cfg] = v
     summ['verdict'] = verdict
     lines += ['', 'Pre-registered: "V-JEPA helps" iff best-neuron cf AP >= 1.5x C1 on nose_nose or nose_tail, OR honest '
               'top-1% >= 0.30 (same frames); dream: top-1% >= 0.40', '', '```', json.dumps(verdict, indent=1), '```']
@@ -732,6 +765,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('step', choices=['plan', 'smoke', 'encode', 'probe', 'train', 'c1', 'eval', 'sheets', 'summary'])
     ap.add_argument('--split', default='eval')
+    ap.add_argument('--layers', nargs='*', type=int, default=[], help='encode: save these block outputs instead of last')
+    ap.add_argument('--layer', type=int, default=24, help='probe / train / eval / sheets: which token set (24 = last)')
     ap.add_argument('--task', type=int, default=int(os.environ.get('SLURM_ARRAY_TASK_ID', 0)))
     ap.add_argument('--shards-train', type=int, default=4)
     ap.add_argument('--shards-eval', type=int, default=8)
