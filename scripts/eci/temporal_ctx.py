@@ -39,6 +39,26 @@ the res_pool valid masks, prefix 4096; reference = M5 retrained in THIS job on t
                and nt neurons (AUROC- and top-1%-selected on half 0, shown on half 1), crops at t-1, t, t+1. S1 sheets
                are drawn too.
 
+RESULTS (jobs 822105 mice / 822106 ants, L40S, 2026-10-15; smoke 821529 / 821530; 3 SAE seeds; mean +- sd)
+    decode: 140,176 mice / 332,737 ants frames from 244 / 256 videos; 732/732 and 768/768 sampled frames byte-identical
+    to the dataset JPGs. Store check: mice eval t vs BDIR cos min 0.9999998, train t-5 vs d5 0.99996; ants t vs store
+    0.99991, t-5 vs d5 0.99905 (means >= 0.999995). M5 reproduces sparsity_test btk16 exactly on all 3 seeds (mice).
+    mice usable m4096   nose_nose AUROC / AP / top-1%                nose_tail AUROC / AP / top-1%
+    c448ref             0.692+-.023 / 0.0552+-.0105 / 0.122+-.012    0.741+-.053 / 0.0512+-.0111 / 0.099+-.010
+    M5                  0.690+-.021 / 0.0599+-.0045 / 0.141+-.002    0.719+-.063 / 0.0398+-.0098 / 0.089+-.021
+    S1                  0.626+-.013 / 0.0400+-.0024 / 0.091+-.006    0.662+-.011 / 0.0317+-.0069 / 0.085+-.014
+    S5                  0.676+-.017 / 0.0476+-.0049 / 0.080+-.017    0.728+-.041 / 0.0488+-.0111 / 0.098+-.011
+    ML                  0.656+-.011 / 0.0427+-.0045 / 0.064+-.005    0.709+-.020 / 0.0341+-.0094 / 0.078+-.015
+    ants m4096 AUROC    groom_any      Y2F           B2F           onlid_yellow
+    M5                  0.885+-.047    0.845+-.036   0.842+-.035   0.908+-.035
+    S1                  0.838+-.017    0.804+-.016   0.801+-.012   0.877+-.102
+    S5                  0.807+-.037    0.763+-.047   0.783+-.031   0.865+-.101
+    ML                  0.801+-.025    0.773+-.028   0.771+-.015   0.934+-.007
+    Verdicts: NO arm beats M5. S1 nn AUROC -0.064, AP x0.67, top-1% -0.050 (all 3 S1 seeds below all 3 M5 seeds);
+    S5 nt AP x1.23 (< 1.3) with ants groom_yellow -0.082; ML ants groom_any -0.084. Every arm loses >= 0.04 AUROC on
+    ants grooming. Eval FVE: M5 0.781, S1 0.708, S5 0.740, ML 0.725 (mice). Median 0.2 s change / token norm 0.29
+    (mice) vs 0.53 for 1 s; TokenNorm.fit_blocks gives every block the same weight.
+
 Steps
     run      GPU  decode the needed frames from the videos -> encode once -> train all arms x seeds -> eval -> sheets
     summary  any  OUT/table.md, OUT/summary.json (reads JSONs only)
