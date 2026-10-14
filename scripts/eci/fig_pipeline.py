@@ -139,6 +139,15 @@ def pieces(mk):
     return [int(v) for v in ndimage.sum(mk, lab, range(1, n + 1))] or [0]
 
 
+def neuron_summaries(F):
+    """F (frames, neurons) bool firing -> (3, neurons): time (fraction firing), bouts / min (runs of consecutive firing
+    frames), latency s (first firing frame; never firing -> the clip length)."""
+    n = F.shape[0]
+    runs = F[0].astype(np.int64) + (F[1:] & ~F[:-1]).sum(0)
+    first = np.where(F.any(0), F.argmax(0), n)
+    return np.stack([F.mean(0), runs / (n / FPS / 60), first / FPS]).astype(np.float32)
+
+
 def events(tr, thr):
     """Firing = tr > thr (strict). -> above mask, bout (start, end) runs, time budget, bouts / min, latency s."""
     above = tr > thr
@@ -309,11 +318,13 @@ def compute_domain(name, cfg, sae_name, tmp, n_cand=200):
     # ---------------------------------------------------------------- 4. clip trace + temporal summaries
     n_frames = hi - lo
     w0, w1 = (n_frames - 4500, n_frames) if cfg['window'] == 'last' else (0, n_frames)
-    tr = np.asarray(codes[lo + w0:lo + w1, key], dtype=np.float32)
+    X = np.asarray(codes[lo + w0:lo + w1], dtype=np.float32)  # (clip frames, 4096) codes_max of the example clip
+    tr = X[:, key].copy()
     nes = cfg['nes'] / sae_name / '_cache'
     th = np.load(nes / f'bout_thresholds_n2000000.npz')
     qi = int(np.argmin(np.abs(th['qs'] - Q_EVENT)))
     thr = float(th['thr'][qi, key])
+    vid_rep = {rule: neuron_summaries(X > t) for rule, t in (('nonzero', 0.0), ('q95', th['thr'][qi][None, :]))}
     above, bouts, summ = events(tr, thr)
     bs = np.load(nes / 'bout_summaries_max.npz')
     vi = list(bs['observation_id']).index(obs)
@@ -399,7 +410,8 @@ def compute_domain(name, cfg, sae_name, tmp, n_cand=200):
     np.savez_compressed(OUT / 'cache' / f'{name}.npz', native=native, frames=frames, enc_in=enc_in,
                         mask=mask.numpy().reshape(GRID, GRID), motion=motion.reshape(GRID, GRID), heat=heat, code=mx,
                         tok_code=tok_code, trace=tr, above=above, bouts=bouts, pca_t=pca_rgb[0], pca_p=pca_rgb[1],
-                        thumbs=thumbs, thumb_pos=np.array(tpos), thumb_ex=j_ex, tok_x=tok_x, tok_d=tok_d, pre=pre,
+                        thumbs=thumbs, thumb_pos=np.array(tpos), thumb_ex=j_ex,
+                        **{f'vrep_{r_}': v_ for r_, v_ in vid_rep.items()}, tok_x=tok_x, tok_d=tok_d, pre=pre,
                         mask_p=mask_p.numpy().reshape(GRID, GRID),
                         **({} if hmm is None else dict(p_on=hmm['p_on'], hmm_bouts=hmm['bouts'])))
     json.dump(meta, open(OUT / 'cache' / f'{name}.json', 'w'), indent=1,
@@ -626,8 +638,9 @@ def plot(args):
         x += w + ag
     x += 9.5 - ag
     xs['trace'] = x
-    xs['num'] = W - 0.5 - 11.0
-    wt = xs['num'] - 4.8 - xs['trace']
+    vw, vg = 7.6, 1.3  # block d: one vector plot per summary
+    xs['vid'] = W - 0.5 - (3 * vw + 2 * vg)
+    wt = xs['vid'] - 5.5 - xs['trace']
     H = top_h + row_h * (len(doms) - 1) + 18.2  # tight: the last row's lowest labels end ~18 mm below its top
     fig = plt.figure(figsize=(W * MM, H * MM))
 
@@ -647,12 +660,12 @@ def plot(args):
             s.set_linewidth(lw); s.set_color(ec)
         return a
 
-    def arrow(x0, x1, yc, label=None, color='#9e9e9e'):
+    def arrow(x0, x1, yc, label=None, color='#9e9e9e', label_color=C_DARK):
         fig.patches.append(FancyArrowPatch((x0 / W, 1 - yc / H), (x1 / W, 1 - yc / H), transform=fig.transFigure,
                                            arrowstyle='-|>', mutation_scale=4.5, lw=0.5, color=color,
                                            shrinkA=0, shrinkB=0))
         if label:
-            txt((x0 + x1) / 2, yc - 0.6, label, ha='center', va='bottom', fontsize=FS_S - 0.6, color=C_DARK)
+            txt((x0 + x1) / 2, yc - 0.6, label, ha='center', va='bottom', fontsize=FS_S - 0.6, color=label_color)
 
     def grey(frame):
         return np.asarray(frame, np.float32).mean(2) / 255
@@ -685,23 +698,25 @@ def plot(args):
                 k = idx[v[idx] > thr]
                 ax.hlines(k, 0, v[k], color='#5a5a5a', lw=0.4)
                 ax.axvline(thr, color='k', lw=0.35, ls=(0, (1.5, 1.2)))
-        if hi is not None and v[hi] > 0:
+        if hi is not None:  # drawn even at 0 (e.g. latency 0 s): the dot marks the shown neuron
             ax.hlines([hi], 0, v[hi], color=C_N, lw=0.9)
             ax.plot([v[hi]], [hi], 'o', ms=1.3, color=C_N, mec='none')
-        ax.set_ylim(n, 0); ax.set_xlim(0, float(v.max()) * 1.1)
+        ax.set_ylim(n, 0); ax.set_xlim(0, float(np.nanmax(v)) * 1.1 or 1.0)
         ax.set_xticks([]); ax.set_yticks([])
         for s in ('top', 'right'):
             ax.spines[s].set_visible(False)
 
     # headers
     for xx, lab, title in ((xa, 'a', 'Video'), (xb, 'b', 'Frame representation'),
-                           (xs['spatial'], 'c', 'Neural activation')):
+                           (xs['spatial'], 'c', 'Neural activation'), (xs['vid'], 'd', 'Video representation')):
         txt(xx, 0.6, lab, fontsize=8, weight='bold')
         txt(xx + 2.6, 0.85, title, fontsize=FS)
     for k, title in (('grid', f'{G} × {G} tokens'), ('zoom', 'animals mask'),
                      ('vec', f'{enc_label} token\nrepresentation'), ('pre', 'SAE (top-k)\nrepresentation'),
-                     ('spatial', 'frame neural\nactivation'), ('num', 'per video')):
+                     ('spatial', 'frame neural\nactivation')):
         txt(xs[k], Y_TITLE, title, color=C_DARK)
+    for i, title in enumerate(('time', 'bouts', 'latency')):
+        txt(xs['vid'] + i * (vw + vg), Y_TITLE, title, color=C_DARK)
     summ_out = {}
     from src.eci.sae import load_sae
     dims = {}
@@ -793,8 +808,8 @@ def plot(args):
             for s in g_.spines.values():
                 s.set_linewidth(0.5); s.set_color(ec)
             gl.append(g_)
-        txt(xs['vec'] + 0.7 + VPAD / 2 + gw / 2, vy_d + vh_d + 0.3, 'x$_t$', ha='center', fontsize=FS_S - 0.6)
-        txt(xs['vec'] + 0.7 + VPAD / 2 + 1.5 * gw + gg, vy_d + vh_d + 0.3, 'Δx$_t$', ha='center', fontsize=FS_S - 0.6)
+        txt(xs['vec'] + 0.7 + VPAD / 2 + gw / 2, vy_d + vh_d + 0.3, 'z$_t$', ha='center', fontsize=FS_S - 0.6)
+        txt(xs['vec'] + 0.7 + VPAD / 2 + 1.5 * gw + gg, vy_d + vh_d + 0.3, 'Δz$_t$', ha='center', fontsize=FS_S - 0.6)
         dm = dims[d]
         txt(xs['vec'] + 0.7 + VPAD / 2 + gw + gg / 2, vy + vh + 0.3, f'd = {dm["d_token"]} + {dm["d_delta"]}',
             ha='center', fontsize=5.0, color='#a0a0a0')
@@ -823,7 +838,7 @@ def plot(args):
                                        xyB=(sx_ + 0.5, sy + 0.5), coordsB=a.transData, color=C_N, lw=0.6,
                                        arrowstyle='-|>', mutation_scale=5, shrinkA=2.0, shrinkB=2.5,
                                        connectionstyle='arc3,rad=-0.15'))
-        arrow(xs['spatial'] + sz + 0.5, xs['trace'] - 3.4, yc, 'max\npooling')  # clear of the y tick labels
+        arrow(xs['spatial'] + sz + 0.5, xs['trace'] - 3.4, yc, 'max\npooling', label_color=C_TOK)  # clear of the y tick labels
         # ---- c: one value per frame (raw), firing raster -> temporal -> per video
         fire, s_ = firing(A, m, args.event)
         summ_out[d] = s_
@@ -871,12 +886,24 @@ def plot(args):
         fm = lambda v: f'{v:.1f}'.rstrip('0').rstrip('.')  # noqa: E731
         r.set_xticklabels([fm(t0m), f'{fm(t1m)} min'])
         r.tick_params(length=1.0, labelsize=FS_S - 0.6)
+        # ---- d: video representation = the three summaries of EVERY neuron (all 4096) over the example clip
+        rule = args.event if f'vrep_{args.event}' in A else 'nonzero'
+        if rule != args.event:
+            log(f'[{d}] no per-neuron {args.event} summaries (only the shown neuron has them): block d uses nonzero')
+        V = A[f'vrep_{rule}']
+        if rule == args.event:  # the shown neuron's entries are exactly the temporal-block numbers
+            assert abs(V[0, key] - s_['time_budget']) < 1e-6 and abs(V[1, key] - s_['bout_rate_per_min']) < 1e-6 \
+                and abs(V[2, key] - s_['latency_s']) < 1e-6, (d, V[:, key], s_)
         lat = f'{s_["latency_s"]:.1f} s' if not s_['censored'] else f'> {s_["latency_s"]:.0f} s'
-        for i, (lab, val) in enumerate((('time', f'{100 * s_["time_budget"]:.0f}%'),
-                                        ('bouts', f'{s_["bout_rate_per_min"]:.1f}/min'), ('latency', lat))):
-            yy = y0 + 0.4 + i * 5.0
-            txt(xs['num'], yy, lab, fontsize=FS_S - 0.6, color=C_DARK)
-            txt(xs['num'], yy + 1.5, val, fontsize=6.2, weight='bold')
+        vals = (f'{100 * V[0, key]:.0f}%', f'{V[1, key]:.1f}/min', lat)
+        for i in range(3):
+            va_ = ax_mm(xs['vid'] + i * (vw + vg), vy, vw, vh)
+            v_ = V[i].copy()
+            if i == 2:  # latency: neurons that never fire in the clip (censored at its length) are left blank
+                v_[~(V[0] > 0)] = np.nan
+            bars(va_, v_, V.shape[1], hi=key)
+            txt(xs['vid'] + i * (vw + vg), vy + vh + 0.3, vals[i], fontsize=5.0, color=C_N)
+        txt(xs['vid'], vy + vh + 2.1, f'd = 3 × {V.shape[1]}', fontsize=5.0, color='#a0a0a0')
     for fmt in ('pdf', 'png'):
         fig.savefig(OUT / f'fig_pipeline.{fmt}', dpi=args.dpi if fmt == 'png' else 600)
     json.dump({'event': args.event, 'window_s': args.window_s, 'summaries': summ_out},
