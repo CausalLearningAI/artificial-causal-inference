@@ -611,7 +611,7 @@ def plot(args):
     C_DX = '#009E73'  # token-difference hue (Okabe-Ito bluish green)
     # ------------------------------------------------ layout (mm)
     W = 183.0
-    left, top_h, row_h, sz = 7.0, 10.0, 24.5, 15.0
+    left, top_h, row_h, sz = 7.0, 11.0, 23.5, 15.0
     ag = 2.8                    # arrow gap between steps
     fw, nvol, dx, dy = 10.0, 9, 1.9, 0.5  # temporal volume
     gw, gg, bw = 2.0, 0.5, 7.0  # vector glyph strip width, gap between the two strips, sparse-bar panel width
@@ -736,13 +736,13 @@ def plot(args):
         sz_d = sizes.get(d, {})
         wh = next(iter(sz_d.get('sizes', {})), f'{m["native"]["size"][0]}x{m["native"]["size"][1]}').replace('x', '×')
         fps0 = float(next(iter(sz_d.get('fps', {})), m['native']['fps']))
-        txt(xa, ya + 2.6, f'original: {wh} px, {fps0:.0f} fps\nused: {m["input_px"]}×{m["input_px"]} px, {FPS:.0f} fps',
+        txt(xa, y0 - 5.0, f'original: {wh} px, {fps0:.0f} fps\nused: {m["input_px"]}×{m["input_px"]} px, {FPS:.0f} fps',
             fontsize=FS_S - 0.2, color=C_DARK)
         x0 = xa + j_ex * dx + fw * 0.55
         y_top = top0 + j_ex * dy
         fig.patches.append(FancyArrowPatch((x0 / W, 1 - y_top / H), ((xs['grid'] - 0.4) / W, 1 - (y0 + 1.5) / H),
                                            transform=fig.transFigure, arrowstyle='-|>', mutation_scale=4.5, lw=0.6,
-                                           color=C_KEPT, connectionstyle='arc3,rad=-0.35', shrinkA=0, shrinkB=0))
+                                           color=C_KEPT, connectionstyle='arc3,rad=-0.12', shrinkA=0, shrinkB=0))
         # ---- b1: the frame split into its token grid + the animal mask (outline)
         a = img(xs['grid'], y0, sz)
         a.imshow(gt, cmap='gray', vmin=0, vmax=1, extent=(0, G, G, 0), interpolation='bilinear')
@@ -811,35 +811,41 @@ def plot(args):
         seg, fseg = tr[w0:w0 + nw], fire[w0:w0 + nw]
         tt = np.arange(len(seg)) / FPS
         beh = DOM[d]['short'].replace(' ', '\\ ')
-        txt(xs['trace'], y0 - 0.2, f'Neuron {key}: ' + '$\\it{' + beh + '}$', color=C_N,
-            bbox=dict(fc='white', ec='none', pad=0.6), zorder=5)  # the return arrow passes behind the label
+        txt(xs['trace'], y0 - 0.2, f'Neuron {key}: ' + '$\\it{' + beh + '}$', color=C_N)
         a = ax_mm(xs['trace'], y0 + 2.3, wt, sz - 6.4)
-        a.plot(tt, seg, color=C_N, lw=0.35)
+        # the clip continues beyond the window: fade the trace / raster towards each open side, mark it with '...'
+        more_l, more_r = w0 > 0, w0 + nw < n
+        nf = max(1, int(0.12 * len(seg)))
+        alpha = np.ones(len(seg))
+        if more_l:
+            alpha[:nf] = np.linspace(0.12, 1, nf)
+        if more_r:
+            alpha[-nf:] = np.linspace(1, 0.12, nf)
+        rgb = np.array(to_rgb(C_N))
+        pts = np.c_[tt, seg]
+        a.add_collection(matplotlib.collections.LineCollection(
+            np.stack([pts[:-1], pts[1:]], 1), colors=np.c_[np.tile(rgb, (len(seg) - 1, 1)), alpha[:-1]], linewidths=0.35))
         a.plot([(c - w0) / FPS], [float(tr[c])], 'o', ms=2.0, mfc='none', mec=C_KEPT, mew=0.6)
-        # light orange arrow: the example frame's point in the trace back to its frame in the video stack (a)
-        # routed above the row (between rows, clear of all labels): up from the point, left, down onto the frame
-        a.set_xlim(0, args.window_s); a.set_ylim(0, float(tr.max()) * 1.05)  # limits first: data -> figure
-        dxy = fig.transFigure.inverted().transform(a.transData.transform(((c - w0) / FPS, float(tr[c]))))
-        xd, yd = dxy[0] * W, (1 - dxy[1]) * H
-        y_r = y0 - 1.8
-        x_f = xa + j_ex * dx + 2.0
-        verts = [(xd, yd - 0.8), (xd, y_r), (x_f, y_r), (x_f, top0 + j_ex * dy - 0.15)]
-        fig.patches.append(FancyArrowPatch(path=matplotlib.path.Path([(vx / W, 1 - vy_ / H) for vx, vy_ in verts]),
-                                           transform=fig.transFigure, arrowstyle='-|>', mutation_scale=4, lw=0.4,
-                                           color=C_KEPT, alpha=0.6, ls=(0, (2.5, 1.5))))
         if args.event == 'q95':
             a.axhline(m['summary']['threshold'], color='k', lw=0.35, ls=(0, (2, 1.5)))
         a.set_xlim(0, args.window_s); a.set_ylim(0, float(tr.max()) * 1.05)
         a.set_xticks([]); a.set_yticks([0, round(float(tr.max()) / 5) * 5 or 1])
         for s in ('top', 'right'):
             a.spines[s].set_visible(False)
+        for side, on in (('left', more_l), ('right', more_r)):
+            if on:
+                a.text(1.0 if side == 'right' else 0.0, 0.45, '…', transform=a.transAxes, color=C_GREY,
+                       fontsize=FS, ha='left' if side == 'right' else 'right', va='center')
         r = ax_mm(xs['trace'], y0 + sz - 3.6, wt, 1.1)
-        r.vlines(np.flatnonzero(fseg) / FPS, 0, 1, color='#6b6b6b', lw=0.15)
+        on_ = np.flatnonzero(fseg)
+        r.vlines(on_ / FPS, 0, 1, colors=[(0.42, 0.42, 0.42, float(al)) for al in alpha[on_]], lw=0.15)
         r.set_xlim(0, args.window_s); r.set_ylim(0, 1); r.set_yticks([])
         for s in ('top', 'right', 'left'):
             r.spines[s].set_visible(False)
+        t0m, t1m = w0 / FPS / 60, (w0 + nw) / FPS / 60  # the window's place in the clip (min)
         r.set_xticks([0, args.window_s])
-        r.set_xticklabels(['0', f'{args.window_s / 60:.0f} min'])
+        fm = lambda v: f'{v:.1f}'.rstrip('0').rstrip('.')  # noqa: E731
+        r.set_xticklabels([fm(t0m), f'{fm(t1m)} min'])
         r.tick_params(length=1.0, labelsize=FS_S - 0.6)
         lat = f'{s_["latency_s"]:.1f} s' if not s_['censored'] else f'> {s_["latency_s"]:.0f} s'
         for i, (lab, val) in enumerate((('time', f'{100 * s_["time_budget"]:.0f}%'),
