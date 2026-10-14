@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# ECI pipeline figure (one row per domain: ants, mice, frogs). CPU only: DINOv2-base on 3 frames per domain,
-# ffmpeg decode of 7 native frames per domain, codes_max reads of the example videos.
+# ECI representation figure (one row per domain: ants, mice, frogs). CPU only: DINOv2-base on 2 frames per domain,
+# ffmpeg decode of 7 native frames per domain, ffprobe of the ants v2 / v3 sources, codes_max reads of the example clips.
 # Usage: sbatch scripts/eci/fig_pipeline.sh                      (compute + plot)
 #        STAGE_ARG=plot sbatch scripts/eci/fig_pipeline.sh       (re-render from the cache only)
 #        STAGE_ARG=plot EXTRA_ARGS="--encoder-label 'V-JEPA 2' --grid 28" sbatch scripts/eci/fig_pipeline.sh
