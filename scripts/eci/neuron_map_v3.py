@@ -17,6 +17,21 @@ Diagnosed v2 causes -> fixes (all rules below were written before any v3 number 
        black: 'mid' (grey < 120 AND > 50 below pix_bg) and 'rel' (> 40 below pix_bg only). Pre-registered choice: the
        spec cue 'dark' is used unless the 20-frame tail sheet shows tails left out in most frames; then 'mid', then
        'rel' (the choice is made on the tail sheet alone, before any neuron statistic or sheet of v3 is looked at).
+       REVISION (2026-10-14, after the first tail sheet, before any v3 neuron statistic or sheet was looked at): all
+       three cues FAILED the tail sheet (visual judgement, 5 frames shown per sheet): 'dark' attached no tail in any
+       frame and joined a wall shadow to a mouse; 'mid' still left most tails out and attached wall shadows; 'rel'
+       flooded the bedding (198 on-animal patches per frame vs 56 for v2). Tails are thin, grey, start at a body end
+       and are about one body long, so a 4th cue 'line' was added (extend_line): thin dark pixels (black top-hat,
+       grey closing 9 x 9 minus grey, > 30, AND > 40 below pix_bg), grown 8-connected outside every mask from the cue
+       pixels within 6 px of a body end, geodesically up to 120 px; the grown set is a tail iff it reaches >= 20 px with
+       mean width (pixels / geodesic length) <= 7 px; of the two ends the longer one is kept (one tail per mouse). The
+       choice among the 4 cues is again made on the (re-rendered) tail sheet alone.
+       REVISION 2 (2nd tail sheet): the line cue traced the tails well, but most were not attached because the thin
+       part starts > 6 px from the body end (the tail base is thick); seed radius 6 -> 20 px, and candidates are
+       assigned closest end first (a set > 50% taken by a closer mouse is dropped).
+       REVISION 3 (per-end diagnostic on the 20 sheet frames, step taildiag): the width test divided ALL pixels,
+       including the up-to-180-px seed disk, by the length, rejecting real tails (e.g. 527 px / 57 steps = 9.2); the
+       width is now (grown pixels - seed pixels) / steps. Final tail rule; no further change after this sheet.
        Patch labels: a patch overlaps mouse k iff >= 26 px (10%, as v2) of the extended mask k fall in it, OR >= 10 px
        of k's tail pixels (a tail is 3-5 px wide; a 16 px tail segment gives 50-80 px, a tip clip ~10). 'Tail-only'
        patch = overlaps k only through the second clause or only with the help of tail pixels (< 26 SAM px of k).
@@ -51,7 +66,14 @@ Diagnosed v2 causes -> fixes (all rules below were written before any v3 number 
                         quadrant of the odour corner, components >= 200 px. Compared with the v2 BAG zones (regions.npz
                         reg_m2, bag core dilated 2 patches; 2 of the 48 cores lie inside the arena, i.e. not a bag).
        Patch object type (per video): bag if >= 26 bag px; else spout if >= 26 spout px; else structure if >= 26
-       structure px; else wall if the patch centre is outside the floor box; else floor (no object).
+       structure px (outside-box structure counts only for patches whose centre is outside the box); else wall if the
+       patch centre is outside the floor box; else floor (no object).
+       REVISION (after the first object sheet, before any neuron statistic): (a) the floor box is the per-SESSION
+       median of the 3 videos' boxes (single-video boxes were off by up to 4 patch rows, e.g. het_ash1l_f_1_F_O, which
+       turned real floor into wall); (b) outside-box structure no longer labels patches whose centre is on the floor
+       (it put a 1-patch object band inside the whole floor edge, giving 14 interaction patches per frame and an
+       interaction patch in 98.6% of frames). The wall / structure split is descriptive only: the edge cue marks most
+       of the wall region (median 338 structure vs 282 wall patches per video), so the two are reported together.
        Extremities: per instance, from its SAM body mask (no tail): e1 = the pixel farthest from the centroid, e2 = the
        pixel farthest from the centroid on the other side (negative projection on e1 - centroid): the two body ends,
        nose or tail base (no keypoints exist; head-or-tail proxy, both ends used).
@@ -110,7 +132,7 @@ VIDDIR = REPO / 'data/mice/v1/observations/full'
 GRID, PX = nm2.GRID, nm2.PX
 log = nm2.log
 # fix 1 (tails)
-CUES = {'dark': (60, 40), 'mid': (120, 50), 'rel': (256, 40)}  # (grey < abs) & (pix_bg - grey > rel)
+CUES = {'dark': (60, 40), 'mid': (120, 50), 'rel': (256, 40), 'line': None}  # (grey < abs) & (pix_bg - grey > rel)
 TAIL_R, TAIL_ROUNDS, TAIL_PX, OVERLAP_PX = 4.0, 3, 10, 26
 HUDDLE_DIL = 3
 # fix 3 (objects)
@@ -118,6 +140,9 @@ OBJ_NAMES = ['floor', 'wall', 'structure', 'spout', 'bag']
 DARK_STATIC, SAM_COVER_MAX, EDGE_K = 72, 0.3, 3.0
 BAND_IN, BAND_OUT, MIN_COMP_PX = 48, 45, 30
 BAG_GROW, BAG_MIN_PX, OBJ_PX = 12, 200, 26
+BOX = ['arena_r0', 'arena_r1', 'arena_c0', 'arena_c1']
+# fix 1, revised after the tail sheet (see docstring): thin dark line grown from a body end
+LINE_TOPHAT, LINE_REL, LINE_SEED_R, LINE_LEN, LINE_MAX_WIDTH, LINE_MIN_LEN, LINE_CLOSE = 30, 40, 20, 120, 7.0, 20, 9
 # classes
 ON_MIN, ENV_MIN, HALO_MIN, FAR_MIN, OBJ_MIN, APART_MIN = 0.5, 0.5, 0.5, 0.5, 0.5, 0.5
 N_CHECK, N_SHEET = 15, 12
@@ -228,6 +253,74 @@ S8 = np.ones((3, 3), bool)
 def cue_mask(g, pb, cue):
     a, r = CUES[cue]
     return (g.astype(np.int16) < a) & ((pb.astype(np.int16) - g.astype(np.int16)) > r)
+
+
+DIAG = None
+
+
+def line_cue(g, pb):
+    """Thin dark pixels: black top-hat (grey closing 9 x 9 - grey) > 30 AND > 40 below pix_bg."""
+    from scipy import ndimage as ndi
+    gi = g.astype(np.int16)
+    th = ndi.grey_closing(g, size=(LINE_CLOSE, LINE_CLOSE)).astype(np.int16) - gi
+    return (th > LINE_TOPHAT) & ((pb.astype(np.int16) - gi) > LINE_REL)
+
+
+def extend_line(L, g, pb, ext):
+    """Fix 1 (revised, 'line'): per instance and body end, grow the line cue (8-connected, outside every mask) from the
+    cue pixels within 20 px of the end, geodesically up to 120 px; a grown set is a tail candidate iff it reaches >= 20
+    px with mean width (pixels / geodesic length) <= 7 px; per mouse the longer of its two ends' candidates. Candidates
+    are assigned greedily in order of the end-to-set distance (closest first): a candidate whose pixels are > 50%
+    already taken is dropped, one tail per mouse. -> as extend()."""
+    from scipy import ndimage as ndi
+    c = line_cue(g, pb)
+    free = c & (L == 0)
+    W = LINE_LEN + LINE_SEED_R + 4
+    cands = []
+    for k in range(4):
+        best = None
+        for e in range(2):
+            y, x = ext[k, e]
+            if not np.isfinite(y):
+                continue
+            y, x = int(y), int(x)
+            y0, y1, x0, x1 = max(y - W, 0), min(y + W + 1, 512), max(x - W, 0), min(x + W + 1, 512)
+            fw = free[y0:y1, x0:x1]
+            yy, xx = np.mgrid[y0:y1, x0:x1]
+            d2 = (yy - y) ** 2 + (xx - x) ** 2
+            seed = fw & (d2 <= LINE_SEED_R ** 2)
+            if not seed.any():
+                if DIAG is not None:
+                    DIAG.append((k, e, 0, 0, 0, 0.0))
+                continue
+            cur = seed.copy()
+            steps = 0
+            for _ in range(LINE_LEN):
+                nxt = ndi.binary_dilation(cur, S8) & fw & ~cur
+                if not nxt.any():
+                    break
+                cur |= nxt
+                steps += 1
+            if DIAG is not None:
+                DIAG.append((k, e, int(seed.sum()), steps, int(cur.sum()), float(cur.sum() / max(steps, 1))))
+            if steps >= LINE_MIN_LEN and (cur.sum() - seed.sum()) / steps <= LINE_MAX_WIDTH:
+                if best is None or steps > best[0]:
+                    best = (steps, (y0, y1, x0, x1), cur, float(np.sqrt(d2[cur].min())))
+        if best is not None:
+            cands.append((best[3], k, best[1], best[2]))
+    Le = L.copy()
+    for _, k, (y0, y1, x0, x1), cur in sorted(cands, key=lambda t: t[0]):
+        sub = Le[y0:y1, x0:x1]
+        if (sub[cur] > 0).mean() > 0.5:
+            continue
+        sub[cur & (sub == 0)] = k + 1
+    tail = np.array([int(((Le == k) & (L == 0)).sum()) for k in range(1, 5)])
+    st = np.array([int(c.sum()), int((c & (L > 0)).sum()), int(tail.sum()), int((c & (Le == 0)).sum())])
+    return Le, tail, st
+
+
+def extend_any(L, g, pb, ext, cue):
+    return extend_line(L, g, pb, ext) if cue == 'line' else extend(L, cue_mask(g, pb, cue))
 
 
 def extend(L, cue):
@@ -469,7 +562,8 @@ def object_pixels(S, cover, pb, r, edge_thr=None):
     q = r.odor_corner
     quad = ((yy < 256) if q[0] == 'T' else (yy >= 256)) & ((xx < 256) if q[1] == 'L' else (xx >= 256))
     bag = comps_min(white & ~grown & quad, BAG_MIN_PX)
-    return {'inside': inside, 'structure': struct_out | struct_in, 'struct_in': struct_in, 'spout': spout, 'bag': bag,
+    return {'inside': inside, 'structure': struct_out | struct_in, 'struct_out': struct_out, 'struct_in': struct_in,
+            'spout': spout, 'bag': bag,
             'edge_thr': edge_thr}
 
 
@@ -478,7 +572,7 @@ def patch_types(op):
     cy, cx = np.divmod(np.arange(GRID * GRID), GRID)
     centre_in = op['inside'][cy * PX + PX // 2, cx * PX + PX // 2]
     t = np.where(~centre_in, 1, 0)
-    t = np.where(cnt(op['structure']) >= OBJ_PX, 2, t)
+    t = np.where(((cnt(op['struct_out']) >= OBJ_PX) & ~centre_in) | (cnt(op['struct_in']) >= OBJ_PX), 2, t)
     t = np.where(cnt(op['spout']) >= OBJ_PX, 3, t)
     t = np.where(cnt(op['bag']) >= OBJ_PX, 4, t)
     return t.astype(np.int8)
@@ -508,14 +602,18 @@ def cmd_objects(args):
     rmap = pd.Series(np.arange(len(R['obs'])), index=R['obs'])
     otype = np.zeros((len(vids), GRID * GRID), np.int8)
     opx = np.zeros((len(vids), 512, 512), np.uint8)  # pixel types (sheets): 1 wall .. 4 bag, 5 inside structure
+    box = np.zeros((len(vids), 4), np.int32)  # session-median floor box r0, r1, c0, c1
     rows = []
     for s in sessions:
         vs = [v for v in vids if v[:-2] == s]
         S = np.max(np.stack([pix_bg(f'{s}_{ph}') for ph in 'HOP' if (BGDIR / f'{s}_{ph}.npz').exists()]), 0)
         cover = cov[s] / max(ncov[s], 1)
+        sbox = oc.loc[vs, BOX].median().round().astype(int)
         for v in vs:
             i = vids.index(v)
-            r = oc.loc[v]
+            r = oc.loc[v].copy()
+            r[BOX] = sbox.values
+            box[i] = sbox.values
             op = object_pixels(S, cover, pix_bg(v), r)
             t = patch_types(op)
             otype[i] = t
@@ -537,7 +635,7 @@ def cmd_objects(args):
     T = pd.DataFrame(rows)
     od = OUT / 'mice'
     od.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(od / 'objects.npz', obs=np.array(vids), otype=otype, opx=opx, names=np.array(OBJ_NAMES))
+    np.savez_compressed(od / 'objects.npz', obs=np.array(vids), otype=otype, opx=opx, names=np.array(OBJ_NAMES), box=box)
     T.to_csv(od / 'objects.csv', index=False)
     summ = {'n_videos': len(vids), 'n_sessions': len(sessions),
             'patches_per_video_median': {nm: float(T[f'n_{nm}'].median()) for nm in OBJ_NAMES},
@@ -569,8 +667,8 @@ def cmd_objects(args):
                     im[m] = 0.4 * im[m] + 0.6 * np.array(c)
             pil = Image.fromarray(im.clip(0, 255).astype(np.uint8))
             dr = ImageDraw.Draw(pil)
-            r = oc.loc[v]
-            dr.rectangle([r.arena_c0, r.arena_r0, r.arena_c1, r.arena_r1], outline=(0, 255, 0))
+            b0 = box[i]
+            dr.rectangle([b0[2], b0[0], b0[3], b0[1]], outline=(0, 255, 0))
             for q in range(GRID * GRID):
                 tq = int(otype[i, q])
                 if tq in pcol:
@@ -610,7 +708,7 @@ def _prep_video(job):
         g = grey_of(imgs[int(fidx[i])])
         ext[i] = extremities(L)
         for c in CUES:
-            Le, tail, st = extend(L, cue_mask(g, pb, c))
+            Le, tail, st = extend_any(L, g, pb, ext[i], c)
             b, to = patch_bits(L, Le)
             r = res[c]
             r['bits'][i], r['tonly'][i], r['tail'][i], r['st'][i] = b, to, tail, st
@@ -618,13 +716,14 @@ def _prep_video(job):
             r['root'][i], r['clus'][i] = clusters(Le)
             r['intr'][i] = interaction_map(b, ext[i], otype)
             if render[i]:
-                tiles.setdefault(int(pos[i]), {})[c] = tail_tile(imgs[int(fidx[i])], L, Le, cue_mask(g, pb, c), ext[i],
+                tiles.setdefault(int(pos[i]), {})[c] = tail_tile(imgs[int(fidx[i])], L, Le,
+                                                                 line_cue(g, pb) if c == 'line' else cue_mask(g, pb, c), ext[i],
                                                                  f'{obs} f{fidx[i]} cue {c}: tail px {tail.tolist()}, '
-                                                                 f'unattached {st[3]}')
+                                                                 f'unattached {st[3]}', r['intr'][i], otype)
     return pos, res, ext, tiles
 
 
-def tail_tile(rgb, L, Le, cue, ext, title):
+def tail_tile(rgb, L, Le, cue, ext, title, intr=None, otype=None):
     """SAM masks tinted, attached tail pixels in full instance colour, unattached cue pixels magenta, body ends white."""
     from PIL import Image, ImageDraw
     im = rgb.astype(np.float32).copy()
@@ -640,6 +739,12 @@ def tail_tile(rgb, L, Le, cue, ext, title):
             y, x = ext[k, e]
             if np.isfinite(y):
                 dr.ellipse([x - 3, y - 3, x + 3, y + 3], outline=(255, 255, 255), width=2)
+    for q in range(GRID * GRID):
+        r_, c_ = divmod(q, GRID)
+        if otype is not None and otype[q] >= 2:
+            dr.rectangle([c_ * PX + 2, r_ * PX + 2, c_ * PX + PX - 3, r_ * PX + PX - 3], outline=OBJ_RGB[int(otype[q])])
+        if intr is not None and intr[q]:
+            dr.rectangle([c_ * PX, r_ * PX, c_ * PX + PX - 1, r_ * PX + PX - 1], outline=(0, 255, 255), width=2)
     dr.text((4, 4), title, fill=(255, 0, 0))
     return np.asarray(pil)
 
@@ -727,13 +832,30 @@ def cmd_prep(args):
     ks = sorted(tiles)
     for s in range(4):
         sub = ks[5 * s:5 * s + 5]
-        sh = Image.new('RGB', (3 * 512, 512 * len(sub)))
+        sh = Image.new('RGB', (len(CUES) * 512, 512 * len(sub)))
         for a, f in enumerate(sub):
             for b_, c in enumerate(CUES):
                 sh.paste(Image.fromarray(tiles[f][c]), (b_ * 512, a * 512))
         sh.save(od / f'tail_sheet_{s}.jpg', quality=90)
     (od / 'tail_sheet_frames.json').write_text(json.dumps([int(x) for x in ks]))
     log(f'prep done ({time.time() - t0:.0f}s)')
+
+
+def cmd_taildiag(args):
+    """Diagnostic on the 20 tail-sheet frames: per mouse and body end, seed px, geodesic steps, grown px, width."""
+    global DIAG
+    loc = nm2.local_dir()
+    F = load_frames()
+    fr = json.loads((OUT / 'mice' / 'tail_sheet_frames.json').read_text())
+    sam = load_sam(loc, F.tid.values[fr])
+    Q = np.load(OUT / 'mice' / 'prep_line.npz')
+    for f in fr:
+        rgb = decode_frames(F.vname.values[f], [F.frame_idx.values[f]], loc)[int(F.frame_idx.values[f])]
+        DIAG = []
+        Le, tail, st = extend_line(sam[int(F.tid.values[f])], grey_of(rgb), pix_bg(F.obs.values[f]), Q['ext'][f])
+        log(f'{F.obs.values[f]} f{F.frame_idx.values[f]} tail {tail.tolist()} | ' +
+            ' '.join(f'm{k}e{e}:seed{a} st{b} px{c} w{d:.1f}' for k, e, a, b, c, d in DIAG))
+    DIAG = None
 
 
 # ---------------------------------------------------------------------------------------------- analyse (CPU)
@@ -753,6 +875,7 @@ class Data3(nm2.Data):
         vids = sorted(self.F.obs.unique())
         assert list(O['obs']) == vids
         self.P['otype'] = O['otype']
+        self.P['box'] = O['box']
         self.cue = cue
 
 
@@ -1022,7 +1145,7 @@ def cmd_sheets(args):
         if o not in pbc:
             pbc[o] = pix_bg(o)
         L = sam[int(F.tid.values[f])]
-        Le, _, _ = extend(L, cue_mask(grey_of(imgs[f]), pbc[o], cue))
+        Le, _, _ = extend_any(L, grey_of(imgs[f]), pbc[o], D.P['ext'][f], cue)
         geo[f] = (L, Le)
         b, _ = patch_bits(L, Le)
         assert np.array_equal(b, D.P['bits'][f]), f'bits of frame {f} not reproduced'
@@ -1043,10 +1166,10 @@ def cmd_sheets(args):
             n, ncl, size = frame_types(np.array([gb]), D.P['root'][f][None])
             ft = 'none' if n[0] == 0 else 'self' if n[0] == 1 else 'apart' if ncl[0] > 1 else 'pair' if n[0] == 2 else 'huddle'
             o = F.obs.values[f]
-            r = oc.loc[o]
+            bx = D.P['box'][D.P['vid'][f]]
             L, Le = geo[f]
             tiles.append(render_tile3(imgs[f], act, val, L, Le, D.P['ext'][f], D.P['otype'][D.P['vid'][f]],
-                                      [r.arena_c0, r.arena_r0, r.arena_c1, r.arena_r1], D.P['intr'][f],
+                                      [bx[2], bx[0], bx[3], bx[1]], D.P['intr'][f],
                                       f'{o} f{F.frame_idx.values[f]} w{D.w[f]:.0f} act {len(act)} on '
                                       f'{int((bits[act] > 0).sum())} int {int(D.P["intr"][f][act].sum())} | n {n[0]} {ft}'))
         cols = 3
@@ -1073,7 +1196,7 @@ def cmd_sheets(args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('step', choices=['look', 'objects', 'prep', 'analyse', 'sheets'])
+    ap.add_argument('step', choices=['look', 'objects', 'prep', 'taildiag', 'analyse', 'sheets'])
     ap.add_argument('--dict', choices=['fg448m5', 'fg448al'])
     ap.add_argument('--cue', default='dark', choices=list(CUES))
     ap.add_argument('--workers', type=int, default=8)
