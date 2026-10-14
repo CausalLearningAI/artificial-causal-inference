@@ -21,6 +21,8 @@ Scores compared on the labelled evaluation frames (all are label-free)
 Steps (scripts/eci/event_hmm.sh runs each in Slurm, CPU)
     run     --domain d   one sequential chunked pass over codes_max keeps the key-neuron columns (cached as
                          OUT/<d>/cols.npz), fits, validates -> OUT/<d>/event_hmm.json, fig_data.npz, posteriors.npz
+    export  --domain d   from the saved fold parameters: HMM P(ON) of EVERY video per key neuron (held-out where a
+                         fold did not fit on the video) -> OUT/<d>/n<neuron>_pon.npz, params_hmm.json
     all     --domain ants  every neuron (codes_max read into RAM in row chunks): 2-fold cross-fitted HMM + mixture,
                          per-neuron parameters and AUROC raw / mixture / hmm for the three grooming labels
                          -> OUT/ants/all_neurons.csv, all_neurons.json
@@ -353,6 +355,67 @@ def cmd_frogs_groups(d, V, S, neurons, R):
     log(f'{d} per group: {json.dumps(R["per_group_descriptive"])}')
 
 
+# ---------------------------------------------------------------------------------------------- export
+def cmd_export(args):
+    """Per-frame HMM P(ON) of EVERY video for each key neuron, from the saved fold parameters (no refit), and the
+    fitted parameters as JSON. Each video gets the posterior of a fold that did NOT fit on it where one exists
+    (mice annotated videos, every ants video); else the in-sample posterior (mice unannotated = the fit videos,
+    frogs): flagged per frame in 'heldout'.
+    -> OUT/<d>/n<neuron>_pon.npz (rows, p_on float16, video_id, heldout), OUT/<d>/params_hmm.json"""
+    d = args.domain
+    neurons = KEY[d]
+    z = np.load(OUT / d / 'cols.npz')
+    assert list(z['neurons']) == neurons
+    X = z['X'].astype(np.float32)
+    N = len(X)
+    theta = theta_of(d)
+    lab = labels_all(d) if d in LABELS else pd.DataFrame({'obs': []})
+    folds, split_desc = split(d, lab)
+    P = [dict(np.load(OUT / d / f'params_hmm_fold{f}.npz')) for f in range(len(folds))]
+    for p in P:
+        assert list(p['neurons']) == neurons and float(p['theta']) == theta
+    pon = np.full((N, len(neurons)), np.nan, np.float32)
+    held = np.zeros(N, bool)
+    for f, (fit_v, ev_v) in enumerate(folds):
+        fit_ids = {v[0] for v in fit_v}
+        out_v = [v for v in ev_v if v[0] not in fit_ids]
+        if out_v:
+            r, s = concat(out_v)
+            pon[r] = eh.posterior(X[r], s, theta, P[f])
+            held[r] = True
+    rest = [v for v in videos(d) if np.isnan(pon[v[1], 0])]
+    if rest:
+        r, s = concat(rest)
+        pon[r] = eh.posterior(X[r], s, theta, P[0])
+    assert not np.isnan(pon).any()
+    vid = np.empty(N, object)
+    for o, lo, hi in videos(d):
+        vid[lo:hi] = o
+    vid = vid.astype(str)
+    paths = []
+    for i, j in enumerate(neurons):
+        p = OUT / d / f'n{j}_pon.npz'
+        np.savez(p, rows=np.arange(N, dtype=np.int64), p_on=pon[:, i].astype(np.float16), video_id=vid, heldout=held,
+                 neuron=j, theta=theta, fps=FPS)
+        paths.append(str(p.relative_to(REPO)))
+    J = {'domain': d, 'sae': rc.sae_name(d), 'theta': theta, 'fps': FPS, 'split': split_desc,
+         'model': 'state 0 = OFF, 1 = ON; P(a=0|s) = z[s]; u = log(a/theta) | a>0, s ~ Gamma(shape k[s], scale sc[s]); '
+                  'A[from][to] per frame; pi = initial state probabilities; ON = higher expected read-out',
+         'pon_files': paths, 'heldout_frames': int(held.sum()), 'in_sample_frames': int((~held).sum()), 'folds': []}
+    for f, p in enumerate(P):
+        J['folds'].append({'fold': f, 'fit_videos': [v[0] for v in folds[f][0]], 'neurons': {
+            str(j): {'z': p['z'][i].tolist(), 'k': p['k'][i].tolist(), 'sc': p['sc'][i].tolist(),
+                     'A': p['A'][i].tolist(), 'pi': p['pi'][i].tolist(), **eh.summary(
+                         {k: p[k][i:i + 1] for k in ('z', 'k', 'sc', 'A', 'pi')}, theta, FPS)[0]}
+            for i, j in enumerate(neurons)}})
+    (OUT / d / 'params_hmm.json').write_text(json.dumps(J, indent=1, default=float))
+    # consistency: the stored evaluation posteriors must be reproduced exactly
+    E = np.load(OUT / d / 'posteriors.npz')
+    dev = float(np.abs(pon[E['rows']].astype(np.float16).astype(np.float32) - E['hmm'].astype(np.float32)).max())
+    log(f'{d}: wrote {paths} + params_hmm.json; held-out frames {held.sum():,} / {N:,}; max |P(ON) - stored eval '
+        f'posterior| = {dev:.2e}')
+
+
 # ---------------------------------------------------------------------------------------------- all neurons
 def fast_auc(score, y):
     """AUROC with average ranks for ties (Mann-Whitney)."""
@@ -530,12 +593,12 @@ def cmd_figure(args):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('run', 'all', 'figure'))
+    p.add_argument('step', choices=('run', 'export', 'all', 'figure'))
     p.add_argument('--domain', default='mice', choices=rc.DOMAINS)
     p.add_argument('--block', type=int, default=512, help='all: neurons per block')
     p.add_argument('--n-iter', type=int, default=300, help='all: EM iteration cap')
     args = p.parse_args()
-    {'run': cmd_run, 'all': cmd_all, 'figure': cmd_figure}[args.step](args)
+    {'run': cmd_run, 'export': cmd_export, 'all': cmd_all, 'figure': cmd_figure}[args.step](args)
 
 
 if __name__ == '__main__':
