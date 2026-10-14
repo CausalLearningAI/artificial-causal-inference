@@ -700,7 +700,11 @@ def plot(args):
                 ax.axvline(thr, color='k', lw=0.35, ls=(0, (1.5, 1.2)))
         if hi is not None:  # drawn even at 0 (e.g. latency 0 s): the dot marks the shown neuron
             ax.hlines([hi], 0, v[hi], color=C_N, lw=0.9)
-            ax.plot([v[hi]], [hi], 'o', ms=1.3, color=C_N, mec='none')
+            v_hi = float(v[hi]) if np.isfinite(v[hi]) else 0.0
+            if v_hi > 0:
+                ax.plot([v_hi], [hi], 'o', ms=1.3, color=C_N, mec='none')
+            else:  # value 0: a small pink marker at zero keeps the row visible
+                ax.plot([0], [hi], marker='>', ms=2.2, color=C_N, mec='none', clip_on=False)
         ax.set_ylim(n, 0); ax.set_xlim(0, float(np.nanmax(v)) * 1.1 or 1.0)
         ax.set_xticks([]); ax.set_yticks([])
         for s in ('top', 'right'):
@@ -711,9 +715,7 @@ def plot(args):
                            (xs['spatial'], 'c', 'Neural activation'), (xs['vid'], 'd', 'Video representation')):
         txt(xx, 0.6, lab, fontsize=8, weight='bold')
         txt(xx + 2.6, 0.85, title, fontsize=FS)
-    for k, title in (('grid', f'{G} × {G} tokens'), ('zoom', 'animals mask'),
-                     ('vec', f'{enc_label} token\nrepresentation'), ('pre', 'SAE (top-k)\nrepresentation'),
-                     ('spatial', 'frame neural\nactivation')):
+    for k, title in (('vec', enc_label), ('pre', 'SAE (top-k)')):
         txt(xs[k], Y_TITLE, title, color=C_DARK)
     for i, title in enumerate(('time', 'bouts', 'latency')):
         txt(xs['vid'] + i * (vw + vg), Y_TITLE, title, color=C_DARK)
@@ -814,6 +816,9 @@ def plot(args):
         txt(xs['vec'] + 0.7 + VPAD / 2 + gw + gg / 2, vy + vh + 0.3, f'd = {dm["d_token"]} + {dm["d_delta"]}',
             ha='center', fontsize=5.0, color='#a0a0a0')
         txt(xs['pre'], vy + vh + 0.3, f'd = {dm["n_latents"]}, k = {dm["k"]}', fontsize=5.0, color='#a0a0a0')
+        txt((xs['vec'] + xs['pre'] + bw + 2.0) / 2, vy + vh + 2.2, 'token representation', ha='center', color=C_TOK)
+        for k_, lab_ in (('grid', f'{G} × {G} tokens'), ('zoom', 'animals mask'), ('spatial', 'neural activation')):
+            txt(xs[k_], y0 + sz + 0.5, lab_, color=C_DARK)
         fig.add_artist(ConnectionPatch(xyA=(sx_ + 1, sy + 0.5), coordsA=zoom_ax.transData, xyB=(0, 0.5),
                                        coordsB=gl[0].transAxes, color=C_TOK, lw=0.5, arrowstyle='-|>',
                                        mutation_scale=4))
@@ -838,54 +843,34 @@ def plot(args):
                                        xyB=(sx_ + 0.5, sy + 0.5), coordsB=a.transData, color=C_N, lw=0.6,
                                        arrowstyle='-|>', mutation_scale=5, shrinkA=2.0, shrinkB=2.5,
                                        connectionstyle='arc3,rad=-0.15'))
-        arrow(xs['spatial'] + sz + 0.5, xs['trace'] - 3.4, yc, 'max\npooling', label_color=C_TOK)  # clear of the y tick labels
+        arrow(xs['spatial'] + sz + 0.5, xs['trace'] - 3.4, yc, 'max\npooling', color=C_TOK, label_color=C_TOK)  # clear of the y tick labels
         # ---- c: one value per frame (raw), firing raster -> temporal -> per video
         fire, s_ = firing(A, m, args.event)
         summ_out[d] = s_
         tr = A['trace']
         n = len(tr)
-        nw = int(round(args.window_s * FPS))
         c = m['frame_idx'] - m['window'][0]
-        w0 = int(np.clip(c - nw // 2, 0, max(n - nw, 0)))
-        seg, fseg = tr[w0:w0 + nw], fire[w0:w0 + nw]
-        tt = np.arange(len(seg)) / FPS
+        tt = np.arange(n) / FPS / 60
+        clip_min = n / FPS / 60
         beh = DOM[d]['short'].replace(' ', '\\ ')
         txt(xs['trace'], y0 - 0.2, f'Neuron {key}: ' + '$\\it{' + beh + '}$', color=C_N)
         a = ax_mm(xs['trace'], y0 + 2.3, wt, sz - 6.4)
-        # the clip continues beyond the window: fade the trace / raster towards each open side, mark it with '...'
-        more_l, more_r = w0 > 0, w0 + nw < n
-        nf = max(1, int(0.12 * len(seg)))
-        alpha = np.ones(len(seg))
-        if more_l:
-            alpha[:nf] = np.linspace(0.12, 1, nf)
-        if more_r:
-            alpha[-nf:] = np.linspace(1, 0.12, nf)
-        rgb = np.array(to_rgb(C_N))
-        pts = np.c_[tt, seg]
-        a.add_collection(matplotlib.collections.LineCollection(
-            np.stack([pts[:-1], pts[1:]], 1), colors=np.c_[np.tile(rgb, (len(seg) - 1, 1)), alpha[:-1]], linewidths=0.35))
-        a.plot([(c - w0) / FPS], [float(tr[c])], 'o', ms=2.0, mfc='none', mec=C_KEPT, mew=0.6)
+        a.plot(tt, tr, color=C_N, lw=0.25)
+        a.plot([c / FPS / 60], [float(tr[c])], 'o', ms=2.0, mfc='none', mec=C_KEPT, mew=0.6)
         if args.event == 'q95':
             a.axhline(m['summary']['threshold'], color='k', lw=0.35, ls=(0, (2, 1.5)))
-        a.set_xlim(0, args.window_s); a.set_ylim(0, float(tr.max()) * 1.05)
+        a.set_xlim(0, clip_min); a.set_ylim(0, float(tr.max()) * 1.05)
         a.set_xticks([]); a.set_yticks([0, round(float(tr.max()) / 5) * 5 or 1])
         for s in ('top', 'right'):
             a.spines[s].set_visible(False)
-        for side, on in (('left', more_l), ('right', more_r)):
-            if on:
-                a.text(1.0 if side == 'right' else 0.0, 0.45, '…', transform=a.transAxes, color=C_GREY,
-                       fontsize=FS, ha='left' if side == 'right' else 'right', va='center')
         r = ax_mm(xs['trace'], y0 + sz - 3.6, wt, 1.1)
-        on_ = np.flatnonzero(fseg)
-        r.vlines(on_ / FPS, 0, 1, colors=[(0.42, 0.42, 0.42, float(al)) for al in alpha[on_]], lw=0.15)
-        r.set_xlim(0, args.window_s); r.set_ylim(0, 1); r.set_yticks([])
+        r.vlines(np.flatnonzero(fire) / FPS / 60, 0, 1, color='#6b6b6b', lw=0.1)
+        r.set_xlim(0, clip_min); r.set_ylim(0, 1); r.set_yticks([])
         for s in ('top', 'right', 'left'):
             r.spines[s].set_visible(False)
-        t0m, t1m = w0 / FPS / 60, (w0 + nw) / FPS / 60  # the window's place in the clip (min)
-        r.set_xticks([0, args.window_s])
-        fm = lambda v: f'{v:.1f}'.rstrip('0').rstrip('.')  # noqa: E731
-        r.set_xticklabels([fm(t0m), f'{fm(t1m)} min'])
+        r.set_xticks([0, clip_min]); r.set_xticklabels(['0', f'{clip_min:.0f} min'])
         r.tick_params(length=1.0, labelsize=FS_S - 0.6)
+        arrow(xs['trace'] + wt + 0.6, xs['vid'] - 0.7, yc, color=C_KEPT)
         # ---- d: video representation = the three summaries of EVERY neuron (all 4096) over the example clip
         rule = args.event if f'vrep_{args.event}' in A else 'nonzero'
         if rule != args.event:
@@ -902,8 +887,12 @@ def plot(args):
             if i == 2:  # latency: neurons that never fire in the clip (censored at its length) are left blank
                 v_[~(V[0] > 0)] = np.nan
             bars(va_, v_, V.shape[1], hi=key)
-            txt(xs['vid'] + i * (vw + vg), vy + vh + 0.3, vals[i], fontsize=5.0, color=C_N)
-        txt(xs['vid'], vy + vh + 2.1, f'd = 3 × {V.shape[1]}', fontsize=5.0, color='#a0a0a0')
+            va_.annotate(vals[i], (0, key), xytext=(0.6, 0.7), textcoords='offset points', ha='left', va='bottom',
+                         fontsize=4.6, color=C_N, annotation_clip=False,
+                         bbox=dict(fc='white', ec='none', pad=0.25, alpha=0.85))
+            txt(xs['vid'] + i * (vw + vg), vy + vh + 0.3, ('time', 'bouts', 'latency')[i], fontsize=FS_S - 0.6,
+                color=C_DARK)
+        txt(xs['vid'], vy + vh + 2.2, f'd = 3 × {V.shape[1]}', fontsize=5.0, color='#a0a0a0')
     for fmt in ('pdf', 'png'):
         fig.savefig(OUT / f'fig_pipeline.{fmt}', dpi=args.dpi if fmt == 'png' else 600)
     json.dump({'event': args.event, 'window_s': args.window_s, 'summaries': summ_out},
