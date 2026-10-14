@@ -39,6 +39,29 @@ PRE-REGISTERED (fixed before any result; usable frames, prefix 4096, 3-seed mean
     calibration for the noisy-AUROC-selected nn (and nt) neuron, picked on half 0: weighted label rate vs frame belief in
                 bins on half 1 (descriptive; the concept is not the label).
 
+RESULTS (jobs 822100 gate16/8, 822535 gate16s/8s, 823248 gate16n/8n; RTX 3090 / A10, 2026-10-15; 3 seeds; usable, m4096,
+noisy-OR read-out; mean +- sd; references from results/vision/eci_sparsity)
+    store check: eval t vs BDIR tok448 cos min 0.9999997. lambda (dual ascent) hit E[L0] on train tokens: 16.00 / 8.00 in
+    every arm. Unit tests (gated_sae_test.py, 10) pass.
+                       nose_nose AUROC / AP / top-1%              nose_tail AUROC / AP / top-1%     FVE     dead
+    btk16 (ref)        0.690+-.021 / 0.0599+-.0045 / 0.141        0.719+-.063 / 0.0398 / 0.089      0.781   0.1%
+    btk8  (ref)        0.673+-.011 / 0.0613+-.0142 / 0.141        0.697+-.046 / 0.0516 / 0.121      0.723   0.4%
+    gate16 (as spec'd) 0.630+-.020 / 0.0346+-.0025 / 0.052        0.653+-.021 / 0.0240 / 0.032      0.742   92%
+    gate8              0.630+-.038 / 0.0342+-.0044 / 0.050        0.659+-.035 / 0.0222 / 0.033      0.685   95%
+    gate16s            0.641+-.003 / 0.0399+-.0048 / 0.063        0.665+-.004 / 0.0234 / 0.033      0.759   73%
+    gate8s             0.677+-.015 / 0.0444+-.0059 / 0.067        0.731+-.066 / 0.0406 / 0.074      0.697   85%
+    gate16n            0.687+-.052 / 0.0579+-.0140 / 0.112        0.723+-.040 / 0.0398 / 0.089      0.761   43%
+    gate8n             0.683+-.024 / 0.0476+-.0033 / 0.081        0.707+-.061 / 0.0369 / 0.068      0.696   75%
+    Verdicts: no arm helps. Only gate16n is 'acceptable' (nn dAUROC -0.003 / dAP -0.0020, nt +0.004 / -0.0000 vs btk16),
+    but it is the third, post hoc design, its seed sd is 2.5x btk16's (seed 0 0.755, seeds 1 / 2 0.628 / 0.679), nn top-1%
+    is 0.029 lower, FVE 0.020 lower and 43% of latents are dead. Dead latents = collapse: uniform-init latents freeze at
+    init (winners fixed during warm-up); with flat L0 + Matryoshka, survival falls by prefix group (gate16s 93 / 56 / 20 /
+    2.5%); nested L0 cuts the dead share from 73% to 43%.
+    Beliefs are bimodal: 0.15% of (token, latent) beliefs in [0.1, 0.9]; per token ~20 latents have p >= 0.1, of which
+    ~6 (30%) are in [0.1, 0.9] (gate16n), ~12 have p >= 0.99. Noisy-OR frame beliefs saturate: 8% of (frame, latent) > 0.99,
+    every top-sheet frame has P = 1.000. Reliability (gate16n s0, nn neuron 1765): label rate 0.006 at P < 0.1 rising to
+    0.057 at P >= 0.99 (monotone but far from calibrated to the label, as expected for a broader concept).
+
 Steps
     run      GPU  stage JPGs -> encode once -> train all arms x seeds -> eval -> seed-0 sheets
     summary  any  OUT/table.md, OUT/summary.json (reads JSONs only)
