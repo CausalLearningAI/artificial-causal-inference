@@ -32,6 +32,28 @@ task: nn AUROC 0.692 / AP 0.0552 / top-1% 0.122, nt 0.741 / 0.0512 / 0.099; the 
     best arm     (for the contact sheets) = the arm with the highest mean over nn / nt of AP / c448 AP; sheets are its
                  seed-0 best nn and nt neurons (AUROC- and top-1%-selected on half 0, shown on half 1).
 
+RESULTS (jobs 808392 / 808393, L40S, 2026-10-14; smoke 808381; 3 SAE seeds; usable frames; mean +- sd)
+    store check: re-encoded eval t vs BDIR tok448 cos min 0.9999998; train t vs store 0.9999998; t-5 vs d5 0.99996.
+    sparsifier self-test (65,536 eval tokens): tk arms exactly k actives on every token; btk arms mean L0 ~ k, max 14-128.
+    prefix 4096        nose_nose AUROC / AP / top-1%                  nose_tail AUROC / AP / top-1%
+    c448 (reference)   0.692+-.023 / 0.0552+-.0105 / 0.122+-.012      0.741+-.053 / 0.0512+-.0111 / 0.099+-.010
+    btk4               0.674+-.013 / 0.0512+-.0049 / 0.093+-.028      0.688+-.044 / 0.0355+-.0087 / 0.073+-.013
+    btk8               0.673+-.011 / 0.0613+-.0142 / 0.141+-.027      0.697+-.046 / 0.0516+-.0096 / 0.121+-.009
+    btk16              0.690+-.021 / 0.0599+-.0045 / 0.141+-.002      0.719+-.063 / 0.0398+-.0098 / 0.089+-.021
+    btk32              0.674+-.014 / 0.0517+-.0045 / 0.110+-.012      0.704+-.031 / 0.0389+-.0026 / 0.082+-.008
+    tk4                0.636+-.006 / 0.0463+-.0091 / 0.098+-.031      0.632+-.007 / 0.0299+-.0065 / 0.067+-.009
+    tk8                0.635+-.023 / 0.0577+-.0041 / 0.146+-.017      0.721+-.030 / 0.0533+-.0114 / 0.105+-.016
+    tk16               0.662+-.039 / 0.0423+-.0018 / 0.099+-.018      0.690+-.039 / 0.0323+-.0014 / 0.083+-.009
+    tk32               0.658+-.019 / 0.0516+-.0067 / 0.113+-.010      0.703+-.046 / 0.0496+-.0186 / 0.099+-.030
+    eval FVE c448 0.780 | btk4 0.641, 8 0.723, 16 0.781, 32 0.830 | tk4 0.628, 8 0.707, 16 0.766, 32 0.817.
+    dead (never fires on eval): k = 4 arms 75-78% (AuxK does not rescue them); all other arms <= 2.5%.
+    median frame firing rate of eligible (>= 1%) neurons: c448 0.091, btk4/8/16/32 0.188/0.065/0.094/0.123,
+    tk4/8/16/32 0.149/0.085/0.105/0.157. AUROC-picked nn neuron fires on 0.74 (c448) / 0.29-0.71 (other arms) of frames.
+    Verdicts: NO arm helps (best AP ratio 1.11x, btk8 nn; best top-1% 0.146, tk8 nn; rule needs 1.5x or 0.25).
+    TopK is NOT within noise of BatchTopK at any k (AUROC gaps 0.016-0.056, TopK mostly lower; at k = 16 TopK is lower
+    on every metric: nn AP -0.018). Best arm btk8 (1.06x mean AP ratio): its best neurons respond to two mice in close,
+    aligned contact (head-to-head or head-to-rear) and do not separate nn from nt.
+
 Steps
     run      GPU  stage JPGs -> encode once -> train all arms x seeds on the same tokens -> eval -> seed-0 sheets
     summary  any  OUT/table.md, OUT/summary.json (reads JSONs only)
