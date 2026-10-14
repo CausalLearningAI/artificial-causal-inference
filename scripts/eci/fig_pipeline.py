@@ -331,11 +331,11 @@ def compute_domain(name, cfg, sae_name, tmp, n_cand=200):
     j_ex = int(np.argmin([abs(q - t_rel) for q in tpos]))
     tpos[j_ex] = t_rel
     thumbs = []
-    for q in tpos:
-        pth = Path(tmp) / 'thumb' / ann.frame_path.iloc[lo + w0 + q].replace('/', '_')
-        pth.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(REPO / 'dataset' / ann.frame_path.iloc[lo + w0 + q], pth)
-        thumbs.append(np.asarray(Image.open(pth).convert('RGB').resize((192, 192), Image.LANCZOS)))
+    for q in tpos:  # native frame of each thumbnail (start + step * 5 fps index + expect), LANCZOS to 512 px
+        fr_ = decode_native(srcf, start + cfg['step'] * (w0 + q) + cfg['expect'], probe['fps'], tmp, n=1)[0]
+        if hflip:
+            fr_ = np.ascontiguousarray(fr_[:, ::-1])
+        thumbs.append(np.asarray(Image.fromarray(fr_).resize((512, 512), Image.LANCZOS)))
     thumbs = np.stack(thumbs)
     hmm = None
     hp = HMM / name / 'posteriors.npz'
@@ -396,7 +396,7 @@ def compute_domain(name, cfg, sae_name, tmp, n_cand=200):
                 pca_fit_frames=len(pool) + 2, n_kept_prev=int(mask_p.sum()),
                 version=cfg['version'], name=cfg['name'], species=cfg['species'])
     OUT.joinpath('cache').mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(OUT / 'cache' / f'{name}.npz', native=nat_small, frames=frames, enc_in=enc_in,
+    np.savez_compressed(OUT / 'cache' / f'{name}.npz', native=native, frames=frames, enc_in=enc_in,
                         mask=mask.numpy().reshape(GRID, GRID), motion=motion.reshape(GRID, GRID), heat=heat, code=mx,
                         tok_code=tok_code, trace=tr, above=above, bouts=bouts, pca_t=pca_rgb[0], pca_p=pca_rgb[1],
                         thumbs=thumbs, thumb_pos=np.array(tpos), thumb_ex=j_ex, tok_x=tok_x, tok_d=tok_d, pre=pre,
@@ -611,11 +611,12 @@ def plot(args):
     C_DX = '#009E73'  # token-difference hue (Okabe-Ito bluish green)
     # ------------------------------------------------ layout (mm)
     W = 183.0
-    left, top_h, row_h, sz = 7.0, 11.0, 23.5, 15.0
+    left, top_h, row_h, sz = 7.0, 9.5, 23.5, 15.0
+    Y_TITLE = 4.1  # baseline (top) of the column titles; the per-row size lines sit at the same row offset
     ag = 2.8                    # arrow gap between steps
     fw, nvol, dx, dy = 10.0, 9, 1.9, 0.5  # temporal volume
-    gw, gg, bw = 2.0, 0.5, 7.0  # vector glyph strip width, gap between the two strips, sparse-bar panel width
-    VPAD = 5.0                  # extra width of the glyph column (room for its title)
+    gw, gg, bw = 1.6, 0.5, 7.0  # vector glyph strip width, gap between the two strips, sparse-bar panel width
+    VPAD = 6.0                  # extra width of the glyph column (room for its title)
     xa = left
     wa = fw + (nvol - 1) * dx
     xb = xa + wa + 5.0
@@ -627,7 +628,7 @@ def plot(args):
     xs['trace'] = x
     xs['num'] = W - 0.5 - 11.0
     wt = xs['num'] - 4.8 - xs['trace']
-    H = top_h + row_h * len(doms) + 0.5
+    H = top_h + row_h * (len(doms) - 1) + 18.2  # tight: the last row's lowest labels end ~18 mm below its top
     fig = plt.figure(figsize=(W * MM, H * MM))
 
     def ax_mm(x, y, w, h):
@@ -700,8 +701,18 @@ def plot(args):
     for k, title in (('grid', f'{G} × {G} tokens'), ('zoom', 'animals mask'),
                      ('vec', f'{enc_label} token\nrepresentation'), ('pre', 'SAE (top-k)\nrepresentation'),
                      ('spatial', 'frame neural\nactivation'), ('num', 'per video')):
-        txt(xs[k], 4.1, title, color=C_DARK)
+        txt(xs[k], Y_TITLE, title, color=C_DARK)
     summ_out = {}
+    from src.eci.sae import load_sae
+    dims = {}
+    for d in doms:  # verify the dims from each deployed SAE checkpoint against the cached token vectors
+        sae_, _, ck_ = load_sae(DOM[d]['eci'] / 'sae' / data[d][1]['sae'] / 'sae.pt', 'cpu')
+        n_lat, d_in = (int(v) for v in sae_.W_dec.shape)
+        dx_, dd_ = len(data[d][0]['tok_x']), len(data[d][0]['tok_d'])
+        assert d_in == dx_ + dd_ and n_lat == len(data[d][0]['pre']), (d, n_lat, d_in, dx_, dd_)
+        dims[d] = dict(n_latents=n_lat, d_in=d_in, d_token=dx_, d_delta=dd_, k=int(sae_.k),
+                       motion_delta=int(ck_.get('motion_delta', 0) or 0))
+        log(f'[dims] {d}: {dims[d]}')
     sp = OUT / 'source_sizes.json'  # scripts/eci/fig_pipeline.py sizes (ffprobe of every source video)
     sizes = json.load(open(sp)) if sp.exists() else {}
     for ri, d in enumerate(doms):
@@ -713,6 +724,10 @@ def plot(args):
         zx, zy, zs = zoom_box(mk)
         sy, sx_ = m['sel_token']
         gt = grey(A['frames'][0])
+        gN = grey(A['native'])  # full-resolution native frame t for the image panels
+        iy = (np.arange(gN.shape[0]) * G) // gN.shape[0]
+        ix = (np.arange(gN.shape[1]) * G) // gN.shape[1]
+        upN = mk[iy][:, ix]  # the token mask at native resolution
         txt(0.4, yc, m['name'], fontsize=6.5, weight='bold', rotation=90, va='center', ha='left')
         txt(3.4, yc, m['species'], fontsize=FS_S - 0.6, rotation=90, va='center', ha='left')
         # ---- a: temporal volume over the clip; t outlined, arrow from t into b
@@ -724,7 +739,7 @@ def plot(args):
             a = img(xa + i * dx, top0 + i * dy, fw, ec=C_KEPT if i == j_ex else '#ffffff', lw=0.9 if i == j_ex else 0.4)
             if i == j_ex:
                 ex_ax = a
-            a.imshow(grey(A['thumbs'][i]), cmap='gray', vmin=0, vmax=1, interpolation='lanczos')
+            a.imshow(grey(A['thumbs'][i]), cmap='gray', vmin=0, vmax=1, interpolation='antialiased')
         ya = top0 + (len(tpos) - 1) * dy + fw + 0.9
         ta = ax_mm(xa + fw / 2 - dx / 2, ya, len(tpos) * dx, 0.01)  # frame i centre = its time
         ta.set_xlim(0, clip_min); ta.set_yticks([])
@@ -736,7 +751,7 @@ def plot(args):
         sz_d = sizes.get(d, {})
         wh = next(iter(sz_d.get('sizes', {})), f'{m["native"]["size"][0]}x{m["native"]["size"][1]}').replace('x', '×')
         fps0 = float(next(iter(sz_d.get('fps', {})), m['native']['fps']))
-        txt(xa, y0 - 5.0, f'original: {wh} px, {fps0:.0f} fps\nused: {m["input_px"]}×{m["input_px"]} px, {FPS:.0f} fps',
+        txt(xa, y0 - (top_h - Y_TITLE), f'original: {wh} px, {fps0:.0f} fps\nused: {m["input_px"]}×{m["input_px"]} px, {FPS:.0f} fps',
             fontsize=FS_S - 0.2, color=C_DARK)
         x0 = xa + j_ex * dx + fw * 0.55
         y_top = top0 + j_ex * dy
@@ -745,7 +760,7 @@ def plot(args):
                                            color=C_KEPT, connectionstyle='arc3,rad=-0.12', shrinkA=0, shrinkB=0))
         # ---- b1: the frame split into its token grid + the animal mask (outline)
         a = img(xs['grid'], y0, sz)
-        a.imshow(gt, cmap='gray', vmin=0, vmax=1, extent=(0, G, G, 0), interpolation='bilinear')
+        a.imshow(gN, cmap='gray', vmin=0, vmax=1, extent=(0, G, G, 0), interpolation='antialiased')
         for i in range(1, G):
             a.axhline(i, color='w', lw=0.1, alpha=0.55)
             a.axvline(i, color='w', lw=0.1, alpha=0.55)
@@ -753,8 +768,7 @@ def plot(args):
         arrow(xs['grid'] + sz + 0.3, xs['zoom'] - 0.3, yc)
         # ---- b2: zoom on the animals, non-mask tokens blanked, the chosen token outlined
         a = img(xs['zoom'], y0, sz)
-        up = np.kron(mk, np.ones((512 // G, 512 // G), bool))
-        a.imshow(np.where(up, gt, 0.93), cmap='gray', vmin=0, vmax=1, extent=(0, G, G, 0), interpolation='nearest')
+        a.imshow(np.where(upN, gN, 0.93), cmap='gray', vmin=0, vmax=1, extent=(0, G, G, 0), interpolation='antialiased')
         for i in range(1, G):
             a.axhline(i, color='w', lw=0.15, alpha=0.6)
             a.axvline(i, color='w', lw=0.15, alpha=0.6)
@@ -764,21 +778,27 @@ def plot(args):
         zoom_ax = a
         # ---- b3: the chosen token -> [x_t, x_t - x_(t-1 s)] as two slim 768-d glyphs
         vy, vh = y0 + 0.6, sz - 3.2
+        vh_d = 0.6 * vh  # the 768 + 768-d token drawn smaller than the 4096-d SAE code
+        vy_d = vy + (vh - vh_d) / 2
         lim = float(np.percentile(np.abs(np.r_[A['tok_x'], A['tok_d']]), 98))
         gl = []
         for j, (v, ec) in enumerate(((A['tok_x'], C_DARK), (A['tok_d'], C_DARK))):
-            g_ = ax_mm(xs['vec'] + 0.7 + VPAD / 2 + j * (gw + gg), vy, gw, vh)
+            g_ = ax_mm(xs['vec'] + 0.7 + VPAD / 2 + j * (gw + gg), vy_d, gw, vh_d)
             g_.imshow(v[:, None], aspect='auto', cmap='gray_r', vmin=-lim, vmax=lim, interpolation='nearest')
             g_.set_xticks([]); g_.set_yticks([])
             for s in g_.spines.values():
                 s.set_linewidth(0.5); s.set_color(ec)
             gl.append(g_)
-        txt(xs['vec'] + 0.7 + VPAD / 2 + gw / 2, vy + vh + 0.3, 'x$_t$', ha='center', fontsize=FS_S - 0.6)
-        txt(xs['vec'] + 0.7 + VPAD / 2 + 1.5 * gw + gg, vy + vh + 0.3, 'Δx$_t$', ha='center', fontsize=FS_S - 0.6)
+        txt(xs['vec'] + 0.7 + VPAD / 2 + gw / 2, vy_d + vh_d + 0.3, 'x$_t$', ha='center', fontsize=FS_S - 0.6)
+        txt(xs['vec'] + 0.7 + VPAD / 2 + 1.5 * gw + gg, vy_d + vh_d + 0.3, 'Δx$_t$', ha='center', fontsize=FS_S - 0.6)
+        dm = dims[d]
+        txt(xs['vec'] + 0.7 + VPAD / 2 + gw + gg / 2, vy + vh + 0.3, f'd = {dm["d_token"]} + {dm["d_delta"]}',
+            ha='center', fontsize=FS_S - 0.6, color=C_DARK)
+        txt(xs['pre'], vy + vh + 0.3, f'd = {dm["n_latents"]}, k = {dm["k"]}', fontsize=FS_S - 0.6, color=C_DARK)
         fig.add_artist(ConnectionPatch(xyA=(sx_ + 1, sy + 0.5), coordsA=zoom_ax.transData, xyB=(0, 0.5),
                                        coordsB=gl[0].transAxes, color=C_TOK, lw=0.5, arrowstyle='-|>',
                                        mutation_scale=4))
-        txt(xs['vec'] + 0.7 + VPAD / 2 + gw + gg / 2, vy - 0.25, 'per token', ha='center', va='bottom',
+        txt(xs['vec'] + 0.7 + VPAD / 2 + gw + gg / 2, vy_d - 0.25, 'per token', ha='center', va='bottom',
             fontsize=FS_S - 0.6, color=C_TOK)
         # ---- b4: SAE encoder: dense pre-activations -> sparse code (threshold / top-k), the neuron highlighted
         pa = ax_mm(xs['pre'], vy, bw + 2.0, vh)
@@ -788,7 +808,7 @@ def plot(args):
         a = img(xs['spatial'], y0, sz, ec='k', lw=0.5)
         hm = A['heat']
         vmh = max(float(hm.max()), 1e-6)
-        overlay(a, np.where(up, gt, 0.93), hm, mk, C_N, vmh, amax=0.9, interp='nearest')  # non-mask tokens blanked
+        overlay(a, np.where(upN, gN, 0.93), hm, mk, C_N, vmh, amax=0.9, interp='antialiased')  # non-mask blanked
         for i in range(1, G):
             a.axhline(i, color='w', lw=0.15, alpha=0.6)
             a.axvline(i, color='w', lw=0.15, alpha=0.6)
@@ -868,7 +888,7 @@ def main():
     ap.add_argument('--encoder-label', default='', help='plot label of the encoder (default: from the cache)')
     ap.add_argument('--grid', type=int, default=0, help='token-grid side drawn in c (default: from the cache)')
     ap.add_argument('--input-px', type=int, default=0, help='encoder input size drawn in c (default: from the cache)')
-    ap.add_argument('--dpi', type=int, default=300)
+    ap.add_argument('--dpi', type=int, default=600)
     ap.add_argument('--event', choices=EVENT_RULES, default='nonzero',
                     help='firing rule of the temporal block: nonzero = frame value > 0 (the neuron is active on at least '
                          'one kept token); q95 = above the neuron\'s q 0.95 threshold (NES bout / latency event); '
