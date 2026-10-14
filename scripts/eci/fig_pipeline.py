@@ -3,18 +3,18 @@ Nature-style multi-panel figure of the ECI (Exploratory Causal Inference) REPRES
 (ants, mice, frogs), the same steps on a real example frame of that domain, from the raw video to the video-level
 summaries of one behaviour-like neuron. Discovery (NES) is not shown.
 
-    a  raw video          native frame; size / fps (ffprobe); the ANALYSED clip length (experiment.csv start / end frames
-                          + the analysis window); note "analysed at 5 fps, 512 px"
-    b  encoder            the WHOLE frame is encoded first: 448 px input, 32 x 32 grid of 768-d tokens (DINOv2-base)
-    c  animal mask        the real mask (whole frame); each kept token still carries whole-image context
-    d  temporal context   the same token at t - 1 s and t; SAE input [x_t, x_t - x_(t-1 s)] (DINOv2 token difference,
-                          not optical flow)
-    e  one neuron         its activation on every kept token (display crop around the kept tokens)
-    f  per-frame value    max over kept tokens over the analysed clip, as the HMM event confidence P(ON) in [0, 1]
-                          (results/vision/eci_event_hmm, when present; --trace q95 = the raw value with its q 0.95
-                          firing threshold, the NES bout / latency event)
+    a  video              the two 5 fps, 512 px frames one step uses: t - 1 s and t
+    b  DINOv2 + mask      both frames' frozen DINOv2 tokens as PCA-RGB (PCA on the domain's kept tokens of the encoded
+                          candidate frames + the shown frames, PCs 1-3 -> RGB, 1st-99th percentile scaling), the animal
+                          mask outlined, tokens outside it greyed
+    c  token input        kept tokens: x_t (PCA-RGB) next to |x_t - x_(t-1 s)| (difference AFTER encoding, token space)
+    d  SAE code           one neuron's activation on every kept token (display crop around the kept tokens)
+    e  spatial max        max over kept tokens -> the neuron's frame value (one number)
+    f  temporal           HMM event confidence P(ON) (results/vision/eci_event_hmm) over a 2-min window around the
+                          example frame, bouts (P(ON) > 0.5) shaded; --trace q95 = raw value + its q 0.95 threshold
     g  per-video          time budget (mean P(ON)), bout rate (runs of P(ON) > 0.5 per min), latency (s to the first
-                          P(ON) > 0.5); q95: fraction above the threshold, runs above it, first frame above it
+                          P(ON) > 0.5), over the whole analysed clip
+    All explanatory text lives in results/vision/eci_pipeline_fig/caption.md.
     sheets stage          top-frame sheets of candidate frog neurons (used to choose / describe the frog neuron)
 
 Stages (Slurm only, scripts/eci/fig_pipeline.sh):
@@ -70,14 +70,14 @@ DOM = {
         src=REPO / 'data/ants/v2/observations/source', step=6, expect=2, hflip=False, version='v2 (ISTAnt)',
         cand=lambda a: a[(a.experiment == 'v2') & ((a.Y_Y2F == 1) | (a.Y_B2F == 1)) & (a.frame_idx >= 10)],
         ann_cols=['observation_id', 'frame_idx', 'frame_path', 'experiment', 'Y_Y2F', 'Y_B2F'],
-        key=186, desc='grooming\n(AUROC 0.86)', window='full',
+        short='grooming', key=186, desc='grooming\n(AUROC 0.86)', window='full',
         cand_text='annotated grooming frames (Y2F or B2F) of ants v2'),
     'mice': dict(
         eci=REPO / 'dataset/mice/v1/eci', ann=REPO / 'dataset/mice/v1/annotations.csv',
         nes=REPO / 'results/vision/mice/eci/nes', name='Mice', species=r'$\it{Mus\ musculus}$',
         raw_exp=REPO / 'data/mice/v1/experiment.csv', src=REPO / 'data/mice/source', step=6, expect=2, hflip=False,
         version='v1', ann_cols=['observation_id', 'frame_idx', 'frame_path', 'Y_nn'],
-        key=915, desc='two mice in contact\n(nose-nose AUROC 0.72)', window='last',
+        short='two mice in contact', key=915, desc='two mice in contact\n(nose-nose AUROC 0.72)', window='last',
         cand_text='annotated nose-nose frames (Y_nn = 1) in the analysed last 15 min of social-odour habituation videos'),
     'frogs': dict(
         eci=REPO / 'dataset/frogs/eci', nes=REPO / 'results/vision/frogs/eci/nes', name='Frogs',
@@ -85,7 +85,7 @@ DOM = {
         src=REPO / 'data/frogs/v1/observations/source', step=12, expect=5, hflip=True, version='v1 (juvenile)',
         ann_cols=['observation_id', 'frame_idx', 'frame_path', 'group'],
         cand=lambda a: a[(a.group == 'FoxP1') & (a.frame_idx >= 10)],
-        key=500, desc='extended hind limb', window='full',
+        short='extended hind limb', key=500, desc='extended hind limb', window='full',
         cand_text='frames of FoxP1 (half-embryo crispant) froglets'),
 }
 
@@ -203,13 +203,14 @@ def compute_domain(name, cfg, sae_name, tmp, n_cand=200):
 
     # walk the candidates from the strongest neuron value down; take the first whose mask has no isolated piece
     # (every 8-connected component >= MIN_PIECE tokens), up to MAX_TRY candidates; else the strongest (flagged)
-    tried, row = [], None
+    tried, row, pool = [], None, []  # pool: kept tokens of the encoded candidates (PCA fit)
     for a in range(0, min(MAX_TRY, len(order)), 8):
         rr = [int(r) for r in order[a:a + 8]]
         _, _, grey_b, tok_b = encode_rows(rr, 'try')
         for k, r in enumerate(rr):
             mk = bgs.mask(tok_b[k:k + 1], grey_b[k:k + 1], np.array([r]))[0][0].numpy().reshape(-1)
             sizes = pieces(mk.reshape(int(np.sqrt(mk.size)), -1))
+            pool.append(tok_b[k][torch.from_numpy(mk)].float())
             tried.append(dict(row=r, value=float(codes[r, key]), pieces=sizes))
             if row is None and min(sizes) >= MIN_PIECE:
                 row = r
@@ -230,6 +231,18 @@ def compute_domain(name, cfg, sae_name, tmp, n_cand=200):
     loc, pix, grey, tok = encode_rows(want, 'jpg')  # (2, 1024, d) fp16: the WHOLE frame is encoded, then masked
     assert tok.shape[1] == GRID * GRID
     mask = bgs.mask(tok[:1], grey[:1], np.array([row]))[0][0]  # (1024,) bool
+    mask_p = bgs.mask(tok[1:2], grey[1:2], np.array([row - D]))[0][0]  # the mask of the t - 1 s frame (display only)
+    # PCA-RGB of the DINOv2 tokens: PCA on the kept tokens of the encoded candidate frames + the two shown frames,
+    # first 3 components -> RGB, each scaled to [0, 1] by its 1st / 99th percentile over the fit tokens
+    fit = torch.cat(pool + [tok[0][mask].float(), tok[1][mask_p].float()])
+    mu = fit.mean(0)
+    _, _, V = torch.linalg.svd(fit - mu, full_matrices=False)
+    P = V[:3].T
+    pf = ((fit - mu) @ P).numpy()
+    lo_q, hi_q = np.percentile(pf, 1, axis=0), np.percentile(pf, 99, axis=0)
+    pca_rgb = [np.clip((((tok[i].float() - mu) @ P).numpy() - lo_q) / (hi_q - lo_q), 0, 1).reshape(GRID, GRID, 3)
+               for i in (0, 1)]
+    pca_n = int(fit.shape[0])
     stok = enc.sae_tokens(tok)
     x = stok[0][mask]
     if D > 0:
@@ -357,12 +370,14 @@ def compute_domain(name, cfg, sae_name, tmp, n_cand=200):
                 motion_kept_median=float(np.median(motion[mask.numpy()])), motion_kept_max=float(motion[mask.numpy()].max()),
                 summary=summ, hmm_summary=None if hmm is None else hmm['summary'],
                 hmm_file=None if hmm is None else hmm['file'], hmm_check=None if hmm is None else hmm.get('check'), clean_mask=clean, clean_rank=rank,
-                tried=tried[:rank + 2], sel_motion=float(motion[sel]),
+                tried=tried[:rank + 2], sel_motion=float(motion[sel]), pca_fit_tokens=pca_n,
+                pca_fit_frames=len(pool) + 2, n_kept_prev=int(mask_p.sum()),
                 version=cfg['version'], name=cfg['name'], species=cfg['species'])
     OUT.joinpath('cache').mkdir(parents=True, exist_ok=True)
     np.savez_compressed(OUT / 'cache' / f'{name}.npz', native=nat_small, frames=frames, enc_in=enc_in,
                         mask=mask.numpy().reshape(GRID, GRID), motion=motion.reshape(GRID, GRID), heat=heat, code=mx,
-                        tok_code=tok_code, trace=tr, above=above, bouts=bouts,
+                        tok_code=tok_code, trace=tr, above=above, bouts=bouts, pca_t=pca_rgb[0], pca_p=pca_rgb[1],
+                        mask_p=mask_p.numpy().reshape(GRID, GRID),
                         **({} if hmm is None else dict(p_on=hmm['p_on'], hmm_bouts=hmm['bouts'])))
     json.dump(meta, open(OUT / 'cache' / f'{name}.json', 'w'), indent=1,
               default=lambda o: o.item() if hasattr(o, 'item') else str(o))
@@ -505,7 +520,7 @@ def plot(args):
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     from matplotlib import font_manager
-    from matplotlib.patches import Polygon, Rectangle
+    from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Polygon, Rectangle
     fams = [f for f in ('Arial', 'Helvetica', 'Liberation Sans', 'Nimbus Sans', 'DejaVu Sans')
             if any(f == x.name for x in font_manager.fontManager.ttflist)]
     plt.rcParams.update({'font.family': 'sans-serif', 'font.sans-serif': fams, 'font.size': FS, 'axes.linewidth': 0.5,
@@ -518,19 +533,19 @@ def plot(args):
     doms = args.domains.split(',')
     data = {d: (dict(np.load(OUT / 'cache' / f'{d}.npz')), json.load(open(OUT / 'cache' / f'{d}.json'))) for d in doms}
     m0 = data[doms[0]][1]
-    enc_label = args.encoder_label or m0['encoder_label']
+    enc_label = args.encoder_label or m0['encoder_label'].split('-')[0]
     grid_n = args.grid or m0['grid']
-    in_px = args.input_px or m0['input_px']
+    all_hmm = args.trace == 'hmm' and all('p_on' in A_ for A_, _ in data.values())
     # ------------------------------------------------ layout (mm)
     W = 183.0
-    left, top_h, row_h, im = 7.0, 10.5, 32.0, 20.0
-    widths = dict(a=20.0, b=20.0, c=20.0, d=27.0, e=20.0, f=36.0, g=19.0)
+    left, top_h, row_h, im = 7.0, 8.5, 24.5, 14.0
+    widths = dict(a=29.0, b=29.0, c=29.0, d=14.0, e=11.0, f=30.0, g=15.0)
     gap = (W - left - 0.5 - sum(widths.values())) / (len(widths) - 1)
     xs, x = {}, left
     for k, w in widths.items():
         xs[k] = x
         x += w + gap
-    H = top_h + row_h * len(doms) - 2.0
+    H = top_h + row_h * len(doms)
     fig = plt.figure(figsize=(W * MM, H * MM))
 
     def ax_mm(x, y, w, h, **kw):  # y measured from the top
@@ -549,13 +564,12 @@ def plot(args):
             s.set_linewidth(lw); s.set_color(ec)
         return a
 
-    all_hmm = args.trace == 'hmm' and all('p_on' in A_ for A_, _ in data.values())
-    heads = dict(a='Raw video', b='Encoder on the\nwhole frame', c='Mask keeps\nanimal tokens',
-                 d='Local temporal context\n[x$_t$, x$_t$ − x$_{t-1\\,s}$]', e='One neuron\non every kept token',
-                 f='Per-frame value over the clip\n' + ('(max over tokens → HMM P(ON))' if all_hmm else '(max over kept tokens)'), g='Per-video\nsummaries')
+    heads = dict(a='Video\n(t − 1 s, t)', b=f'Frozen {enc_label} tokens\n+ animal mask',
+                 c='Token input\n[x$_t$, x$_t$ − x$_{t-1\\,s}$]', d='SAE code\n(one neuron)', e='Spatial\nmax',
+                 f='Temporal: ' + ('P(ON)' if all_hmm else 'frame value') + '\n(2-min window)', g='Per-video\nsummary')
     for k, s in heads.items():
-        txt(xs[k], 1.0, k, fontsize=8, weight='bold')
-        txt(xs[k] + 2.7, 1.25, s, linespacing=1.05)
+        txt(xs[k], 0.8, k, fontsize=8, weight='bold')
+        txt(xs[k] + 2.7, 1.05, s, linespacing=1.05)
 
     def chevron(xc, yc):
         w, h = 1.1, 2.0
@@ -570,126 +584,112 @@ def plot(args):
         for s in a.spines.values():
             s.set_linewidth(0.3)
         txt(x, y + 1.1, '0', fontsize=FS_S, ha='left')
-        txt(x + w, y + 1.1, f'{vmax:.1f}', fontsize=FS_S, ha='right')
+        txt(x + w, y + 1.1, f'{vmax:.0f}' if vmax >= 10 else f'{vmax:.1f}', fontsize=FS_S, ha='right')
 
-    def under(k, y, s, **kw):
-        return txt(xs[k], y, s, **kw)
+    def greyed(rgb, mk, frame):
+        """PCA-RGB inside the mask, the frame's grey level (lightened) outside."""
+        G = mk.shape[0]
+        g = np.asarray(frame, np.float32).mean(2) / 255
+        gs = g.reshape(G, 512 // G, G, 512 // G).mean((1, 3))
+        out = np.repeat((0.55 + 0.35 * gs)[..., None], 3, 2)
+        out[mk] = rgb[mk]
+        return out
 
+    vm_motion = max(float(np.ma.masked_where(~A_['mask'].astype(bool), A_['motion']).max()) for A_, _ in data.values())
     for ri, d in enumerate(doms):
         A, m = data[d]
         y0 = top_h + ri * row_h
         G = grid_n
-        ut = y0 + im + 0.9  # first text line under the images
         txt(0.6, y0 + im / 2, m['name'], fontsize=7, weight='bold', rotation=90, va='center', ha='left')
-        txt(3.6, y0 + im / 2, m['species'], rotation=90, va='center', ha='left')
-        for k in ('a', 'b', 'c', 'd'):  # image steps only (the plots in f, g carry their own axes)
+        txt(3.6, y0 + im / 2, m['species'], fontsize=FS_S, rotation=90, va='center', ha='left')
+        for k in ('a', 'b', 'c', 'd'):
             chevron(xs[k] + widths[k] + gap / 2, y0 + im / 2)
-        nat = m['native']
         key = m['key']
-        mk = A['mask'].astype(bool)
+        mk, mkp = A['mask'].astype(bool), A['mask_p'].astype(bool)
         zx, zy, zs = zoom_box(mk)
-        fr = A['frames'][0].astype(np.float32) / 255
         sy, sx_ = m['sel_token']
-        # a raw video
-        a = img_ax(xs['a'], y0, im)
-        a.imshow(A['native'], interpolation='lanczos')
-        clip = m['lengths']['clip_min']
-        under('a', ut, f'{nat["size"][0]} × {nat["size"][1]} px\n{nat["fps"]:.0f} fps, {clip:.0f}-min clip')
-        under('a', ut + 4.6, 'analysed at 5 fps, 512 px', fontsize=FS_S)
-        # b encoder on the whole frame + token grid
-        a = img_ax(xs['b'], y0, im)
-        a.imshow(A['enc_in'], extent=(0, in_px, in_px, 0), interpolation='lanczos')
-        for i in range(1, G):
-            v = i * in_px / G
-            a.axhline(v, color='w', lw=0.12, alpha=0.75)
-            a.axvline(v, color='w', lw=0.12, alpha=0.75)
-        a.set_xlim(0, in_px); a.set_ylim(in_px, 0)
-        under('b', ut, f'{enc_label}, {in_px} px', fontsize=FS_S)
-        under('b', ut + 2.3, f'→ {G} × {G} tokens (768-d)', fontsize=FS_S)
-        # c mask keeps animal tokens (the real mask, whole frame)
-        up = np.kron(mk, np.ones((512 // G, 512 // G), bool))[..., None]
-        grey = fr.mean(2, keepdims=True) * 0.45 + 0.35
-        a = img_ax(xs['c'], y0, im)
-        a.imshow(np.where(up, fr, np.repeat(grey, 3, 2)), extent=(0, G, G, 0), interpolation='nearest')
-        edge(a, mk, C_KEPT, 0.45)
-        under('c', ut, f'kept {m["n_kept"]} / {G * G}')
-        under('c', ut + 2.6, 'each kept token keeps\nwhole-frame context', fontsize=FS_S)
-        # d local temporal context: the same token at t - 1 s and t
-        cw = (widths['d'] - 1.0) / 2
+        hw = (widths['a'] - 1.0) / 2
+        # a video: the two 5 fps frames one step uses
         for j, (fi, lab) in enumerate(zip((1, 0), ('t − 1 s', 't'))):
-            a = img_ax(xs['d'] + j * (cw + 1.0), y0, cw)
-            a.imshow(A['frames'][fi], extent=(0, G, G, 0), interpolation='lanczos')
-            a.add_patch(Rectangle((sx_, sy), 1, 1, fill=False, ec=C_KEPT, lw=0.8))
-            a.set_xlim(zx, zx + zs); a.set_ylim(zy + zs, zy)
+            a = img_ax(xs['a'] + j * (hw + 1.0), y0, hw)
+            a.imshow(A['frames'][fi], interpolation='lanczos')
             a.text(0.05, 0.95, lab, transform=a.transAxes, color='w', fontsize=FS_S, va='top', ha='left')
-        yb = y0 + cw + 1.2
-        sb = ax_mm(xs['d'], yb, widths['d'], 2.4)
-        sb.add_patch(Rectangle((0, 0), 0.5, 1, fc='#f0f0f0', ec=C_DARK, lw=0.4))
-        sb.add_patch(Rectangle((0.5, 0), 0.5, 1, fc='#d8eadf', ec=C_DARK, lw=0.4))
-        sb.text(0.25, 0.5, 'x$_t$ (768)', ha='center', va='center', fontsize=FS_S)
-        sb.text(0.75, 0.5, 'x$_t$ − x$_{t-1\\,s}$ (768)', ha='center', va='center', fontsize=FS_S)
-        sb.set_xlim(0, 1); sb.set_ylim(0, 1); sb.axis('off')
-        txt(xs['d'], yb + 2.9, 'DINOv2 token difference,\nnot optical flow; same as\nalso giving x$_{t-1\\,s}$',
-            fontsize=FS_S)
-        # e one neuron on every kept token (zoom, display crop only)
-        a = img_ax(xs['e'], y0, im, ec=C_N, lw=0.9)
+        # b frozen DINOv2 tokens (PCA-RGB) + animal mask, both frames, whole frame
+        for j, (rgb, mm_, fi) in enumerate(((A['pca_p'], mkp, 1), (A['pca_t'], mk, 0))):
+            a = img_ax(xs['b'] + j * (hw + 1.0), y0, hw)
+            a.imshow(greyed(rgb, mm_, A['frames'][fi]), extent=(0, G, G, 0), interpolation='nearest')
+            edge(a, mm_, C_KEPT, 0.45)
+        # c token input: x_t (PCA-RGB) next to |x_t - x_(t-1 s)|, kept tokens, zoomed
+        a = img_ax(xs['c'], y0, hw)
+        a.imshow(greyed(A['pca_t'], mk, A['frames'][0]), extent=(0, G, G, 0), interpolation='nearest')
+        edge(a, mk, C_KEPT, 0.45)
+        a.set_xlim(zx, zx + zs); a.set_ylim(zy + zs, zy)
+        a.text(0.05, 0.95, 'x$_t$', transform=a.transAxes, color='k', fontsize=FS_S, va='top', ha='left')
+        a = img_ax(xs['c'] + hw + 1.0, y0, hw)
+        bg = np.full((G, G), 0.0)
+        a.imshow(np.ones((G, G, 3)) * 0.85, extent=(0, G, G, 0), interpolation='nearest')
+        a.imshow(np.ma.masked_where(~mk, A['motion']), cmap='viridis', vmin=0, vmax=vm_motion, extent=(0, G, G, 0),
+                 interpolation='nearest')
+        a.set_xlim(zx, zx + zs); a.set_ylim(zy + zs, zy)
+        a.text(0.05, 0.95, '|Δx|', transform=a.transAxes, color='k', fontsize=FS_S, va='top', ha='left')
+        cbar(xs['c'] + hw + 1.0, y0 + im + 0.8, hw, 'viridis', vm_motion)
+        # d SAE code: one neuron on every kept token, zoomed
+        a = img_ax(xs['d'], y0, im, ec=C_N, lw=0.9)
+        fr = A['frames'][0].astype(np.float32) / 255
         a.imshow(fr.mean(2), cmap='gray', vmin=-0.2, vmax=1.6, extent=(0, G, G, 0), interpolation='bilinear')
         hm = A['heat']
         vmh = max(float(hm.max()), 1e-6)
         a.imshow(np.ma.masked_where(~mk | (hm <= 0), hm), cmap='magma', vmin=0, vmax=vmh, extent=(0, G, G, 0),
                  interpolation='nearest')
         edge(a, mk, '#ffffff', 0.3)
-        a.add_patch(Rectangle((sx_, sy), 1, 1, fill=False, ec=C_KEPT, lw=0.8))
         a.set_xlim(zx, zx + zs); a.set_ylim(zy + zs, zy)
-        cbar(xs['e'], ut - 0.2, im, 'magma', vmh)
-        under('e', ut + 2.9, f'neuron {key}\n{DOM[d]["desc"]}', fontsize=FS_S, color=C_N)
-        # f per-frame value over the clip: HMM P(ON) in [0, 1] (or the raw value with its q 0.95 threshold)
+        cbar(xs['d'], y0 + im + 0.8, im, 'magma', vmh)
+        txt(xs['d'], y0 + im + 4.1, f'#{key} {DOM[d]["short"]}', fontsize=FS_S, color=C_N)
+        # e spatial max -> one number
+        ex = xs['e'] + widths['e'] / 2
+        txt(ex, y0 + 1.6, 'max', fontsize=FS_S, ha='center', color=C_DARK)
+        fig.patches.append(FancyArrowPatch(((ex) / W, 1 - (y0 + 4.0) / H), (ex / W, 1 - (y0 + 7.6) / H),
+                                           transform=fig.transFigure, arrowstyle='-|>', mutation_scale=5, lw=0.6,
+                                           color=C_DARK))
+        bw, bh = widths['e'] - 1.0, 4.0
+        fig.patches.append(FancyBboxPatch(((xs['e'] + 0.5) / W, 1 - (y0 + 8.2 + bh) / H), bw / W, bh / H,
+                                          boxstyle='round,pad=0,rounding_size=0.004', transform=fig.transFigure,
+                                          fc='white', ec=C_N, lw=0.8))
+        txt(ex, y0 + 8.2 + bh / 2, f'{m["frame_code_value"]:.1f}', fontsize=7, weight='bold', ha='center', va='center',
+            color=C_N)
+        # f temporal: P(ON) over a 2-min window around the example frame, bouts shaded
         use_hmm = args.trace == 'hmm' and 'p_on' in A
-        if args.trace == 'hmm' and not use_hmm:
-            log(f'[{d}] no HMM P(ON) in the cache: raw frame value + q 0.95 firing')
         tr = A['p_on'] if use_hmm else A['trace']
-        bt = A['hmm_bouts'] if use_hmm else A['bouts']
         s_ = m['hmm_summary'] if use_hmm else m['summary']
         thr = 0.5 if use_hmm else s_['threshold']
-        tt = np.arange(len(tr)) / FPS / 60
-        hx, hw = xs['f'] + 3.6, widths['f'] - 3.6
-        a = ax_mm(hx, y0, hw, 14.0)
+        n = len(tr)
+        c = m['frame_idx'] - m['window'][0]
+        w0 = int(np.clip(c - 300, 0, max(n - 600, 0)))
+        seg = tr[w0:w0 + 600]
+        tt = np.arange(len(seg)) / FPS
+        hx, hwid = xs['f'] + 3.4, widths['f'] - 5.6
+        a = ax_mm(hx, y0, hwid, 11.0)
+        on = seg > thr
+        top = 1.0 if use_hmm else float(max(seg.max(), thr)) * 1.05
+        a.fill_between(tt, 0, top, where=on, color=C_N, alpha=0.15, lw=0, step='mid')
+        a.plot(tt, seg, color=C_N, lw=0.45)
+        a.axvline((c - w0) / FPS, color=C_KEPT, lw=0.6)
+        a.set_xlim(0, 120); a.set_ylim(0, top)
         if use_hmm:
-            a.fill_between(tt, 0, tr, color=C_N, alpha=0.25, lw=0)
-        a.plot(tt, tr, color=C_N, lw=0.35)
-        a.axhline(thr, color='k', lw=0.5, ls=(0, (2, 1.5)))
-        a.set_xlim(0, tt[-1])
-        if use_hmm:
-            a.set_ylim(0, 1.02); a.set_yticks([0, 0.5, 1]); a.set_yticklabels(['0', '0.5', '1'])
+            a.set_yticks([0, 1]); a.set_yticklabels(['0', '1'])
         else:
-            a.set_ylim(0, max(float(tr.max()), thr) * 1.05); a.locator_params(axis='y', nbins=2)
-        a.locator_params(axis='x', nbins=3)
-        a.set_xticklabels([])
+            a.axhline(thr, color='k', lw=0.4, ls=(0, (2, 1.5))); a.locator_params(axis='y', nbins=2)
+        a.set_xticks([0, 60, 120]); a.set_xticklabels(['0', '60', '120 s'])
         for s in ('top', 'right'):
             a.spines[s].set_visible(False)
         a.set_ylabel('P(ON)' if use_hmm else f'#{key}', fontsize=FS_S, color=C_N, labelpad=0.5)
-        r = ax_mm(hx, y0 + 14.8, hw, 1.6)
-        r.vlines(bt[:, 0] / FPS / 60, 0, 1, color='k', lw=0.25)
-        if not s_['censored']:
-            r.plot([s_['latency_s'] / 60], [1.35], marker='v', ms=2.2, color=C_KEPT, mec='none', clip_on=False)
-        r.set_xlim(0, tt[-1]); r.set_ylim(0, 1)
-        r.set_yticks([])
-        for s in ('top', 'right', 'left'):
-            r.spines[s].set_visible(False)
-        r.locator_params(axis='x', nbins=3)
-        r.set_xlabel('clip time (min)', fontsize=FS_S, labelpad=0.5)
-        under('f', y0 + 22.6, ('ticks: bout starts (P(ON) > 0.5); ▼ first bout' if use_hmm else
-                               'ticks: bout starts (above q 0.95); ▼ first bout'), fontsize=FS_S)
-        # g per-video summaries
+        # g per-video summaries (whole clip)
         lat = f'{s_["latency_s"]:.1f} s' if not s_['censored'] else f'> {s_["latency_s"]:.0f} s'
-        rows_ = [('time budget', f'{100 * s_["time_budget"]:.0f}%'),
-                 ('bout rate', f'{s_["bout_rate_per_min"]:.1f} / min'), ('latency', lat)]
-        for i, (lab, val) in enumerate(rows_):
-            yy = y0 + 1.0 + i * 5.2
+        for i, (lab, val) in enumerate((('time budget', f'{100 * s_["time_budget"]:.0f}%'),
+                                        ('bout rate', f'{s_["bout_rate_per_min"]:.1f}/min'), ('latency', lat))):
+            yy = y0 + 0.2 + i * 5.0
             txt(xs['g'], yy, lab, fontsize=FS_S, color=C_DARK)
             txt(xs['g'], yy + 2.0, val, fontsize=7, weight='bold')
-        under('g', y0 + 17.0, ('mean P(ON); bouts and\nlatency at P(ON) > 0.5' if use_hmm else
-                               'frames above q 0.95;\nbouts = runs of them'), fontsize=FS_S - 0.4)
     for fmt in ('pdf', 'png'):
         fig.savefig(OUT / f'fig_pipeline.{fmt}', dpi=args.dpi if fmt == 'png' else 600)
     log(f'saved {OUT}/fig_pipeline.pdf/.png ({W:.0f} x {H:.0f} mm)')

@@ -23,7 +23,7 @@ set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 mkdir -p logs
 export STAGE=/localhome/$USER/$SLURM_JOB_ID
-mkdir -p "$STAGE"
+mkdir -p "$STAGE" 2>/dev/null || { export STAGE=${TMPDIR:-/tmp}/${USER}_$SLURM_JOB_ID; mkdir -p "$STAGE"; }  # node without /localhome
 trap 'rm -rf "$STAGE"' EXIT
 export MPLCONFIGDIR=$STAGE/mpl
 eval python -u scripts/eci/fig_pipeline.py ${STAGE_ARG:-all} ${EXTRA_ARGS:-}
