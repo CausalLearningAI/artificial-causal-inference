@@ -50,6 +50,27 @@ PRE-REGISTERED DECISION (written before any P1 or accuracy number was seen)
            strict anchor recall (all 3 ants, all eval frames) AND patch recall vs the pixel + tracker mask.
     The simplest not-worse arm wins: M_pix_nodil, else M_pix; if neither, M_today stays.
 
+RESULTS (2026-10-15; results/vision/eci_mask_test/tables.md, summary.json): M_today STAYS (no pixel-only arm is not worse
+    in both domains).
+    Masks (eval kept / frame): mice today 149, M_pix 194, M_pix_nodil 90; ants today 50.0, M_pix 47.1, M_pix_nodil 47.1 -
+    on ants the T2b core (delta 6, X 5%) already holds every dark neighbour, so today's dilation adds 0.001 patches /
+    frame (M_pix = M_pix_nodil to 22 of 3.6M eval tokens).
+    Accuracy, mice vs SAM + tails (16,775 frames): patch recall today 0.966 / M_pix 0.985 / nodil 0.897; tail-only
+    recall 0.839 / 0.931 / 0.551; precision 0.428 / 0.330 / 0.656; kept patches > 1 patch from any mouse 11.5% / 30.1% /
+    10.1% (M_pix admits the white odour object and disturbed bedding); frames with a mouse < 50% covered 0.05% / 0.22% /
+    0.57%. Same on contact and non-contact frames. Ants: strict centroid recall 0.992 / 1.000 / 1.000 (lenient 1.000 all),
+    pixel + tracker recall 0.976 / 1.000 / 1.000 (shared cue), SAM B1nz union recall 0.986 / 0.999 / 0.999; on-lid
+    frames the same. The pixel masks cover the animals at least as well as today's in both domains.
+    Downstream cf AUROC (3 seeds, pool 0) today / M_pix / nodil: mice nn 0.688 / 0.674 / 0.671, nt 0.731 / 0.721 /
+    0.720; ants groom_any 0.902 / 0.810 / 0.809, Y2F 0.853 / 0.781 / 0.781, B2F 0.861 / 0.789 / 0.787, on-lid 0.965 /
+    0.738 / 0.903. Decision: M_pix passes mice (d AUROC -0.015 / -0.010, recall +1.9 pt) and fails ants (all 4 labels
+    > 0.02 below); M_pix_nodil fails both (mice recall -6.8 pt; ants all labels).
+    Pool-seed sensitivity (added after the first ants P1 run showed on-lid 0.738 for a mask identical to C2's 0.903;
+    pools re-drawn, same seeds): ants 9 runs each, today / M_pix: groom_any 0.866 / 0.829, Y2F 0.825 / 0.798, B2F 0.832 /
+    0.792, on-lid 0.960 ± 0.011 / 0.815 ± 0.104 (pool means today 0.965 0.961 0.953, pixel 0.738 0.910 0.797) - the
+    ants loss is real, pixel-mask on-lid is unstable across pools; the 3-seed gap on grooming (0.07-0.09) is about half
+    that over pools (0.027-0.040). Mice 6 runs each: nn 0.678 / 0.671, nt 0.733 / 0.724 (within noise).
+
 Steps (scripts/eci/mask_test.sh)
     masks     (CPU) P1 masks of all train + eval store frames, the encode plan -> OUT/<d>/mask/{masks.npz, masks.json}
     accuracy  (CPU) reference metrics + sheets -> OUT/<d>/accuracy.json, OUT/<d>/sheets/
