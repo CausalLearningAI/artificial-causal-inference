@@ -408,6 +408,26 @@ def compute_domain(name, cfg, sae_name, tmp, n_cand=200):
     return meta
 
 
+def source_sizes():
+    """ffprobe of every valid source video of the shown experiments (ants v2, mice v1, frogs v1) -> size / fps
+    counts per domain -> OUT/source_sizes.json (read by the plot for the line under the video stack)."""
+    from collections import Counter
+    out = {}
+    for d in ('ants', 'mice', 'frogs'):
+        cfg = DOM[d]
+        e = pd.read_csv(cfg['raw_exp'])
+        if 'valid' in e:
+            e = e[e['valid'] == 1]
+        sizes, fpss = Counter(), Counter()
+        for f in e.observation_file:
+            q = ffprobe(cfg['src'] / f)
+            sizes[f"{q['width']}x{q['height']}"] += 1
+            fpss[f"{q['fps']:.2f}"] += 1
+        out[d] = dict(n=int(len(e)), sizes=dict(sizes.most_common()), fps=dict(fpss.most_common()))
+        log(f'[sizes] {d}: {out[d]}')
+    json.dump(out, open(OUT / 'source_sizes.json', 'w'), indent=1)
+
+
 def frog_sheets(tmp, n_top=12, stride=25):
     """Top-frame sheets of candidate frog neurons (C1 frogs SAE) to choose a neuron with a clear visual meaning:
     500 and 147 + the 6 most frequent neurons of prefix 1024 + the 4 most frequent of those whose decoder relies on the
@@ -535,7 +555,7 @@ def edge(ax, mk, color, lw):
                 segs.append([(j, i), (j, i + 1)])
             if j == G - 1 or not mk[i, j + 1]:
                 segs.append([(j + 1, i), (j + 1, i + 1)])
-    ax.add_collection(LineCollection(segs, colors=color, linewidths=lw))
+    ax.add_collection(LineCollection(segs, colors=color, linewidths=lw, snap=False))  # no pixel snapping: on the token grid
     ax.set_xlim(0, G); ax.set_ylim(G, 0)
 
 
@@ -591,7 +611,7 @@ def plot(args):
     C_DX = '#009E73'  # token-difference hue (Okabe-Ito bluish green)
     # ------------------------------------------------ layout (mm)
     W = 183.0
-    left, top_h, row_h, sz = 7.0, 9.0, 21.0, 15.0
+    left, top_h, row_h, sz = 7.0, 10.0, 24.5, 15.0
     ag = 2.8                    # arrow gap between steps
     fw, nvol, dx, dy = 10.0, 9, 1.9, 0.5  # temporal volume
     gw, gg, bw = 2.0, 0.5, 7.0  # vector glyph strip width, gap between the two strips, sparse-bar panel width
@@ -682,6 +702,8 @@ def plot(args):
                      ('spatial', 'frame neural\nactivation'), ('num', 'per video')):
         txt(xs[k], 4.1, title, color=C_DARK)
     summ_out = {}
+    sp = OUT / 'source_sizes.json'  # scripts/eci/fig_pipeline.py sizes (ffprobe of every source video)
+    sizes = json.load(open(sp)) if sp.exists() else {}
     for ri, d in enumerate(doms):
         A, m = data[d]
         y0 = top_h + ri * row_h
@@ -700,6 +722,8 @@ def plot(args):
         top0 = y0 + 0.4
         for i in range(len(tpos)):
             a = img(xa + i * dx, top0 + i * dy, fw, ec=C_KEPT if i == j_ex else '#ffffff', lw=0.9 if i == j_ex else 0.4)
+            if i == j_ex:
+                ex_ax = a
             a.imshow(grey(A['thumbs'][i]), cmap='gray', vmin=0, vmax=1, interpolation='lanczos')
         ya = top0 + (len(tpos) - 1) * dy + fw + 0.9
         ta = ax_mm(xa + fw / 2 - dx / 2, ya, len(tpos) * dx, 0.01)  # frame i centre = its time
@@ -709,6 +733,11 @@ def plot(args):
         ta.set_xticks([0, clip_min]); ta.set_xticklabels(['0', f'{clip_min:.0f} min'])
         ta.tick_params(length=1.0, labelsize=FS_S - 0.6)
         ta.plot([tpos[j_ex] / FPS / 60], [0], marker='|', ms=3.0, mew=0.8, color=C_KEPT, clip_on=False)
+        sz_d = sizes.get(d, {})
+        wh = next(iter(sz_d.get('sizes', {})), f'{m["native"]["size"][0]}x{m["native"]["size"][1]}').replace('x', '×')
+        fps0 = float(next(iter(sz_d.get('fps', {})), m['native']['fps']))
+        txt(xa, ya + 2.6, f'original: {wh} px, {fps0:.0f} fps\nused: {m["input_px"]}×{m["input_px"]} px, {FPS:.0f} fps',
+            fontsize=FS_S - 0.2, color=C_DARK)
         x0 = xa + j_ex * dx + fw * 0.55
         y_top = top0 + j_ex * dy
         fig.patches.append(FancyArrowPatch((x0 / W, 1 - y_top / H), ((xs['grid'] - 0.4) / W, 1 - (y0 + 1.5) / H),
@@ -768,7 +797,8 @@ def plot(args):
         # pink arrow: the neuron's bar in the SAE plot -> the token where it peaks
         fig.add_artist(ConnectionPatch(xyA=(float(A['pre'][key]), float(key)), coordsA=pa.transData,
                                        xyB=(sx_ + 0.5, sy + 0.5), coordsB=a.transData, color=C_N, lw=0.6,
-                                       arrowstyle='-|>', mutation_scale=4, connectionstyle='arc3,rad=-0.15'))
+                                       arrowstyle='-|>', mutation_scale=5, shrinkA=2.0, shrinkB=2.5,
+                                       connectionstyle='arc3,rad=-0.15'))
         arrow(xs['spatial'] + sz + 0.5, xs['trace'] - 3.4, yc, 'max\npooling')  # clear of the y tick labels
         # ---- c: one value per frame (raw), firing raster -> temporal -> per video
         fire, s_ = firing(A, m, args.event)
@@ -781,10 +811,22 @@ def plot(args):
         seg, fseg = tr[w0:w0 + nw], fire[w0:w0 + nw]
         tt = np.arange(len(seg)) / FPS
         beh = DOM[d]['short'].replace(' ', '\\ ')
-        txt(xs['trace'], y0 - 0.2, f'Neuron {key}: ' + '$\\it{' + beh + '}$', color=C_N)
+        txt(xs['trace'], y0 - 0.2, f'Neuron {key}: ' + '$\\it{' + beh + '}$', color=C_N,
+            bbox=dict(fc='white', ec='none', pad=0.6), zorder=5)  # the return arrow passes behind the label
         a = ax_mm(xs['trace'], y0 + 2.3, wt, sz - 6.4)
         a.plot(tt, seg, color=C_N, lw=0.35)
         a.plot([(c - w0) / FPS], [float(tr[c])], 'o', ms=2.0, mfc='none', mec=C_KEPT, mew=0.6)
+        # light orange arrow: the example frame's point in the trace back to its frame in the video stack (a)
+        # routed above the row (between rows, clear of all labels): up from the point, left, down onto the frame
+        a.set_xlim(0, args.window_s); a.set_ylim(0, float(tr.max()) * 1.05)  # limits first: data -> figure
+        dxy = fig.transFigure.inverted().transform(a.transData.transform(((c - w0) / FPS, float(tr[c]))))
+        xd, yd = dxy[0] * W, (1 - dxy[1]) * H
+        y_r = y0 - 1.8
+        x_f = xa + j_ex * dx + 2.0
+        verts = [(xd, yd - 0.8), (xd, y_r), (x_f, y_r), (x_f, top0 + j_ex * dy - 0.15)]
+        fig.patches.append(FancyArrowPatch(path=matplotlib.path.Path([(vx / W, 1 - vy_ / H) for vx, vy_ in verts]),
+                                           transform=fig.transFigure, arrowstyle='-|>', mutation_scale=4, lw=0.4,
+                                           color=C_KEPT, alpha=0.6, ls=(0, (2.5, 1.5))))
         if args.event == 'q95':
             a.axhline(m['summary']['threshold'], color='k', lw=0.35, ls=(0, (2, 1.5)))
         a.set_xlim(0, args.window_s); a.set_ylim(0, float(tr.max()) * 1.05)
@@ -814,7 +856,7 @@ def plot(args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('stage', choices=('compute', 'plot', 'all', 'sheets'))
+    ap.add_argument('stage', choices=('compute', 'plot', 'all', 'sheets', 'sizes'))
     ap.add_argument('--domains', default='ants,mice,frogs')
     ap.add_argument('--sae', default='', help='domain=sae_name,... overrides of the C1 SAEs')
     ap.add_argument('--encoder-label', default='', help='plot label of the encoder (default: from the cache)')
@@ -831,6 +873,9 @@ def main():
         raise SystemExit('run through Slurm (scripts/eci/fig_pipeline.sh): no compute or rendering on the login node')
     OUT.mkdir(parents=True, exist_ok=True)
     sae = dict(SAE, **dict(kv.split('=') for kv in args.sae.split(',') if kv))
+    if args.stage == 'sizes':
+        source_sizes()
+        return
     if args.stage == 'sheets':
         import torch
         torch.set_num_threads(int(os.environ.get('SLURM_CPUS_PER_TASK', 8)))
