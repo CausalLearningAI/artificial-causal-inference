@@ -159,7 +159,29 @@ def t8_io():
     print('8 ok: save / load round trip')
 
 
+def t9_selective_init():
+    torch.manual_seed(6)
+    sae = MatryoshkaGatedL0SAE(d_in=16, n_latents=64, prefixes=(16, 64), target_l0=4, aux_code='magnitude', seed=6)
+    x = torch.randn(20_000, 16) * 3
+    proj0 = (x - sae.b_dec) @ sae.W_enc
+    st = sae.init_selective(x, proj_std=5.0)
+    g, m = sae._heads(x)
+    rate = (g > 0).float().mean(0)
+    assert abs(st['det_l0'] - 4) < 0.05 and st['E_L0'] < 8, st
+    assert (rate - 4 / 64).abs().max() < 2e-3, rate
+    # magnitude head unchanged by the rescaling: exp(r) * proj = proj0
+    assert torch.allclose(m, torch.relu(proj0), atol=1e-4)
+    sae.tokens_since_fired.fill_(10 ** 9)
+    with torch.no_grad():
+        sae.b_gate[32:] = -1e3  # keep half the latents closed -> dead
+    loss, logs = sae.forward_train(x[:256])
+    loss.backward()
+    assert logs['aux'] > 0 and logs['n_dead'] == 32 and sae.W_enc.grad[:, 32:].abs().sum() > 0
+    print(f"9 ok: selective init det L0 {st['det_l0']:.3f} (target 4), E[L0] {st['E_L0']:.2f}, per-latent on-rate "
+          f"{float(rate.min()):.4f}-{float(rate.max()):.4f}; magnitude head preserved; magnitude aux {logs['aux']:.2f}")
+
+
 if __name__ == '__main__':
-    for f in (t1_gate_prob, t2_grads, t3_expected_l0, t5_deterministic, t6_noisy_or, t7_temporal, t8_io, t4_dual):
+    for f in (t9_selective_init, t1_gate_prob, t2_grads, t3_expected_l0, t5_deterministic, t6_noisy_or, t7_temporal, t8_io, t4_dual):
         f()
     print('ALL TESTS PASSED')

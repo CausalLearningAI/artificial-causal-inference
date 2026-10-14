@@ -27,8 +27,12 @@ Inference (deterministic): p_j = sigmoid(g_j) is the belief; the code is z_j = 1
     it is more likely on than off). No threshold is estimated or tuned.
 
 Dead-latent loss (AuxK-like): latents that have not been ON under the INFERENCE rule (g > 0 and m > 0) for `dead_tokens`
-    training tokens reconstruct the residual
-    with their top-k_aux gate logits, code p_j * m_j (so the gradient reaches the gate logit as well as the magnitude).
+    training tokens reconstruct the residual with their top-k_aux gate logits; code p_j * m_j (aux_code 'belief') or
+    m_j (aux_code 'magnitude' = Gao et al.'s AuxK: the dead latents' pre-activations).
+Init: 'uniform' (default): W_enc = W_dec^T, b_gate = logit(target / n_latents) for every latent. init_selective(x):
+    data-dependent, every latent a sharp detector of its own top target/n_latents share of tokens (see the method).
+    With the uniform init, 92% of latents die in the first ~750 steps on the mice C1 tokens (gate16 seed 0: winners
+    are fixed during warm-up and the 'belief' aux gradient, scaled by p ~ 0.004, cannot revive the rest).
 
 Frame / video read-outs of the beliefs (functions below):
     noisy-OR      P_j(frame) = 1 - prod_i (1 - p_ij) over the frame's kept tokens; computed in log space as the
@@ -98,7 +102,7 @@ class MatryoshkaGatedL0SAE(nn.Module):
     sparsity = 'gated_l0'
 
     def __init__(self, d_in=768, n_latents=1024, prefixes=(128, 256, 512, 1024), target_l0=16.0, lam_init=1.0,
-                 lam_lr=0.005, k_aux=512, aux_coef=1 / 32, dead_tokens=2_000_000, seed=0):
+                 lam_lr=0.005, k_aux=512, aux_coef=1 / 32, dead_tokens=2_000_000, aux_code='belief', seed=0):
         super().__init__()
         prefixes = tuple(int(p) for p in prefixes)
         if list(prefixes) != sorted(prefixes) or prefixes[-1] != n_latents:
@@ -107,6 +111,9 @@ class MatryoshkaGatedL0SAE(nn.Module):
         self.target_l0, self.lam_init, self.lam_lr = float(target_l0), float(lam_init), float(lam_lr)
         self.k_aux, self.aux_coef, self.dead_tokens = k_aux, aux_coef, dead_tokens
         self.k = int(round(target_l0))  # for callers that print sae.k
+        if aux_code not in ('belief', 'magnitude'):
+            raise ValueError(aux_code)
+        self.aux_code = aux_code
 
         g = torch.Generator().manual_seed(seed)
         W_dec = torch.randn(n_latents, d_in, generator=g)
@@ -150,6 +157,23 @@ class MatryoshkaGatedL0SAE(nn.Module):
         m = self.n_latents if m is None else m
         return z[:, :m] @ self.W_dec[:m] + self.b_dec
 
+    @torch.no_grad()
+    def init_selective(self, x, proj_std=5.0):
+        """Data-dependent SELECTIVE init (call after b_dec is set; x = normalized init tokens, e.g. 65,536): every latent
+        starts as a sharp detector of its own top tokens. Encoder columns are rescaled so that proj_j has std proj_std
+        on x; b_gate_j = -(the 1 - target_l0 / n_latents quantile of proj_j), so the deterministic L0 on x equals
+        target_l0 (each latent on for the same share of tokens); r_mag = -log(scale) keeps the magnitude head at the
+        unit-norm projection (as the BatchTopK init). Returns {'det_l0', 'E_L0'} on x."""
+        proj = (x - self.b_dec) @ self.W_enc
+        c = proj_std / proj.std(0).clamp_min(1e-6)
+        self.W_enc.mul_(c)
+        self.r_mag.copy_(-torch.log(c))
+        proj = proj * c
+        k = max(1, int(round((1 - self.target_l0 / self.n_latents) * x.shape[0])))
+        self.b_gate.copy_(-proj.kthvalue(k, dim=0).values)
+        g = proj + self.b_gate
+        return {'det_l0': float((g > 0).sum(1).float().mean()), 'E_L0': float(torch.sigmoid(g).sum(1).mean())}
+
     # ------------------------------------------------------------------ training
     @property
     def lam(self):
@@ -187,7 +211,9 @@ class MatryoshkaGatedL0SAE(nn.Module):
             resid = (x - recon).detach()
             gd = g[:, dead]
             v, i = gd.topk(k_aux, dim=1)
-            vals = torch.sigmoid(v) * mag[:, dead].gather(1, i)
+            vals = mag[:, dead].gather(1, i)
+            if self.aux_code == 'belief':
+                vals = torch.sigmoid(v) * vals
             z_aux = torch.zeros_like(gd).scatter_(1, i, vals)
             aux = (z_aux @ self.W_dec[dead] - resid).pow(2).sum(1).mean()
             if torch.isfinite(aux):
@@ -249,7 +275,8 @@ def save_gated(path, sae, norm, extra=None):
     torch.save({'state_dict': sae.state_dict(), 'norm': norm.state_dict(), 'sparsity': 'gated_l0',
                 'hparams': {'d_in': sae.d_in, 'n_latents': sae.n_latents, 'prefixes': list(sae.prefixes),
                             'target_l0': sae.target_l0, 'lam_init': sae.lam_init, 'lam_lr': sae.lam_lr,
-                            'k_aux': sae.k_aux, 'aux_coef': sae.aux_coef, 'dead_tokens': sae.dead_tokens},
+                            'k_aux': sae.k_aux, 'aux_coef': sae.aux_coef, 'dead_tokens': sae.dead_tokens,
+                            'aux_code': sae.aux_code},
                 **(extra or {})}, path)
 
 
