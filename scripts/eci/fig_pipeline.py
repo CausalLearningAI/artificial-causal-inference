@@ -611,7 +611,7 @@ def plot(args):
     C_DX = '#009E73'  # token-difference hue (Okabe-Ito bluish green)
     # ------------------------------------------------ layout (mm)
     W = 183.0
-    left, top_h, row_h, sz = 7.0, 9.5, 23.5, 15.0
+    left, top_h, row_h, sz = 7.0, 9.5, 25.0, 15.0
     Y_TITLE = 4.1  # baseline (top) of the column titles; the per-row size lines sit at the same row offset
     ag = 2.8                    # arrow gap between steps
     fw, nvol, dx, dy = 10.0, 9, 1.9, 0.5  # temporal volume
@@ -728,6 +728,10 @@ def plot(args):
         iy = (np.arange(gN.shape[0]) * G) // gN.shape[0]
         ix = (np.arange(gN.shape[1]) * G) // gN.shape[1]
         upN = mk[iy][:, ix]  # the token mask at native resolution
+        if ri > 0:  # thin rule between domain rows: midway between the previous row's lowest labels and this row's size lines
+            y_rule = (y0 - row_h + 17.4 + y0 - (top_h - Y_TITLE)) / 2
+            fig.lines.append(matplotlib.lines.Line2D([0.5 / W, 1 - 0.5 / W], [1 - y_rule / H] * 2, transform=fig.transFigure,
+                                                     lw=0.4, color='#d0d0d0'))
         txt(0.4, yc, m['name'], fontsize=6.5, weight='bold', rotation=90, va='center', ha='left')
         txt(3.4, yc, m['species'], fontsize=FS_S - 0.6, rotation=90, va='center', ha='left')
         # ---- a: temporal volume over the clip; t outlined, arrow from t into b
@@ -793,8 +797,8 @@ def plot(args):
         txt(xs['vec'] + 0.7 + VPAD / 2 + 1.5 * gw + gg, vy_d + vh_d + 0.3, 'Δx$_t$', ha='center', fontsize=FS_S - 0.6)
         dm = dims[d]
         txt(xs['vec'] + 0.7 + VPAD / 2 + gw + gg / 2, vy + vh + 0.3, f'd = {dm["d_token"]} + {dm["d_delta"]}',
-            ha='center', fontsize=FS_S - 0.6, color=C_DARK)
-        txt(xs['pre'], vy + vh + 0.3, f'd = {dm["n_latents"]}, k = {dm["k"]}', fontsize=FS_S - 0.6, color=C_DARK)
+            ha='center', fontsize=5.0, color='#a0a0a0')
+        txt(xs['pre'], vy + vh + 0.3, f'd = {dm["n_latents"]}, k = {dm["k"]}', fontsize=5.0, color='#a0a0a0')
         fig.add_artist(ConnectionPatch(xyA=(sx_ + 1, sy + 0.5), coordsA=zoom_ax.transData, xyB=(0, 0.5),
                                        coordsB=gl[0].transAxes, color=C_TOK, lw=0.5, arrowstyle='-|>',
                                        mutation_scale=4))
