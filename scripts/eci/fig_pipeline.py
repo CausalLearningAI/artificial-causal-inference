@@ -5,10 +5,11 @@ summaries of one behaviour-like neuron. Discovery (NES) is not shown.
 
     a  video              temporal volume: 9 frames evenly over the analysed clip (earliest at the back), thin time
                           axis (frame centre = its time), the example frame t (orange) replacing the nearest one
-    b  one frame -> repr. greyscale throughout, single-hue overlays: frame t with t - 1 s as a faint blue ghost ->
-                          every DINOv2 token of the whole frame (light 32 x 32 grid) + the mask (orange outline) ->
-                          token input: |x_t - x_(t-1 s)| as green opacity on the kept tokens -> SAE code: one neuron's
-                          activation as blue opacity on the kept tokens
+    b  one frame, steps   greyscale + single-hue overlays: (1) the 32 x 32 token grid of the whole frame + the mask
+                          outline; (2) zoom, non-mask tokens blanked, the chosen token (the neuron's peak) outlined;
+                          (3) its DINOv2 vector x_t and x_t - x_(t-1 s) as two slim 768-d glyphs; (4) the SAE's dense
+                          ReLU pre-activations (4096) with the inference threshold -> the sparse code, neuron in blue;
+                          (5) the neuron on every kept token (blue opacity). Orange arrow from the example frame in a.
     c  aggregation        arrow 'spatial (max)' -> the neuron's RAW value per frame over a 2-min window (--window-s)
                           + firing raster -> arrow 'temporal' -> time / bouts per min / latency over the whole clip from
                           the firing rule --event (default nonzero = frame value > 0; q95; hmm)
@@ -272,6 +273,15 @@ def compute_domain(name, cfg, sae_name, tmp, n_cand=200):
     heat = Z[:, key].numpy().reshape(GRID, GRID)
     sel = int(torch.argmax(Z[:, key]))  # the kept token where the neuron peaks
     tok_code = Z[sel].numpy()
+    # the chosen token's SAE input [x_t, x_t - x_(t-1 s)] and its dense pre-activations (ReLU), for the walkthrough
+    xin = torch.cat([stok[0][sel:sel + 1], (stok[0][sel:sel + 1].float() - stok[1][sel:sel + 1].float()).half()], 1)
+    with torch.no_grad():
+        pre = torch.relu(sae.pre_acts(norm(xin)))[0].float()
+    z_chk = (pre * (pre > sae.threshold)).numpy()
+    assert np.abs(z_chk - tok_code).max() < 1e-4, np.abs(z_chk - tok_code).max()
+    tok_x, tok_d = stok[0][sel].float().numpy(), (stok[0][sel].float() - stok[1][sel].float()).numpy()
+    pre = pre.numpy()
+    n_topk = int(sae.k)
     # ---------------------------------------------------------------- 3. native frame + lengths
     e = pd.read_csv(cfg['raw_exp']).set_index('observation_id')
     srcf = cfg['src'] / e.loc[obs, 'observation_file']
@@ -381,14 +391,15 @@ def compute_domain(name, cfg, sae_name, tmp, n_cand=200):
                 motion_kept_median=float(np.median(motion[mask.numpy()])), motion_kept_max=float(motion[mask.numpy()].max()),
                 summary=summ, hmm_summary=None if hmm is None else hmm['summary'],
                 hmm_file=None if hmm is None else hmm['file'], hmm_check=None if hmm is None else hmm.get('check'), clean_mask=clean, clean_rank=rank,
-                tried=tried[:rank + 2], sel_motion=float(motion[sel]), pca_fit_tokens=pca_n,
+                tried=tried[:rank + 2], sel_motion=float(motion[sel]), sae_k=n_topk, sae_theta=thr_sae,
+                n_pre_positive=int((pre > 0).sum()), pca_fit_tokens=pca_n,
                 pca_fit_frames=len(pool) + 2, n_kept_prev=int(mask_p.sum()),
                 version=cfg['version'], name=cfg['name'], species=cfg['species'])
     OUT.joinpath('cache').mkdir(parents=True, exist_ok=True)
     np.savez_compressed(OUT / 'cache' / f'{name}.npz', native=nat_small, frames=frames, enc_in=enc_in,
                         mask=mask.numpy().reshape(GRID, GRID), motion=motion.reshape(GRID, GRID), heat=heat, code=mx,
                         tok_code=tok_code, trace=tr, above=above, bouts=bouts, pca_t=pca_rgb[0], pca_p=pca_rgb[1],
-                        thumbs=thumbs, thumb_pos=np.array(tpos), thumb_ex=j_ex,
+                        thumbs=thumbs, thumb_pos=np.array(tpos), thumb_ex=j_ex, tok_x=tok_x, tok_d=tok_d, pre=pre,
                         mask_p=mask_p.numpy().reshape(GRID, GRID),
                         **({} if hmm is None else dict(p_on=hmm['p_on'], hmm_bouts=hmm['bouts'])))
     json.dump(meta, open(OUT / 'cache' / f'{name}.json', 'w'), indent=1,
@@ -561,7 +572,7 @@ def plot(args):
     import matplotlib.pyplot as plt
     from matplotlib import font_manager
     from matplotlib.colors import to_rgb
-    from matplotlib.patches import FancyArrowPatch, Rectangle
+    from matplotlib.patches import ConnectionPatch, FancyArrowPatch
     fams = [f for f in ('Arial', 'Helvetica', 'Liberation Sans', 'Nimbus Sans', 'DejaVu Sans')
             if any(f == x.name for x in font_manager.fontManager.ttflist)]
     plt.rcParams.update({'font.family': 'sans-serif', 'font.sans-serif': fams, 'font.size': FS, 'axes.linewidth': 0.4,
@@ -577,25 +588,23 @@ def plot(args):
     enc_label = args.encoder_label or m0['encoder_label'].split('-')[0]
     G = args.grid or m0['grid']
     C_DX = '#009E73'  # token-difference hue (Okabe-Ito bluish green)
-    C_GHOST = '#56B4E9'  # t - 1 s ghost tint (Okabe-Ito sky blue)
     # ------------------------------------------------ layout (mm)
     W = 183.0
-    left, top_h, row_h, sz = 7.0, 9.0, 21.0, 16.0
-    ag, sg = 3.0, 9.0  # arrow gap between panels, gap of the labelled spatial / temporal arrows
-    fw, nvol, dx, dy = 11.5, 9, 2.1, 0.55  # temporal volume: frame size, frames, offsets
+    left, top_h, row_h, sz = 7.0, 9.0, 21.0, 15.0
+    ag = 2.8                    # arrow gap between steps
+    fw, nvol, dx, dy = 10.0, 9, 1.9, 0.5  # temporal volume
+    gw, gg, bw = 2.0, 0.5, 7.0  # vector glyph strip width, gap between the two strips, sparse-bar panel width
     xa = left
     wa = fw + (nvol - 1) * dx
-    xb = xa + wa + 3.2
-    xs = {}
-    x = xb
-    for k in ('ghost', 'tokens', 'input', 'sae'):
+    xb = xa + wa + 5.0
+    xs, x = {}, xb
+    for k, w in (('grid', sz), ('zoom', sz), ('vec', 2 * gw + gg + 1.4), ('pre', bw), ('code', bw), ('spatial', sz)):
         xs[k] = x
-        x += sz + ag
-    x += sg - ag
+        x += w + ag
+    x += 7.0 - ag
     xs['trace'] = x
-    wt = 30.0
-    x += wt + sg + 1.5
-    xs['num'] = x
+    xs['num'] = W - 0.5 - 11.0
+    wt = xs['num'] - 8.0 - xs['trace']
     H = top_h + row_h * len(doms) + 0.5
     fig = plt.figure(figsize=(W * MM, H * MM))
 
@@ -615,9 +624,9 @@ def plot(args):
             s.set_linewidth(lw); s.set_color(ec)
         return a
 
-    def arrow(x0, x1, yc, label=None):
+    def arrow(x0, x1, yc, label=None, color='#9e9e9e'):
         fig.patches.append(FancyArrowPatch((x0 / W, 1 - yc / H), (x1 / W, 1 - yc / H), transform=fig.transFigure,
-                                           arrowstyle='-|>', mutation_scale=4.5, lw=0.5, color='#9e9e9e',
+                                           arrowstyle='-|>', mutation_scale=4.5, lw=0.5, color=color,
                                            shrinkA=0, shrinkB=0))
         if label:
             txt((x0 + x1) / 2, yc - 0.6, label, ha='center', va='bottom', fontsize=FS_S - 0.6, color=C_DARK)
@@ -626,7 +635,6 @@ def plot(args):
         return np.asarray(frame, np.float32).mean(2) / 255
 
     def overlay(ax, g, val, mk, color, vmax, amax=0.85):
-        """greyscale frame + one-hue overlay on the kept tokens, alpha proportional to the value"""
         ax.imshow(g, cmap='gray', vmin=0, vmax=1, extent=(0, G, G, 0), interpolation='bilinear')
         rgba = np.zeros((G, G, 4))
         rgba[..., :3] = to_rgb(color)
@@ -643,16 +651,34 @@ def plot(args):
             s.set_linewidth(0.25)
         txt(x + w + 0.4, y - 0.15, f'{vmax:.0f}', fontsize=FS_S - 0.6, ha='left')
 
-    # headers: blocks, then the explicit chain
-    for xx, lab, title in ((xa, 'a', 'Video'), (xb, 'b', 'One frame → representation'),
+    def bars(ax, v, n, hi=None, thr=None, sparse=False):
+        """vertical sparse / dense bar glyph of a 4096-d vector (latent 1 at the top)"""
+        idx = np.flatnonzero(v > 0)
+        if sparse:
+            ax.hlines(idx, 0, v[idx], color='#5a5a5a', lw=0.5)
+        else:
+            ax.hlines(idx, 0, v[idx], color='#b0b0b0', lw=0.12)
+            if thr is not None:
+                k = idx[v[idx] > thr]
+                ax.hlines(k, 0, v[k], color='#5a5a5a', lw=0.4)
+                ax.axvline(thr, color='k', lw=0.35, ls=(0, (1.5, 1.2)))
+        if hi is not None and v[hi] > 0:
+            ax.hlines([hi], 0, v[hi], color=C_N, lw=0.9)
+            ax.plot([v[hi]], [hi], 'o', ms=1.3, color=C_N, mec='none')
+        ax.set_ylim(n, 0); ax.set_xlim(0, float(v.max()) * 1.1)
+        ax.set_xticks([]); ax.set_yticks([])
+        for s in ('top', 'right'):
+            ax.spines[s].set_visible(False)
+
+    # headers
+    for xx, lab, title in ((xa, 'a', 'Video'), (xb, 'b', 'One frame, step by step'),
                            (xs['trace'], 'c', 'Aggregation (one neuron)')):
         txt(xx, 0.6, lab, fontsize=8, weight='bold')
         txt(xx + 2.6, 0.85, title, fontsize=FS)
-    for k, title in (('ghost', 'frame t\n(ghost: t − 1 s)'), ('tokens', f'every {enc_label} token\nof the frame + mask'),
-                     ('input', 'token input\n[x$_t$, x$_t$ − x$_{t-1\\,s}$]'), ('sae', 'SAE code\nper token'),
-                     ('trace', 'one value per frame'), ('num', 'per video')):
+    for k, title in (('grid', f'{G} × {G} {enc_label}\ntokens + mask'), ('zoom', 'kept tokens,\none chosen'),
+                     ('vec', 'token\n[x$_t$, Δx]'), ('pre', 'SAE encoder →\nsparse code (top-k)'),
+                     ('spatial', 'neuron on every\nkept token'), ('trace', 'one value per frame'), ('num', 'per video')):
         txt(xs[k], 4.1, title, color=C_DARK)
-    vm_motion = max(float(np.ma.masked_where(~A_['mask'].astype(bool), A_['motion']).max()) for A_, _ in data.values())
     summ_out = {}
     for ri, d in enumerate(doms):
         A, m = data[d]
@@ -661,13 +687,15 @@ def plot(args):
         key = m['key']
         mk = A['mask'].astype(bool)
         zx, zy, zs = zoom_box(mk)
+        sy, sx_ = m['sel_token']
+        gt = grey(A['frames'][0])
         txt(0.4, yc, m['name'], fontsize=6.5, weight='bold', rotation=90, va='center', ha='left')
         txt(3.4, yc, m['species'], fontsize=FS_S - 0.6, rotation=90, va='center', ha='left')
-        # ---- a: temporal volume, frames evenly over the clip, earliest at the back; t outlined
+        # ---- a: temporal volume over the clip; t outlined, arrow from t into b
         clip_fr = m['window'][1] - m['window'][0]
         clip_min = clip_fr / FPS / 60
         tpos, j_ex = A['thumb_pos'], int(A['thumb_ex'])
-        top0 = y0 + 0.2
+        top0 = y0 + 0.4
         for i in range(len(tpos)):
             a = img(xa + i * dx, top0 + i * dy, fw, ec=C_KEPT if i == j_ex else '#ffffff', lw=0.9 if i == j_ex else 0.4)
             a.imshow(grey(A['thumbs'][i]), cmap='gray', vmin=0, vmax=1, interpolation='lanczos')
@@ -679,39 +707,68 @@ def plot(args):
         ta.set_xticks([0, clip_min]); ta.set_xticklabels(['0', f'{clip_min:.0f} min'])
         ta.tick_params(length=1.0, labelsize=FS_S - 0.6)
         ta.plot([tpos[j_ex] / FPS / 60], [0], marker='|', ms=3.0, mew=0.8, color=C_KEPT, clip_on=False)
-        # ---- b1: frame t with the t - 1 s frame as a faint tinted ghost
-        gt, gp = grey(A['frames'][0]), grey(A['frames'][1])
-        ghost = np.clip((gt - gp) / 0.25, 0, 1)[..., None] * 0.55  # where the animal was 1 s ago (darker then)
-        comp = np.repeat(gt[..., None], 3, 2) * (1 - ghost) + np.array(to_rgb(C_GHOST)) * ghost
-        a = img(xs['ghost'], y0, sz)
-        a.imshow(comp, interpolation='lanczos')
-        arrow(xs['ghost'] + sz + 0.3, xs['tokens'] - 0.3, yc)
-        # ---- b2: every token of the whole frame (light grid) + the mask (outline)
-        a = img(xs['tokens'], y0, sz)
+        x0 = xa + j_ex * dx + fw * 0.55
+        y_top = top0 + j_ex * dy
+        fig.patches.append(FancyArrowPatch((x0 / W, 1 - y_top / H), ((xs['grid'] - 0.4) / W, 1 - (y0 + 1.5) / H),
+                                           transform=fig.transFigure, arrowstyle='-|>', mutation_scale=4.5, lw=0.6,
+                                           color=C_KEPT, connectionstyle='arc3,rad=-0.35', shrinkA=0, shrinkB=0))
+        # ---- b1: the frame split into its token grid + the animal mask (outline)
+        a = img(xs['grid'], y0, sz)
         a.imshow(gt, cmap='gray', vmin=0, vmax=1, extent=(0, G, G, 0), interpolation='bilinear')
         for i in range(1, G):
             a.axhline(i, color='w', lw=0.1, alpha=0.55)
             a.axvline(i, color='w', lw=0.1, alpha=0.55)
         edge(a, mk, C_KEPT, 0.5)
-        arrow(xs['tokens'] + sz + 0.3, xs['input'] - 0.3, yc)
-        # ---- b3: token input: |x_t - x_(t-1 s)| as a one-hue overlay on the kept tokens (zoom)
-        a = img(xs['input'], y0, sz)
-        overlay(a, gt, A['motion'], mk, C_DX, vm_motion)
+        arrow(xs['grid'] + sz + 0.3, xs['zoom'] - 0.3, yc)
+        # ---- b2: zoom on the animals, non-mask tokens blanked, the chosen token outlined
+        a = img(xs['zoom'], y0, sz)
+        up = np.kron(mk, np.ones((512 // G, 512 // G), bool))
+        a.imshow(np.where(up, gt, 0.93), cmap='gray', vmin=0, vmax=1, extent=(0, G, G, 0), interpolation='nearest')
+        for i in range(1, G):
+            a.axhline(i, color='w', lw=0.15, alpha=0.6)
+            a.axvline(i, color='w', lw=0.15, alpha=0.6)
         edge(a, mk, C_KEPT, 0.4)
+        a.add_patch(matplotlib.patches.Rectangle((sx_, sy), 1, 1, fill=False, ec=C_N, lw=0.9))
         a.set_xlim(zx, zx + zs); a.set_ylim(zy + zs, zy)
-        hue_bar(xs['input'], y0 + sz + 0.7, sz - 3.0, C_DX, vm_motion)
-        arrow(xs['input'] + sz + 0.3, xs['sae'] - 0.3, yc)
-        # ---- b4: SAE code per token: one neuron, one-hue overlay (zoom)
-        a = img(xs['sae'], y0, sz, ec=C_N, lw=0.7)
+        zoom_ax = a
+        # ---- b3: the chosen token -> [x_t, x_t - x_(t-1 s)] as two slim 768-d glyphs
+        vy, vh = y0 + 0.6, sz - 3.2
+        lim = float(np.percentile(np.abs(np.r_[A['tok_x'], A['tok_d']]), 98))
+        gl = []
+        for j, (v, ec) in enumerate(((A['tok_x'], C_DARK), (A['tok_d'], C_DX))):
+            g_ = ax_mm(xs['vec'] + 0.7 + j * (gw + gg), vy, gw, vh)
+            g_.imshow(v[:, None], aspect='auto', cmap='gray_r', vmin=-lim, vmax=lim, interpolation='nearest')
+            g_.set_xticks([]); g_.set_yticks([])
+            for s in g_.spines.values():
+                s.set_linewidth(0.5); s.set_color(ec)
+            gl.append(g_)
+        txt(xs['vec'] + 0.7 + gw / 2, vy + vh + 0.3, 'x$_t$', ha='center', fontsize=FS_S - 0.6)
+        txt(xs['vec'] + 0.7 + 1.5 * gw + gg, vy + vh + 0.3, 'Δx', ha='center', fontsize=FS_S - 0.6, color=C_DX)
+        fig.add_artist(ConnectionPatch(xyA=(sx_ + 1, sy + 0.5), coordsA=zoom_ax.transData, xyB=(0, 0.5),
+                                       coordsB=gl[0].transAxes, color=C_N, lw=0.5, arrowstyle='-|>',
+                                       mutation_scale=4))
+        # ---- b4: SAE encoder: dense pre-activations -> sparse code (threshold / top-k), the neuron highlighted
+        pa = ax_mm(xs['pre'], vy, bw, vh)
+        bars(pa, A['pre'], len(A['pre']), hi=key, thr=m['sae_theta'])
+        arrow(xs['vec'] + 2 * gw + gg + 1.4 + 0.3, xs['pre'] - 0.3, yc)
+        arrow(xs['pre'] + bw + 0.3, xs['code'] - 0.3, yc)
+        ca = ax_mm(xs['code'], vy, bw, vh)
+        bars(ca, A['tok_code'], len(A['tok_code']), hi=key, sparse=True)
+        txt(xs['pre'], vy + vh + 0.3, '4096', fontsize=FS_S - 0.6, color=C_DARK)
+        txt(xs['code'], vy + vh + 0.3, f'{m["n_active_token_code"]} kept', fontsize=FS_S - 0.6, color=C_DARK)
+        arrow(xs['code'] + bw + 0.3, xs['spatial'] - 0.3, yc)
+        # ---- b5: the neuron on every kept token (one-hue overlay), -> max -> c
+        a = img(xs['spatial'], y0, sz, ec=C_N, lw=0.7)
         hm = A['heat']
         vmh = max(float(hm.max()), 1e-6)
         overlay(a, gt, hm, mk, C_N, vmh, amax=0.9)
         edge(a, mk, C_KEPT, 0.4)
+        a.add_patch(matplotlib.patches.Rectangle((sx_, sy), 1, 1, fill=False, ec=C_N, lw=0.6))
         a.set_xlim(zx, zx + zs); a.set_ylim(zy + zs, zy)
-        hue_bar(xs['sae'], y0 + sz + 0.7, sz - 3.0, C_N, vmh)
-        txt(xs['sae'], y0 + sz + 2.0, f'#{key} {DOM[d]["short"]}', color=C_N)
-        arrow(xs['sae'] + sz + 0.5, xs['trace'] - 0.5, yc, 'spatial\n(max)')
-        # ---- c1: one value per frame: the raw frame value over a window around t, firing raster
+        hue_bar(xs['spatial'], y0 + sz + 0.7, sz - 3.0, C_N, vmh)
+        txt(xs['spatial'], y0 + sz + 2.0, f'#{key} {DOM[d]["short"]}', color=C_N)
+        arrow(xs['spatial'] + sz + 0.5, xs['trace'] - 0.5, yc, 'spatial\n(max)')
+        # ---- c: one value per frame (raw), firing raster -> temporal -> per video
         fire, s_ = firing(A, m, args.event)
         summ_out[d] = s_
         tr = A['trace']
@@ -739,7 +796,6 @@ def plot(args):
         r.set_xticklabels(['0', f'{args.window_s / 60:.0f} min'])
         r.tick_params(length=1.0, labelsize=FS_S - 0.6)
         arrow(xs['trace'] + wt + 0.6, xs['num'] - 0.6, yc, 'temporal')
-        # ---- c2: per-video numbers over the whole clip
         lat = f'{s_["latency_s"]:.1f} s' if not s_['censored'] else f'> {s_["latency_s"]:.0f} s'
         for i, (lab, val) in enumerate((('time', f'{100 * s_["time_budget"]:.0f}%'),
                                         ('bouts', f'{s_["bout_rate_per_min"]:.1f}/min'), ('latency', lat))):
