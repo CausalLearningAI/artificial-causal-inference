@@ -13,8 +13,10 @@ Recipe per domain
              832 (52 x 52), frogs 800 (50 x 50).
     mask     the CURRENT per-domain rule (src/eci/foreground.py RULES: mice 'fg448', ants 'ants', frogs 'frogs') with the
              existing per-video backgrounds, computed exactly as C1 on the 32 x 32 grid (DINOv2-base at 448 on the 512 px
-             frame + the grey 512 px frame), the 512 px frame = the decoded S frame resized to 512 (bicubic,
-             antialias). Projected to the G x G grid by patch centre (idx = floor((g + 0.5) 32 / G), MABe22 map_mask;
+             frame + the grey 512 px frame), on C1's own input: the frame's 512 px dataset JPG (staged to local disk per
+             job). The decoded native frame resized to 512 was measured first (maskdiag: same rule, same backgrounds)
+             and inflates the ants masks by up to 42% (the backgrounds / thresholds are JPG quantities); on the JPGs the
+             32-grid count matches the C1 n_fg (mean |diff| 0.3-1.1 cells, frogs exact). Projected to the G x G grid by patch centre (idx = floor((g + 0.5) 32 / G), MABe22 map_mask;
              at G = 64 this is exactly the 2 x 2 children of a 448 cell, CalMS21 to_grid).
     context  x = [z_t, z_t - z_{t-10}] (10 frames = 2 s at 5 fps, same patch; t-10 clipped to the video's first frame)
              -> variant 'd2' (2048-d); variant 'd0' = z_t only (1024-d). Both from the same encoder pass.
@@ -58,8 +60,8 @@ import pandas as pd
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / 'scripts/eci'))
-OUT = REPO / 'results/vision/eci_rollout_r4'
-BEE = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/r4')
+OUT = Path(os.environ.get('R4_OUT') or REPO / 'results/vision/eci_rollout_r4')  # R4_OUT / R4_BEE: self-test roots
+BEE = Path(os.environ.get('R4_BEE') or '/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/r4')
 FFMPEG = Path.home() / '.conda/envs/ffmpeg611/bin/ffmpeg'
 FFPROBE = Path.home() / '.conda/envs/ffmpeg611/bin/ffprobe'
 D3L = 'facebook/dinov3-vitl16-pretrain-lvd1689m'
@@ -315,6 +317,29 @@ def decode(path, s0, n, step, S, hflip, fps, threads=4):
     return np.frombuffer(p.stdout, np.uint8).reshape(n, S, S, 3)
 
 
+def load_jpgs(paths):
+    """512 px dataset JPGs (the C1 mask input) -> (n, 512, 512, 3) uint8."""
+    from PIL import Image
+    out = np.empty((len(paths), 512, 512, 3), np.uint8)
+    for i, f in enumerate(paths):
+        with Image.open(f) as im:
+            a = np.asarray(im.convert('RGB'))
+        if a.shape != (512, 512, 3):
+            raise ValueError(f'{f}: shape {a.shape}')
+        out[i] = a
+    return out
+
+
+def stage_jpgs(rels, dst, workers=32):
+    """Copy dataset-relative JPG paths from REPO/dataset to dst (same layout), one bulk copy (as rollout_c1)."""
+    t0 = time.time()
+    for d in sorted({str(Path(r).parent) for r in rels}):
+        (dst / d).mkdir(parents=True, exist_ok=True)
+    with ThreadPoolExecutor(workers) as ex:
+        list(ex.map(lambda r: shutil.copyfile(REPO / 'dataset' / r, dst / r), rels, chunksize=64))
+    log(f'  staged {len(rels):,} JPGs in {time.time() - t0:.0f}s')
+
+
 class Prefetch:
     """Ordered decode jobs [(key, kwargs)] run `par` at a time in threads; get() yields (key, frames) in order."""
 
@@ -330,10 +355,11 @@ class Prefetch:
 
     def _run(self, kw):
         t0 = time.time()
-        x = decode(**kw)
+        x = decode(**{k_: v_ for k_, v_ in kw.items() if k_ != 'jpgs'})
+        J = load_jpgs(kw['jpgs']) if kw.get('jpgs') is not None else None
         with self.lock:
             self.dec_s += time.time() - t0
-        return x
+        return x, J
 
     def _submit(self):
         if self.next < len(self.jobs):
@@ -389,14 +415,19 @@ class Pipe:
         t = x512.int()
         return ((t[:, 0] * 19595 + t[:, 1] * 38470 + t[:, 2] * 7471 + 32768) >> 16).to(x512.dtype)
 
-    def run(self, frames, src_rows):
-        """frames (B, S, S, 3) uint8 numpy, src_rows (B,) source-layout rows -> z (B, G*G, 1024) fp16, mask (B, G*G)
-        bool, n32 (B,) kept 32-grid cells, x512 (B, 3, 512, 512) uint8."""
+    def run(self, frames, src_rows, jpg=None):
+        """frames (B, S, S, 3) uint8 numpy, src_rows (B,) source-layout rows, jpg (B, 512, 512, 3) uint8 = the dataset
+        JPGs of these rows (C1's mask input; None = the decoded frame resized to 512) -> z (B, G*G, 1024) fp16, mask
+        (B, G*G) bool, n32 (B,) kept 32-grid cells, x512 (B, 3, 512, 512) uint8 (the mask's input frame)."""
         torch = self.torch
         t0 = time.time()
         with torch.no_grad():
-            x = torch.from_numpy(np.ascontiguousarray(frames)).to(self.dev).permute(0, 3, 1, 2).float()
-            x512 = self.frame512(x)
+            x = torch.from_numpy(np.array(frames)).to(self.dev).permute(0, 3, 1, 2).float()
+            if jpg is not None:
+                assert len(jpg) == len(frames)
+                x512 = torch.from_numpy(jpg).to(self.dev).permute(0, 3, 1, 2).contiguous()
+            else:
+                x512 = self.frame512(x)
             grey = self.grey(x512)
             pix = self.proc2(images=list(x512), return_tensors='pt', device=self.dev)['pixel_values'].to(self.dev)
             with torch.autocast('cuda', dtype=torch.float16):
@@ -559,7 +590,7 @@ def cmd_check(args):
             pipe.gpu_s = 0.0
             n32, nG = [], []
             pf = Prefetch(jobs, c['par'])
-            for (o, k0), fr in pf:
+            for (o, k0), (fr, _) in pf:
                 for b in range(0, len(fr), c['bs']):
                     rows = v['src_lo'] + k0 + b + np.arange(len(fr[b:b + c['bs']]))
                     z, m, c32, _ = pipe.run(fr[b:b + c['bs']], rows)
@@ -657,7 +688,7 @@ def mask_sheet(items, G, path):
 
 def cmd_prepass(args):
     import torch
-    assert AMP == 'bf16', 'tokens / codes are written only with the bf16 recipe'
+    assert AMP == 'bf16' or os.environ.get('R4_TEST'), 'tokens / codes are written only with the bf16 recipe'
     dom = args.domain
     c = DOMS[dom]
     P = load_plan(dom)
@@ -665,15 +696,22 @@ def cmd_prepass(args):
     A, R = obs_ranges_of(REPO / c['ann'], ('frame_path',))
     loc = local_dir() / 'prepass'
     loc.mkdir(parents=True, exist_ok=True)
-    pipe = Pipe(dom, dev, R)
-    G = pipe.G
+    jdir = local_dir() / 'jpg'
+    fp = A['frame_path'].values
     jobs = []
     for vi, v in enumerate(P['videos']):
         for a in v['bursts']:
+            rr = [v['src_lo'] + a + o for o in BURST]
             jobs.append(((vi, a), dict(path=v['path'], s0=c['offset'] + c['step'] * a, n=len(BURST),
-                                       step=c['step'] * 5, S=c['S'], hflip=v['hflip'], fps=c['fps'], threads=2)))
-    if args.limit:
-        jobs = jobs[:args.limit]
+                                       step=c['step'] * 5, S=c['S'], hflip=v['hflip'], fps=c['fps'], threads=2,
+                                       jpgs=[jdir / fp[r] for r in rr])))
+    if args.limit:  # self-test: bursts spread over the videos
+        jobs = jobs[::max(1, len(jobs) // args.limit)][:args.limit]
+    st = ThreadPoolExecutor(1).submit(stage_jpgs, sorted({str(f.relative_to(jdir)) for _, kw in jobs for f in kw['jpgs']}),
+                                      jdir)
+    pipe = Pipe(dom, dev, R)
+    G = pipe.G
+    st.result()
     ftok = open(loc / 'tok.f16', 'wb')
     fprev = open(loc / 'prev.f16', 'wb')
     tok_frame, tok_pos, frames = [], [], []
@@ -685,9 +723,10 @@ def cmd_prepass(args):
 
     def flush(batch):
         nonlocal n_tok
-        fr = np.concatenate([b[1] for b in batch])
+        fr = np.concatenate([b[1][0] for b in batch])
+        jp = np.concatenate([b[1][1] for b in batch])
         rows = np.concatenate([[P['videos'][vi]['src_lo'] + a + o for o in BURST] for (vi, a), _ in batch])
-        z, m, n32, x512 = pipe.run(fr, rows)
+        z, m, n32, x512 = pipe.run(fr, rows, jp)
         for bi, ((vi, a), _) in enumerate(batch):
             v = P['videos'][vi]
             g = np.random.default_rng([2, vi, a])
@@ -711,7 +750,8 @@ def cmd_prepass(args):
                         and j == 2:
                     sheet.append((x512[i].cpu().numpy(), m[i].cpu().numpy(), f'{v["obs"]} k{k} kept {len(pos)}'))
                 if len(align) < 12 and j == 2 and bi == 0:
-                    gq = pipe.grey(x512[i:i + 1]).float().cpu().numpy()[0]
+                    xd = torch.from_numpy(np.ascontiguousarray(fr[i:i + 1])).to(dev).permute(0, 3, 1, 2).float()
+                    gq = pipe.grey(pipe.frame512(xd)).float().cpu().numpy()[0]  # the DECODED frame vs its JPGs
                     J = jpg_grey(dom, [v['src_lo'] + k + d for d in (-1, 0, 1)], A)
                     mad = [float(np.abs(gq - jj).mean()) for jj in J]
                     align.append({'obs': v['obs'], 'k': int(k), 'mad': mad, 'ok': bool(mad[1] <= min(mad[0], mad[2]))})
@@ -758,7 +798,7 @@ def cmd_prepass(args):
     (OUT / dom / 'prepass.json').write_text(json.dumps(info, indent=1, default=float))
     if ok < len(align) / 2:
         raise SystemExit(f'ALIGNMENT FAILED: only {ok}/{len(align)} decoded frames closest to their JPG')
-    if not args.limit:
+    if True:
         atomic_copy(loc, BEE / dom / 'prepass')
         log(f'-> {BEE / dom / "prepass"}')
 
@@ -884,7 +924,7 @@ def cmd_train(args):
 # ---------------------------------------------------------------------------------------------- encode
 def cmd_encode(args):
     import torch
-    assert AMP == 'bf16', 'tokens / codes are written only with the bf16 recipe'
+    assert AMP == 'bf16' or os.environ.get('R4_TEST'), 'tokens / codes are written only with the bf16 recipe'
     dom = args.domain
     c = DOMS[dom]
     P = load_plan(dom)
@@ -898,19 +938,26 @@ def cmd_encode(args):
     log(f'{dom} shard {args.shard}: {len(vids)} videos, {len(todo)} to do -> {outdir}')
     if not todo:
         return
-    pipe = Pipe(dom, dev, R)
-    saes, best = load_saes(dom, dev)
-    G = pipe.G
     loc = local_dir() / 'enc'
     loc.mkdir(parents=True, exist_ok=True)
-    jobs = []
+    jdir = local_dir() / 'jpg'
+    fp = pd.read_csv(REPO / c['ann'], usecols=['frame_path'])['frame_path'].values
+    jobs, rels = [], []
     for vi in todo:
         v = P['videos'][vi]
         n = v['n'] if not args.max_frames else min(v['n'], args.max_frames)
+        rels += list(fp[v['src_lo']:v['src_lo'] + n])
         for k0 in range(0, n, c['chunk']):
-            jobs.append(((vi, k0, n), dict(path=v['path'], s0=c['offset'] + c['step'] * k0, n=min(c['chunk'], n - k0),
+            m_ = min(c['chunk'], n - k0)
+            jobs.append(((vi, k0, n), dict(path=v['path'], s0=c['offset'] + c['step'] * k0, n=m_,
                                            step=c['step'], S=c['S'], hflip=v['hflip'], fps=c['fps'],
-                                           threads=c['threads'])))
+                                           threads=c['threads'],
+                                           jpgs=[jdir / f for f in fp[v['src_lo'] + k0:v['src_lo'] + k0 + m_]])))
+    st = ThreadPoolExecutor(1).submit(stage_jpgs, rels, jdir)
+    pipe = Pipe(dom, dev, R)
+    saes, best = load_saes(dom, dev)
+    G = pipe.G
+    st.result()
     pf = Prefetch(jobs, c['par'])
     T0 = time.time()
     cur, acc, ctx, tv = None, None, None, None
@@ -932,7 +979,7 @@ def cmd_encode(args):
             f'{arr["n_fg"].mean():.0f} | token L0 {json.dumps({k_: round(x, 2) for k_, x in tl0.items()})} | frame L0 '
             f'{json.dumps({k_: round(x, 1) for k_, x in fl0.items()})} | 0-kept frames {(arr["n_fg"] == 0).sum()}')
 
-    for (vi, k0, n), fr in pf:
+    for (vi, k0, n), (fr, jp) in pf:
         v = P['videos'][vi]
         if vi != cur:
             if cur is not None:
@@ -945,9 +992,10 @@ def cmd_encode(args):
             kb = k0 + b
             x = fr[b:b + c['bs']]
             rows = v['src_lo'] + kb + np.arange(len(x))
-            z, m, n32, _ = pipe.run(x, rows)
+            z, m, n32, _ = pipe.run(x, rows, jp[b:b + c['bs']])
             Pv = ctx.prev(z, kb)
-            out = sae_codes(torch, saes, z, Pv, m)
+            with torch.no_grad():
+                out = sae_codes(torch, saes, z, Pv, m)
             acc['n_fg'].append(m.sum(1).to(torch.int16).cpu().numpy())
             acc['n_fg32'].append(n32.to(torch.int16).cpu().numpy())
             for v_, (cm, cmean, am, l0, nt) in out.items():
@@ -1101,6 +1149,14 @@ def cmd_align(args):
     ranges = {v['obs']: (v['lay_lo'], v['lay_lo'] + v['n']) for v in P['videos']}
     rows = np.sort(np.concatenate(list(fps1_rows(ranges, 5, 0).values())))
     rows = rows[ok[rows]]
+    vdir = BEE / dom / 'videos'
+    if args.partial:  # only videos already encoded (per-video files, before the merge)
+        have = [v for v in P['videos'] if (vdir / f'{v["obs"]}.npz').exists()]
+        keep = np.zeros(len(a), bool)
+        for v in have:
+            keep[v['lay_lo']:v['lay_lo'] + v['n']] = True
+        rows = rows[keep[rows]]
+        log(f'{dom} partial: {len(have)} of {len(P["videos"])} videos encoded, {len(rows):,} labelled frames')
     labels = list(lab)
     obs = a.observation_id.values[rows]
     unit = pd.Series(obs).str.rsplit('_', n=2).str[0].values if dom == 'mice' else obs
@@ -1128,12 +1184,24 @@ def cmd_align(args):
                   'videos).', 'models': {}}
     for nm, (cd, rr) in sets.items():
         t0 = time.time()
-        cm = np.load(Path(cd) / 'codes_max.npy', mmap_mode='r')
-        order = np.argsort(rr)
-        X = np.empty((len(rr), cm.shape[1]), np.float16)
-        X[order] = cm[rr[order]]
+        if args.partial and nm.startswith('r4_'):
+            vv = nm[3:]
+            X = np.zeros((len(rr), WIDTH), np.float16)
+            nf = np.zeros(len(rr), np.float64)
+            for v in P['videos']:
+                j = np.flatnonzero((rr >= v['lay_lo']) & (rr < v['lay_lo'] + v['n']))
+                if len(j):
+                    z = np.load(vdir / f'{v["obs"]}.npz')
+                    X[j] = z[f'max_{vv}'][rr[j] - v['lay_lo']]
+                    nf[j] = z['n_fg'][rr[j] - v['lay_lo']]
+            cm = X
+        else:
+            cm = np.load(Path(cd) / 'codes_max.npy', mmap_mode='r')
+            order = np.argsort(rr)
+            X = np.empty((len(rr), cm.shape[1]), np.float16)
+            X[order] = cm[rr[order]]
+            nf = np.load(Path(cd) / 'n_fg.npy', mmap_mode='r')[rr].astype(np.float64)
         codes = torch.from_numpy(X).to(dev)
-        nf = np.load(Path(cd) / 'n_fg.npy', mmap_mode='r')[rr].astype(np.float64)
         rank = np.argsort(np.argsort(nf + np.random.default_rng(0).random(len(nf)) * 1e-3))
         decile = np.minimum(rank * 10 // len(nf), 9)
         res, _ = score_model(codes, Yt, labels, valid, half, decile, dev)
@@ -1142,7 +1210,8 @@ def cmd_align(args):
         log(f'{dom} {nm} ({cm.shape[1]} neurons, {time.time() - t0:.0f}s): ' + json.dumps(
             {b: {k_: round(r[k_], 4) for k_ in ('cf_auroc', 'cf_ap', 'cf_top1', 'insample_auroc')} for b, r in res.items()}))
         del codes
-    (OUT / dom / 'align.json').write_text(json.dumps(Rz, indent=1, default=float))
+    Rz['partial'] = bool(args.partial)
+    (OUT / dom / ('align_partial.json' if args.partial else 'align.json')).write_text(json.dumps(Rz, indent=1, default=float))
 
 
 # ---------------------------------------------------------------------------------------------- report
@@ -1236,6 +1305,7 @@ def main():
     p.add_argument('--steps', type=int, default=6000)
     p.add_argument('--shard-frames', type=int, default=60_000)
     p.add_argument('--force', action='store_true')
+    p.add_argument('--partial', action='store_true')
     p.add_argument('--encoder-check', action='store_true')
     args = p.parse_args()
     {'plan': cmd_plan, 'reshard': cmd_reshard, 'check': cmd_check, 'maskdiag': cmd_maskdiag, 'prepass': cmd_prepass, 'train': cmd_train, 'encode': cmd_encode,
