@@ -11,6 +11,15 @@ per-seed), Welch 95% CI on the 6 vs 6 per-seed values (mabe22 eci_confirm.welch)
     U is ADOPTED iff (i), (ii) and (iii) all hold.
 Also reported: per-label cf AUROC / AP / honest top-1%, kept tokens per frame, theta*, firing.
 Outputs: OUT/score.md, OUT/score.json (`python score.py [mabe]` = the MABe22 part only, for the interim report).
+
+RESULTS (2026-10-15, seeds 400-405, rule frozen at commit 5447648 before any store / SAE job; OUT/score.md, score.json):
+    MABe22 mouse primary AUROC: cur 0.8022 +- 0.0023, U 0.8016 +- 0.0046; delta -0.0007 [Welch 95% CI -0.0128, +0.0114]
+        EQUIVALENT -> (i) holds; cf AP ratio U / cur oral_oral 0.77x, oral_genital 0.94x -> (ii) FAILS.
+    CalMS21 primary AUROC: cur 0.8811 +- 0.0063, U 0.8835 +- 0.0061; delta +0.0024 [-0.0171, +0.0219] EQUIVALENT.
+    Keypoint recall per animal (cur / U): MABe22 mouse 0.972 / 0.975, 0.973 / 0.973, 0.973 / 0.973 (all eval frames, IPW);
+        CalMS21 resident 0.998 / 0.995, intruder (white) 0.643 / 0.738 (intruder missed in 19.1% / 14.6% of frames);
+        MABe22 beetle 0.917 / 0.849, 1.000 / 0.966 -> (iii) FAILS (beetle).
+    Decision: current per-domain rules STAY ((ii) and (iii) fail).
 """
 import json
 import re
