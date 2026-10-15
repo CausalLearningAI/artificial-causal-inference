@@ -812,6 +812,51 @@ def cmd_prepass(args):
 
 
 # ---------------------------------------------------------------------------------------------- train
+def train_one_r4(arm, cfg, seed, X, steps, out, dev, n_init=500_000, bs=4096, lr=5e-4, warmup=500):
+    """scripts/benchmark/mabe22/eci_train.py train_one (token mode), unchanged except the init sample size n_init
+    (TokenNorm fit + geometric-median b_dec; 500k there, smaller on the 11 GB debug GPUs) and a chunked init gather."""
+    import torch
+    from src.eci.sae import MatryoshkaBatchTopKSAE, TokenNorm, _train_step, geometric_median, save_checkpoint
+    out.mkdir(parents=True, exist_ok=True)
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.manual_seed(seed)
+    g = np.random.default_rng(seed)
+    N, din = X.shape
+    ii = torch.from_numpy(np.sort(g.choice(N, min(n_init, N), replace=False))).to(dev)
+    init = X[ii].float()
+    norm = TokenNorm(din).to(dev).fit_blocks(init, [D] * (din // D), seed=seed)
+    sae = MatryoshkaBatchTopKSAE(d_in=din, n_latents=WIDTH, prefixes=PREFIXES, k=K, seed=seed).to(dev)
+    with torch.no_grad():
+        sae.b_dec.copy_(geometric_median(norm(init[:100_000])))
+    del init
+    torch.cuda.empty_cache()
+    opt = torch.optim.Adam(sae.parameters(), lr=lr, betas=(0.9, 0.999))
+    gen = torch.Generator(device=dev).manual_seed(seed)
+    perm, p = torch.randperm(N, generator=gen, device=dev), 0
+    history, t0, ntok = [], time.time(), 0
+    for step in range(steps):
+        if p + bs > N:
+            perm, p = torch.randperm(N, generator=gen, device=dev), 0
+        b = perm[p:p + bs]
+        p += bs
+        ntok += len(b)
+        logs, gn = _train_step(sae, opt, norm(X[b]), step, steps, lr, warmup, 1.0)
+        if step % 1000 == 0 or step == steps - 1:
+            logs.update(step=step, elapsed_s=round(time.time() - t0, 1), batch_tokens=int(len(b)))
+            history.append(logs)
+            log(f"    {arm} s{seed} step {step}/{steps} fve {logs['fve']:.4f} l0 {logs['l0']:.2f} dead {logs['n_dead']} "
+                f"thr {logs['threshold']:.3f} {logs['elapsed_s']}s")
+    sae.eval()
+    dead = int((sae.tokens_since_fired >= sae.dead_tokens).sum())
+    extra = {'config': 'r4_rollout', 'arm': arm, 'cfg': cfg, 'seed': seed, 'n_init': int(min(n_init, N))}
+    save_checkpoint(out / 'sae.pt', sae, norm, extra=extra)
+    info = {**extra, 'n_pool_tokens': N, 'steps': steps, 'token_presentations': ntok, 'train_time_s': time.time() - t0,
+            'dead_at_end_train': dead, 'threshold_ema': float(sae.threshold), 'gpu': torch.cuda.get_device_name(0),
+            'history': history}
+    (out / 'train.json').write_text(json.dumps(info, indent=1, default=float))
+    log(f'    {arm} s{seed}: trained in {time.time() - t0:.0f}s, final fve {history[-1]["fve"]:.4f}, dead {dead}')
+
+
 def cmd_train(args):
     import torch
     sys.path.insert(0, str(REPO / 'scripts/benchmark/mabe22'))
@@ -843,34 +888,36 @@ def cmd_train(args):
            'n_frames': {r: int((F.role == r).sum()) for r in ('train', 'calib', 'eval')}, 'variants': {}}
     best = {}
     for v in VARIANTS:
-        def X_of(r):
+        def X_of(r, cap=0):
             sel = np.flatnonzero(role == r)
+            if cap and len(sel) > cap:  # GPU memory (11 GB debug GPUs): uniform seeded subsample of the pool
+                sel = np.sort(np.random.default_rng(0).choice(sel, cap, replace=False))
+                log(f'{dom} {v}: {r} pool capped to {cap:,} of {int((role == r).sum()):,} tokens (seed 0)')
             X = torch.empty((len(sel), D * (2 if v == 'd2' else 1)), dtype=torch.float16, device=dev)
-            for a in range(0, len(sel), 500_000):
-                s = sel[a:a + 500_000]
-                t = torch.from_numpy(np.ascontiguousarray(tok[s])).to(dev)
-                X[a:a + len(s), :D] = t
+            for a in range(0, len(sel), 200_000):
+                s_ = sel[a:a + 200_000]
+                t = torch.from_numpy(np.ascontiguousarray(tok[s_])).to(dev)
+                X[a:a + len(s_), :D] = t
                 if v == 'd2':
-                    p = torch.from_numpy(np.ascontiguousarray(prv[s])).to(dev)
-                    X[a:a + len(s), D:] = (t.float() - p.float()).half()
+                    p_ = torch.from_numpy(np.ascontiguousarray(prv[s_])).to(dev)
+                    X[a:a + len(s_), D:] = (t.float() - p_.float()).half()
+                    del p_
+                del t
+            torch.cuda.empty_cache()
             return X
         cfg = dict(sp='btk', k=K, matry=True, prefixes=list(PREFIXES), variant=v, lag=LAG if v == 'd2' else None,
                    encoder=D3L, layer=LAYER, S=DOMS[dom]['S'], rule=DOMS[dom]['rule'], domain=dom)
-        Xtr = X_of('train')
+        Xtr = X_of('train', args.cap)
         ltr = F.n_stored.values[F.role.values == 'train']
-        if args.cap and len(Xtr) > args.cap:  # GPU memory (11 GB debug GPUs): uniform seeded subsample of the pool
-            ii = torch.from_numpy(np.sort(np.random.default_rng(0).choice(len(Xtr), args.cap, replace=False))).to(dev)
-            Xtr = Xtr[ii].contiguous()
-            torch.cuda.empty_cache()
-            log(f'{dom} {v}: train pool capped to {args.cap:,} tokens (seed 0)')
-            res.setdefault('train_pool_cap', args.cap)
+        if args.cap:
+            res['train_pool_cap'] = args.cap
         torch.backends.cuda.matmul.allow_tf32 = True
         for seed in SEEDS:
             od = out_root / f'{v}_s{seed}'
             if (od / 'sae.pt').exists() and not args.force:
                 log(f'[SKIP] {od}')
                 continue
-            ET.train_one(f'{dom}_{v}', cfg, seed, Xtr, ltr, args.steps, od, dev)
+            train_one_r4(f'{dom}_{v}', cfg, seed, Xtr, args.steps, od, dev, n_init=args.n_init)
             torch.cuda.empty_cache()
         del Xtr
         torch.cuda.empty_cache()
@@ -1324,6 +1371,7 @@ def main():
     p.add_argument('--limit', type=int, default=0, help='prepass: first N bursts only (test; nothing copied)')
     p.add_argument('--steps', type=int, default=6000)
     p.add_argument('--cap', type=int, default=0, help='train: max train-pool tokens (0 = all)')
+    p.add_argument('--n-init', type=int, default=500_000, help='train: TokenNorm / b_dec init sample')
     p.add_argument('--shard-frames', type=int, default=60_000)
     p.add_argument('--force', action='store_true')
     p.add_argument('--partial', action='store_true')
