@@ -121,6 +121,16 @@
 #     (orbit tokens of t and t-60 at the round-3 mask positions, masks unchanged), seeds 200-205, vs R, default rule.
 #     If equivalent, the frozen encoder is preferred (simpler). Skipped (and said why) if it cannot be done cleanly.
 #
+# E1b (ADDENDUM, coordinator request, appended 2026-10-15 ~11:30 CEST, after the E1-E5 scores were seen and BEFORE any
+#     E1b job): Matryoshka starting from 128 neurons. Arms: R512m128 = d 512, Matryoshka prefixes 128 / 256 / 512;
+#     R512m128b = d 512, prefixes 128 / 512; k 16, R's inputs and recipe. 6 FRESH seeds 210-215 per arm. Control =
+#     R512plain trained in this addendum with the same seeds 210-215 (matched); also reported against R (seeds 210-215,
+#     which exist from E2's matched pool) and descriptively against R512plain seeds 200-205.
+#     Default round-3 rule against R512plain (primary AUROC delta, Welch 95% CI, AP guards on oral_oral / oral_genital):
+#     if EITHER nested arm is EQUIVALENT or better (WIN), nesting from 128 is kept (it encodes the long-tail prior at no
+#     cost); if BOTH LOSE, the plain 512 dictionary stays. (E1b was designed after E1 was seen; it is a pre-registered
+#     follow-up, not part of the original grid.)
+#
 # Priority E1 > E2 > E3 > E4 > E5 > E6; dropped from the end if the ~40 GPU-hour budget runs out.
 # GPU jobs: -p gpu --exclude=gpu242,gpu150,gpu230,gpu241 (never gpu100); CPU jobs: -p defaultp.
 # ======================================================================================================================
