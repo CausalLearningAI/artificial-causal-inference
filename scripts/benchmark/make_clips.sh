@@ -53,18 +53,18 @@ echo "[" > $W/clips.json; first=1
 for n in $NAMES; do
   s=${START[$n]}; src=${SRC[$n]}
   mkdir -p $W/$n
-  # 3 s, 10 fps, long side 360, grayscale
-  $BIN/ffmpeg -v error -y -ss $s -i "$src" -t 3 -vf "fps=10,scale=360:360:force_original_aspect_ratio=decrease:flags=area,format=gray,scale=iw:ih" -frames:v 30 $W/$n/f%02d.png
-  [ $(ls $W/$n | wc -l) -eq 30 ] || { echo "FAIL $n frame count"; exit 1; }
-  $BIN/img2webp -loop 0 -lossy -q 60 -m 6 -d 100 $W/$n/f*.png -o $W/$n.webp >/dev/null
-  $BIN/ffmpeg -v error -y -framerate 10 -i $W/$n/f%02d.png -c:v libx264 -pix_fmt yuv420p -crf 30 -preset slow -movflags +faststart -an $W/$n.mp4
+  # 3 s, 15 fps, long side 360, original colour (no grey conversion)
+  $BIN/ffmpeg -v error -y -ss $s -i "$src" -t 3 -vf "fps=15,scale=360:360:force_original_aspect_ratio=decrease:flags=area" -frames:v 45 $W/$n/f%02d.png
+  [ $(ls $W/$n | wc -l) -eq 45 ] || { echo "FAIL $n frame count"; exit 1; }
+  $BIN/img2webp -loop 0 -lossy -q 65 -m 6 -d 67 $W/$n/f*.png -o $W/$n.webp >/dev/null
+  $BIN/ffmpeg -v error -y -framerate 15 -i $W/$n/f%02d.png -c:v libx264 -pix_fmt yuv420p -crf 30 -preset slow -movflags +faststart -an $W/$n.mp4
   $BIN/ffmpeg -v error -y -i $W/$n/f01.png -q:v 3 $W/$n.jpg
   for e in webp mp4 jpg; do cp $W/$n.$e $OUT/; done
   dims=$($BIN/ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -of csv=p=0 "$src")
   od=$($BIN/ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 $W/$n.mp4)
   [ $first = 1 ] || echo "," >> $W/clips.json; first=0
   cat >> $W/clips.json <<J
-{"name":"$n","source":"$src","start_s":$s,"native_w_h_fps":"$dims","out_w_h":"$od","out_fps":10,"frames":30,
+{"name":"$n","source":"$src","start_s":$s,"native_w_h_fps":"$dims","out_w_h":"$od","out_fps":15,"frames":45,
  "bytes":{"webp":$(stat -c %s $W/$n.webp),"mp4":$(stat -c %s $W/$n.mp4),"jpg":$(stat -c %s $W/$n.jpg)}}
 J
 done
