@@ -7,6 +7,22 @@ MABe22 mouse ECI - ENCODER STUDY: scoring under the PRE-REGISTERED rules of eci_
 2. SAE table: OUT/encoders/eval/<run>_s<seed>.json, seeds 300-305, full width m4096; the round-3 default rule
    (eci_r3_score.summ / verdict: Welch 95% CI on 6 vs 6 per-seed primary AUROC, AP guards) against D2.
 Outputs: OUT/encoders/encoders.md, OUT/encoders/encoders.json
+
+RESULTS (2026-10-15 14:15; metric next to every number; primary AUROC = mean cf AUROC over oral_oral, oral_genital,
+approaches, huddles; Welch 95% CI on 6 vs 6 per-seed primaries):
+  Ceiling (mil_ctx AUROC mean oo / og): DINOv2-B L12 0.879 (reproduces A0); DINOv3-B L10 0.871, L12 0.854; DINOv3-L L20
+  0.888, L24 0.872; DINOv2-L L20 0.907, L24 0.900; V-JEPA 2-L best 512-px RoPE-interpolated L20 0.856 (256 px L20 0.846,
+  512 extrapolated L16 0.854). 5/6-depth rule = best block for every encoder except DINOv2-B (L10 0.874 vs L12 0.879).
+  SAE vs D2 (seeds 300-305, D2 primary AUROC 0.755): D3B-L12 -0.008 [-0.038, +0.022] EQUIVALENT; D3B-L10 +0.015
+  [-0.018, +0.048] EQUIVALENT; D3L-L24 +0.007 [-0.024, +0.038] EQUIVALENT; D3L-L20 +0.056 [+0.026, +0.086] not a win
+  (AP guard: oo AP 0.81x); VJ (no delta) -0.018 [-0.050, +0.014] EQUIVALENT (oo AP 0.27x, og AP 0.47x); VJD -0.011
+  [-0.042, +0.019] EQUIVALENT.
+  C1 (seeds 310-315): D3L-L20 vs fresh D2 +0.035 [+0.011, +0.058], oo AP 0.96x, og AP 1.33x -> WIN.
+  C2: D3L-L20 vs D2L-L20 (DINOv2-L best-ceiling block = the 5/6 block) +0.005 [-0.012, +0.021] EQUIVALENT (oo AP 0.77x,
+  og AP 0.71x) -> the gain is explained by a Large model at block 20, not by DINOv3; D2L-L20 vs D2 +0.030 [+0.006,
+  +0.055] (descriptive, oo AP 1.25x, og AP 1.86x).
+  C3: D3L-L20 orbit vs no orbit +0.015 [-0.005, +0.035] EQUIVALENT (oo AP 1.61x, og AP 1.30x).
+  V-JEPA vs D3L-L20: VJ -0.068 [-0.090, -0.046] LOSES; VJD -0.061 [-0.077, -0.045] LOSES.
 """
 import json
 import re
@@ -24,7 +40,7 @@ S3.EV = E / 'eval'
 S3.SEEDS = list(range(300, 306))
 OO, OG = 'oral_oral_contact', 'oral_genital_contact'
 NAMES = {'r3': 'DINOv2-B 448 (round-3 store m448_t)', 'd2_448': 'DINOv2-B 448', 'd3b_512': 'DINOv3-B/16 512',
-         'd3l_512': 'DINOv3-L/16 512', 'vj_256': 'V-JEPA 2-L 256 (native RoPE grid)',
+         'd3l_512': 'DINOv3-L/16 512', 'd2l_448': 'DINOv2-L/14 448', 'd3l_512o': 'DINOv3-L/16 512 orbit', 'vj_256': 'V-JEPA 2-L 256 (native RoPE grid)',
          'vj_512x': 'V-JEPA 2-L 512 (RoPE extrapolated)', 'vj_512i': 'V-JEPA 2-L 512 (RoPE interpolated)'}
 
 
