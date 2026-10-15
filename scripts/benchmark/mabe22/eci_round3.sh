@@ -4,6 +4,9 @@
 # every job runs scripts/benchmark/mabe22/eci.sh). PRE-REGISTERED RULES, written and committed 2026-10-15 ~08:40 CEST
 # BEFORE any round-3 job was submitted. The rules below are FROZEN: commands may be added further down this file later,
 # the rules may not change. Anything added after a round-3 number was seen is labelled EXPLORATORY.
+# WORDING CLARIFICATIONS (coordinator, ~08:50 CEST, before any round-3 score; no rule changed): every number is named
+# by its metric ("primary AUROC +0.030", "oral_oral AP 1.5x"); E3 tests TOKEN DENSITY (patches per mouse body
+# length), not image resolution - MABe22 frames are 224 px at the source, so upscaling adds tokens, not pixel detail.
 #
 # ======================================================================================================================
 # R (the control, decided by the confirmation run, eci_confirm.sh / eci_confirm.py, arm X_A7D2):
@@ -19,12 +22,12 @@
 #              210-215, 220-225, 230-235. Same train pool (plan/train_frames.parquet: 13 train + 3 calib frames per
 #              userTrain clip), same eval frames (plan/eval_frames.parquet, 18,496 frames, IPW weights), split seeds 0, 1.
 #   control  = R trained in THIS round on the same round-3 token store with the same seeds 200-205.
-#   delta    = mean(arm per-seed primaries) - mean(control per-seed primaries); 95% CI = Welch t interval (Welch-
+#   delta    = primary-AUROC delta = mean(arm per-seed primaries) - mean(control per-seed primaries); 95% CI = Welch t interval (Welch-
 #              Satterthwaite df) on the 6 vs 6 per-seed primary means (eci_confirm.welch).
-#   WIN        iff delta >= +0.010 AND the CI excludes 0 AND cf AP (mean over seeds x splits) on oral_oral and on
+#   WIN        iff primary-AUROC delta >= +0.010 AND the CI excludes 0 AND cf AP (mean over seeds x splits) on oral_oral and on
 #              oral_genital are each >= 0.9 x the control's.
-#   EQUIVALENT iff |delta| < 0.010 OR the CI contains 0. When equivalent, the SIMPLER option is preferred.
-#   LOSES      iff delta <= -0.010 AND the CI excludes 0.
+#   EQUIVALENT iff |primary-AUROC delta| < 0.010 OR the CI contains 0. When equivalent, the SIMPLER option is preferred.
+#   LOSES      iff primary-AUROC delta <= -0.010 AND the CI excludes 0.
 #   (delta >= +0.010 with a CI excluding 0 but an AP guard failing = "not a win (AP guard)".)
 #   Always reported: per-label cf AUROC / AP (oral_ear and the secondary labels too) and the honest top-1% (top-1%-picked
 #   neuron among neurons firing on >= 1% of the selection half). Sniffing-neuron evidence = any honest top-1% >= 0.25 on
@@ -65,7 +68,7 @@
 #     "multi-lag concat": x = [z_t, z_t - z_{t-30}, z_t - z_{t-60}, z_t - z_{t-120}] (3,072-d, TokenNorm per 768 block),
 #       vs R_W, default rule.
 #
-# E3  BODY SCALE (prior "same number of tokens per body length"). Input sizes 336 / 448 (R) / 672 px, all bicubic-
+# E3  TOKEN DENSITY (prior "same number of tokens per body length"; NOT image resolution: the source is 224 px). Input sizes 336 / 448 (R) / 672 px, all bicubic-
 #     upscaled from 224 (grids 24^2 / 32^2 / 48^2). Mask: the round-3 448 mask transferred by patch centre (a patch of
 #     the S grid is kept iff its centre lies inside a kept 448 patch). Orbit tokens of t and t-60 at each size; arms
 #     R336 and R672 vs R (448), default rule, same SAE recipe and steps.
