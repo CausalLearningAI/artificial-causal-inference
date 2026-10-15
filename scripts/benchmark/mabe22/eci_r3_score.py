@@ -7,6 +7,31 @@ first) at the dictionary's full width unless a read-out prefix is named; per-see
 (eci_confirm.welch). Verdict: WIN iff primary-AUROC delta >= +0.010 and CI excludes 0 and cf AP oral_oral / oral_genital
 >= 0.9 x control; LOSES iff delta <= -0.010 and CI excludes 0; otherwise EQUIVALENT (delta >= 0.010 with CI excluding 0
 but an AP guard failing = "not a win (AP guard)"). Outputs OUT/r3/r3.md, OUT/r3/r3.json.
+
+RESULTS (2026-10-15, rules committed 4fed43a before any job; E1b rule 9c86cad before any E1b job). Control R re-trained
+on the round-3 store (masks reproduce the confirmation store: same kept patches per shard), seeds 200-205: per-seed
+primary AUROC 0.754 0.791 0.795 0.795 0.815 0.817 (0.794 +- 0.009 SE). Deltas = primary AUROC [Welch 95% CI]:
+  E1  R512 (Matryoshka 64-512) -0.039 [-0.062, -0.015] LOSES; R512plain +0.013 [-0.012, +0.037] EQUIVALENT (simpler,
+      preferred; oo / og AP 0.98x / 0.96x); R512plain vs R512 +0.051 [+0.038, +0.064] (Matryoshka hurts at 512); R's
+      512 / 1024 / 2048 prefixes = R exactly (+0.000); R512 prefixes 64 / 128 / 256: -0.069 / -0.054 / -0.045 vs R.
+      E2 width rule keys on R512 -> W = 4096.
+  E1b (seeds 210-215, control R512plain 0.802 +- 0.005): R512m128 (128/256/512) -0.024 [-0.055, +0.007] EQUIVALENT
+      (og AP 0.71x; 2 of 6 seeds at 0.746); R512m128b (128/512) -0.049 [-0.066, -0.031] LOSES -> by the rule nesting
+      from 128 is kept (one arm equivalent).
+  E2  per-lag union (0.5/1/2/4 s) vs matched pool of 4 R seeds -0.004 [-0.020, +0.011] EQUIVALENT (no win); matched
+      pool vs R +0.017 [-0.007, +0.040]; single lags 0.5 s -0.056 / 1 s -0.033 (lose) / 4 s +0.003; context-mean -0.027
+      [-0.059, +0.006] EQUIVALENT (og AP 0.40x); multi-lag concat -0.009 [-0.039, +0.020] EQUIVALENT (R simpler).
+      Union picks (AUROC, 24 per label, 0.5/1/2/4 s): oral_oral 0/0/8/16, oral_genital 0/0/8/16, approaches 4/3/6/11,
+      huddles 0/2/4/18; contact 4/10/6/4, close 6/13/2/3.
+  E3  token density (mouse length 2.2 / 3.0 / 4.5 patches at 336 / 448 / 672, eci_r3_bodylen): R336 -0.018 [-0.047,
+      +0.011] EQUIVALENT (oo AP 0.59x); R672 +0.001 [-0.028, +0.031] EQUIVALENT (oo AP 0.71x). Orbit encoding of t and
+      t-60 ~0.07 / 0.13 / 0.37 L40S GPU-s per frame.
+  E5  shared mouse + beetle dictionary (equal token counts 784,816 + 784,816) -0.024 [-0.050, +0.003] EQUIVALENT ->
+      shared preferred by the rule (oo / og AP 0.97x / 0.94x).
+  E6  adapted DINOv2 (ssl_dapt objective, 10,866 steps, 2.0 L40S-h, student cos to stock 0.86) -0.010 [-0.044, +0.025]
+      EQUIVALENT -> frozen preferred.
+  Sniffing bar (honest top-1% >= 0.25 on oral_oral / oral_genital): not reached; best single value 0.061.
+  E4: see eci_r3_ethogram.py / OUT/r3/e4/ethogram.md.
 """
 import json
 import re

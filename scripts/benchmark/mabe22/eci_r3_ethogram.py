@@ -23,6 +23,17 @@ Frame rate: on the pre-registered subset (eci_r3_fullclip.subset15) the same cro
 (mean over seeds) on every primary behaviour (oral_oral, oral_genital, approaches, huddles); plus the 5 vs 15 fps
 Spearman agreement over the subset clips of each selected neuron's summary (the 5 fps pick and the 15 fps pick).
 Outputs: OUT/r3/e4/ethogram.json, OUT/r3/e4/ethogram.md
+
+RESULTS (2026-10-15, job 846119; encoder bf16 by the pre-registered cost rule; bf16 vs fp32 on 451 eval-plan frames:
+mask Jaccard 0.96-0.99, firing-bit Jaccard 0.94-0.96, code Pearson 0.98-1.00). Cross-fitted Spearman rho, 5 fps, all
+1,828 clips, mean +- sd over 6 seeds, time budget / bout rate: oral_oral 0.330 +- 0.023 / 0.310 +- 0.006, oral_genital
+0.367 / 0.365, approaches 0.343 / 0.315, huddles 0.347 / 0.314, oral_ear 0.188 / 0.190, contact 0.333 / 0.680, close
+0.400 / 0.730, watching 0.300 / 0.272, chases 0.146 / 0.130. Frame rate (712-clip subset): rho_15 - rho_5 within
+-0.011..+0.006 on every primary behaviour for both summaries -> "5 fps is enough" (pre-registered reading); selected
+neurons' 5 vs 15 fps summaries agree at Spearman 0.95-1.00. Condition decoding (macro F1 / AUROC; chance 0.37 / 0.5,
+permutation ~0.49 / ~0.50): strain ethogram 0.998 / 1.000, mean code 0.997 / 1.000; lights ethogram 0.842 / 0.926,
+mean code 0.846 / 0.926 -> the ethogram carries the clip conditions but no more than the mean frame code (both at
+ceiling for strain; clips from one recording session can sit in both folds, so session identity may inflate these).
 """
 import argparse
 import json
