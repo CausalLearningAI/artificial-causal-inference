@@ -75,6 +75,56 @@ def frame_pool_arg(sae, norm, X, lens, dev, max_tok=16384):
     return cmax, amax
 
 
+def rprec_f1(X, y, w, block=512):
+    """Weighted R-precision (precision among the top frames holding the positives' weight mass P, ties pro rata) and
+    F1-max (best F1 over all thresholds; thresholds between distinct values, incl. 'all frames') of every column of
+    non-negative codes X (n, m) against bool y (n,), weights w (n,) double. -> (rprec (m,), f1max (m,)) numpy."""
+    import torch
+    n, m = X.shape
+    P = float((w * y.double()).sum())
+    rp, f1 = np.zeros(m), np.zeros(m)
+    ar = torch.arange(n, device=X.device)
+    for j0 in range(0, m, block):
+        xs, o = torch.sort(X[:, j0:j0 + block].float(), dim=0, descending=True)
+        ws, ys = w[o], y[o].double()
+        CW, TP = ws.cumsum(0), (ws * ys).cumsum(0)
+        end = torch.ones_like(xs, dtype=torch.bool)
+        end[:-1] = xs[:-1] != xs[1:]
+        f = torch.where(end, 2 * TP / (CW + P), torch.zeros_like(TP))
+        f1[j0:j0 + block] = f.max(0).values.cpu().numpy()
+        hit = end & (CW >= P - 1e-9)
+        idx = torch.argmax(hit.int(), 0)                                    # first group end reaching P
+        pe = torch.where(end, ar[:, None].expand_as(end), torch.full_like(end, -1, dtype=torch.long))
+        pe = torch.cummax(pe, 0).values                                     # last group end at or before each row
+        cols = torch.arange(xs.shape[1], device=X.device)
+        prev = torch.where(idx > 0, pe[(idx - 1).clamp_min(0), cols], torch.full_like(idx, -1))
+        cwp = torch.where(prev >= 0, CW[prev.clamp_min(0), cols], torch.zeros_like(CW[0]))
+        tpp = torch.where(prev >= 0, TP[prev.clamp_min(0), cols], torch.zeros_like(TP[0]))
+        cwi, tpi = CW[idx, cols], TP[idx, cols]
+        tp = tpp + (tpi - tpp) * (P - cwp) / (cwi - cwp).clamp_min(1e-12)
+        rp[j0:j0 + block] = (tp / P).cpu().numpy()
+    return rp, f1
+
+
+def extra_cf(cb, Y, w, h, r):
+    """addendum 2 metrics for one label / split: R-precision and F1-max of (a) the AUROC-picked neuron of each direction
+    and (b) the neuron picked by the same metric on the selection half; scored on the other half, directions averaged."""
+    import torch
+    M = {}
+    for x in (0, 1):
+        it = torch.from_numpy(np.flatnonzero(h == x)).to(cb.device)
+        M[x] = rprec_f1(cb[it], Y[it, 0], w[it])
+    out = {}
+    for k, nm in ((0, 'rprec'), (1, 'f1max')):
+        a, b_ = [], []
+        for d, (s, t) in enumerate(((0, 1), (1, 0))):
+            a.append(M[t][k][r['dirs'][d]['auc']['neuron']])
+            b_.append(M[t][k][int(np.argmax(M[s][k]))])
+        out[f'cf_{nm}_auc_pick'] = float(np.mean(a))
+        out[f'cf_{nm}'] = float(np.mean(b_))
+    return out
+
+
 def compact(r):
     return {k: v for k, v in r.items() if k != 'dirs'} | {
         'picks': [{s: {'neuron': e[s]['neuron'], 'test_auc': e[s]['test_auc'], 'test_ap': e[s]['test_ap'],
@@ -92,7 +142,7 @@ def main():
     ap.add_argument('--arm', required=True)
     ap.add_argument('--config', required=True)
     ap.add_argument('--lag', type=int, default=60)
-    ap.add_argument('--tok', choices=['mask', 'orbit'], default='mask')
+    ap.add_argument('--tok', choices=['mask', 'orbit', 'nomask'], default='mask')
     ap.add_argument('--pool', choices=['full', 'orbit'], default='full')
     ap.add_argument('--pool-tok', default='')
     ap.add_argument('--seeds', nargs='+', type=int, required=True)
@@ -121,7 +171,7 @@ def main():
     CT.TOK = Path(args.pool_tok) if args.pool_tok else TOK
     out = {'train': ([], []), 'calib': ([], [])}
     for base in CT.shards('eval', cfg):
-        X, lens, Fm = CT.load_shard(base, cfg, lag, stage, args.tok, 'eval')
+        X, lens, Fm = CT.load_shard(base, cfg, lag, stage, args.tok, 'train' if args.tok == 'nomask' else 'eval')
         M = Fm.merge(P, on=['video', 'i'], how='left')
         assert not M.role.isna().any()
         role = M.role.values.copy()
@@ -166,11 +216,11 @@ def main():
     parts = {s: ([], []) for s in args.seeds}
     Fall, lens_all, pos_all = [], [], []
     for base in CT.shards('train', cfg):
-        X, lens, Fm = CT.load_shard(base, cfg, lag, stage, args.tok, 'train')
+        X, lens, Fm = CT.load_shard(base, cfg, lag, stage, args.tok, 'eval' if args.tok == 'nomask' else 'train')
         Fall.append(Fm)
         lens_all.append(lens)
         pos = np.load(TOK / f'{base}_{cfg}_pos.npy')
-        assert len(pos) == lens.sum()
+        assert args.tok == 'nomask' or len(pos) == lens.sum()
         st = np.r_[0, np.cumsum(lens)][:-1]
         pos_all.append((pos, st))
         for seed, (sae, norm) in models.items():
@@ -215,9 +265,11 @@ def main():
             for s, h in Ht.items():
                 r = cs.cross_fit(cb, Y, w, h[idx], dev)[b]
                 r['cf_rate_auc_pick'] = float(np.mean([d['auc']['test_rate'] for d in r['dirs']]))
+                r.update(extra_cf(cb, Y, w, h[idx], r))
                 res['scores'][b]['splits'][f'split{s}'] = compact(r)
             sp = res['scores'][b]['splits']
-            for k in ('cf_auroc', 'cf_ap', 'cf_top1', 'cf_top1_rate', 'cf_rate_auc_pick', 'cf_ap_at_auroc'):
+            for k in ('cf_auroc', 'cf_ap', 'cf_top1', 'cf_top1_rate', 'cf_rate_auc_pick', 'cf_ap_at_auroc', 'cf_rprec',
+                      'cf_rprec_auc_pick', 'cf_f1max', 'cf_f1max_auc_pick'):
                 res['scores'][b][k] = float(np.mean([sp[x][k] for x in sp]))
             del cb
         log(f'  {args.arm} s{seed}: ' + ', '.join(

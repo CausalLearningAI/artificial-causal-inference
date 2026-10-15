@@ -66,6 +66,20 @@
 #   min limits, and A10 (24 GB) is allowed next to L40S / A100 / A40 for these jobs (batch 4 on the 64 grid; an A10 ran
 #   out of memory only on the grid's multi-config pass A). Tokens are identical whatever the GPU type (same bf16 code).
 # ======================================================================================================================
+# ======================================================================================================================
+# ADDENDUM 2, 2026-10-15 ~20:10 CEST (coordinator), written BEFORE any token store or SAE job of this test ran (all
+#   encodes still queued, no score seen). Nothing above changes; the verdicts stay on the pair primary AUROC.
+# (1) SECONDARY METRICS, every arm and label: weighted R-precision (precision among the top frames holding the
+#   positives' weight mass, ties pro rata) and F1-max (best F1 over thresholds), each (a) for the AUROC-picked neuron and
+#   (b) with the neuron picked by the same metric on the selection half; scored on the other half, cross-fitted exactly
+#   like AUROC (10 split seeds x 2 directions); base rate reported next to them (eci_swap_train.rprec_f1 / extra_cf).
+# (2) EXPLORATORY ARM S5, OUTSIDE THE PRE-REGISTERED RULE (reason: the 'dark' mask misses the white intruder entirely in
+#   19.1% of the test frames, intruder keypoint recall 0.643 vs resident 0.998, coordinator measurement): S5 = S1 with
+#   no mask: SAE pool tokens = a uniformly random subset of the frame's video cells of the same size as its masked count
+#   (same number of training tokens), eval frame value = max over ALL video cells (the grid's P_NOMASK construction,
+#   eci_swap_nomask.py). Seeds 400-405; reported next to S1 (S5 vs S1, labelled exploratory). Submitted only after
+#   S1-S3 are launched and if GPU time allows (~1.5 GPU-h encode, ~160 GB BeeGFS, deleted after scoring).
+# ======================================================================================================================
 set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 X="--exclude=gpu240,gpu242,gpu150,gpu230,gpu241"
@@ -98,6 +112,10 @@ case "${1:-}" in
       CALMS_TOK=$TOKO PY=eci_p2_encode EXTRA="--set eval --shards $i --nshard 8 --config d3l_1024_L20 --parts orbit" \
         sub --dependency=afterok:$o --constraint="$ANY" --cpus-per-task=16 --mem=96G --time=00:30:00 --job-name=swO_eval$i
     done ;;
+  nomask)  # EXPLORATORY S5 tokens (addendum 2): bash eci_swap.sh nomask <set train|eval> <shard> [dep]
+    N=$([ "$2" = train ] && echo 16 || echo 8)
+    PY=eci_swap_nomask EXTRA="--set $2 --shards $3 --nshard $N" sub ${4:+--dependency=afterok:$4} --constraint="$ANY" \
+      --cpus-per-task=16 --mem=96G --time=00:20:00 --job-name=swN_$2$3 ;;
   train)   # bash eci_swap.sh train <arm> <deps>
     D=${3:-}; SEEDS="--seeds 400 401 402 403 404 405"
     case $2 in
@@ -105,6 +123,7 @@ case "${1:-}" in
       S2)  E="--arm S2 --config d3l_1024_L20 --lag 0" ;;
       S3)  E="--arm S3 --config d2l_896_L20 --lag 60" ;;
       S1r) E="--arm S1r --config d3l_1024_L20 --lag 60 --pool orbit" ;;
+      S5)  E="--arm S5 --config d3l_1024_L20 --lag 60 --tok nomask" ;;  # EXPLORATORY (addendum 2)
       S4)  E="--arm S4 --config d3l_1024_L20 --lag 60 --tok orbit --pool orbit --pool-tok $TOKO --sheet" ;;
       *) echo "unknown arm $2"; exit 1 ;;
     esac
