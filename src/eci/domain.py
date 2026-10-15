@@ -24,6 +24,16 @@ Domains:
         so v3_2_vs_8 is confounded with the recording day (meta 'confound'). Per-frame table:
         dataset/ants/eci/annotations.csv, per-video table dataset/ants/eci/experiment.csv (both
         written by scripts/eci/ants_prepare.py). Primary nuisance: none.
+        The 30-min layout (environment ANTS_ECI=eci30: dataset/ants/eci30/, results/vision/ants/eci30/nes/; the
+        default ANTS_ECI=eci is the 10-min layout above, unchanged): v2 (10 min, as above), v3 t = 2/6/8, v4 t = 2/6
+        (healthy Exp4 colonies, design column infested = 0) and v4_infested t = 2/6 (infested Exp4 colonies,
+        infested = 1), all three at 30 min (9000 frames). Analyses: the three above, v4_2_vs_6 and
+        v4_infested_2_vs_6 (within one experiment, day-matched under --day like the others) and infested vs healthy
+        (v4_infested vs v4 videos) at t = 2, at t = 6 and pooled over t = 2 and 6 (infested_vs_healthy_t2 / _t6 /
+        _t2_6): the two series share only recording day F, so these are NEVER day-matched (Analysis.day_match False,
+        --day leaves them unchanged) and their meta 'confound' says they are confounded with the recording day.
+        Contrasts whose experiments are not in experiment.csv are left out (the 10-min layout keeps its three).
+        Backgrounds: one per 10-min window of each video (bg_window, src/eci/foreground.py bg_windows).
 
   frogs v1 (Xenopus juvenile froglets, scripts/eci/frogs_prepare.py): hour 1 of 35 frogs, WT 13 / FoxP1 14 / En1 8
         (half-embryo crispants), one frog per dish, 18,000 frames at 5 fps per video. Unit = video (= frog), family B
@@ -87,6 +97,9 @@ class Analysis:
     day_col     family B: design column of the recording day when the NES runs condition on it (runners' --day,
                 Domain.day_nuisance); select() then keeps only the days holding BOTH arms (a day with one arm carries
                 no within-day contrast), so an analysis whose arms share no day has one arm left and is skipped
+    day_match   family B: False = the analysis is never day-matched (the runners' --day leaves it on every day; ants
+                infested vs healthy); its day_col stays None
+    where values may be tuples (the column in those values), e.g. {'experiment': ('v4', 'v4_infested'), 'T': (2, 6)}
     """
     id: str
     family: str
@@ -101,21 +114,27 @@ class Analysis:
     treatment: tuple = ()
     matched: bool = False
     day_col: str = None
+    day_match: bool = True
 
     def select(self, design):
         """The design rows of this analysis, in design order. Family B rows get T = 1 (treatment) /
         0 (control) from `arm`; family A rows are both stages of `genotype`."""
         if self.family == 'A':
             return design[(design['genotype'] == self.genotype) & design['stage'].isin(self.stages)]
-        m = design[self.arm].isin(self.control + self.treatment).values
-        for k, v in self.where.items():
-            m &= (design[k] == v).values
-        d = design[m].copy()
+        c, t = self.arm_masks(design)
+        d = design[c | t].copy()
         d['T'] = d[self.arm].isin(self.treatment).astype(int)
         if self.day_col:  # keep the recording days that hold both arms
             arms = d.groupby(d[self.day_col].astype(str))['T'].nunique()
             d = d[d[self.day_col].astype(str).isin(arms[arms == 2].index)]
         return d
+
+    def arm_masks(self, df):
+        """Family B: ((n,) bool control rows, (n,) bool treatment rows) of df (videos or frames) under `where`."""
+        m = np.ones(len(df), bool)
+        for k, v in self.where.items():
+            m &= (df[k].isin(v) if isinstance(v, (tuple, list)) else df[k] == v).values
+        return m & df[self.arm].isin(self.control).values, m & df[self.arm].isin(self.treatment).values
 
 
 class Domain:
@@ -146,6 +165,7 @@ class Domain:
     analysis_sets = ('core',)  # names accepted by get_domain(name, analysis_set); 'core' = the default analyses
     day_col = None        # design column of the recording day (ants: recording_date); None = no day conditioning
     day_nuisance = False  # set by the NES runners' --day: family B analyses get Analysis.day_col = day_col
+    bg_window = None      # frames per background window (scripts/eci/fg_background.py); None = one per video
 
     def __init__(self, analysis_set='core'):
         if analysis_set not in self.analysis_sets:
@@ -349,36 +369,46 @@ class MiceDomain(Domain):
 
 
 class AntsDomain(Domain):
-    """Ants v2 + v3, unit = video, family B only."""
+    """Ants v2 + v3 (+ v4, v4_infested in the 30-min layout ANTS_ECI=eci30), unit = video, family B only."""
     name, title, subjects = 'ants', 'ants v2 + v3', 'ants'
-    eci_dir = ROOT / 'dataset/ants/eci'
+    # ANTS_ECI (environment, default 'eci' = the 10-min layout): the eci and results dir names
+    ECI = os.environ.get('ANTS_ECI', 'eci')
+    eci_dir = ROOT / f'dataset/ants/{ECI}'
     ann_path = eci_dir / 'annotations.csv'
     experiment_csv = eci_dir / 'experiment.csv'
-    nes_root = ROOT / 'results/vision/ants/eci/nes'
-    sources = {'v2': ROOT / 'dataset/ants/v2/annotations.csv', 'v3': ROOT / 'dataset/ants/v3/annotations.csv'}
-    raw_experiments = {'v2': ROOT / 'data/ants/v2/experiment.csv', 'v3': ROOT / 'data/ants/v3/experiment.csv'}
-    design_cols = ('experiment', 'T', 'batch', 'position', 'annotator', 'recording_date', 'nestbox')
+    nes_root = ROOT / f'results/vision/ants/{ECI}/nes'
+    EXPERIMENTS = ('v2', 'v3', 'v4', 'v4_infested')
+    sources = {v: ROOT / f'dataset/ants/{v}/annotations.csv' for v in EXPERIMENTS}
+    raw_experiments = {v: ROOT / f'data/ants/{v}/experiment.csv' for v in EXPERIMENTS}
+    design_cols = ('experiment', 'T', 'batch', 'position', 'annotator', 'recording_date', 'nestbox', 'infested')
     day_col = 'recording_date'
+    bg_window = 3000  # one background per 10 min of video (a 10-min video: one, as before)
     balance_fields = ('batch', 'position', 'annotator', 'recording_date', 'nestbox')
-    n_match = 3000  # = the whole 10 min video (no family A, the matched window is unused)
+    n_match = 3000  # no family A: the matched window is unused (= the whole 10-min video, the last 10 min of 30)
     fg_rule = 'ants'
     duration_col = 'experiment'
     null_two, null_paired, frame_analysis, frame_key = 'v2_1_vs_2', None, 'v2_1_vs_2', 'v2_1_vs_2'
     balance_key, shuffle_word = 'treatment_balance', 'treatment'
     desc_by = ('experiment', 'T')
     meta_cols = ('experiment', 'T')
-    desc_table = ('experiment', ('v2', 'v3'), 'T', (1, 2, 4, 6, 7, 8, 9))
     text = {'window': 'video',
             'families_nes': 'Family B = treated vs control videos within one experiment (unit = video, tau > 0 = '
                             'higher in the treated videos); v3_2_vs_8 is confounded with the recording day (t=8 only '
-                            'on day C, brighter arena).',
+                            'on day C, brighter arena). infested_vs_healthy_* (30-min layout): infested (v4_infested) vs '
+                            'healthy (v4) videos of the same treatment value(s), tau > 0 = higher in the infested '
+                            'colonies, on all recording days (not day-matched: confounded with the recording day).',
             'families_bouts': 'Family B = treated vs control videos within one experiment (unit = video, tau > 0 = '
                               'more bouts/min in the treated videos); v3_2_vs_8 is confounded with the recording day.',
             'null_two': 'Treatment labels shuffled across videos (v2_1_vs_2', 'frame': 'treatment in v2 (1 vs 2)',
             'null_two_bouts': 'treatment shuffled across videos (v2_1_vs_2)', 'null_paired_bouts': ''}
-    # (experiment, control value, treatment value, confound)
+    # (experiment, control value, treatment value, confound); a contrast is kept when its experiment is in experiment.csv
     CONTRASTS = (('v2', 1, 2, ''), ('v3', 2, 6, ''),
-                 ('v3', 2, 8, 'recording day: t=8 only on day C (brighter arena), t=2 only on days A/B'))
+                 ('v3', 2, 8, 'recording day: t=8 only on day C (brighter arena), t=2 only on days A/B'),
+                 ('v4', 2, 6, ''), ('v4_infested', 2, 6, ''))
+    # infested (v4_infested) vs healthy (v4) colonies of Exp4 within treatment values: (id, T values). Never day-matched
+    # (the two series share one recording day); meta 'confound' always names the recording day (infested_confound)
+    INFESTED = (('infested_vs_healthy_t2', (2,)), ('infested_vs_healthy_t6', (6,)), ('infested_vs_healthy_t2_6', (2, 6)))
+    INFESTED_PAIR = ('v4', 'v4_infested')  # (healthy, infested) experiments
     analysis_sets = ('core', 'pairs')
     CONFOUND_ALPHA = 0.05  # 'pairs': recording day x arm chi-square p below this -> confounded
     text_pairs = {'families_nes': 'Family B = treated vs control videos within one experiment (unit = video, tau > 0 = '
@@ -399,62 +429,105 @@ class AntsDomain(Domain):
     def load_design(self):
         return C.load_design_ants(self.ann_path, self.experiment_csv)
 
+    def experiments(self):
+        """The experiments of experiment.csv (all EXPERIMENTS before scripts/eci/ants_prepare.py wrote it)."""
+        if not self.experiment_csv.exists():
+            return set(self.EXPERIMENTS)
+        return set(pd.read_csv(self.experiment_csv, usecols=['experiment'])['experiment'].astype(str))
+
     def contrasts(self):
-        """(experiment, control, treatment, confound) of the analysis set: 'core' = CONTRASTS; 'pairs' = CONTRASTS,
-        then the other within-experiment pairs (control < treatment), in experiment / control / treatment order."""
+        """(experiment, control, treatment, confound) of the within-experiment analyses of the set: 'core' = CONTRASTS
+        of the experiments in experiment.csv; 'pairs' = those, then the other within-experiment pairs (control <
+        treatment), in experiment / control / treatment order."""
+        have = self.experiments()
+        core = tuple(x for x in self.CONTRASTS if x[0] in have)
         if self.analysis_set == 'core':
-            return self.CONTRASTS
-        core = {(e, c, t) for e, c, t, _ in self.CONTRASTS}
+            return core
+        done = {(e, c, t) for e, c, t, _ in core}
         e = pd.read_csv(self.experiment_csv)
         extra = []
         for ex in sorted(e['experiment'].unique()):
             ts = sorted(int(t) for t in e.loc[e['experiment'] == ex, 'T'].unique())
             for i, c in enumerate(ts):
                 for t in ts[i + 1:]:
-                    if (ex, c, t) not in core:
-                        extra.append((ex, c, t, self.day_confound(e, ex, c, t)[0]))
-        return tuple(self.CONTRASTS) + tuple(extra)
+                    if (ex, c, t) not in done:
+                        extra.append((ex, c, t, self.day_confound(e, self.within(ex, c, t, ''))[0]))
+        return core + tuple(extra)
 
-    def day_confound(self, e, ex, c, t):
-        """-> (confound text or '', chi-square p, {arm value: {day: videos}}) of recording day x arm in
-        experiment ex (e = experiment.csv); one day in total -> p = 1."""
+    def day_confound(self, e, an):
+        """-> (confound text or '', chi-square p, {'control' / 'treatment': {day: videos}}) of recording day x arm
+        over the videos of analysis an (e = experiment.csv; every day, whatever --day); one day in total -> p = 1."""
         from scipy.stats import chi2_contingency
-        d = e[(e['experiment'] == ex) & e['T'].isin([c, t])]
-        tab = pd.crosstab(d['recording_date'].astype(str), d['T'])
+        c, t = an.arm_masks(e)
+        d = e[c | t].assign(arm=np.where(t[c | t], 'treatment', 'control'))
+        tab = pd.crosstab(d['recording_date'].astype(str), d['arm'])
         p = float(chi2_contingency(tab.values)[1]) if tab.shape[0] > 1 and tab.shape[1] > 1 else 1.0
-        days = {int(v): {str(k): int(n) for k, n in tab[v].items() if n > 0} for v in tab.columns}
+        days = {v: {str(k): int(n) for k, n in tab[v].items() if n > 0} for v in tab.columns}
         txt = ''
         if p < self.CONFOUND_ALPHA:
-            on = {v: ('day ' if len(days[v]) == 1 else 'days ') + '/'.join(days[v]) for v in (c, t)}
-            txt = f'recording day: t={c} on {on[c]}, t={t} on {on[t]} (chi-square p = {p:.2g})'
+            on = {v: ('day ' if len(days.get(v, {})) == 1 else 'days ') + '/'.join(days.get(v, {}))
+                  for v in ('control', 'treatment')}
+            m = an.meta
+            txt = (f'recording day: t={m["control"]} on {on["control"]}, t={m["treatment"]} on {on["treatment"]} '
+                   f'(chi-square p = {p:.2g})')
         return txt, p, days
+
+    def within(self, e, c, t, conf):
+        """Treatment value t vs c within experiment e (day-matched under the runners' --day)."""
+        return Analysis(f'{e}_{c}_vs_{t}', 'B', 'observation_id',
+                        {'experiment': e, 'control': c, 'treatment': t, 'confound': conf},
+                        ('treated>control', 'treated<control'), where={'experiment': e}, arm='T',
+                        control=(c,), treatment=(t,), day_col=self.day_col if self.day_nuisance else None)
+
+    def infested(self, aid, ts, e=None):
+        """Infested (v4_infested, infested = 1) vs healthy (v4, infested = 0) videos with treatment value in ts, on ALL
+        recording days (day_match False: never day-matched); meta 'confound' names the recording days of each arm
+        (from experiment.csv e when given)."""
+        tl = '+'.join(str(t) for t in ts)
+        an = Analysis(aid, 'B', 'observation_id',
+                      {'experiment': 'v4 infested vs healthy', 'control': f'healthy t={tl}',
+                       'treatment': f'infested t={tl}', 'confound': ''},
+                      ('infested>healthy', 'infested<healthy'), where={'experiment': self.INFESTED_PAIR, 'T': ts},
+                      arm='infested', control=(0,), treatment=(1,), day_match=False)
+        days = self.day_confound(e, an)[2] if e is not None else {}
+        on = {v: '/'.join(sorted(days.get(v, {}))) or '?' for v in ('control', 'treatment')}
+        an.meta['confound'] = (f'recording day (not day-matched: healthy colonies on days {on["control"]}, infested on '
+                               f'days {on["treatment"]})')
+        return an
 
     @property
     def analyses(self):
-        return [Analysis(f'{e}_{c}_vs_{t}', 'B', 'observation_id',
-                         {'experiment': e, 'control': c, 'treatment': t, 'confound': conf},
-                         ('treated>control', 'treated<control'), where={'experiment': e}, arm='T',
-                         control=(c,), treatment=(t,), day_col=self.day_col if self.day_nuisance else None)
-                for e, c, t, conf in self.contrasts()]
+        out = [self.within(*x) for x in self.contrasts()]
+        if set(self.INFESTED_PAIR) <= self.experiments():
+            e = pd.read_csv(self.experiment_csv) if self.experiment_csv.exists() else None
+            out += [self.infested(aid, ts, e) for aid, ts in self.INFESTED]
+        return out
 
     def analysis_table(self):
         """One row per analysis of the set: id, experiment, control, treatment, n_control, n_treatment (videos),
-        recording-day counts per arm, day_chi2_p, confounded (day_chi2_p < CONFOUND_ALPHA), confound (meta text),
-        core (one of the 3 default analyses)."""
+        recording-day counts per arm, day_chi2_p, confounded (day_chi2_p < CONFOUND_ALPHA, or never day-matched),
+        day_match, confound (meta text), core (one of the default analyses)."""
         e = pd.read_csv(self.experiment_csv)
-        core = {(x, c, t) for x, c, t, _ in self.CONTRASTS}
+        core = {(x, c, t) for x, c, t, _ in self.CONTRASTS} | {aid for aid, _ in self.INFESTED}
         rows = []
         for an in self.analyses:
             m = an.meta
-            ex, c, t = m['experiment'], m['control'], m['treatment']
-            _, p, days = self.day_confound(e, ex, c, t)
-            g = e[e['experiment'] == ex]
-            rows.append({'analysis_id': an.id, 'experiment': ex, 'control': c, 'treatment': t,
-                         'n_control': int((g['T'] == c).sum()), 'n_treatment': int((g['T'] == t).sum()),
-                         'days_control': days.get(c, {}), 'days_treatment': days.get(t, {}), 'day_chi2_p': p,
-                         'confounded': bool(p < self.CONFOUND_ALPHA), 'confound': m['confound'],
-                         'core': (ex, c, t) in core})
+            _, p, days = self.day_confound(e, an)
+            c, t = an.arm_masks(e)
+            rows.append({'analysis_id': an.id, 'experiment': m['experiment'], 'control': m['control'],
+                         'treatment': m['treatment'], 'n_control': int(c.sum()), 'n_treatment': int(t.sum()),
+                         'days_control': days.get('control', {}), 'days_treatment': days.get('treatment', {}),
+                         'day_chi2_p': p, 'confounded': bool(p < self.CONFOUND_ALPHA or not an.day_match),
+                         'day_match': an.day_match, 'confound': m['confound'],
+                         'core': an.id in core or (m['experiment'], m['control'], m['treatment']) in core})
         return rows
+
+    @property
+    def desc_table(self):
+        """(row column, its values, column column, its values) of the report tables: experiments x treatment values."""
+        e = pd.read_csv(self.experiment_csv) if self.experiment_csv.exists() else pd.DataFrame({'experiment': [], 'T': []})
+        return ('experiment', tuple(x for x in self.EXPERIMENTS if x in set(e['experiment'])) or ('v2', 'v3'),
+                'T', tuple(sorted(int(t) for t in e['T'].unique())) or (1, 2, 4, 6, 7, 8, 9))
 
     def describe(self, design):
         n = design.groupby(['experiment', 'T']).size()
