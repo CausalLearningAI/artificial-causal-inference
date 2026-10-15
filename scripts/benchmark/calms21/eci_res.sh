@@ -89,6 +89,26 @@
 # (3) COST per arm, always reported: encoder tokens per frame (full frame: G^2 + prefix tokens; V-JEPA: 8 G^2 per
 #     16-frame clip), SAE tokens per frame after the mask, and encode frames / s.
 # ======================================================================================================================
+# ADDENDUM 2 2026-10-15 12:55 CEST (coordinator: MABe22 layer finding), written BEFORE any SAE job of this test ran
+# (none has started; the pass-C low-detail jobs of addendum 1 were cancelled before starting and are replaced below).
+#   MABe22 supervised ceilings showed DINOv3's last layer is not its best (DINOv3-B L10 0.871 vs L12 0.854; DINOv3-L L20
+#   0.888 vs L24 0.872; DINOv2-B peaks at its last layer). LABEL-FREE LAYER RULE for CalMS21, fixed now: DINOv3 tokens
+#   from the block at ~5/6 of the depth (after the final LayerNorm): L10 of 12 for DINOv3-B, L20 of 24 for DINOv3-L
+#   (facebook/dinov3-vitl16-pretrain-lvd1689m, 1024-d, SAE input 2048-d with Delta, d 4096, k 16). DINOv2 keeps its
+#   last layer. ARMS (all with the fixed recipe, 6 seeds 0-5, same frames / mask cells):
+#     D3-32  := d3_512_L10,  D3-64  := d3_1024_L10   (REPLACE the last-layer D3 arms in questions (a)-(d))
+#     D3L-32 := d3l_512_L20, D3L-64 := d3l_1024_L20  (new)
+#     D3-64lo := d3_1024lo_L10, D3L-64lo := d3l_1024lo_L20, D2-64lo := d2_896lo  (addendum 1 (d) controls)
+#     CHECK arm: d3_512 (DINOv3-B LAST layer, 32 grid) vs D3-32 (L10), descriptive; d3_1024 (last layer, 64 grid,
+#     queued before this addendum) is reported as descriptive only. SIZE CONTROL: D2L-32 := d2l_448 (DINOv2-L, last
+#     layer 24, 448 px) vs D2-32, descriptive.
+#   QUESTIONS (rule unchanged: WIN = delta >= +0.010 and Welch 95% CI excludes 0):
+#     (a) 64 vs 32 within D2, D3 (L10), D3L (L20), VJ
+#     (b) at 64: D3-64 vs D2-64 AND D3L-64 vs D2-64
+#     (c) unchanged (VJ vs D2 and VJ vs D3 at 32 and at 64, D3 = L10)
+#     (d) D3-64 vs D3-64lo, D3L-64 vs D3L-64lo, D2-64 vs D2-64lo
+#   Encoding: one pass per shard for all eight new configs (decode once), reusing pass A's mask cells (pass D).
+# ======================================================================================================================
 set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 X="--exclude=gpu240,gpu242,gpu150,gpu230,gpu241"  # gpu240-242 have no BeeGFS mount (measured 2026-10-15)
@@ -111,10 +131,10 @@ case "${1:-}" in
         echo "$S $i A $a B $b"
       done
     done ;;
-  encodeC) # addendum (2): low-detail control tokens, per shard after its pass A and after bodylen (lo_side.txt)
-    # bash eci_res.sh encodeC <bodylen job> <set> <shard> <pass A job>
-    PY=eci_encode EXTRA="--set $3 --shard $4 --nshard $NS --bf16 --configs d3_1024lo d2_896lo --reuse-mask --workers 4 --threads 3" \
-      sub --dependency=afterok:$2:$5 --constraint="$BIG" --cpus-per-task=16 --mem=96G --time=01:30:00 --job-name=encC_$3$4 ;;
+  encodeD) # addenda 1 + 2: layer-rule DINOv3-B / -L, DINOv2-L and the low-detail controls, per shard after its
+    # pass A and after bodylen (lo_side.txt). bash eci_res.sh encodeD <bodylen job> <set> <shard> <pass A job>
+    PY=eci_encode EXTRA="--set $3 --shard $4 --nshard $NS --bf16 --configs d3_512_L10 d3_1024_L10 d3l_512_L20 d3l_1024_L20 d2l_448 d3_1024lo_L10 d3l_1024lo_L20 d2_896lo --reuse-mask --workers 4 --threads 3" \
+      sub --dependency=afterok:$2:$5 --constraint="$BIG" --cpus-per-task=16 --mem=128G --time=02:00:00 --job-name=encD_$3$4 ;;
   train)   # bash eci_res.sh train <config> <dependency job ids, colon separated or empty>: one job, 6 seeds
     C=$2; D=${3:-}
     PY=eci_train EXTRA="--config $C --seeds 0 1 2 3 4 5" sub ${D:+--dependency=afterok:$D} --constraint="$BIG" \

@@ -24,9 +24,12 @@ from scipy import stats
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from calms_common import OUT, PLAN  # noqa: E402
 
-ARMS = ['d2_448', 'd2_896', 'd3_512', 'd3_1024', 'vj_512', 'vj_1024']
-NAME = {'d2_448': 'D2-32', 'd2_896': 'D2-64', 'd3_512': 'D3-32', 'd3_1024': 'D3-64', 'vj_512': 'VJ-32',
-        'vj_1024': 'VJ-64'}
+ARMS = ['d2_448', 'd2_896', 'd3_512_L10', 'd3_1024_L10', 'd3l_512_L20', 'd3l_1024_L20', 'vj_512', 'vj_1024',
+        'd3_1024lo_L10', 'd3l_1024lo_L20', 'd2_896lo', 'd3_512', 'd3_1024', 'd2l_448']
+NAME = {'d2_448': 'D2-32', 'd2_896': 'D2-64', 'd3_512_L10': 'D3-32', 'd3_1024_L10': 'D3-64', 'd3l_512_L20': 'D3L-32',
+        'd3l_1024_L20': 'D3L-64', 'vj_512': 'VJ-32', 'vj_1024': 'VJ-64', 'd3_1024lo_L10': 'D3-64lo',
+        'd3l_1024lo_L20': 'D3L-64lo', 'd2_896lo': 'D2-64lo', 'd3_512': 'D3-32 last layer (check)',
+        'd3_1024': 'D3-64 last layer (descriptive)', 'd2l_448': 'D2L-32 (size control)'}
 RD = OUT / 'res'
 
 
@@ -85,11 +88,17 @@ def main():
                           'rate_auc_pick': {b: mean_q(R, b, 'cf_rate_auc_pick') for b in labs},
                           'top1_rate': {b: mean_q(R, b, 'cf_top1_rate') for b in labs}}
         L.append(f"| {NAME[a]} ({a}) | {len(v)} | {', '.join(f'{x:.3f}' for x in v)} | {v.mean():.4f} ± {se:.4f} |")
-    C = {'(a) D2: 64 vs 32': ('d2_896', 'd2_448'), '(a) D3: 64 vs 32': ('d3_1024', 'd3_512'),
-         '(a) VJ: 64 vs 32': ('vj_1024', 'vj_512'), '(b) at 64: D3 vs D2': ('d3_1024', 'd2_896'),
-         '(c) at 32: VJ vs D2': ('vj_512', 'd2_448'), '(c) at 32: VJ vs D3': ('vj_512', 'd3_512'),
-         '(c) at 64: VJ vs D2': ('vj_1024', 'd2_896'), '(c) at 64: VJ vs D3': ('vj_1024', 'd3_1024'),
-         '(descriptive) at 32: D3 vs D2': ('d3_512', 'd2_448')}
+    C = {'(a) D2: 64 vs 32': ('d2_896', 'd2_448'), '(a) D3: 64 vs 32': ('d3_1024_L10', 'd3_512_L10'),
+         '(a) D3L: 64 vs 32': ('d3l_1024_L20', 'd3l_512_L20'), '(a) VJ: 64 vs 32': ('vj_1024', 'vj_512'),
+         '(b) at 64: D3 vs D2': ('d3_1024_L10', 'd2_896'), '(b) at 64: D3L vs D2': ('d3l_1024_L20', 'd2_896'),
+         '(c) at 32: VJ vs D2': ('vj_512', 'd2_448'), '(c) at 32: VJ vs D3': ('vj_512', 'd3_512_L10'),
+         '(c) at 64: VJ vs D2': ('vj_1024', 'd2_896'), '(c) at 64: VJ vs D3': ('vj_1024', 'd3_1024_L10'),
+         '(d) D3-64 vs D3-64lo': ('d3_1024_L10', 'd3_1024lo_L10'), '(d) D3L-64 vs D3L-64lo': ('d3l_1024_L20', 'd3l_1024lo_L20'),
+         '(d) D2-64 vs D2-64lo': ('d2_896', 'd2_896lo'),
+         '(descriptive) at 32: D3 vs D2': ('d3_512_L10', 'd2_448'), '(descriptive) at 32: D3L vs D2': ('d3l_512_L20', 'd2_448'),
+         '(check) D3-32: L10 vs last layer': ('d3_512_L10', 'd3_512'),
+         '(descriptive) D3-64: L10 vs last layer': ('d3_1024_L10', 'd3_1024'),
+         '(size control) D2L-32 vs D2-32': ('d2l_448', 'd2_448')}
     L += ['', '| contrast | delta primary AUROC [95% CI] | df | verdict |', '|---|---|---|---|']
     for k, (a, b) in C.items():
         if a in S and b in S and len(S[a]) > 1 and len(S[b]) > 1:

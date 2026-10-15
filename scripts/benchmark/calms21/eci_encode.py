@@ -49,8 +49,11 @@ from calms_common import (CANVAS, DER, OUT, PADV, PADY, PLAN, TOK, H, W, decode_
 CONFIGS = {'d2_448': ('dinov2b', 448), 'd2_896': ('dinov2b', 896), 'd3_512': ('dinov3b', 512),
            'd3_1024': ('dinov3b', 1024), 'vj_512': ('vjepal', 512), 'vj_1024': ('vjepal', 1024),
            'd3_2064': ('dinov3b', 2064),
-           # detail-vs-density control (addendum (d)): same input size / grid, source first shrunk to plan/lo_side.txt
-           'd3_1024lo': ('dinov3b', 1024), 'd2_896lo': ('dinov2b', 896)}
+           # addendum 2 (label-free layer rule, block at ~5/6 depth): DINOv3-B L10, DINOv3-L L20; DINOv2-L last layer
+           'd3_512_L10': ('dinov3b', 512, 10), 'd3_1024_L10': ('dinov3b', 1024, 10),
+           'd3l_512_L20': ('dinov3l', 512, 20), 'd3l_1024_L20': ('dinov3l', 1024, 20), 'd2l_448': ('dinov2l', 448),
+           # detail-vs-density control (addendum 1 (d)): same input size / grid, source first shrunk to plan/lo_side.txt
+           'd3_1024lo_L10': ('dinov3b', 1024, 10), 'd3l_1024lo_L20': ('dinov3l', 1024, 20), 'd2_896lo': ('dinov2b', 896)}
 LAG = 60
 NBG = 32
 CLIP, TPOS, VJS = 16, 7, 8
@@ -98,11 +101,20 @@ class Enc:
 
     def __init__(self, cfg, dev, bf16):
         import eci_enc_encode as EE
-        name, S = CONFIGS[cfg]
-        self.e = EE.Encoder(name, S, [EE.MODELS[name][3]], dev, 'extrap', VJS, bf16)
+        name, S, *ly = CONFIGS[cfg]
+        if name == 'dinov2l':  # same module layout as dinov2-base: build through the 'dinov2b' branch
+            keep = EE.MODELS['dinov2b']
+            EE.MODELS['dinov2b'] = ('facebook/dinov2-large', 14, 1, 24)
+            try:
+                self.e = EE.Encoder('dinov2b', S, [24], dev, 'extrap', VJS, bf16)
+            finally:
+                EE.MODELS['dinov2b'] = keep
+            self.last = 24
+        else:
+            self.last = ly[0] if ly else EE.MODELS[name][3]
+            self.e = EE.Encoder(name, S, [self.last], dev, 'extrap', VJS, bf16)
         self.cfg, self.S, self.G, self.video, self.dev = cfg, S, self.e.G, self.e.video, dev
-        self.lo = int((PLAN / 'lo_side.txt').read_text().split()[0]) if cfg.endswith('lo') else 0
-        self.last = EE.MODELS[name][3]
+        self.lo = int((PLAN / 'lo_side.txt').read_text().split()[0]) if 'lo' in cfg.split('_')[1] else 0
         self.dim = self.e.dim
         self.gpu_s, self.n_in, self.n_tok = 0.0, 0, 0
         import torch
