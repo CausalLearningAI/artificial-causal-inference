@@ -82,16 +82,16 @@ def main():
             R = seeds(cd, arm, 100, 199)
             if R:
                 d, se = delta(prim(R), c0)
-                rows.append(('confirmation (6 fresh seeds)', name, d, se, ORANGE, False))
+                rows.append(('confirmation', name, d, se, ORANGE, False))
     fig = plt.figure(figsize=(7.1, 3.4))
-    gs = fig.add_gridspec(2, 3, width_ratios=[1.35, 1, 1], hspace=0.55, wspace=0.45, left=0.15, right=0.99, top=0.92,
+    gs = fig.add_gridspec(2, 3, width_ratios=[1.35, 1, 1], hspace=0.55, wspace=0.45, left=0.16, right=0.99, top=0.9,
                           bottom=0.2)
     ax = fig.add_subplot(gs[:, 0])
     y, yt, yl, gy = 0, [], [], []
     last = None
     for g, name, d, se, col, hollow in rows:
         if g != last:
-            y += 0.7 if last is not None else 0
+            y += 1.1 if last is not None else 0
             gy.append((y, g))
             last = g
         ax.errorbar(d, -y, xerr=1.96 * se, fmt='o', ms=3.5, color=col, mfc='white' if hollow else col, mew=0.8,
@@ -100,12 +100,12 @@ def main():
         yl.append(name)
         y += 1
     for yy, g in gy:
-        ax.text(-0.02, -yy + 0.55, g, transform=ax.get_yaxis_transform(), ha='right', va='bottom', fontsize=6,
+        ax.text(-0.02, -yy + 0.75, g, transform=ax.get_yaxis_transform(), ha='right', va='bottom', fontsize=6,
                 fontweight='bold', color=INK)
     ax.axvline(0, color=MUTED, lw=0.6, ls='--')
     ax.set_yticks(yt, yl)
     ax.tick_params(axis='y', length=0)
-    ax.set_ylim(-y + 0.3, 1.3)
+    ax.set_ylim(-y + 0.3, 1.6)
     ax.set_xlabel('Δ primary AUROC vs A0 (1 s Δ, Matryoshka, mask, 448)\n± 1.96 SE over SAE seeds')
     ax.xaxis.set_major_locator(matplotlib.ticker.MultipleLocator(0.05))
     ax.xaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%+.2f'))
@@ -114,10 +114,11 @@ def main():
     for s in ('top', 'right', 'left'):
         ax.spines[s].set_visible(False)
     ax.set_title('a', loc='left', fontweight='bold', fontsize=8, x=-0.55)
-    ax.text(0.0, 1.0, '● graded grid (3 seeds)   ○ post hoc   ', transform=ax.transAxes, fontsize=5, color=BLUE,
+    ax.text(0.0, 1.035, '● graded grid, 3 seeds    ○ added post hoc', transform=ax.transAxes, fontsize=5, color=BLUE,
             va='bottom')
     if C0:
-        ax.text(0.62, 1.0, '● confirmation', transform=ax.transAxes, fontsize=5, color=ORANGE, va='bottom')
+        ax.text(0.0, 1.0, '● pre-registered confirmation, 6 fresh seeds', transform=ax.transAxes, fontsize=5,
+                color=ORANGE, va='bottom')
     # panel b
     E = json.loads((PLAN / 'eval_plan.json').read_text())['weighted_base_rate']
     S = json.loads((OUT / 'summary.json').read_text())

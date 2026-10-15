@@ -9,6 +9,13 @@ df). Win iff delta >= +0.010 AND CI excludes 0 AND cf AP (mean over seeds x spli
 >= 0.9 x A0's. Decision: if both A7 and D2 win, A7D2 is preferred only if it also beats each by >= 0.01 with a CI
 excluding 0 (same Welch interval, A7D2 vs that arm); otherwise the cheaper winner (D2 cheaper than A7).
 Outputs: OUT/confirm/confirm.md, OUT/confirm/confirm.json
+
+RESULTS (2026-10-15 07:01, seeds 100-105, new token store, rule fixed in eci_confirm.sh at commit 5b7df89 before any
+number): per-seed primary means A0 0.750 0.717 0.760 0.714 0.723 0.710 (0.7288 +- 0.0085 SE); delta vs A0 [Welch 95% CI]
+D2 +0.030 [+0.004, +0.056], D4 +0.034 [+0.009, +0.059], A7 +0.033 [+0.011, +0.055], A7D2 +0.060 [+0.033, +0.086];
+AP ratios oo / og D2 1.89 / 1.57, D4 1.40 / 0.95, A7 1.35 / 1.48, A7D2 1.55 / 1.58 -> all four WIN. A7D2 vs A7 +0.027
+[+0.005, +0.048], vs D2 +0.030 [+0.004, +0.055] -> pre-registered decision: A7D2 (D4 orbit tokens + 2 s delta).
+Honest top-1% oral_oral / oral_genital stays 0.023-0.035 / 0.036-0.048 in every arm (sniffing bar 0.25 not reached).
 """
 import json
 import re
