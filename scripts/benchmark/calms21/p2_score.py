@@ -3,6 +3,15 @@ CalMS21 ECI phase 2 scoring (rules verbatim in eci_recheck.sh; login safe). Per 
 cross-fitted best-neuron AUROC over the scored labels, AUROC-picked neuron, split seeds averaged first) for frame value
 = max (the arm's 'full' read-out) and = mean ('mean_' read-out); contrasts with Welch 95% CI and the round-3 verdict
 words; the MABe22 comparison table. Outputs OUT/p2/p2.md, OUT/p2/p2.json
+
+RESULTS (2026-10-15 16:50, base d3l_1024_L20 = DINOv3-L L20 at 1024 px, primary AUROC 0.881 +- 0.009, 6 seeds):
+none 0.886, 1 s 0.874, 4 s 0.889, plain 512 0.880, nested 512 0.865, k 8 0.869, no mask 0.867, orbit 0.912 +- 0.006.
+Verdicts vs MABe22: 2 s vs 1 s EQUIVALENT (MABe22 WIN -> unsure); none vs 1 s EQUIVALENT (agree); 4 s vs 1 s EQUIVALENT
+(MABe22 WIN -> unsure); plain 512 EQUIVALENT (agree); nesting EQUIVALENT (agree); k 8 EQUIVALENT (MABe22 LOSES ->
+unsure); no mask EQUIVALENT (MABe22 LOSES -> unsure; mask misses the intruder in 8.3% of frames); orbit WIN +0.031
+[+0.006, +0.055] (agrees with MABe22 base-size WIN; MABe22 Large-arm orbit was EQUIVALENT -> unsure for Large);
+mean vs max pooling EQUIVALENT on all 9 arms. 10-split re-scoring (descriptive) moves every primary by <= +0.004
+except d2_896lo (+0.031); attack has the largest split SD (0.008-0.016; 0.05 for d2_896lo).
 """
 import json
 import re
