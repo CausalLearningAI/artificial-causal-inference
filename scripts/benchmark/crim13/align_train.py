@@ -234,6 +234,10 @@ def main():
             log(f'  {name(seed)} theta* {th:.4f} (EMA {ema:.4f}) calib L0 {info["l0_calib_theta_star"]:.3f}')
         del Xca_g, Xca
         torch.cuda.empty_cache()
+    if tok == 'rnd':  # C4: theta* (on the random-cell calib tokens) saved for align_c4.py
+        (OUT / 'sae' / f'{args.arm}_calib.json').write_text(json.dumps(
+            {f'{f}_s{sd}': {'theta': float(models[(f, sd)][0].threshold), **v} for (f, sd), v in calib.items()},
+            indent=1, default=float))
     if args.train_only or tok == 'rnd':
         log(f'{args.arm} trained in {time.time() - t00:.0f}s (no read-out here)')
         return
