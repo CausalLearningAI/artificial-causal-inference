@@ -44,6 +44,7 @@ ARMS = {
     # EXPLORATORY (added after the pre-registered grid was scored; reported separately, not part of the rule)
     'X_D4': dict(tok='m448', delta=True, lag='120', sp='btk', k=16, matry=True),   # delta over 4 s
     'X_A3A4': dict(tok='m448', delta=False, sp='btk', k=16, matry=False),          # plain BatchTopK, z_t only
+    'X_A7D2': dict(tok='m448o', delta=True, lag='60', sp='btk', k=16, matry=True),  # orbit tokens + 2 s delta
     'X_D2A3': dict(tok='m448', delta=True, lag='60', sp='btk', k=16, matry=False),  # 2 s delta, plain BatchTopK
     'D02': dict(tok='m448', delta=True, lag='6', sp='btk', k=16, matry=True),   # delta over 0.2 s
     'D05': dict(tok='m448', delta=True, lag='15', sp='btk', k=16, matry=True),  # 0.5 s

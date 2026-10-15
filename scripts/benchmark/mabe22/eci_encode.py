@@ -250,6 +250,7 @@ def main():
                     help='extra lag frames (30 fps) stored at the t-frame mask positions (448 only); clipped to frame 0')
     ap.add_argument('--reuse-mask', default='', help='token dir whose pos448 (same set / shard split) is reused')
     ap.add_argument('--orbit', action='store_true', help='arm A7: also store D4 orbit-averaged t / lag tokens')
+    ap.add_argument('--orbit-lag', type=int, default=0, help='also store orbit-averaged tokens of frame t - L (30 fps)')
     ap.add_argument('--only-lags', action='store_true', help='save only the extra-lag tokens (+ pos448, frames)')
     ap.add_argument('--smoke', type=int, default=0, help='only the first N clips of the shard')
     args = ap.parse_args()
@@ -301,10 +302,14 @@ def main():
                 mref[q, torch.from_numpy(REF['pos'][REF['st'][r_]:REF['st'][r_ + 1]].astype(np.int64)).to(dev)] = True
             cinfo[c]['mask_agree_with_ref'] = float((mref == mask).float().mean())
             mask = mref
+        if args.orbit_lag:
+            ol = enc.orbit(fr[np.maximum(ts - args.orbit_lag, 0)])
         if args.orbit:
             ot, op = enc.orbit(fr[ts]), enc.orbit(fr[lags])
         for q in range(len(R)):
             p = torch.nonzero(mask[q]).flatten()
+            if args.orbit_lag:
+                A.setdefault(f'm448o_p{args.orbit_lag}', []).append(ol[q, p].half().cpu().numpy())
             if args.orbit:
                 A.setdefault('m448o_t', []).append(ot[q, p].half().cpu().numpy())
                 A.setdefault('m448o_p', []).append(op[q, p].half().cpu().numpy())
