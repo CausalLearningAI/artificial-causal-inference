@@ -134,7 +134,7 @@ case "${1:-}" in
   encodeD) # addenda 1 + 2: layer-rule DINOv3-B / -L, DINOv2-L and the low-detail controls, per shard after its
     # pass A and after bodylen (lo_side.txt). bash eci_res.sh encodeD <bodylen job> <set> <shard> <pass A job>
     PY=eci_encode EXTRA="--set $3 --shard $4 --nshard $NS --bf16 --configs d3_512_L10 d3_1024_L10 d3l_512_L20 d3l_1024_L20 d2l_448 d3_1024lo_L10 d3l_1024lo_L20 d2_896lo --reuse-mask --workers 4 --threads 3" \
-      sub --dependency=afterok:$2:$5 --constraint="$BIG" --cpus-per-task=16 --mem=128G --time=02:00:00 --job-name=encD_$3$4 ;;
+      sub ${5:+--dependency=afterok:$5} --constraint="$BIG" --cpus-per-task=16 --mem=128G --time=02:00:00 --job-name=encD_$3$4 ;;
   train)   # bash eci_res.sh train <config> <dependency job ids, colon separated or empty>: one job, 6 seeds
     C=$2; D=${3:-}
     PY=eci_train EXTRA="--config $C --seeds 0 1 2 3 4 5" sub ${D:+--dependency=afterok:$D} --constraint="$BIG" \

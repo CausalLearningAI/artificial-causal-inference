@@ -44,9 +44,41 @@ def main():
     f = od / f'probe_{args.config}.json'
     G = 64 if args.config in G64 else 32
 
+    # label-STRATIFIED video folds (attack is in only 5 of the 19 test videos: a plain random split leaves folds without
+    # a positive and AUROC undefined): positive videos of each label, rarest label first, dealt round robin over the 5
+    # folds; the rest at random. Inner validation: one not-yet-chosen positive video per label (rarest first), filled
+    # at random to max(4, 17%) of the training videos.
+    posv = {b: set(E.video[E[b]].unique()) for b in labs}
+    order_l = sorted(labs, key=lambda b: len(posv[b]))
+
+    def pool_folds(pools, k=5, seed=0):
+        g = np.random.default_rng(seed)
+        side = {}
+        for b in order_l:
+            todo = [v for v in sorted(posv[b]) if v not in side]
+            g.shuffle(todo)
+            cnt = [sum(side.get(v) == f for v in posv[b]) for f in range(k)]
+            start = int(np.argmin(cnt))
+            for j, v in enumerate(todo):
+                side[v] = (start + j) % k
+        rest = [v for v in sorted(set(pools)) if v not in side]
+        g.shuffle(rest)
+        for j, v in enumerate(rest):
+            side[v] = j % k
+        return [sorted(v for v in side if side[v] == f) for f in range(k)]
+
     def inner_val(train_pools, fold, n_val_=None):
+        g = np.random.default_rng(100 + fold)
         k = max(4, int(round(0.17 * len(train_pools))))
-        return set(np.random.default_rng(100 + fold).choice(sorted(train_pools), k, replace=False).tolist())
+        val = []
+        for b in order_l:
+            c = [v for v in sorted(train_pools) if v in posv[b] and v not in val]
+            if c and not any(v in posv[b] for v in val):
+                val.append(c[int(g.integers(len(c)))])
+        rest = [v for v in sorted(train_pools) if v not in val]
+        val += list(g.choice(rest, max(0, k - len(val)), replace=False))
+        return set(val)
+    dmp.pool_folds = pool_folds
     dmp.inner_val = inner_val
     dmp.BEH = list(labs)
     t0 = time.time()
