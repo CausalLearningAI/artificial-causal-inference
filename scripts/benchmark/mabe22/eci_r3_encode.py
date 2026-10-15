@@ -31,6 +31,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts/eci'))
 from eci_common import LAG, OUT, PLAN, TOK, decode_clip, log, offset, stage_dir  # noqa: E402
 from eci_encode import SETS, Enc, clip_mask, plan, shard_clips  # noqa: E402
+import os  # noqa: E402
+# outputs of 'scale' / 'adapt' may go to another store (BeeGFS, from 2026-10-15 ~11:40); inputs (masks) stay in TOK
+TOK_OUT = Path(os.environ.get('MABE_TOK_OUT') or TOK)
 
 
 def orbit_S(enc, frames, S, bs):
@@ -91,7 +94,8 @@ def main():
     base = f'{args.set}_{args.shard}of{args.nshard}'
     suf = {'store': '', 'scale': '_s' + '_'.join(map(str, args.sizes)), 'adapt': '_adapt'}[args.mode]
     key = base + suf + (f'_smoke{args.smoke}' if args.smoke else '')
-    if (TOK / f'{key}.json').exists():
+    TOK_OUT.mkdir(parents=True, exist_ok=True)
+    if (TOK_OUT / f'{key}.json').exists():
         log(f'[SKIP] {key}')
         return
     P = plan(args.set)
@@ -171,10 +175,10 @@ def main():
     for k, v in A.items():
         a = np.concatenate(v)
         np.save(stage / f'{key}_{k}.npy', a)
-        shutil.copyfile(stage / f'{key}_{k}.npy', TOK / f'{key}_{k}.npy')
+        shutil.copyfile(stage / f'{key}_{k}.npy', TOK_OUT / f'{key}_{k}.npy')
         (stage / f'{key}_{k}.npy').unlink()
         log(f'  saved {k} {a.shape}')
-    Fm.to_parquet(TOK / f'{key}_frames.parquet')
+    Fm.to_parquet(TOK_OUT / f'{key}_frames.parquet')
     info = {'set': args.set, 'shard': args.shard, 'nshard': args.nshard, 'mode': args.mode, 'lags': args.lags,
             'sizes': args.sizes if args.mode == 'scale' else None, 'encoder': args.encoder or 'facebook/dinov2-base',
             'clips': len(clips), 'frames': len(Fm), 'offset': off, 'images_encoded': enc.n_img,
@@ -183,7 +187,7 @@ def main():
             'wall_s': round(time.time() - t00, 1),
             'kept_mean': {c_: float(Fm[c_].mean()) for c_ in Fm.columns if c_.startswith('n')},
             'frames_with_0_kept': int((Fm.n448 == 0).sum()), 'per_clip': cinfo}
-    (TOK / f'{key}.json').write_text(json.dumps(info, indent=1, default=float))
+    (TOK_OUT / f'{key}.json').write_text(json.dumps(info, indent=1, default=float))
     log('done: ' + json.dumps({k: v for k, v in info.items() if k != 'per_clip'}, default=float))
 
 

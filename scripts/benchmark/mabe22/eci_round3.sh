@@ -140,6 +140,9 @@ export MABE_TOK=results/vision/benchmark_mabe22/eci/tok_r3
 G="-p gpu --gres=gpu:L40S:1 --exclude=gpu242,gpu150,gpu230,gpu241 --cpus-per-task=8"
 LOGS=results/vision/benchmark_mabe22/eci/r3/logs
 sub() { sbatch $G --output=$LOGS/%x_%j.out "$@" scripts/benchmark/mabe22/eci.sh; }
+# from 2026-10-15 ~11:40 (storage / efficiency update): new big outputs on BeeGFS, GPU utilisation logged every 60 s
+export MABE_TOK_OUT=/mnt/beegfs/locatgrp/shared/rcadei/eci_tok/round3
+sub2() { sbatch $G --output=$LOGS/%x_%j.out "$@" scripts/benchmark/mabe22/eci_r3_job.sh; }
 case "${1:-}" in
   smoke)   # 2 clips of eval shard 0 (store mode)
     PY=eci_r3_encode EXTRA="--set eval --shard 0 --nshard 12 --mode store --smoke 2" sub --mem=48G --time=00:20:00 --job-name=r3_smoke ;;
@@ -169,11 +172,11 @@ case "${1:-}" in
   e1b) for A in R512plain R512m128 R512m128b; do bash $0 train $A 0 "" "210 211 212" "213 214 215"; done ;;
   adapt)   # E6 encoding with the adapted encoder (after eci_r3_adapt.py), masks = the store's pos448
     ENC=results/vision/benchmark_mabe22/eci/r3/adapt/encoder.pt
-    for i in $(seq 0 7); do PY=eci_r3_encode EXTRA="--set train --shard $i --nshard 8 --mode adapt --encoder $ENC" sub --mem=64G --time=01:00:00 --job-name=r3_ad_tr$i; done
-    for i in $(seq 0 11); do PY=eci_r3_encode EXTRA="--set eval --shard $i --nshard 12 --mode adapt --encoder $ENC" sub --mem=64G --time=01:00:00 --job-name=r3_ad_ev$i; done ;;
+    for i in $(seq 0 7); do PY=eci_r3_encode EXTRA="--set train --shard $i --nshard 8 --mode adapt --encoder $ENC" sub2 --mem=48G --time=01:00:00 --job-name=r3_ad_tr$i; done
+    for i in $(seq 0 11); do PY=eci_r3_encode EXTRA="--set eval --shard $i --nshard 12 --mode adapt --encoder $ENC" sub2 --mem=48G --time=01:00:00 --job-name=r3_ad_ev$i; done ;;
   e4score)
     PY=eci_r3_ethogram EXTRA="--njobs 24" sbatch -p defaultp --gres=none --cpus-per-task=32 --mem=96G --time=02:00:00 --job-name=e4_etho --output=$LOGS/%x_%j.out scripts/benchmark/mabe22/eci.sh ;;
   e5) bash $0 train RMIX 0 "" ;;
-  e6) bash $0 train RA 0 "" ;;
+  e6) PY=eci_r3_train EXTRA="--arm RA --seeds 200 201 202 203 204 205" sub2 --mem=96G --time=01:30:00 --job-name=r3_tr_RA ;;
   *) echo "usage: $0 smoke | store | scale | train | e1 | e2 W | pool W | e3 | e5 | e6"; exit 1 ;;
 esac

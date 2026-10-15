@@ -42,6 +42,8 @@ from eci_common import BEHAVIOURS, OUT, PLAN, TOK, log, stage_dir  # noqa: E402
 import eci_train as ET  # noqa: E402
 
 RUN = OUT / 'r3'
+import os  # noqa: E402
+TOK_ALT = Path(os.environ.get('MABE_TOK_OUT') or TOK)  # where the '_adapt' store lives (BeeGFS from ~11:40)
 D = 768
 o = 'm448o'
 ARMS = {
@@ -85,10 +87,11 @@ def kinds(cfg):
 
 def load_shard(key, cfg, stage):
     """-> X (N, 768 x blocks) fp16, lens (F,), frames DataFrame (tokens copied to local disk first)."""
-    Fm = pd.read_parquet(TOK / f'{key}_frames.parquet')
+    T = TOK_ALT if key.endswith('_adapt') else TOK
+    Fm = pd.read_parquet(T / f'{key}_frames.parquet')
     arr = {}
     for k in kinds(cfg):
-        src = TOK / f'{key}_{k}.npy'
+        src = T / f'{key}_{k}.npy'
         loc = stage / src.name
         shutil.copyfile(src, loc)
         arr[k] = np.load(loc).reshape(-1, D)
