@@ -78,7 +78,7 @@ def sync(dev):
 
 def gpu_name(dev):
     import torch
-    return gpu_name(dev) if dev.type == 'cuda' else 'cpu'
+    return torch.cuda.get_device_name(0) if dev.type == 'cuda' else 'cpu'
 
 
 def canvas_gpu(frames, dev):
@@ -388,6 +388,7 @@ def cmd_maskqa(args):
     od.mkdir(parents=True, exist_ok=True)
     for spec in args.videos:
         set_, q = spec.split(':')
+        set_ = {'test': 'eval'}.get(set_, set_)
         split = 'train' if set_ == 'train' else 'test'
         P = plan_frames(set_)
         R = P[P.video == q]

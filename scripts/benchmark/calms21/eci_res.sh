@@ -72,9 +72,9 @@
 # ======================================================================================================================
 set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
-X="--exclude=gpu242,gpu150,gpu230,gpu241"
+X="--exclude=gpu240,gpu242,gpu150,gpu230,gpu241"  # gpu240-242 have no BeeGFS mount (measured 2026-10-15)
 BIG='L40S|A100|A40'
-ANY='L40S|A100|A40|A10|RTX3090Ti'
+ANY='L40S|A100|A40|A10'
 LOGS=results/vision/benchmark_calms21/logs
 mkdir -p $LOGS
 sub() { sbatch --parsable -p gpu --gres=gpu:1 $X --output=$LOGS/%x_%j.out "$@" scripts/benchmark/calms21/eci.sh; }
@@ -82,13 +82,13 @@ NS=6
 A_CFG="d2_448 d2_896 d3_512 d3_1024 vj_512"
 case "${1:-}" in
   encode)  # pass A (mask + DINO 32 / 64 + V-JEPA 32) and pass B (V-JEPA 64, reuses pass A's mask), 6 + 6 shards each
-    HOLD=${HOLD:-}
+    DEP=${DEP:-}  # e.g. the choose_mask job
     for S in train eval; do
       for i in $(seq 0 $((NS - 1))); do
         a=$(PY=eci_encode EXTRA="--set $S --shard $i --nshard $NS --bf16 --configs $A_CFG --mask file --workers 4 --threads 3" \
-            sub $HOLD --constraint="$ANY" --cpus-per-task=16 --mem=96G --time=01:30:00 --job-name=encA_${S}$i)
+            sub ${DEP:+--dependency=afterok:$DEP} --constraint="$ANY" --cpus-per-task=16 --mem=96G --time=01:30:00 --job-name=encA_${S}$i)
         b=$(PY=eci_encode EXTRA="--set $S --shard $i --nshard $NS --bf16 --configs vj_1024 --reuse-mask --workers 4 --threads 3 --vj-bs 1" \
-            sub $HOLD --dependency=afterok:$a --constraint="$BIG" --cpus-per-task=16 --mem=128G --time=03:00:00 --job-name=encB_${S}$i)
+            sub --dependency=afterok:$a --constraint="$BIG" --cpus-per-task=16 --mem=128G --time=03:00:00 --job-name=encB_${S}$i)
         echo "$S $i A $a B $b"
       done
     done ;;
@@ -100,5 +100,8 @@ case "${1:-}" in
     C=$2; D=${3:-}
     PY=eci_probe EXTRA="--config $C" sub ${D:+--dependency=afterok:$D} --constraint="$BIG" --cpus-per-task=8 \
       --mem=128G --time=03:00:00 --job-name=pr_$C ;;
+  mask)    # after the mask QA job: apply the pre-registered mask choice (CPU)
+    sbatch --parsable -p defaultp --cpus-per-task=1 --mem=2G --time=00:05:00 --job-name=choose_mask --output=$LOGS/%x_%j.out \
+      ${DEP:+--dependency=afterok:$DEP} --wrap "module load conda; conda activate crl; python -I scripts/benchmark/calms21/choose_mask.py" ;;
   *) echo "usage: $0 encode | train <config> [deps] | probe <config> [deps]"; exit 1 ;;
 esac
