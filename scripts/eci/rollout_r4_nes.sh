@@ -23,6 +23,7 @@ cd $REPO
 DOMAIN=${DOMAIN:?}
 SAE=${SAE:?}
 PREFIXES=${PREFIXES:-128,256,512}
+PL=""; [ -n "${POOLINGS:-}" ] && PL="--poolings $POOLINGS"   # <sae>_ftheta sets hold codes_max only
 TAG=${TAG:-$DOMAIN}
 NESFILES="src/eci scripts/eci/run_nes.py scripts/eci/run_nes_bouts.py scripts/eci/run_nes_latency.py"
 HEAD=$(git rev-parse HEAD)
@@ -47,7 +48,7 @@ DAY=""; [ "$DOMAIN" = "ants" ] && DAY="--day"
 SETS="core"; [ "$DOMAIN" = "ants" ] && SETS="core pairs"
 for set in $SETS; do
     echo "=== $SAE set $set: activation (per-video mean of codes_max)"
-    $W run_nes.py $COMMON $DAY --analysis-set $set --primary-pooling max
+    $W run_nes.py $COMMON $DAY --analysis-set $set --primary-pooling max $PL
     echo "=== $SAE set $set: bout rate"
     $W run_nes_bouts.py $COMMON $DAY --analysis-set $set --compare-pooling max
     echo "=== $SAE set $set: latency"
@@ -55,11 +56,11 @@ for set in $SETS; do
 done
 if [ "$DOMAIN" = "mice" ]; then
     echo "=== $SAE: camera-period adjusted family B (sensitivity)"
-    $W run_nes.py $COMMON --primary-pooling max --period adjust --primary-only
+    $W run_nes.py $COMMON --primary-pooling max --period adjust --primary-only $PL
 fi
 if [ "$DOMAIN" = "ants" ]; then
     echo "=== $SAE: without the day covariate (sensitivity; the day-confounded pairs, e.g. v3 t=2 vs t=8, are testable only here)"
-    $W run_nes.py $COMMON --analysis-set pairs --primary-pooling max --subdir pairs_noday --primary-only
+    $W run_nes.py $COMMON --analysis-set pairs --primary-pooling max --subdir pairs_noday --primary-only $PL
     $W run_nes_bouts.py $COMMON --analysis-set pairs --compare-pooling max --subdir pairs_noday --primary-only
 fi
 echo "done"

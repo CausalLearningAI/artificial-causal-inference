@@ -1157,37 +1157,170 @@ def cmd_merge(args):
 
 
 # ---------------------------------------------------------------------------------------------- summaries
-def cmd_summaries(args):
+def codes_dir_of(dom, name):
+    c = DOMS[dom]
+    return BEE / dom / ('layout/codes' if c['layout'] else 'codes') / name
+
+
+def exact_theta(vals, n_units, k=K):
+    """sae_calibrate's exact rule on a flat array of values: the (n_units k + 1)-th largest value, so that the mean count
+    per unit of values > theta is k (fewer only on a tie at the cut)."""
+    v = np.sort(np.asarray(vals, np.float32).ravel())[::-1]
+    j = int(n_units * k)
+    th = float(v[j])
+    return th, {'n_units': int(n_units), 'n_values': int(len(v)), 'tie_at_cut': int((v == th).sum()),
+                'mean_count_above': float((v > th).sum() / n_units)}
+
+
+def cmd_ftheta(args):
+    """Frame-level theta ('frame theta', the frame analogue of theta*), per domain and variant: ONE global threshold
+    theta_f on the frame values (max over kept tokens under theta*) of the SAE's held-out prepass frames of the
+    CALIBRATION videos, the (N_frames k + 1)-th largest frame value, so that on those frames the mean number of neurons
+    with frame value > theta_f is k = 16. Checked on the held-out EVALUATION frames and on the full-pass codes. No labels,
+    no per-neuron tuning. Writes the thresholded codes set <sae>_ftheta (codes_max = value if > theta_f else 0; n_fg
+    linked) for the unchanged NES runners -> OUT/<dom>/ftheta.json. CPU."""
+    import torch
+    from src.eci.sae import load_sae
+    torch.set_num_threads(int(os.environ.get('SLURM_CPUS_PER_TASK', 8)))
     dom = args.domain
     c = DOMS[dom]
+    best = json.loads((OUT / dom / 'sae' / 'best.json').read_text())
+    pre = BEE / dom / 'prepass'
+    F = pd.read_parquet(pre / 'frames.parquet')
+    tf = np.load(pre / 'tok_frame.npy')
+    N = len(tf)
+    tok = np.memmap(pre / 'tok.f16', np.float16, 'r', shape=(N, D))
+    prv = np.memmap(pre / 'prev.f16', np.float16, 'r', shape=(N, D))
+    held = np.flatnonzero(F.role.isin(['calib', 'eval']).values)
+    sel = np.flatnonzero(np.isin(tf, held))
+    fr_of = tf[sel]
+    out = {'domain': dom, 'k': K, 'frames': {r: int((F.role == r).sum()) for r in ('calib', 'eval')}, 'variants': {}}
+    for v_ in VARIANTS:
+        sae, norm, _ = load_sae(OUT / dom / 'sae' / best[v_]['name'] / 'sae.pt', 'cpu')
+        fvt = torch.zeros((len(F), WIDTH), dtype=torch.float32)
+        with torch.no_grad():
+            for a_ in range(0, len(sel), 100_000):
+                s_ = sel[a_:a_ + 100_000]
+                t = torch.from_numpy(np.ascontiguousarray(tok[s_])).float()
+                x = torch.cat([t, (t.half().float() - torch.from_numpy(np.ascontiguousarray(prv[s_])).float()).half().float()], 1) \
+                    if v_ == 'd2' else t
+                z = sae.encode(norm(x), mode='threshold')
+                fvt.index_reduce_(0, torch.from_numpy(fr_of[a_:a_ + 100_000].astype(np.int64)), z, 'amax',
+                                  include_self=True)
+        fv = fvt.numpy()
+        cal = F.role.values == 'calib'
+        ev = F.role.values == 'eval'
+        th, info = exact_theta(fv[cal], cal.sum())
+        R = {'theta_f': th, 'theta_star': best[v_]['theta_star'], 'calib': info,
+             'fires_per_frame': {'calib_ftheta': float((fv[cal] > th).sum(1).mean()),
+                                 'eval_ftheta': float((fv[ev] > th).sum(1).mean()),
+                                 'calib_gt0': float((fv[cal] > 0).sum(1).mean()),
+                                 'eval_gt0': float((fv[ev] > 0).sum(1).mean())}}
+        # the full-pass codes of the same frames must equal these prepass frame values (same tokens, same SAE)
+        name = best[v_]['name']
+        cd = codes_dir_of(dom, name)
+        mx = np.load(cd / 'codes_max.npy', mmap_mode='r')
+        hrow = F.lay_row.values[held]
+        o = np.argsort(hrow)
+        full = np.empty((len(held), WIDTH), np.float32)
+        full[o] = np.asarray(mx[hrow[o]]).astype(np.float32)
+        d_ = np.abs(full - fv[held])
+        R['prepass_vs_fullpass'] = {'n_frames': int(len(held)), 'max_abs_diff': float(d_.max()),
+                                    'mean_abs_diff': float(d_.mean()),
+                                    'fire_agreement_ftheta': float(((full > th) == (fv[held] > th)).mean())}
+        # thresholded codes set for NES
+        fd = cd.with_name(name + '_ftheta')
+        tmp = fd.with_name(fd.name + '.tmp')
+        if tmp.exists():
+            shutil.rmtree(tmp)
+        tmp.mkdir(parents=True)
+        Nr = mx.shape[0]
+        y = np.lib.format.open_memmap(tmp / 'codes_max.npy', 'w+', np.float16, (Nr, WIDTH))
+        cnt = 0.0
+        for a_ in range(0, Nr, 200_000):
+            blk = np.asarray(mx[a_:a_ + 200_000])
+            keep = blk.astype(np.float32) > th
+            y[a_:a_ + 200_000] = np.where(keep, blk, 0)
+            cnt += float(keep.sum())
+        y.flush()
+        del y
+        shutil.copyfile(cd / 'n_fg.npy', tmp / 'n_fg.npy')
+        cfg = json.loads((cd / 'config.json').read_text())
+        cfg.update({'sae': name + '_ftheta', 'parent_codes': str(cd), 'theta_f': th,
+                    'files': {'codes_max': f'codes_max of {name} where > theta_f (frame theta), else 0',
+                              'n_fg': 'copied from the parent'}})
+        (tmp / 'config.json').write_text(json.dumps(cfg, indent=1))
+        (tmp / 'DONE').touch()
+        if fd.exists():
+            shutil.rmtree(fd)
+        tmp.rename(fd)
+        if not c['layout']:
+            link = REPO / c['eci'] / 'codes' / fd.name
+            if not (link.is_symlink() or link.exists()):
+                os.symlink(fd, link)
+            sl = REPO / c['eci'] / 'sae' / fd.name
+            if not (sl.is_symlink() or sl.exists()):
+                os.symlink(OUT / dom / 'sae' / name, sl)
+        else:
+            sl = REPO / c['eci'] / 'sae' / fd.name
+            if not (sl.is_symlink() or sl.exists()):
+                os.symlink(OUT / dom / 'sae' / name, sl)
+        R['fullpass_fires_per_frame'] = {'ftheta': cnt / Nr,
+                                         'gt0': float(np.mean([(np.asarray(mx[a_:a_ + 200_000]) > 0).sum(1).mean()
+                                                               for a_ in range(0, Nr, 200_000)]))}
+        R['codes_ftheta'] = str(fd)
+        out['variants'][v_] = R
+        log(f'{dom} {v_}: theta_f {th:.4f} | fires/frame calib {R["fires_per_frame"]["calib_ftheta"]:.2f} eval '
+            f'{R["fires_per_frame"]["eval_ftheta"]:.2f} full pass {R["fullpass_fires_per_frame"]["ftheta"]:.2f} '
+            f'(> 0: {R["fullpass_fires_per_frame"]["gt0"]:.1f}) | prepass vs full pass {json.dumps(R["prepass_vs_fullpass"])}')
+    (OUT / dom / 'ftheta.json').write_text(json.dumps(out, indent=1))
+
+
+def video_rules(x, fps=5.0):
+    """(n, W) bool firing -> time spent, bouts, bout rate / min, latency s, censored."""
+    n = len(x)
+    starts = x[0].astype(np.int64) + (x[1:] & ~x[:-1]).sum(0)
+    first = np.where(x.any(0), x.argmax(0), n)
+    return x.mean(0), starts, starts / (n / fps / 60), first / fps, ~x.any(0)
+
+
+def cmd_summaries(args):
+    """Per video and neuron, under BOTH firing rules side by side: 'gt0' = codes_max > 0 (theta* only) and 'ftheta' =
+    codes_max > theta_f (frame theta, PRIMARY; OUT/<dom>/ftheta.json)."""
+    dom = args.domain
     P = load_plan(dom)
     best = json.loads((OUT / dom / 'sae' / 'best.json').read_text())
-    fps = 5.0
+    FT = json.loads((OUT / dom / 'ftheta.json').read_text())
+    S = {}
     for v_ in VARIANTS:
         name = best[v_]['name']
-        cd = BEE / dom / ('layout/codes' if c['layout'] else 'codes') / name
-        mx = np.load(cd / 'codes_max.npy', mmap_mode='r')
+        th = FT['variants'][v_]['theta_f']
+        mx = np.load(codes_dir_of(dom, name) / 'codes_max.npy', mmap_mode='r')
         nv = len(P['videos'])
-        ts, br, lat, cen, act, nbo = (np.zeros((nv, WIDTH), np.float32) for _ in range(6))
+        arr = {f'{q}_{r}': np.zeros((nv, WIDTH), np.float32) for q in ('time_spent', 'n_bouts', 'bout_rate_per_min',
+                                                                         'latency_s', 'latency_censored')
+               for r in ('ftheta', 'gt0')}
+        act = np.zeros((nv, WIDTH), np.float32)
         for i, v in enumerate(P['videos']):
-            x = np.asarray(mx[v['lay_lo']:v['lay_lo'] + v['n']]) > 0
-            n = len(x)
-            ts[i] = x.mean(0)
-            starts = x[0].astype(np.int64) + (x[1:] & ~x[:-1]).sum(0)
-            nbo[i] = starts
-            br[i] = starts / (n / fps / 60)
-            first = np.where(x.any(0), x.argmax(0), n)
-            lat[i] = first / fps
-            cen[i] = ~x.any(0)
-            act[i] = np.asarray(mx[v['lay_lo']:v['lay_lo'] + v['n']]).astype(np.float32).mean(0)
+            m = np.asarray(mx[v['lay_lo']:v['lay_lo'] + v['n']]).astype(np.float32)
+            act[i] = m.mean(0)
+            for r, x in (('ftheta', m > th), ('gt0', m > 0)):
+                for q, val in zip(('time_spent', 'n_bouts', 'bout_rate_per_min', 'latency_s', 'latency_censored'),
+                                  video_rules(x)):
+                    arr[f'{q}_{r}'][i] = val
         f = OUT / dom / f'summaries_{v_}.npz'
         np.savez_compressed(f, obs=np.array([v['obs'] for v in P['videos']]),
-                            n_frames=np.array([v['n'] for v in P['videos']]), time_spent=ts, bout_rate_per_min=br,
-                            n_bouts=nbo, latency_s=lat, latency_censored=cen, mean_activation=act, sae=name,
-                            rule='fires iff codes_max > 0 (theta* baked into the SAE); bout = maximal run of firing '
-                                 'frames; latency = first firing frame / 5 fps, censored at the video length')
-        log(f'{dom} {v_}: {f} | median over neurons of the per-video mean time spent {np.median(ts.mean(0)):.4f}, '
-            f'bout rate {np.median(br.mean(0)):.2f}/min, never-firing (video, neuron) {cen.mean():.3f}')
+                            n_frames=np.array([v['n'] for v in P['videos']]), mean_activation=act, sae=name,
+                            theta_f=th, primary_rule='ftheta', **arr,
+                            rule='ftheta (PRIMARY): fires iff codes_max > theta_f (frame theta, ftheta.json); gt0: fires '
+                                 'iff codes_max > 0 (theta* baked into the SAE); bout = maximal run of firing frames; '
+                                 'latency = first firing frame / 5 fps, censored at the video length')
+        S[v_] = {r: {'median_time_spent': float(np.median(arr[f'time_spent_{r}'].mean(0))),
+                     'median_bout_rate_per_min': float(np.median(arr[f'bout_rate_per_min_{r}'].mean(0))),
+                     'never_firing_video_neuron_frac': float(arr[f'latency_censored_{r}'].mean())}
+                 for r in ('ftheta', 'gt0')}
+        log(f'{dom} {v_}: {f} | ' + json.dumps(S[v_]))
+    (OUT / dom / 'summaries.json').write_text(json.dumps(S, indent=1))
 
 
 # ---------------------------------------------------------------------------------------------- align
@@ -1420,7 +1553,7 @@ def cmd_report(args):
 # ---------------------------------------------------------------------------------------------- main
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('plan', 'reshard', 'check', 'maskdiag', 'prepass', 'train', 'encode', 'merge', 'summaries', 'align', 'report', 'spotcheck'))
+    p.add_argument('step', choices=('plan', 'reshard', 'check', 'maskdiag', 'prepass', 'train', 'encode', 'merge', 'summaries', 'align', 'report', 'spotcheck', 'ftheta'))
     p.add_argument('--domain', default='mice', choices=list(DOMS))
     p.add_argument('--domains', nargs='+', default=list(DOMS))
     p.add_argument('--shard', type=int, default=0)
@@ -1437,7 +1570,7 @@ def main():
     p.add_argument('--encoder-check', action='store_true')
     args = p.parse_args()
     {'plan': cmd_plan, 'reshard': cmd_reshard, 'check': cmd_check, 'maskdiag': cmd_maskdiag, 'prepass': cmd_prepass, 'train': cmd_train, 'encode': cmd_encode,
-     'merge': cmd_merge, 'summaries': cmd_summaries, 'align': cmd_align, 'report': cmd_report, 'spotcheck': cmd_spotcheck}[args.step](args)
+     'merge': cmd_merge, 'summaries': cmd_summaries, 'align': cmd_align, 'report': cmd_report, 'spotcheck': cmd_spotcheck, 'ftheta': cmd_ftheta}[args.step](args)
 
 
 if __name__ == '__main__':
