@@ -69,6 +69,6 @@ case "${1:-}" in
     s P_D0 "--lag 0"; s P_D1 "--lag 30"; s P_D4 "--lag 120"; s P_W512 "--width 512"
     s P_N512 "--width 512 --prefixes 128 256 512"; s P_K8 "--k 8"; s P_NOMASK "--tok nomask"; s P_ORB "--tok orbit" ;;
   rescore) # max vs mean for the grid arms: rerun eci_train on the saved SAEs (no retraining; 6 seeds each)
-    for C in d2_448 d2_896 d3_512 d3_1024 vj_512; do PY=eci_train EXTRA="--config $C --seeds 0 1 2 3 4 5" sub --cpus-per-task=8 --mem=160G --time=01:00:00 --job-name=rs_$C; done ;;
+    for C in d2_448 d2_896 d3_512 d3_1024 vj_512 d3_512_L10 d3_1024_L10 d3l_512_L20 d3l_1024_L20 d2l_448 d3_1024lo_L10 d3l_1024lo_L20; do PY=eci_train EXTRA="--config $C --seeds 0 1 2 3 4 5" sub --cpus-per-task=8 --mem=160G --time=01:00:00 --job-name=rs_$C; done ;;
   *) echo "usage: $0 encode | train [deps] | rescore"; exit 1 ;;
 esac

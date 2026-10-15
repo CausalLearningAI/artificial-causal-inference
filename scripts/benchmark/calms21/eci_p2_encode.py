@@ -26,10 +26,10 @@ import numpy as np
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / 'mabe22'))
 sys.path.insert(0, str(HERE.parents[2]))
 sys.path.insert(0, str(HERE.parents[2] / 'scripts/eci'))
+sys.path.insert(0, str(HERE))  # first: this directory's eci_encode (mabe22 has a module of the same name)
 from calms_common import OUT, PLAN, TOK, decode_frames, log, offset, stage_dir, video_path  # noqa: E402
 from eci_encode import Enc, canvas_gpu, device, gpu_name, sync, to_grid, video_cells  # noqa: E402
 
