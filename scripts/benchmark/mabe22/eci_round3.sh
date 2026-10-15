@@ -139,5 +139,24 @@ case "${1:-}" in
   scale)   # E3 token density (after the store): 336 + 672 orbit tokens of t and t-60
     for i in $(seq 0 7); do PY=eci_r3_encode EXTRA="--set train --shard $i --nshard 8 --mode scale --sizes 336 672" sub --mem=96G --time=02:00:00 --job-name=r3_sc_tr$i; done
     for i in $(seq 0 11); do PY=eci_r3_encode EXTRA="--set eval --shard $i --nshard 12 --mode scale --sizes 336 672" sub --mem=96G --time=02:00:00 --job-name=r3_sc_ev$i; done ;;
-  *) echo "usage: $0 smoke | store | scale | ..."; exit 1 ;;
+  train)   # bash eci_round3.sh train <arm> [width] [--save-codes] [seed sets...]: SAE + theta* + scoring, 2 jobs x 3 seeds
+    A=$2; W=${3:-0}; SC=${4:-}; shift 4 || true
+    SETS=("$@"); [ ${#SETS[@]} -eq 0 ] && SETS=("200 201 202" "203 204 205")
+    for S in "${SETS[@]}"; do
+      PY=eci_r3_train EXTRA="--arm $A --width $W $SC --seeds $S" sub --mem=128G --time=01:30:00 --job-name=r3_tr_${A}_w$W
+    done ;;
+  e1)
+    bash $0 train R 0 --save-codes; bash $0 train R512 0 ""; bash $0 train R512plain 0 "" ;;
+  e2)      # bash eci_round3.sh e2 <W>  (W from the E1 decision)
+    W=$2; WW=$W; [ $W = 4096 ] && WW=0
+    for A in L15 L30 L120; do bash $0 train $A $WW --save-codes; done
+    [ $W != 4096 ] && bash $0 train R $WW --save-codes
+    bash $0 train R $WW --save-codes "210 211 212" "213 214 215" "220 221 222" "223 224 225" "230 231 232" "233 234 235"
+    bash $0 train CM $WW ""; bash $0 train ML $WW "" ;;
+  pool)    # bash eci_round3.sh pool <W>
+    PY=eci_r3_pool EXTRA="--width $2" sub --mem=64G --time=00:45:00 --job-name=r3_pool_w$2 ;;
+  e3) bash $0 train R336 0 ""; bash $0 train R672 0 "" ;;
+  e5) bash $0 train RMIX 0 "" ;;
+  e6) bash $0 train RA 0 "" ;;
+  *) echo "usage: $0 smoke | store | scale | train | e1 | e2 W | pool W | e3 | e5 | e6"; exit 1 ;;
 esac
