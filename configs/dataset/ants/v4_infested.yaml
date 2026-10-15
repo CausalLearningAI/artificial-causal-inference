@@ -11,12 +11,13 @@ treatment:
   type: categorical
   values: [1, 2, 3, 4, 5, 6]
   
+# No `annotator` and no `weak_marking` (both in v4): weak_marking is empty for every row (not in the
+# lab xlsx) and annotator is "E" on the 53 annotated rows and empty elsewhere, so neither carries
+# information, and an all-null / leading-null W_ column breaks PPCIDataset._build_W (torch.tensor(None)).
 covariates:
   batch:
     type: string
   position:
-    type: string
-  annotator:
     type: string
   recording_date:
     type: string
@@ -24,8 +25,6 @@ covariates:
     type: float
   nestbox:
     type: string
-  weak_marking:
-    type: boolean
 
 outcomes:
   - Y2F
