@@ -30,6 +30,26 @@ PRE-REGISTERED VERDICT (fixed before any result): theta* is acceptable iff for e
     3-seed means, usable frames, prefix 4096) |dAUROC| <= 0.01 and |dAP| <= 0.005 on BOTH nose_nose and nose_tail
     (d = theta* - EMA). Then theta* replaces the EMA theta (no retraining).
 
+RESULTS (job 827764, A10, 2026-10-15, 38 min; selftest job 827760: theta* == brute-force sort on 4 random SAEs)
+    theta* is BELOW the EMA theta on all 12 SAEs, by 0.0003 (ants) to 0.009 (btk8): the EMA ran slightly high, so
+    the EMA held-out train L0 was 15.93-16.00 (k = 16) / 7.97-7.99 (k = 8) instead of exactly k.
+    SAE        EMA theta  theta*   L0 CAL EMA / theta*   L0 CHK EMA / theta*   FVE CHK EMA / theta*
+    dep_mice   2.8346     2.8277   15.949 / 16.000       16.066 / 16.118       0.7911 / 0.7913
+    dep_ants   2.7009     2.7006   15.997 / 16.000       16.018 / 16.021       0.8407 / 0.8407
+    dep_frogs  3.0188     3.0140   15.969 / 16.000       15.954 / 15.986       0.8327 / 0.8328   (139,444 tokens/set)
+    c448 s0-2  2.843-2.844 2.838-2.840  15.95-15.98 / 16  15.92-15.95 / 15.97-15.98   0.7974-0.7976 / +0.0001-0.0002
+    btk16 s0-2 2.843-2.851 2.839-2.843  15.93-15.97 / 16  15.92-15.95 / 15.97-15.98   0.7971-0.7977 / +0.0001-0.0003
+    btk8 s0-2  4.602-4.668 4.595-4.659  7.97-7.99 / 8     7.96-7.97 / 7.98-7.99       0.7417-0.7439 / +0.0002
+    Mice B-subset eval tokens: L0 is ~1 above k under BOTH thresholds (EMA 16.94-17.02, theta* 16.98-17.05; btk8
+    8.39-8.42 / 8.42-8.44; dep_mice 16.64 / 16.70): a train -> eval distribution shift, not a calibration error.
+    EMA eval reproduces the stored sparsity_test JSONs (max |diff| AUROC / AP / top-1% 5.2e-4, |dFVE| 2e-7).
+    theta* - EMA, usable m4096, 3-seed means (max |per-seed delta| AUROC / AP):
+        c448   nn dAUROC +0.0000 dAP +0.0000, nt +0.0000 / +0.0000; max seed 7e-5 / 5e-6
+        btk16  nn +0.0001 / +0.0000, nt +0.0001 / +0.0000; max seed 3.8e-4 / 2.5e-5
+        btk8   nn +0.0001 / +0.0000, nt +0.0001 / +0.0000; max seed 2.9e-4 / 7.1e-5
+        dep_mice (1 seed) |dAUROC| <= 4e-5, |dAP| <= 4e-5; top-1% unchanged everywhere; FVE +0.0002 everywhere.
+    VERDICT: theta* acceptable (all arms far inside |dAUROC| <= 0.01, |dAP| <= 0.005) -> replaces the EMA theta.
+
 Steps
     selftest  GPU  calibrate_threshold vs brute-force sort on small random SAEs (exact rank check)
     run       GPU  held-out sets -> theta* for every SAE -> train / eval L0 + FVE -> mice harness eval under both thetas
