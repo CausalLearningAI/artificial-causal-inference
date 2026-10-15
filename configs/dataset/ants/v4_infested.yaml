@@ -1,0 +1,54 @@
+# Dataset configuration for ants/v4_infested
+# Same lab, rig (FLIR BFS-U3-120S4C + Edmund 25mm), markers and annotation format as v4;
+# the colony is infested with a parasite other than the model pathogen (lab mail, 2026-10-12).
+# 53/119 videos annotated over the first 10 min (annotation_end_frame 18000), the rest NaN.
+
+description: "Ant grooming behavior with orange and blue markers (Exp4, INFESTED colony)"
+
+
+treatment:
+  column: treatment
+  type: categorical
+  values: [1, 2, 3, 4, 5, 6]
+  
+covariates:
+  batch:
+    type: string
+  position:
+    type: string
+  annotator:
+    type: string
+  recording_date:
+    type: string
+  recording_hour:
+    type: float
+  nestbox:
+    type: string
+  weak_marking:
+    type: boolean
+
+outcomes:
+  - Y2F
+  - B2F
+  - FOL
+  - YOL
+  - BOL
+
+
+outcome_mapping:
+  "groom-orange": [1, 0, 0, 0, 0]
+  "groom-blue": [0, 1, 0, 0, 0]
+  "groom-orangeandblue": [1, 1, 0, 0, 0]
+  "onLid-focal": [0, 0, 1, 0, 0]
+  "onLid-orange": [0, 0, 0, 1, 0]
+  "onLid-blue": [0, 0, 0, 0, 1]
+  
+  
+
+annotation_format:
+  skiprows: 3
+  skipfooter: 1
+  columns:
+    start_frame: "Beginning-frame"
+    end_frame: "End-frame"
+    outcome: "Behavior"

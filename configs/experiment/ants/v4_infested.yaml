@@ -1,0 +1,20 @@
+# @package _global_
+# ants/v4_infested: Exp4 videos of the INFESTED colony (same rig and protocol as v4, healthy colony).
+# Native 30-min clips (end_frame 54000); 53/119 annotated for the first 10 min only.
+defaults:
+  - /data: ants
+  - /dataset: ants/v4_infested
+
+subject: ants
+version: v4_infested
+annotations: "partial"    # yes | no | partial  (66 videos have no annotation file -> NaN labels)
+
+# Processing overwrite flags
+overwrite:
+  videos: false
+  frames: false
+  annotations: false
+  hf: false
+  embeddings: false
+  tracking: false
+  color_bounds: false
