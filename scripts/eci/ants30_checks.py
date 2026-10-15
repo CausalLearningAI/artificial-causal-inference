@@ -12,10 +12,11 @@ scripts/eci/fg_encode_extend.py row map). CPU only; each check prints PASS / FAI
     atlas       scripts/eci/build_explorer.py on the synthetic table: kept analyses (VIEW 'keep' / 'drop'), page metadata
                 of a within and an infested vs healthy analysis (arms = the experiment|T groups of each arm), the
                 contrast video masks
+    frames      every video of the 30-min layout holds all its frame JPGs (gate before ants_prepare.py)
     rowmap      --new <annotations.csv of a 30-min layout> vs --old (default dataset/ants/eci/annotations.csv): rows
                 reused per experiment and frame range, every reused row has frame_idx < 3000 and the same frame_path
 
-Usage: python scripts/eci/ants30_checks.py contrasts | windows | atlas | rowmap --new <csv>
+Usage: python scripts/eci/ants30_checks.py contrasts | windows | atlas | frames | rowmap --new <csv>
 """
 import argparse
 import sys
@@ -111,6 +112,14 @@ def run_contrasts():
               all(tab[a]['confounded'] and not tab[a]['day_match'] for a in want[5:]))
         check('analysis_table: v4_2_vs_6 day counts', (tab['v4_2_vs_6']['days_control'], tab['v4_2_vs_6']['days_treatment'])
               == ({'D': 3, 'F': 2}, {'D': 4}), (tab['v4_2_vs_6']['days_control'], tab['v4_2_vs_6']['days_treatment']))
+        D.ECI = 'eci30'  # the 30-min layout adds v3 t=2 vs t=6 and 8 pooled
+        an = D.analysis('v3_2_vs_6_8')
+        d = an.select(e)
+        check('eci30: v3_2_vs_6_8 after v4_infested_2_vs_6, v3 t=2 vs t=6+8 pooled',
+              D.analysis_ids().index('v3_2_vs_6_8') == 5 and set(d['T'][d['experiment'] == 'v3']) == {0, 1}
+              and (d['T'].values == d['observation_id'].str.match(r'v3_[68]_').values).all()
+              and set(d['experiment']) == {'v3'} and an.meta['treatment'] == '6+8', (len(d), an.meta))
+        D.ECI = 'eci'
         P = AntsDomain('pairs')
         P.experiment_csv = p
         extra = [a for a in P.analysis_ids() if a not in want]
@@ -144,6 +153,11 @@ def run_atlas():
               m['arms'] == [['healthy t=2+6', [['v4', 2], ['v4', 6]]], ['infested t=2+6', [['v4_infested', 2], ['v4_infested', 6]]]]
               and m['cross'] and m['stratum'] == 't=2+6' and m['day_match'] is False
               and m['confound'].startswith('recording day (not day-matched'), m)
+        D.ECI = 'eci30'
+        m = B.analysis_meta(cfg, 'v3_2_vs_6_8', {'n_units': 12})
+        check('pooled v3 meta: arms t=2 / t=6+8', m['arms'] == [['t=2', [['v3', 2]]], ['t=6+8', [['v3', 6], ['v3', 8]]]]
+              and 'cross' not in m, m)
+        D.ECI = 'eci'
         c, t = B.contrast_groups(SimpleNamespace(dom=D), 'infested_vs_healthy_t6', e)
         check('contrast videos (clips): v4 t=6 vs v4_infested t=6',
               set(e[c]['experiment'] + e[c]['T'].astype(str)) == {'v46'} and set(e[t]['experiment'] + e[t]['T'].astype(str))
@@ -178,6 +192,23 @@ def run_windows():
     del D
 
 
+def run_frames():
+    """Every video the 30-min layout needs (scripts/eci/ants_prepare.py LAYOUTS['eci30']) holds frames 0 .. n - 1."""
+    import os
+    from ants_prepare import LAYOUTS, load_experiment
+    D = AntsDomain('core')
+    for v, (keep, n, _) in LAYOUTS['eci30'].items():
+        e = load_experiment(v, D.raw_experiments[v], keep)
+        bad = []
+        for o in e['observation_id']:
+            d = REPO / f'dataset/ants/{v}/frames/full/{o}'
+            names = {x.name for x in os.scandir(d)} if d.exists() else set()
+            k = sum(f'frame_{i:06d}.jpg' not in names for i in range(n))
+            if k:
+                bad.append((o, k))
+        check(f'{v}: {len(e)} videos x {n} frames on disk', not bad, bad[:5])
+
+
 def run_rowmap(new, old):
     from fg_encode_extend import row_map, runs
     old_row, a = row_map(new, old)
@@ -203,11 +234,11 @@ def run_rowmap(new, old):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('check', choices=('contrasts', 'windows', 'rowmap', 'atlas'))
+    ap.add_argument('check', choices=('contrasts', 'windows', 'rowmap', 'atlas', 'frames'))
     ap.add_argument('--new', default=None)
     ap.add_argument('--old', default=str(REPO / 'dataset/ants/eci/annotations.csv'))
     a = ap.parse_args()
-    {'contrasts': run_contrasts, 'windows': run_windows, 'atlas': run_atlas, 'rowmap': lambda: run_rowmap(a.new, a.old)}[a.check]()
+    {'contrasts': run_contrasts, 'windows': run_windows, 'atlas': run_atlas, 'frames': run_frames, 'rowmap': lambda: run_rowmap(a.new, a.old)}[a.check]()
     print(f'{len(FAIL)} FAIL' + (f': {FAIL}' if FAIL else ''))
     sys.exit(1 if FAIL else 0)
 

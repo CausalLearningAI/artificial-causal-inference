@@ -28,7 +28,8 @@ Domains:
         default ANTS_ECI=eci is the 10-min layout above, unchanged): v2 (10 min, as above), v3 t = 2/6/8, v4 t = 2/6
         (healthy Exp4 colonies, design column infested = 0) and v4_infested t = 2/6 (infested Exp4 colonies,
         infested = 1), all three at 30 min (9000 frames). Analyses: the three above, v4_2_vs_6 and
-        v4_infested_2_vs_6 (within one experiment, day-matched under --day like the others) and infested vs healthy
+        v4_infested_2_vs_6 (within one experiment, day-matched under --day like the others), v3_2_vs_6_8 (t=6 and 8
+        pooled, LAYOUT_CONTRASTS; confounded with the recording day through t=8) and infested vs healthy
         (v4_infested vs v4 videos) at t = 2, at t = 6 and pooled over t = 2 and 6 (infested_vs_healthy_t2 / _t6 /
         _t2_6): the two series share only recording day F, so these are NEVER day-matched (Analysis.day_match False,
         --day leaves them unchanged) and their meta 'confound' says they are confounded with the recording day.
@@ -409,6 +410,9 @@ class AntsDomain(Domain):
     # (the two series share one recording day); meta 'confound' always names the recording day (infested_confound)
     INFESTED = (('infested_vs_healthy_t2', (2,)), ('infested_vs_healthy_t6', (6,)), ('infested_vs_healthy_t2_6', (2, 6)))
     INFESTED_PAIR = ('v4', 'v4_infested')  # (healthy, infested) experiments
+    # extra within-experiment contrasts of one layout (ANTS_ECI); a tuple treatment = its values pooled in one arm
+    LAYOUT_CONTRASTS = {'eci30': (('v3', 2, (6, 8), 'recording day: t=8 only on day C (brighter arena), t=2/6 only on '
+                                                    'days A/B'),)}
     analysis_sets = ('core', 'pairs')
     CONFOUND_ALPHA = 0.05  # 'pairs': recording day x arm chi-square p below this -> confounded
     text_pairs = {'families_nes': 'Family B = treated vs control videos within one experiment (unit = video, tau > 0 = '
@@ -440,7 +444,7 @@ class AntsDomain(Domain):
         of the experiments in experiment.csv; 'pairs' = those, then the other within-experiment pairs (control <
         treatment), in experiment / control / treatment order."""
         have = self.experiments()
-        core = tuple(x for x in self.CONTRASTS if x[0] in have)
+        core = tuple(x for x in self.CONTRASTS + self.LAYOUT_CONTRASTS.get(self.ECI, ()) if x[0] in have)
         if self.analysis_set == 'core':
             return core
         done = {(e, c, t) for e, c, t, _ in core}
@@ -473,11 +477,14 @@ class AntsDomain(Domain):
         return txt, p, days
 
     def within(self, e, c, t, conf):
-        """Treatment value t vs c within experiment e (day-matched under the runners' --day)."""
-        return Analysis(f'{e}_{c}_vs_{t}', 'B', 'observation_id',
-                        {'experiment': e, 'control': c, 'treatment': t, 'confound': conf},
+        """Treatment value t vs c within experiment e (day-matched under the runners' --day); t a tuple = its values
+        pooled (id v3_2_vs_6_8, meta treatment '6+8')."""
+        ts = tuple(t) if isinstance(t, tuple) else (t,)
+        tid, tm = ('_'.join(map(str, ts)), '+'.join(map(str, ts))) if len(ts) > 1 else (ts[0], ts[0])
+        return Analysis(f'{e}_{c}_vs_{tid}', 'B', 'observation_id',
+                        {'experiment': e, 'control': c, 'treatment': tm, 'confound': conf},
                         ('treated>control', 'treated<control'), where={'experiment': e}, arm='T',
-                        control=(c,), treatment=(t,), day_col=self.day_col if self.day_nuisance else None)
+                        control=(c,), treatment=ts, day_col=self.day_col if self.day_nuisance else None)
 
     def infested(self, aid, ts, e=None):
         """Infested (v4_infested, infested = 1) vs healthy (v4, infested = 0) videos with treatment value in ts, on ALL
@@ -508,7 +515,8 @@ class AntsDomain(Domain):
         recording-day counts per arm, day_chi2_p, confounded (day_chi2_p < CONFOUND_ALPHA, or never day-matched),
         day_match, confound (meta text), core (one of the default analyses)."""
         e = pd.read_csv(self.experiment_csv)
-        core = {(x, c, t) for x, c, t, _ in self.CONTRASTS} | {aid for aid, _ in self.INFESTED}
+        core = {self.within(*x).id for x in self.CONTRASTS + self.LAYOUT_CONTRASTS.get(self.ECI, ())}
+        core |= {aid for aid, _ in self.INFESTED}
         rows = []
         for an in self.analyses:
             m = an.meta
@@ -519,7 +527,7 @@ class AntsDomain(Domain):
                          'days_control': days.get('control', {}), 'days_treatment': days.get('treatment', {}),
                          'day_chi2_p': p, 'confounded': bool(p < self.CONFOUND_ALPHA or not an.day_match),
                          'day_match': an.day_match, 'confound': m['confound'],
-                         'core': an.id in core or (m['experiment'], m['control'], m['treatment']) in core})
+                         'core': an.id in core})
         return rows
 
     @property

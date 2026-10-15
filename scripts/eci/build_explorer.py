@@ -1003,7 +1003,7 @@ def arm_of(view, v):
 def arm_label(view, v):
     """An arm as the page names it: 't=2' (ants treatment number), else the value ('FoxP1', 'healthy t=2')."""
     v = arm_of(view, v)
-    return f't={v}' if isinstance(v, int) else v
+    return f't={v}' if isinstance(v, int) or (not view.get('arm') and re.fullmatch(r'\d+(\+\d+)+', v)) else v
 
 
 def analysis_arms(cfg, an):
