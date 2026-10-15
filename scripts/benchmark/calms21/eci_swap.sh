@@ -59,33 +59,44 @@
 #   /mnt/beegfs/locatgrp/shared/rcadei/eci_tok/pairpush/calms21{,_orbpool}, deleted after scoring; SAE checkpoints and
 #   JSONs kept under results/vision/benchmark_calms21/swap/. GPU: -p gpu, L40S | A100 | A40, never gpu100; CPU: defaultp.
 # ======================================================================================================================
+# ======================================================================================================================
+# ADDENDUM 1, 2026-10-15 ~19:55 CEST, SCHEDULING ONLY (no token store, no SAE has run; no rule above changes): the gpu
+#   partition is full (FIFO queue, estimated starts after 01:00). To use backfill windows the encodes are cut into many
+#   SHORT single-shard jobs (eval frames: 16 shards, SAE pool: 8 shards; orbit jobs follow the same shards) with 30-45
+#   min limits, and A10 (24 GB) is allowed next to L40S / A100 / A40 for these jobs (batch 4 on the 64 grid; an A10 ran
+#   out of memory only on the grid's multi-config pass A). Tokens are identical whatever the GPU type (same bf16 code).
+# ======================================================================================================================
 set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 X="--exclude=gpu240,gpu242,gpu150,gpu230,gpu241"
 BIG='L40S|A100|A40'
+ANY='L40S|A100|A40|A10'
 LOGS=results/vision/benchmark_calms21/swap/logs
 TOKM=/mnt/beegfs/locatgrp/shared/rcadei/eci_tok/pairpush/calms21
 TOKO=/mnt/beegfs/locatgrp/shared/rcadei/eci_tok/pairpush/calms21_orbpool
 mkdir -p $LOGS
-sub() { sbatch --parsable -p gpu --gres=gpu:1 $X --constraint="$BIG" --output=$LOGS/%x_%j.out "$@" scripts/benchmark/calms21/eci_swap_job.sh; }
+sub() { sbatch --parsable -p gpu --gres=gpu:1 $X --output=$LOGS/%x_%j.out "$@" scripts/benchmark/calms21/eci_swap_job.sh; }
 cpu() { sbatch --parsable -p defaultp --output=$LOGS/%x_%j.out "$@" scripts/benchmark/calms21/eci_swap_job.sh; }
-ENC="--nshard 8 --bf16 --configs d3l_1024_L20 d2l_896_L20 --mask file --workers 4 --threads 3"
+ENC="--bf16 --configs d3l_1024_L20 d2l_896_L20 --mask file --workers 4 --threads 3"
 case "${1:-}" in
   plan)    PY=eci_swap_plan cpu --cpus-per-task=2 --mem=48G --time=00:30:00 --job-name=swap_plan
            PY=eci_swap_halves cpu --cpus-per-task=1 --mem=4G --time=00:10:00 --job-name=swap_halves ;;
-  encode)  # base stores (mask + D3L-64 + D2L-64, t and t - 60), 2 jobs per set x 4 shards of 8
-    for S in train eval; do for SH in "0 1 2 3" "4 5 6 7"; do
-      PY=eci_encode EXTRA="--set $S --shards $SH $ENC" sub --cpus-per-task=16 --mem=128G --time=01:30:00 --job-name=swE_$S${SH// /}
-    done; done ;;
-  orbit)   # bash eci_swap.sh orbit <base encode job ids of set train, colon sep> <of set eval>: S4 tokens
-    for SH in "0 1" "2 3" "4 5" "6 7"; do
-      PY=eci_p2_encode EXTRA="--set train --shards $SH --nshard 8 --config d3l_1024_L20 --parts orbit" \
-        sub --dependency=afterok:$2 --cpus-per-task=16 --mem=128G --time=02:00:00 --job-name=swO_train${SH// /}
+  encode)  # base stores (mask + D3L-64 + D2L-64, t and t - 60): one short job per shard (addendum 1)
+    for i in $(seq 0 15); do
+      PY=eci_encode EXTRA="--set train --shard $i --nshard 16 $ENC" sub --constraint="$ANY" --cpus-per-task=16 --mem=96G --time=00:30:00 --job-name=swE_train$i
     done
-    o=$(PY=eci_swap_orbpool EXTRA="$TOKO" cpu --dependency=afterok:$3 --cpus-per-task=1 --mem=8G --time=00:10:00 --job-name=swO_pool)
-    for SH in "0 1 2 3" "4 5 6 7"; do
-      CALMS_TOK=$TOKO PY=eci_p2_encode EXTRA="--set eval --shards $SH --nshard 8 --config d3l_1024_L20 --parts orbit" \
-        sub --dependency=afterok:$o --cpus-per-task=16 --mem=128G --time=02:00:00 --job-name=swO_eval${SH// /}
+    for i in $(seq 0 7); do
+      PY=eci_encode EXTRA="--set eval --shard $i --nshard 8 $ENC" sub --constraint="$ANY" --cpus-per-task=16 --mem=96G --time=00:30:00 --job-name=swE_eval$i
+    done ;;
+  orbit)   # bash eci_swap.sh orbit <train-set shard> <its base job> : S4 eval tokens of one shard (16 shards)
+    PY=eci_p2_encode EXTRA="--set train --shards $2 --nshard 16 --config d3l_1024_L20 --parts orbit" \
+      sub ${3:+--dependency=afterok:$3} --constraint="$ANY" --cpus-per-task=16 --mem=96G --time=00:45:00 --job-name=swO_train$2 ;;
+  orbpool) # bash eci_swap.sh orbpool <base eval-set job ids, colon sep>: subset index (CPU), then 8 orbit pool jobs
+    o=$(PY=eci_swap_orbpool EXTRA="$TOKO" cpu ${2:+--dependency=afterok:$2} --cpus-per-task=1 --mem=8G --time=00:10:00 --job-name=swO_pool)
+    echo "orbpool index job $o"
+    for i in $(seq 0 7); do
+      CALMS_TOK=$TOKO PY=eci_p2_encode EXTRA="--set eval --shards $i --nshard 8 --config d3l_1024_L20 --parts orbit" \
+        sub --dependency=afterok:$o --constraint="$ANY" --cpus-per-task=16 --mem=96G --time=00:30:00 --job-name=swO_eval$i
     done ;;
   train)   # bash eci_swap.sh train <arm> <deps>
     D=${3:-}; SEEDS="--seeds 400 401 402 403 404 405"
@@ -97,6 +108,6 @@ case "${1:-}" in
       S4)  E="--arm S4 --config d3l_1024_L20 --lag 60 --tok orbit --pool orbit --pool-tok $TOKO --sheet" ;;
       *) echo "unknown arm $2"; exit 1 ;;
     esac
-    PY=eci_swap_train EXTRA="$E $SEEDS" sub ${D:+--dependency=afterok:$D} --cpus-per-task=8 --mem=160G --time=02:00:00 --job-name=swT_$2 ;;
-  *) echo "usage: $0 plan | encode | orbit <train deps> <eval deps> | train <arm> [deps]"; exit 1 ;;
+    PY=eci_swap_train EXTRA="$E $SEEDS" sub ${D:+--dependency=afterok:$D} --cpus-per-task=8 --constraint="$BIG" --mem=96G --time=00:50:00 --job-name=swT_$2 ;;
+  *) echo "usage: $0 plan | encode | orbit <shard> [dep] | orbpool [deps] | train <arm> [deps]"; exit 1 ;;
 esac
