@@ -14,6 +14,7 @@ theta* on the held-out userTrain calibration frames, max over each frame's kept 
 Arms (orbit tokens unless named):
     R          [z_t, z_t - z_{t-60}], d 4096 (read-outs 512 / 1024 / 2048 / 4096)        E1 / E2 / E3 / E5 / E6 control
     R512       d 512 Matryoshka (read-outs 64 / 128 / 256 / 512); R512plain d 512 single prefix      E1
+    R512m128 / R512m128b   d 512, prefixes 128/256/512 / 128/512                                     E1b
     L15 L30 L120   [z_t, z_t - z_{t-L}] (L60 = R)                                                     E2 per-lag
     CM         [z_t, mean(z_{t-15}, z_{t-30}, z_{t-45}, z_{t-60})]                                   E2 context-mean
     ML         [z_t, z_t - z_{t-30}, z_t - z_{t-60}, z_t - z_{t-120}]                                E2 multi-lag concat
@@ -58,6 +59,8 @@ ARMS = {
     'R672': dict(inp=[('t', 'm672o_t'), ('d', 'm672o_t', 'm672o_p60')], width=4096, matry=True, store='_s336_672',
                  lens='n672'),
     'RA': dict(inp=[('t', 'ma448o_t'), ('d', 'ma448o_t', 'ma448o_p60')], width=4096, matry=True, store='_adapt'),
+    'R512m128': dict(inp=[('t', f'{o}_t'), ('d', f'{o}_t', f'{o}_p60')], width=512, matry=True, prefixes=(128, 256, 512)),
+    'R512m128b': dict(inp=[('t', f'{o}_t'), ('d', f'{o}_t', f'{o}_p60')], width=512, matry=True, prefixes=(128, 512)),
     'RMIX': dict(inp=[('t', f'{o}_t'), ('d', f'{o}_t', f'{o}_p60')], width=4096, matry=True, mix=True),
 }
 for a in ARMS.values():
@@ -157,6 +160,11 @@ def main():
     W = cfg['width']
     ET.WIDTH = W  # eci_train.build reads the module-level width (prefixes W/8, W/4, W/2, W)
     readouts = {4096: (512, 1024, 2048, 4096), 512: (64, 128, 256, 512)}.get(W, (W,)) if cfg['matry'] else (W,)
+    if cfg.get('prefixes'):  # E1b: explicit Matryoshka prefixes
+        from src.eci.sae import MatryoshkaBatchTopKSAE
+        pre = tuple(cfg['prefixes'])
+        ET.build = lambda c, din, seed: MatryoshkaBatchTopKSAE(d_in=din, n_latents=W, prefixes=pre, k=c['k'], seed=seed)
+        readouts = pre
     dev = torch.device('cuda')
     t00 = time.time()
     stage = stage_dir()

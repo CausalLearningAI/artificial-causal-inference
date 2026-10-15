@@ -25,12 +25,13 @@ EV = OUT / 'r3' / 'eval'
 SEEDS = list(range(200, 206))
 
 
-def load(run, ro=None):
+def load(run, ro=None, seeds=None):
     """-> {seed: {split: per-behaviour}} at read-out ro (default: the run's full width)"""
+    seeds = seeds or SEEDS
     R = {}
     for f in sorted(EV.glob(f'{run}_s*.json')):
         m = re.fullmatch(rf'{re.escape(run)}_s(\d+)\.json', f.name)
-        if m and int(m.group(1)) in SEEDS:
+        if m and int(m.group(1)) in seeds:
             j = json.loads(f.read_text())
             R[int(m.group(1))] = j[ro or j['full']]
     return R
@@ -102,8 +103,8 @@ def section(title, ctrl_name, ctrl, arms, out, key):
     return L + per_label(rows) + ['']
 
 
-def S(run, ro=None):
-    R = load(run, ro)
+def S(run, ro=None, seeds=None):
+    R = load(run, ro, seeds)
     return summ(R) if R else None
 
 
@@ -129,6 +130,25 @@ def main():
             W = 1024 if v in ('EQUIVALENT', 'WIN') else 4096
             L += [f'E1 -> E2 width decision (pre-registered): R512 vs R is {v} -> W = {W}', '']
             out['E2_width'] = W
+        # E1b (addendum): seeds 210-215, control R512plain at the same seeds
+        B = list(range(210, 216))
+        cp = S('R512plain', seeds=B)
+        if cp:
+            m1, m2, R2 = S('R512m128', seeds=B), S('R512m128b', seeds=B), S('R', seeds=B)
+            arms = [('R512m128 (prefixes 128/256/512)', m1, cp, ''), ('R512m128b (prefixes 128/512)', m2, cp, ''),
+                    ('R512m128 vs R (seeds 210-215)', m1, R2, 'vs R'), ('R512m128b vs R (seeds 210-215)', m2, R2, 'vs R'),
+                    ('R512plain s210-215 vs R s210-215', cp, R2, 'descriptive'),
+                    ('R512m128 vs R512plain s200-205', m1, r512p, 'descriptive, unmatched seeds'),
+                    ('R512m128b vs R512plain s200-205', m2, r512p, 'descriptive, unmatched seeds')]
+            for nm, run in (('R512m128', 'R512m128'), ('R512m128b', 'R512m128b')):
+                arms.append((f'{nm} prefix 128 (vs R512plain)', S(run, 'm128', B), cp, 'descriptive'))
+            L += section('E1b Matryoshka from 128 at d 512 (control R512plain, seeds 210-215)', 'R512plain (s210-215)',
+                         cp, arms, out, 'E1b')
+            vs = [verdict(a, cp)['verdict'] for a in (m1, m2) if a and len(a['per_seed']) == 6]
+            if len(vs) == 2:
+                keep = any(v in ('EQUIVALENT', 'WIN') for v in vs)
+                L += [f'E1b decision (pre-registered): verdicts {vs} -> ' +
+                      ('nesting from 128 is KEPT' if keep else 'plain 512 stays'), '']
         # E2
         suf = '' if W == 4096 else f'_w{W}'
         RW = S(f'R{suf}')

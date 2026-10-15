@@ -121,7 +121,7 @@
 #     (orbit tokens of t and t-60 at the round-3 mask positions, masks unchanged), seeds 200-205, vs R, default rule.
 #     If equivalent, the frozen encoder is preferred (simpler). Skipped (and said why) if it cannot be done cleanly.
 #
-# E1b (ADDENDUM, coordinator request, appended 2026-10-15 ~11:30 CEST, after the E1-E5 scores were seen and BEFORE any
+# E1b (ADDENDUM, coordinator request, appended 2026-10-15 ~11:15 CEST, after the E1-E5 scores were seen and BEFORE any
 #     E1b job): Matryoshka starting from 128 neurons. Arms: R512m128 = d 512, Matryoshka prefixes 128 / 256 / 512;
 #     R512m128b = d 512, prefixes 128 / 512; k 16, R's inputs and recipe. 6 FRESH seeds 210-215 per arm. Control =
 #     R512plain trained in this addendum with the same seeds 210-215 (matched); also reported against R (seeds 210-215,
@@ -166,6 +166,7 @@ case "${1:-}" in
   pool)    # bash eci_round3.sh pool <W>
     PY=eci_r3_pool EXTRA="--width $2" sub --mem=64G --time=00:45:00 --job-name=r3_pool_w$2 ;;
   e3) bash $0 train R336 0 ""; bash $0 train R672 0 "" ;;
+  e1b) for A in R512plain R512m128 R512m128b; do bash $0 train $A 0 "" "210 211 212" "213 214 215"; done ;;
   adapt)   # E6 encoding with the adapted encoder (after eci_r3_adapt.py), masks = the store's pos448
     ENC=results/vision/benchmark_mabe22/eci/r3/adapt/encoder.pt
     for i in $(seq 0 7); do PY=eci_r3_encode EXTRA="--set train --shard $i --nshard 8 --mode adapt --encoder $ENC" sub --mem=64G --time=01:00:00 --job-name=r3_ad_tr$i; done
