@@ -156,6 +156,12 @@ case "${1:-}" in
   pool)    # bash eci_round3.sh pool <W>
     PY=eci_r3_pool EXTRA="--width $2" sub --mem=64G --time=00:45:00 --job-name=r3_pool_w$2 ;;
   e3) bash $0 train R336 0 ""; bash $0 train R672 0 "" ;;
+  adapt)   # E6 encoding with the adapted encoder (after eci_r3_adapt.py), masks = the store's pos448
+    ENC=results/vision/benchmark_mabe22/eci/r3/adapt/encoder.pt
+    for i in $(seq 0 7); do PY=eci_r3_encode EXTRA="--set train --shard $i --nshard 8 --mode adapt --encoder $ENC" sub --mem=64G --time=01:00:00 --job-name=r3_ad_tr$i; done
+    for i in $(seq 0 11); do PY=eci_r3_encode EXTRA="--set eval --shard $i --nshard 12 --mode adapt --encoder $ENC" sub --mem=64G --time=01:00:00 --job-name=r3_ad_ev$i; done ;;
+  e4score)
+    PY=eci_r3_ethogram EXTRA="--njobs 24" sbatch -p defaultp --gres=none --cpus-per-task=32 --mem=96G --time=02:00:00 --job-name=e4_etho --output=$LOGS/%x_%j.out scripts/benchmark/mabe22/eci.sh ;;
   e5) bash $0 train RMIX 0 "" ;;
   e6) bash $0 train RA 0 "" ;;
   *) echo "usage: $0 smoke | store | scale | train | e1 | e2 W | pool W | e3 | e5 | e6"; exit 1 ;;
