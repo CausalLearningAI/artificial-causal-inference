@@ -262,9 +262,11 @@ def plan_frames(set_):
 
 
 def shard_videos(P, i, n):
-    """videos sorted by plan-frame count, dealt round robin (balanced shards)."""
-    c = P.groupby('video').size().sort_values(ascending=False)
-    return [v for j, v in enumerate(c.index) if j % n == i]
+    """videos sorted by plan-frame count, dealt round robin (balanced shards). NOTE: the pass-A shards were cut with an
+    unstable sort (tie order differs between CPU types); passes that reuse a mask take the video list from pass A's
+    frames parquet instead (cmd_encode), and ties are now broken by name (stable)."""
+    c = P.groupby('video').size().reset_index(name='n').sort_values(['n', 'video'], ascending=[False, True], kind='stable')
+    return [v for j, v in enumerate(c.video) if j % n == i]
 
 
 def cmd_encode(args):
@@ -300,6 +302,7 @@ def cmd_encode(args):
         RF = pd.read_parquet(TOK / f'{base}_frames.parquet')
         pos_all = np.load(TOK / f'{base}_pos32.npy')
         pst = np.r_[0, np.cumsum(RF.n32.values)]
+        vids = list(dict.fromkeys(RF.video.values))  # pass A's own video list and order
     log(f'{jkey}: {len(vids)} videos, {int(P.video.isin(vids).sum())} frames, configs {args.configs}, offset {off}, '
         f'bf16 {args.bf16}, {gpu_name(dev)}')
     pool = ThreadPoolExecutor(args.workers)
