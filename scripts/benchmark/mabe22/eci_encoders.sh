@@ -79,7 +79,7 @@ G="-p gpu --gres=gpu:L40S:1 --exclude=gpu242,gpu150,gpu230,gpu241 --cpus-per-tas
 LOGS=results/vision/benchmark_mabe22/eci/encoders/logs
 mkdir -p $LOGS
 sub() { sbatch $G --output=$LOGS/%x_%j.out "$@" scripts/benchmark/mabe22/eci_enc_job.sh; }
-enc() { N=$1; T=$2; shift 2; PY=eci_enc_encode EXTRA="$*" sub --mem=64G --time=$T --job-name=$N; }
+enc() { local N=$1 TL=$2; shift 2; PY=eci_enc_encode EXTRA="$*" sub --mem=64G --time=$TL --job-name=$N; }
 EV="0 1 2 3 4 5 6 7 8 9 10 11"
 case "${1:-}" in
   bench)

@@ -257,10 +257,10 @@ def encode_shard(args, shard, enc, dev):
             L_ = 0 if kd == 't' else int(kd[1:])
             v = np.maximum(ts - L_, 0)
             out = enc.encode(fr, v, args.bs)
-            for l_, h in out.items():
-                for q in range(len(rr)):
-                    p = torch.from_numpy(pg[q].astype(np.int64)).to(dev)
-                    A.setdefault(f'L{l_}_{kd}', []).append(h[q, p].half().cpu().numpy())
+            GG = enc.G * enc.G
+            flat = torch.from_numpy(np.concatenate([q * GG + pg[q].astype(np.int64) for q in range(len(rr))])).to(dev)
+            for l_, h in out.items():  # one gather + one device-to-host copy per clip and layer
+                A.setdefault(f'L{l_}_{kd}', []).append(h.reshape(-1, h.shape[-1])[flat].half().cpu().numpy())
             if r3t is not None and kd == 't' and enc.nblk in out:
                 h = out[enc.nblk]
                 for q, r_ in enumerate(rr):
