@@ -361,9 +361,38 @@ def foreground_mask(dist, dark, thr, rule=FG_RULE):
     return foreground_parts(dist, dark, thr, rule)[2]
 
 
+BG_WINDOWS_FILE = 'windows.json'  # in a background dir: {"frames": W} = one background file per W-frame window
+
+
+def bg_window_of(bg_dir):
+    """Frames per background window of a background dir (its windows.json), None = one background per video."""
+    f = Path(bg_dir) / BG_WINDOWS_FILE
+    if not f.exists():
+        return None
+    import json
+    return int(json.loads(f.read_text())['frames'])
+
+
+def bg_windows(obs_ranges, window=None):
+    """{observation_id: (lo, hi)} -> {background file id: (lo, hi)}: with a window W each video is split into
+    max(1, round(n / W)) near-equal consecutive windows, file ids '<obs>' (the first window) and '<obs>__w<k>' (k >= 1);
+    a video of at most ~1.5 W frames keeps one background under its own id (as without a window)."""
+    if window is None:
+        return dict(obs_ranges)
+    out = {}
+    for o, (lo, hi) in obs_ranges.items():
+        n = max(1, int(round((hi - lo) / window)))
+        cuts = lo + np.round(np.linspace(0, hi - lo, n + 1)).astype(np.int64)
+        for k in range(n):
+            out[o if k == 0 else f'{o}__w{k}'] = (int(cuts[k]), int(cuts[k + 1]))
+    return out
+
+
 def segment_of(rows, sample_rows, seg_bounds):
     """Time block (index into bg_seg) of annotations.csv rows: the block whose sample
-    frames are nearest in time (boundaries halfway between consecutive blocks)."""
+    frames are nearest in time (boundaries halfway between consecutive blocks). FgBackgrounds passes both relative to
+    the background's first row (sample_rows[0] = the window's first row, fg_background.py), so a background stays valid
+    when its video moves to other rows of a new annotations.csv."""
     sample_rows, seg_bounds = np.asarray(sample_rows), np.asarray(seg_bounds)
     cuts = [(sample_rows[b - 1] + sample_rows[b]) / 2 for b in seg_bounds[1:-1]]
     return np.searchsorted(np.asarray(cuts), np.asarray(rows), side='right')
@@ -517,7 +546,10 @@ class FgBackgrounds:
     mask(tokens, grey, rows): foreground mask (B, 1024) for a batch of frames that may
     span several videos (rows sorted or not).
     align: the frame alignment the caller's frames have; every background file read must record the same
-    (npz 'align', absent = 'none'), else it raises (aligned frames against unaligned backgrounds or vice versa)."""
+    (npz 'align', absent = 'none'), else it raises (aligned frames against unaligned backgrounds or vice versa).
+    A background dir with windows.json ({"frames": W}, ants 30-min videos) holds one background per W-frame window of
+    each video (bg_windows); a frame uses its window's background, time blocks and threshold. ids / starts / ends /
+    obs_index stay per video (motion inputs clip to the video's first frame); the windows are wids / wstarts / wends."""
 
     def __init__(self, bg_dir, obs_ranges, rule=FG_RULE, device='cuda', cache=4, align='none'):
         self.bg_dir, self.rule, self.device, self.cache_n = Path(bg_dir), rule, torch.device(device), cache
@@ -526,6 +558,11 @@ class FgBackgrounds:
         self.ids = [k for k, _ in items]
         self.starts = np.array([v[0] for _, v in items], dtype=np.int64)
         self.ends = np.array([v[1] for _, v in items], dtype=np.int64)
+        self.window = None if rule.get('all', False) else bg_window_of(self.bg_dir)
+        w = sorted(bg_windows(obs_ranges, self.window).items(), key=lambda kv: kv[1][0])
+        self.wids = [k for k, _ in w]
+        self.wstarts = np.array([v[0] for _, v in w], dtype=np.int64)
+        self.wends = np.array([v[1] for _, v in w], dtype=np.int64)
         self._cache = {}
 
     def get(self, obs):
@@ -542,6 +579,16 @@ class FgBackgrounds:
         k = np.searchsorted(self.starts, np.asarray(rows), side='right') - 1
         assert (np.asarray(rows) < self.ends[k]).all()
         return k
+
+    def window_index(self, rows):
+        """Index into wids (the background window) of each row."""
+        k = np.searchsorted(self.wstarts, np.asarray(rows), side='right') - 1
+        assert (np.asarray(rows) < self.wends[k]).all()
+        return k
+
+    def segment(self, rows, kk, b):
+        """Time blocks of rows of window kk in its background b (both relative to their first row)."""
+        return segment_of(np.asarray(rows) - self.wstarts[kk], b['rows'] - b['rows'][0], b['seg_bounds'])
 
     @torch.no_grad()
     def mask(self, tokens, grey, rows):
@@ -569,10 +616,11 @@ class FgBackgrounds:
                 dk = F.avg_pool2d(px.float()[:, None], PATCH_PX).flatten(1)
                 out[sel_t] = foreground_mask(dist[sel_t], dk, float('inf'), self.rule)
             return out, dist
+        k = self.window_index(rows)
         for kk in np.unique(k):
             sel = np.nonzero(k == kk)[0]
-            b = self.get(self.ids[kk])
-            seg = segment_of(rows[sel], b['rows'], b['seg_bounds'])
+            b = self.get(self.wids[kk])
+            seg = self.segment(rows[sel], kk, b)
             sel_t = torch.from_numpy(sel).to(tokens.device)
             bg = b['bg'][torch.from_numpy(seg).to(b['bg'].device)]  # (n, 1024, d)
             d = 1 - F.cosine_similarity(tokens[sel_t].float(), bg, dim=-1)
@@ -589,12 +637,12 @@ class FgBackgrounds:
         if self.rule.get('frogs', False):
             raise ValueError("rule 'frogs' has no background tokens (pixel cue only)")
         rows = np.asarray(rows)
-        k = self.obs_index(rows)
+        k = self.window_index(rows)
         out = None
         for kk in np.unique(k):
             sel = np.nonzero(k == kk)[0]
-            b = self.get(self.ids[kk])
-            seg = segment_of(rows[sel], b['rows'], b['seg_bounds'])
+            b = self.get(self.wids[kk])
+            seg = self.segment(rows[sel], kk, b)
             bg = input_background(b)[torch.from_numpy(seg).to(b['bg'].device)]
             if out is None:
                 out = torch.empty((len(rows),) + tuple(bg.shape[1:]), dtype=torch.float32, device=bg.device)
@@ -616,11 +664,11 @@ def subtract_background_np(tokens, rows, pos, bg_dir, obs_ranges, rule, chunk=1_
     rows, pos = np.asarray(rows), np.asarray(pos).astype(np.int64)
     bgs = FgBackgrounds(bg_dir, obs_ranges, rule, 'cpu', cache=1)
     out = np.empty(tokens.shape, np.float16)
-    k = bgs.obs_index(rows)
+    k = bgs.window_index(rows)
     for kk in np.unique(k):
         sel = np.nonzero(k == kk)[0]
-        b = load_background(bg_dir, bgs.ids[kk], rule)
-        seg = segment_of(rows[sel], b['rows'], b['seg_bounds'])
+        b = load_background(bg_dir, bgs.wids[kk], rule)
+        seg = bgs.segment(rows[sel], kk, b)
         bg = input_background(b).numpy()
         for a in range(0, len(sel), chunk):
             s = sel[a:a + chunk]

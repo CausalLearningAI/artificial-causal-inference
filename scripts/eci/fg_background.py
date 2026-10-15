@@ -19,6 +19,10 @@ annotations.csv and the output dir; --rule (default the domain's, src/eci/foregr
 dark-pixel cue parameters (dark_abs / dark_rel / dark_frac) that exclude foreground from bg_masked.
 --align odor (mice): frames rotated so the odor corner is at the top right (src/eci/foreground.py align_rot90) before
 everything; default output fg448al/background, and each npz also holds align='odor' (default 'none': no key, unchanged).
+A domain with bg_window W (ants: 3000 frames = 10 min) gets one background per W-frame window of each video (files
+<obs>.npz for the first window, <obs>__w<k>.npz after it; src/eci/foreground.py bg_windows), every window with the
+recipe above (n_bg frames, n_seg blocks, its own threshold); the dir records W in windows.json (FgBackgrounds reads
+it). A 10-min ants video is one window, so its file is the same as without windows.
 
 Usage:
     python scripts/eci/fg_background.py --task 0 --n-tasks 8
@@ -27,6 +31,7 @@ Usage:
     python scripts/eci/fg_background.py --align odor --task 0 --n-tasks 8
 """
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -38,9 +43,9 @@ import torch
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 from src.eci.domain import DOMAINS, get_domain  # noqa: E402
-from src.eci.foreground import (ALIGNS, RULES, FrameDatasetFG, align_rot90, align_tag, cosine_distance,  # noqa: E402
-                                dark_fraction, dilate, encode_batch, load_encoder_fg, obs_rows, patch_background,
-                                pixel_background)
+from src.eci.foreground import (ALIGNS, BG_WINDOWS_FILE, RULES, FrameDatasetFG, align_rot90, align_tag,  # noqa: E402
+                                bg_window_of, bg_windows, cosine_distance, dark_fraction, dilate, encode_batch,
+                                load_encoder_fg, obs_rows, patch_background, pixel_background)
 
 
 def main():
@@ -70,7 +75,13 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     ann = ds / dom.ann_rel
     rot_all = align_rot90(args.align, ann)
-    ranges = obs_rows(ann)
+    window = getattr(dom, 'bg_window', None)
+    if bg_window_of(out) != window:
+        if any(out.glob('*.npz')):
+            raise SystemExit(f'{out}: background windows {bg_window_of(out)} on disk, the domain asks {window}')
+        if window is not None:
+            (out / BG_WINDOWS_FILE).write_text(json.dumps({'frames': window}))
+    ranges = bg_windows(obs_rows(ann), window)
     ids = sorted(ranges)
     ids = args.obs.split(',') if args.obs else ids[args.task::args.n_tasks]
     ids = [o for o in ids if not (out / f'{o}.npz').exists()]
