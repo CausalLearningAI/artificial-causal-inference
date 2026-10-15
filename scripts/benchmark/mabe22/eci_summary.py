@@ -31,7 +31,9 @@ Pre-registered verdicts vs A0 (primary mean AUROC 0.7404): no arm WINS. Equivale
 oral_ear AP x0.44), A7 (D4 orbit, +0.013). Worse: D02, D05, A6 (no mask, -0.019), A2k8 / A2k16 (frame budget, -0.030),
 A5 (224, -0.064), A1 (k 8, -0.049). Sniffing bar (top-1% >= 0.25): not reached by any neuron (best 0.064).
 Robustness, 6 SAE seeds (not the verdict): D2 +0.020 (se 0.009), A7 +0.024 (se 0.009), X_D4 (4 s) +0.023 (se 0.012),
-A3 +0.005, A4 -0.002.
+A3 +0.005, A4 -0.002. Exploratory (post hoc, not graded): X_A7D2 (orbit tokens + 2 s delta) +0.028 on the 3 graded
+seeds (not a win: pooled sd 0.023), +0.049 (se 0.014) over 6 seeds, bimodal (4 seeds 0.789-0.810, 2 seeds 0.742-0.757);
+its oral AUROC reaches 0.84-0.87 on the good seeds but AP does not rise (oral_oral 0.013 vs A0 0.018).
 """
 import json
 import re
