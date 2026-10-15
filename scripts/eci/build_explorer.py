@@ -980,6 +980,10 @@ def contrast_groups(cfg, aid, vids):
     (v3_2_vs_8) = the control / treatment videos of that experiment. 'least' uses the union."""
     an = cfg.dom.analysis(aid)
     if cfg.dom is not MICE:  # ants infested vs healthy: the v4 / v4_infested videos of its treatment value(s)
+        miss = [c for c in {an.arm, *an.where} if c not in vids]  # design columns outside the video blocks' meta_cols
+        if miss:
+            vm = cfg.dom.video_meta().astype({'observation_id': str}).set_index('observation_id')
+            vids = vids.assign(**{c: vm.loc[vids['observation_id'].astype(str), c].values for c in miss})
         return an.arm_masks(vids)
     st, gen = vids['stage'].astype(int).values, vids['genotype'].astype(str).values
     if an.family == 'A':
@@ -1332,7 +1336,10 @@ def step_patch(cfg, overwrite, chunk=6):
     print(f'[{cfg.tag}] patch: {len(todo)} neurons, '
           f'{sum(len(set(r for v in rr.values() for r in v)) for _, _, rr, _ in todo)} frame-neuron pairs '
           f'through DINOv2 + SAE ({cfg.rep})', flush=True)
-    pe = PatchEncoderMotion(cfg) if motion_delta(cfg) else make_patch_encoder(cfg.sae, dataset_dir=DATASET, domain=cfg.vdom)
+    import torch
+    dev = 'cuda' if torch.cuda.is_available() else 'cpu'  # CPU fallback when no GPU is free (slow, same maps)
+    pe = PatchEncoderMotion(cfg) if motion_delta(cfg) else make_patch_encoder(cfg.sae, dataset_dir=DATASET, domain=cfg.vdom,
+                                                                               device=dev)
     codes = load_full_codes(cfg.sae, DATASET, ROOT / 'data', domain=cfg.vdom).codes
     worst, mism, npair = {}, {}, 0
     for c0 in range(0, len(todo), chunk):
@@ -1376,6 +1383,20 @@ def bg_name(cfg):
     return f'{cfg.tag}_arena_bg.webp'
 
 
+def store_rows(cfg, rows):
+    """Token-store rows (annotations.csv rows of the layout the SAE was trained on) -> rows of this result set's codes,
+    -1 = the frame is not in this layout. Codes written by scripts/eci/fg_encode_extend.py (config 'reuse', e.g. the
+    ants 30-min layout) map through its reuse map; others are the training layout itself."""
+    cc = cfg.dom.eci_dir / 'codes' / cfg.sae / 'config.json'
+    reuse = json.loads(cc.read_text()).get('reuse') if cc.exists() else None
+    if not reuse:
+        return rows
+    old_row = np.load(reuse['map'])['old_row']
+    inv = np.full(int(old_row.max()) + 2, -1, np.int64)
+    inv[old_row[old_row >= 0]] = np.flatnonzero(old_row >= 0)
+    return inv[np.minimum(rows, len(inv) - 1)]
+
+
 def step_arena(cfg, overwrite):
     """Per patch position: summed SAE codes of every neuron and foreground counts over the SAE's
     training frames (fg448: FgTokenStore shards; crop224: patch_tokens.npy, every patch counts)."""
@@ -1412,14 +1433,16 @@ def step_arena(cfg, overwrite):
                         p = pos[a:a + 250_000].to(dev)
                         S.index_add_(0, p, z.double())
                         occ.index_add_(0, p, torch.ones_like(p, dtype=torch.float64))
-                        if s == 0 and a == 0:  # check: per-frame max over positions = stored codes_max
-                            r = torch.from_numpy(row[:len(x)].astype(np.int64)).to(dev)
+                        if not chk:  # check (first chunk with frames in this layout): per-frame max = stored codes_max
+                            r = torch.from_numpy(row[a:a + len(x)].astype(np.int64)).to(dev)
                             u, inv = torch.unique(r, return_inverse=True)
                             mx = torch.zeros(len(u), z.shape[1], device=dev).scatter_reduce(
                                 0, inv[:, None].expand_as(z), z, 'amax', include_self=True)
-                            keep = slice(0, len(u) - 1)  # the last frame may continue in the next chunk
-                            ref = np.asarray(codes[u[keep].cpu().numpy()], dtype=np.float32)
-                            chk = [float(np.abs(mx[keep].cpu().numpy() - ref).max()), len(u) - 1]
+                            ur = store_rows(cfg, u.cpu().numpy())
+                            keep = np.flatnonzero(ur[:-1] >= 0)  # the last frame may continue in the next chunk
+                            if len(keep):
+                                ref = np.asarray(codes[ur[keep]], dtype=np.float32)
+                                chk = [float(np.abs(mx[keep].cpu().numpy() - ref).max()), len(keep)]
                 print(f'[{cfg.tag}] arena: shard {s + 1}/{len(st.dirs)}', flush=True)
             n_vid = len({o for i in st.info for o in i['observations']})
             stride = st.info[0].get('stride')
@@ -1836,8 +1859,8 @@ def tau_check(vm, vals, results, oid, round_=1, dom=MICE):
             if dom is not MICE:
                 an = dom.analysis(aid)
                 d = vm.assign(y=y[vm.index])
-                d = d[(d[list(an.where)] == pd.Series(an.where)).all(1)]
-                t = float(d[d[an.arm].isin(an.treatment)]['y'].mean() - d[d[an.arm].isin(an.control)]['y'].mean())
+                c, tr = an.arm_masks(d)  # where values may be tuples (ants infested vs healthy, t=2+6)
+                t = float(d[tr]['y'].mean() - d[c]['y'].mean())
             elif aid.startswith('A'):
                 g, (a, b) = aid.split('_')[1], stages_of(aid)
                 d = vm[vm['genotype'] == g].assign(y=y[vm.index[vm['genotype'] == g]])
