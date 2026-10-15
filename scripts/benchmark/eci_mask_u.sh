@@ -74,21 +74,24 @@ LOGS=results/vision/mask_u/logs
 mkdir -p $LOGS
 G="-p gpu --gres=gpu:1 --constraint=L40S|A100|A40 --exclude=gpu240,gpu242,gpu150,gpu230,gpu241"
 sub() { local PYX=$1 EX=$2; shift 2; sbatch --parsable $G --output=$LOGS/%x_%j.out --export=ALL,PY=$PYX,EXTRA="$EX" "$@" scripts/benchmark/mask_u/job.sh; }
+# 2026-10-15 15:55 (before any token store existed): job sizes cut so the jobs fit the scheduler's backfill (the first
+# submission was estimated to start at 23:39): one shard per encode job (MABe22 train 4 / eval 6 shards, CalMS21 4 / 4), <= 30 min limits, 3 seeds per
+# train job. Nothing else changed.
 case "${1:-}" in
   encode_mabe)
-    sub encode_mabe "--set train --shards 0 1 --nshard 2" --cpus-per-task=10 --mem=96G --time=02:00:00 --job-name=mu_enc_mtr
-    sub encode_mabe "--set eval --shards 0 1 2 --nshard 3" --cpus-per-task=10 --mem=128G --time=02:30:00 --job-name=mu_enc_mev ;;
+    for SH in 0 1 2 3; do sub encode_mabe "--set train --shards $SH --nshard 4" --cpus-per-task=8 --mem=48G --time=00:25:00 --job-name=mu_enc_mtr$SH; done
+    for SH in 0 1 2 3 4 5; do sub encode_mabe "--set eval --shards $SH --nshard 6" --cpus-per-task=8 --mem=48G --time=00:25:00 --job-name=mu_enc_mev$SH; done ;;
   encode_calms)
-    for S in train eval; do for SH in 0 1; do
-      sub encode_calms "--set $S --shards $SH --nshard 2" --cpus-per-task=16 --mem=128G --time=03:00:00 --job-name=mu_enc_c$S$SH
+    for S in train eval; do for SH in 0 1 2 3; do
+      sub encode_calms "--set $S --shards $SH --nshard 4" --cpus-per-task=8 --mem=64G --time=00:28:00 --job-name=mu_enc_c$S$SH
     done; done ;;
   beetle)
     sub maskqa "--domain beetle --pick final" --cpus-per-task=8 --mem=48G --time=00:40:00 --job-name=mu_beetle ;;
-  train)  # bash eci_mask_u.sh train <mabe|calms> [dependency]: one job per arm, 6 seeds
+  train)  # bash eci_mask_u.sh train <mabe|calms> [dependency]: per arm 2 jobs x 3 seeds (400-402, 403-405)
     B=$2; D=${3:-}
-    for A in cur U; do
-      sub train "--bench $B --mask $A --seeds 400 401 402 403 404 405" ${D:+--dependency=afterok:$D} --cpus-per-task=8 \
-        --mem=$([ $B = calms ] && echo 200G || echo 128G) --time=03:00:00 --job-name=mu_tr_${B}_$A
-    done ;;
+    for A in cur U; do for SS in "400 401 402" "403 404 405"; do
+      sub train "--bench $B --mask $A --seeds $SS" ${D:+--dependency=afterok:$D} --cpus-per-task=8 \
+        --mem=$([ $B = calms ] && echo 120G || echo 64G) --time=00:30:00 --job-name=mu_tr_${B}_$A
+    done; done ;;
   *) echo "usage: $0 encode_mabe | encode_calms | beetle | train <mabe|calms> [dep]"; exit 1 ;;
 esac
