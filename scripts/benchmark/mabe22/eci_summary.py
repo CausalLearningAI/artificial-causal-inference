@@ -1,0 +1,142 @@
+"""
+MABe22 mouse ECI evaluation: tables + pre-registered verdicts from the eval / probe JSONs (login safe, reads JSONs).
+
+Per arm and behaviour: cross-fitted AUROC (AUROC-picked neuron), AP (AP-picked), honest top-1% (top-1%-picked among
+neurons firing on >= 1% of the selection half), weighted firing rate of the AUROC- and top-1%-picked neurons on the test
+half; mean +- sd over SAE seeds x split seeds (x 2 directions averaged inside each run).
+PRE-REGISTERED RULE (fixed in the brief before any result):
+    primary = oral_oral, oral_genital, oral_ear, approaches, huddles; secondary = contact, close, watching; chases
+    reported only. An arm WINS vs A0 iff mean primary cf AUROC rises by >= 0.01 AND by > 2 x the pooled seed sd
+    (sd over SAE seeds of the per-seed primary mean, split seeds averaged; pooled = sqrt((sd_arm^2 + sd_A0^2) / 2)),
+    AND no primary label's cf AP falls below 0.9 x A0's. EQUIVALENT iff |delta| <= 0.01 (then the simpler arm is
+    preferred: no Matryoshka (A3), no mask (A6), no delta (A4), no theta (A2)).
+    Sniffing-neuron bar: any neuron with honest top-1% >= 0.25 on oral_oral or oral_genital (cross-fitted test value).
+Outputs: OUT/table.md, OUT/summary.json
+"""
+import json
+import re
+import sys
+from pathlib import Path
+
+import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from eci_common import BEHAVIOURS, OUT, PLAN, PRIMARY, SHORT  # noqa: E402
+
+ORDER = ['A0', 'A4', 'D02', 'D05', 'D2', 'A6', 'A3', 'A2k8', 'A2k16', 'A5', 'A1']
+SIMPLER = {'A3': 'no Matryoshka', 'A6': 'no mask', 'A4': 'no delta', 'A2k8': 'no theta', 'A2k16': 'no theta'}
+ms = lambda a, n=3: f'{np.mean(a):.{n}f} ± {np.std(a):.{n}f}' if len(a) > 1 else (f'{np.mean(a):.{n}f}' if a else '-')  # noqa
+
+
+def load():
+    R = {}
+    for f in sorted((OUT / 'eval').glob('*_s*.json')):
+        arm, seed = re.fullmatch(r'(.+)_s(\d+)\.json', f.name).groups()
+        R.setdefault(arm, {})[int(seed)] = json.loads(f.read_text())
+    return R
+
+
+def runs(R, arm, ro='m4096'):
+    """-> list of (seed, split, per-behaviour dict)"""
+    return [(s, sp, r[ro][sp]) for s, r in sorted(R[arm].items()) if ro in r for sp in sorted(r[ro])]
+
+
+def main():
+    R = load()
+    E = json.loads((PLAN / 'eval_plan.json').read_text())
+    arms = [a for a in ORDER if a in R]
+    S, L = {}, ['# MABe22 mouse triplets: ECI SAE neurons vs behaviour labels', '',
+                f"Eval: {E['n_frames']:,} submission frames from {E['n_clips']} clips (stratified, inverse-probability "
+                'weighted); SAE trained on userTrain only; cross-fitted at the clip level (2 halves x 2 split seeds); '
+                'mean ± sd over SAE seeds x split seeds.', '',
+                '| label | weighted base rate | positives in sample | clips with a positive |', '|---|---|---|---|']
+    for b in BEHAVIOURS:
+        L.append(f"| {SHORT[b]} | {E['weighted_base_rate'][b]:.4f} | {E['n_pos'][b]} | {E['n_clips_with_pos'][b]} |")
+    L.append('')
+    for arm in arms:
+        for ro in ('m512', 'm1024', 'm4096'):
+            rr = runs(R, arm, ro)
+            if not rr:
+                continue
+            s = {}
+            for b in BEHAVIOURS:
+                s[b] = {q: [r[b][q] for _, _, r in rr] for q in ('cf_auroc', 'cf_ap', 'cf_top1', 'cf_rate_auc_pick',
+                                                                 'cf_top1_rate')}
+                s[b]['max_test_top1'] = max(d['top1']['test_top1'] for _, _, r in rr for d in r[b]['dirs'])
+            seeds = sorted({sd for sd, _, _ in rr})
+            per_seed = [np.mean([np.mean([r[b]['cf_auroc'] for b in PRIMARY]) for sd, _, r in rr if sd == x])
+                        for x in seeds]
+            s['primary_mean_auroc'] = float(np.mean(per_seed))
+            s['primary_seed_means'] = per_seed
+            s['primary_seed_sd'] = float(np.std(per_seed)) if len(per_seed) > 1 else float('nan')
+            s['n_runs'] = len(rr)
+            s['seeds'] = seeds
+            st = [R[arm][x]['eval_stats'] for x in seeds]
+            s['eval_l0'] = [x['l0'] for x in st]
+            s['dead_frac_eval'] = [R[arm][x]['firing']['dead_frac_eval'] for x in seeds]
+            S[f'{arm}/{ro}'] = s
+            L += [f'## {arm} ({ro}; runs {len(rr)}: SAE seeds {seeds} x 2 splits)', '',
+                  '| label | AUROC | AP | honest top-1% | rate of AUROC pick | rate of top-1% pick | best single top-1% |',
+                  '|---|---|---|---|---|---|---|']
+            for b in BEHAVIOURS:
+                x = s[b]
+                L.append(f"| {SHORT[b]}{' (flagged: 30 clips)' if b == 'chases' else ''} | {ms(x['cf_auroc'])} | "
+                         f"{ms(x['cf_ap'], 4)} | {ms(x['cf_top1'])} | {ms(x['cf_rate_auc_pick'])} | "
+                         f"{ms(x['cf_top1_rate'])} | {x['max_test_top1']:.3f} |")
+            L += ['', f"primary mean AUROC {s['primary_mean_auroc']:.4f} (per seed {np.round(per_seed, 4).tolist()}); "
+                  f"eval L0 {np.round(s['eval_l0'], 2).tolist()}; dead frac {np.round(s['dead_frac_eval'], 4).tolist()}", '']
+    # verdicts
+    V = {}
+    if 'A0/m4096' in S:
+        a0 = S['A0/m4096']
+        L += ['## Grid vs A0 (pre-registered rule, prefix 4096)', '',
+              '| arm | primary mean AUROC | delta | pooled seed sd | AP ratio oo / og / oe / appr / hud | verdict |',
+              '|---|---|---|---|---|---|']
+        for arm in arms:
+            if arm == 'A0':
+                continue
+            s = S[f'{arm}/m4096']
+            dlt = s['primary_mean_auroc'] - a0['primary_mean_auroc']
+            psd = float(np.sqrt((s['primary_seed_sd'] ** 2 + a0['primary_seed_sd'] ** 2) / 2))
+            apr = {b: float(np.mean(s[b]['cf_ap']) / np.mean(a0[b]['cf_ap'])) for b in PRIMARY}
+            win = dlt >= 0.01 and dlt > 2 * psd and min(apr.values()) >= 0.9
+            eq = abs(dlt) <= 0.01
+            verdict = 'WINS' if win else ('equivalent' + (f' (simpler: {SIMPLER[arm]} -> preferred)' if arm in SIMPLER
+                                                          else '') if eq else ('worse' if dlt < 0 else 'not a win'))
+            V[arm] = {'delta': dlt, 'pooled_sd': psd, 'ap_ratio': apr, 'win': bool(win), 'equivalent': bool(eq),
+                      'verdict': verdict}
+            L.append(f"| {arm} | {s['primary_mean_auroc']:.4f} | {dlt:+.4f} | {psd:.4f} | "
+                     f"{' / '.join(f'{apr[b]:.2f}' for b in PRIMARY)} | {verdict} |")
+        L.append('')
+    # sniffing neuron bar
+    sn = {}
+    for k, s in S.items():
+        for b in ('oral_oral_contact', 'oral_genital_contact'):
+            sn[f'{k}/{b}'] = {'mean_cf_top1': float(np.mean(s[b]['cf_top1'])), 'max_single': s[b]['max_test_top1']}
+    any_bar = any(v['max_single'] >= 0.25 for v in sn.values())
+    any_mean = any(v['mean_cf_top1'] >= 0.25 for v in sn.values())
+    L += ['## Sniffing-neuron bar (honest top-1% >= 0.25 on oral_oral or oral_genital)', '',
+          f'- any single cross-fitted test value >= 0.25: {any_bar}; any arm mean >= 0.25: {any_mean}',
+          '- best per arm: ' + '; '.join(f"{k.replace('_contact', '')} mean {v['mean_cf_top1']:.3f} max {v['max_single']:.3f}"
+                                         for k, v in sn.items() if k.split('/')[1] == 'm4096'), '']
+    # supervised ceiling
+    C = {}
+    for f in sorted((OUT / 'probe').glob('probe_*.json')) if (OUT / 'probe').exists() else []:
+        for x in json.loads(f.read_text())['summary']:
+            C[(x['behaviour'], x['probe'])] = x
+    if C:
+        L += ['## Supervised ceiling on the A0 eval tokens z_t (clip-grouped 5-fold CV, weighted): AUROC / AP', '',
+              '| label | n_fg only | mean_lin | mil_ctx |', '|---|---|---|---|']
+        for b in BEHAVIOURS:
+            f_ = lambda p: (f"{C[(b, p)]['auroc_mean']:.3f} / {C[(b, p)]['ap_mean']:.4f}" if (b, p) in C else '-')  # noqa
+            L.append(f'| {SHORT[b]} | {f_("n_fg_only")} | {f_("mean_lin")} | {f_("mil_ctx")} |')
+        L.append('')
+    (OUT / 'table.md').write_text('\n'.join(L) + '\n')
+    (OUT / 'summary.json').write_text(json.dumps({'arms': S, 'verdict': V, 'sniffing': sn,
+                                                  'ceiling': {f'{b}/{p}': v for (b, p), v in C.items()}},
+                                                 indent=1, default=float))
+    print('\n'.join(L))
+
+
+if __name__ == '__main__':
+    main()
