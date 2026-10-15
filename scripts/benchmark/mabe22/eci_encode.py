@@ -251,6 +251,7 @@ def main():
     ap.add_argument('--reuse-mask', default='', help='token dir whose pos448 (same set / shard split) is reused')
     ap.add_argument('--orbit', action='store_true', help='arm A7: also store D4 orbit-averaged t / lag tokens')
     ap.add_argument('--orbit-lag', type=int, default=0, help='also store orbit-averaged tokens of frame t - L (30 fps)')
+    ap.add_argument('--keep', nargs='*', default=[], help='store only these kinds (e.g. m448_t m448_p pos448 ...)')
     ap.add_argument('--only-lags', action='store_true', help='save only the extra-lag tokens (+ pos448, frames)')
     ap.add_argument('--smoke', type=int, default=0, help='only the first N clips of the shard')
     args = ap.parse_args()
@@ -279,7 +280,7 @@ def main():
     A = {k: [] for k in ('m448_t', 'm448_p', 'pos448', 'm224_t', 'm224_p', 'pos224', 'all448_t', 'all448_p',
                          'rnd448_t', 'rnd448_p', 'posrnd')}
     meta, cinfo, sheet_rows = [], {}, []
-    is_eval = args.set == 'eval' and not args.only_lags
+    is_eval = args.set == 'eval' and not args.only_lags and (not args.keep or 'all448_t' in args.keep)
     tdec = 0.0
     for ci, c in enumerate(clips):
         R = P[P['clip'] == c]
@@ -345,6 +346,8 @@ def main():
     Fm = pd.DataFrame(meta)
     assert len(Fm) == int(P['clip'].isin(clips).sum())
     for k, v in A.items():
+        if args.keep and k not in args.keep:
+            continue
         if not v or (args.only_lags and not (k.startswith('m448_p') and k != 'm448_p') and k != 'pos448'
                      and not k.startswith('m448o')):
             continue
