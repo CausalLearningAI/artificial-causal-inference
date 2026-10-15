@@ -1281,6 +1281,65 @@ def cmd_align(args):
     (OUT / dom / ('align_partial.json' if args.partial else 'align.json')).write_text(json.dumps(Rz, indent=1, default=float))
 
 
+# ---------------------------------------------------------------------------------------------- bout spot check
+def cmd_spotcheck(args):
+    """One annotated bout per domain (mice nose-nose Y_nn, ants grooming Y_Y2F; frogs: no behaviour labels, a random
+    frame): start / middle / end frame decoded from the native video (resized to 512) next to its dataset JPG, with the
+    grey mean |diff| against the JPGs at k-1, k, k+1 -> OUT/<dom>/bout_spotcheck.{jpg,json}. CPU only."""
+    from PIL import Image, ImageDraw
+    dom = args.domain
+    c = DOMS[dom]
+    P = load_plan(dom)
+    col = {'mice': 'Y_nn', 'ants_v2': 'Y_Y2F', 'ants_v3': 'Y_Y2F'}.get(dom)
+    A = pd.read_csv(REPO / c['ann'], usecols=['observation_id', 'frame_idx', 'frame_path'] + ([col] if col else []))
+    rng = np.random.default_rng(0)
+    order = rng.permutation(len(P['videos']))
+    pick = None
+    for i in order:
+        v = P['videos'][i]
+        y = A[col].values[v['src_lo']:v['src_lo'] + v['n']] if col else None
+        if col is None:
+            pick = (v, [v['n'] // 2])
+            break
+        if y is None or np.isnan(y).all():
+            continue
+        on = np.nan_to_num(y) > 0
+        st = np.flatnonzero(on[1:] & ~on[:-1]) + 1
+        for s0 in st:
+            e = s0
+            while e < len(on) and on[e]:
+                e += 1
+            if e - s0 >= 5:
+                pick = (v, [int(s0), int((s0 + e - 1) // 2), int(e - 1)])
+                break
+        if pick:
+            break
+    v, ks = pick
+    rows, info = [], []
+    for k in ks:
+        fr = decode(v['path'], c['offset'] + c['step'] * k, 1, c['step'], c['S'], v['hflip'], c['fps'], threads=2)[0]
+        nat = np.asarray(Image.fromarray(fr).resize((512, 512), Image.BICUBIC))
+        g = np.asarray(Image.fromarray(nat).convert('L'), np.float32)
+        J = [np.asarray(Image.open(REPO / 'dataset' / A.frame_path.values[v['src_lo'] + k + d]).convert('RGB'))
+             for d in (-1, 0, 1)]
+        mad = [float(np.abs(g - np.asarray(Image.fromarray(j).convert('L'), np.float32)).mean()) for j in J]
+        lab = (float(A[col].values[v['src_lo'] + k]) if col else None)
+        info.append({'obs': v['obs'], 'k': k, 'label': col, 'label_value': lab, 'mad_km1_k_kp1': mad,
+                     'closest_is_k': bool(mad[1] <= min(mad[0], mad[2]))})
+        tile = Image.new('RGB', (1024, 512))
+        tile.paste(Image.fromarray(nat), (0, 0))
+        tile.paste(Image.fromarray(J[1]), (512, 0))
+        ImageDraw.Draw(tile).text((6, 6), f'{v["obs"]} k{k} {col}={lab} native (left) vs JPG (right) '
+                                          f'MAD k-1/k/k+1 {mad[0]:.2f}/{mad[1]:.2f}/{mad[2]:.2f}', fill=(255, 255, 0))
+        rows.append(tile)
+    sheet = Image.new('RGB', (1024, 512 * len(rows)))
+    for i, t in enumerate(rows):
+        sheet.paste(t, (0, 512 * i))
+    sheet.save(OUT / dom / 'bout_spotcheck.jpg', quality=85)
+    (OUT / dom / 'bout_spotcheck.json').write_text(json.dumps(info, indent=1))
+    log(f'{dom} bout spot check: ' + json.dumps(info))
+
+
 # ---------------------------------------------------------------------------------------------- report
 def gpu_usage():
     """Per job log: GPU name, wall from the first to the last [gpu] sample, mean utilisation -> {log name: dict}."""
@@ -1361,7 +1420,7 @@ def cmd_report(args):
 # ---------------------------------------------------------------------------------------------- main
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('plan', 'reshard', 'check', 'maskdiag', 'prepass', 'train', 'encode', 'merge', 'summaries', 'align', 'report'))
+    p.add_argument('step', choices=('plan', 'reshard', 'check', 'maskdiag', 'prepass', 'train', 'encode', 'merge', 'summaries', 'align', 'report', 'spotcheck'))
     p.add_argument('--domain', default='mice', choices=list(DOMS))
     p.add_argument('--domains', nargs='+', default=list(DOMS))
     p.add_argument('--shard', type=int, default=0)
@@ -1378,7 +1437,7 @@ def main():
     p.add_argument('--encoder-check', action='store_true')
     args = p.parse_args()
     {'plan': cmd_plan, 'reshard': cmd_reshard, 'check': cmd_check, 'maskdiag': cmd_maskdiag, 'prepass': cmd_prepass, 'train': cmd_train, 'encode': cmd_encode,
-     'merge': cmd_merge, 'summaries': cmd_summaries, 'align': cmd_align, 'report': cmd_report}[args.step](args)
+     'merge': cmd_merge, 'summaries': cmd_summaries, 'align': cmd_align, 'report': cmd_report, 'spotcheck': cmd_spotcheck}[args.step](args)
 
 
 if __name__ == '__main__':
