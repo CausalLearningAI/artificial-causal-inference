@@ -70,6 +70,27 @@
 #   < 1 GPU-hour and fp32 keeps the arms identical to the control). V-JEPA: bf16 autocast for a position setting iff on
 #   the same 8 clips, at every screen layer, cosine mean >= 0.995 AND 1st percentile >= 0.98; otherwise fp32 TF32 on.
 #
+# ADDENDUM 2 - CONFIRMATION ROUND C1-C3 (coordinator request; written 2026-10-15 ~12:55 CEST AFTER the D2 / D3B / D3L /
+#   D3B* / D3L* scores were seen and BEFORE any C job; the V-JEPA rules above are unchanged). Budget extended to ~40 GPU-h.
+#   DATA NOTE: the round-3 store tok_r3 was deleted by its owner at 12:46. Its frames tables and pos448 masks are rebuilt
+#   bit-identically from this study's d3b_512 store (32 x 32 identity map; equal to the d2_448 / d3l_512 positions) in
+#   ETOK/r3mask/. The DINOv2 control tokens are this study's re-encode of R's pipeline (tag d2_448, block 12 + final LN;
+#   max abs diff to the deleted m448_t 0.0078 = fp16 rounding, every eval shard); run name D2_d2_448_L12.
+#   C1  D3L-L20 CONFIRMATION (its layer was chosen on eval labels): D3L at block 20, same recipe (no orbit, 2 s delta,
+#       d 4096, k 16, theta*), 6 FRESH seeds 310-315, vs a fresh D2 control (D2_d2_448_L12) with seeds 310-315, the
+#       DEFAULT rule incl. the AP guard; the AP ratio is reported separately for oral_oral and oral_genital.
+#       LABEL-FREE LAYER RULE for future domains (fixed now): the block at 5/6 of the depth, round(5 n / 6) -> L20 of 24
+#       (-L), L10 of 12 (-B); the screens are reported against it (consistent iff the rule's block is the best-ceiling
+#       block or within 0.005 ceiling score of it).
+#   C2  SIZE CONTROL: DINOv2-large (facebook/dinov2-large, 1024-d, patch 14, 448 px = 32^2, same mask) screened at blocks
+#       12 / 16 / 20 / 24 with the same ceiling probes; SAE arms D2L at its best-ceiling block and at block 20 (one arm if
+#       they coincide), seeds 310-315, x = [z_t, z_t - z_{t-60}]. Contrast (default rule): D3L-L20 (arm) vs D2L-best
+#       (control). "The gain is DINOv3, not just a Large model" iff D3L-L20 WINS that contrast; EQUIVALENT means size
+#       alone explains it at this power. D2L-L20 vs D3L-L20 reported the same way; D2L arms also vs D2 (descriptive).
+#   C3  ORBIT on DINOv3-L: D3LO = D3L-L20 on D4-orbit tokens (R's averaging over the 8 transforms, fp32 TF32 off, mask
+#       positions unchanged), seeds 310-315, vs D3L-L20 seeds 310-315, default rule. Run only if C1 / C2 leave budget.
+#   V-JEPA (VJ, VJD, seeds 300-305 as fixed above) is additionally contrasted with D3L-L20 (seeds 310-315), default rule.
+#
 # Storage: token stores (<= ~150 GB), deleted after scoring; SAE checkpoints and eval JSONs kept.
 # GPU jobs: -p gpu --gres=gpu:L40S:1 --exclude=gpu242,gpu150,gpu230,gpu241 (never gpu100); CPU jobs: -p defaultp.
 # ======================================================================================================================

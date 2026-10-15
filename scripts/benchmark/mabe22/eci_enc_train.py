@@ -9,7 +9,10 @@ the held-out userTrain calibration frames; frame value = max over the frame's ke
 contact_sae.cross_fit (clip-level halves, split seeds 0 and 1, IPW weights). Train pool = plan/train_frames.parquet
 'train' rows, calibration = its 'calib' rows, eval = plan/eval_frames.parquet (the round-3 frames).
 Arms (tokens of block 'L' after the final LayerNorm; inputs per token):
-    D2       DINOv2-base 448, last layer: the round-3 store's plain tokens m448_t / m448_p60 (READ-ONLY), [z_t, z_t - z_t-60]
+    D2       DINOv2-base 448, last layer, [z_t, z_t - z_t-60] (seeds 300-305: the round-3 store's m448_t / m448_p60;
+             later seeds: this study's identical re-encode, tag d2_448)
+    D2L      DINOv2-large 448 (1024-d), layer --layer, [z_t, z_t - z_t-60]                         (C2 size control)
+    D3LO     DINOv3-L/16 512 with D4 orbit tokens (tag d3l_512o), layer 20, [z_t, z_t - z_t-60]     (C3)
     D3B      DINOv3-B/16 512, layer --layer (default 12 = last), [z_t, z_t - z_t-60]
     D3L      DINOv3-L/16 512, layer --layer (default 24 = last), [z_t, z_t - z_t-60]
     VJ       V-JEPA 2-L, --tag (vj_512x / vj_512i / vj_256) and --layer, z_t only
@@ -34,18 +37,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts/eci'))
 from eci_common import BEHAVIOURS, OUT, PLAN, log, stage_dir  # noqa: E402
 import eci_train as ET  # noqa: E402
 
-R3 = OUT / 'tok_r3'
 ETOK = Path(os.environ.get('MABE_ENC_TOK') or '/mnt/beegfs/locatgrp/shared/rcadei/eci_tok/encoders')  # BeeGFS
 RUN = OUT / 'encoders'
 NSH = {'train': 8, 'eval': 12}
 
 
+ARMS = ['D2', 'D2L', 'D3B', 'D3L', 'D3LO', 'VJ', 'VJD']
+
+
 def arm_cfg(arm, tag, layer):
-    if arm == 'D2':
-        return dict(store=R3, suffix='', t='m448_t', p='m448_p60', lens='n448', D=768, delta=True, run='D2')
-    D = {'D3B': 768, 'D3L': 1024, 'VJ': 1024, 'VJD': 1024}[arm]
-    tag = tag or {'D3B': 'd3b_512', 'D3L': 'd3l_512'}[arm]
-    layer = layer or {'D3B': 12, 'D3L': 24}[arm]
+    # 'D2' runs of seeds 300-305 (run name 'D2') used the round-3 store's m448_t / m448_p60 (deleted 12:46 by its owner);
+    # later D2 runs use this study's re-encode of the same pipeline (tag d2_448, block 12; max abs diff to m448_t 0.0078,
+    # fp16 rounding, all 12 eval shards), run name D2_d2_448_L12.
+    D = {'D2': 768, 'D2L': 1024, 'D3B': 768, 'D3L': 1024, 'D3LO': 1024, 'VJ': 1024, 'VJD': 1024}[arm]
+    tag = tag or {'D2': 'd2_448', 'D2L': 'd2l_448', 'D3B': 'd3b_512', 'D3L': 'd3l_512', 'D3LO': 'd3l_512o'}[arm]
+    layer = layer or {'D2': 12, 'D2L': 24, 'D3B': 12, 'D3L': 24, 'D3LO': 20}[arm]
     return dict(store=ETOK, suffix=f'_{tag}', t=f'L{layer}_t', p=f'L{layer}_p60', lens='n', D=D, delta=arm != 'VJ',
                 run=f'{arm}_{tag}_L{layer}')
 
@@ -77,7 +83,7 @@ def main():
     import torch
     from src.eci.sae_calibrate import calibrate_threshold, set_threshold, sparsity_stats
     ap = argparse.ArgumentParser()
-    ap.add_argument('--arm', choices=['D2', 'D3B', 'D3L', 'VJ', 'VJD'], required=True)
+    ap.add_argument('--arm', choices=ARMS, required=True)
     ap.add_argument('--tag', default='')
     ap.add_argument('--layer', type=int, default=0)
     ap.add_argument('--seeds', nargs='+', type=int, required=True)

@@ -49,14 +49,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from eci_common import OUT, PLAN, decode_clip, log, offset, stage_dir  # noqa: E402
 
-R3 = OUT / 'tok_r3'
 EOUT = OUT / 'encoders'
 # token stores on BeeGFS (regenerable data only; NFS is near full): a few large .npy shards per (set, shard, tag, kind)
 ETOK = Path(os.environ.get('MABE_ENC_TOK') or '/mnt/beegfs/locatgrp/shared/rcadei/eci_tok/encoders')
+# round-3 frames / mask: tok_r3 was deleted by its owner at 12:46; the identical tables were rebuilt from this study's
+# d3b_512 store (32 x 32 grid = identity map of pos448; checked equal to the d2_448 / d3l_512 positions) into r3mask/
+R3 = Path(os.environ.get('MABE_R3_MASK') or ETOK / 'r3mask')
 SETS = {'train': ('mouse_userTrain', 'train_frames.parquet'), 'eval': ('mouse_submission', 'eval_frames.parquet')}
 MEAN = np.array([0.485, 0.456, 0.406], np.float32)
 STD = np.array([0.229, 0.224, 0.225], np.float32)
-MODELS = {'dinov2b': ('facebook/dinov2-base', 14, 1, 12), 'dinov3b': ('facebook/dinov3-vitb16-pretrain-lvd1689m', 16, 5, 12),
+MODELS = {'dinov2b': ('facebook/dinov2-base', 14, 1, 12), 'dinov2l': ('facebook/dinov2-large', 14, 1, 24), 'dinov3b': ('facebook/dinov3-vitb16-pretrain-lvd1689m', 16, 5, 12),
           'dinov3l': ('facebook/dinov3-vitl16-pretrain-lvd1689m', 16, 5, 24),
           'vjepal': ('facebook/vjepa2-vitl-fpc64-256', 16, 0, 24)}
 CLIP, TPOS = 16, 7
@@ -77,7 +79,7 @@ def map_mask(pos448, G):
 
 
 class Encoder:
-    def __init__(self, name, S, layers, dev, vj_pos='extrap', vj_stride=8, bf16=False):
+    def __init__(self, name, S, layers, dev, vj_pos='extrap', vj_stride=8, bf16=False, orbit=False):
         import torch
         from transformers import AutoConfig, AutoModel
         self.torch, self.dev, self.name, self.S, self.bf16 = torch, dev, name, S, bf16
@@ -106,7 +108,7 @@ class Encoder:
             self.vj_pos = vj_pos
         else:
             self.model = AutoModel.from_pretrained(mid, attn_implementation='sdpa').to(dev).eval()
-            if name == 'dinov2b':
+            if name.startswith('dinov2'):
                 blocks, self.norm = self.model.encoder.layer, self.model.layernorm
             else:
                 blocks, self.norm = self.model.layer, self.model.norm
@@ -122,6 +124,14 @@ class Encoder:
         self.std = torch.tensor(STD, device=dev)[None, :, None, None]
         self.n_img, self.n_tok, self.gpu_s = 0, 0, 0.0
         self.dim = self.model.config.hidden_size
+        self.orbit = orbit
+        if orbit:  # D4 orbit (R's A7): tokens averaged over the 8 transforms, read back at the original positions
+            assert not self.video
+            sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts/eci'))
+            import invariant_tokens as it
+            from src.eci.priors import d4_pos_map
+            self.d4 = it.d4_torch
+            self.maps = torch.stack([torch.from_numpy(d4_pos_map(g, self.G)) for g in range(8)]).to(dev)
 
     def prep(self, frames):
         """(n, 224, 224, 3) uint8 numpy -> (n, 3, S, S) normalised fp32 GPU."""
@@ -174,7 +184,16 @@ class Encoder:
                 else:
                     x = self.prep(frames[v])
                     ntok = len(v) * (self.npre + self.G ** 2)
-                r = self.forward(x)
+                if self.orbit:
+                    r = {}
+                    for g in range(8):
+                        rg = self.forward(self.d4(x, g))
+                        for l_ in self.layers:
+                            r[l_] = r.get(l_, 0) + rg[l_][:, self.maps[g]]
+                    r = {l_: h / 8 for l_, h in r.items()}
+                    ntok *= 8
+                else:
+                    r = self.forward(x)
                 for l_ in self.layers:
                     outs[l_].append(r[l_])
                 self.n_img += len(v)
@@ -222,7 +241,7 @@ def encode_shard(args, shard, enc, dev):
         clips = clips[:args.smoke]
     off = offset()
     if enc is None:
-        enc = Encoder(args.encoder, args.size, args.layers, dev, args.vj_pos, args.vj_stride, args.bf16)
+        enc = Encoder(args.encoder, args.size, args.layers, dev, args.vj_pos, args.vj_stride, args.bf16, args.orbit)
     enc.n_img, enc.n_tok, enc.gpu_s = 0, 0, 0.0
     log(f'{jkey}: {len(clips)} clips, {args.encoder} S {args.size} grid {enc.G} layers {args.layers} kinds {args.kinds} '
         f'vj_pos {args.vj_pos} stride {args.vj_stride} offset {off} {torch.cuda.get_device_name(0)}')
@@ -293,7 +312,7 @@ def encode_shard(args, shard, enc, dev):
             'vj_pos': args.vj_pos if enc.video else None, 'vj_stride': args.vj_stride if enc.video else None,
             'clips': len(clips), 'frames': len(Fm), 'offset': off, 'inputs_encoded': enc.n_img,
             'tokens_processed': enc.n_tok, 'gpu_s': round(enc.gpu_s, 1), 'decode_s_summed': round(tdec, 1),
-            'decode_wait_s': round(twait, 1), 'decode_workers': args.workers, 'bf16': args.bf16,
+            'decode_wait_s': round(twait, 1), 'decode_workers': args.workers, 'bf16': args.bf16, 'orbit': args.orbit,
             'frames_per_wall_s': round(len(Fm) / max(time.time() - t00, 1e-9), 2),
             'inputs_per_gpu_s': round(enc.n_img / max(enc.gpu_s, 1e-9), 2),
             'tokens_per_gpu_s': round(enc.n_tok / max(enc.gpu_s, 1e-9), 1), 'gpu': torch.cuda.get_device_name(0),
@@ -391,6 +410,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--mode', choices=['encode', 'bench', 'prec'], default='encode')
     ap.add_argument('--bf16', action='store_true')
+    ap.add_argument('--orbit', action='store_true')
     ap.add_argument('--workers', type=int, default=6)
     ap.add_argument('--set', choices=list(SETS), default='eval')
     ap.add_argument('--shard', type=int, nargs='+', default=[0])

@@ -5,7 +5,7 @@ Same probe code and settings as eci_probe.py (scripts/eci/diag_mice_patches.cros
 mil_ctx, 5 clip-grouped folds, inner validation = 17% of the training clips, IPW-weighted metrics, MIL 3000 steps,
 seeds 0 1 2) on the masked t tokens of the eval frames of one encoder tag (eci_enc_encode.py store on BeeGFS, MABE_ENC_TOK)
 and each of --layers. mil_ctx's 3 x 3 context uses the encoder's own grid (--grid).
---tag r3 reads the round-3 store's plain DINOv2 448 tokens (m448_t, last layer) instead (reference = eci_probe A0).
+(--tag r3 read the deleted round-3 store; no longer available.)
 Outputs: OUT/encoders/probe/probe_<tag>_L<layer>.json
 """
 import argparse
@@ -25,8 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts/eci'))
 from eci_common import OUT, PLAN, log, stage_dir  # noqa: E402
 
-R3 = OUT / 'tok_r3'
 ETOK = Path(os.environ.get('MABE_ENC_TOK') or '/mnt/beegfs/locatgrp/shared/rcadei/eci_tok/encoders')  # BeeGFS
+R3 = Path(os.environ.get('MABE_R3_MASK') or ETOK / 'r3mask')  # rebuilt round-3 frames / mask (tok_r3 deleted)
 
 
 def eval_keys(store):
