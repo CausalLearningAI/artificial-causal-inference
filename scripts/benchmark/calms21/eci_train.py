@@ -183,7 +183,10 @@ def main():
     ap.add_argument('--prefixes', type=int, nargs='*', default=[], help='Matryoshka prefixes (empty = plain)')
     ap.add_argument('--k', type=int, default=16)
     ap.add_argument('--tok', choices=['mask', 'nomask', 'orbit'], default='mask')
+    ap.add_argument('--nsplits', type=int, default=2, help='video-level split seeds 0..n-1 (descriptive robustness: 10, '
+                    'written to OUT/eval_splits/ instead of OUT/eval/)')
     args = ap.parse_args()
+    EVD = 'eval' if args.nsplits == 2 else f'eval_splits{args.nsplits}'
     cfg = args.config
     lag = (0 if cfg.startswith('vj') else 60) if args.lag < 0 else args.lag
     delta = lag > 0
@@ -203,7 +206,7 @@ def main():
     dev = torch.device('cuda')
     t00 = time.time()
     stage = stage_dir()
-    for d in ('sae', 'eval'):
+    for d in ('sae', EVD):
         (OUT / d).mkdir(parents=True, exist_ok=True)
     P = pd.read_parquet(PLAN / 'train_frames.parquet')
     out = {'train': ([], []), 'calib': ([], [])}
@@ -264,7 +267,7 @@ def main():
     order = key.get_indexer(pd.MultiIndex.from_frame(E[['video', 'i']]))
     assert (order >= 0).all() and len(np.unique(order)) == len(E) == len(Fm)
     lens = np.concatenate(lens_all)[order]
-    Ht = {s: halves(E, s, labs) for s in (0, 1)}
+    Ht = {s: halves(E, s, labs) for s in range(args.nsplits)}
     for s, h in Ht.items():
         miss = [b for b in labs if min(E[b][h == 0].sum(), E[b][h == 1].sum()) == 0]
         assert not miss, (s, miss)
@@ -282,13 +285,16 @@ def main():
                'firing': {'dead_frac_eval': float((fr == 0).mean()), 'n_eligible_1pct': int((fr >= 0.01).sum()),
                           'median_rate_alive': float(np.median(fr[fr > 0])) if (fr > 0).any() else None},
                'halves': {f'split{s}': {'videos_half0': sorted(set(E['video'][h == 0])),
-                                        'videos_half1': sorted(set(E['video'][h == 1]))} for s, h in Ht.items()},
+                                        'videos_half1': sorted(set(E['video'][h == 1])),
+                                        'pos_videos_per_half': {b: [int(E[b][h == x].groupby(E.video[h == x]).any().sum())
+                                                                    for x in (0, 1)] for b in labs}}
+                          for s, h in Ht.items()},
                f'm{W}': score(codes, E, Ht, dev, labs), 'full': f'm{W}',
                f'mean_m{W}': score(torch.cat(parts[seed][2])[oi].contiguous(), E, Ht, dev, labs)}
         r0 = res[f'm{W}']['split0']
         log(f'  {name} s{seed}: ' + ', '.join(f"{b} {r0[b]['cf_auroc']:.3f}/{r0[b]['cf_ap']:.4f}/{r0[b]['cf_top1']:.3f}"
                                               for b in labs) + ' (cf AUROC / AP / honest top-1%, split 0)')
-        (OUT / 'eval' / f'{name}_s{seed}.json').write_text(json.dumps(res, indent=1, default=float))
+        (OUT / EVD / f'{name}_s{seed}.json').write_text(json.dumps(res, indent=1, default=float))
         del codes
         torch.cuda.empty_cache()
     log(f'{name} done in {time.time() - t00:.0f}s')
