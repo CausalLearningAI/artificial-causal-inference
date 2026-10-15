@@ -15,6 +15,8 @@ labs = json.loads((PLAN / 'eval_plan.json').read_text())['scored_labels']
 M = {}
 for a in GRID8:
     R = load(a)
+    if a.startswith('vj') and len(R) < 6:  # a V-JEPA arm can never be the base (rule), so it cannot change the choice
+        continue
     assert len(R) == 6, (a, len(R))
     M[a] = float(np.mean(list(per_seed(R, labs).values())))
 best = max(M, key=M.get)
@@ -22,5 +24,5 @@ img = max((a for a in M if not a.startswith('vj')), key=M.get)
 base = img if best.startswith('vj') else best
 (OUT / 'p2').mkdir(parents=True, exist_ok=True)
 (OUT / 'p2' / 'base.txt').write_text(f'{base}\n# p2_base.py: mean primary AUROC {json.dumps({a: round(v, 4) for a, v in M.items()})}; '
-                                     f'best overall {best}\n')
+                                     f'best overall {best} (V-JEPA arms not yet scored cannot change the base: the rule excludes them)\n')
 print((OUT / 'p2' / 'base.txt').read_text())

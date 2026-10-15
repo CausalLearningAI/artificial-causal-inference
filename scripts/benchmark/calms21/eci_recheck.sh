@@ -56,7 +56,7 @@ X="--exclude=gpu240,gpu242,gpu150,gpu230,gpu241"
 BIG='L40S|A100|A40'
 LOGS=results/vision/benchmark_calms21/logs
 sub() { sbatch --parsable -p gpu --gres=gpu:1 $X --constraint="$BIG" --output=$LOGS/%x_%j.out "$@" scripts/benchmark/calms21/eci.sh; }
-B=$(head -1 results/vision/benchmark_calms21/p2/base.txt)
+B=$(head -1 results/vision/benchmark_calms21/p2/base.txt 2>/dev/null || echo NONE)
 case "${1:-}" in
   encode)  # extra tokens for the base: 1 s / 4 s lags, no-mask, orbit; 2 jobs per set x 3 pass-A shards
     for S in train eval; do for SH in "0 1 2" "3 4 5"; do
