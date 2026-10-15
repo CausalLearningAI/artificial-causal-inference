@@ -48,7 +48,9 @@ from calms_common import (CANVAS, DER, OUT, PADV, PADY, PLAN, TOK, H, W, decode_
 
 CONFIGS = {'d2_448': ('dinov2b', 448), 'd2_896': ('dinov2b', 896), 'd3_512': ('dinov3b', 512),
            'd3_1024': ('dinov3b', 1024), 'vj_512': ('vjepal', 512), 'vj_1024': ('vjepal', 1024),
-           'd3_2064': ('dinov3b', 2064)}
+           'd3_2064': ('dinov3b', 2064),
+           # detail-vs-density control (addendum (d)): same input size / grid, source first shrunk to plan/lo_side.txt
+           'd3_1024lo': ('dinov3b', 1024), 'd2_896lo': ('dinov2b', 896)}
 LAG = 60
 NBG = 32
 CLIP, TPOS, VJS = 16, 7, 8
@@ -99,6 +101,7 @@ class Enc:
         name, S = CONFIGS[cfg]
         self.e = EE.Encoder(name, S, [EE.MODELS[name][3]], dev, 'extrap', VJS, bf16)
         self.cfg, self.S, self.G, self.video, self.dev = cfg, S, self.e.G, self.e.video, dev
+        self.lo = int((PLAN / 'lo_side.txt').read_text().split()[0]) if cfg.endswith('lo') else 0
         self.last = EE.MODELS[name][3]
         self.dim = self.e.dim
         self.gpu_s, self.n_in, self.n_tok = 0.0, 0, 0
@@ -109,13 +112,18 @@ class Enc:
 
     def prep(self, x):
         F = self.torch.nn.functional
-        if self.S != CANVAS:
+        if self.lo:  # shrink the canvas (antialiased bicubic) so the mouse is ~40 px long, then bicubic back up to S
+            x = F.interpolate(x, size=(self.lo, self.lo), mode='bicubic', align_corners=False,
+                              antialias=True).round().clamp(0, 255)
+            x = F.interpolate(x, size=(self.S, self.S), mode='bicubic', align_corners=False).round().clamp(0, 255)
+        elif self.S != CANVAS:
             x = F.interpolate(x, size=(self.S, self.S), mode='bicubic', align_corners=False,
                               antialias=self.S < CANVAS).round().clamp(0, 255)
         return (x / 255 - self.mean) / self.std
 
-    def run(self, fr, bs):
-        """fr: list of frames (images) or of 16-frame lists (clips) -> (n, G*G, d) fp32 GPU."""
+    def run(self, fr, bs, pos=None):
+        """fr: list of frames (images) or of 16-frame lists (clips) -> (n, G*G, d) fp16 GPU; with pos (list of index
+        tensors, one per input) -> list of (n_i, d) fp16 CPU numpy arrays of the kept tokens only (bounded memory)."""
         torch = self.torch
         out = []
         sync(self.dev)
@@ -130,11 +138,16 @@ class Enc:
                 else:
                     x = self.prep(canvas_gpu(part, self.dev))
                     self.n_tok += len(part) * (self.e.npre + self.G ** 2)
-                out.append(self.e.forward(x)[self.last])
+                h = self.e.forward(x)[self.last]
+                if pos is None:
+                    out.append(h.half())
+                else:
+                    out += [h[j, pos[a + j]].half().cpu().numpy() for j in range(len(part))]
+                del h, x
                 self.n_in += len(part)
         sync(self.dev)
         self.gpu_s += time.time() - t0
-        return torch.cat(out)
+        return torch.cat(out) if pos is None else out
 
 
 def video_cells():
@@ -315,21 +328,19 @@ def cmd_encode(args):
             bgi = np.linspace(0, N - 1, NBG).round().astype(int)
             masker.video([fr[x] for x in bgi], [args.mask])
             t448 = encs['d2_448'].run(tf, args.bs) if 'd2_448' in encs else m448.run(tf, args.bs)
-            mk = masker.masks(tf, t448, [args.mask])[args.mask]
+            mk = torch.cat([masker.masks(tf[a:a + 64], t448[a:a + 64], [args.mask])[args.mask]
+                            for a in range(0, len(tf), 64)])
             p32 = [np.flatnonzero(m).astype(np.int16) for m in mk.cpu().numpy()]
         for c, e in encs.items():
             pg = [torch.from_numpy(to_grid(p, e.G).astype(np.int64)).to(dev) for p in p32]
             kinds = [('t', v)] if e.video else [('t', v), ('p60', v - LAG)]
             for kd, vv in kinds:
                 if c == 'd2_448' and kd == 't' and not args.reuse_mask:
-                    h = t448
+                    A[c][kd] += [t448[j, pg[j]].cpu().numpy() for j in range(len(vv))]
                 elif e.video:
-                    h = e.run([[fr[x + VJS * (j - TPOS)] for j in range(CLIP)] for x in vv], args.vj_bs)
+                    A[c][kd] += e.run([[fr[x + VJS * (j - TPOS)] for j in range(CLIP)] for x in vv], args.vj_bs, pg)
                 else:
-                    h = e.run([fr[x] for x in vv], args.bs if e.G == 32 else max(1, args.bs // 4))
-                for j in range(len(vv)):
-                    A[c][kd].append(h[j, pg[j]].half().cpu().numpy())
-                del h
+                    A[c][kd] += e.run([fr[x] for x in vv], args.bs if e.G == 32 else max(1, args.bs // 4), pg)
             A[c]['pos'] += [p.cpu().numpy().astype(np.int16) for p in pg]
         for j, r in enumerate(R.itertuples()):
             meta.append({'video': q, 'i': int(r.i), 'v': int(r.i + off), 'n32': int(len(p32[j]))})

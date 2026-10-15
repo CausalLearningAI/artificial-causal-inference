@@ -70,11 +70,30 @@
 #   shards) deleted after scoring; SAE checkpoints and JSONs kept.
 # GPU jobs: -p gpu --exclude=gpu242,gpu150,gpu230,gpu241 (never gpu100) with a GPU-type constraint; CPU: -p defaultp.
 # ======================================================================================================================
+# ======================================================================================================================
+# ADDENDUM 2026-10-15 12:45 CEST (coordinator request), written BEFORE any SAE job of this test ran (SAE train jobs
+# were queued behind the encodes, none started; no token store had finished). Everything above stands.
+# (1) PATCHES PER BODY LENGTH for every arm: body length L of the resident (black) mouse in NATIVE px, label-free
+#     (bodylen.py: dark pixel cue at native resolution, 7 x 7 opening, frames with exactly one component >= 800 px whose
+#     area is 0.6-1.4 x the video median, full major axis of the moment ellipse; median over frames), checked against the
+#     keypoint nose -> tail-base distance on the same frames. patches / body length = L x (input side / 1024) / patch px.
+# (2) DETAIL vs DENSITY CONTROL, pre-registered question (d): at a fixed token grid, does real image detail help, or only
+#     the number of tokens per animal? Arms (same recipe, same mask cells, same frames, 6 seeds 0-5):
+#       D3-64lo (d3_1024lo): the 1024 canvas shrunk (bicubic, antialias) to lo_side = round(1024 x 40 / L) px so the
+#                 mouse is ~40 px long, then bicubic back up to 1024 px (DINOv3-B/16, 64 x 64 grid);
+#       D2-64lo (d2_896lo): the same shrunk source, bicubic up to 896 px (DINOv2-B/14, 64 x 64 grid).
+#     (d) D3-64 vs D3-64lo and D2-64 vs D2-64lo, same rule: real detail HELPS iff WIN (delta primary AUROC >= +0.010 and
+#     the Welch 95% CI excludes 0); LOSES / NO DIFFERENCE as above. (The coordinator gave ~40 px as MABe22's body length;
+#     MABe22's own measure, r3/bodylen.json, is 44.6 px on its 512-px keypoint scale = ~20 px in the released 224-px
+#     video, so this control is a milder degradation than MABe22's.)
+# (3) COST per arm, always reported: encoder tokens per frame (full frame: G^2 + prefix tokens; V-JEPA: 8 G^2 per
+#     16-frame clip), SAE tokens per frame after the mask, and encode frames / s.
+# ======================================================================================================================
 set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 X="--exclude=gpu240,gpu242,gpu150,gpu230,gpu241"  # gpu240-242 have no BeeGFS mount (measured 2026-10-15)
 BIG='L40S|A100|A40'
-ANY='L40S|A100|A40|A10'
+ANY='L40S|A100|A40'  # A10 (22 GB) ran out of memory on pass A (job 848059)
 LOGS=results/vision/benchmark_calms21/logs
 mkdir -p $LOGS
 sub() { sbatch --parsable -p gpu --gres=gpu:1 $X --output=$LOGS/%x_%j.out "$@" scripts/benchmark/calms21/eci.sh; }
@@ -92,6 +111,10 @@ case "${1:-}" in
         echo "$S $i A $a B $b"
       done
     done ;;
+  encodeC) # addendum (2): low-detail control tokens, per shard after its pass A and after bodylen (lo_side.txt)
+    # bash eci_res.sh encodeC <bodylen job> <set> <shard> <pass A job>
+    PY=eci_encode EXTRA="--set $3 --shard $4 --nshard $NS --bf16 --configs d3_1024lo d2_896lo --reuse-mask --workers 4 --threads 3" \
+      sub --dependency=afterok:$2:$5 --constraint="$BIG" --cpus-per-task=16 --mem=96G --time=01:30:00 --job-name=encC_$3$4 ;;
   train)   # bash eci_res.sh train <config> <dependency job ids, colon separated or empty>: one job, 6 seeds
     C=$2; D=${3:-}
     PY=eci_train EXTRA="--config $C --seeds 0 1 2 3 4 5" sub ${D:+--dependency=afterok:$D} --constraint="$BIG" \

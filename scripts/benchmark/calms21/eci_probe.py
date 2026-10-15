@@ -22,7 +22,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[2]))
 sys.path.insert(0, str(HERE.parents[2] / 'scripts/eci'))
 from calms_common import OUT, PLAN, TOK, log, stage_dir  # noqa: E402
-from eci_train import labels, shards  # noqa: E402
+from eci_train import G64, labels, shards  # noqa: E402
 
 
 def main():
@@ -42,7 +42,7 @@ def main():
     od = OUT / 'probe'
     od.mkdir(parents=True, exist_ok=True)
     f = od / f'probe_{args.config}.json'
-    G = 64 if args.config in ('d2_896', 'd3_1024', 'vj_1024') else 32
+    G = 64 if args.config in G64 else 32
 
     def inner_val(train_pools, fold, n_val_=None):
         k = max(4, int(round(0.17 * len(train_pools))))

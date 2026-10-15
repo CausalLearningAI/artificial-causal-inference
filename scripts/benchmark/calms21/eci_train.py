@@ -32,7 +32,9 @@ sys.path.insert(0, str(HERE.parents[2]))
 sys.path.insert(0, str(HERE.parents[2] / 'scripts/eci'))
 from calms_common import OUT, PLAN, TOK, log, stage_dir  # noqa: E402
 
-DIM = {'d2_448': 768, 'd2_896': 768, 'd3_512': 768, 'd3_1024': 768, 'vj_512': 1024, 'vj_1024': 1024}
+DIM = {'d2_448': 768, 'd2_896': 768, 'd3_512': 768, 'd3_1024': 768, 'vj_512': 1024, 'vj_1024': 1024,
+       'd3_1024lo': 768, 'd2_896lo': 768}
+G64 = ('d2_896', 'd3_1024', 'vj_1024', 'd3_1024lo', 'd2_896lo')
 
 
 def labels():
@@ -57,7 +59,7 @@ def load_shard(base, cfg, delta, stage):
         arr[k] = np.load(loc)
         loc.unlink()
     pos = np.load(TOK / f'{base}_{cfg}_pos.npy')
-    G = 64 if cfg in ('d2_896', 'd3_1024', 'vj_1024') else 32
+    G = 64 if cfg in G64 else 32
     lens = Fm.n32.values.astype(np.int64) * (4 if G == 64 else 1)
     assert lens.sum() == len(arr['t']) == len(pos), (base, cfg, lens.sum(), arr['t'].shape, pos.shape)
     if not delta:
