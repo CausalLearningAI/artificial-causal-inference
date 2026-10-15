@@ -3,13 +3,14 @@ MABe22 mouse ECI - ENCODER STUDY (rules: eci_encoders.sh): per-layer SUPERVISED 
 
 Same probe code and settings as eci_probe.py (scripts/eci/diag_mice_patches.cross_validate, probes mean_lin and
 mil_ctx, 5 clip-grouped folds, inner validation = 17% of the training clips, IPW-weighted metrics, MIL 3000 steps,
-seeds 0 1 2) on the masked t tokens of the eval frames of one encoder tag (eci_enc_encode.py store OUT/encoders/tok/)
+seeds 0 1 2) on the masked t tokens of the eval frames of one encoder tag (eci_enc_encode.py store on BeeGFS, MABE_ENC_TOK)
 and each of --layers. mil_ctx's 3 x 3 context uses the encoder's own grid (--grid).
 --tag r3 reads the round-3 store's plain DINOv2 448 tokens (m448_t, last layer) instead (reference = eci_probe A0).
 Outputs: OUT/encoders/probe/probe_<tag>_L<layer>.json
 """
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -25,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts/eci'))
 from eci_common import OUT, PLAN, log, stage_dir  # noqa: E402
 
 R3 = OUT / 'tok_r3'
-ETOK = OUT / 'encoders' / 'tok'
+ETOK = Path(os.environ.get('MABE_ENC_TOK') or '/mnt/beegfs/locatgrp/shared/rcadei/eci_tok/encoders')  # BeeGFS
 
 
 def eval_keys(store):

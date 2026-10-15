@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # MABe22 mouse ECI - ENCODER STUDY: is DINOv3 / V-JEPA 2 really worse than DINOv2 here, and can V-JEPA 2's tubelets
-# replace the hand-made 2 s token difference? Submit-only launcher; every job runs scripts/benchmark/mabe22/eci.sh.
+# replace the hand-made 2 s token difference? Submit-only launcher; every job runs scripts/benchmark/mabe22/eci_enc_job.sh.
 # PRE-REGISTERED RULES, written and committed 2026-10-15 ~11:25 CEST BEFORE any screen / SAE job of this study (only
 # smoke tests and the throughput benchmark ran before). The rules below are FROZEN; commands may be added further down
 # later; anything added after a score of this study was seen is labelled EXPLORATORY.
@@ -60,7 +60,17 @@
 #    same GPU type L40S) at 448 / 512 and 896 / 1024 px (mode bench). MABe22 frames are 224 px at the source, so no
 #    resolution effect is claimed from this benchmark.
 #
-# Storage: token stores under encoders/tok/ (<= ~150 GB), deleted after scoring; SAE checkpoints and eval JSONs kept.
+# ADDENDUM 1 (coordinator request, ~11:30 CEST, after smoke tests only, before any screen job; no rule above changed):
+#   STORAGE: token stores on BeeGFS /mnt/beegfs/locatgrp/shared/rcadei/eci_tok/encoders/ (NFS is 95% full); JSONs,
+#   checkpoints, figures under results/vision/benchmark_mabe22/eci/encoders/. Jobs log GPU utilisation every 60 s
+#   (eci_enc_job.sh) and frames / s; decoding uses parallel ffmpeg workers, each clip decoded once per job for all lags.
+#   PRECISION (cost rule, fixed before the V-JEPA precision check finished): image encoders stay fp32 TF32 off as R and
+#   the D2 control (bf16 autocast measured on 8 eval clips: token cosine to fp32 mean >= 0.999, 1st pct >= 0.994 at
+#   every screen layer of DINOv2-B / DINOv3-B / DINOv3-L, so it would be safe, but the full image-encoder encoding is
+#   < 1 GPU-hour and fp32 keeps the arms identical to the control). V-JEPA: bf16 autocast for a position setting iff on
+#   the same 8 clips, at every screen layer, cosine mean >= 0.995 AND 1st percentile >= 0.98; otherwise fp32 TF32 on.
+#
+# Storage: token stores (<= ~150 GB), deleted after scoring; SAE checkpoints and eval JSONs kept.
 # GPU jobs: -p gpu --gres=gpu:L40S:1 --exclude=gpu242,gpu150,gpu230,gpu241 (never gpu100); CPU jobs: -p defaultp.
 # ======================================================================================================================
 set -euo pipefail
@@ -68,7 +78,7 @@ cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 G="-p gpu --gres=gpu:L40S:1 --exclude=gpu242,gpu150,gpu230,gpu241 --cpus-per-task=8"
 LOGS=results/vision/benchmark_mabe22/eci/encoders/logs
 mkdir -p $LOGS
-sub() { sbatch $G --output=$LOGS/%x_%j.out "$@" scripts/benchmark/mabe22/eci.sh; }
+sub() { sbatch $G --output=$LOGS/%x_%j.out "$@" scripts/benchmark/mabe22/eci_enc_job.sh; }
 enc() { N=$1; T=$2; shift 2; PY=eci_enc_encode EXTRA="$*" sub --mem=64G --time=$T --job-name=$N; }
 EV="0 1 2 3 4 5 6 7 8 9 10 11"
 case "${1:-}" in

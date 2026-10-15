@@ -19,6 +19,7 @@ run = <arm>[_<tag>]_L<layer> (D2: 'D2').
 """
 import argparse
 import json
+import os
 import shutil
 import sys
 import time
@@ -34,7 +35,7 @@ from eci_common import BEHAVIOURS, OUT, PLAN, log, stage_dir  # noqa: E402
 import eci_train as ET  # noqa: E402
 
 R3 = OUT / 'tok_r3'
-ETOK = OUT / 'encoders' / 'tok'
+ETOK = Path(os.environ.get('MABE_ENC_TOK') or '/mnt/beegfs/locatgrp/shared/rcadei/eci_tok/encoders')  # BeeGFS
 RUN = OUT / 'encoders'
 NSH = {'train': 8, 'eval': 12}
 
