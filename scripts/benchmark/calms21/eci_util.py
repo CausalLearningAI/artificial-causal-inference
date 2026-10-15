@@ -56,6 +56,9 @@ for f in sorted((OUT / 'encode_json').glob('*.json')):
     if 'smoke' in f.name:
         continue
     j = json.loads(f.read_text())
+    if 'per_config' not in j:  # phase-2 encode JSON
+        j['per_config'] = {f"p2_{j['config']}_{'+'.join(j['parts'])}": {'gpu_s': j['gpu_s'], 'inputs': j['inputs'],
+                                                                        'grid': 64, 'size': 1024}}
     for c, v in j['per_config'].items():
         e = E.setdefault(c, {'gpu_s': 0.0, 'inputs': 0, 'grid': v['grid'], 'size': v['size'], 'gpus': set()})
         e['gpu_s'] += v['gpu_s']

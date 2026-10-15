@@ -12,6 +12,16 @@ mean(A per-seed primaries) - mean(B per-seed primaries), 95% CI = Welch t interv
         d2_896, d3_1024); the ranking HOLDS at 64 iff both verdicts at 64 equal those at 32.
 Also: per-label AUROC / AP / honest top-1% (mean over seeds x splits), ceilings (probe JSONs), throughput (encode JSONs).
 Outputs: OUT/res/res.md, OUT/res/res.json
+
+RESULTS (2026-10-15 16:20; primary AUROC = mean cf best-neuron AUROC over attack / investigation / mount, 6 SAE seeds,
+mean +- SE; 10k IPW eval frames of the 19 test videos): D2-32 0.750 +- 0.011, D2-64 0.799 +- 0.018, D3-32 (L10)
+0.775 +- 0.008, D3-64 (L10) 0.811 +- 0.017, D3L-32 (L20) 0.851 +- 0.007, D3L-64 (L20) 0.881 +- 0.009, D2L-32 (L20)
+0.799 +- 0.010, D2L-64 (L20) 0.864 +- 0.002, VJ-32 0.744 +- 0.005, VJ-64 0.811 +- 0.004; lo controls D3-64lo 0.713,
+D3L-64lo 0.832, D2-64lo 0.735. (a) 64 beats 32: D2 +0.049 [+0.002, +0.097] WIN, D3-B +0.036 [-0.009, +0.080] no
+difference, D3L +0.031 [+0.005, +0.056] WIN, D2L +0.066 [+0.041, +0.090] WIN, VJ +0.067 [+0.053, +0.081] WIN.
+(b, size-matched) D3L vs D2L at 64 +0.017 [-0.006, +0.041] NO DIFFERENCE, at 32 +0.052 [+0.026, +0.079] WIN.
+(c) VJ vs D2 / D3 at 32: no difference / LOSES -0.031; at 64: no difference / no difference -> ranking does NOT hold.
+(d) detail helps at a fixed grid: D3 +0.098, D3L +0.049, D2 +0.065, all WIN. Ceilings (mil_ctx) 0.93-0.97.
 """
 import json
 import re
