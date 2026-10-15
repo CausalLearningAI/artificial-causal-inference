@@ -398,20 +398,25 @@ def cmd_verify_prefix(a) -> None:
 
 def cmd_verify_annotations(a) -> None:
     """New annotations.csv: in-window rows must equal the archived table (every archived column),
-    rows past the window NaN outcomes and eval_window False."""
+    rows past the window NaN outcomes and eval_window False. A fully annotated 10-min table
+    (v3, v4) has int outcome columns that turn float once NaN rows are appended past the
+    window: that dtype change alone is allowed, the in-window values must still be equal."""
     v = a.version
     new = pd.read_csv(ROOT / "dataset" / "ants" / v / "annotations.csv")
     old = pd.read_csv(_arch(v, f"dataset/ants/{v}/annotations.csv"))
     ycols = [c for c in new if c.startswith("Y_")]
     win = new[new["eval_window"]].reset_index(drop=True)
     out = new[~new["eval_window"]]
-    same = win[old.columns].equals(old)
+    dt = {c: [str(old[c].dtype), str(win[c].dtype)] for c in old.columns if old[c].dtype != win[c].dtype}
+    bad_dt = {c: d for c, d in dt.items() if not (c in ycols and d[0].startswith("int") and d[1].startswith("float"))}
+    same = not bad_dt and win[old.columns].astype({c: old[c].dtype for c in dt}).equals(old)
     if not same:
         diff = (win[old.columns] != old) & ~(win[old.columns].isna() & old.isna())
         print("differing cells per column:", diff.sum()[diff.sum() > 0].to_dict())
     rep = {"rows": len(new), "obs": int(new.observation_id.nunique()),
            "frames_per_obs": sorted(new.groupby("observation_id").size().unique().tolist()),
            "eval_window_rows": len(win), "window_equals_archived": bool(same),
+           "dtype_changes": dt, "disallowed_dtype_changes": bad_dt,
            "past_window_rows": len(out), "past_window_Y_all_nan": bool(out[ycols].isna().all().all()),
            "past_window_min_frame": int(out.frame_idx.min()) if len(out) else None,
            "annotated_rows": int(new[ycols].notna().all(axis=1).sum())}
