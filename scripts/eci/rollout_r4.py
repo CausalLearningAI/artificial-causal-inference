@@ -78,6 +78,14 @@ log = lambda s: print(time.strftime('%H:%M:%S'), s, flush=True)  # noqa: E731
 # DINOv3 autocast dtype: bf16 (the validated recipe; every step that writes tokens / codes asserts it). R4_AMP=fp16 only for
 # the 'check' step on GPUs without bf16 (debug_gpu 2080 Ti): checks of alignment / seek / mask / truncation, not codes.
 AMP = os.environ.get('R4_AMP', 'bf16')
+# fp16 for whole domains run on debug_gpu (no bf16 there; decided by the orchestrator 2026-10-15: ants_v2): every token of
+# such a domain (prepass, theta*, full pass) is fp16; the encode step refuses a precision that differs from its prepass.
+FP16_DOMAINS = {'ants_v2'}
+
+
+def check_amp(dom):
+    if AMP != 'bf16' and not os.environ.get('R4_TEST') and dom not in FP16_DOMAINS:
+        raise SystemExit(f'{dom}: tokens / codes are written only with the bf16 recipe (R4_AMP={AMP})')
 
 DOMS = {
     'mice': dict(ann='dataset/mice/v1/annotations.csv', exp='data/mice/v1/experiment.csv', fps=30, step=6, offset=2,
@@ -688,8 +696,8 @@ def mask_sheet(items, G, path):
 
 def cmd_prepass(args):
     import torch
-    assert AMP == 'bf16' or os.environ.get('R4_TEST'), 'tokens / codes are written only with the bf16 recipe'
     dom = args.domain
+    check_amp(dom)
     c = DOMS[dom]
     P = load_plan(dom)
     dev = torch.device('cuda')
@@ -789,7 +797,7 @@ def cmd_prepass(args):
                               'ref_mean': float(rf.mean())},
             'alignment_vs_jpg': {'ok': ok, 'n': len(align), 'items': align},
             'wall_s': time.time() - t0, 'gpu_s': pipe.gpu_s, 'decode_thread_s': pf.dec_s,
-            'gpu': torch.cuda.get_device_name(0)}
+            'gpu': torch.cuda.get_device_name(0), 'amp': AMP}
     log(json.dumps({k: v for k, v in info.items() if k != 'alignment_vs_jpg'}))
     log(f'alignment vs JPG: {ok}/{len(align)} frames closest to their own JPG ' + json.dumps([a['mad'] for a in align]))
     (OUT / dom).mkdir(parents=True, exist_ok=True)
@@ -850,6 +858,12 @@ def cmd_train(args):
                    encoder=D3L, layer=LAYER, S=DOMS[dom]['S'], rule=DOMS[dom]['rule'], domain=dom)
         Xtr = X_of('train')
         ltr = F.n_stored.values[F.role.values == 'train']
+        if args.cap and len(Xtr) > args.cap:  # GPU memory (11 GB debug GPUs): uniform seeded subsample of the pool
+            ii = torch.from_numpy(np.sort(np.random.default_rng(0).choice(len(Xtr), args.cap, replace=False))).to(dev)
+            Xtr = Xtr[ii].contiguous()
+            torch.cuda.empty_cache()
+            log(f'{dom} {v}: train pool capped to {args.cap:,} tokens (seed 0)')
+            res.setdefault('train_pool_cap', args.cap)
         torch.backends.cuda.matmul.allow_tf32 = True
         for seed in SEEDS:
             od = out_root / f'{v}_s{seed}'
@@ -910,6 +924,8 @@ def cmd_train(args):
                             'prefixes': ','.join(map(str, PREFIXES)), 'k': K, 'seed': b, 'variant': v, 'lag': LAG,
                             'encoder': D3L, 'layer': LAYER, 'S': DOMS[dom]['S'], 'fg_rule': DOMS[dom]['rule']},
                    'selection': 'seed with the highest FVE on the held-out evaluation videos (no labels)',
+                   'amp': json.loads((OUT / dom / 'prepass.json').read_text()).get('amp', 'bf16'),
+                   'train_pool_cap': args.cap or None,
                    'seeds': R, 'chosen_seed': b}
         (nd / 'metrics.json').write_text(json.dumps(metrics, indent=1, default=float))
         best[v] = {'name': name, 'seed': b, 'theta_star': R[b]['theta_star']}
@@ -924,10 +940,13 @@ def cmd_train(args):
 # ---------------------------------------------------------------------------------------------- encode
 def cmd_encode(args):
     import torch
-    assert AMP == 'bf16' or os.environ.get('R4_TEST'), 'tokens / codes are written only with the bf16 recipe'
     dom = args.domain
+    check_amp(dom)
     c = DOMS[dom]
     P = load_plan(dom)
+    pre_amp = json.loads((OUT / dom / 'prepass.json').read_text()).get('amp', 'bf16')
+    if pre_amp != AMP:
+        raise SystemExit(f'{dom}: prepass tokens are {pre_amp}, this encode would be {AMP}')
     dev = torch.device('cuda')
     torch.backends.cuda.matmul.allow_tf32 = False
     _, R = obs_ranges_of(REPO / c['ann'])
@@ -1062,7 +1081,8 @@ def cmd_merge(args):
                'files': {'codes_max': 'max over kept tokens under theta*', 'codes_mean': 'mean over kept tokens',
                          'argmax': 'G-grid position of the max token (-1 = silent)', 'n_fg': 'kept G-grid tokens',
                          'n_fg32': 'kept 32-grid cells (comparable with C1 n_fg)'},
-               'recipe': 'scripts/eci/rollout_r4.py'}
+               'recipe': 'scripts/eci/rollout_r4.py',
+               'amp': json.loads((OUT / dom / 'prepass.json').read_text()).get('amp', 'bf16')}
         (tmp / 'config.json').write_text(json.dumps(cfg, indent=1))
         st = {'n_frames': N, 'rows_nonfinite': nonfinite, 'token_l0_mean': l0 / max(ntok, 1), 'n_tokens': ntok,
               'kept_per_frame_mean': float(nf.mean()), 'frames_0_kept_frac': float((nf == 0).mean()),
@@ -1303,6 +1323,7 @@ def main():
     p.add_argument('--out-dir', default='')
     p.add_argument('--limit', type=int, default=0, help='prepass: first N bursts only (test; nothing copied)')
     p.add_argument('--steps', type=int, default=6000)
+    p.add_argument('--cap', type=int, default=0, help='train: max train-pool tokens (0 = all)')
     p.add_argument('--shard-frames', type=int, default=60_000)
     p.add_argument('--force', action='store_true')
     p.add_argument('--partial', action='store_true')

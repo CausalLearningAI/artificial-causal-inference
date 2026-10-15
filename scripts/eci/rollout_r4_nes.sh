@@ -57,4 +57,9 @@ if [ "$DOMAIN" = "mice" ]; then
     echo "=== $SAE: camera-period adjusted family B (sensitivity)"
     $W run_nes.py $COMMON --primary-pooling max --period adjust --primary-only
 fi
+if [ "$DOMAIN" = "ants" ]; then
+    echo "=== $SAE: without the day covariate (sensitivity; the day-confounded pairs, e.g. v3 t=2 vs t=8, are testable only here)"
+    $W run_nes.py $COMMON --analysis-set pairs --primary-pooling max --subdir pairs_noday --primary-only
+    $W run_nes_bouts.py $COMMON --analysis-set pairs --compare-pooling max --subdir pairs_noday --primary-only
+fi
 echo "done"
