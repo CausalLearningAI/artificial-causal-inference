@@ -126,4 +126,18 @@
 # ======================================================================================================================
 set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
-echo "commands are added below as the round-3 scripts land"; exit 1
+export MABE_TOK=results/vision/benchmark_mabe22/eci/tok_r3
+G="-p gpu --gres=gpu:L40S:1 --exclude=gpu242,gpu150,gpu230,gpu241 --cpus-per-task=8"
+LOGS=results/vision/benchmark_mabe22/eci/r3/logs
+sub() { sbatch $G --output=$LOGS/%x_%j.out "$@" scripts/benchmark/mabe22/eci.sh; }
+case "${1:-}" in
+  smoke)   # 2 clips of eval shard 0 (store mode)
+    PY=eci_r3_encode EXTRA="--set eval --shard 0 --nshard 12 --mode store --smoke 2" sub --mem=48G --time=00:20:00 --job-name=r3_smoke ;;
+  store)   # main round-3 store: train 8 shards, eval 12 shards
+    for i in $(seq 0 7); do PY=eci_r3_encode EXTRA="--set train --shard $i --nshard 8 --mode store" sub --mem=64G --time=01:30:00 --job-name=r3_st_tr$i; done
+    for i in $(seq 0 11); do PY=eci_r3_encode EXTRA="--set eval --shard $i --nshard 12 --mode store" sub --mem=64G --time=01:30:00 --job-name=r3_st_ev$i; done ;;
+  scale)   # E3 token density (after the store): 336 + 672 orbit tokens of t and t-60
+    for i in $(seq 0 7); do PY=eci_r3_encode EXTRA="--set train --shard $i --nshard 8 --mode scale --sizes 336 672" sub --mem=96G --time=02:00:00 --job-name=r3_sc_tr$i; done
+    for i in $(seq 0 11); do PY=eci_r3_encode EXTRA="--set eval --shard $i --nshard 12 --mode scale --sizes 336 672" sub --mem=96G --time=02:00:00 --job-name=r3_sc_ev$i; done ;;
+  *) echo "usage: $0 smoke | store | scale | ..."; exit 1 ;;
+esac
