@@ -1,600 +1,747 @@
 # DINES — Direct–Indirect Neural Effect Search: theory report
 
-*Draft for review (R. Cadei; adversarial check by Codex). 2026-10-15. Working name; may change.*
+*Draft 2, 2026-10-16 (R. Cadei; adversarial check by Codex). Replaces draft 1 (commit 07f7c11). Appendix A maps draft-1 result numbers to the new ones.*
 
-**How results are labelled.** *Theorem*, *Proposition*, *Lemma* and *Corollary* come with a complete proof in this document. *Conjecture* = we believe it but have no proof. *Open question* = we do not know. *Hypothesis (empirical)* = a proposed explanation of a measured behaviour that has not been tested. Numbers marked "measured" come from runs listed in §9.4 and Appendix B.
-
----
-
-## 1. Summary
-
-**Problem.** A binary treatment $T$ is randomized. After treatment we observe a complex measurement $X$ (an image, a video frame) and summarize it with a fixed dictionary of $m$ atoms $Z=\psi(X)\in\mathbb{R}^m$ (for example sparse-autoencoder codes on foundation-model features). We want to know *what the treatment changed*, read off as atoms.
-
-**Target.** The main output is the **direct set**
-$$\mathrm{Adj}_Z(T)=\{\,j\in[m]:\ \mathbb{E}[Z^j\mid T,Z^A]\neq\mathbb{E}[Z^j\mid Z^A]\ \text{for every } A\subseteq[m]\setminus\{j\}\,\}:$$
-the atoms whose mean shift under $T$ cannot be explained away by conditioning on any other atoms. This is a purely statistical object, defined for any dictionary (Tier 1, §3.1). Under a latent-factor model where the treatment changes some factors and the dictionary aligns with the factors around $T$ (Tier 2, §3.2), the direct set is exactly the set of principal atoms of the **children of $T$** (Theorem 6), which are the factors whose causal mechanism the treatment changes (Proposition 8, Tier 3). It is *not* the smallest set of atoms that makes $T$ independent of the rest (the Markov boundary): that set also contains the unaffected co-parents of affected factors ("spouses"). The hat/hair example in §3.4 shows the difference. The second output is the **indirect set**: atoms that $T$ shifts on average but that are not direct, each tagged with the direct atoms that carry its effect (§5).
-
-**Algorithm.** A forward phase adds, one at a time, the atom with the smallest conditional $p$-value given the atoms already selected (not the largest raw effect). A terminal backward phase keeps an atom only if it stays significant at level $\alpha/m$ given *every* subset of the other selected atoms. An optional third stage builds the indirect output.
-
-**Main theorem (Theorem 11, one sentence).** At fixed $m$, if the tests are valid at a fixed true null and consistent against fixed alternatives, and a fixed "separator pool" of atoms exists that the forward phase is forced to reach, then $\liminf_n \mathbb{P}(\hat S_n=\mathrm{Adj}_Z(T))\ge 1-\alpha$. Under Tier 2 the pool is the set of principal atoms of $T$'s Markov blanket, so $\liminf_n\mathbb{P}(\hat S_n=\{\text{principal atoms of the children of }T\})\ge 1-\alpha$ (Corollary 12).
-
-**The separating-set question (settled).** NEXIS's precision proof needs, for every false atom, a *fixed* true null whose conditioning set lies inside the forward output. With a post-treatment dictionary the target set itself is not such a set (conditioning on a child opens the path from $T$ to its spouses). We prove (Lemma 5) that because $T$ is a root, every factor $s$ that is not a child of $T$ is d-separated from $T$ by $\mathrm{MB}(T)\setminus(\{s\}\cup\mathrm{De}(s))$ — the Markov blanket of $T$ minus $s$ and its descendants. This covers the hard case (a spouse that is also a descendant of $T$, e.g. $T\to A\to B\to W\to C\leftarrow T$, separated by $\{A\}$). So the NEXIS structure "one fixed true null per false atom, no post-selection" survives unchanged.
-
-**What changed from NES** (details and evidence in §8): a defined target instead of "the coarsest abstraction"; ordering by $p$-value instead of raw magnitude (NES's "Principal–Max" property is not preserved across rounds even under its own assumptions — counterexample in §8.2 — and in the saved CelebA runs a mixed atom, N_408, is picked before the eyeglasses atom N_6051 because its raw effect is larger although its $t$-statistic is half as big); a terminal backward step (NES never removes an atom); regression-based conditional tests instead of strata built from atoms binarized at $>0$ (which leave about 36% of a mediated effect in place, measured); the correct error statement $\liminf\mathbb{P}(\text{exact})\ge 1-\alpha$ instead of "FWER $\to0$"; mediated and spouse structure handled explicitly; cluster-robust inference for video.
-
-**Sanity simulation (measured, linear-Gaussian toy with a mediator, a descendant spouse and a pre-treatment spouse, 100 seeds, Appendix B).** With exactly aligned atoms DINES recovers the direct set exactly in 99/100 runs at $n=1000$, $4000$ and $16000$. Its forward phase contains on average 1.9–2.1 non-direct atoms (the two spouses), which the terminal step removes. With noisy principal atoms (approximate alignment) exact recovery falls with $n$: 96, 96, 84 of 100 — the predicted failure mode, which only a relevance margin $\delta$ removes (100/100 at $n\ge4000$ with $\delta=0.05$, but recall 0.85 at $n=1000$).
+**Labels.** *Theorem*, *Proposition*, *Lemma* and *Corollary* have a complete proof in this document. *Conjecture* = believed, not proved. *Open question* = unknown. "Measured" numbers come from the runs in Appendix B.
 
 ---
 
-## 2. Setup and notation
+## 0. Summary (this page is self-contained)
 
-- **Units.** $n$ i.i.d. units (for video: i.i.d. clusters, §7.6). Each unit has a treatment $T\in\{0,1\}$ with $\mathbb{P}(T=1)=e\in(0,1)$ fixed by design, optional pre-treatment covariates $W$ (so $T\perp\!\!\!\perp W$), and a post-treatment measurement $X$.
-- **Dictionary.** $\psi:\mathcal{X}\to\mathbb{R}^m$ is fixed before the experiment is analysed (not fitted on the test units; §7.9). $Z=\psi(X)$, $Z^j$ its $j$-th atom, $[m]=\{1,\dots,m\}$, $Z^A=(Z^k)_{k\in A}$, $Z^{\emptyset}$ a constant. We assume $\mathbb{E}|Z^j|<\infty$ for all $j$ (second moments where tests need them).
-- **Conditional quantities.** For $A\subseteq[m]$ and $j\notin A$:
-  - propensity given atoms: $\pi_A(Z^A):=\mathbb{P}(T=1\mid Z^A)$;
-  - atom regression: $\mu_{j,A}(Z^A):=\mathbb{E}[Z^j\mid Z^A]$;
-  - arm contrast: $\Delta_{j,A}(Z^A):=\mathbb{E}[Z^j\mid T=1,Z^A]-\mathbb{E}[Z^j\mid T=0,Z^A]$ on $\{0<\pi_A<1\}$, and $0$ elsewhere.
-- **The null hypothesis used everywhere (mean null).**
-$$H_0(j\mid A):\quad \mathbb{E}[Z^j\mid T,Z^A]=\mathbb{E}[Z^j\mid Z^A]\quad\text{a.s.}$$
-  When covariates $W$ are used, $Z^A$ is replaced by $(Z^A,W)$ throughout. $p_j(A)$ denotes a $p$-value for $H_0(j\mid A)$.
-- **Graph terms** (for a DAG $\mathcal{G}$): $\mathrm{Pa}(v)$ parents, $\mathrm{Ch}(v)$ children, $\mathrm{An}(v)$ ancestors (including $v$), $\mathrm{De}(v)$ *strict* descendants, $\mathrm{Sp}(T):=\bigcup_{c\in\mathrm{Ch}(T)}\mathrm{Pa}(c)\setminus\{T\}$ the co-parents of $T$'s children ("spouses"), $\mathrm{MB}(T):=\mathrm{Ch}(T)\cup\mathrm{Sp}(T)$ the Markov blanket of a root $T$. $\perp_d$ is d-separation.
+**Setting.** A binary treatment $T$ is randomized. After treatment we observe an image or video frame and summarize it with a dictionary fixed in advance: $m$ atoms $Z=(Z^1,\dots,Z^m)$, for example sparse-autoencoder codes.
 
-**Lemma 1 (forms of the mean null).** Fix $A$ and $j\notin A$.
-1. $\mathbb{E}[Z^j\mid T,Z^A]-\mu_{j,A}(Z^A)=(T-\pi_A)\,\Delta_{j,A}$ a.s.
-2. $H_0(j\mid A)$ holds iff $\pi_A(1-\pi_A)\Delta_{j,A}=0$ a.s., i.e. iff the arms have the same conditional mean wherever both arms have positive conditional probability.
-3. If $\mathbb{E}[(Z^j)^2]<\infty$: $\ \mathbb{E}\big[(T-\pi_A)(Z^j-\mu_{j,A})\big]=\mathbb{E}\big[\pi_A(1-\pi_A)\Delta_{j,A}\big]$.
+**Objective.** Find the atoms the treatment changes, excluding those that change only as a consequence of other changed atoms.
+
+**Running example: the frog.** A treatment paralyses a leg ($P$) and changes skin colour ($C$). Movement speed ($V$) drops only because the leg is paralysed.
+- The target is $\{P,C\}$, not $V$.
+- If the treatment also made the frog lethargic, $V$ would change directly and should be reported.
+- Marginal tests flag all three atoms. NES may flag $V$ first and never remove it (§4).
+
+DINES holds atoms fixed and asks which shifts survive whatever is held fixed. Formally, the target is the atoms of the treatment's *children* in a latent causal model (§2). The statistical object is the **direct set** $\mathrm{Adj}$: the atoms whose mean $T$ shifts given every set of other atoms that leaves both arms represented (§1).
+
+**This is a mediation question, and it has a price.** A single randomized treatment identifies *total* effects only. Splitting them into direct and indirect is a mediation question, and it needs untestable assumptions (Robins & Greenland, 1992; Pearl, 2001; sequential ignorability, Imai et al., 2010):
+- **(a)** the mediator is recorded by the dictionary in the detail its consequences depend on. This fails if the atom says only "leg drags yes/no" while speed depends on the degree of paralysis;
+- **(b)** there is no hidden common cause of a changed factor and its consequences. This fails if frog size affects both paralysis severity and speed and no atom records size.
+
+If either fails, $V$ still differs between the arms when the paralysis atom is held fixed. The data are then exactly as compatible with "the treatment slows the frog directly" (Proposition 3). **This is the price of the question, not of DINES: any method that drops $V$ relies on (a) and (b), NES included.**
+
+**Realistic version.** Exact alignment is unrealistic. NEXIS rejects it on CelebA at $p<10^{-14}$, while the principal atom still carries 94–96% of the held-out information. With an imperfect atom for $P$, a small part of $V$'s shift *leaks* through, and it is detected once $n$ is large. This is the likely cause of NES's precision falling with $N$ (0.80 → 0.49), and the same failure appears for DINES in our toy model. DINES therefore tests "$|\rho|\le\delta$", where $\rho$ is a partial correlation between $T$ and the atom given the conditioning atoms. It recovers the target when every leak is below $\delta$ and every direct effect is above it. The margin $\delta$ belongs to the algorithm and the assumption; the target does not change.
+
+**Overlap.** Skin colour may reveal the treatment. Holding colour fixed then leaves no control frogs, and every other shift is "explained" trivially. The direct set is therefore defined over conditioning sets that leave both arms represented. With this definition:
+- $P$ stays in the set;
+- $V$ is still dropped, because holding $P$ fixed explains it;
+- atoms that change only through colour cannot be told apart from atoms the treatment changes directly, because colour *is* the treatment as far as the data can tell. They are reported as "undetermined". If colour is an exact copy of $T$, this label also applies to $P$: "changed by $T$" and "changed by colour" are then the same statement in the data. This is a real identification limit (Proposition 4).
+
+**Why it works (proof sketch).**
+- *Recall.* A direct atom is shifted given every overlap set, so consistent tests admit it and keep it.
+- *Precision.* The forward phase reaches the atoms around $T$. Every non-direct atom has one **fixed** separating set among them, and the terminal phase tests it there. A union bound over at most $m$ fixed nulls gives error at most $\alpha$; no test at a data-chosen set needs to be valid.
+- *Causal reading.*
+  - Because $T$ is randomized, a non-child factor is cut off from $T$ by those blanket factors that are its ancestors (separator lemma, Lemma 3).
+  - Aligned atoms let atom-level conditioning replace factor-level conditioning (Lemma 4).
+  - So the direct set is the set of child atoms (Theorem 1).
+- *The δ version.* The same argument applies with the null $|\rho|\le\delta$ (Theorem 3).
+
+**Clean formulation.**
+- **Objective.** The atoms the treatment changes, excluding those that change only as a consequence of other changed atoms.
+- **Assumptions.**
+  1. $T$ is randomized.
+  2. *Alignment* with the changed factors and the needed conditioning factors, in the NEXIS sense. Each has a principal atom that screens it off: once the principal atom is known, no other atom tells more about the factor. The atom of an "other cause" must also read nothing on the treatment side. In the approximate version, leak $<\delta<$ direct effect.
+  3. *No hidden common cause* of a changed factor and its consequences.
+  4. *No exact cancellation and valid tests.* Direct atoms stay shifted given every overlap set. The search never stalls on an exact cancellation. The regressions used to hold atoms fixed are learned well enough, on a dictionary fixed before the analysis.
+- **Guarantee.** As $n\to\infty$ with $m$ fixed, DINES returns exactly the atoms of the directly changed factors with probability at least $1-\alpha$, and with probability tending to 1 when leaks are strictly below $\delta$ (Corollary 2, Theorem 3).
+- **What you still get without 2–3.**
+  - Total effects are always valid.
+  - Every directly changed factor whose atom stays shifted is reported (recall needs only assumption 4).
+  - The output is the dictionary-relative direct set $\mathrm{Adj}$, with error at most $\alpha$. This holds provided the atoms around $T$ suffice to explain away the rest (assumption L, §2.6), which is not automatic for an arbitrary dictionary.
+  - But an atom reported as direct may be a consequence seen through a coarse or noisy mediator atom, or a consequence confounded by an unrecorded common cause. No method can tell the difference from these data.
+
+---
+
+## 1. Setup and the target
+
+- **Units.** $n$ i.i.d. units (for video: i.i.d. clusters, §3.4). Treatment $T\in\{0,1\}$ with $\mathbb{P}(T=1)=e\in(0,1)$ fixed by design. Optional pre-treatment covariates $W$ (so $T\perp\!\!\!\perp W$).
+- **Dictionary.** $\psi$ is fixed (not fitted on the analysed units; §3.6). $Z=\psi(X)\in\mathbb{R}^m$, $[m]=\{1,\dots,m\}$, $Z^A=(Z^k)_{k\in A}$, and $Z^\emptyset$ is a constant. Atoms have finite second moments.
+- **Conditional quantities**, for $A\subseteq[m]$ and $j\notin A$:
+  - propensity given atoms: $\pi_A:=\mathbb{P}(T=1\mid Z^A)$;
+  - atom regression: $\mu_{j,A}:=\mathbb{E}[Z^j\mid Z^A]$;
+  - arm contrast: $\Delta_{j,A}:=\mathbb{E}[Z^j\mid T=1,Z^A]-\mathbb{E}[Z^j\mid T=0,Z^A]$ on $\{0<\pi_A<1\}$, and $0$ elsewhere;
+  - overlap of $A$: $V_A:=\mathbb{E}[\pi_A(1-\pi_A)]$.
+- **Mean null.** $H_0(j\mid A):\ \mathbb{E}[Z^j\mid T,Z^A]=\mathbb{E}[Z^j\mid Z^A]$ a.s. With covariates, $Z^A$ is replaced by $(Z^A,W)$ everywhere.
+- **Effect scale (partial correlation).**
+  $$\rho_{j|A}:=\frac{\mathbb{E}[(T-\pi_A)(Z^j-\mu_{j,A})]}{\sqrt{\mathbb{E}[(T-\pi_A)^2]\ \mathbb{E}[(Z^j-\mu_{j,A})^2]}}\qquad(:=0\text{ if a factor of the denominator is }0).$$
+  **Margin null:** $H_0^\delta(j\mid A):\ |\rho_{j|A}|\le\delta$, for $\delta\ge0$.
+- **Overlap sets.** $\mathcal{O}:=\{A\subseteq[m]:\ 0<\pi_A<1\text{ a.s.}\}$, the conditioning sets that leave both arms possible for almost every unit. Properties:
+  - $\emptyset\in\mathcal{O}$;
+  - $\mathcal{O}$ is closed under subsets: if $A\subseteq A'$, then $\pi_A=\mathbb{E}[\pi_{A'}\mid Z^A]$ lies in $(0,1)$ when $\pi_{A'}$ does.
+- **Graph terms** (DAG $\mathcal{G}$): $\mathrm{Pa},\mathrm{Ch}$; $\mathrm{An}(Y)$, the ancestors of $Y$ including $Y$; $\mathrm{De}$, *strict* descendants. $\mathrm{Sp}(T):=\bigcup_{c\in\mathrm{Ch}(T)}\mathrm{Pa}(c)\setminus\{T\}$ are the *other causes* of $T$'s children ("spouses"). $\mathrm{MB}(T):=\mathrm{Ch}(T)\cup\mathrm{Sp}(T)$ is the Markov blanket of a root $T$. $\perp_d$ denotes d-separation.
+
+**Lemma 1 (forms of the null; the effect scale).** Fix $A$ and $j\notin A$.
+1. $\mathbb{E}[Z^j\mid T,Z^A]-\mu_{j,A}=(T-\pi_A)\Delta_{j,A}$ a.s.
+2. $H_0(j\mid A)$ holds iff $\pi_A(1-\pi_A)\Delta_{j,A}=0$ a.s. In particular, if $\pi_A\in\{0,1\}$ a.s., then $H_0(j\mid A)$ holds for every $j$.
+3. $\mathbb{E}[(T-\pi_A)(Z^j-\mu_{j,A})]=\mathbb{E}[\pi_A(1-\pi_A)\Delta_{j,A}]$.
 4. $T\perp\!\!\!\perp Z^j\mid Z^A$ implies $H_0(j\mid A)$; the converse is false.
+5. $\rho_{j|A}=\mathbb{E}[\pi_A(1-\pi_A)\Delta_{j,A}]\big/\sqrt{V_A\,\mathbb{E}[\mathrm{Var}(Z^j\mid Z^A)]}$, $|\rho_{j|A}|\le1$, and $H_0(j\mid A)\Rightarrow\rho_{j|A}=0$; the converse is false.
 
-*Proof.* (1) On $\{0<\pi_A<1\}$, write $m_t=\mathbb{E}[Z^j\mid T=t,Z^A]$. Then $\mathbb{E}[Z^j\mid T,Z^A]=Tm_1+(1-T)m_0$ and $\mu_{j,A}=\pi_Am_1+(1-\pi_A)m_0$; the difference is $(T-\pi_A)(m_1-m_0)$. On $\{\pi_A=1\}$ we have $T=1$ a.s., so $\mathbb{E}[Z^j\mid T,Z^A]=\mathbb{E}[Z^j\mid Z^A]$ a.s. there, matching $\Delta=0$; likewise on $\{\pi_A=0\}$. (2) Given $Z^A$ on $\{0<\pi_A<1\}$, $T-\pi_A$ takes the non-zero values $1-\pi_A$ and $-\pi_A$ with positive conditional probabilities, so $(T-\pi_A)\Delta_{j,A}=0$ a.s. iff $\Delta_{j,A}=0$ a.s. on that set, iff $\pi_A(1-\pi_A)\Delta_{j,A}=0$ a.s. (3) $\mathbb{E}[(T-\pi_A)\mu_{j,A}]=\mathbb{E}[\mu_{j,A}\,\mathbb{E}[T-\pi_A\mid Z^A]]=0$, and by the tower rule and (1), $\mathbb{E}[(T-\pi_A)Z^j]=\mathbb{E}[(T-\pi_A)(\mu_{j,A}+(T-\pi_A)\Delta_{j,A})]=\mathbb{E}[\pi_A(1-\pi_A)\Delta_{j,A}]$. (4) Conditional independence gives equality of the conditional laws, hence of the conditional means. For the converse, let $Z^j\mid T\sim\mathcal{N}(0,1+T)$ with $A=\emptyset$. $\square$
+*Proof.* (1) On $\{0<\pi_A<1\}$ let $m_t=\mathbb{E}[Z^j\mid T=t,Z^A]$. Then $\mathbb{E}[Z^j\mid T,Z^A]=Tm_1+(1-T)m_0$ and $\mu_{j,A}=\pi_Am_1+(1-\pi_A)m_0$, whose difference is $(T-\pi_A)(m_1-m_0)$. On $\{\pi_A=1\}$, $T=1$ a.s., so $\mathbb{E}[Z^j\mid T,Z^A]=\mu_{j,A}$ there; likewise on $\{\pi_A=0\}$.
 
-Item 3 is the quantity a residual-product (GCM) test estimates: an *overlap-weighted average* of the conditional arm contrast, analogous to the overlap-weighted average treatment effect. Item 4 says the mean null is weaker than conditional independence. Since $T$ is binary, conditional independence is itself a mean statement *about $T$*: $T\perp\!\!\!\perp Z^j\mid Z^A\iff \mathbb{E}[T\mid Z^j,Z^A]=\mathbb{E}[T\mid Z^A]$. We use the mean null *on the atom* $Z^j$, as decided: the effect type of interest is a change in the mean of an atom. For a zero-inflated sparse-autoencoder code, the mean $\mathbb{E}[Z^j]=\mathbb{P}(Z^j>0)\,\mathbb{E}[Z^j\mid Z^j>0]$ moves when either the firing rate or the firing magnitude moves, so a mean test covers both. A treatment that changes only the spread of an atom is invisible to this target.
+(2) Given $Z^A$ on $\{0<\pi_A<1\}$, $T-\pi_A$ takes the two non-zero values $1-\pi_A$ and $-\pi_A$ with positive probability, so $(T-\pi_A)\Delta=0$ a.s. iff $\Delta=0$ a.s. there.
+
+(3) $\mathbb{E}[(T-\pi_A)\mu_{j,A}]=0$, and $\mathbb{E}[(T-\pi_A)Z^j]=\mathbb{E}[(T-\pi_A)(\mu_{j,A}+(T-\pi_A)\Delta)]=\mathbb{E}[\pi_A(1-\pi_A)\Delta]$.
+
+(4) Equal conditional laws give equal conditional means. Counterexample to the converse: $Z^j\mid T\sim\mathcal{N}(0,1+T)$ with $A=\emptyset$.
+
+(5) $\mathbb{E}[(T-\pi_A)^2]=V_A$ and $\mathbb{E}[(Z^j-\mu_{j,A})^2]=\mathbb{E}\mathrm{Var}(Z^j\mid Z^A)$. The numerator is given by (3), and Cauchy–Schwarz gives $|\rho|\le1$. Under $H_0$ the numerator is $0$ by (2). The converse fails when $\Delta$ changes sign and averages to zero under the weights $\pi_A(1-\pi_A)$. $\square$
+
+**Definition 1 (direct, total and indirect sets).**
+$$\mathrm{Adj}_Z(T):=\{j:\ H_0(j\mid A)\text{ false for every }A\in\mathcal{O}\text{ with }j\notin A\},\qquad\mathrm{De}_Z(T):=\{j:\ H_0(j\mid\emptyset)\text{ false}\},$$
+and $\mathrm{Ind}_Z(T):=\mathrm{De}_Z(T)\setminus\mathrm{Adj}_Z(T)$.
+
+*Reading.*
+- **Only overlap sets count.** By Lemma 1.2, a set that reveals $T$ satisfies every null vacuously, so it carries no information about the direct/indirect split. Draft 1 used every subset, so a single treatment-revealing atom emptied the direct set. The two definitions agree when every set has overlap.
+- **"Direct" is relative to the dictionary**, just as adjacency in causal discovery is relative to the measured variables.
+- **The null is about the mean.** For a zero-inflated code, $\mathbb{E}Z^j=\mathbb{P}(Z^j>0)\,\mathbb{E}[Z^j\mid Z^j>0]$, so a mean test sees changes in both firing rate and firing magnitude. A change in spread alone is invisible to it.
+- **What the GCM test sees.** The GCM test (§3.1) detects only $\rho\neq0$, so with it "$H_0$ false" is read as "$\rho\ne0$". The difference from the mean null lies in sign changes that cancel exactly, which assumption 4 excludes.
 
 ---
 
-## 3. Targets
+## 2. Formal results
 
-### 3.1 Tier 1 — the direct set (statistical, any dictionary)
+### 2.1 The latent model and the two causal assumptions
 
-**Definition 1 (direct set; total-effect set).**
-$$\mathrm{Adj}_Z(T):=\{\,j\in[m]:\ H_0(j\mid A)\ \text{is false for every } A\subseteq[m]\setminus\{j\}\,\},\qquad \mathrm{De}_Z(T):=\{\,j:\ H_0(j\mid\emptyset)\ \text{is false}\,\}.$$
-$\mathrm{De}_Z(T)$ is the set of atoms with a non-zero average treatment effect. Taking $A=\emptyset$ shows $\mathrm{Adj}_Z(T)\subseteq\mathrm{De}_Z(T)$.
+**Assumption A1 (latent model).** There are finite latent *factors* $L=(L_1,\dots,L_r)$ and an acyclic structural causal model over $\{T\}\cup L$ with mutually independent noises, in which $T$ is a root (randomization). Its DAG is $\mathcal{G}_L$. The atoms are $Z=H(L,N^Z)$ with $N^Z\perp\!\!\!\perp(T,L)$. The measurement noise may be dependent across atoms. $P(j)\subseteq L$ denotes a minimal set of factors read by atom $j$. The **changed factors** are $\mathrm{Ch}(T)$. Their consequences are their descendants.
 
-*Reading.* An atom is direct if *no* set of other atoms accounts for its mean shift. "Direct" is relative to the dictionary, exactly as adjacency in causal discovery is relative to the measured variables: if a mediator is missing from the dictionary, its downstream atoms become direct (§4.3, counterexample (b)). With covariates, every conditioning set also contains $W$; Proposition 14 shows this does not change the target under Tier 2.
+**Assumption 3 (no hidden common cause; coverage).** There is a description satisfying A1 in which every factor of $\mathrm{MB}(T)$ — each changed factor and each other cause of a changed factor — has its own principal atom $j_k$, distinct for distinct $k$. We write $J_C:=\{j_c:c\in\mathrm{Ch}(T)\}$, $B_Z:=\{j_k:k\in\mathrm{MB}(T)\}$, and $J_D:=\{j_k:k\in D\}$.
 
-*Why the mean null, and what the tests see.* The target uses the mean null (decision of the user; §2). Two test families are relevant (§7.2):
-- the generalised covariance measure (GCM) estimates $\mathbb{E}[\pi_A(1-\pi_A)\Delta_{j,A}]$ (Lemma 1.3). It is valid under the mean null but has power only when this overlap-weighted average is non-zero, so it misses alternatives where the conditional contrast changes sign across values of $Z^A$;
-- the projected covariance measure (PCM) with response $Z^j$, covariate $T$ and conditioning set $Z^A$ tests the mean null itself and has power against any alternative its learned projection captures (it estimates $\mathbb{E}[\pi_A(1-\pi_A)\,h\,\Delta_{j,A}]$ for a learned $h\approx\Delta_{j,A}$).
+**Assumption 2 (alignment, NEXIS screening form).** Write $D_s:=(\mathrm{MB}(T)\cap\mathrm{An}(s))\setminus\{s\}$ for each other cause $s\in\mathrm{Sp}(T)\setminus\mathrm{Ch}(T)$.
+- (2a) *Screening off:* $L_D\perp\!\!\!\perp Z^{[m]\setminus J_D}\mid Z^{J_D}$ for $D=\mathrm{MB}(T)$ and for every $D=D_s$. Once the principal atoms are known, no other atom tells more about the factors.
+- (2b) *Purity on the treatment side:* for each such $s$, the atoms $j_s$ and $J_{D_s}$ read only their own factors: $Z^{j_k}=h_k(L_k,N^Z)$.
 
-The theorems below are stated for a generic test (Assumption A5); the faithfulness-type assumptions must then hold *in the sense the chosen test can see*. For the GCM this means "the overlap-weighted contrast is non-zero" wherever a hypothesis is assumed false.
+Assumption 2a is NEXIS's Principal Alignment (its Eq. 6, $W^{\mathrm{dir},k}\perp\!\!\!\perp Z^{[m]\setminus\{j_k\}}\mid Z^{j_k}$) combined with its composition clause, applied to the changed factors and to the conditioning factors DINES needs. *Exact capture* means determination ($L_k=a_k(Z^{j_k})$) plus purity for every $k\in\mathrm{MB}(T)$. It implies assumption 2 for every $D$, and it is the convenient sufficient condition used in §2.10–2.12 and §3.2.
 
-### 3.2 Tier 2 — the causal model
+**Lemma 2 (folding: which other causes need an atom).** In a description satisfying A1:
+- (i) a factor that no atom reads and that has no children can be deleted;
+- (ii) a factor $s$ that no atom reads and that has exactly one child $c$ can be folded into $c$: $L_c=f_c(L_{\mathrm{Pa}(c)\setminus\{s\}},f_s(L_{\mathrm{Pa}(s)},N_s),N_c)$, with noise $(N_s,N_c)$.
 
-**Assumption A1 (latent structural model).** There is a finite set of latent variables $L=(L_1,\dots,L_r)$ ("factors"; they may include variables no atom represents) and an acyclic structural causal model over $\{T\}\cup L$ with mutually independent exogenous noises, in which $T$ is exogenous (a root: randomization). Call its DAG $\mathcal{G}_L$. The atoms are generated by a measurement map
-$$Z=H(L,N^Z),\qquad N^Z\perp\!\!\!\perp(T,L),$$
-where the measurement noise $N^Z$ may be arbitrarily dependent across atoms. In particular $T$ acts on $X$, hence on $Z$, only through the factors (a visible treatment marker is itself a factor, a child of $T$). We write $P(j)\subseteq L$ for a minimal set of factors on which $H_j$ depends.
+In both cases the result satisfies A1, $T$ is still a root, and the law of $(T,Z)$ is unchanged.
 
-**Assumption A2 (alignment on the Markov blanket of $T$).** For every factor $k\in\mathrm{MB}(T)$ (every child of $T$ and every co-parent of a child) there is an atom $j_k$, distinct for distinct $k$, such that
-- (a) *determination*: $L_k=a_k(Z^{j_k})$ a.s. for a measurable $a_k$;
-- (b) *purity*: $Z^{j_k}=h_k(L_k,N^Z)$, i.e. the atom depends on the latent world only through its own factor.
+*Proof.* (i) Deleting an unread sink leaves all other equations unchanged. (ii) The new noise is used only by $c$, so the noises stay independent, and substitution preserves the joint law of the other variables. A new edge $p\to c$ with $p\in\mathrm{Pa}(s)$ would close a cycle only if $c\in\mathrm{An}(p)$, but then $c\to\dots\to p\to s\to c$ was already a cycle. $T$ receives no parent. $\square$
 
-Write $J_C:=\{j_c:c\in\mathrm{Ch}(T)\}$ (principal atoms of the children), $J_{Sp}:=\{j_s:s\in\mathrm{Sp}(T)\setminus\mathrm{Ch}(T)\}$, and $B_Z:=J_C\cup J_{Sp}$.
+After folding, the only other causes that remain are those read by an atom or linked to the atoms by a second route. So assumption 3 asks for an atom only for a cause of a changed factor that also reaches other atoms some other way. In the frog, size is such a cause: it reaches speed directly. A hidden common cause is exactly a needed conditioning factor without an atom. Folding an unread changed factor into its child makes that child "changed", in line with directness being relative to the dictionary. (The lethargy variant works this way: lethargy is unrecorded, so speed becomes a changed factor.)
 
-**Assumption A3 (mean adjacency faithfulness at the children).** For every $c\in\mathrm{Ch}(T)$ and every $A\subseteq[m]\setminus\{j_c\}$, $H_0(j_c\mid A)$ is false.
+### 2.2 Comparison with NEXIS: what changes when conditioning is post-treatment
 
-*Relation to the framing given in the brief.* The brief asked for (i) alignment that "nearly determines" each affected factor and each co-parent of an affected factor, (ii) no hidden common cause among affected factors outside the dictionary, and (iii) factor-level faithfulness. Three differences:
+- **Why NEXIS needs less.** NEXIS conditions only on pre-treatment variables, which are independent of $T$ and not caused by it. Holding them fixed therefore never creates spurious arm differences. Here the conditioning atoms are post-treatment. Holding paralysis fixed compares treated frogs with control frogs that reached the same severity *for other reasons*, such as size. That explaining-away dependence is why assumption 3, and the alignment of other causes, are needed.
+- **Assumption (b).** NEXIS's analogue of (b) is built into its target: $W^{\mathrm{dir}}$ is *defined* as the direct modifiers, and $\tau\perp\!\!\!\perp Z\mid W^{\mathrm{dir}}$ is asserted. Here (b) must be stated (assumption 3), because the factor structure around $T$ is part of what is inferred.
+- **Assumption (a)** is Principal Alignment applied to the changed and needed conditioning factors (assumption 2a).
+- **Do the proofs need more than screening off?**
+  - *For atoms explained away by the whole blanket: no.* Screening off, even in its mean form, is exactly what the proof uses, through contraction (Lemma 4a).
+  - *For other-cause atoms and reduced separators: purity as well.* NEXIS never needs purity, because it never conditions on post-treatment variables. Example (d) of §2.3 shows that purity cannot be dropped here.
+  - *Screening off is not weaker than determining the relevant part.* With independent measurement noise, screening off holds iff the principal atom determines the part of the factor that other atoms' means depend on (Lemma 5). The coarse "leg drags yes/no" atom violates it whenever speed depends on the degree of paralysis. Screening off is, however, weaker than full determination: the paralysis atom need not record aspects of paralysis on which nothing else depends.
+- **Approximate version.** NEXIS's own CelebA evidence motivates the realistic version. Exact screening is rejected at $p<10^{-14}$, while the principal atom carries 94–96% of the held-out information. Hence the condition "leak $<\delta<$ direct effect" (Theorem 3), and Propositions 5–6, which say how large a leak is.
 
-1. **Less alignment is needed.** Only the Markov blanket of $T$ (children and their co-parents) must be aligned. Descendants further down, and hidden common causes of two *non-child* affected factors, do no harm (they are handled by the proof of Theorem 6). The brief's (i)+(ii) imply A2 but are stronger.
-2. **(ii) is the special case that matters.** A hidden common cause of a child and another affected factor is a co-parent of that child, so A2 forbids it; this is exactly the counterexample (a) in §4.3. A hidden common cause of two grandchildren is allowed.
-3. **Factor-level faithfulness is not enough.** A3 is a statement about atoms. It fails for a faithful factor model whenever another atom duplicates a child's principal atom (sparse-autoencoder feature splitting or absorption), or whenever some atoms almost reveal $T$ (§4.3 (e)). We therefore state the atom-level condition, as NEXIS does with its Eq. 12.
-4. **"Nearly determines" is not enough for the theorem.** Determination must be exact; a noisy proxy does not block a mediated path (§4.3 (c)). Approximate alignment is treated in §7.8.
-5. **Purity is new.** NEXIS's Principal Alignment allows polysemantic principal coordinates. Here the principal atoms of spouses must be pure (§4.3 (d)), and so must the blanket atoms used to separate them (the set $D^\star(s)$ of Lemma 5, which can contain children): an impure child atom that also reads a common child of $T$ and $s$ re-opens the collider it was meant to leave closed. Purity is not needed for Lemma 3.
+### 2.3 What breaks without each assumption (frog versions; each example satisfies everything else)
 
-### 3.3 Tier 3 — the mechanisms that the treatment changes
+All noises are independent standard Gaussians unless stated, and $T\sim\mathrm{Bern}(1/2)$.
 
-Under A1, write the mechanism of factor $k$ as the conditional law $q_k(\,\cdot\mid \mathrm{pa}_k)$ of $L_k$ given its parents. An intervention sets $T=t$:
-$$\mathbb{P}(L\mid do(T=t))=\prod_{k}q_k\big(L_k\mid L_{\mathrm{Pa}(k)\setminus\{T\}},\,t\big),$$
-where $t$ enters only the factors with $T\in\mathrm{Pa}(k)$. Define the **shifted mechanisms** $\mathrm{Shift}(T):=\{k:\ q_k(\cdot\mid \ell,1)\neq q_k(\cdot\mid \ell,0)$ for a set of parent values $\ell$ of positive probability$\}$.
+- **(a) Hidden common cause (fails assumption 3).** Size $S$, paralysis severity $P=\beta T+S+\varepsilon_1$, speed $V=-\gamma P+S+\varepsilon_2$, atoms $Z^1=P$ and $Z^2=V$, no size atom. Since $\mathbb{E}[S\mid T,P]=\tfrac12(P-\beta T)$,
+  $$\mathbb{E}[Z^2\mid T,Z^1]=(\tfrac12-\gamma)P-\tfrac{\beta}{2}T,$$
+  so $V$ is direct at every $n$ (measured coefficient $-0.2475$ at $\beta=0.5$; formula $-0.25$). A size atom, or size measured as a covariate (Proposition 10), restores $\mathbb{E}[Z^2\mid T,Z^1,S]=-\gamma P+S$.
+- **(b) Coarse mediator atom (fails 2a).** $Z^1=\mathbb{1}[P>0]$ ("leg drags yes/no"), $V=-\gamma P+\varepsilon$. Within each stratum the arm difference in mean paralysis is $\beta+\lambda(\beta)-\lambda(0)$, with $\lambda=\varphi/\Phi$, which is about $(1-2/\pi)\beta\approx0.36\beta$ for small $\beta$. About 36% of $V$'s mediated shift survives (measured retained fraction 0.366, 0.379, 0.418 at $\beta=0.2,0.5,1.0$). This is exactly NES's binarized strata.
+- **(c) Noisy mediator atom (fails 2a).** $P=\beta T+\sigma_1\varepsilon_1$, $Z^1=P+\sigma_\eta\eta$, $V=\gamma P+\varepsilon_2$. The coefficient on $T$ in $\mathbb{E}[Z^2\mid T,Z^1]$ is $\gamma\beta\sigma_\eta^2/(\sigma_1^2+\sigma_\eta^2)\neq0$, a *leak* (measured $0.0323$ at $\beta=0.5$, $\gamma=0.8$, $\sigma_1=1$, $\sigma_\eta=0.3$; formula $0.0330$).
+- **(d) Impure atom of an other cause (fails 2b, though screening holds).** $T\to P\leftarrow S$ with $S\in\{0,1\}$, and a size atom that also reads paralysis: $Z^S=S+\tfrac12\mathrm{sigmoid}(P)$. It determines $S$ ($S=\lfloor Z^S\rfloor$), so it screens $S$ off from everything. Yet $Z^S\in\mathrm{Adj}$. Given $Z^P$ it is a function of $S$, and $T\not\perp\!\!\!\perp S\mid P$ (explaining away); given $\emptyset$ it reads $P$.
+- **(e) Exact cancellation (fails 4).** $F_2=aT+\gamma F_1+\varepsilon_2$ with $a=-\gamma\beta$ makes a changed factor invisible. Redundant atoms explain each other away (§2.10).
+- **(f) GCM blind spot.** If $\Delta_{j,A}$ changes sign across values of $Z^A$, the GCM has no power at any $n$. The PCM (§3.1) removes this.
 
-**Proposition 8 (the direct set is the minimal set of changed mechanisms).** Under A1:
-1. $\mathrm{Shift}(T)\subseteq\mathrm{Ch}(T)$, and
-$$\mathbb{P}(L\mid do(T=t))=\prod_{k\in\mathrm{Shift}(T)}q_k(L_k\mid \mathrm{pa}_k,t)\prod_{k\notin\mathrm{Shift}(T)}q_k(L_k\mid\mathrm{pa}_k).$$
-2. For $K\subseteq[r]$: every mechanism outside $K$ is the same in both arms iff $\mathrm{Shift}(T)\subseteq K$. So $\mathrm{Shift}(T)$ is the unique smallest set of mechanisms whose change explains the intervention.
-3. If the edges out of $T$ are causally minimal (each mechanism with $T$ as a parent really uses it), $\mathrm{Shift}(T)=\mathrm{Ch}(T)$. With Theorem 6, $\mathrm{Adj}_Z(T)=\{j_k:k\in\mathrm{Shift}(T)\}$.
+### 2.4 Identification
 
-*Proof.* (1) A mechanism without $T$ as a parent cannot depend on $t$, so $\mathrm{Shift}(T)\subseteq\mathrm{Ch}(T)$; for $k\in\mathrm{Ch}(T)\setminus\mathrm{Shift}(T)$ the two kernels agree almost everywhere, so dropping $t$ from them changes no factor of the product. (2) "Only if": a $k\in\mathrm{Shift}(T)\setminus K$ is, by definition, a mechanism outside $K$ that differs between arms. "If": mechanisms outside $K\supseteq\mathrm{Shift}(T)$ do not depend on $t$ by definition. (3) Causal minimality of the edge $T\to k$ means $q_k$ is not a.e. constant in $t$, i.e. $k\in\mathrm{Shift}(T)$. $\square$
+**Lemma 3 (separator lemma).** Let $T$ have no parents in a DAG $\mathcal{G}$.
+- (a) For any set $Y\not\ni T$, put $D:=\mathrm{MB}(T)\cap\mathrm{An}(Y)$. Then $T\perp_d Y\setminus D\mid D$.
+- (b) For any $s\notin\mathrm{Ch}(T)\cup\{T\}$, put $D_s:=(\mathrm{MB}(T)\cap\mathrm{An}(s))\setminus\{s\}$. Then $T\perp_d s\mid D_s$.
 
-This is the *sparse mechanism shift* view of an intervention (Schölkopf et al., 2021; Perry et al., 2022). In the language of Joint Causal Inference (Mooij et al., 2020) $T$ is a context variable and its children are the intervention targets; DINES estimates the targets of a known intervention when the target variables are latent and seen only through a dictionary.
+*Proof.* We use the moralization criterion (Lauritzen et al., 1990): $X\perp_d Y\mid D$ iff $D$ separates $X$ from $Y$ in the moral graph of $\mathrm{An}(X\cup Y\cup D)$.
 
-*Mean caveat.* Theorem 6 uses A3, a mean statement. A child whose mechanism changes only the spread of its atom is in $\mathrm{Shift}(T)$ but violates A3 and is not recovered.
+(a) Here $D\subseteq\mathrm{An}(Y)$ and $\mathrm{An}(T)=\{T\}$, so the ancestral set is $\mathcal{A}=\{T\}\cup\mathrm{An}(Y)$. Since $T$ has no parents, its moral neighbours in $\mathcal{A}$ are of two kinds.
+- Its children $c\in\mathcal{A}$. Such a $c$ lies in $\mathrm{An}(Y)\cap\mathrm{MB}(T)=D$.
+- Co-parents $p$ of a child $c\in\mathcal{A}$. Such a $p$ lies in $\mathrm{An}(c)\subseteq\mathrm{An}(Y)$ and in $\mathrm{MB}(T)$, hence in $D$.
 
-### 3.4 Why this is not the Markov boundary: the hat/hair example
+Every path from $T$ to $Y\setminus D$ starts at a neighbour in $D$.
 
-The smallest set $S$ with $T\perp\!\!\!\perp Z^{[m]\setminus S}\mid Z^S$ (the Markov boundary of $T$ in the dictionary) is the natural target of a pre-treatment search such as NEXIS. With a post-treatment dictionary it equals children *plus spouses* (Proposition 7), while the mechanisms changed are the children only. The two coincide exactly when every co-parent of a child of $T$ is itself a child (in particular when children have no other factor parents).
+(b) Here $\mathcal{A}=\{T\}\cup\mathrm{An}(s)$.
+- A child $c\in\mathcal{A}$ is in $\mathrm{An}(s)\cap\mathrm{MB}$ and differs from $s$ (because $s$ is not a child), so $c\in D_s$.
+- A co-parent $p$ of a child $c\in\mathrm{An}(s)$ is in $\mathrm{An}(s)\cap\mathrm{MB}$. It differs from $s$, because $s\to c$ with $c\in\mathrm{An}(s)$ would be a cycle. So $p\in D_s$.
+
+Since $s\notin D_s$, every moral path from $T$ to $s$ passes through $D_s$. $\square$
+
+*Examples.*
+- *Frog.* $\mathrm{MB}(T)\cap\mathrm{An}(V)=\{P\}$, or $\{P,S\}$ if size causes both $P$ and $V$. So $V$ is separated by $P$ (and size) and *not* by colour, which matters when colour reveals $T$.
+- *Toy.* In $T\to A\to B\to W\to C\leftarrow T$, the other cause $W$ is also a descendant of $T$, and $D_W=\{A\}$. The set $\{A,C\}$ does *not* separate. Measured (linear-Gaussian, $n=20{,}000$, GCM): $p=0.14$ given $\{A\}$, $3.6\times10^{-70}$ given $\emptyset$, $2.2\times10^{-56}$ given $\{A,C\}$.
+- *Draft 1's set.* Draft 1 used the larger $D^\star(s)=\mathrm{MB}(T)\setminus(\{s\}\cup\mathrm{De}(s))\supseteq D_s$, which also separates. The ancestral version is smaller and avoids changed factors that are not ancestors of $s$.
+
+*The root matters.* For a non-root target, parents of $T$ are moral neighbours too. In $X\to P\to T\to C\leftarrow X$, blocking $X$ needs $P$. Randomization removes this case, which is the known incompleteness of MMPC-type rules (Peña et al., 2007).
+
+**Lemma 4 (from factors to atoms).** Let $D\subseteq L$, let $J\subseteq[m]$, and let $Y$ be a random vector.
+- Assume (i) $T\perp\!\!\!\perp Y\mid(L_D,Z^J)$ and (ii) $L_D\perp\!\!\!\perp Y\mid Z^J$ (screening). Then $T\perp\!\!\!\perp Y\mid Z^J$.
+- *Mean version:* if (i′) $\mathbb{E}[Y\mid T,L_D,Z^J]=\mathbb{E}[Y\mid L_D,Z^J]$ and (ii′) $\mathbb{E}[Y\mid L_D,Z^J]=\mathbb{E}[Y\mid Z^J]$, then $\mathbb{E}[Y\mid T,Z^J]=\mathbb{E}[Y\mid Z^J]$.
+
+Under A1, condition (i) holds in either of two cases:
+- (a) $D=\mathrm{MB}(T)$ and $Y,Z^J$ are any functions of $(L,N^Z)$ (no purity needed);
+- (b) $T\perp_d V\setminus D\mid D$ in $\mathcal{G}_L$, $Y=f(L_V,N^Z)$ and $Z^J=\phi(L_D,N^Z)$ (purity of $J$).
+
+The lemma holds verbatim with $Z^J$ replaced by any vector $Q$ of functions of $(L,N^Z)$, such as atoms together with observed covariates. In (b), this requires $Q=\phi(L_D,N^Z)$.
+
+*Proof.* Contraction applied to (ii) and (i) gives $Y\perp\!\!\!\perp(L_D,T)\mid Z^J$, hence $Y\perp\!\!\!\perp T\mid Z^J$. For the mean version: $\mathbb{E}[Y\mid T,Z^J]=\mathbb{E}[\mathbb{E}[Y\mid T,L_D,Z^J]\mid T,Z^J]=\mathbb{E}[\mathbb{E}[Y\mid Z^J]\mid T,Z^J]$.
+
+(a) Every path from the root $T$ starts with $T\to c$. If $c$ is a non-collider, conditioning on $\mathrm{MB}$ blocks it. If $c$ is a collider, the next vertex is a co-parent in $\mathrm{MB}$ and a non-collider. Hence $T\perp_d L_{\rm rest}\mid L_{\mathrm{MB}}$, and by the Markov property and $N^Z\perp\!\!\!\perp(T,L)$, $T\perp\!\!\!\perp(L_{\rm rest},N^Z)\mid L_{\mathrm{MB}}$. So $T\perp\!\!\!\perp(Y,Z^J)\mid L_{\mathrm{MB}}$, and weak union gives (i).
+
+(b) The Markov property gives $T\perp\!\!\!\perp L_V\mid L_D$. With $N^Z\perp\!\!\!\perp(T,L)$, $T\perp\!\!\!\perp(L_V,N^Z)\mid L_D$. So $T\perp\!\!\!\perp(Y,Z^J)\mid L_D$, and weak union gives (i). $\square$
+
+**Lemma 5 (screening off = the principal atoms determine the relevant part).** Let $Z^J=\phi(L_D,\eta)$ with $\eta\perp\!\!\!\perp(L,N^j)$ (pure atoms, independent noise), and $Z^j=f(L_V,N^j)$ with $N^j\perp\!\!\!\perp(T,L)$. Write $g(L_D):=\mathbb{E}[Z^j\mid L_D]$. Then mean screening, $\mathbb{E}[Z^j\mid L_D,Z^J]=\mathbb{E}[Z^j\mid Z^J]$, holds iff $g(L_D)$ is a.s. a function of $Z^J$.
+
+*Proof.* $\eta\perp\!\!\!\perp(L_V,N^j)\mid L_D$, so $Z^j\perp\!\!\!\perp Z^J\mid L_D$ and $\mathbb{E}[Z^j\mid L_D,Z^J]=g(L_D)$.
+- If mean screening holds, then $g(L_D)=\mathbb{E}[Z^j\mid Z^J]$, a function of $Z^J$.
+- Conversely, if $g(L_D)=h(Z^J)$, then $\mathbb{E}[Z^j\mid Z^J]=\mathbb{E}[g\mid Z^J]=h(Z^J)=g(L_D)$. $\square$
+
+**Theorem 1 (identification).** Assume A1, assumptions 2 and 3, and *no cancellation at the children*: $H_0(j_c\mid A)$ is false for every $c\in\mathrm{Ch}(T)$ and every $A\in\mathcal{O}$ with $j_c\notin A$. Then:
+1. $J_C\subseteq\mathrm{Adj}_Z(T)$.
+2. Every $j\notin B_Z$ satisfies $T\perp\!\!\!\perp Z^j\mid Z^{B_Z}$.
+3. Every other-cause atom $j_s$ ($s\in\mathrm{Sp}(T)\setminus\mathrm{Ch}(T)$) satisfies $T\perp\!\!\!\perp Z^{j_s}\mid Z^{J_{D_s}}$.
+4. Suppose in addition that the atoms of $D_j:=\mathrm{MB}(T)\cap\mathrm{An}(P(j))$ are pure and that screening (2a) holds for $D_j$. Then every $j\notin B_Z$ also satisfies $T\perp\!\!\!\perp Z^j\mid Z^{J_{D_j}}$.
+
+Consequently, a non-child atom with one of these separators in $\mathcal{O}$ is not in $\mathrm{Adj}$. If $B_Z\in\mathcal{O}$ (no set of blanket atoms reveals $T$), then
+$$\mathrm{Adj}_Z(T)=J_C .$$
+
+*Proof.*
+1. This is the no-cancellation assumption.
+2. Apply Lemma 4(a) with $D=\mathrm{MB}$, $J=B_Z$, $Y=Z^j$; screening is 2a.
+3. Lemma 3(b) gives $T\perp_d s\mid D_s$. Apply Lemma 4(b) with $V=\{s\}$, using purity 2b ($Z^{j_s}=h_s(L_s,N^Z)$ and $Z^{J_{D_s}}=\phi(L_{D_s},N^Z)$) and screening 2a for $D_s$. Since $s\notin D_s$, $j_s\notin J_{D_s}$.
+4. Lemma 3(a) with $Y=P(j)$ gives $T\perp_d P(j)\setminus D_j\mid D_j$. Apply Lemma 4(b).
+
+Conditional independence implies the mean null (Lemma 1.4), so a separator in $\mathcal{O}$ excludes $j$. If $B_Z\in\mathcal{O}$, every subset of $B_Z$ is in $\mathcal{O}$, so the separators in items 2 and 3 are all overlap sets. $\square$
+
+The separators are fixed sets inside $B_Z$. That is what the precision proof needs (Theorem 2).
+
+**Proposition 1 (the Markov boundary keeps the other causes; the direct set does not).** Under A1 and assumptions 2a and 3, $T\perp\!\!\!\perp Z^{[m]\setminus B_Z}\mid Z^{B_Z}$. If moreover $T\not\perp\!\!\!\perp Z^j\mid Z^{[m]\setminus\{j\}}$ for each $j\in B_Z$, then $B_Z$ is the unique Markov boundary.
+
+*Proof.* The first claim is Lemma 4(a) with $Y=Z^{[m]\setminus B_Z}$. For uniqueness: if $S$ is a Markov blanket and $j\in B_Z\setminus S$, weak union gives $T\perp\!\!\!\perp Z^j\mid Z^{[m]\setminus\{j\}}$, a contradiction. $\square$
+
+*Frog.* Take $S\sim\mathrm{Bern}(1/2)$ (large frog), $P\in\{0,1\}$, and $\mathbb{P}(P=1\mid T,S)$ equal to $0.9$ for treated small frogs, $0.5$ for treated large frogs, and $0.05$ for controls. Then $T\perp\!\!\!\perp S$, but $\mathbb{E}[S\mid T=1,P=1]=0.25/0.70=0.357$, while $\mathbb{E}[S\mid T=0,P=1]=0.5$.
+- So the Markov boundary includes size, but the direct set does not: size is a conditioning tool only.
+- NES's CelebA design has the same structure: Smiling $\to$ Eyeglasses $\leftarrow T$.
+
+**Proposition 2 (the direct set is the minimal set of changed mechanisms).** Under A1, let $q_k(\cdot\mid\mathrm{pa}_k)$ be the mechanism of $L_k$, and let $\mathrm{Shift}(T):=\{k:q_k(\cdot\mid\ell,1)\ne q_k(\cdot\mid\ell,0)$ on parent values of positive probability$\}$.
+1. $\mathrm{Shift}(T)\subseteq\mathrm{Ch}(T)$.
+2. Every mechanism outside $K$ is the same in both arms iff $\mathrm{Shift}(T)\subseteq K$.
+3. If each edge out of $T$ is used (causal minimality), $\mathrm{Shift}(T)=\mathrm{Ch}(T)$, so under Theorem 1 with $B_Z\in\mathcal{O}$, $\mathrm{Adj}=\{j_k:k\in\mathrm{Shift}(T)\}$.
+
+*Proof.* (1) A mechanism without $T$ as a parent cannot depend on $t$. (2) "Only if": an element of $\mathrm{Shift}\setminus K$ is a changed mechanism outside $K$. "If": mechanisms outside $K\supseteq\mathrm{Shift}$ do not depend on $t$. (3) Minimality of the edge $T\to k$ means $q_k$ is not a.e. constant in $t$. $\square$
+
+This is the sparse-mechanism-shift view of an intervention (Schölkopf et al., 2021; Perry et al., 2022). In Joint Causal Inference terms (Mooij et al., 2020), DINES estimates the targets of a known intervention when the targets are latent. A child whose mechanism changes only the spread of its atom is not recovered by mean tests.
+
+**Proposition 3 (without (a) and (b), mediation is not identified).** Let $(T,Z^P,Z^V)$ have any law with $T\sim\mathrm{Bern}(e)$ and real-valued atoms, and suppose $\mathbb{E}[Z^V\mid T,Z^P]$ depends on $T$. Then the same law is generated by a model $M'$ satisfying A1, assumption 2 (exact capture) and assumption 3 (no hidden factor), in which the speed factor is a child of $T$.
+
+*Proof.* Let $F_{P|T}$ and $F_{V|T,P}$ be regular conditional distribution functions with quantile functions $Q$. Let $U_1,U_2$ be i.i.d. uniform and independent of $T$, and put $P'=Q_{P|T}(U_1\mid T)$, $V'=Q_{V|T,P}(U_2\mid T,P')$, $Z^P=P'$, $Z^V=V'$. Then $(T,P',V')$ has the given law, $T$ is a root, the noises are independent, and the atoms are the factors themselves. In $M'$ we have $\mathbb{E}[V'\mid T,P']=\mathbb{E}[Z^V\mid T,Z^P]$, which depends on $T$. So $V'$'s equation must use $T$: $T\in\mathrm{Pa}(V')$. $\square$
+
+The size world of §2.3(a) and the coarse-atom world of §2.3(b) generate laws of exactly this kind, with speed *not* changed directly. $M'$ (the lethargic frog) generates the same laws with speed changed directly. Every procedure that uses only the law of $(T,Z)$ is therefore wrong in one of the two worlds. Dropping $V$ is justified only by assumptions (a) and (b).
+
+**Proposition 4 (a factor that copies the treatment).** Under A1, let $c\in\mathrm{Ch}(T)$ have $\mathrm{Pa}(c)=\{T\}$ and $L_c=f(T)$ for an injective $f$, as with skin colour revealing the arm. Then:
+- (i) for every $k\in\mathrm{Ch}(c)$, replacing $L_c$ by $f(T)$ in $k$'s equation yields a model with the same law of $(T,L,Z)$ in which $k$ is a child of $T$;
+- (ii) for every $k\in\mathrm{Ch}(T)\setminus\{c\}$, replacing $T$ by $f^{-1}(L_c)$ yields a model with the same law in which $k$ is a child of $c$ and not of $T$.
+
+Both models satisfy A1 with $T$ a root.
+
+*Proof.* Since $L_c=f(T)$ a.s., each substitution changes no variable's value. Noises are untouched. (i) adds the edge $T\to k$, and $T$ is a root, so no cycle appears. (ii) replaces $T\to k$ by $c\to k$. A cycle would need $k\in\mathrm{An}(c)=\{c,T\}$, which is impossible. $\square$
+
+So with a perfect copy of $T$, whether an atom is changed "by the treatment" or "only through colour" is not identified, in either direction: a sheen atom changed only through colour, and the paralysis atom $P$, are symmetric in the data. DINES keeps both: neither has a separator in $\mathcal{O}$, and the only sets that make their nulls hold contain the colour atom. It still drops $V$ via $\{P\}\in\mathcal{O}$, and it flags $P$ and sheen as **undetermined** (§2.9). What *is* identified is that neither is explained by any overlap set.
+
+### 2.5 Algorithm
 
 ```
-        T  (hat given)                    L (long hair, pre-treatment)
-         \                                  /
-          \                                /
-           v                              v
-              V  (hair visible in the photo)
+DINES(T, Z, optional W; level α; margin δ ≥ 0; overlap ε, f)
+  # p_j(A): p-value for "ρ_{j|A} = 0" (δ = 0) or "|ρ_{j|A}| ≤ δ" (δ > 0), conditioning on (Z^A, W)
+  # A set A is SKIPPED if more than a fraction f of the units have estimated π_A outside [ε, 1−ε]
+
+  1. Forward phase
+     S ← ∅; K ← ∅                                  # K: treatment-revealing atoms, never conditioned on
+     loop:
+        R ← [m] \ (S ∪ K);  if R = ∅: break
+        j* ← argmin_{j ∈ R} p_j(S)                 # smallest p-value, NOT largest raw effect
+        if p_{j*}(S) > α / |R|: break              # Bonferroni gate
+        if S ∪ {j*} is skipped: K ← K ∪ {j*}  else: S ← S ∪ {j*}
+     F ← S ∪ K
+
+  2. Terminal phase (every j ∈ F judged on subsets of the same F)
+     j is DROPPED       if p_j(A) > α/m for some non-skipped A ⊆ F \ {j}
+     j is UNDETERMINED  if not dropped, and p_j(A) > α/m for some skipped A ⊆ F \ {j}
+     j is KEPT          otherwise
+     report: KEPT ∪ UNDETERMINED (the estimate of Adj), with the flag
+
+  3. Indirect output (optional, §2.12)
 ```
 
-Let $L\sim\mathrm{Bern}(1/2)$ and $\mathbb{P}(V=1\mid T,L)=0.9$ if $T=0$ or $L=1$ (long hair sticks out under the hat), and $0.1$ otherwise. Atoms: $Z^V=V$, $Z^L=L$.
-- The treatment changes one mechanism, $q_V$. The direct set is $\{Z^V\}$.
-- $T\perp\!\!\!\perp L$ (pre-treatment), so $Z^L$ has no average effect.
-- But given $V=1$: $\mathbb{E}[L\mid T=0,V=1]=1/2$ while $\mathbb{E}[L\mid T=1,V=1]=0.45/(0.45+0.05)=0.9$. Conditioning on the child opens $T\to V\leftarrow L$, so $Z^L$ is needed to make $T$ independent of the rest: the Markov boundary is $\{Z^V,Z^L\}$.
+- **Implementation status.** `src/eci/dines.py` applies the overlap rule in the terminal phase only (so $K=\emptyset$ there), with defaults $\varepsilon=0.02$ and $f=0.10$. The forward set-aside step is what Theorem 2 needs. Without it, a treatment-revealing atom can stall the forward phase, which is exactly what happened to NES on the mice data (§2.9).
+- **Cost.** At most $|F|\,2^{|F|-1}$ terminal tests, at level $\alpha/m$ however many are run.
+- **Ordering.** The order of entry does not enter any proof. We order by $p$-value because that is scale-free, it is IAMB's heuristic, and it keeps $F$ small.
+- **Two speeds.** The forward phase needs only consistency, so a fast linear test may be used there. The terminal phase needs validity at fixed nulls, so it uses the cross-fitted test (§3.1).
 
-The same structure is in NES's own CelebA design (Appendix D of the NES paper): $T\to\text{Eyeglasses}\leftarrow\text{Smiling}$, $T\to\text{Hat}$. With ATE $=0.7$ the design gives $\mathbb{E}[\text{Smiling}\mid T=1,\text{Eyeglasses}=1]=0.85/1.75=0.486$ versus $0.15/0.35=0.429$ under control: a small but real collider dependence. Smiling is in the Markov boundary but not in the direct set.
+### 2.6 Guarantees
 
-**Proposition 7 (Markov boundary under Tier 2).** Under A1–A2, $B_Z$ is a Markov blanket of $T$ in the dictionary: $T\perp\!\!\!\perp Z^{[m]\setminus B_Z}\mid Z^{B_Z}$. If moreover $T\not\perp\!\!\!\perp Z^j\mid Z^{[m]\setminus\{j\}}$ for every $j\in B_Z$, then every Markov blanket contains $B_Z$, so $B_Z$ is the unique Markov boundary.
+**Theorem 2 (selection guarantee; generic).**
 
-*Proof.* First claim: Lemma 3 below with $Y=Z^{[m]\setminus B_Z}$. Second: let $S$ be a Markov blanket and $j\in B_Z\setminus S$. Then $T\perp\!\!\!\perp Z^{[m]\setminus S}\mid Z^S$ and weak union give $T\perp\!\!\!\perp Z^j\mid Z^{[m]\setminus\{j\}}$, a contradiction. $\square$
+*Setting.*
+- Let $\bar{\mathcal{O}}\ni\emptyset$ be a family of conditioning sets, and assume **(O)**: with probability $\to1$, the algorithm skips exactly the sets outside $\bar{\mathcal{O}}$. Under the rule of §2.5, (O) holds with $\bar{\mathcal{O}}=\{A:q_A<f\}$, where $q_A:=\mathbb{P}(\pi_A\notin[\varepsilon,1-\varepsilon])$, provided that $q_A\neq f$ and $\hat q_A\to q_A$ in probability for every $A$.
+- Fix a null family $\mathcal{H}$: the mean null $H_0$, or the margin null $H_0^\delta$ with $\delta\ge0$.
+- Fix a target $\mathcal{A}\subseteq[m]$ and a pool $B\subseteq[m]$.
 
----
+*Assumptions.*
+- **(T1) No cancellation at the target.** For $j\in\mathcal{A}$, $H(j\mid A)$ is false for every $A\in\bar{\mathcal{O}}$ with $j\notin A$.
+- **(T2) Fixed separators in the pool.** Every $j\notin\mathcal{A}$ has a fixed $A_j\in\bar{\mathcal{O}}$ with $A_j\subseteq B\setminus\{j\}$ and $H(j\mid A_j)$ true.
+- **(T3) Forward completeness.** For every $S\in\bar{\mathcal{O}}$ and every $K\subseteq[m]\setminus S$ with $B\not\subseteq S\cup K$, some $j\notin S\cup K$ has $H(j\mid S)$ false.
+- **(T4) Tests.**
+  - (a) $\limsup_n\mathbb{P}(p_j(A_j)\le t)\le t$ for $j\notin\mathcal{A}$ and all $t\in(0,1)$.
+  - (b) $\mathbb{P}(p_j(A)\le t)\to1$ for every $t>0$ and every fixed pair with $A\in\bar{\mathcal{O}}$ and $H(j\mid A)$ false.
 
-## 4. Identification (Tier 2)
+*Conclusion.* Let $\hat R_n$ be the reported set ($=$ kept $\cup$ undetermined). Then:
+- $\mathbb{P}(\mathcal{A}\subseteq\hat R_n)\to1$, using only (T1), (T4b) and (O);
+- $\limsup_n\mathbb{P}(\hat R_n\not\subseteq\mathcal{A})\le\frac{m-|\mathcal{A}|}{m}\alpha$;
+- hence $\liminf_n\mathbb{P}(\hat R_n=\mathcal{A})\ge1-\alpha$;
+- if (T4c) $\mathbb{P}(p_j(A_j)\le t)\to0$ for each $t>0$ and $j\notin\mathcal{A}$, then $\mathbb{P}(\hat R_n=\mathcal{A})\to1$;
+- if $\bar{\mathcal{O}}$ contains every set, nothing is skipped with probability $\to1$, and the reported set is the kept set.
 
-### 4.1 Two lemmas
+*Proof.* Let $E_O$ be the event in (O). On $E_O$ the algorithm skips exactly the sets outside $\bar{\mathcal{O}}$. In particular $S$ stays in $\bar{\mathcal{O}}$, because an atom is added to $S$ only if $S\cup\{j^*\}$ is not skipped.
 
-**Lemma 2 (conditioning on an atom that determines a factor).** Let $T,Y,G,M$ be random elements with $T\perp\!\!\!\perp (Y,M)\mid G$. Let $\tilde Z=\varphi(G,M)$ for a measurable $\varphi$, and suppose $G=a(\tilde Z)$ a.s. Then $T\perp\!\!\!\perp Y\mid \tilde Z$.
+(i) *The forward phase reaches $B\cup\mathcal{A}$.* Consider any state $(S,K)$ with $S\in\bar{\mathcal{O}}$ and $B\cup\mathcal{A}\not\subseteq S\cup K$. It has a witness $w\notin S\cup K$ with $H(w\mid S)$ false: use (T3) if $B\not\subseteq S\cup K$, and otherwise any $j\in\mathcal{A}\setminus(S\cup K)$, by (T1). By (T4b) each witness passes the gate with probability $\to1$, and there are finitely many states. On the intersection of these events, the phase cannot stop at such a state. Each round adds one atom to $S\cup K$. So $F\supseteq B\cup\mathcal{A}$. Without (T3), the same argument still gives $F\supseteq\mathcal{A}$.
 
-*Proof.* $(Y,\tilde Z)$ is a measurable function of $(Y,M,G)$, so $T\perp\!\!\!\perp (Y,\tilde Z)\mid G$. Weak union gives $T\perp\!\!\!\perp Y\mid (G,\tilde Z)$. Since $G=a(\tilde Z)$ a.s., $\sigma(G,\tilde Z)=\sigma(\tilde Z)$ up to null sets, so $T\perp\!\!\!\perp Y\mid\tilde Z$. $\square$
+(ii) *Recall.* For $j\in\mathcal{A}$, every non-skipped $A\subseteq F\setminus\{j\}$ lies in $\bar{\mathcal{O}}$, so $H(j\mid A)$ is false there. These are finitely many fixed alternatives, so with probability $\to1$ all are rejected at level $\alpha/m$, and $j$ is not dropped.
 
-The lemma is where *determination* enters: conditioning on a principal atom is as good as conditioning on its factor, plus independent measurement noise that does not matter.
+(iii) *Precision with fixed nulls only.* On $\{B\subseteq F\}\cap E_O$, a $j\notin\mathcal{A}$ is tested at $A_j\subseteq B\setminus\{j\}\subseteq F\setminus\{j\}$. This set is in $\bar{\mathcal{O}}$, hence not skipped, and it is not chosen from the data. So $j\in\hat R_n$ implies $p_j(A_j)\le\alpha/m$. By (T4a) and a union bound,
+$$\limsup_n\mathbb{P}(\hat R_n\not\subseteq\mathcal{A})\le\sum_{j\notin\mathcal{A}}\limsup_n\mathbb{P}(p_j(A_j)\le\alpha/m)\le\tfrac{m-|\mathcal{A}|}{m}\alpha .$$
+Under (T4c) each term is 0.
 
-**Lemma 3 (the aligned blanket screens off everything).** Under A1–A2, for any measurable function $Y$ of $(L,N^Z)$ (for example any collection of atoms outside $B_Z$), $T\perp\!\!\!\perp Y\mid Z^{B_Z}$.
+(iv) Combine (ii) and (iii). $\square$
 
-*Proof.* In $\mathcal{G}_L$, every path from the root $T$ starts with an edge $T\to c$, $c\in\mathrm{Ch}(T)\subseteq\mathrm{MB}(T)$. If $c$ is a non-collider on the path it is blocked by conditioning on $L_{\mathrm{MB}}$. If $c$ is a collider, the next vertex $x$ is a parent of $c$ other than $T$, so $x\in\mathrm{Sp}(T)\subseteq\mathrm{MB}(T)$, and $x$ is a non-collider (the edge $x\to c$ leaves $x$), so it is blocked. Hence $T\perp_d L\setminus(\mathrm{MB}\cup\{T\})\mid \mathrm{MB}$, and by the global Markov property of an SCM with independent noises, $T\perp\!\!\!\perp L_{\mathrm{rest}}\mid L_{\mathrm{MB}}$. Since $N^Z\perp\!\!\!\perp(T,L)$, we have $T\perp\!\!\!\perp N^Z\mid (L_{\mathrm{rest}},L_{\mathrm{MB}})$, and contraction gives $T\perp\!\!\!\perp (L_{\mathrm{rest}},N^Z)\mid L_{\mathrm{MB}}$. Now apply Lemma 2 with $G=L_{\mathrm{MB}}$, $M=(L_{\mathrm{rest}},N^Z)$, $\tilde Z=Z^{B_Z}$ (a function of $(L,N^Z)$ by A1, which determines $G$ by A2(a)). $\square$
+No step needs validity at a data-dependent conditioning set. The terminal level $\alpha/m$ controls precision; the forward gate does not matter for the bound. A data-dependent terminal level such as $\alpha/|F|$ is not covered. The split between kept and undetermined uses tests at skipped sets, which carry no guarantee; only the reported union is covered.
 
-Purity is not used in Lemma 3. It is used in the next one.
+**Corollary 1 (statistical target).** Take $\mathcal{H}=H_0$ (with the GCM, "$\rho=0$"), $\mathcal{A}=\mathrm{Adj}_Z(T)$, and $\bar{\mathcal{O}}=\mathcal{O}$. Every set either has overlap and $q_A<f$, or lacks overlap and $q_A>f$; in plain words, there are no borderline sets. Then (T1) holds by definition, and:
+- **recall always holds:** $\mathbb{P}(\mathrm{Adj}\subseteq\hat R_n)\to1$;
+- under **assumption L (local separation)** — (T2) and (T3) for some fixed pool $B$ — $\liminf_n\mathbb{P}(\hat R_n=\mathrm{Adj})\ge1-\alpha$.
 
-**Lemma 4 (atoms of the separating set).** Under A1–A2, let $D\subseteq\mathrm{MB}(T)$ and $V\subseteq L$ with $T\perp_d V\mid D$ in $\mathcal{G}_L$. Then for every $Y=f(L_V,N^Z)$, $T\perp\!\!\!\perp Y\mid Z^{J_D}$ where $J_D=\{j_k:k\in D\}$.
+**Corollary 2 (causal target).** Assume:
+- A1, assumptions 2 and 3, and no cancellation at the children;
+- every non-child atom has one of the separators of Theorem 1 in $\mathcal{O}$ (for example, $B_Z\in\mathcal{O}$);
+- (T3) with $B=B_Z$ (no exact cancellation of the explaining-away witnesses), (T4) and (O).
 
-*Proof.* The Markov property gives $T\perp\!\!\!\perp L_V\mid L_D$; with $N^Z\perp\!\!\!\perp(T,L)$ and contraction, $T\perp\!\!\!\perp(L_V,N^Z)\mid L_D$. By purity A2(b), $Z^{J_D}=\varphi(L_D,N^Z)$; by determination A2(a), $L_D$ is a function of $Z^{J_D}$. Lemma 2 with $G=L_D$, $M=(L_V,N^Z)$ concludes. $\square$
+Then $\liminf_n\mathbb{P}(\hat R_n=J_C)\ge1-\alpha$, and $J_C$ indexes the changed mechanisms (Proposition 2). *Proof.* Theorem 1 gives $\mathrm{Adj}=J_C$, together with (T2) for $B=B_Z$ and fixed separators in $\mathcal{O}$. Apply Theorem 2. $\square$
 
-### 4.2 The separator lemma and the identification theorem
+**Assumption L survives for an arbitrary dictionary.** Take $B$ to be a Markov blanket of $T$ among the atoms ("the atoms around the treatment").
+- Atoms outside $B$ are always explained away by $B$.
+- Non-direct atoms *inside* $B$ (the other causes) need a separator made of other blanket atoms. Under assumptions 2–3 this is Theorem 1. For a general dictionary we do not know whether one exists (Open question O1).
+- (T3) is the mean analogue of the composition property that IAMB's grow phase needs, and it is not testable directly.
 
-**Lemma 5 (a separator inside the blanket of a root).** Let $\mathcal{G}$ be a DAG in which $T$ has no parents, and let $s\notin\mathrm{Ch}(T)\cup\{T\}$. Put
-$$D^\star(s):=\mathrm{MB}(T)\setminus\big(\{s\}\cup\mathrm{De}(s)\big).$$
-Then $T\perp_d s\mid D^\star(s)$.
+So, in plain words, assumption L is: *the atoms around the treatment are enough to explain away everything else, and the search does not stop before collecting them.* Under assumptions 2–3, only the second half remains, and it is a no-cancellation condition. In the toy model this is the explaining-away shift $|\rho_{H|\{A,C\}}|=0.077$.
 
-*Proof.* We use the moralization criterion (Lauritzen et al., 1990): $T\perp_d s\mid D$ iff $D$ separates $T$ from $s$ in the moral graph $(\mathcal{G}_{\mathcal{A}})^m$ of the ancestral set $\mathcal{A}:=\mathrm{An}(\{T,s\}\cup D)$. Take $D=D^\star:=D^\star(s)$.
+**How the plain assumptions of §0 map onto the formal ones.**
 
-*Step 1: $\mathcal{A}$ contains no strict descendant of $s$.* Let $x\in\mathrm{De}(s)\cap\mathcal{A}$. $x\in\mathrm{An}(T)=\{T\}$ is impossible ($x=T$ would make $s$ an ancestor of the root $T$). $x\in\mathrm{An}(s)$ would create a cycle. $x\in\mathrm{An}(d)$ for some $d\in D^\star$ would make $d=x$ or $d\in\mathrm{De}(x)\subseteq\mathrm{De}(s)$, and both contradict $d\in D^\star$.
-
-*Step 2: every neighbour of $T$ in $(\mathcal{G}_{\mathcal{A}})^m$ lies in $D^\star$.* $T$ has no parents, so its neighbours are (i) its children inside $\mathcal{A}$ and (ii) co-parents $p$ of a child $c\in\mathcal{A}$ (moral edges). (i) A child $c\in\mathcal{A}$ is not $s$ ($s\notin\mathrm{Ch}(T)$) and not in $\mathrm{De}(s)$ (Step 1), and $c\in\mathrm{MB}(T)$; so $c\in D^\star$. (ii) $p\in\mathcal{A}$ because $\mathcal{A}$ is ancestral; $p\neq s$, since otherwise $c\in\mathrm{Ch}(s)\subseteq\mathrm{De}(s)$, contradicting Step 1; $p\notin\mathrm{De}(s)$ by Step 1; and $p\in\mathrm{Sp}(T)\subseteq\mathrm{MB}(T)$. So $p\in D^\star$.
-
-*Step 3.* Every path from $T$ to $s$ in the moral graph starts with an edge to a neighbour of $T$, which lies in $D^\star$; and $s\notin D^\star$. So $D^\star$ separates $T$ from $s$. $\square$
-
-*Example.* $T\to A\to B\to W\to C\leftarrow T$. $\mathrm{MB}(T)=\{A,C,W\}$; $W$ is a spouse and a descendant of $T$. $D^\star(W)=\{A,C,W\}\setminus(\{W\}\cup\{C\})=\{A\}$, and indeed $\{A\}$ blocks $T\to A\to B\to W$ while $T\to C\leftarrow W$ stays blocked because $C$ is not conditioned on. $\{A,C\}$ does *not* separate. Measured on a linear-Gaussian version ($n=20{,}000$, GCM test, Appendix B): $p=0.14$ given $\{A\}$, $p=0.15$ given $\{A,H\}$, $p=0.37$ given $\{A,B\}$, but $p=3.6\times10^{-70}$ given $\emptyset$ and $p=2.2\times10^{-56}$ given $\{A,C\}$.
-
-*Remark (the root matters).* The proof uses only that $T$ has no parents. For a non-root target the statement fails as written: in $X\to P\to T\to C\leftarrow X$ the vertex $X$ is a spouse, $D^\star(X)$ excludes $P\in\mathrm{De}(X)$, yet $P$ is needed to block $X\to P\to T$. This is the situation behind the known incompleteness of MMPC-type rules (Peña et al., 2007); randomization removes it.
-
-**Theorem 6 (identification of the direct set).** Under A1, A2 and A3,
-$$\mathrm{Adj}_Z(T)=J_C=\{\,j_c:\ c\in\mathrm{Ch}(T)\,\}.$$
-Moreover, every $j\notin J_C$ has a fixed separating set $A_j\subseteq B_Z\setminus\{j\}$ with $T\perp\!\!\!\perp Z^j\mid Z^{A_j}$ (hence $H_0(j\mid A_j)$ true):
-$$A_j=B_Z\ \text{ if } j\notin B_Z,\qquad A_j=J_{D^\star(s)}\ \text{ if } j=j_s,\ s\in\mathrm{Sp}(T)\setminus\mathrm{Ch}(T).$$
-
-*Proof.* "$\supseteq$" is A3. For "$\subseteq$" and the second claim, take $j\notin J_C$.
-- If $j\notin B_Z$: $Z^j$ is a function of $(L,N^Z)$, so Lemma 3 gives $T\perp\!\!\!\perp Z^j\mid Z^{B_Z}$, and $j\notin B_Z=A_j$.
-- If $j=j_s$ with $s$ a spouse that is not a child: by Lemma 5 (in $\mathcal{G}_L$, where $T$ is a root and $s\notin\mathrm{Ch}(T)$), $T\perp_d s\mid D^\star(s)$, with $D^\star(s)\subseteq\mathrm{MB}(T)$. By purity, $Z^{j_s}=h_s(L_s,N^Z)$, so Lemma 4 with $V=\{s\}$, $D=D^\star(s)$ gives $T\perp\!\!\!\perp Z^{j_s}\mid Z^{J_{D^\star(s)}}$. Since $s\notin D^\star(s)$ and principal atoms are distinct, $j_s\notin A_j$.
-
-In both cases conditional independence implies $H_0(j\mid A_j)$ (Lemma 1.4), so $j\notin\mathrm{Adj}_Z(T)$. $\square$
-
-### 4.3 Each assumption is needed: counterexamples
-
-Each example satisfies all assumptions but one and the conclusion of Theorem 6 fails. In (a)–(c) all noises are independent standard Gaussians unless stated, $T\sim\mathrm{Bern}(1/2)$, and conditional dependence is shown by exhibiting a conditional mean that depends on $T$ (in a Gaussian model given $T$, this is exact).
-
-**(a) Hidden co-parent of a child (violates A2 coverage; this is the brief's "hidden common cause").** $U\to F_1$, $U\to F_2$, $T\to F_1\to F_2$, with $U$ not represented: $F_1=\beta T+U+\varepsilon_1$, $F_2=\gamma F_1+U+\varepsilon_2$, $Z^1=F_1$, $Z^2=F_2$, $\beta,\gamma\neq0$. Given $\emptyset$, $\mathbb{E}[Z^2\mid T]=\gamma\beta T$. Given $Z^1$: $\mathbb{E}[U\mid T,F_1]=\tfrac12(F_1-\beta T)$, so $\mathbb{E}[Z^2\mid T,Z^1]=(\gamma+\tfrac12)F_1-\tfrac{\beta}{2}T$, which depends on $T$. These are the only conditioning sets, so $Z^2\in\mathrm{Adj}_Z(T)$ although $F_2$ is not a child. (Measured: OLS coefficient on $T$ given $F_1$ $=-0.2475$ at $\beta=0.5$; formula $-0.25$.)
-
-**(b) Missing mediator (violates A2 coverage of a child).** $T\to M\to F_2$, $M$ has no atom, $Z^1=F_2$. Then $Z^1\in\mathrm{Adj}_Z(T)$ although $F_2$ is a grandchild. This is not an error of the procedure but a reminder that "direct" is relative to the dictionary.
-
-**(c) Noisy proxy of a mediator (violates determination A2(a)).** $F_1=\beta T+\sigma_1\varepsilon_1$, $Z^1=F_1+\sigma_\eta\eta$, $F_2=\gamma F_1+\varepsilon_2$, $Z^2=F_2$. Given $T$, $(F_1,Z^1)$ is jointly Gaussian, so
-$$\mathbb{E}[Z^2\mid T,Z^1]=\gamma\Big(\tfrac{\sigma_1^2}{\sigma_1^2+\sigma_\eta^2}Z^1+\tfrac{\sigma_\eta^2}{\sigma_1^2+\sigma_\eta^2}\beta T\Big).$$
-The coefficient on $T$, $\gamma\beta\,\sigma_\eta^2/(\sigma_1^2+\sigma_\eta^2)$, is non-zero for every $\sigma_\eta>0$, so $Z^2\in\mathrm{Adj}_Z(T)$. It is small when the proxy is good — the *leakage* that §7.8 is about. (Measured: $0.0323$ for $\beta=0.5,\gamma=0.8,\sigma_1=1,\sigma_\eta=0.3$; formula $0.0330$.) This is why NEXIS's one-sided screening form of alignment is not enough here: a proxy that screens its factor *from the rest of the dictionary* but does not determine it still leaves the path $T\to F_1\to F_2$ open.
-
-**(d) Impure principal atom of a spouse (violates purity A2(b)).** $T\to V\leftarrow L$ with $L\in\{0,1\}$ and a principal atom for $L$ that also reads $V$: $Z^L=L+\tfrac12\,\mathrm{sigmoid}(V)$. It determines $L$ ($L=\lfloor Z^L\rfloor$), but given $Z^V$ it is a function of $L$, and $T\not\perp\!\!\!\perp L\mid V$ (collider); given $\emptyset$ it depends on $V$, which depends on $T$. So $Z^L\in\mathrm{Adj}_Z(T)$. Real sparse-autoencoder atoms are often polysemantic in exactly this way (e.g. an atom for "hair" that also responds to "hat").
-
-**(e) Failures of A3 (atom-level faithfulness).** (i) *Cancellation*: $F_1=\beta T+\varepsilon_1$, $F_2=aT+\gamma F_1+\varepsilon_2$ with $a=-\gamma\beta\neq0$; then $Z^2=F_2$ is independent of $T$ given $\emptyset$, so the child $F_2$ is missed. (ii) *Duplicate atom* (feature splitting/absorption): if $Z^p=Z^{j_c}$ for some $p\neq j_c$, then $H_0(j_c\mid\{p\})$ holds and *neither* atom is direct. (iii) *Near-determinism of $T$*: if a child is almost a copy of $T$ (a strongly visible treatment), $\pi_{\{j_c\}}\in\{0,1\}$ almost surely, every other child $c'$ satisfies $H_0(j_{c'}\mid\{j_c\})$ trivially (Lemma 1.2), and only one child can be recovered. In the limit $F_1=F_2=T$, the direct set is empty. Strong effects therefore *hurt* the identifiability of multiple direct effects; the benchmark must vary effect strength.
-
-**(f) A3 with the GCM.** With a GCM test, recall needs the overlap-weighted contrast $\mathbb{E}[\pi_A(1-\pi_A)\Delta_{j_c,A}]$ to be non-zero for all $A$. Conditioning on a collider can make $\Delta_{j_c,A}$ change sign across values of $Z^A$; then the GCM has no power at any $n$ even though A3 holds. The PCM (§7.2) removes this blind spot at the cost of a sample split.
-
----
-
-## 5. The indirect output
-
-The name DINES says that the method returns the *structure* of the effect: direct atoms, and indirect atoms filed under the direct atoms that carry their effect. Marginal screening converges to $\mathrm{De}_Z(T)$ (NES Theorem 3.1, the "paradox"); DINES does not discard these atoms but organizes them.
-
-**Definition 2 (indirect set and carriers).**
-- Indirect set: $\mathrm{Ind}_Z(T):=\mathrm{De}_Z(T)\setminus\mathrm{Adj}_Z(T)$ — atoms with a non-zero average effect that are not direct.
-- Causal carriers (Tier 2): for $j\in\mathrm{Ind}_Z(T)$, $\mathrm{Car}(j):=\{\,j_c:\ c\in\mathrm{Ch}(T),\ c\in\mathrm{An}(v)\text{ for some } v\in P(j)\,\}$ — the direct mechanisms from which a directed causal path reaches a factor read by atom $j$.
-- Observable carriers: $\mathrm{Car}_B(j):=\{\,k\in J_C:\ H_0(j\mid B_Z\setminus\{k\})\text{ is false}\,\}$ — holding every other blanket atom fixed, releasing $k$ re-opens the effect of $T$ on $Z^j$.
-
-Note $\mathrm{Car}(j)\neq\emptyset$ for $j\in\mathrm{Ind}_Z(T)$: if no child were an ancestor of $P(j)$, then $P(j)$ would contain no descendant of $T$, so $T\perp\!\!\!\perp Z^j$ and $j\notin\mathrm{De}_Z(T)$.
-
-**Assumption N1 (no directed path between blanket members).** In $\mathcal{G}_L$ there is no directed path from a child of $T$ to another member of $\mathrm{MB}(T)$. (Allowed: spouses that are not descendants of $T$, as in the NES CelebA design; mediator chains below the children, $T\to Y_1\to Y_2$. Excluded: a child causing another child or a spouse.)
-
-**Assumption CF (carrier faithfulness).** For $j\in\mathrm{Ind}_Z(T)$ and $j_c\in\mathrm{Car}(j)$, $H_0(j\mid B_Z\setminus\{j_c\})$ is false.
-
-**Proposition 10 (carriers are identified).** Under A1–A3, N1 and CF, $\mathrm{Car}_B(j)=\mathrm{Car}(j)$ for every $j\in\mathrm{Ind}_Z(T)$, and every $j\in\mathrm{Ind}_Z(T)$ satisfies $H_0(j\mid B_Z)$ ("fully carried by the blanket").
-
-*Proof.* The last claim is Lemma 3. $\mathrm{Car}(j)\subseteq\mathrm{Car}_B(j)$ is CF. For the converse take $c\in\mathrm{Ch}(T)$ with $c\notin\mathrm{An}(v)$ for all $v\in P(j)$, and let $C:=\mathrm{MB}(T)\setminus\{c\}$. We show $T\perp_d P(j)\mid C$. Take a path from $T$ to some $v\in P(j)$; its first edge is $T\to c'$ with $c'$ a child.
-- If $c'\neq c$: $c'\in C$. If $c'$ is a non-collider the path is blocked. If it is a collider, the next vertex $x$ is a parent of $c'$; $x\neq c$ by N1 (else $c\to c'$ is a directed path between blanket members), so $x\in\mathrm{Sp}(T)\setminus\{c\}\subseteq C$ is a conditioned non-collider; blocked.
-- If $c'=c$: $c\notin C$. If $c$ is a collider ($T\to c\leftarrow x$), it is open only if $c$ or a descendant of $c$ is in $C$; a descendant of $c$ in $C$ would be a directed path from a child to another blanket member, excluded by N1; blocked. Otherwise the path continues $c\to u_1$. Let $u_i$ be the first vertex after which an edge points backwards ($c\to u_1\to\dots\to u_i\leftarrow u_{i+1}$). Then $u_i$ is a collider, open only if $u_i$ or a descendant of it is in $C$; since $u_i\in\mathrm{De}(c)$, this again contradicts N1. So an open path must be directed all the way, $c\to\dots\to v$, which contradicts $c\notin\mathrm{An}(v)$.
-
-So $T\perp_d P(j)\mid C$. Since $Z^j=H_j(L_{P(j)},N^Z)$, Lemma 4 (with $V=P(j)$, $D=C\subseteq\mathrm{MB}(T)$) gives $T\perp\!\!\!\perp Z^j\mid Z^{B_Z\setminus\{j_c\}}$, hence $H_0(j\mid B_Z\setminus\{j_c\})$ and $j_c\notin\mathrm{Car}_B(j)$. $\square$
-
-Without N1 the two notions differ in a predictable way: for $T\to c_1\to c_2\to Z^j$ (child causes child), $\mathrm{Car}(j)=\{j_{c_1},j_{c_2}\}$ but $\mathrm{Car}_B(j)=\{j_{c_2}\}$ — the observable notion reports the *last* direct mechanism on the path. A general observable characterization is Open question O4.
-
-**Estimation.** The population blanket $B_Z$ is unknown; DINES estimates it by the shrink step of IAMB applied to the forward output $\tilde S$, at a level $\alpha_n\to0$:
-$$\hat B:=\{\,j\in\tilde S:\ p_j(\tilde S\setminus\{j\})\le\alpha_n\,\},\qquad \widehat{\mathrm{Ind}}:=\{\,j\notin\hat S:\ p_j(\emptyset)\le \tfrac{\alpha_2}{2m}\,\},$$
-$$\widehat{\mathrm{Car}}(j):=\{\,k\in\hat S:\ p_j(\hat B\setminus\{k\})\le \tfrac{\alpha_2}{2m\max(1,|\hat S|)}\,\}\quad (j\in\widehat{\mathrm{Ind}}).$$
-
-**Assumption MTF (mean total-conditioning faithfulness on the blanket).** For every $S$ with $B_Z\subseteq S\subseteq[m]$ and every $j\in B_Z$, $H_0(j\mid S\setminus\{j\})$ is false.
-
-**Proposition 13 (guarantee for the full output).** Assume the conditions of Corollary 12, N1, CF and MTF. Assume the tests are consistent at fixed alternatives also at the vanishing level $\alpha_n$ (i.e. $\mathbb{P}(p_j(A)\le\alpha_n)\to1$; for asymptotically normal statistics whose mean grows like $\sqrt n$ under a fixed alternative this typically holds when $\log(1/\alpha_n)=o(n)$, but we assume it rather than prove it), consistent against $H_0(j\mid\emptyset)$ for $j\in\mathrm{Ind}_Z(T)$, and valid at the fixed nulls used below. Then
-$$\liminf_n\ \mathbb{P}\Big(\hat S=J_C,\ \widehat{\mathrm{Ind}}=\mathrm{Ind}_Z(T),\ \widehat{\mathrm{Car}}(j)=\mathrm{Car}(j)\ \forall j\in\mathrm{Ind}_Z(T)\Big)\ \ge\ 1-\alpha-\alpha_2 .$$
-
-*Proof.* (i) $\mathbb{P}(\hat B=B_Z)\to1$: by step (i) of the proof of Theorem 11, $\mathbb{P}(B_Z\subseteq\tilde S)\to1$. $\tilde S$ takes finitely many values. For a fixed $S\supseteq B_Z$: if $j\in S\setminus B_Z$, Lemma 3 and weak union give $T\perp\!\!\!\perp Z^j\mid Z^{S\setminus\{j\}}$, so $H_0(j\mid S\setminus\{j\})$ holds, and asymptotic validity gives $\limsup\mathbb{P}(p_j(S\setminus\{j\})\le\alpha_n)\le t$ for every fixed $t>0$ (since eventually $\alpha_n\le t$), i.e. this probability tends to $0$; if $j\in B_Z$, MTF and consistency at level $\alpha_n$ give $\mathbb{P}(p_j(S\setminus\{j\})\le\alpha_n)\to1$. A finite union bound over $(S,j)$ gives the claim. (ii) Let $E:=\{\hat S=J_C,\ \hat B=B_Z\}$; by Corollary 12 and (i), $\limsup\mathbb{P}(E^c)\le\alpha$. On $E$ every remaining test is at a fixed conditioning set: $p_j(\emptyset)$ and $p_j(B_Z\setminus\{k\})$, with $|\hat S|=|J_C|$ fixed. Errors on $E$ are of four kinds: a $j\notin\mathrm{De}_Z(T)\cup J_C$ with $p_j(\emptyset)\le\alpha_2/(2m)$ — at most $m$ fixed true nulls, total $\limsup\le\alpha_2/2$; a $j\in\mathrm{Ind}_Z(T)$ missed — finitely many fixed alternatives, probability $\to0$; a $k\notin\mathrm{Car}(j)$ included — by Proposition 10 a fixed true null $H_0(j\mid B_Z\setminus\{k\})$, at most $m|J_C|$ of them at level $\alpha_2/(2m|J_C|)$, total $\limsup\le\alpha_2/2$; a $k\in\mathrm{Car}(j)$ missed — fixed alternatives (CF), probability $\to0$. Summing, $\limsup\mathbb{P}(\text{error})\le\alpha+\alpha_2$. $\square$
-
-*Stability warning.* The indirect output is less robust than the direct set. Under approximate alignment (§7.8), conditioning on noisy proxies of the children leaves part of every mediated effect, so $H_0(j\mid B_Z)$ fails for many indirect atoms and carriers are over-reported; and spurious direct atoms (leaked atoms) change $\hat S$ and hence every carrier test. Report carriers as hypotheses, together with the residual test $p_j(\hat B)$ ("is $j$ fully carried?").
-
----
-
-## 6. Algorithm and selection guarantee
-
-### 6.1 Algorithm
-
-```
-DINES(data (T, Z, optional W), level α, indirect level α2, shrink level α_n, test)
-  # every p_j(A) tests H0(j | A): E[Z^j | T, Z^A, W] = E[Z^j | Z^A, W]
-
-  # 1. Forward phase (IAMB grow phase)
-  S ← ∅
-  while |S| < m:
-      R ← [m] \ S
-      j* ← argmin_{j ∈ R} p_j(S)               # smallest p-value, NOT largest raw effect
-      if p_{j*}(S) ≤ α / |R|: S ← S ∪ {j*}      # gate; Bonferroni here is optional
-      else: break
-  S̃ ← S
-
-  # 2. Terminal backward phase (direct set)
-  Ŝ ← { j ∈ S̃ : p_j(A) ≤ α/m for EVERY A ⊆ S̃ \ {j} (∅ included) }   # all removals simultaneous
-
-  # 3. Indirect output (optional)
-  B̂ ← { j ∈ S̃ : p_j(S̃ \ {j}) ≤ α_n }
-  Înd ← { j ∉ Ŝ : p_j(∅) ≤ α2 / (2m) }
-  for j in Înd:
-      Ĉar(j) ← { k ∈ Ŝ : p_j(B̂ \ {k}) ≤ α2 / (2m · max(1,|Ŝ|)) }
-      report also the residual p-value p_j(B̂)
-  return Ŝ, {(j, Ĉar(j)) : j ∈ Înd}
-```
-
-**Cost.** Forward: at most $\sum_{r=0}^{|\tilde S|}(m-r)$ tests. Terminal: at most $|\tilde S|\,2^{|\tilde S|-1}$ tests; a candidate is dropped at its first non-significant subset, so ordering the subsets well (e.g. $\emptyset$ and small sets first for atoms with weak marginal effect, large sets first otherwise) saves most of them. Under Tier 2, $\tilde S\supseteq B_Z$, which contains the spouses, so $\tilde S$ is larger than in NEXIS (in the toy of Appendix B, $|\tilde S|\approx4$). The terminal level is $\alpha/m$ regardless of how many subsets are tested.
-
-**Ordering.** The ordering rule does not enter the proof of Theorem 11: any rule that admits only atoms passing the gate gives the same asymptotic guarantee. We order by $p$-value (equivalently by $|$standardized statistic$|$ when all tests share a reference distribution) for finite-sample reasons: it does not depend on the scale of each atom (sparse-autoencoder atoms have very different activation scales), it is IAMB's heuristic, and it keeps $\tilde S$ small. Ordering by raw magnitude is what NES needed its Principal–Max assumption for, and it fails in practice (§8.2).
-
-**Forward versus terminal tests.** The forward phase needs only *consistency* (to reach the pool); validity is needed only in the terminal phase at fixed nulls. So a fast screening test (e.g. an OLS interaction $t$-test) may be used in the forward phase, and a careful valid test (§7.2) in the terminal phase, without changing the guarantee — provided the fast test is consistent against the alternatives in Assumption P2.
-
-### 6.2 Assumptions for the statistical guarantee
-
-**Assumption P (separator pool).** There is a fixed set $B\subseteq[m]$ such that
-- (P1) every $j\notin\mathrm{Adj}_Z(T)$ has a fixed $A_j\subseteq B\setminus\{j\}$ with $H_0(j\mid A_j)$ true;
-- (P2) (forward completeness, mean version) for every $S\subseteq[m]$ with $B\not\subseteq S$ there is $j\notin S$ with $H_0(j\mid S)$ false.
-
-P is a property of the joint law of $(T,Z)$ only. P1 alone is trivial with $B=[m]$ (by definition of $\mathrm{Adj}$); the content is that a *small* pool exists *and* the forward phase is forced to reach it. P2 is the mean analogue of the composition property that IAMB's grow phase needs. Under Tier 2, P1 holds with $B=B_Z$ (Theorem 6); P2 with $B=B_Z$ is then an assumption we call **A4**. A4 says: if some child atom is missing from $S$, some atom is still mean-dependent on $T$ given $S$ (this already follows from A3), and if all children but some spouse atom are in $S$, some atom (typically that spouse) is mean-dependent on $T$ given $S$ (the collider dependence of §3.4).
-
-**Assumption A5 (tests).** (a) *Validity at fixed nulls:* for each pair $(j,A_j)$ of P1, $\limsup_n\mathbb{P}(p_j(A_j)\le t)\le t$ for all $t\in(0,1)$. (b) *Consistency at fixed alternatives:* for every fixed pair $(j,A)$ with $H_0(j\mid A)$ false that is used below — all $(j,A)$ with $j\in\mathrm{Adj}_Z(T)$, and one witness $j$ for each $S$ in P2 — $\mathbb{P}(p_j(A)\le t)\to1$ for every $t>0$.
-
-### 6.3 Main theorem
-
-**Theorem 11 (selection consistency, Tier 1).** Fix $m$ and $\alpha\in(0,1)$. Under Assumptions P and A5, the DINES direct set $\hat S_n$ satisfies
-$$\lim_n\mathbb{P}\big(\mathrm{Adj}_Z(T)\subseteq\hat S_n\big)=1,\qquad \limsup_n\mathbb{P}\big(\hat S_n\not\subseteq\mathrm{Adj}_Z(T)\big)\le\frac{m-|\mathrm{Adj}_Z(T)|}{m}\,\alpha,$$
-hence $\liminf_n\mathbb{P}\big(\hat S_n=\mathrm{Adj}_Z(T)\big)\ge1-\alpha$.
-
-*Proof.* Write $\mathcal{A}:=\mathrm{Adj}_Z(T)$.
-
-(i) *The forward phase reaches the pool and the direct set.* Let $\mathcal{S}:=\{S\subseteq[m]:(B\cup\mathcal{A})\not\subseteq S\}$. For each $S\in\mathcal{S}$ pick a witness $w_S\notin S$ with $H_0(w_S\mid S)$ false: if $B\not\subseteq S$ use P2; otherwise some $j\in\mathcal{A}\setminus S$ exists and $H_0(j\mid S)$ is false by the definition of $\mathcal{A}$. By A5(b), $\mathbb{P}(p_{w_S}(S)\le\alpha/|[m]\setminus S|)\to1$. Let $\mathcal{E}_n:=\bigcap_{S\in\mathcal{S}}\{\min_{j\notin S}p_j(S)\le\alpha/|[m]\setminus S|\}$; a finite intersection, so $\mathbb{P}(\mathcal{E}_n)\to1$. The forward phase adds one atom per round and never removes one, so it stops after at most $m$ rounds; on $\mathcal{E}_n$ it cannot stop at any $S\in\mathcal{S}$. Hence on $\mathcal{E}_n$, $B\cup\mathcal{A}\subseteq\tilde S$.
-
-(ii) *Direct atoms survive the terminal phase.* For $j\in\mathcal{A}$ and every $A\subseteq[m]\setminus\{j\}$, $H_0(j\mid A)$ is false. These are finitely many fixed alternatives, so by A5(b) and a union bound $\mathbb{P}(\forall j\in\mathcal{A},\forall A:\ p_j(A)\le\alpha/m)\to1$. The terminal phase decides on $j$ using only $p_j(A)$ with $A\subseteq\tilde S\setminus\{j\}\subseteq[m]\setminus\{j\}$, and removals are simultaneous, so on this event and on $\{\mathcal{A}\subseteq\tilde S\}$ every $j\in\mathcal{A}$ is kept. With (i), $\mathbb{P}(\mathcal{A}\subseteq\hat S_n)\to1$.
-
-(iii) *Precision with fixed nulls only.* Let $\mathcal{R}_n:=\{B\subseteq\tilde S\}$. Fix $j\notin\mathcal{A}$. On $\mathcal{R}_n$, if $j\in\hat S_n$ then $j\in\tilde S$, and $A_j\subseteq B\setminus\{j\}\subseteq\tilde S\setminus\{j\}$ is one of the subsets at which $j$ was tested, so $p_j(A_j)\le\alpha/m$. The null $H_0(j\mid A_j)$ is true (P1) and $A_j$ is fixed, not chosen from the data. By A5(a) and a union bound,
-$$\limsup_n\mathbb{P}\big(\mathcal{R}_n,\ \hat S_n\not\subseteq\mathcal{A}\big)\le\sum_{j\notin\mathcal{A}}\limsup_n\mathbb{P}\big(p_j(A_j)\le\alpha/m\big)\le\frac{m-|\mathcal{A}|}{m}\alpha.$$
-Since $\mathbb{P}(\mathcal{R}_n^c)\to0$ by (i), the same bound holds for $\mathbb{P}(\hat S_n\not\subseteq\mathcal{A})$.
-
-(iv) $\mathbb{P}(\hat S_n\neq\mathcal{A})\le\mathbb{P}(\mathcal{A}\not\subseteq\hat S_n)+\mathbb{P}(\hat S_n\not\subseteq\mathcal{A})$; the first term $\to0$ by (ii), the second has $\limsup\le\alpha$ by (iii). $\square$
-
-No step uses validity at a data-dependent conditioning set: (i) and (ii) use consistency at finitely many fixed pairs, and (iii) uses validity at the $m-|\mathcal{A}|$ fixed pairs $(j,A_j)$. The forward Bonferroni gate is not needed for the bound (any fixed positive threshold works at fixed $m$); the terminal level $\alpha/m$ is what controls precision. A data-dependent terminal level such as $\alpha/|\tilde S|$ is *not* covered by this proof.
-
-**Corollary 12 (causal selection, Tier 2).** Under A1–A5 (with A4 = P2 for $B=B_Z$),
-$$\liminf_n\mathbb{P}\big(\hat S_n=\{j_c:c\in\mathrm{Ch}(T)\}\big)\ge1-\alpha,$$
-and the recovered set indexes the shifted mechanisms $\mathrm{Shift}(T)$ under causal minimality.
-
-*Proof.* Theorem 6 gives $\mathrm{Adj}_Z(T)=J_C$ and P1 with $B=B_Z$ and the stated $A_j$; A4 is P2. Apply Theorem 11, then Proposition 8.3. $\square$
-
-### 6.4 The separating-set question, answered
-
-*Question.* In NEXIS, each false coordinate is bounded by its test at the fixed set $\mathcal{S}^\star$ (the target), which lies in the forward output. Here the target $J_C$ does not separate spouse atoms (conditioning on a child opens $T\to c\leftarrow s$). Does every non-direct atom have a separating set inside the forward output?
-
-*Answer: yes, under Tier 2 and A4, and the separating set is fixed.* On the event $B_Z\subseteq\tilde S$ (probability $\to1$ by A4):
-- atoms that read no descendant of $T$: $\emptyset$ separates (also $B_Z$ does);
-- atoms outside $B_Z$: $B_Z$ separates (Lemma 3, a Markov-blanket argument);
-- principal atoms of spouses, *including spouses that are descendants of $T$*: $J_{D^\star(s)}$ with $D^\star(s)=\mathrm{MB}(T)\setminus(\{s\}\cup\mathrm{De}(s))$ separates (Lemma 5). The key step is that, $T$ being a root, all its moral neighbours in the relevant ancestral set are children or co-parents that are not descendants of $s$.
-
-No enlargement of the subset pool, no symmetry (AND) check à la Peña et al. (2007), and no test over all affected atoms is needed. Two caveats. (1) Without Tier 2 — for a general dictionary whose atom-level dependence structure is only an ancestral graph with $T$ a root — we do not know whether a separator always exists inside a Markov blanket of $T$, and the set $D^\star$ as defined can fail there (a collider path $T\to c\leftrightarrow X$ through a blanket member $c$ that is not an ancestor of $X$ is opened by conditioning on $c$); this is Open question O1, and is why Theorem 11 carries P as an assumption. (2) A4 (forward completeness) is an assumption, the mean analogue of composition.
-
----
-
-## 7. Conditional tests in practice
-
-### 7.1 What is tested
-
-$H_0(j\mid A)$: $\mathbb{E}[Z^j\mid T,Z^A,W]=\mathbb{E}[Z^j\mid Z^A,W]$. The tested atom $Z^j$ stays continuous. The conditioning atoms stay continuous.
-
-### 7.2 Residualization instead of stratification: the GCM test
-
-For a pair $(j,A)$, with conditioning variables $V_A:=(Z^A,W)$:
-1. Split the units (for video: the clusters) into $K$ folds. On each fold, use models fitted on the other folds:
-   - $\hat\pi(V_A)$, an estimate of $\mathbb{P}(T=1\mid V_A)$ (a classifier);
-   - $\hat\mu_j(V_A)$, an estimate of $\mathbb{E}[Z^j\mid V_A]$ (a regression).
-2. $R_i:=(T_i-\hat\pi(V_{A,i}))\,(Z^j_i-\hat\mu_j(V_{A,i}))$, $\ T_n:=\sqrt n\,\bar R/\hat\sigma_R$, two-sided normal $p$-value.
-
-*What it estimates.* By Lemma 1.3, $\mathbb{E}[R]\approx\mathbb{E}[\pi_A(1-\pi_A)\Delta_{j,A}]$: the conditional arm contrast averaged with overlap weights.
-
-*Validity.* Under $H_0(j\mid A)$ the population residual product has conditional mean zero, $\mathbb{E}[(T-\pi_A)(Z^j-\mu_{j,A})\mid V_A]=\pi_A(1-\pi_A)\Delta_{j,A}=0$. The standard decomposition of the GCM statistic (Shah & Peters, 2020) uses the null only through this identity and through $\mathbb{E}[T-\pi_A\mid V_A]=\mathbb{E}[Z^j-\mu_{j,A}\mid V_A]=0$, so the test is asymptotically valid under the *mean* null under conditions of their type: the product of the two regression errors is $o_P(n^{-1/2})$ in $L_2$, each error vanishes (also when weighted by the other residual's conditional variance), and $\mathbb{E}[R^2]$ is bounded away from zero with a slightly higher moment bounded. (Scheidegger et al., 2022, and Lundborg et al., 2024, discuss the GCM as a test of this weaker, covariance-type null.)
-
-*The propensity is not known.* In NEXIS the conditioning set is pre-treatment, so $\mathbb{P}(T=1\mid Z^A)=e$ by design. Here $Z^A$ is post-treatment, so $\pi_A$ depends on $Z^A$ and must be learned — it is a classifier of the treatment from the selected atoms. This is the price of a post-treatment dictionary. Only the first step ($A=\emptyset$) has a known propensity.
-
-*No free lunch.* Shah & Peters (2020) show that no conditional-independence test with continuous conditioning variables can have uniformly valid size and non-trivial power against all alternatives. The regression rate conditions above are the assumption we pay with.
-
-*Power.* The GCM has power against fixed alternatives with $\mathbb{E}[\pi_A(1-\pi_A)\Delta_{j,A}]\neq0$, at the usual $\sqrt n$ rate. It is blind when the contrast changes sign across $V_A$ (§4.3 (f)). Remedies: the PCM of Lundborg et al. (2024) with response $Z^j$, covariate $T$, conditioning set $V_A$ (learn $\hat h\approx\Delta_{j,A}$ on one half, test $\mathbb{E}[(T-\hat\pi)\hat h(Z^j-\hat\mu)]$ on the other), equivalently a weighted GCM (Scheidegger et al., 2022). We suggest the GCM by default and the PCM in the terminal phase when sign changes are plausible.
-
-*Positivity.* When $Z^A$ nearly reveals $T$, $\hat\pi$ is near 0 or 1, residuals $T-\hat\pi$ are tiny, and power vanishes (this is §4.3 (e)(iii) at finite $n$). Report the effective sample size $\sum_i\hat\pi_i(1-\hat\pi_i)$ for every terminal test.
-
-**Why binned stratification fails.** NES (Algorithm 2; code: atoms binarized at $>0$) compares arms within cells defined by binarized selected atoms. A binarized atom $b(Z^{j_c})$ does not determine the factor even if $Z^{j_c}$ does, so it is a noisy proxy and leaves mediated paths open (§4.3 (c)). For $T\to F_1\to F_2$ with $F_1\mid T\sim\mathcal{N}(\beta T,1)$ and strata $\{F_1>0\},\{F_1\le0\}$: within the upper stratum the arm difference of $\mathbb{E}[F_1]$ is $\beta+\lambda(\beta)-\lambda(0)$ with $\lambda=\varphi/\Phi$, which for small $\beta$ is $\beta(1-2/\pi)\approx0.36\beta$ (and symmetrically below). So stratification removes only about 64% of a mediated effect. Measured ($n=2\times10^6$, $F_2=F_1+\varepsilon$): retained fraction $0.366$, $0.379$, $0.418$ for $\beta=0.2,0.5,1.0$; small-$\beta$ limit $1-2/\pi=0.363$. In addition, with $|S|$ binarized atoms there are $2^{|S|}$ cells, and because the atoms are post-treatment, strong effects create cells with only one arm. NES drops those cells and renormalizes the weights (code lines 73–95), which silently changes the estimand.
-
-### 7.3 Binarization
-
-Do not binarize conditioning atoms (§7.2). Keep the tested atom continuous: for zero-inflated sparse-autoencoder codes, a mean test detects changes in firing rate and in firing magnitude. The regressions $\hat\mu,\hat\pi$ should be able to represent the point mass at zero (e.g. include $\mathbb{1}[Z^k>0]$ as a feature, or use trees). Binarize only to *interpret* a selected atom (e.g. report the change in firing rate).
-
-### 7.4 Pre-treatment covariates and AIPW
-
-**Proposition 14 (covariates do not change the target).** Let $W$ be observed pre-treatment variables that are vertices of $\mathcal{G}_L$ and non-descendants of $T$. Define $\mathrm{Adj}^W_Z(T)$ as in Definition 1 with $W$ added to every conditioning set. Under A1–A2, and A3 with $W$ added to every conditioning set, $\mathrm{Adj}^W_Z(T)=J_C$.
-
-*Proof.* "$\supseteq$": A3 with $W$. "$\subseteq$": for $j\notin B_Z$, Lemma 3 with $Y=(Z^j,W)$ ($W$ is a function of $L$) gives $T\perp\!\!\!\perp(Z^j,W)\mid Z^{B_Z}$, and weak union gives $T\perp\!\!\!\perp Z^j\mid(Z^{B_Z},W)$. For $j=j_s$, $s$ a non-child spouse: we show $T\perp_d s\mid D^\star(s)\cup W$. Let $\mathcal{A}'=\mathrm{An}(\{T,s\}\cup D^\star(s)\cup W)$. A child $c$ of $T$ in $\mathcal{A}'$ is not an ancestor of $W$ (its descendants are descendants of $T$, and $W$ is not), so $c\in\mathrm{An}(\{T,s\}\cup D^\star(s))$; by Step 1 of Lemma 5, $c\notin\mathrm{De}(s)$, so $c\in D^\star(s)$; the co-parent argument of Step 2 is unchanged. So all moral neighbours of $T$ in $(\mathcal{G}_{\mathcal{A}'})^m$ lie in $D^\star(s)\cup W$, which separates $T$ from $s\notin D^\star(s)\cup W$. Lemma 4, with $L_D$ replaced by $(L_{D^\star},W)$ (observed directly, so trivially determined), gives $T\perp\!\!\!\perp Z^{j_s}\mid (Z^{J_{D^\star(s)}},W)$. $\square$
-
-So in a randomized experiment covariates add *power*, not validity: they explain variance in the atoms and in the propensity. For the first step ($A=\emptyset$) the propensity $\mathbb{P}(T=1\mid W)=e$ is known, and $R_i=(T_i-e)(Z^j_i-\hat\mu_j(W_i))$ with cross-fitted $\hat\mu_j$ has mean $e(1-e)\,\mathrm{ATE}_j$ whatever $\hat\mu_j$ is (because $T\perp\!\!\!\perp W$): this is the covariate-adjusted (ANCOVA/augmented IPW) estimator of the average effect (Tsiatis et al., 2008; Lin, 2013), valid by randomization alone. In *observational* data $T$ is no longer a root; if $W$ contains all parents of $T$ and is always conditioned on, we expect the same results (the moral-graph argument then also has $W$ among $T$'s neighbours), but we have not written this proof out (Open question O8).
-
-### 7.5 Clustered data (video)
-
-Frames of one video, or of one pool of animals, are not independent, and the treatment is assigned per video or pool. The unit of independence is the cluster $g=1,\dots,G$. Use
-$$T_G=\frac{\sum_g R_g}{\sqrt{\sum_g\big(R_g-n_g\bar R\big)^2}},\qquad R_g=\sum_{i\in g}R_i,$$
-form the cross-fitting folds from whole clusters (otherwise the nuisance models memorize a video and the residuals are biased), and read the asymptotics as $G\to\infty$. With few clusters (tens of videos or pools) use a $t_{G-1}$ reference and small-sample corrections (Cameron & Miller, 2015). Two warnings. (1) Permutation of $T$ is exact only for the unconditional step $A=\emptyset$; for $A\neq\emptyset$ permuting $T$ breaks the dependence between $T$ and the post-treatment $Z^A$, and a conditional randomization test would need the unknown $\pi_A$. (2) The target is defined for a randomly drawn frame; decide whether frames or videos are weighted equally, and keep it fixed. Averaging atoms over a video first is a different dictionary (an average of functions is not a function of averaged factors), so alignment must hold for the averaged atoms.
-
-### 7.6 Forward-phase tests
-
-The forward phase may use a cheap test (OLS of $Z^j$ on $T$, $Z^S$, $W$ with a $t$-test on $T$, or a linear GCM), because only consistency matters there (§6.1). The terminal phase should use the cross-fitted GCM/PCM.
-
-### 7.7 The $p$-value gate and the terminal level
-
-Forward gate: Bonferroni $\alpha/|R|$ by default (not needed for the theorem; a looser gate admits more atoms and makes the terminal phase more expensive). Terminal level: $\alpha/m$, with $m$ the number of atoms entering the analysis. Atoms that never fire in the sample may be dropped before the analysis (this uses $Z$ only, not $T$), which lowers $m$.
-
-### 7.8 Approximate alignment and the margin $\delta$ (practical, not part of the theory)
-
-The theory uses the exact null. Under *approximate* alignment — a principal atom that only nearly determines its factor, which is the realistic case for sparse autoencoders (in NES's CelebA dictionary the best atom for "wearing hat" has F1 $0.94$ and the best for "eyeglasses" $0.74$) — §4.3 (c) shows that atoms downstream of a mediator keep a small but non-zero conditional effect given *every* set of atoms. These **leaked atoms really are in $\mathrm{Adj}_Z(T)$ for that dictionary**. So:
-- the *statistical* guarantee (Theorem 11) is intact: DINES recovers $\mathrm{Adj}_Z(T)$, leaked atoms included, with probability $\ge1-\alpha$ asymptotically;
-- the *causal* reading (Theorem 6) fails: $\mathrm{Adj}_Z(T)$ is larger than the set of child atoms, and the number of leaked atoms that pass the tests grows with $n$. Precision against the causal truth falls with $n$, for DINES as for NES.
-
-The measured toy confirms this (Appendix B, proxy noise $\sigma_\eta=0.3$ on all principal atoms): exact recovery 96/100, 96/100, 84/100 at $n=1000,4000,16000$, with false atoms in the output rising from 0.01 to 0.17 per run (mostly the leaky mixed atom and the mediator's atom).
-
-*Option.* The implementation exposes a relevance margin $\delta\ge0$ (default $0$): test $H_0^\delta(j\mid A):\ |\theta_{j,A}|\le\delta$ instead of $\theta_{j,A}=0$, with a standardized effect such as the residual correlation $\theta_{j,A}=\mathbb{E}[R]/\sqrt{\mathbb{E}[(T-\pi_A)^2]\,\mathbb{E}[(Z^j-\mu_{j,A})^2]}$, rejecting when $|\hat\theta|-\delta$ exceeds a one-sided normal quantile times its standard error. This is where effect *magnitude* legitimately re-enters — on a standardized scale, and as a declared tolerance rather than a ranking rule. NEXIS's spectral-gap gate $\rho$ is a relative version of the same idea. In the toy, $\delta=0.05$ gives 100/100 exact recovery at $n\ge4000$ under approximate alignment, but costs recall at small $n$ (recall 0.85 and 0.84 at $n=1000$ with and without proxy noise). The $\delta$ version changes the target to "atoms whose conditional effect exceeds $\delta$ given every set", which is not $\mathrm{Adj}_Z(T)$; we do not build it into the definition. Whether it is needed is decided empirically: **if DINES's precision on the CelebA benchmark falls with $n$, alignment is approximate and $\delta>0$ is warranted.** How to choose $\delta$ on a principled scale is Open question O5.
-
-### 7.9 A dictionary fitted on the same data
-
-All results treat $\psi$ as fixed. If the sparse autoencoder is trained on the experiment's own frames (as for ISTAnt), $\psi$ depends on the data, possibly on treatment-related structure. Safe options: train $\psi$ on held-out units, or cross-fit the dictionary. The effect of reusing the data is not covered (Open question O7).
-
----
-
-## 8. What NES got wrong, and what DINES does instead
-
-NES is "Neural Effect Search" from *Exploratory Causal Inference* (Mencattini, Cadei, Locatello; arXiv 2510.14073). Its central observation — marginal tests on an entangled dictionary flag ever more atoms as power grows (its Theorems 3.1–3.2) — is correct, and DINES keeps it: those atoms form $\mathrm{De}_Z(T)$. The problems are in the target, the selection rule, the conditioning device and the proof. Equation numbers refer to the arXiv version; code references are to `src/neuralscience/nes.py` in the NES project (`/nfs/scistore19/locatgrp/tmencatt/projects/neuralscience/`), which we read; the CelebA numbers are from the saved runs in `results/experiments-semi-synthetic/` of that project (seeds 420–429; Appendix B).
-
-### 8.1 The target is never defined, and its proof target excludes mediation
-
-*Claim (§2).* The goal is "the coarsest possible abstraction of the treatment effect in $X$", with $[Y,W]$ "the minimal and sufficient representation for $X$ that renders the treatment independent from the observations, i.e. $T\perp\!\!\!\perp X\mid[W,Y]$, where only $Y$ is causally affected"; the theorem targets "principal neurons of all $r$ affected outcomes".
-
-*Why it fails.* (1) "Coarsest abstraction" is not given a formal definition. (2) The sufficiency condition $T\perp\!\!\!\perp X\mid[W,Y]$ is a Markov-blanket condition; with post-treatment variables it brings in unaffected spouses — which the paper puts in $W$ — and does not say whether a factor *caused by another affected factor* belongs to $Y$. (3) The theorem's target includes every factor with non-zero total effect, mediated ones included, but its Assumption A.3 (Eq. 28) states that after conditioning on the atoms of discovered factors the remaining contrast at atom $j$ is $\sum_{k\notin K(S)}\tau^Y_k v_{k,j}$, the sum of the *total* effects of undiscovered factors. In a mediator design $T\to Y_1\to Y_2$ with $Y_1$'s atom determining $Y_1$, conditioning on it removes all of $Y_2$'s effect, so the remaining contrast at $Y_2$'s atom is $0$, not $\tau^Y_2v_{2,j}$. Eq. 28 therefore silently assumes no causal relation among affected factors (and no spouses: in NES's own design Smiling is a co-parent of Eyeglasses, §3.4, and Eq. 28 predicts zero contrast at a Smiling atom after conditioning on Eyeglasses, whereas the collider makes it non-zero).
-
-*DINES.* Definition 1 (direct set) with its causal reading (Theorem 6, Proposition 8); mediated factors are a separate, defined output (§5).
-
-### 8.2 Selection by raw magnitude, and the Principal–Max assumption
-
-*Claim (Algorithm 1 line 6; Eqs. 25–26, 31).* Among significant atoms NES adds the one with the largest raw $|\hat\tau_j|$ (code line 303). The theorem assumes the global argmax of $|\tau^Z|$ is a principal atom (Eq. 26) and argues that "replacing $\sum_{\ell=1}^r$ in Eq. 26 by a subsum over the remaining indices only reduces nonprincipal candidates; hence the argmax remains principal at every round".
-
-*Why it fails.* (1) Raw effects are not comparable across atoms: sparse-autoencoder atoms have different activation scales, and the raw effect mixes effect size with scale. (2) The preservation argument is false, because removing a term from a signed sum can *increase* its absolute value. Counterexample satisfying A.1, Eq. 25, Eq. 26 and Eq. 31 (with any $\varepsilon<1$): three atoms, two factors, $v_1=(3,0,-1)$, $v_2=(0,1.5,2)$, $\tau^Y=(1,1)$. Round 1: $\tau^Z=(3,1.5,1)$, argmax atom 1, principal. Round 2 under Eq. 28: remaining contrasts $(\cdot,1.5,2)$, argmax atom 3, *not* principal. Measured on a Gaussian instance ($Y_k=T+\varepsilon_k$, $Z=(3Y_1,1.5Y_2,-Y_1+2Y_2+\varepsilon)$, $n=20{,}000$, OLS adjustment): in round 2 atom 3 has the larger effect ($2.0$ vs $1.5$) but the smaller $t$ ($56.5$ vs $62.8$); ordering by magnitude picks atom 3, after which atom 2 is still significant ($t=25.6$) and NES ends with $\{1,3,2\}$; ordering by $t$ picks atom 2, after which atom 3 is null ($t=0.34$). (3) *Evidence in the saved CelebA runs* (seed 420, Bonferroni-NES): in round 2, stratified on N_38 $>0$ (N_38 = hat atom), the mixed atom N_408 (F1 $0.48$ for hat, $0.45$ for eyeglasses) has a larger raw effect than the eyeglasses atom N_6051 but about half its $t$-statistic — $0.773$ ($t=4.8$) vs $0.691$ ($t=8.8$) at ATE $0.4$, $N=1000$; $1.324$ ($t=7.1$) vs $1.114$ ($t=12.4$) at ATE $0.7$, $N=1000$ — so NES selects N_408 before N_6051 (saved selection: 38, 408, 6051). Over 80 runs at $N=5000$ (ATE $0.1$–$0.8$, 10 seeds), N_408 is the most frequent false selection (50/80 runs).
-
-*DINES.* Order by $p$-value; and the guarantee does not depend on the order at all (§6.1), because a terminal backward step removes whatever entered wrongly.
-
-### 8.3 Eqs. 27–28 assume the conclusion
-
-*Claim (Assumption A.3).* Conditioning within arms on the selected atoms "explains their contribution in expectation, leaving only undiscovered effects" (Eqs. 27–28).
-
-*Why it fails.* This is the disentanglement property the theorem is supposed to establish, stated as an assumption. It is false in general for post-treatment conditioning: mediation (§8.1), colliders (§3.4), noisy proxies (§4.3 (c)), and binarized strata, which remove only about 64% of a mediated effect even with a perfectly aligned atom (§7.2, measured retained fraction $0.37$–$0.42$).
-
-*DINES.* Replaces A.3 by structural assumptions (A1–A3) whose consequences are proved (Lemmas 2–5, Theorem 6), and by conditional tests whose validity conditions are explicit (§7.2).
-
-### 8.4 The transport-error term of Eqs. 29–30 is identically zero
-
-*Claim.* The arm/stratum discrepancy $\Delta_{j,t}(g):=\mathbb{E}[Z_j\mid G=g,T=t]-\mathbb{E}[Z_j\mid G=g,do(T=t)]$ (defined just before Eq. 29) captures the collider bias of post-treatment conditioning; Eq. 29 says it vanishes once all factors are found, and Eq. 30 bounds it by $\varepsilon$. Lemma A.1 then bounds the "leakage bias" $B_j$ by $\varepsilon$.
-
-*Why it fails.* In a randomized experiment the joint law of all post-treatment variables under $do(T=t)$ equals their law given $T=t$; so $\mathbb{E}[Z_j\mid G=g,do(T=t)]=\mathbb{E}[Z_j\mid G=g,T=t]$ and $\Delta_{j,t}(g)=0$ for every $j,g,t$, always. Eq. 29 is trivially true, Eq. 30 holds with $\varepsilon=0$, and $B_j=0$. The real post-treatment problem is that $\mathbb{E}[Z_j\mid G=g,do(T=1)]-\mathbb{E}[Z_j\mid G=g,do(T=0)]$ compares two *different* subpopulations (units that land in stratum $g$ under treatment versus under control) and is not a causal effect. The paper's bound does not touch it; Eq. 28 assumes it away.
-
-*DINES.* Does not compare strata as if they were causal contrasts. It asks a conditional-independence question (is $Z^j$'s mean shift explainable by other atoms?) and gives it a causal meaning only through Theorem 6.
-
-### 8.5 "FWER → 0" is wrong at fixed $\alpha$
-
-*Claim (Note after the Theorem in App. A.3).* $\mathbb{P}(S_{\rm final}=\{j_1,\dots,j_r\})\to1$, hence FWER and FDR converge to $0$. The termination step argues that after $r$ rounds the remaining $t$-statistics are $O_p(1)$, "hence, under Bonferroni control, no hypothesis is rejected with probability $\to1$".
-
-*Why it fails.* $O_p(1)$ statistics compared with a *fixed* cutoff (Bonferroni at fixed $\alpha$ and $m$) exceed it with a probability that does not vanish: it converges to the size of the final-round Bonferroni test, which can be as large as about $\alpha$. So even when every other step is granted, the correct statement is $\liminf\mathbb{P}(\text{exact})\ge1-\alpha$ — the form of NEXIS's Theorem 4.1 and of Theorem 11 here. (Saved null runs, ATE $=0$: 1 of 80 runs selected an atom. This is consistent with an error rate of order $\alpha$; it neither proves nor disproves the limit claim, which is a mathematical error.)
-
-*DINES.* States $\liminf_n\mathbb{P}(\hat S_n=\mathrm{Adj}_Z(T))\ge1-\alpha$ and proves it.
-
-### 8.6 No backward step
-
-*Claim (Algorithm 1).* Atoms are only added.
-
-*Why it fails.* An atom admitted before the atoms that explain it is never re-tested. N_408 (§8.2) enters before N_6051; once N_6051 is in, N_408's remaining effect may vanish, but NES never checks. NEXIS showed the same point for its own forward step and fixed it with a terminal backward rule.
-
-*DINES.* Terminal backward step over all subsets at level $\alpha/m$, with a fixed-null precision proof (Theorem 11).
-
-### 8.7 The residualization in the paper is not run by the code
-
-*Claim (App. A, "Residualization (optional)"; Algorithm 2 lines 2–10).* Arm-wise residualization of the tested atom on the selected atoms improves efficiency.
-
-*What the code does.* In `neural_effect_search_base`, the residualized matrix `Y_mat` is computed (lines 205–224) but the stratified branch `test == "AF"` — the only branch NES uses once at least one atom is selected — calls `_stratified_ttests_lotp(data, sn, ...)` on the raw data frame (line 283), not on `Y_mat`. In the first round `sn` is empty and the residualization block is skipped. So the option never affects NES's output. (Had it been used with an unstratified contrast, within-arm OLS with an intercept centres each arm's residuals at zero, which removes the arm difference by construction.)
-
-*DINES.* One test (cross-fitted GCM/PCM), used identically in the theory and the code.
-
-### 8.8 Binarized strata and dropped cells
-
-*Code.* Strata are built from selected atoms binarized at $0$ (`bin_threshold=0.0`), $2^{|S|}$ cells; cells without both arms are dropped and weights renormalized (lines 73–95).
-
-*Why it matters.* Leakage of mediated effects (§7.2); and because the atoms are post-treatment, stronger effects produce more single-arm cells, so the estimand drifts with effect size.
-
-*DINES.* Continuous conditioning by regression; overlap is reported, not silently trimmed.
-
-### 8.9 The measured symptom: precision falls with $N$
-
-Saved CelebA runs (Bonferroni-NES; ground truth = atoms 38 and 6051). At ATE $0.7$ (10 seeds): precision $0.80$ at $N=250$, $0.62$ at $500$, $0.56$ at $1000$, $0.45$ at $2500$, $0.49$ at $5000$; mean selection size $2.7\to4.2$; recall $1.0$ from $N=250$. Pooled over ATE $0.1$–$0.8$ (80 runs per $N$): precision $0.656$ ($N=250$) $\to0.566$ ($N=5000$), mean $|S|$ $1.58\to3.85$, exact recovery $26/80\to11/80$. (Marginal Bonferroni at ATE $0.7$: precision $0.28\to0.03$, mean $|S|$ $7.5\to77.3$ — the paradox.)
-
-**Hypothesis (empirical, untested).** The fall has several causes that this report identifies separately: (a) magnitude ordering admits mixed atoms early (N_408); (b) no backward step keeps them; (c) binarized strata leak mediated and shared signal; (d) approximate alignment makes leaked atoms truly adjacent in the dictionary (§7.8), so their number grows with $N$; (e) **the benchmark design violates Tier 2**: Smiling is a co-parent of Eyeglasses (§3.4), but no atom is aligned with Smiling (the best-F1 atom for Smiling is the *hat* atom 38, F1 $0.48$). By §4.3 (a), atoms reading both eyeglasses and smiling are then genuinely direct in this dictionary. DINES fixes (a)–(c) by construction; (d) and (e) would affect DINES too. The benchmark in §9.2 separates them.
-
-### 8.10 Summary table
-
-| NES element (paper / code) | Problem | DINES |
+| §0 | Formal | Used in |
 |---|---|---|
-| Target "coarsest abstraction" (§2) | undefined; Markov-blanket sufficiency mixes in spouses; proof target forbids mediation (Eq. 28) | $\mathrm{Adj}_Z(T)$ (Def. 1), causal reading Thm 6, mechanisms Prop 8, indirect output §5 |
-| Raw $\lvert\hat\tau\rvert$ ordering, Principal–Max (Eqs. 25–26, 31; code l. 303) | scale-dependent; "argmax stays principal" false (counterexample §8.2); N_408 picked before N_6051 | $p$-value ordering; guarantee independent of ordering |
-| A.3 (Eqs. 27–28) | assumes the disentanglement it should prove; false under mediation, colliders, noisy proxies, binning | structural A1–A3 with proved consequences |
-| Transport error (Eqs. 29–30) | identically zero in an RCT; bound vacuous; real post-treatment bias unaddressed | conditional-independence formulation |
-| "FWER → 0" (App. A.3 Note) | false at fixed $\alpha$ | $\liminf\mathbb{P}(\text{exact})\ge1-\alpha$ (Thm 11) |
-| No backward step (Alg. 1) | early wrong atoms never removed | terminal subset rule at $\alpha/m$ |
-| Binarized strata, dropped cells (Alg. 2; code l. 36, 73–95) | ~36% of mediated effect retained; estimand drifts | cross-fitted GCM/PCM, continuous conditioning |
-| Residualization (App. A; Alg. 2) | never executed by the code (l. 205–224 vs 283) | one test, same in theory and code |
-| i.i.d. units | frames are clustered | cluster-robust GCM, cluster folds |
+| 1 randomized $T$ | $T$ a root of $\mathcal{G}_L$ | Lemma 3; known propensity at $A=\emptyset$ |
+| 2 alignment | 2a screening (NEXIS Eq. 6, jointly) + 2b purity on the treatment side; realistic: (δ-a) | Lemmas 4–5, Theorem 1, Theorem 3 |
+| 3 no hidden common cause | coverage of $\mathrm{MB}(T)$ after folding (Lemma 2) | Theorem 1 |
+| 4 no exact cancellation, valid tests | (T1), (T3), (T4), (O); fixed dictionary | Theorem 2 |
+| — (without 2–3) | assumption L = (T2) + (T3) | Corollary 1 |
+
+**Theorem 3 (realistic alignment).** Assume A1. For each $k\in\mathrm{MB}(T)$, choose a distinct atom $j_k$ (its best atom, with no alignment required). Take the separators $A_j$ of Theorem 1, and assume each lies in $\mathcal{O}$. Fix $\delta>0$ and assume:
+- **(δ-a) Leaks below the margin.** $|\rho_{j|A_j}|\le\delta$ for every $j\notin J_C$.
+- **(δ-b) Direct effects above the margin.** $|\rho_{j_c|A}|>\delta$ for every child $c$ and every $A\in\mathcal{O}$ with $j_c\notin A$.
+- **(δ-c) Forward completeness at the margin.** (T3) holds with $H_0^\delta$ and $B=B_Z$.
+- **Tests and overlap.** (T4) holds for $H_0^\delta$ (valid on the boundary $|\rho|=\delta$, consistent beyond it), and (O) holds with $\bar{\mathcal{O}}=\mathcal{O}$.
+
+Then $\liminf_n\mathbb{P}(\hat R_n=J_C)\ge1-\alpha$. If every leak is strict and $\hat\rho\to\rho$ with standard error $\to0$, then $\mathbb{P}(\hat R_n=J_C)\to1$.
+
+*Proof.* Apply Theorem 2 with $\mathcal{H}=H_0^\delta$, $\mathcal{A}=J_C$ and $B=B_Z$.
+- (T1) is (δ-b) and (T2) is (δ-a). The containment $A_j\subseteq B_Z\setminus\{j\}$ holds as in Theorem 1.
+- For strict leaks, $(|\hat\rho|-\delta)/\widehat{\rm se}\to-\infty$, which gives (T4c). $\square$
+
+So $\delta$ enters the algorithm and the assumption, never the target. Under exact alignment every leak is 0, so (δ-a) holds for any $\delta\ge0$. With $\delta>0$, an other-cause atom is collected only if its explaining-away shift exceeds $\delta$, which makes (δ-c) the upper limit on $\delta$.
+
+### 2.7 How large are leaks?
+
+**Proposition 5 (exact leak identity).** Fix $j$ and $A$. Suppose some $F$ (the factors that $A$ was meant to align with) satisfies $\mathbb{E}[Z^j\mid T,F,Z^A]=\mathbb{E}[Z^j\mid F]=:g(F)$, with $\mathbb{E}g^2<\infty$. Then $\Delta_{j,A}=\Delta_{g,A}$ a.s., and
+$$\rho_{j|A}=\rho_{g|A}\cdot\sqrt{\frac{\mathbb{E}[\mathrm{Var}(g(F)\mid Z^A)]}{\mathbb{E}[\mathrm{Var}(Z^j\mid Z^A)]}},\qquad\text{where the square root is}\le1 .$$
+**In words, leak = (treatment signal left in the carried part once the atoms are held fixed) × √(share of the atom's leftover variance that is carried signal the atoms miss).** Both factors are at most 1. The second is 0 exactly when the atoms determine $g(F)$, which is screening (Lemma 5).
+
+*Proof.* $\mathbb{E}[Z^j\mid T,Z^A]=\mathbb{E}[g(F)\mid T,Z^A]$ by the tower rule, so the arm contrasts agree. By Lemma 1.5 the numerators of $\rho_{j|A}$ and $\rho_{g|A}$ agree, and the denominators are $\sqrt{V_A\,\mathbb{E}\mathrm{Var}(\cdot\mid Z^A)}$; if $\mathbb{E}\mathrm{Var}(g\mid Z^A)=0$, both numerators vanish. Averaging over $T$ gives $\mathbb{E}[Z^j\mid F,Z^A]=g(F)$, so $Z^j-g(F)$ is uncorrelated with every function of $(F,Z^A)$. Hence $\mathrm{Var}(Z^j\mid Z^A)=\mathrm{Var}(g\mid Z^A)+\mathbb{E}[(Z^j-g)^2\mid Z^A]$. $\square$
+
+*When does the condition hold?* For pure atoms with independent noise, $Z^A=\phi(L_D,\eta)$ with $\eta\perp\!\!\!\perp(T,L,N^j)$, and with $T\perp_d P(j)\setminus D\mid D$ (as for the Theorem 1 separators): take $F=L_D$. For impure atoms it can fail even with screening (example (d)). The leak then has no general bound; it must simply be at most $\delta$.
+
+**Proposition 6 (linear-Gaussian leak).** Assume:
+- $L_D\mid T\sim\mathcal{N}(\nu+T\tau_D,\Sigma)$ with $\Sigma\succ0$;
+- $Z^A=L_D+\eta$, with $\eta\sim\mathcal{N}(0,\Omega)$ independent of $(T,L)$ and of $Z^j$'s noise;
+- $(L_D,Z^j)$ is jointly Gaussian given $T$, with a $T$-free covariance;
+- $\mathbb{E}[Z^j\mid T,L_D]=a+\gamma^\top L_D$.
+
+Then the arm contrast is the constant $\theta_{j|A}=\gamma^\top\Omega(\Sigma+\Omega)^{-1}\tau_D$. Moreover:
+- *Uncorrelated factors:* $\theta=\sum_k\gamma_k\tau_k(1-R^2_k)$, where $R^2_k=\Sigma_{kk}/(\Sigma_{kk}+\Omega_{kk})$. **Each conditioning factor contributes the effect it carries times its unaligned share.**
+- *In general:* $|\theta|\le u\,\|\Sigma^{1/2}\gamma\|\,\|\Sigma^{-1/2}\tau_D\|$, where $u=\max_ww^\top\Omega w/w^\top(\Sigma+\Omega)w$.
+- *On the $\rho$ scale:* $\rho_{j|A}=\theta\sqrt{V_A}/\sqrt{\sigma^2_{j|A}+\theta^2V_A}$, so $|\rho|\le|\theta|\sqrt{V_A}/\sigma_{j|A}\le|\theta|/(2\sigma_{j|A})$, where $\sigma^2_{j|A}=\mathrm{Var}(Z^j\mid T,Z^A)$.
+
+*Proof.* Proposition 5's condition holds with $F=L_D$, so $\mathbb{E}[Z^j\mid T,Z^A]=a+\gamma^\top\mathbb{E}[L_D\mid T,Z^A]$. Here $\mathbb{E}[L_D\mid T,Z^A]=\nu+T\tau_D+\Sigma(\Sigma+\Omega)^{-1}(Z^A-\nu-T\tau_D)$, whose coefficient on $T$ is $\Omega(\Sigma+\Omega)^{-1}\tau_D$. The diagonal case is immediate.
+
+For the general bound, put $N=\Sigma^{-1/2}\Omega\Sigma^{-1/2}$. Then $\Omega(\Sigma+\Omega)^{-1}=\Sigma^{1/2}N(I+N)^{-1}\Sigma^{-1/2}$, and the symmetric matrix $N(I+N)^{-1}$ has operator norm $\nu_{\max}/(1+\nu_{\max})=u$. Cauchy–Schwarz concludes.
+
+For $\rho$: $\mathrm{Var}(Z^j\mid T,Z^A)$ is constant, so $\mathbb{E}\mathrm{Var}(Z^j\mid Z^A)=\sigma^2_{j|A}+\theta^2V_A$, and Lemma 1.5 applies. Finally $V_A=\mathbb{E}\mathrm{Var}(T\mid Z^A)\le\tfrac14$. $\square$
+
+The scalar case is example (c). Measured checks: the matrix formula matches direct Gaussian conditioning to 6 decimals on a random 3-factor instance, and the identity of Proposition 5 holds to 5 decimals at every separator of the toy (Appendix B.4).
+
+**Conjecture 1 (general leak bound).** For pure atoms with independent noise, beyond the linear-Gaussian case, the first factor in Proposition 5 is at most a constant × (the standardized effect of $T$ on the aligned factors) × (their unaligned share). Proposition 6 proves this in the linear-Gaussian case. Proposition 5 alone gives only $|\rho|\le\sqrt{\text{share}}$, which is loose: 0.14–0.23 against true leaks of 0.003–0.015 in the toy.
+
+**The toy at the population level** (Appendix B.4; atoms are factors plus noise of s.d. 0.3):
+- leaks at the full-blanket separator are 0.003–0.015, the largest being the mixed atom $0.5A+0.5D$;
+- leaks at the smaller ancestral separators are 0.002–0.016; these are slightly larger, because the extra blanket atoms help predict $A$;
+- the smallest direct effect over all $2^9$ conditioning sets is 0.120;
+- forward completeness at margin $\delta$ holds iff $\delta<0.090$.
+
+So every condition of Theorem 3 holds for $\delta\in[0.015,0.090)$, and $\delta=0.05$ lies inside this window. At $\delta=0$, a leak of 0.0147 is 1.86 standard errors at $n=16{,}000$. It therefore passes the terminal threshold (2.81 standard errors) in roughly 17% of runs, and in about 3% at $n=4000$. The measured rates are the same order: the mixed atom is falsely kept in 10/100 runs at $n=16{,}000$, and there are 0.04 false atoms per run at $n=4000$.
+
+### 2.8 Choosing δ
+
+1. **The window.** $\delta$ must be above every leak, and below every direct effect and every forward witness. All of these are on one scale: the partial correlation between $T$ and the atom given the conditioning atoms. For example, $|\rho|=0.05$ means that $T$ explains 0.25% of the atom's leftover variance.
+2. **Why $n$ matters at $\delta=0$.** Near $\rho=0$, the standard error of $\hat\rho$ is about $1/\sqrt n$, so the effective threshold is about $z/\sqrt n$ with $z=\Phi^{-1}(1-\alpha/2m)$. That threshold shrinks with $n$, and a leak $\ell$ starts to be selected around $n\approx(z/\ell)^2$. With $\delta>0$ the threshold is about $\delta+z/\sqrt n$. For example, with $m=10^4$ and $\alpha=0.05$, $z\approx4.56$, and at $n=5000$ the $\delta=0$ threshold is about 0.064.
+3. **Estimating the leak.** Measure alignment where labels exist: probe $R^2$, or the share of held-out information, as in NEXIS's 94–96%. Plug it into Proposition 6, which gives $|\theta|\le\sum_k|\gamma_k\tau_k|(1-R^2_k)$ in the uncorrelated case, and convert to $\rho$. Outside the linear-Gaussian case this is a heuristic (Conjecture 1).
+4. **Recall cost.** A direct effect must exceed $\delta$ given every overlap set, including sets that almost reveal $T$, where $\rho$ shrinks like $\sqrt{V_A}$. Finite-sample recall needs about $(\min|\rho_{\rm direct}|-\delta)\sqrt n\gtrsim z$. In the toy, $(0.120-0.05)\sqrt{1000}\approx2.2<2.81$, which matches the measured recall of 0.85 at $n=1000$.
+5. **Declare $\delta$ and check it.**
+   - Fix $\delta$ before looking at the data, like an equivalence margin.
+   - Report the output over a small grid ($0, 0.02, 0.05, 0.1$), with each kept atom's smallest $|\hat\rho|$.
+   - An atom that disappears when $\delta$ increases slightly is a leak suspect.
+   - A principled automatic choice is Open question O6.
+
+### 2.9 Overlap in practice: when one atom reveals the treatment
+
+"Strong" here means *predictive of $T$*, not large in raw magnitude. A large shift of a noisy atom is harmless. An atom that reveals the arm makes every null given it hold vacuously (Lemma 1.2).
+
+The population target (Definition 1) therefore ignores non-overlap sets. The atoms this leaves unresolved are flagged **undetermined**. With an exact copy of $T$ they include both the paralysis atom and any atom changed only through colour, which are symmetric in the data (Proposition 4).
+
+- **Mice case.** In the paired NES run on the mice data, round 1 picks the "bag" neuron. Round 2 then fails with "no overlap", because the bag changes in 34–36 of the 36 pools, so only one neuron can be returned per switch.
+- **Finite-sample rule** (§2.5): skip a set when more than a fraction $f$ of the units have $\hat\pi_A\notin[\varepsilon,1-\varepsilon]$.
+- **What Theorem 2 then guarantees,** under (O) with $\bar{\mathcal{O}}=\mathcal{O}$, that is, no borderline sets:
+  1. no atom that some overlap set explains away is reported (error at most $\alpha$);
+  2. every direct atom is reported, as kept or undetermined;
+  3. undetermined atoms may be changed directly or only through the revealing factor, and no sample size separates the two (Proposition 4).
+
+If a set has partial overlap, between the two cases, the rule treats it as revealing. That choice is conservative: it may add undetermined atoms, but it never drops a direct one.
+
+### 2.10 Feature splitting
+
+**Proposition 7 (groups of atoms).** Replace the single principal atom by disjoint groups $G_k$ with exact capture: $L_k=a_k(Z^{G_k})$ and $Z^{G_k}=h_k(L_k,N^Z)$. Assume $B_Z^G:=\bigcup_{k\in\mathrm{MB}}G_k\in\mathcal{O}$. Then:
+1. $\mathrm{Adj}\subseteq\bigcup_{c\in\mathrm{Ch}(T)}G_c$. **There is no false causal claim:** every reported atom belongs to the group of a changed factor. Every other atom has a fixed separator: $B_Z^G$, or $\bigcup_{k\in D_s}G_k$ for atoms of an other cause $s$. So Theorem 2's precision applies with $B=B^G_Z$.
+2. Whether each member of $G_c$ is direct depends on the split.
+   - *Clean split:* $Z^1=UF$ and $Z^2=(1-U)F$, with $U\sim\mathrm{Bern}(1/2)$ independent measurement noise, $F\ne0$ a.s., and $\mathbb{E}[F\mid T]$ non-constant. Both atoms are direct: the set is inflated but correct.
+   - *Redundant split:* add $Z^3=F$. Then none of the three atoms is direct. The factor vanishes from the output, a loss of recall rather than a false claim.
+
+*Proof.* (1) Determination implies screening for every set, so Lemma 4 applies with vector-valued groups in place of single atoms. The proof of Theorem 1, items 2 and 3, then goes through. Since $s\notin D_s$ and the groups are disjoint, $j\notin A_j$.
+
+(2) *Clean split.* Given $\emptyset$, $\mathbb{E}[Z^1\mid T]=\tfrac12\mathbb{E}[F\mid T]$ varies with $T$. Given $Z^2$: on $\{Z^2=0\}=\{U=1\}$ (probability ½ in both arms), $Z^1=F$, and $\mathbb{E}[F\mid T,U=1]=\mathbb{E}[F\mid T]$ varies with $T$. $Z^2$ is symmetric.
+
+*Redundant split.* Each atom is a function of the other two. If $Z^j=f(Z^A)$, then $\mathbb{E}[Z^j\mid T,Z^A]=f(Z^A)=\mathbb{E}[Z^j\mid Z^A]$, so the null holds at $A$ (which has overlap when $F$ does not reveal $T$). Downstream atoms are still explained away by the group, by part (1). $\square$
+
+*Recommendation.* Score per factor: group atoms before the analysis, using $Z$ only (for example, correlated atoms or similar decoder directions), and test the groups with a vector-valued test. **The real damage comes from mixed atoms, not from splitting.** A mixed atom that is used for conditioning, or one that reads a changed factor together with an unrecorded other cause, leaks, and Theorem 3 covers every leak regardless of its source. Near-redundant groups at $\delta>0$ also lose all their members, which is one more reason to group.
+
+### 2.11 When can DINES win, and when can nobody?
+
+- **DINES wins** when the effect has consequences like $V$ and alignment is approximately right (leak $<\delta<$ direct). Marginal tests report $V$, because its total effect is real. NES may pick $V$ first if its raw shift is largest, its binarized strata leak, and it never removes an atom. DINES drops $V$ through one fixed test given $P$'s atom, with error controlled at $\alpha$.
+- **Nobody wins** when $V$ is informative beyond the dictionary:
+  - $P$'s atom is too coarse or too noisy to carry what speed depends on;
+  - a common cause such as size is not recorded;
+  - an atom copies the treatment.
+
+  The law of $(T,Z)$ is then the same as in a world where $V$ (or the sheen atom) is changed directly (Propositions 3–4). A better dictionary, or measuring size as a covariate (Proposition 10), changes the situation; a better algorithm does not.
+
+### 2.12 The indirect output
+
+This section assumes exact capture on $\mathrm{MB}(T)$ (determination and purity) and $B_Z\in\mathcal{O}$.
+
+**Definition 2.** For $j\in\mathrm{Ind}_Z$:
+- *causal carriers:* $\mathrm{Car}(j):=\{j_c:c\in\mathrm{Ch}(T),\ c\in\mathrm{An}(v)\text{ for some }v\in P(j)\}$;
+- *observable carriers:* $\mathrm{Car}_B(j):=\{k\in J_C:H_0(j\mid B_Z\setminus\{k\})\text{ false}\}$.
+
+$\mathrm{Car}(j)\ne\emptyset$: otherwise $P(j)$ would contain no descendant of $T$.
+
+**Assumption N1.** No directed path runs from a child of $T$ to another member of $\mathrm{MB}(T)$.
+**Assumption CF.** For $j\in\mathrm{Ind}_Z$ and $j_c\in\mathrm{Car}(j)$, $H_0(j\mid B_Z\setminus\{j_c\})$ is false.
+
+**Proposition 8 (carriers are identified).** Under the conditions of Corollary 2 with exact capture, N1 and CF, $\mathrm{Car}_B(j)=\mathrm{Car}(j)$, and $H_0(j\mid B_Z)$ holds for every $j\in\mathrm{Ind}_Z$.
+
+*Proof.* The last claim is Theorem 1 item 2, and "$\supseteq$" is CF. For "$\subseteq$", take a child $c$ that is an ancestor of no $v\in P(j)$, and let $C:=\mathrm{MB}(T)\setminus\{c\}$. We show $T\perp_d P(j)\mid C$. A path from $T$ starts with $T\to c'$.
+- *If $c'\neq c$:* $c'\in C$. If $c'$ is a non-collider, the path is blocked. If it is a collider, the next vertex $x$ is a parent of $c'$, and $x\ne c$ by N1, so $x\in C$ is a conditioned non-collider.
+- *If $c'=c$:* a collider at $c$ is open only through a descendant of $c$ in $C$, which N1 excludes. Otherwise the path continues $c\to u_1\to\dots$. The first backward edge creates a collider in $\mathrm{De}(c)$, which N1 keeps closed. An open path is therefore directed, $c\to\dots\to v$, which contradicts the choice of $c$.
+
+Determination and purity give screening for $C$, and Lemma 4(b) with $V=P(j)$ gives $H_0(j\mid B_Z\setminus\{j_c\})$. $\square$
+
+Without N1 the observable notion reports the *last* changed factor on a path.
+
+**Estimation.**
+- Blanket estimate: $\hat B:=\{j\in F:p_j(F\setminus\{j\})\le\alpha_n\}$.
+- Indirect set: $\widehat{\mathrm{Ind}}:=\{j\notin\hat R:p_j(\emptyset)\le\alpha_2/2m\}$.
+- Carriers: $\widehat{\mathrm{Car}}(j):=\{k\in\hat R:p_j(\hat B\setminus\{k\})\le\alpha_2/(2m\max(1,|\hat R|))\}$.
+
+**Assumption MTF.** For every $S$ with $B_Z\subseteq S$ and every $j\in B_Z$, $H_0(j\mid S\setminus\{j\})$ is false.
+
+**Proposition 9 (full output).** Assume the conditions of Proposition 8 and MTF. Assume also that the tests are consistent at fixed alternatives at the level $\alpha_n\to0$ (assumed; for $\sqrt n$-consistent statistics this typically holds when $\log(1/\alpha_n)=o(n)$), consistent against $H_0(j\mid\emptyset)$ for $j\in\mathrm{Ind}_Z$, and valid at the fixed nulls used. Then
+$$\liminf_n\mathbb{P}(\hat R=J_C,\ \widehat{\mathrm{Ind}}=\mathrm{Ind}_Z,\ \widehat{\mathrm{Car}}(j)=\mathrm{Car}(j)\ \forall j)\ge1-\alpha-\alpha_2 .$$
+
+*Proof.* (i) $\mathbb{P}(\hat B=B_Z)\to1$. By Theorem 2(i), $B_Z\subseteq F$ with probability $\to1$. Fix $S\supseteq B_Z$.
+- For $j\in S\setminus B_Z$, the null is true (Theorem 1 item 2 and weak union). Validity gives $\limsup\mathbb{P}(p\le\alpha_n)\le t$ for every $t>0$, so this probability tends to 0.
+- For $j\in B_Z$, MTF and consistency give probability $\to1$.
+
+Take a finite union bound over the pairs $(S,j)$.
+
+(ii) On $E:=\{\hat R=J_C,\hat B=B_Z\}$ (with $\limsup\mathbb{P}(E^c)\le\alpha$), every remaining test is at a fixed set. The possible errors are:
+- false indirect atoms: at most $m$ fixed nulls at level $\alpha_2/2m$;
+- false carriers: fixed nulls by Proposition 8, at total level $\alpha_2/2$;
+- missed indirect atoms or missed carriers: probability $\to0$. $\square$
+
+Under realistic alignment, carriers are over-reported, because noisy child atoms leave part of every mediated effect. Report carriers as hypotheses, together with the residual $p_j(\hat B)$.
 
 ---
 
-## 9. Open questions, conjectures, and what the benchmark must test
+## 3. Conditional tests in practice
 
-### 9.1 Open questions and conjectures
+### 3.1 The test: residualization (GCM), not stratification
 
-- **O1 (separators without Tier 2).** For a general dictionary whose atom-level independence structure is an ancestral graph with $T$ a root, does every non-adjacent atom have a separating set inside every Markov blanket of $T$? Lemma 5's $D^\star$ can fail there (collider paths through blanket members); another subset might work. Unknown. Theorem 11 therefore keeps P as an assumption.
-- **O2 (uniformity).** All results are pointwise in the distribution at fixed $m$. Uniform guarantees need a strong-faithfulness margin (Zhang & Spirtes, 2003; Uhler et al., 2013), and are impossible under plain faithfulness (Robins et al., 2003).
-- **O3 (large $m$).** Dictionaries have $m\approx10^4$ atoms with $n\approx10^3$. The union bound over $m$ asymptotically valid $p$-values at level $\alpha/m$ needs error rates in the normal approximation that are $o(1/m)$; a growing-$m$ theory is open.
-- **O4 (carriers in general).** An observable characterization of $\mathrm{Car}(j)$ without N1 (child-to-child or child-to-spouse paths).
-- **O5 (choosing $\delta$).** A principled scale for the relevance margin.
-- **Conjecture 1 (leakage bound).** Under approximate alignment, the conditional effect of a non-direct atom given the population separator is bounded by (the effect carried through the imperfectly aligned factor) × (the share of that factor's variance not explained by its principal atom). In the linear-Gaussian chain this is exact: $\gamma\beta\,\sigma_\eta^2/(\sigma_1^2+\sigma_\eta^2)$ (§4.3 (c)). A general version would justify a $\delta$ tied to measured alignment quality (e.g. probe $R^2$ of each principal atom).
-- **O6 (feature splitting).** When a factor is determined only by a *group* of atoms, A3 fails for each member. The natural target is then a set of atom groups; not developed.
-- **O7 (dictionary trained on the same data).** §7.9.
-- **O8 (observational data).** §7.4.
-- **O9 (distributional effects).** The mean null misses effects on spread only (§3.3).
-- **O10 (checking A4).** Forward completeness is not testable directly; how often it fails for real dictionaries is unknown.
+For a pair $(j,A)$ with $V_A=(Z^A,W)$:
+1. Cross-fit $\hat\pi(V_A)\approx\mathbb{P}(T=1\mid V_A)$ and $\hat\mu_j(V_A)\approx\mathbb{E}[Z^j\mid V_A]$, using folds made of whole clusters for video.
+2. Form $R_i=(T_i-\hat\pi_i)(Z^j_i-\hat\mu_{j,i})$ and the statistic $\sqrt n\bar R/\hat\sigma_R$, with a two-sided normal $p$-value.
 
-### 9.2 What the CelebA benchmark must test
+Properties:
+- **What it estimates.** The numerator of $\rho_{j|A}$ (Lemma 1.3). Its bias is the product of the two regression errors, whether or not the null holds, because the other cross terms have conditional mean zero. This is also why $\hat\rho$ is asymptotically normal on the boundary $|\rho|=\delta$.
+- **Validity under the mean null** (Shah & Peters, 2020) requires the product of the regression errors to be $o_P(n^{-1/2})$, each error to vanish, and $\mathbb{E}R^2$ to be bounded away from 0. No conditional-independence test with continuous conditioning variables has uniform size and power, so these rate conditions are the price.
+- **The propensity is not known.** $Z^A$ is post-treatment, so $\pi_A$ must be learned: it is a classifier of $T$ from the atoms. Only $A=\emptyset$ without covariates has the known value $e$.
+- **Sign changes.** Use the PCM (Lundborg et al., 2024), equivalently a weighted GCM (Scheidegger et al., 2022), when sign changes are plausible.
+- **Margin test.** $\hat\rho=\bar R/\sqrt{\overline{(T-\hat\pi)^2}\,\overline{(Z^j-\hat\mu)^2}}$, with a delta-method standard error. The implementation uses $p=\Phi((\delta-|\hat\rho|)/\widehat{\rm se})+\Phi((-\delta-|\hat\rho|)/\widehat{\rm se})$. This is asymptotically exact on the boundary, conservative inside it, and equal to the usual two-sided $p$ at $\delta=0$.
+- **Report overlap.** For every terminal test, report $\sum_i\hat\pi_i(1-\hat\pi_i)$ and the fraction of extreme $\hat\pi$.
+- **Do not binarize conditioning atoms.** A binarized atom is a coarse mediator atom (§2.3(b)): it leaks about 36% of a mediated effect. Keep atoms continuous, and let $\hat\mu,\hat\pi$ represent the point mass at zero (indicator features or trees).
 
-Each design is generated as in NES (attributes sampled from a structural model, a real image matched to the sampled attributes), and reports, as functions of $N$ and of effect size: exact recovery rate (against the line $1-\alpha$), precision, recall, size of $\tilde S$, and, where relevant, the indirect output and its carriers. Compare DINES ($\delta=0$ and $\delta>0$), NES, the IAMB forward phase alone (a Markov-boundary estimate), NEXIS-style forward + terminal on the same tests, and marginal Bonferroni.
+### 3.2 Covariates
 
-1. **Original NES design** ($T\to$ Eyeglasses, $T\to$ Hat, Smiling $\to$ Eyeglasses). Expect the forward phase to pick up spouse-like atoms; the question is whether DINES's precision stays near $1-\alpha$ or falls with $N$. Since no Smiling atom exists (§8.9), also run a variant where the spouse is an attribute with a well-aligned atom.
-2. **Mediator** $T\to Y_1\to Y_2$ ($Y_2$ sampled from $Y_1$ only). Truth: direct $\{Y_1\}$, indirect $\{Y_2\}$ with carrier $Y_1$.
-3. **Spouse** $T\to Y_1\leftarrow S$ ($S$ pre-treatment, well aligned), and the **descendant spouse** $T\to A\to\dots\to S\to C\leftarrow T$ that needs Lemma 5. Truth: direct = children only; Markov boundary adds $S$.
-4. **Hidden confounder / hidden co-parent** $U\to Y_1$, $U\to Y_2$, $T\to Y_1\to Y_2$ with $U$ an attribute that has no aligned atom (or is not visible). Expected: $Y_2$'s atom becomes direct (§4.3 (a)) — a check that the Tier 2 assumption is necessary in practice.
-5. **Approximate-alignment stress.** Weaker dictionaries (smaller codes, fewer active atoms, or attributes whose best atom has F1 around $0.5$). Expected: precision falls with $N$ at $\delta=0$; test whether $\delta>0$ restores it and at what recall cost.
-6. **Null design** (ATE $=0$): rate of runs with any selection, to be compared with $\alpha$.
-7. **Strong effects / positivity.** Two children, one with effect near deterministic: check that the second child is lost (§4.3 (e)(iii)).
-8. **Clustered version** (several images per synthetic "video" sharing a cluster effect): check calibration of the cluster-robust test against the naive one.
+**Proposition 10 (covariates; a measured common cause needs no atom).** Let $W$ be observed pre-treatment vertices of $\mathcal{G}_L$ (non-descendants of $T$), added to every conditioning set. Assume:
+- every $k\in\mathrm{MB}(T)\setminus W$ has an exactly capturing atom (determination + purity); members of $\mathrm{MB}(T)$ inside $W$, such as a measured frog size, need none;
+- $B'\cup W$ has overlap, where $B':=\{j_k:k\in\mathrm{MB}(T)\setminus W\}$;
+- no cancellation at the children with $W$ added.
 
-### 9.3 Things in the brief we think are wrong or need care
+Then $\mathrm{Adj}^W=J_C$.
 
-Collected here so they are easy to review: (1) the alignment set needed is the Markov blanket of $T$, not all affected factors and their co-parents (§3.2); (2) "no hidden common cause" matters only as "no hidden co-parent of a child" (§3.2, §4.3 (a)); (3) factor-level faithfulness does not imply the atom-level condition the proof needs (§3.2, §4.3 (e)); (4) "nearly determines" does not suffice for the theorem (§4.3 (c)); (5) purity of spouse atoms is an extra requirement (§4.3 (d)); (6) ordering by $p$-value is a finite-sample choice, not a requirement of the guarantee (§6.1); (7) with the GCM, "mean faithfulness" must hold in the overlap-weighted sense (§4.3 (f)); (8) NES's own benchmark contains a spouse without an aligned atom (§8.9).
+*Proof.* "$\supseteq$" is the assumption. In both remaining cases we apply Lemma 4 with the conditioning vector $Q$ made of atoms and $W$.
+- *$j\notin B'$:* take $Q=(Z^{B'},W)$, a function of $(L,N^Z)$. By determination, $L_{\mathrm{MB}}$ is a function of $Q$, so screening (ii) holds trivially. (i) holds by Lemma 4(a). Hence $T\perp\!\!\!\perp Z^j\mid(Z^{B'},W)$.
+- *$j=j_s$ with $s\in\mathrm{Sp}(T)\setminus(\mathrm{Ch}(T)\cup W)$:* let $\mathcal{A}'=\{T\}\cup\mathrm{An}(s)\cup\mathrm{An}(W)$. A child of $T$ is not in $\mathrm{An}(W)$, since otherwise a member of $W$ would descend from $T$. So, as in Lemma 3(b), every moral neighbour of $T$ lies in $D_s$, and $D_s\cup W$ separates $T$ from $s$. Take $Q=(Z^{J_{D_s\setminus W}},W)$. By purity it is a function of $(L_{D_s\cup W},N^Z)$, and by determination $L_{D_s\cup W}$ is a function of $Q$. Lemma 4(b) with $D=D_s\cup W$ concludes.
 
-### 9.4 Reproducibility of the numbers in this report
+Both separators are fixed and have overlap. $\square$
 
-All scripts were run once; see Appendix B. Nothing in §§1–8 depends on numbers we did not measure, except the brief's description of NES precision, which we re-measured (§8.9).
+In a randomized experiment covariates add power, not validity. At $A=\emptyset$, $R_i=(T_i-e)(Z^j_i-\hat\mu_j(W_i))$ has mean $e(1-e)\mathrm{ATE}_j$ whatever $\hat\mu_j$ is (Tsiatis et al., 2008; Lin, 2013).
+
+### 3.3 Levels
+
+- The forward gate $\alpha/|R|$ is a default; the theorems do not use it.
+- The terminal level is $\alpha/m$, where $m$ counts the atoms entering the analysis. Atoms that never fire may be removed beforehand (that screen uses $Z$ only).
+- The forward phase may use a linear GCM.
+
+### 3.4 Clustered data (video)
+
+The unit of independence is the cluster (a video or a pool). Use $T_G=\sum_gR_g/\sqrt{\sum_g(R_g-n_g\bar R)^2}$, build folds from whole clusters, and use a $t_{G-1}$ reference when there are few clusters (Cameron & Miller, 2015). Permuting $T$ is exact only at $A=\emptyset$. Averaging atoms over a video yields a different dictionary.
+
+### 3.5 Mean only
+
+All results concern the mean of each atom. Effects on spread only are invisible (O10).
+
+### 3.6 A dictionary fitted on the same data
+
+All results take $\psi$ as fixed. Train the autoencoder on held-out units, or cross-fit it. Reusing the same data is not covered (O8).
 
 ---
 
-## 10. References
+## 4. What NES got wrong, and what DINES does instead
+
+NES is "Neural Effect Search" (Mencattini, Cadei, Locatello, *Exploratory Causal Inference*, arXiv 2510.14073). Its central observation is correct, and DINES keeps it: marginal tests on an entangled dictionary flag more and more atoms as power grows (Theorems 3.1–3.2), and those atoms form $\mathrm{De}_Z(T)$. Equation numbers refer to the arXiv version. Code references are to `src/neuralscience/nes.py` in `/nfs/scistore19/locatgrp/tmencatt/projects/neuralscience/`. CelebA numbers come from that project's saved runs (Appendix B.3).
+
+### 4.1 NES's hidden assumptions, on the frog
+
+1. **Eq. 24 (additivity) excludes mediation.** The model writes each atom's shift as an additive combination of factor effects. A chain $P\to V$ has no place in it, so NES never says whether $V$ is in its target.
+2. **Eqs. 27–28 assume that stratifying on the selected atoms removes exactly the explained effect.** That silently assumes (a) and (b): a paralysis atom that records what speed depends on, and no hidden size. In practice the strata are binarized at $>0$, which is the coarse "leg drags yes/no" atom. About 36% of a mediated effect leaks (measured; §2.3(b)).
+3. **Eq. 26 (Principal–Max).** $V$ can have the largest raw shift (raw shifts depend on each atom's scale). It is then picked first and never removed, because there is no backward step. The claim that "the argmax stays principal" after conditioning is false. Counterexample satisfying A.1 and Eqs. 25, 26 and 31: $v_1=(3,0,-1)$, $v_2=(0,1.5,2)$, $\tau^Y=(1,1)$. Round 1 picks atom 1, which is principal; under Eq. 28, round 2 picks atom 3, which is not. In the saved CelebA runs, the mixed atom N_408 (F1 0.48 for hat, 0.45 for eyeglasses) is picked before the eyeglasses atom N_6051: its raw effect is larger but its $t$ is about half (0.773 with $t=4.8$, vs 0.691 with $t=8.8$, at ATE 0.4, $N=1000$). It is the most frequent false selection (50/80 runs at $N=5000$).
+4. **Termination needs exact cancellation.** NES stops when every remaining stratified contrast is zero. With leaks, more atoms pass as $n$ grows. In the saved CelebA runs at ATE 0.7, precision is 0.80, 0.62, 0.56, 0.45, 0.49 at $N=250$ to $5000$, with recall 1.0. Pooled over ATE 0.1–0.8, exact recovery falls from 26/80 to 11/80.
+5. **"FWER → 0" is wrong at fixed $\alpha$.** $O_p(1)$ statistics compared with a fixed Bonferroni cutoff exceed it with non-vanishing probability, up to about $\alpha$. The correct form is $\liminf\mathbb{P}(\text{exact})\ge1-\alpha$, as in NEXIS's Theorem 4.1 and Theorem 2 here.
+
+**The real biases are assumed away, not bounded.** The transport-error term before Eq. 29 is $\Delta_{j,t}(g):=\mathbb{E}[Z_j\mid G=g,T=t]-\mathbb{E}[Z_j\mid G=g,do(T=t)]$, and Eq. 30 bounds it by $\varepsilon$. This term is identically zero in a randomized experiment, because the law of post-treatment variables under $do(T=t)$ equals their law given $T=t$. The actual problems — strata that hold different frogs in the two arms, coarse strata, hidden size — never appear in the bound.
+
+### 4.2 Smaller points
+
+- The paper's optional residualization is computed in the code (lines 205–224), but the stratified branch, which is the one used, runs on raw data (line 283).
+- Cells without both arms are dropped and the weights renormalized (lines 73–95), so the estimand drifts with effect size.
+- Frames are treated as i.i.d. units.
+
+| NES element | Problem | DINES |
+|---|---|---|
+| Target "coarsest abstraction"; Eq. 24 | undefined; additivity excludes mediation | Def. 1, Theorem 1, Prop. 2; mediation framing (Prop. 3) |
+| Eqs. 27–28 | assume (a) and (b) silently; binarized strata leak ~36% | assumptions 2–3 stated; continuous conditioning; Theorem 3 for leaks |
+| Eq. 26 Principal–Max | scale-dependent; "argmax stays principal" false | $p$-value ordering; guarantee independent of order |
+| No backward step | early wrong atoms stay | terminal subset rule at $\alpha/m$ |
+| Termination | needs exact cancellation; precision falls with $N$ | fixed-null precision proof; margin $\delta$ |
+| Eqs. 29–30 | identically zero in an RCT | conditional-independence formulation |
+| "FWER → 0" | false at fixed $\alpha$ | $\liminf\mathbb{P}(\text{exact})\ge1-\alpha$ |
+| Dropped cells | estimand drifts | overlap built into the target; undetermined flag |
+
+*Hypothesis (empirical, untested).* NES's precision fall has several causes: items 2–4 above, approximate alignment, and the design itself — Smiling is an other cause of Eyeglasses with no aligned atom (its best-F1 atom is the hat atom 38, F1 0.48). DINES removes the algorithmic causes; $\delta$ addresses approximate alignment; the design issue affects any method.
+
+---
+
+## 5. FAQ
+
+**Why are the other causes needed if they are never output?**
+Holding paralysis fixed compares treated and control frogs that reached the same severity by different routes: on average the control frogs that are as paralysed as the treated ones differ in size. That is explaining away (Proposition 1). Anything that size affects, such as speed, then looks shifted. Holding size fixed as well removes the dependence. Other causes are conditioning tools. They are not output, because the treatment does not change their mechanism (Proposition 2).
+
+**Why is "no hidden common cause" needed, and why did NES need it too?**
+A hidden common cause is a variable that must be held fixed but cannot be. Without a size atom, $\mathbb{E}[\text{speed}\mid T,\text{paralysis}]$ has the coefficient $-\beta/2$ on $T$ (§2.3(a)), so speed is direct in that dictionary at every $n$. By Proposition 3, no method can do better from these data. NES also conditions on selected atoms, so it faces the same problem. Its Eqs. 27–28 assume the problem away, and the Eq. 29 term meant to cover it is identically zero (§4.1).
+
+**What does "aligned" mean, and is it realistic?**
+It is NEXIS's screening form: once the principal atom is known, no other atom tells more about the factor. For DINES this is equivalent to the atom determining the part of the factor that other atoms depend on (Lemma 5). The atoms of other causes must, in addition, not read changed factors. This is not realistic exactly: NEXIS rejects it at $p<10^{-14}$, while the principal atom carries 94–96% of the information. What the method needs is the realistic version, leaks below $\delta$ (Theorem 3). A leak is the treatment signal left in the carried part times the square root of the share the atoms miss (Proposition 5).
+
+**What happens with feature splitting?**
+- *Clean split:* if one factor is spread cleanly over two atoms, both are reported. That inflates the set but makes no false causal claim (Proposition 7).
+- *Redundant split:* if a full atom coexists with its parts, each atom is explained by the others, and the factor disappears from the output.
+
+Group atoms using $Z$ only, and score per factor. The real damage comes from mixed atoms, which Theorem 3 covers.
+
+**What about strong effects?**
+"Strong" in the harmful sense means predictive of $T$, not large. If colour reveals the treatment, holding colour fixed leaves no control frogs. The direct set is therefore defined over overlap sets only. $P$ stays, and $V$ is still dropped via $P$. Atoms that change only through colour cannot be separated from atoms the treatment changes directly; in the data, colour is the treatment. Such atoms are reported as undetermined (Proposition 4, §2.9). This is the mice "bag" case: NES stopped after the bag neuron because round 2 had no overlap.
+
+**DINES vs NES on data?**
+The CelebA comparison is running separately, and its numbers will be added here. It covers the NES designs, DINES at $\delta=0$ and $\delta>0$, NES, IAMB forward only, NEXIS-style forward + terminal, and marginal Bonferroni. On the toy model of Appendix B:
+- with exact alignment, DINES recovers the direct set in 99/100 runs at every $n$;
+- with noisy atoms at $\delta=0$, exact recovery falls to 84/100 at $n=16{,}000$;
+- with noisy atoms at $\delta=0.05$, it stays at 100/100 for $n\ge4000$.
+
+---
+
+## 6. Open questions and conjectures
+
+- **O1 (separators without alignment).** For a general dictionary, does every non-direct atom inside a Markov blanket of $T$ have a separator made of other blanket atoms? This is why assumption L stays for arbitrary dictionaries.
+- **O2 (affected-only exemption).** An other cause that reaches only atoms the treatment does not shift probably needs no atom. Not proved in general.
+- **O3 (uniformity).** All results are pointwise at fixed $m$. Uniform versions need a strong-faithfulness margin (Zhang & Spirtes, 2003; Uhler et al., 2013), and $\delta>0$ is a step toward one.
+- **O4 (large $m$).** With $m\approx10^4$ and $n\approx10^3$, the union bound needs normal-approximation errors of order $o(1/m)$.
+- **O5 (carriers without N1).**
+- **O6 (choosing $\delta$ automatically).**
+- **Conjecture 1 (general leak bound).** §2.7.
+- **O7 (leaks of impure atoms).** No bound is known when the condition of Proposition 5 fails.
+- **O8 (dictionary trained on the same data).**
+- **O9 (observational data).** $T$ is not a root there. With all parents of $T$ in $W$ we expect the same results, but the proof is not written.
+- **O10 (effects on spread only).**
+- **O11 (checking forward completeness on real dictionaries).**
+- **O12 (group tests).** A vector-valued GCM for atom groups is not implemented.
+- **O13 (partial overlap).** A population target for sets that reveal $T$ only on part of the units, with a matching finite-sample rule.
+
+**The CelebA benchmark must separate:**
+- the original NES design (Smiling has no atom);
+- a mediator design;
+- a well-aligned other cause and a descendant other cause;
+- a hidden common cause (expected to break every method);
+- a coarse mediator atom;
+- weaker dictionaries (testing whether precision falls with $N$ at $\delta=0$, and whether $\delta>0$ fixes it);
+- the null design;
+- a treatment-revealing attribute (overlap);
+- a clustered version.
+
+---
+
+## 7. References
 
 - Aliferis, C. F., Statnikov, A., Tsamardinos, I., Mani, S., Koutsoukos, X. D. (2010). Local causal and Markov blanket induction for causal discovery and feature selection for classification, Parts I–II. *JMLR* 11.
 - Cadei, R., Otchere, F., Tirivayi, N., Angeles Tagliaferro, G., Bargagli-Stoffi, F. J., Locatello, F. (2026). From Tokens to Policy: Causal and Interpretable Heterogeneous Treatment Effects Identification (NEXIS). arXiv 2606.17010.
 - Cameron, A. C., Miller, D. L. (2015). A practitioner's guide to cluster-robust inference. *J. Human Resources* 50(2).
+- Imai, K., Keele, L., Yamamoto, T. (2010). Identification, inference and sensitivity analysis for causal mediation effects. *Statistical Science* 25(1).
 - Lauritzen, S. L., Dawid, A. P., Larsen, B. N., Leimer, H.-G. (1990). Independence properties of directed Markov fields. *Networks* 20.
 - Lin, W. (2013). Agnostic notes on regression adjustments to experimental data. *Ann. Appl. Stat.* 7(1).
 - Lundborg, A. R., Kim, I., Shah, R. D., Samworth, R. J. (2024). The projected covariance measure for assumption-lean variable significance testing. *Ann. Statist.*
 - Mencattini, T., Cadei, R., Locatello, F. (2025). Exploratory Causal Inference (NES). arXiv 2510.14073.
 - Mooij, J. M., Magliacane, S., Claassen, T. (2020). Joint causal inference from multiple contexts. *JMLR* 21.
-- Pearl, J. (2009). *Causality*, 2nd ed. Cambridge University Press.
+- Pearl, J. (2001). Direct and indirect effects. *UAI*.
 - Peña, J. M., Nilsson, R., Björkegren, J., Tegnér, J. (2007). Towards scalable and data efficient learning of Markov boundaries. *Int. J. Approx. Reasoning* 45(2).
 - Perry, R., von Kügelgen, J., Schölkopf, B. (2022). Causal discovery in heterogeneous environments under the sparse mechanism shift hypothesis. *NeurIPS*.
-- Richardson, T., Spirtes, P. (2002). Ancestral graph Markov models. *Ann. Statist.* 30(4).
-- Robins, J. M., Scheines, R., Spirtes, P., Wasserman, L. (2003). Uniform consistency in causal inference. *Biometrika* 90(3).
+- Robins, J. M., Greenland, S. (1992). Identifiability and exchangeability for direct and indirect effects. *Epidemiology* 3(2).
 - Scheidegger, C., Hörrmann, J., Bühlmann, P. (2022). The weighted generalised covariance measure. *JMLR* 23.
 - Schölkopf, B., Locatello, F., Bauer, S., Ke, N. R., Kalchbrenner, N., Goyal, A., Bengio, Y. (2021). Toward causal representation learning. *Proc. IEEE* 109(5).
 - Shah, R. D., Peters, J. (2020). The hardness of conditional independence testing and the generalised covariance measure. *Ann. Statist.* 48(3).
-- Spirtes, P., Glymour, C., Scheines, R. (2000). *Causation, Prediction, and Search*, 2nd ed. MIT Press.
 - Tsamardinos, I., Aliferis, C. F., Statnikov, A. (2003). Algorithms for large scale Markov blanket discovery (IAMB). *FLAIRS*.
 - Tsiatis, A. A., Davidian, M., Zhang, M., Lu, X. (2008). Covariate adjustment for two-sample treatment comparisons in randomized clinical trials. *Stat. Med.* 27.
 - Uhler, C., Raskutti, G., Bühlmann, P., Yu, B. (2013). Geometry of the faithfulness assumption in causal inference. *Ann. Statist.* 41(2).
+- VanderWeele, T. J., Valeri, L., Ogburn, E. L. (2012). The role of measurement error and misclassification in mediation analysis. *Epidemiology* 23(4).
 - Zhang, J., Spirtes, P. (2003). Strong faithfulness and uniform consistency in causal inference. *UAI*.
 
 ---
 
-## Appendix A. Index of results
+## Appendix A. Index of results (with draft-1 numbers)
 
-| Label | Statement | Status |
-|---|---|---|
-| Lemma 1 | forms of the mean null; GCM functional | proved |
-| Lemma 2 | conditioning on a determining atom | proved |
-| Lemma 3 | aligned blanket screens off everything | proved |
-| Lemma 4 | separation transfers to atoms (needs purity) | proved |
-| Lemma 5 | separator $D^\star(s)$ inside $\mathrm{MB}(T)$ for a root $T$ | proved |
-| Theorem 6 | $\mathrm{Adj}_Z(T)=J_C$ under A1–A3, with fixed separators | proved |
-| Proposition 7 | Markov boundary = children + spouses | proved |
-| Proposition 8 | direct set = minimal set of shifted mechanisms | proved |
-| §4.3 (a)–(f) | necessity counterexamples | proved by computation |
-| Proposition 10 | carriers identified under N1, CF | proved |
-| Theorem 11 | $\liminf\mathbb{P}(\hat S_n=\mathrm{Adj}_Z(T))\ge1-\alpha$ under P, A5 | proved |
-| Corollary 12 | causal version under A1–A5 | proved |
-| Proposition 13 | full-output guarantee $\ge1-\alpha-\alpha_2$ | proved |
-| Proposition 14 | covariates do not change the target | proved |
-| Conjecture 1 | leakage bound under approximate alignment | conjecture |
-| §8.9 | causes of NES's precision fall | hypothesis (empirical) |
-| O1–O10 | | open |
+| Label | Statement | Status | Draft 1 |
+|---|---|---|---|
+| Lemma 1 | forms of the null; GCM functional; $\rho$ | proved | Lemma 1 (+ item 5) |
+| Lemma 2 | folding: which other causes need an atom | proved | new |
+| Lemma 3 | separator lemma, ancestral form (a) and (b) | proved | Lemma 5 (smaller separator) |
+| Lemma 4 | from factors to atoms under screening (CI and mean) | proved | Lemmas 2–4 (determination replaced by screening) |
+| Lemma 5 | screening = determination of the relevant part | proved | new |
+| Theorem 1 | identification on overlap sets; $\mathrm{Adj}=J_C$ if $B_Z\in\mathcal{O}$ | proved | Theorem 6 |
+| Proposition 1 | Markov boundary keeps other causes | proved | Proposition 7 |
+| Proposition 2 | direct set = minimal changed mechanisms | proved | Proposition 8 |
+| Proposition 3 | mediation not identified without (a), (b) | proved | new |
+| Proposition 4 | a factor copying $T$: split not identified | proved | new |
+| Theorem 2 | generic selection guarantee with overlap rule; strict leaks give prob. → 1 | proved | Theorem 11 (generalized) |
+| Corollary 1 | statistical target $\mathrm{Adj}$; recall always | proved | Theorem 11 |
+| Corollary 2 | causal target $J_C$ | proved | Corollary 12 |
+| Theorem 3 | realistic alignment with margin $\delta$ | proved | new (draft 1: heuristic §7.8) |
+| Proposition 5 | exact leak identity | proved | new |
+| Proposition 6 | linear-Gaussian leak | proved | Conjecture 1 (linear-Gaussian case) |
+| Proposition 7 | feature splitting (groups) | proved | O6 (partly) |
+| Proposition 8 | carriers identified (exact capture, N1, CF) | proved | Proposition 10 |
+| Proposition 9 | full output $\ge1-\alpha-\alpha_2$ | proved | Proposition 13 |
+| Proposition 10 | covariates (exact capture) | proved | Proposition 14 |
+| Conjecture 1 | general leak bound | conjecture | Conjecture 1 (general case) |
+| §2.3 (a)–(f) | what breaks without each assumption | proved by computation | §4.3 |
+| §4.2 hypothesis | causes of NES's precision fall | hypothesis | §8.9 |
 
-## Appendix B. Measurements used in this report
+Section map from draft 1: §6.1 → §2.5; §6.2–6.3 → §2.6; §7.2 → §3.1; §7.4 → §3.2; §7.5 → §3.4; §7.8 → §2.6–2.8.
 
-All runs on Slurm CPU nodes (none on the login node beyond sub-minute checks).
+## Appendix B. Measurements
 
-**B.1 Toy DINES simulation.** Factor DAG $T\to A\to B\to W\to C\leftarrow T$, $H\to C$, $A\to D$, $L$ isolated; $T\sim\mathrm{Bern}(1/2)$; $A=0.5T+\varepsilon$, $B=0.8A+\varepsilon$, $W=0.8B+\varepsilon$, $D=0.8A+\varepsilon$, $C=0.5T+0.8W+0.8H+\varepsilon$, $H,L,\varepsilon\sim\mathcal{N}(0,1)$. Atoms: principal atoms of $A,B,W,C,D,H,L$ (each equal to its factor plus $\sigma_\eta\,\mathcal{N}(0,1)$), and three non-principal atoms $0.5A+0.5D+\varepsilon$, $0.5C+0.5H+\varepsilon$, $L+\varepsilon$; $m=10$. Truth: direct $\{A,C\}$, Markov blanket $\{A,C,W,H\}$. Test: GCM with 2-fold cross-fitted logistic propensity and OLS regression (with the fitted propensity as an extra feature, which makes both models correctly specified in this model); $\alpha=0.05$; forward gate $\alpha/|R|$; terminal $\alpha/m$. With $\delta>0$ the relevance test of §7.8 replaces the exact test in both phases. 100 seeds per cell.
+All runs used CPU only. B.1–B.3 are unchanged from draft 1; B.4 is new (closed-form population computations, each under one minute).
 
-| alignment | $\delta$ | $n$ | exact recovery | mean non-direct atoms in $\tilde S$ | mean false atoms in $\hat S$ | recall |
+**B.1 Toy DINES simulation** (letters unrelated to the frog).
+- *Factor model:* $T\to A\to B\to W\to C\leftarrow T$, $H\to C$, $A\to D$, $L$ isolated, $T\sim\mathrm{Bern}(1/2)$. Equations: $A=0.5T+\varepsilon$, $B=0.8A+\varepsilon$, $W=0.8B+\varepsilon$, $D=0.8A+\varepsilon$, $C=0.5T+0.8W+0.8H+\varepsilon$, with $H,L,\varepsilon\sim\mathcal{N}(0,1)$.
+- *Atoms ($m=10$):* one per factor (factor plus $\sigma_\eta\mathcal{N}(0,1)$), plus $0.5A+0.5D+\varepsilon$, $0.5C+0.5H+\varepsilon$, $L+\varepsilon$.
+- *Truth:* the direct set is $\{A,C\}$; the blanket is $\{A,C,W,H\}$. Every set has overlap (Gaussian atoms).
+- *Test:* GCM with 2-fold cross-fitted logistic propensity and OLS; $\alpha=0.05$; forward gate $\alpha/|R|$; terminal level $\alpha/m$. The margin test is used in both phases when $\delta>0$.
+- 100 seeds per cell.
+
+| alignment | $\delta$ | $n$ | exact recovery | non-direct atoms in forward output | false atoms kept | recall |
 |---|---|---|---|---|---|---|
-| exact ($\sigma_\eta=0$) | 0 | 1000 | 99/100 | 1.86 | 0.00 | 0.99 |
-| exact | 0 | 4000 | 99/100 | 2.10 | 0.01 | 1.00 |
-| exact | 0 | 16000 | 99/100 | 2.03 | 0.01 | 1.00 |
-| approximate ($\sigma_\eta=0.3$) | 0 | 1000 | 96/100 | 1.56 | 0.01 | 0.98 |
-| approximate | 0 | 4000 | 96/100 | 2.15 | 0.04 | 1.00 |
-| approximate | 0 | 16000 | 84/100 | 2.36 | 0.17 | 1.00 |
-| approximate | 0.05 | 1000 | 70/100 | 0.35 | 0.01 | 0.85 |
-| approximate | 0.05 | 4000 | 100/100 | 1.64 | 0.00 | 1.00 |
-| approximate | 0.05 | 16000 | 100/100 | 2.00 | 0.00 | 1.00 |
-| exact | 0.05 | 1000 | 70/100 | 0.56 | 0.00 | 0.84 |
-| exact | 0.05 | 4000 | 100/100 | 1.94 | 0.00 | 1.00 |
-| exact | 0.05 | 16000 | 100/100 | 2.00 | 0.00 | 1.00 |
+| exact ($\sigma_\eta=0$) | 0 | 1000 / 4000 / 16000 | 99 / 99 / 99 | 1.86 / 2.10 / 2.03 | 0.00 / 0.01 / 0.01 | 0.99 / 1.00 / 1.00 |
+| noisy ($\sigma_\eta=0.3$) | 0 | 1000 / 4000 / 16000 | 96 / 96 / 84 | 1.56 / 2.15 / 2.36 | 0.01 / 0.04 / 0.17 | 0.98 / 1.00 / 1.00 |
+| noisy | 0.05 | 1000 / 4000 / 16000 | 70 / 100 / 100 | 0.35 / 1.64 / 2.00 | 0.01 / 0.00 / 0.00 | 0.85 / 1.00 / 1.00 |
+| exact | 0.05 | 1000 / 4000 / 16000 | 70 / 100 / 100 | 0.56 / 1.94 / 2.00 | 0.00 / 0.00 / 0.00 | 0.84 / 1.00 / 1.00 |
 
-False atoms kept at $\sigma_\eta=0.3$, $\delta=0$, $n=16000$: mixed atom $0.5A+0.5D$ (10 runs), $D$ (4), $W$ (3) — all downstream of the noisy proxy of $A$. Separating sets (exact alignment, $n=20{,}000$, one run): $T$ vs $W$: $p=3.6\times10^{-70}$ given $\emptyset$; $0.14$ given $\{A\}$; $0.15$ given $\{A,H\}$; $0.37$ given $\{A,B\}$; $2.2\times10^{-56}$ given $\{A,C\}$; $9.8\times10^{-122}$ given $\{A,C,H\}$. $T$ vs $H$: $0.68$ given $\emptyset$; $1.1\times10^{-59}$ given $\{C\}$.
+False atoms kept at $\sigma_\eta=0.3$, $\delta=0$, $n=16000$: the mixed atom $0.5A+0.5D$ (10 runs), $D$ (4), $W$ (3).
 
-**B.2 Closed-form checks** ($n=2\times10^6$): binarized-stratum retained fraction (§7.2); noisy-proxy coefficient (§4.3 (c)); hidden co-parent coefficient (§4.3 (a)); Principal–Max counterexample (§8.2, $n=20{,}000$).
+Separator check (exact alignment, $n=20{,}000$, one run), $T$ vs $W$: $p=3.6\times10^{-70}$ given $\emptyset$; $0.14$ given $\{A\}$; $0.15$ given $\{A,H\}$; $0.37$ given $\{A,B\}$; $2.2\times10^{-56}$ given $\{A,C\}$.
 
-**B.3 Saved NES CelebA runs** (read-only): selections from `sneurons_{420..429}.json`; round-2 statistics recomputed with the project's own `_stratified_ttests_lotp` on `experiment_M3_ATE:{0.4,0.7}_size:{250,1000,5000}_seed:420.csv`; atom–attribute F1 computed on `experiment_M3_ATE:0.4_size:1000_seed:420.csv` (firing indicator vs attribute).
+**B.2 Closed-form checks** ($n=2\times10^6$): binarized-stratum retained fraction (§2.3(b)); noisy-proxy coefficient (§2.3(c)); hidden-common-cause coefficient (§2.3(a); the coefficient on $T$ is $-\beta/2$ for any $\gamma$). The Principal–Max counterexample (§4.1) used $n=20{,}000$.
+
+**B.3 Saved NES CelebA runs** (read-only): selections from `sneurons_{420..429}.json`; round-2 statistics recomputed with the project's `_stratified_ttests_lotp`; atom–attribute F1 from `experiment_M3_ATE:0.4_size:1000_seed:420.csv`.
+
+**B.4 Population leak computations.** For the toy of B.1, the atoms are Gaussian given $T$ with a $T$-free covariance. So $\theta_{j|A}=\tau_j-\Sigma_{jA}\Sigma_{AA}^{-1}\tau_A$ and $\sigma^2_{j|A}=\Sigma_{jj}-\Sigma_{jA}\Sigma_{AA}^{-1}\Sigma_{Aj}$. $V_A$ is computed by Gauss–Hermite quadrature over the discriminant score, which is $\mathcal{N}(\pm D^2/2,D^2)$ with $D^2=\tau_A^\top\Sigma_{AA}^{-1}\tau_A$, and $\rho$ follows from Proposition 6. Leaks are evaluated at both kinds of separator.
+
+| quantity | $\sigma_\eta=0$ | $\sigma_\eta=0.3$ |
+|---|---|---|
+| leak $\lvert\rho_{j\mid A_j}\rvert$ for $B$, $D$, $W$, $0.5A{+}0.5D$, $0.5C{+}0.5H$ (full blanket; $\{A,H\}$ for $W$) | 0 (all) | 0.0033, 0.0141, 0.0097, 0.0147, 0.0023 |
+| same, at the ancestral separators of Lemma 3 ($\{A\}$ for $B$, $D$, $W$, $0.5A{+}0.5D$; $\{A,W,C,H\}$ for $0.5C{+}0.5H$) | 0 (all) | 0.0150, 0.0150, 0.0097, 0.0157, 0.0023 |
+| smallest direct effect over all $2^9$ sets, for $A$ and $C$ | 0.126, 0.128 | 0.120, 0.128 |
+| forward completeness at margin $\delta$ holds iff | $\delta<0.099$ | $\delta<0.090$ |
+| explaining-away shift $\lvert\rho_{H\mid\{A,C\}}\rvert$ | 0.082 | 0.077 |
+
+Additional checks:
+- Proposition 5 identity: both sides agree to 5 decimals at every separator. The factor $\rho_{g|A}$ is 0.011–0.070, and the square-root factor is about 0.2.
+- Proposition 6 matrix formula on a random 3-factor instance: 0.143909 from the formula, 0.143909 from direct conditioning. The operator-norm bound gives 1.97, which is valid but loose.
