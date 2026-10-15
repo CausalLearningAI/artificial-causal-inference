@@ -49,6 +49,10 @@
 #   0.748). It is NOT changed here; the mask arm is reported with this caveat.
 # BUDGET ~25 GPU-hours; BeeGFS writes only from L40S / A100 / A40 nodes (gpu240-242 excluded: no BeeGFS mount);
 #   several pass-A shards per encode job (fewer, longer jobs); nvidia-smi utilisation logged by eci.sh.
+# ADDENDUM 2026-10-15 14:20 CEST (coordinator), before P_ORB ran: "rotation averaging on top of the best LARGE arm" is
+#   P_ORB itself as long as the base d3l_1024_L20 (a Large arm) is the best Large arm; MABe22 verdict for that
+#   comparison: EQUIVALENT (+0.015 [-0.005, +0.035]). If the size-matched D2L-64 (eci_res.sh addendum 3) beats the base,
+#   that is reported and no second orbit arm is run unless the budget allows (stated in the report).
 # ======================================================================================================================
 set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference

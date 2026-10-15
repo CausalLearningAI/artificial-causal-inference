@@ -77,7 +77,8 @@ def main():
          ('nested 128/256/512 vs plain 512', 'P_N512', 'P_W512', S, 'EQUIVALENT (weak)'),
          ('k 8 vs 16', 'P_K8', 'base (2 s)', S, 'LOSES'),
          ('no mask vs mask (mask misses the intruder in 8.3% of frames)', 'P_NOMASK', 'base (2 s)', S, 'LOSES'),
-         ('orbit vs none', 'P_ORB', 'base (2 s)', S, 'WIN')]
+         ('orbit vs none', 'P_ORB', 'base (2 s)', S, 'WIN'),
+         ('orbit on the best Large arm (= base)', 'P_ORB', 'base (2 s)', S, 'EQUIVALENT (Large arm, +0.015)')]
     L += ['', '| choice | delta primary AUROC [95% CI] | CalMS21 verdict | MABe22 verdict | agree |', '|---|---|---|---|---|']
     for name, a, b, SS, mv in C:
         if a in SS and b in SS:

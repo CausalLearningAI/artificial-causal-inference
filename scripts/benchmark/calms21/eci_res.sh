@@ -109,6 +109,17 @@
 #     (d) D3-64 vs D3-64lo, D3L-64 vs D3L-64lo, D2-64 vs D2-64lo
 #   Encoding: one pass per shard for all eight new configs (decode once), reusing pass A's mask cells (pass D).
 # ======================================================================================================================
+# ADDENDUM 3 2026-10-15 14:20 CEST (coordinator: finished MABe22 encoder study), BEFORE any affected SAE job:
+#   on MABe22 DINOv3-L-L20 beat DINOv2-B (+0.035) but was EQUIVALENT to DINOv2-L-L20 (+0.005 [-0.012, +0.021]), i.e. the
+#   224-px gain was model size, not DINOv3. QUESTION (b) is therefore SIZE-MATCHED from now on:
+#     (b, main) D3L-64 (d3l_1024_L20) vs D2L-64 (d2l_896_L20, DINOv2-L/14 at 896 px, block 20 = 5/6 depth), and
+#               D3L-32 (d3l_512_L20) vs D2L-32 (d2l_448_L20, 448 px); same rule (WIN = delta >= +0.010, CI excludes 0).
+#     Also (a) for D2L: D2L-64 vs D2L-32. The B-size arms and the earlier (b) contrasts are kept and reported as
+#     B-size / not-size-matched. Already-run arms are unaffected (no SAE of d2l_*_L20 existed before this addendum);
+#     d2l_448 (DINOv2-L LAST layer) stays as the descriptive size control it was.
+#   Cost check: DINOv2-L at 896 px ~3x DINOv2-B (~27 images / s bf16) -> ~0.5 GPU-h for train + eval tokens; fits.
+#   Encoding: pass E, configs d2l_448_L20 d2l_896_L20, reusing pass A's mask cells, 2 jobs x 6 shards.
+# ======================================================================================================================
 set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 X="--exclude=gpu240,gpu242,gpu150,gpu230,gpu241"  # gpu240-242 have no BeeGFS mount (measured 2026-10-15)
@@ -135,6 +146,9 @@ case "${1:-}" in
     # pass A and after bodylen (lo_side.txt). bash eci_res.sh encodeD <bodylen job> <set> <shard> <pass A job>
     PY=eci_encode EXTRA="--set $3 --shard $4 --nshard $NS --bf16 --configs d3_512_L10 d3_1024_L10 d3l_512_L20 d3l_1024_L20 d2l_448 d3_1024lo_L10 d3l_1024lo_L20 d2_896lo --reuse-mask --workers 4 --threads 3" \
       sub ${5:+--dependency=afterok:$5} --constraint="$BIG" --cpus-per-task=16 --mem=128G --time=02:00:00 --job-name=encD_$3$4 ;;
+  encodeE) # addendum 3: DINOv2-L L20 at 32 / 64, all shards of one set per job. bash eci_res.sh encodeE <set>
+    PY=eci_encode EXTRA="--set $2 --shards 0 1 2 3 4 5 --nshard $NS --bf16 --configs d2l_448_L20 d2l_896_L20 --reuse-mask --workers 4 --threads 3" \
+      sub --constraint="$BIG" --cpus-per-task=16 --mem=128G --time=03:00:00 --job-name=encE_$2 ;;
   train)   # bash eci_res.sh train <config> <dependency job ids, colon separated or empty>: one job, 6 seeds
     C=$2; D=${3:-}
     PY=eci_train EXTRA="--config $C --seeds 0 1 2 3 4 5" sub ${D:+--dependency=afterok:$D} --constraint="$BIG" \

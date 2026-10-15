@@ -25,11 +25,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from calms_common import OUT, PLAN  # noqa: E402
 
 ARMS = ['d2_448', 'd2_896', 'd3_512_L10', 'd3_1024_L10', 'd3l_512_L20', 'd3l_1024_L20', 'vj_512', 'vj_1024',
-        'd3_1024lo_L10', 'd3l_1024lo_L20', 'd2_896lo', 'd3_512', 'd3_1024', 'd2l_448']
+        'd3_1024lo_L10', 'd3l_1024lo_L20', 'd2_896lo', 'd3_512', 'd3_1024', 'd2l_448', 'd2l_448_L20', 'd2l_896_L20']
 NAME = {'d2_448': 'D2-32', 'd2_896': 'D2-64', 'd3_512_L10': 'D3-32', 'd3_1024_L10': 'D3-64', 'd3l_512_L20': 'D3L-32',
         'd3l_1024_L20': 'D3L-64', 'vj_512': 'VJ-32', 'vj_1024': 'VJ-64', 'd3_1024lo_L10': 'D3-64lo',
         'd3l_1024lo_L20': 'D3L-64lo', 'd2_896lo': 'D2-64lo', 'd3_512': 'D3-32 last layer (check)',
-        'd3_1024': 'D3-64 last layer (descriptive)', 'd2l_448': 'D2L-32 (size control)'}
+        'd3_1024': 'D3-64 last layer (descriptive)', 'd2l_448': 'D2L-32 last layer (size control)',
+        'd2l_448_L20': 'D2L-32 (L20)', 'd2l_896_L20': 'D2L-64 (L20)'}
 RD = OUT / 'res'
 
 
@@ -90,7 +91,10 @@ def main():
         L.append(f"| {NAME[a]} ({a}) | {len(v)} | {', '.join(f'{x:.3f}' for x in v)} | {v.mean():.4f} ± {se:.4f} |")
     C = {'(a) D2: 64 vs 32': ('d2_896', 'd2_448'), '(a) D3: 64 vs 32': ('d3_1024_L10', 'd3_512_L10'),
          '(a) D3L: 64 vs 32': ('d3l_1024_L20', 'd3l_512_L20'), '(a) VJ: 64 vs 32': ('vj_1024', 'vj_512'),
-         '(b) at 64: D3 vs D2': ('d3_1024_L10', 'd2_896'), '(b) at 64: D3L vs D2': ('d3l_1024_L20', 'd2_896'),
+         '(b, main, size-matched) at 64: D3L vs D2L': ('d3l_1024_L20', 'd2l_896_L20'),
+         '(b, main, size-matched) at 32: D3L vs D2L': ('d3l_512_L20', 'd2l_448_L20'),
+         '(a) D2L: 64 vs 32': ('d2l_896_L20', 'd2l_448_L20'),
+         '(b, B-size) at 64: D3 vs D2': ('d3_1024_L10', 'd2_896'), '(b, not size-matched) at 64: D3L vs D2': ('d3l_1024_L20', 'd2_896'),
          '(c) at 32: VJ vs D2': ('vj_512', 'd2_448'), '(c) at 32: VJ vs D3': ('vj_512', 'd3_512_L10'),
          '(c) at 64: VJ vs D2': ('vj_1024', 'd2_896'), '(c) at 64: VJ vs D3': ('vj_1024', 'd3_1024_L10'),
          '(d) D3-64 vs D3-64lo': ('d3_1024_L10', 'd3_1024lo_L10'), '(d) D3L-64 vs D3L-64lo': ('d3l_1024_L20', 'd3l_1024lo_L20'),

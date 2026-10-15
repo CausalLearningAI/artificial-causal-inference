@@ -52,6 +52,8 @@ CONFIGS = {'d2_448': ('dinov2b', 448), 'd2_896': ('dinov2b', 896), 'd3_512': ('d
            # addendum 2 (label-free layer rule, block at ~5/6 depth): DINOv3-B L10, DINOv3-L L20; DINOv2-L last layer
            'd3_512_L10': ('dinov3b', 512, 10), 'd3_1024_L10': ('dinov3b', 1024, 10),
            'd3l_512_L20': ('dinov3l', 512, 20), 'd3l_1024_L20': ('dinov3l', 1024, 20), 'd2l_448': ('dinov2l', 448),
+           # addendum 3 (size-matched (b)): DINOv2-L at its 5/6-depth block L20
+           'd2l_448_L20': ('dinov2l', 448, 20), 'd2l_896_L20': ('dinov2l', 896, 20),
            # detail-vs-density control (addendum 1 (d)): same input size / grid, source first shrunk to plan/lo_side.txt
            'd3_1024lo_L10': ('dinov3b', 1024, 10), 'd3l_1024lo_L20': ('dinov3l', 1024, 20), 'd2_896lo': ('dinov2b', 896)}
 LAG = 60
@@ -105,11 +107,11 @@ class Enc:
         if name == 'dinov2l':  # same module layout as dinov2-base: build through the 'dinov2b' branch
             keep = EE.MODELS['dinov2b']
             EE.MODELS['dinov2b'] = ('facebook/dinov2-large', 14, 1, 24)
+            self.last = ly[0] if ly else 24
             try:
-                self.e = EE.Encoder('dinov2b', S, [24], dev, 'extrap', VJS, bf16)
+                self.e = EE.Encoder('dinov2b', S, [self.last], dev, 'extrap', VJS, bf16)
             finally:
                 EE.MODELS['dinov2b'] = keep
-            self.last = 24
         else:
             self.last = ly[0] if ly else EE.MODELS[name][3]
             self.e = EE.Encoder(name, S, [self.last], dev, 'extrap', VJS, bf16)
@@ -553,6 +555,7 @@ def main():
     ap.add_argument('--mode', choices=['encode', 'maskqa', 'bench', 'prec'], default='encode')
     ap.add_argument('--set', choices=['train', 'eval'], default='eval')
     ap.add_argument('--shard', type=int, default=0)
+    ap.add_argument('--shards', type=int, nargs='*', default=[])
     ap.add_argument('--nshard', type=int, default=8)
     ap.add_argument('--configs', nargs='+', default=['d2_448'])
     ap.add_argument('--mask', default='absdiff')
@@ -567,6 +570,11 @@ def main():
     ap.add_argument('--videos', nargs='*', default=[])
     ap.add_argument('--tag', default='')
     args = ap.parse_args()
+    if args.mode == 'encode' and args.shards:  # several shards in one job (fewer, longer jobs)
+        for sh in args.shards:
+            args.shard = sh
+            cmd_encode(args)
+        return
     {'encode': cmd_encode, 'maskqa': cmd_maskqa, 'bench': cmd_bench, 'prec': cmd_prec}[args.mode](args)
 
 
