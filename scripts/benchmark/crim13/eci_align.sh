@@ -101,7 +101,7 @@ case "${1:-}" in
   train)   # bash eci_align.sh train <arm> <dependency job ids, colon separated or empty>: one job, 6 seeds x 2 folds
     A=$2; D=${3:-}
     sub --export=ALL,PY=align_train,EXTRA="--arm $A" ${D:+--dependency=afterok:$D} --constraint="$BIG" \
-      --cpus-per-task=8 --mem=160G --time=02:30:00 --job-name=cr_tr_$A ;;
+      --cpus-per-task=8 --mem=160G --time=01:45:00 --job-name=cr_tr_$A ;;
   probe)   # bash eci_align.sh probe [deps]
     D=${2:-}
     sub --export=ALL,PY=align_probe,EXTRA="" ${D:+--dependency=afterok:$D} --constraint="$BIG" --cpus-per-task=8 \
@@ -117,5 +117,8 @@ case "${1:-}" in
     sbatch --parsable -p defaultp --cpus-per-task=4 --mem=16G --time=00:30:00 --job-name=cr_sheets \
       --output=$LOGS/%x_%j.out ${D:+--dependency=afterok:$D} --export=ALL,PY=align_sheets,EXTRA="" \
       scripts/benchmark/crim13/align_job.sh ;;
+  gate)    # after the encodes: C4 gate (addendum 1), sheets, score, cleanup. bash eci_align.sh gate <C1> <C2> <C3> <probe> <encode deps>
+    sbatch --parsable -p defaultp --dependency=afterok:$6 --export=ALL,C1=$2,C2=$3,C3=$4,PR=$5 \
+      scripts/benchmark/crim13/align_gate.sh ;;
   *) echo "usage: $0 encode | train <arm> [deps] | probe [deps] | c4 [deps] | sheets [deps]"; exit 1 ;;
 esac
