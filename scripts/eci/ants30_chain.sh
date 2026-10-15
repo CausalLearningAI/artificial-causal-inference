@@ -45,7 +45,7 @@ if [ "$FROM" -le 5 ]; then
 fi
 j6=$(sbatch --parsable -p gpu --gres=gpu:1 --exclude=gpu150,gpu242,gpu230 --cpus-per-task=12 --mem=48G --time=01:00:00 \
   --job-name=a30_recon --output=$L/%x_%j.out $(dep $j5) \
-  --wrap "bash -lc '$ENV; python -u scripts/eci/ants_recon_check.py $(for s in $S; do echo --sae $s; done)'")
+  --wrap "bash -lc '$ENV; python -u scripts/eci/ants_recon_check.py $(for s in $S; do printf -- '--sae %s ' $s; done)'")
 J7=""
 for s in $S; do
   N="python -u scripts/eci/run_nes.py --domain ants"; B="python -u scripts/eci/run_nes_bouts.py --domain ants"
