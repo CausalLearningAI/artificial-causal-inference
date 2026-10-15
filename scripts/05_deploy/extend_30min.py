@@ -11,7 +11,9 @@ frames/pov are extended in place: files of frames < N_OLD are never opened for w
 
 Subcommands (run in order; the heavy ones inside Slurm jobs):
   archive            move the 10-min artifacts to the archive (refuses to overwrite)
-  obs-list           valid observation ids (experiment.csv order) -> <work>/<version>_valid_obs.txt
+  obs-list           valid observation ids (experiment.csv order) -> <work>/<version>_valid_obs.txt;
+                       the drift-check sample (--n-check annotated observations, evenly spaced;
+                       default all) -> <work>/<version>_check_obs.txt
   extend-obs --idx   one observation (array task), staged in /localhome:
                        standardize at the new end_frame (standardize.process_video), copy the
                        video to observations/full; extract JPGs (get_frames.extract_frames) and
@@ -19,15 +21,21 @@ Subcommands (run in order; the heavy ones inside Slurm jobs):
                        cached background (get_tracking's tracker + calibration.get_background)
                        -> <work>/tracking_newrun/<obs>.csv; POV crops of frames >= N_OLD from the
                        new-run rows (identical to the spliced rows there) -> frames/pov; for
-                       annotated observations also the new-pipeline crops of frames < N_OLD
-                       -> <work>/check5_crops/<obs>.tar (never into the live dirs)
-  verify-prefix      framemd5 of the new vs archived video and new-run vs archived tracking, frames < N_OLD
+                       the drift-check sample also the new-pipeline crops of frames < N_OLD
+                       -> <work>/check5_crops/<version>/<obs>.tar (never into the live dirs)
+  verify-prefix      framemd5 of the new vs archived video and new-run vs archived tracking, frames < N_OLD;
+                       mean |pixel diff| on the drift-check sample. A diagnostic, not a gate: new
+                       footage (v3, v4) is a re-encode, so frames differ by noise (the gate is
+                       the fingerprint + eval-only metrics)
   splice-tracking    per observation: archived rows < N_OLD (text, verbatim) + new-run rows
                        >= N_OLD -> dataset/.../tracking/<obs>.csv; seam check at N_OLD
+  build-hf           get_dataset.py's generate_and_save_dataset with more save_to_disk workers
+                       (--num-proc, the step that dominated v5's s1: reading every JPG from NFS)
   splice-embeddings  rows with frame_idx < N_OLD of a freshly extracted POV cache are replaced
                        by the archived rows (drift reported first); rewrites .npy/.pt/dataset/
 
-<work> = results/ppci/ants/regress_30min.
+<work> = results/ppci/ants/regress_30min. Reports are per version (<name>_<version>.json/.csv,
+check5/<version>/, check5_crops/<version>/).
 """
 from __future__ import annotations
 
@@ -56,6 +64,7 @@ IDS = ("blue", "yellow", "focal")
 def archived_paths(v: str) -> list[str]:
     """Repo-relative paths of the 10-min artifacts that are rebuilt whole."""
     return [
+        f"data/ants/{v}/observations/source",
         f"data/ants/{v}/observations/full",
         f"data/ants/{v}/observations/metadata.json",
         f"dataset/ants/{v}/tracking",
@@ -69,6 +78,17 @@ def archived_paths(v: str) -> list[str]:
 
 def _arch(v: str, rel: str) -> Path:
     return ARCHIVE / v / rel
+
+
+def report(v: str, name: str) -> Path:
+    """Per-version report file: <work>/<stem>_<version><suffix>."""
+    p = Path(name)
+    return WORK / f"{p.stem}_{v}{p.suffix}"
+
+
+def check_obs(v: str) -> list[str]:
+    """Drift-check sample written by obs-list."""
+    return (WORK / f"{v}_check_obs.txt").read_text().split()
 
 
 def experiment(v: str) -> pd.DataFrame:
@@ -109,6 +129,12 @@ def cmd_obs_list(a) -> None:
     out = WORK / f"{a.version}_valid_obs.txt"
     out.write_text("\n".join(obs) + "\n")
     print(f"{len(obs)} valid observations -> {out.relative_to(ROOT)}")
+    ann = exp.loc[(exp["valid"] == 1) & exp["annotation_file"].notna(), "observation_id"].astype(str).tolist()
+    if a.n_check is not None and a.n_check < len(ann):
+        ann = [ann[i] for i in np.linspace(0, len(ann) - 1, a.n_check).round().astype(int)]
+    out = WORK / f"{a.version}_check_obs.txt"
+    out.write_text("\n".join(ann) + "\n")
+    print(f"{len(ann)} drift-check observations -> {out.relative_to(ROOT)}")
 
 
 # ── extend one observation ───────────────────────────────────────────────────
@@ -201,7 +227,7 @@ def cmd_extend_obs(a) -> None:
 
         # 4. POV crops (AntTracker.crop_pov on the JPG, mark positions, as get_pov_frames.py)
         cols = {"blue": ("mark_blue_x", "mark_blue_y"), "yellow": ("mark_yellow_x", "mark_yellow_y")}
-        annotated = isinstance(exp["annotation_file"], str) and exp["annotation_file"] != ""
+        annotated = obs in check_obs(v)
         crops = stage / "pov"
         for c in cols:
             (crops / c).mkdir(parents=True)
@@ -217,7 +243,7 @@ def cmd_extend_obs(a) -> None:
             log[f"pov_{c}_preexisting_new"] = _check_prefix_dir(pdir, n_old)
             log[f"pov_{c}_copied"] = _copy_frames(crops / c, pdir, n_old, n_jpg)
         if annotated:
-            tar = WORK / "check5_crops" / f"{obs}.tar"
+            tar = WORK / "check5_crops" / v / f"{obs}.tar"
             tar.parent.mkdir(parents=True, exist_ok=True)
             with tarfile.open(str(tar) + ".tmp", "w") as tf:
                 for c in cols:
@@ -298,13 +324,16 @@ def cmd_splice_tracking(a) -> None:
         assert chk[: n + 1] == old_l[: n + 1] and chk[n + 1:] == new_l[n + 1:]
         os.replace(tmp, out_dir / f"{obs}.csv")
     df = pd.DataFrame(rows)
-    df.to_csv(WORK / "seam_check.csv", index=False)
+    df.to_csv(report(v, "seam_check.csv"), index=False)
+    jump = df[[c for c in df if c.startswith("jump_")]].max(axis=1)
     summ = {"n_videos": len(df), "n_flagged": len(flagged), "flagged": flagged,
             "flag_px": a.flag_px, "swap_margin_px": a.swap_margin,
             "dist_max_quantiles": {q: float(df.dist_max.quantile(q)) for q in (0.5, 0.9, 0.99, 1.0)},
             "n_any_swap": int(df[[c for c in df if c.startswith("swap_")]].any(axis=1).sum()),
+            "n_jump_gt_flag_px": int((jump > a.flag_px).sum()),
+            "jump_max_quantiles": {q: float(jump.quantile(q)) for q in (0.5, 0.9, 0.99, 1.0)},
             "spliced": not a.dry_run}
-    (WORK / "seam_check.json").write_text(json.dumps(summ, indent=1))
+    report(v, "seam_check.json").write_text(json.dumps(summ, indent=1))
     print(json.dumps(summ, indent=1))
 
 
@@ -318,10 +347,13 @@ def _framemd5(video: Path, n: int) -> list[str]:
 
 
 def cmd_verify_prefix(a) -> None:
-    """New 30-min video vs archived 10-min video (framemd5 of frames < N_OLD), and the new
-    tracking run vs the archived tracking rows < N_OLD (exact-row agreement, max distance)."""
+    """New 30-min video vs archived 10-min video (framemd5 of frames < N_OLD; mean |pixel diff|
+    on the drift-check sample), and the new tracking run vs the archived tracking rows < N_OLD
+    (exact-row agreement, max distance, rows off by more than 20 px). Reports, never raises."""
+    from check_30min_prefix import video_diff
     v = a.version
     exp = experiment(v).set_index("observation_id")
+    sample = set(check_obs(v))
     rows = []
     for obs in (WORK / f"{v}_valid_obs.txt").read_text().split():
         e = exp.loc[obs]
@@ -333,21 +365,34 @@ def cmd_verify_prefix(a) -> None:
         new = pd.read_csv(WORK / "tracking_newrun" / f"{obs}.csv").iloc[:n]
         cols = [c for c in old.columns if c != "frame_idx"]
         same = ((old[cols] == new[cols]) | (old[cols].isna() & new[cols].isna())).all(axis=1)
-        d = max(float(np.linalg.norm(_xy(old, k, i) - _xy(new, k, i), axis=1).max())
-                for k, ids in (("centroid", IDS), ("mark", ("blue", "yellow"))) for i in ids)
+        dd = np.stack([np.linalg.norm(_xy(old, k, i) - _xy(new, k, i), axis=1)
+                       for k, ids in (("centroid", IDS), ("mark", ("blue", "yellow"))) for i in ids])
+        d = float(np.nanmax(dd))
+        pix = (video_diff(ROOT / "data" / "ants" / v / "observations" / "full" / f,
+                          _arch(v, f"data/ants/{v}/observations/full") / f, n) if obs in sample else np.array([]))
         rows.append({"obs": obs, "framemd5_equal": sum(x == y for x, y in zip(old_md5, new_md5)),
                      "framemd5_n": min(len(old_md5), len(new_md5)), "tracking_rows_identical": int(same.sum()),
-                     "tracking_rows": n, "tracking_max_dist": d})
+                     "tracking_rows": n, "tracking_max_dist": d,
+                     "tracking_rows_gt20px": int((np.nan_to_num(dd, nan=0.0) > 20).any(axis=0).sum()),
+                     "pixel_frames": len(pix), "pixel_mean_abs": float(pix.mean()) if len(pix) else np.nan,
+                     "pixel_frame_max": float(pix.max()) if len(pix) else np.nan})
     df = pd.DataFrame(rows)
-    df.to_csv(WORK / "prefix_verify.csv", index=False)
+    df.to_csv(report(v, "prefix_verify.csv"), index=False)
     summ = {"n_videos": len(df),
             "videos_framemd5_all_equal": int((df.framemd5_equal == df.framemd5_n).sum()),
             "frames_framemd5_equal": int(df.framemd5_equal.sum()), "frames_compared": int(df.framemd5_n.sum()),
             "videos_tracking_prefix_identical": int((df.tracking_rows_identical == df.tracking_rows).sum()),
             "tracking_rows_identical": int(df.tracking_rows_identical.sum()),
             "tracking_rows": int(df.tracking_rows.sum()),
-            "tracking_max_dist_max": float(df.tracking_max_dist.max())}
-    (WORK / "prefix_verify.json").write_text(json.dumps(summ, indent=1))
+            "tracking_max_dist_max": float(df.tracking_max_dist.max()),
+            "tracking_max_dist_median": float(df.tracking_max_dist.median()),
+            "tracking_rows_gt20px": int(df.tracking_rows_gt20px.sum()),
+            "videos_tracking_rows_gt20px": int((df.tracking_rows_gt20px > 0).sum()),
+            "pixel_videos": int((df.pixel_frames > 0).sum()), "pixel_frames": int(df.pixel_frames.sum()),
+            "pixel_mean_abs_mean": float(df.pixel_mean_abs.mean()),
+            "pixel_mean_abs_max": float(df.pixel_mean_abs.max()),
+            "pixel_frame_max": float(df.pixel_frame_max.max())}
+    report(v, "prefix_verify.json").write_text(json.dumps(summ, indent=1))
     print(json.dumps(summ, indent=1))
 
 
@@ -370,10 +415,34 @@ def cmd_verify_annotations(a) -> None:
            "past_window_rows": len(out), "past_window_Y_all_nan": bool(out[ycols].isna().all().all()),
            "past_window_min_frame": int(out.frame_idx.min()) if len(out) else None,
            "annotated_rows": int(new[ycols].notna().all(axis=1).sum())}
-    (WORK / "annotations_verify.json").write_text(json.dumps(rep, indent=1))
+    report(v, "annotations_verify.json").write_text(json.dumps(rep, indent=1))
     print(json.dumps(rep, indent=1))
     if not same:
         raise SystemExit("in-window rows differ from the archived annotations.csv")
+
+
+# ── HF dataset ───────────────────────────────────────────────────────────────
+
+def cmd_build_hf(a) -> None:
+    """get_dataset.py (overwrite.hf=false) with save_to_disk(num_proc=--num-proc) instead of 8.
+    save_to_disk cuts max(size-based count, num_proc) contiguous shards, so while the size-based
+    count exceeds --num-proc the saved shards are the ones num_proc=8 would write."""
+    import datasets
+    from src.dataset.get_dataset import generate_and_save_dataset
+    out = ROOT / "dataset" / "ants" / a.version / "hf" / "full"
+    if out.exists():
+        sys.exit(f"[ERROR] {out} exists")
+    save = datasets.Dataset.save_to_disk
+
+    def _save(self, path, **kw):
+        return save(self, path, **(kw | {"num_proc": a.num_proc}))
+    datasets.Dataset.save_to_disk = _save
+    t0 = time.time()
+    generate_and_save_dataset("ants", a.version)
+    n_shards = len(json.loads((out / "state.json").read_text())["_data_files"])
+    print(f"Saved to {out}: {n_shards} shards (num_proc {a.num_proc}) in {_fmt(time.time() - t0)}")
+    if n_shards <= a.num_proc:
+        print(f"[WARN] {n_shards} shards <= num_proc: shard layout differs from a num_proc=8 build")
 
 
 # ── embedding splice ─────────────────────────────────────────────────────────
@@ -409,7 +478,7 @@ def cmd_splice_embeddings(a) -> None:
            "old_abs_mean": float(old.abs().mean())}
     print(json.dumps(rep))
     # re-embedded old crops of the annotated observations, kept for check 5
-    ctl = WORK / "check5" / f"reembed_old_crops_{ident}.pt"
+    ctl = WORK / "check5" / v / f"reembed_old_crops_{ident}.pt"
     ctl.parent.mkdir(parents=True, exist_ok=True)
     keep = m["observation_id"].isin(a.control_obs or []).to_numpy()
     torch.save({"keys": m.loc[keep, ["observation_id", "frame_idx"]].reset_index(drop=True),
@@ -441,7 +510,7 @@ def cmd_splice_embeddings(a) -> None:
         chk = torch.load(live / "embeddings.pt", weights_only=True)
         assert torch.equal(chk[rows], old)
         rep["spliced"] = True
-    (WORK / f"embedding_splice_{ident}.json").write_text(json.dumps(rep, indent=1))
+    report(v, f"embedding_splice_{ident}.json").write_text(json.dumps(rep, indent=1))
 
 
 def main() -> None:
@@ -450,7 +519,8 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("archive")
     s.add_argument("paths", nargs="*", help="Repo-relative paths (default: archived_paths)")
-    sub.add_parser("obs-list")
+    s = sub.add_parser("obs-list")
+    s.add_argument("--n-check", type=int, default=None, help="Drift-check sample size (default: all annotated)")
     s = sub.add_parser("extend-obs")
     s.add_argument("--idx", type=int, default=int(os.environ.get("SLURM_ARRAY_TASK_ID", 0)))
     sub.add_parser("verify-prefix")
@@ -459,13 +529,16 @@ def main() -> None:
     s.add_argument("--flag-px", type=float, default=20.0)
     s.add_argument("--swap-margin", type=float, default=5.0)
     s.add_argument("--dry-run", action="store_true")
+    s = sub.add_parser("build-hf")
+    s.add_argument("--num-proc", type=int, default=8)
     s = sub.add_parser("splice-embeddings")
     s.add_argument("--identity", required=True, choices=["blue", "yellow"])
     s.add_argument("--control-obs", nargs="*")
     s.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
     {"archive": cmd_archive, "obs-list": cmd_obs_list, "extend-obs": cmd_extend_obs,
-     "verify-prefix": cmd_verify_prefix, "verify-annotations": cmd_verify_annotations, "splice-tracking": cmd_splice_tracking, "splice-embeddings": cmd_splice_embeddings}[a.cmd](a)
+     "verify-prefix": cmd_verify_prefix, "verify-annotations": cmd_verify_annotations, "splice-tracking": cmd_splice_tracking,
+     "build-hf": cmd_build_hf, "splice-embeddings": cmd_splice_embeddings}[a.cmd](a)
 
 
 if __name__ == "__main__":

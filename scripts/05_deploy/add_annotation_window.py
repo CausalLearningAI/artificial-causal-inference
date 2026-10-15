@@ -12,7 +12,13 @@ Values (from the annotation files, see PLAN):
   v1      per row = end_frame   30-min annotations, row-specific start (600-1500)
   v2-v5   18000                 10-min annotations (max End-frame 18000; v5 17999)
   v6, vA  empty                 no annotations
-  v5 also gets end_frame 18000 -> 54000 (30-min rebuild).
+  v3, v4, v5 also get end_frame 18000 -> 54000 (30-min rebuild).
+
+A file that already has the column (v3, v4 were windowed before their 30-min
+footage arrived) only gets the new end_frame: every existing
+annotation_end_frame cell must already hold the planned value, and the
+archived copy must be the current file minus that column (checked by
+re-applying the edit), so the archive still reconstructs it and is left as is.
 
 Edits are text-level: the column is appended at the end of each line, row order,
 cell text and CRLF line endings (and a missing final newline) are kept. The
@@ -42,8 +48,8 @@ COL = "annotation_end_frame"
 PLAN = {
     "v1": ("end_frame", None),
     "v2": (18000, None),
-    "v3": (18000, None),
-    "v4": (18000, None),
+    "v3": (18000, 54000),
+    "v4": (18000, 54000),
     "v5": (18000, 54000),
     "v6": ("", None),
     "vA": ("", None),
@@ -65,35 +71,38 @@ def edit(raw: bytes, ann_end, new_end) -> tuple[bytes, dict]:
     final_eol = text.endswith(eol)
     lines = text[: -len(eol)].split(eol) if final_eol else text.split(eol)
     header = lines[0].split(",")
-    if COL in header:
+    has_col = COL in header
+    if has_col and (new_end is None or ann_end == "end_frame" or header[-1] != COL):
         raise ValueError(f"{COL} already present")
     i_end = header.index("end_frame")
     if ann_end == "end_frame" and new_end is not None:
         raise ValueError("annotation_end_frame=end_frame with a new end_frame is ambiguous")
 
-    out = [lines[0] + "," + COL]
+    out = [lines[0] if has_col else lines[0] + "," + COL]
     for line in lines[1:]:
         cells = line.split(",")
         if len(cells) != len(header):
             raise ValueError(f"row has {len(cells)} cells, header {len(header)}: {line!r}")
+        if has_col and cells[-1] != str(ann_end):
+            raise ValueError(f"existing {COL} {cells[-1]!r} != planned {ann_end}: {line!r}")
         if new_end is not None:
             cells[i_end] = str(new_end)
         val = cells[i_end] if ann_end == "end_frame" else str(ann_end)
-        out.append(",".join(cells + [val]))
+        out.append(",".join(cells[:-1] + [val] if has_col else cells + [val]))
     new_text = eol.join(out) + (eol if final_eol else "")
     new = new_text.encode("utf-8")
 
     # ── verify cell by cell against the original ──────────────────────────────
     old_rows, new_rows = _rows(text), _rows(new_text)
     assert len(old_rows) == len(new_rows), "row count changed"
-    assert new_rows[0] == old_rows[0] + [COL], "header changed beyond the new column"
+    assert new_rows[0] == (old_rows[0] if has_col else old_rows[0] + [COL]), "header changed beyond the new column"
     changed = {"end_frame": 0, COL: 0, "other": 0}
     for o, n in zip(old_rows[1:], new_rows[1:]):
-        assert len(n) == len(o) + 1
+        assert len(n) == len(o) + (0 if has_col else 1)
         for j, (a, b) in enumerate(zip(o, n)):
             if a != b:
                 changed["end_frame" if j == i_end else "other"] += 1
-        changed[COL] += 1
+        changed[COL] += 0 if has_col else 1
     assert changed["other"] == 0, f"unintended cells changed: {changed}"
     if new_end is None:
         assert changed["end_frame"] == 0
@@ -129,12 +138,18 @@ def main() -> None:
         if not args.apply:
             continue
         arch = args.archive_root / v / path.relative_to(ROOT)
-        if arch.exists() and arch.read_bytes() != raw:
-            sys.exit(f"[ERROR] {arch} exists and differs from {path}; not overwriting the archive")
-        arch.parent.mkdir(parents=True, exist_ok=True)
-        if not arch.exists():
-            shutil.copy2(path, arch)
-        assert arch.read_bytes() == raw
+        if COL in raw.decode("utf-8").split("\n", 1)[0].split(","):
+            # windowed earlier: the archive holds the file before the column was added
+            if not arch.exists() or edit(arch.read_bytes(), ann_end, None)[0] != raw:
+                sys.exit(f"[ERROR] {arch} + {COL}={ann_end} does not reconstruct {path}")
+            print(f"   archive {arch.relative_to(ROOT)} + {COL}={ann_end} reconstructs the current file")
+        else:
+            if arch.exists() and arch.read_bytes() != raw:
+                sys.exit(f"[ERROR] {arch} exists and differs from {path}; not overwriting the archive")
+            arch.parent.mkdir(parents=True, exist_ok=True)
+            if not arch.exists():
+                shutil.copy2(path, arch)
+            assert arch.read_bytes() == raw
         tmp = path.with_suffix(".csv.tmp")
         tmp.write_bytes(new)
         os.replace(tmp, path)

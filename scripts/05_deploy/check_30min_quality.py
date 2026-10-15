@@ -12,6 +12,8 @@ Post-rebuild quality checks of a 30-min extension (after generate_annotations.py
   embeddings   NaN rows of the live POV caches per segment
   sheet        contact sheet of the live POV crops around the seam
 
+Outputs: <work>/quality_30min_<version>.json, <work>/seam_contact_sheet_live_<version>.png.
+
 Usage: python scripts/05_deploy/check_30min_quality.py --version v5
 """
 from __future__ import annotations
@@ -140,9 +142,9 @@ def main() -> None:
         for c in ("blue", "yellow"):
             d = ROOT / "dataset" / "ants" / v / "frames" / "pov" / c / o
             rows.append((f"{o} {c} (live crops)", [cv2.imread(str(d / f"frame_{f:06d}.jpg")) for f in frames]))
-    contact_sheet(rows, WORK / "seam_contact_sheet_live.png", frames)
+    contact_sheet(rows, WORK / f"seam_contact_sheet_live_{v}.png", frames)
 
-    (WORK / "quality_30min.json").write_text(json.dumps(rep, indent=1, default=float))
+    (WORK / f"quality_30min_{v}.json").write_text(json.dumps(rep, indent=1, default=float))
     print(json.dumps({k: rep[k] for k in ("predictions", "embeddings")}, indent=1, default=float))
 
 

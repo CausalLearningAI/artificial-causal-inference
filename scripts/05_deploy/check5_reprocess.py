@@ -2,24 +2,24 @@
 """
 Check 5 of the 30-min extension: does the new processing cost accuracy on labelled frames?
 
-For the annotated observations, minutes 0-10 were re-processed by the new pipeline
-(extend_30min.py extend-obs: new video, new JPGs, new tracking run, new POV crops ->
-<work>/check5_crops/<obs>.tar). This job embeds those crops exactly like
-get_embeddings.py (DINOv2 class token, fp16, batch 192), recomputes the tracking
-distances from the new run, and evaluates the deployed model on the windowed v5 dataset
-with the annotated observations' rows replaced:
+For the drift-check sample (extend_30min.py obs-list), minutes 0-10 were re-processed by the
+new pipeline (extend_30min.py extend-obs: new video, new JPGs, new tracking run, new POV crops ->
+<work>/check5_crops/<version>/<obs>.tar). This job embeds those crops exactly like
+get_embeddings.py (DINOv2 class token, fp16, batch 192), reports their drift from the archived
+embeddings, recomputes the tracking distances from the new run, and evaluates the deployed
+model on the windowed dataset of --version with the sample observations' rows replaced:
 
-  A  deployed inputs (archived embeddings + archived tracking)      -> must equal metrics.json v5
+  A  deployed inputs (archived embeddings + archived tracking)      -> must equal metrics.json
   B  old crops re-embedded by the 30-min extraction (embedding re-run only)
   C  new pipeline: new crops' embeddings + new-run distances
   C_emb   new embeddings, archived distances
   C_dist  archived embeddings, new-run distances
 
-Embeddings are saved under <work>/check5/ (not the live cache).
+Embeddings and check5.json are saved under <work>/check5/<version>/ (not the live cache).
 When the new pipeline reproduces the 10-min frames and tracking bit for bit (ffmpeg 6.1.1 path),
 the new crops equal the archived ones: --crops-identical checks that on every --crop-step-th frame
 of the tars against the live crops and then evaluates only A and B (B = the only difference).
-Usage (GPU job): python scripts/05_deploy/check5_reprocess.py [--crops-identical]
+Usage (GPU job): python scripts/05_deploy/check5_reprocess.py --version v3 [--crops-identical]
 """
 from __future__ import annotations
 
@@ -68,15 +68,15 @@ def dists(csv: Path) -> np.ndarray:
     return np.stack([d("blue", "focal"), d("yellow", "focal"), d("blue", "yellow")], axis=1)
 
 
-def crops_identical(obs_list: list[str], step: int) -> dict:
+def crops_identical(v: str, obs_list: list[str], step: int) -> dict:
     """md5 of tar members (new-pipeline crops) vs the live crops (archived 10-min crops)."""
     n = same = 0
     for o in obs_list:
-        with tarfile.open(WORK / "check5_crops" / f"{o}.tar") as tf:
+        with tarfile.open(WORK / "check5_crops" / v / f"{o}.tar") as tf:
             for ident in ("blue", "yellow"):
                 for i in range(0, N_OLD, step):
                     a = tf.extractfile(f"{ident}/frame_{i:06d}.jpg").read()
-                    b = (ROOT / "dataset" / "ants" / "v5" / "frames" / "pov" / ident / o / f"frame_{i:06d}.jpg").read_bytes()
+                    b = (ROOT / "dataset" / "ants" / v / "frames" / "pov" / ident / o / f"frame_{i:06d}.jpg").read_bytes()
                     n += 1
                     same += hashlib.md5(a).digest() == hashlib.md5(b).digest()
     return {"crops_compared": n, "crops_md5_equal": same}
@@ -84,23 +84,25 @@ def crops_identical(obs_list: list[str], step: int) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--version", default="v5")
     ap.add_argument("--crops-identical", action="store_true")
     ap.add_argument("--crop-step", type=int, default=10)
     args = ap.parse_args()
     stage = Path(os.environ.get("STAGE_DIR", f"/tmp/{os.environ['USER']}/check5"))
     stage.mkdir(parents=True, exist_ok=True)
-    out = WORK / "check5"
-    out.mkdir(exist_ok=True)
-    obs_list = sorted(p.stem for p in (WORK / "check5_crops").glob("*.tar"))
+    v = args.version
+    out = WORK / "check5" / v
+    out.mkdir(parents=True, exist_ok=True)
+    obs_list = sorted(p.stem for p in (WORK / "check5_crops" / v).glob("*.tar"))
     crop_check = None
     if args.crops_identical:
-        crop_check = crops_identical(obs_list, args.crop_step)
+        crop_check = crops_identical(v, obs_list, args.crop_step)
         print(json.dumps(crop_check), flush=True)
         if crop_check["crops_md5_equal"] != crop_check["crops_compared"]:
             raise SystemExit("new-pipeline crops differ from the live crops: run without --crops-identical")
     else:
         for o in obs_list:
-            with tarfile.open(WORK / "check5_crops" / f"{o}.tar") as tf:
+            with tarfile.open(WORK / "check5_crops" / v / f"{o}.tar") as tf:
                 tf.extractall(stage / o)
     new_emb = {}
     for ident in ("blue", "yellow") if not args.crops_identical else ():
@@ -120,13 +122,22 @@ def main() -> None:
     device = torch.device("cuda")
     model, cfg = load_model(DEPLOY, device)
     k, mode = int(cfg["context_window"]), cfg["context_mode"]
-    ds = PPCIDataset.from_disk("ants", "v5", cfg["encoder"], cfg["token"], frame_type="pov",
+    ds = PPCIDataset.from_disk("ants", v, cfg["encoder"], cfg["token"], frame_type="pov",
                                dist_mode=cfg["dist_mode"], n_val_videos=0, **DS_KWARGS)
     X0 = ds.X.clone()
     pos = pd.DataFrame({"observation_id": ds.obs_ids, "frame_idx": ds.frame_idx.numpy(), "row": np.arange(len(ds))})
     rows = torch.from_numpy(keys.merge(pos, how="left", on=["observation_id", "frame_idx"])["row"].to_numpy(np.int64))
+    drift = {}                                               # new-pipeline vs archived embeddings
+    for ident, e in new_emb.items():
+        old_e = X0[rows][:, :D] if ident == "blue" else X0[rows][:, D + 2:2 * D + 2]
+        cos = torch.nn.functional.cosine_similarity(e, old_e, dim=1)
+        drift[ident] = {"rows": len(e), "mean_abs": float((e - old_e).abs().mean()),
+                        "max_abs": float((e - old_e).abs().max()), "old_abs_mean": float(old_e.abs().mean()),
+                        "cos_mean": float(cos.mean()), "cos_min": float(cos.min()),
+                        "cos_q01": float(cos.quantile(0.01)), "rows_bit_identical": int((e == old_e).all(dim=1).sum())}
+        print(f"drift {ident}: {json.dumps(drift[ident])}", flush=True)
 
-    ctl = {i: torch.load(WORK / "check5" / f"reembed_old_crops_{i}.pt", weights_only=False) for i in ("blue", "yellow")}
+    ctl = {i: torch.load(out / f"reembed_old_crops_{i}.pt", weights_only=False) for i in ("blue", "yellow")}
     ctl_rows = {}
     for i, c in ctl.items():
         m = c["keys"].reset_index().merge(keys.reset_index().rename(columns={"index": "k"}),
@@ -181,9 +192,10 @@ def main() -> None:
         res[name]["binary_agreement_vs_A"] = float(((p >= 0.5) == (base >= 0.5)).float().mean())
         res[name]["positive_rate"] = [float(x) for x in (p >= 0.5).float().mean(dim=0)]
     with open(DEPLOY / "metrics.json") as f:
-        res["deployed_metrics_v5"] = json.load(f)["v5"]
+        res[f"deployed_metrics_{v}"] = json.load(f)[v]
     res["n_obs"], res["n_annotated_frames"] = len(obs_list), int(ann.sum())
     res["crop_check"] = crop_check
+    res["embedding_drift"] = drift
     (out / "check5.json").write_text(json.dumps(res, indent=1))
     print(json.dumps(res, indent=1))
 

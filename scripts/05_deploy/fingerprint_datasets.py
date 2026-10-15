@@ -106,7 +106,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--versions", nargs="+", default=["v3", "v4", "v5"],
                         help="Versions loaded with the deployed (POV) config")
-    parser.add_argument("--full-versions", nargs="+", default=["v5"],
+    parser.add_argument("--full-versions", nargs="+", default=["v3", "v4", "v5"],
                         help="Versions also loaded full-frame, deployed encoder/token, no distances")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
