@@ -114,7 +114,7 @@ def load_train(cfg, stage):
     for key in shards('train'):
         X, lens, Fm = load_shard(key + st, cfg, stage)
         role = Fm.merge(P, on=['clip', 'i'], how='left').role.values
-        assert not pd.isna(role).any() and (Fm[['clip', 'i']].values == P[P.clip.isin(Fm.clip)][['clip', 'i']].values).all()
+        assert not pd.isna(role).any() and (Fm[['clip', 'i']].values == P[P['clip'].isin(Fm['clip'])][['clip', 'i']].values).all()
         tr = np.repeat(role, lens)
         for r in ('train', 'calib'):
             out[r][0].append(X[tr == r])
