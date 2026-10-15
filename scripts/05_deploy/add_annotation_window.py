@@ -138,7 +138,7 @@ def main() -> None:
         if not args.apply:
             continue
         arch = args.archive_root / v / path.relative_to(ROOT)
-        if COL in raw.decode("utf-8").split("\n", 1)[0].split(","):
+        if COL in raw.decode("utf-8").splitlines()[0].split(","):
             # windowed earlier: the archive holds the file before the column was added
             if not arch.exists() or edit(arch.read_bytes(), ann_end, None)[0] != raw:
                 sys.exit(f"[ERROR] {arch} + {COL}={ann_end} does not reconstruct {path}")
