@@ -331,7 +331,10 @@ def run_mil(bag, y, w_eval, tr, va, te, ctx, seed, dev, steps=3000, bs=128, pos_
             hist.append((step + 1, round(float(loss), 4), round(ap, 4)))
             if ap > best[0]:
                 best = (ap, {k: v.detach().clone() for k, v in model.state_dict().items()}, step + 1)
-    model.load_state_dict(best[1])
+    if best[1] is not None:  # None only when no validation ran (steps < eval_every, e.g. smoke): keep final weights
+        model.load_state_dict(best[1])
+    else:
+        best = (float('nan'), None, None)
     st, top = mil_predict(model, bag, te, want_att=True)
     return st, top, {'val_ap': best[0], 'best_step': best[2], 'hist': hist, 'train_s': round(time.time() - t0, 1)}
 
