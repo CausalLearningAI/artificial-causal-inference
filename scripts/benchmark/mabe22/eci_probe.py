@@ -32,6 +32,7 @@ def main():
     ap.add_argument('--seeds', nargs='+', type=int, default=[0, 1, 2])
     ap.add_argument('--steps', type=int, default=3000)
     ap.add_argument('--tag', default='A0')
+    ap.add_argument('--tok', default='m448', help='m448 (A0 tokens) | m448o (A7 orbit-averaged)')
     args = ap.parse_args()
     t0 = time.time()
     dev = torch.device('cuda')
@@ -40,7 +41,7 @@ def main():
     E = pd.read_parquet(PLAN / 'eval_frames.parquet')
     toks, poss, lens_all = [], [], []
     for key in shards('eval'):
-        X, lens, Fm = load_shard(key, 'm448', False, stage)
+        X, lens, Fm = load_shard(key, args.tok, False, stage)
         toks.append(X)
         lens_all.append(lens)
         poss.append(np.load(TOK / f'{key}_pos448.npy'))

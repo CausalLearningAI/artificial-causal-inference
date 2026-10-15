@@ -7,6 +7,7 @@ fraction of frames where some mouse is missed; split by huddles label too.
 Output: OUT/masks/mask_qa.json
 """
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -27,30 +28,38 @@ def main():
         pos = np.concatenate([np.load(TOK / f'{k}_{name}.npy') for k in shards('eval')])
         Fm = pd.concat([pd.read_parquet(TOK / f'{k}_frames.parquet') for k in shards('eval')]).reset_index(drop=True)
         st = np.r_[0, np.cumsum(Fm[col].values)]
-        hit, miss_m, miss_f, w = [], [], [], E.w.values
+        hit, miss_m, miss_f = [], [], []
         for f in range(len(E)):
             kp = sk[E['clip'][f]]['keypoints'][E.i[f]].astype(np.float32) * 224 / 512  # (3, 12, 2) (y, x)
             y, x = np.clip(kp[..., 0], 0, 223), np.clip(kp[..., 1], 0, 223)
             cell = (y // px).astype(int) * G + (x // px).astype(int)
             kept = np.zeros(G * G, bool)
             kept[pos[st[f]:st[f + 1]]] = True
+            valid = ~(kp == 0).all(-1)  # (3, 12): a keypoint at (0, 0) is missing
+            vm = valid.any(1)  # mice with any keypoint
+            if not vm.any():
+                hit.append(np.nan); miss_m.append(np.nan); miss_f.append(np.nan)
+                continue
             h = kept[cell]  # (3, 12)
-            hit.append(h.mean())
-            mm = ~h.any(1)
-            miss_m.append(mm.mean())
-            miss_f.append(mm.any())
+            hit.append(h[valid].mean())
+            mm = ~(h & valid).any(1)
+            miss_m.append(mm[vm].mean())
+            miss_f.append(float(mm[vm].any()))
         hit, miss_m, miss_f = map(np.array, (hit, miss_m, miss_f))
-        hud = E.huddles.values.astype(bool)
+        ok = np.isfinite(hit)
+        hit, miss_m, miss_f, w, Fm, E2 = hit[ok], miss_m[ok], miss_f[ok], E.w.values[ok], Fm[ok], E[ok]
+        hud = E2.huddles.values.astype(bool)
         res[name] = {'kp_recall_w': float(np.average(hit, weights=w)),
                      'mouse_missed_frac_w': float(np.average(miss_m, weights=w)),
                      'frames_with_a_missed_mouse_w': float(np.average(miss_f, weights=w)),
                      'kp_recall_huddles_w': float(np.average(hit[hud], weights=w[hud])),
                      'frames_with_a_missed_mouse_huddles_w': float(np.average(miss_f[hud], weights=w[hud])),
+                     'frames_scored': int(ok.sum()), 'note': 'all-(0,0) keypoints = missing, excluded',
                      'kept_per_frame_w': float(np.average(Fm[col].values, weights=w)),
                      'kept_frac_of_grid_w': float(np.average(Fm[col].values, weights=w) / (G * G))}
         log(f'{name}: {res[name]}')
     (OUT / 'masks').mkdir(parents=True, exist_ok=True)
-    (OUT / 'masks' / 'mask_qa.json').write_text(json.dumps(res, indent=1))
+    (OUT / 'masks' / (os.environ.get('MASKQA_NAME') or 'mask_qa.json')).write_text(json.dumps(res, indent=1))
 
 
 if __name__ == '__main__':

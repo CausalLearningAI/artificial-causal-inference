@@ -39,6 +39,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts/eci'))
 from eci_common import LAG, OUT, PLAN, TOK, decode_clip, log, offset, stage_dir  # noqa: E402
 
 SETS = {'train': ('mouse_userTrain', 'train_frames.parquet'), 'eval': ('mouse_submission', 'eval_frames.parquet')}
@@ -90,6 +91,35 @@ class Enc:
         torch.cuda.synchronize()
         self.gpu_s += time.time() - t0
         self.n_img += len(frames)
+        return torch.cat(out)
+
+    def orbit(self, frames, bs=16):
+        """arm A7: frames (n, 224, 224, 3) -> (n, 1024, 768) float32 tokens averaged over the 8 D4 transforms of the 448
+        input, each transformed grid read back at the original patch positions (invariant_tokens 'orb' kind:
+        d4_torch, priors.d4_pos_map; token of original patch p = h_g[:, d4_pos_map(g)[p]])."""
+        torch = self.torch
+        F = torch.nn.functional
+        import invariant_tokens as it
+        from src.eci.priors import d4_pos_map
+        if not hasattr(self, 'maps'):
+            assert it.check_d4_torch()
+            self.maps = torch.stack([torch.from_numpy(d4_pos_map(g)) for g in range(8)]).to(self.dev)
+        out = []
+        torch.cuda.synchronize()
+        t0 = time.time()
+        with torch.inference_mode():
+            for a in range(0, len(frames), bs):
+                x = torch.from_numpy(np.ascontiguousarray(frames[a:a + bs])).to(self.dev).permute(0, 3, 1, 2).float()
+                x = F.interpolate(x, size=(448, 448), mode='bicubic', align_corners=False).round().clamp(0, 255)
+                x = (x / 255 - self.mean) / self.std
+                acc = 0
+                for g in range(8):
+                    h = self.model(pixel_values=it.d4_torch(x, g)).last_hidden_state[:, 1:].float()
+                    acc = acc + h[:, self.maps[g]]
+                out.append(acc / 8)
+        torch.cuda.synchronize()
+        self.gpu_s += time.time() - t0
+        self.n_img += 8 * len(frames)
         return torch.cat(out)
 
 
@@ -218,6 +248,9 @@ def main():
     ap.add_argument('--pixbg', choices=['clip', 'max', 'floor', 'arena'], default='clip')
     ap.add_argument('--extra-lags', nargs='*', type=int, default=[6, 15, 60],
                     help='extra lag frames (30 fps) stored at the t-frame mask positions (448 only); clipped to frame 0')
+    ap.add_argument('--reuse-mask', default='', help='token dir whose pos448 (same set / shard split) is reused')
+    ap.add_argument('--orbit', action='store_true', help='arm A7: also store D4 orbit-averaged t / lag tokens')
+    ap.add_argument('--only-lags', action='store_true', help='save only the extra-lag tokens (+ pos448, frames)')
     ap.add_argument('--smoke', type=int, default=0, help='only the first N clips of the shard')
     args = ap.parse_args()
     t00 = time.time()
@@ -235,12 +268,17 @@ def main():
     off = offset()
     vset = SETS[args.set][0]
     glob_bg = np.load(PLAN / 'pixbg_global.npy')
+    REF = None
+    if args.reuse_mask:
+        rk = f'{args.set}_{args.shard}of{args.nshard}'
+        RF = pd.read_parquet(Path(args.reuse_mask) / f'{rk}_frames.parquet')
+        REF = {'F': RF, 'pos': np.load(Path(args.reuse_mask) / f'{rk}_pos448.npy'), 'st': np.r_[0, np.cumsum(RF.n448.values)]}
     enc = Enc(dev)
     log(f'{key}: {len(clips)} clips, offset {off}, pixbg {args.pixbg}, {torch.cuda.get_device_name(0)}')
     A = {k: [] for k in ('m448_t', 'm448_p', 'pos448', 'm224_t', 'm224_p', 'pos224', 'all448_t', 'all448_p',
                          'rnd448_t', 'rnd448_p', 'posrnd')}
     meta, cinfo, sheet_rows = [], {}, []
-    is_eval = args.set == 'eval'
+    is_eval = args.set == 'eval' and not args.only_lags
     tdec = 0.0
     for ci, c in enumerate(clips):
         R = P[P['clip'] == c]
@@ -255,8 +293,24 @@ def main():
         M = clip_mask(enc, fr, ts, lags, args.pixbg, glob_bg, dev, tuple(args.extra_lags))
         cinfo[c] = M['info']
         mask, m16 = M['mask'], M['m16']
+        if REF is not None:  # --reuse-mask: the t-frame positions of an existing token store (bit-identical masks)
+            rr = np.flatnonzero(REF['F']['clip'].values == c)
+            assert (REF['F'].i.values[rr] == R.i.values).all()
+            mref = torch.zeros_like(mask)
+            for q, r_ in enumerate(rr):
+                mref[q, torch.from_numpy(REF['pos'][REF['st'][r_]:REF['st'][r_ + 1]].astype(np.int64)).to(dev)] = True
+            cinfo[c]['mask_agree_with_ref'] = float((mref == mask).float().mean())
+            mask = mref
+        if args.orbit:
+            ot, op = enc.orbit(fr[ts]), enc.orbit(fr[lags])
         for q in range(len(R)):
             p = torch.nonzero(mask[q]).flatten()
+            if args.orbit:
+                A.setdefault('m448o_t', []).append(ot[q, p].half().cpu().numpy())
+                A.setdefault('m448o_p', []).append(op[q, p].half().cpu().numpy())
+                if ci == 0 and q == 0:
+                    cinfo[c]['orbit_cos_vs_identity'] = float(torch.nn.functional.cosine_similarity(
+                        ot[q, p], M['tok_t'][q, p], dim=-1).mean())
             p2 = torch.nonzero(m16[q]).flatten()
             A['m448_t'].append(M['tok_t'][q, p].half().cpu().numpy())
             A['m448_p'].append(M['tok_p'][q, p].half().cpu().numpy())
@@ -286,7 +340,8 @@ def main():
     Fm = pd.DataFrame(meta)
     assert len(Fm) == int(P['clip'].isin(clips).sum())
     for k, v in A.items():
-        if not v:
+        if not v or (args.only_lags and not (k.startswith('m448_p') and k != 'm448_p') and k != 'pos448'
+                     and not k.startswith('m448o')):
             continue
         a = np.stack(v) if k.startswith('all448') else np.concatenate(v)
         np.save(stage / f'{key}_{k}.npy', a)

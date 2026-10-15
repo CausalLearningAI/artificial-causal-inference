@@ -23,16 +23,17 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from eci_common import BEHAVIOURS, OUT, PLAN, PRIMARY, SHORT  # noqa: E402
 
-ORDER = ['A0', 'A4', 'D02', 'D05', 'D2', 'A6', 'A3', 'A2k8', 'A2k16', 'A5', 'A1']
+ORDER = ['A0', 'A0_labmask', 'A4', 'D02', 'D05', 'D2', 'A6', 'A3', 'A2k8', 'A2k16', 'A5', 'A1', 'A7', 'X_D4', 'X_A3A4', 'X_D2A3']
 SIMPLER = {'A3': 'no Matryoshka', 'A6': 'no mask', 'A4': 'no delta', 'A2k8': 'no theta', 'A2k16': 'no theta'}
 ms = lambda a, n=3: f'{np.mean(a):.{n}f} ± {np.std(a):.{n}f}' if len(a) > 1 else (f'{np.mean(a):.{n}f}' if a else '-')  # noqa
 
 
 def load():
     R = {}
-    for f in sorted((OUT / 'eval').glob('*_s*.json')):
-        arm, seed = re.fullmatch(r'(.+)_s(\d+)\.json', f.name).groups()
-        R.setdefault(arm, {})[int(seed)] = json.loads(f.read_text())
+    for d, suf in ((OUT / 'eval', ''), (OUT / 'labmask' / 'eval', '_labmask')):
+        for f in sorted(d.glob('*_s*.json')) if d.exists() else []:
+            arm, seed = re.fullmatch(r'(.+)_s(\d+)\.json', f.name).groups()
+            R.setdefault(arm + suf, {})[int(seed)] = json.loads(f.read_text())
     return R
 
 
@@ -105,6 +106,9 @@ def main():
                                                           else '') if eq else ('worse' if dlt < 0 else 'not a win'))
             V[arm] = {'delta': dlt, 'pooled_sd': psd, 'ap_ratio': apr, 'win': bool(win), 'equivalent': bool(eq),
                       'verdict': verdict}
+            if arm.startswith('X_'):
+                verdict = 'exploratory (post hoc): ' + verdict
+                V[arm]['verdict'] = verdict
             L.append(f"| {arm} | {s['primary_mean_auroc']:.4f} | {dlt:+.4f} | {psd:.4f} | "
                      f"{' / '.join(f'{apr[b]:.2f}' for b in PRIMARY)} | {verdict} |")
         L.append('')
@@ -123,14 +127,30 @@ def main():
     C = {}
     for f in sorted((OUT / 'probe').glob('probe_*.json')) if (OUT / 'probe').exists() else []:
         for x in json.loads(f.read_text())['summary']:
-            C[(x['behaviour'], x['probe'])] = x
+            C[(x['behaviour'], x['probe'] if x['res'] == 'A0' else f"{x['probe']}_{x['res']}")] = x
     if C:
         L += ['## Supervised ceiling on the A0 eval tokens z_t (clip-grouped 5-fold CV, weighted): AUROC / AP', '',
-              '| label | n_fg only | mean_lin | mil_ctx |', '|---|---|---|---|']
+              '| label | n_fg only | mean_lin | mil_ctx | mean_lin (A7 orbit tokens) | mil_ctx (A7 orbit tokens) |',
+              '|---|---|---|---|---|---|']
         for b in BEHAVIOURS:
             f_ = lambda p: (f"{C[(b, p)]['auroc_mean']:.3f} / {C[(b, p)]['ap_mean']:.4f}" if (b, p) in C else '-')  # noqa
-            L.append(f'| {SHORT[b]} | {f_("n_fg_only")} | {f_("mean_lin")} | {f_("mil_ctx")} |')
+            L.append(f'| {SHORT[b]} | {f_("n_fg_only")} | {f_("mean_lin")} | {f_("mil_ctx")} | {f_("mean_lin_A7")} | '
+                     f'{f_("mil_ctx_A7")} |')
         L.append('')
+    # pose reference
+    pf = OUT / 'pose' / 'pose.json'
+    if pf.exists():
+        P = json.loads(pf.read_text())
+        L += ['## Pose reference (keypoints, label-free scalar scored as one neuron; analysis only): AUROC / AP / top-1%',
+              '', '| label | -min nose-nose | -min nose-tailbase |', '|---|---|---|']
+        for b in BEHAVIOURS:
+            f_ = lambda n: '{auroc:.3f} / {ap:.4f} / {top1:.3f}'.format(**P['scores'][n][b])  # noqa: E731
+            L.append(f'| {SHORT[b]} | {f_("neg_min_nose_nose")} | {f_("neg_min_nose_tailbase")} |')
+        L.append('')
+    qf = OUT / 'masks' / 'mask_qa.json'
+    if qf.exists():
+        Q = json.loads(qf.read_text())
+        L += ['## Mask QA vs keypoints (weighted over eval frames)', '', '```', json.dumps(Q, indent=1), '```', '']
     (OUT / 'table.md').write_text('\n'.join(L) + '\n')
     (OUT / 'summary.json').write_text(json.dumps({'arms': S, 'verdict': V, 'sniffing': sn,
                                                   'ceiling': {f'{b}/{p}': v for (b, p), v in C.items()}},
