@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # R4 rollout, CPU tail of one domain after its encode array (scripts/eci/rollout_r4.py): merge (fails loud when a video
-# is missing) -> frame theta (ftheta, the primary firing rule) -> per-video summaries under both rules -> behaviour alignment test check (mice, ants) -> NES jobs for both variants
+# is missing) -> frame-level firing rules (fnorm primary, ftheta, gt0) -> per-video summaries under both rules -> behaviour alignment test check (mice, ants) -> NES jobs for both variants
 # (scripts/eci/rollout_r4_nes.sh, submitted from here because the SAE names hold the chosen seed).
 #   sbatch --dependency=afterany:<encode array> --export=ALL,DOMAIN=ants_v2 scripts/eci/rollout_r4_post.sh
 #SBATCH --job-name=r4_post
@@ -27,6 +27,7 @@ case $DOMAIN in
 esac
 for v in d2 d0; do
   SAE=$(python -c "import json;print(json.load(open('results/vision/eci_rollout_r4/$DOMAIN/sae/best.json'))['$v']['name'])")
+  sbatch -J r4_nes_${DOMAIN}_${v}fn --export=ALL,DOMAIN=$ND,ANTS_ECI=$AE,SAE=${SAE}_fnorm,TAG=$DOMAIN,POOLINGS=max scripts/eci/rollout_r4_nes.sh
   sbatch -J r4_nes_${DOMAIN}_${v}ft --export=ALL,DOMAIN=$ND,ANTS_ECI=$AE,SAE=${SAE}_ftheta,TAG=$DOMAIN,POOLINGS=max scripts/eci/rollout_r4_nes.sh
   sbatch -J r4_nes_${DOMAIN}_$v --export=ALL,DOMAIN=$ND,ANTS_ECI=$AE,SAE=$SAE,TAG=$DOMAIN scripts/eci/rollout_r4_nes.sh
 done

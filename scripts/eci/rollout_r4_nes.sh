@@ -16,6 +16,8 @@
 #SBATCH --mem=64G
 module load conda
 conda activate crl
+command -v git >/dev/null 2>&1 || module load git/2.35.1   # some CPU nodes (beta*) have no system git
+command -v git >/dev/null 2>&1 || { echo 'no git: cannot record / snapshot the NES code'; exit 1; }
 export PYTHONUNBUFFERED=1 TQDM_DISABLE=1
 set -euo pipefail
 REPO=/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
