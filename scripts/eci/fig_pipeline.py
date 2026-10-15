@@ -715,10 +715,7 @@ def plot(args):
                            (xs['spatial'], 'c', 'Neural activation'), (xs['vid'], 'd', 'Video representation')):
         txt(xx, 0.6, lab, fontsize=8, weight='bold')
         txt(xx + 2.6, 0.85, title, fontsize=FS)
-    for k, title in (('vec', enc_label), ('pre', 'SAE (top-k)')):
-        txt(xs[k], Y_TITLE, title, color=C_DARK)
-    for i, title in enumerate(('time', 'bouts', 'latency')):
-        txt(xs['vid'] + i * (vw + vg), Y_TITLE, title, color=C_DARK)
+
     summ_out = {}
     from src.eci.sae import load_sae
     dims = {}
@@ -773,7 +770,7 @@ def plot(args):
         wh = next(iter(sz_d.get('sizes', {})), f'{m["native"]["size"][0]}x{m["native"]["size"][1]}').replace('x', '×')
         fps0 = float(next(iter(sz_d.get('fps', {})), m['native']['fps']))
         txt(xa, y0 - (top_h - Y_TITLE), f'original: {wh} px, {fps0:.0f} fps\nused: {m["input_px"]}×{m["input_px"]} px, {FPS:.0f} fps',
-            fontsize=FS_S - 0.2, color=C_DARK)
+            fontsize=5.0, color=C_GREY)
         x0 = xa + j_ex * dx + fw * 0.55
         y_top = top0 + j_ex * dy
         fig.patches.append(FancyArrowPatch((x0 / W, 1 - y_top / H), ((xs['grid'] - 0.4) / W, 1 - (y0 + 1.5) / H),
@@ -822,8 +819,9 @@ def plot(args):
         fig.add_artist(ConnectionPatch(xyA=(sx_ + 1, sy + 0.5), coordsA=zoom_ax.transData, xyB=(0, 0.5),
                                        coordsB=gl[0].transAxes, color=C_TOK, lw=0.5, arrowstyle='-|>',
                                        mutation_scale=4))
-        txt(xs['vec'] + 0.7 + VPAD / 2 + gw + gg / 2, vy_d - 0.25, 'per token', ha='center', va='bottom',
-            fontsize=FS_S - 0.6, color=C_TOK)
+        for k_, title in (('vec', enc_label), ('pre', 'SAE (top-k)')):  # step titles just above their panels
+            txt(xs[k_] + (0.7 + VPAD / 2 + gw + gg / 2 if k_ == 'vec' else 0.0), vy - 0.3, title, va='bottom',
+                ha='center' if k_ == 'vec' else 'left', color=C_DARK)
         # ---- b4: SAE encoder: dense pre-activations -> sparse code (threshold / top-k), the neuron highlighted
         pa = ax_mm(xs['pre'], vy, bw + 2.0, vh)
         bars(pa, A['pre'], len(A['pre']), hi=key, thr=m['sae_theta'])
@@ -888,7 +886,7 @@ def plot(args):
                 v_[~(V[0] > 0)] = np.nan
             bars(va_, v_, V.shape[1], hi=key)
             va_.annotate(vals[i], (0, key), xytext=(0.6, 0.7), textcoords='offset points', ha='left', va='bottom',
-                         fontsize=4.6, color=C_N, annotation_clip=False,
+                         fontsize=4.2, color=C_N, annotation_clip=False,
                          bbox=dict(fc='white', ec='none', pad=0.25, alpha=0.85))
             txt(xs['vid'] + i * (vw + vg), vy + vh + 0.3, ('time', 'bouts', 'latency')[i], fontsize=FS_S - 0.6,
                 color=C_DARK)
