@@ -43,6 +43,25 @@ PRE-REGISTERED DECISION (fixed before any D1 / D2 number was seen)
     If it passes, also reported: whether it beats M_pix on ants (9-run mean cf AUROC per label). M_dino_cur is scored
     with the same rule and reported alongside.
 
+RESULTS (2026-10-15; results/vision/eci_mask_test2/tables.md, summary.json): M_today STAYS (M_dino fails in both domains).
+    Token cue rebuilt exactly: today's rule on (token cue | dark core) gives the store mask back with 0 mismatched patches
+    (mice 5.47M patches on 37,013 frames, ants 0.95M on 19,200 frames).
+    Masks (eval kept / frame): mice today 149.1, token cue alone 47.8, M_dino 130.5 (inside today; holds 88.0% of
+    today's patches; 0.76% of eval frames have no patch); ants today 50.0, token cue 49.0, M_dino 107.8 (only 46% of
+    it inside today: plain dilation adds the non-dark ground around each ant), M_dino_cur 49.8 (99.5% of today's).
+    Accuracy, mice vs SAM + tails: patch recall today 0.966 / M_pix 0.985 / M_dino 0.904 (-6.2 pt); frames with a mouse
+    < 50% covered 0.05% / 0.22% / 15.7%, a mouse entirely missed 0.00% / 0.00% / 8.8% (still / huddled mice whose tokens
+    are the median background; the dark cue is what keeps them). Ants: strict centroid recall 0.992 / 1.000 / 0.990
+    (M_dino_cur 0.982), pixel + tracker recall 0.976 / 1.000 / 0.989 (0.968), precision 0.449 / 0.488 / 0.211 (0.446);
+    yellow-on-lid frames strict recall 0.994 / 1.000 / 0.892 (0.890).
+    Downstream cf AUROC, all pool x seed runs (mice today 6 runs, M_pix 6, M_dino 9; ants 9 each) today / M_pix /
+    M_dino / M_dino_cur: mice nn 0.678 / 0.671 / 0.696 / (= M_dino), nt 0.733 / 0.724 / 0.749; ants groom_any 0.866 /
+    0.829 / 0.798 / 0.843, Y2F 0.825 / 0.798 / 0.778 / 0.805, B2F 0.832 / 0.792 / 0.772 / 0.801, on-lid 0.960 / 0.815 /
+    0.960 / 0.940. Decision: M_dino passes the mice AUROC test (+0.018 / +0.016) but fails mice recall (-6.2 pt) and
+    fails ants grooming (-0.068 / -0.047 / -0.060); it does not beat M_pix on ants grooming (-0.020 to -0.031), only on
+    on-lid (+0.145). M_dino_cur fails too (mice = M_dino; ants B2F -0.031, on-lid -0.020). M_dino_cur keeps 99.5% of
+    today's ants patches, so its -0.02 / -0.03 gaps mostly measure run-to-run noise of 9-run means at this threshold.
+
 Steps (scripts/eci/mask_test2.sh)
     cue       (GPU) token cue + D1 / D2 masks of all train + eval store frames, reconstruction check, encode plan
               -> OUT/<d>/mask/{masks.npz, masks.json}
