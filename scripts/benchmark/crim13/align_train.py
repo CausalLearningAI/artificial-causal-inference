@@ -199,10 +199,12 @@ def main():
             Fm0 = pd.read_parquet(TOK / f'{base}_frames.parquet')
             if tok == 'rnd':
                 Fm0 = Fm0[Fm0.role != 'eval'].reset_index(drop=True)
+            X, lens, Fp = load(base, cfg, lag, stage, tok, (Fm0.role != 'eval').values)
+            tr = np.repeat(Fp.role.values, lens)
             for r in ('train', 'calib'):
-                X, lens, _ = load(base, cfg, lag, stage, tok, (Fm0.role == r).values)
-                out[r][0].append(X)
-                out[r][1].append(lens)
+                out[r][0].append(X[tr == r])
+                out[r][1].append(lens[Fp.role.values == r])
+            del X, tr
         Xtr, ltr, Xca, lca = (np.concatenate(v) for r in ('train', 'calib') for v in out[r])
         del out
         log(f'{args.arm} fold {fold}: train {Xtr.shape} on {len(ltr)} frames ({ltr.mean():.1f} tokens / frame), '
