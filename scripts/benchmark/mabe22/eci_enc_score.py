@@ -80,6 +80,46 @@ def main():
             desc.append((f'{d3l[0]} vs {d3b[0]} (descriptive)', sm[d3l[0]], sm[d3b[0]], 'descriptive'))
         L += S3.section('2. SAE arms vs D2 (DINOv2-B 448, last layer, no orbit, x = [z_t, z_t - z_t-60])', 'D2',
                         sm['D2'], arms + desc, out, 'sae')
+    # ---- addendum 2 (C1-C3; seeds 310-315) and the label-free 5/6-depth layer rule
+    C2S = list(range(310, 316))
+    sc = lambda r: S3.S(r, None, C2S)  # noqa: E731
+    depth = {'d2_448': 12, 'd3b_512': 12, 'd3l_512': 24, 'd2l_448': 24, 'vj_256': 24, 'vj_512x': 24, 'vj_512i': 24}
+    L += ['## Label-free layer rule (block round(5 n / 6)) vs the screens', '',
+          '| encoder | rule block | its ceiling score | best block | best ceiling score | consistent (<= 0.005) |',
+          '|---|---|---|---|---|---|']
+    out['layer_rule'] = {}
+    for t, n in depth.items():
+        if t not in C:
+            continue
+        rb, bb = int(round(5 * n / 6)), best[t]
+        if rb in C[t]:
+            ok = C[t][bb]['score'] - C[t][rb]['score'] <= 0.005
+            L.append(f"| {NAMES.get(t, t)} | {rb} | {C[t][rb]['score']:.4f} | {bb} | {C[t][bb]['score']:.4f} | {ok} |")
+            out['layer_rule'][t] = {'rule': rb, 'best': bb, 'consistent': bool(ok)}
+    L.append('')
+    d3l20, d2c = sc('D3L_d3l_512_L20'), sc('D2_d2_448_L12')
+    if d3l20 and d2c:
+        L += S3.section('C1. D3L-L20 confirmation, fresh seeds 310-315 vs fresh D2 (seeds 310-315)', 'D2_d2_448_L12',
+                        d2c, [('D3L_d3l_512_L20', d3l20, d2c, '')], out, 'C1')
+    if 'd2l_448' in C:
+        bl = best['d2l_448']
+        arms = sorted({bl, 20})
+        for l_ in arms:
+            r = sc(f'D2L_d2l_448_L{l_}')
+            if r and d3l20:
+                L += S3.section(f'C2. D3L-L20 (arm) vs D2L block {l_} (control; {"best-ceiling" if l_ == bl else "block 20"}),'
+                                ' seeds 310-315', f'D2L_d2l_448_L{l_}', r,
+                                [('D3L_d3l_512_L20', d3l20, r, '')] + ([(f'D2L_d2l_448_L{l_} vs D2 (descriptive)', r,
+                                                                       d2c, 'descriptive')] if d2c else []),
+                                out, f'C2_L{l_}')
+    d3lo = sc('D3LO_d3l_512o_L20')
+    if d3lo and d3l20:
+        L += S3.section('C3. D3L-L20 with D4 orbit (arm) vs D3L-L20 without (control), seeds 310-315', 'D3L_d3l_512_L20',
+                        d3l20, [('D3LO_d3l_512o_L20', d3lo, d3l20, '')], out, 'C3')
+    if d3l20:
+        vj = [(r, sm[r], d3l20, '') for r in runs if r.startswith(('VJ_', 'VJD_')) and r in sm]
+        if vj:
+            L += S3.section('V-JEPA arms vs D3L-L20 (seeds 310-315)', 'D3L_d3l_512_L20', d3l20, vj, out, 'VJ_vs_D3L')
     (E / 'encoders.md').write_text('\n'.join(L) + '\n')
     (E / 'encoders.json').write_text(json.dumps(out, indent=1, default=float))
     print('\n'.join(L))
