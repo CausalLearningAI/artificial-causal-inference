@@ -87,11 +87,11 @@ case "${1:-}" in
     done; done ;;
   beetle)
     sub maskqa "--domain beetle --pick final" --cpus-per-task=8 --mem=48G --time=00:40:00 --job-name=mu_beetle ;;
-  train)  # bash eci_mask_u.sh train <mabe|calms> [dependency]: per arm 2 jobs x 3 seeds (400-402, 403-405)
+  train)  # bash eci_mask_u.sh train <mabe|calms> [dependency]: one job per arm, 6 seeds (17:05: <= 30 min, less memory, for backfill)
     B=$2; D=${3:-}
-    for A in cur U; do for SS in "400 401 402" "403 404 405"; do
-      sub train "--bench $B --mask $A --seeds $SS" ${D:+--dependency=afterok:$D} --cpus-per-task=8 \
-        --mem=$([ $B = calms ] && echo 120G || echo 64G) --time=00:30:00 --job-name=mu_tr_${B}_$A
-    done; done ;;
+    for A in cur U; do
+      sub train "--bench $B --mask $A --seeds 400 401 402 403 404 405" ${D:+--dependency=afterok:$D} --cpus-per-task=8 \
+        --mem=$([ $B = calms ] && echo 80G || echo 40G) --time=00:$([ $B = calms ] && echo 30 || echo 25):00 --job-name=mu_tr_${B}_$A
+    done ;;
   *) echo "usage: $0 encode_mabe | encode_calms | beetle | train <mabe|calms> [dep]"; exit 1 ;;
 esac
