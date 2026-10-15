@@ -162,7 +162,7 @@ DOMS = (MICE, ANTS, FROGS)
 TEMPLATE = ROOT / 'scripts/eci/explorer_template.html'
 DATASET = ROOT / 'dataset'
 NES = 'results/vision/mice/eci/nes'
-ANES = 'results/vision/ants/eci/nes'
+ANES = str(ANTS.nes_root.relative_to(ROOT))  # results/vision/ants/<ANTS_ECI>/nes (eci = 10 min, eci30 = 30 min)
 FNES = 'results/vision/frogs/eci/nes'
 # The representations on the page (the ones that earned their place): per domain the foreground-mask SAE and the
 # full-frame SAE. DINOv3, background-subtracted and mask + motion SAEs (fg448mot, antsfgmot) are left out on purpose
@@ -266,8 +266,11 @@ FROGS_NOTE = ('Xenopus juvenile froglets (Sweeney group, ISTA), filmed top-down,
 VIEW = {'mice': {'title': 'Mice', 'subject': 'mouse', 'subjects': 'mice', 'top': 0, 'cmp_top': True,
                  'tile': 224, 'cols': 8, 'kr': 16, 'crop': None, 'crf': 30, 'keep': None, 'vnote': ''},
         'ants': {'title': 'Ants', 'subject': 'ant', 'subjects': 'ants', 'top': 10, 'cmp_top': False,
-                 'tile': 320, 'cols': 4, 'kr': 8, 'crop': None, 'crf': 27, 'keep': {'v2': None, 'v3': (2, 6, 8)},
-                 'drop': ('v3_6_vs_8',), 'vnote': 'v2 (t=1, 2) and v3 t=2, 6, 8'},
+                 'tile': 320, 'cols': 4, 'kr': 8, 'crop': None, 'crf': 27,
+                 'keep': {'v2': None, 'v3': (2, 6, 8), 'v4': (2, 6), 'v4_infested': (2, 6)},
+                 'drop': ('v3_6_vs_8',),
+                 'vnote': 'v2 (t=1, 2), v3 t=2, 6, 8, v4 and v4_infested t=2, 6' if 'v4' in ANTS.experiments()
+                          else 'v2 (t=1, 2) and v3 t=2, 6, 8'},
         # frogs: one experiment (exp, hour 1 of every frog); the arms are the design column 'arm' (group, its values in
         # 'arms' order, control first), the recording session ('day' column) stands where the ants' recording day does;
         # clips: whole frames at 320 px as the ants (the frog, ~80 px of the 512 px frame, is ~50 px long; the page's 2x
@@ -420,16 +423,16 @@ def keep_mask(view, df):
 
 
 def kept_analyses(dom, view):
-    """The domain's analysis ids whose control and treatment videos are both kept (VIEW 'keep') and that are not in
+    """The domain's analysis ids whose control and treatment videos are all kept (VIEW 'keep') and that are not in
     VIEW 'drop', in order."""
     ids = [a for a in dom.analysis_ids() if a not in view.get('drop', ())]
     if view['keep'] is None:
         return ids
+    vm = dom.video_meta()
     out = []
     for aid in ids:
-        m = dom.analysis(aid).meta
-        arms = pd.DataFrame({'experiment': [m['experiment']] * 2, 'T': [m['control'], m['treatment']]})
-        if keep_mask(view, arms).all():
+        c, t = dom.analysis(aid).arm_masks(vm)
+        if c.any() and t.any() and keep_mask(view, vm[c | t]).all():
             out.append(aid)
     return out
 
@@ -976,11 +979,8 @@ def contrast_groups(cfg, aid, vids):
     that genotype's videos in stage a / stage b; B (B_stage3) = het / wt videos of that stage; ants
     (v3_2_vs_8) = the control / treatment videos of that experiment. 'least' uses the union."""
     an = cfg.dom.analysis(aid)
-    if cfg.dom is not MICE:
-        m = np.ones(len(vids), bool)
-        for k, v in an.where.items():
-            m &= (vids[k] == v).values
-        return m & vids[an.arm].isin(an.control).values, m & vids[an.arm].isin(an.treatment).values
+    if cfg.dom is not MICE:  # ants infested vs healthy: the v4 / v4_infested videos of its treatment value(s)
+        return an.arm_masks(vids)
     st, gen = vids['stage'].astype(int).values, vids['genotype'].astype(str).values
     if an.family == 'A':
         g, (a, b) = an.genotype, an.stages
@@ -995,8 +995,27 @@ GROUP_COLS = {'mice': ('genotype', 'stage'), 'ants': ('experiment', 'T'),
 
 
 def arm_of(view, v):
-    """An arm value as the page holds it: the treatment number (ants, int) or the group name (frogs, VIEW 'arm')."""
-    return str(v) if view.get('arm') else int(v)
+    """An arm value as the page holds it: the treatment number (ants, int) or the group name (frogs, VIEW 'arm'; ants
+    infested vs healthy: 'healthy t=2', ...)."""
+    return str(v) if view.get('arm') or isinstance(v, str) else int(v)
+
+
+def arm_label(view, v):
+    """An arm as the page names it: 't=2' (ants treatment number), else the value ('FoxP1', 'healthy t=2')."""
+    v = arm_of(view, v)
+    return f't={v}' if isinstance(v, int) else v
+
+
+def analysis_arms(cfg, an):
+    """[[arm name, [[experiment, value], ...]] of the control, of the treated arm]: the (experiment, treatment value
+    or group) cells of each arm's videos, which key the page's histogram / chart groups ('experiment|T')."""
+    vm = with_exp(cfg.view, cfg.dom.video_meta().copy())
+    col = cfg.view.get('arm', 'T')
+    out = []
+    for name, m in zip((an.meta['control'], an.meta['treatment']), an.arm_masks(vm)):
+        cells = vm.loc[m, ['experiment', col]].drop_duplicates().sort_values(['experiment', col])
+        out.append([arm_label(cfg.view, name), [[str(e), arm_of(cfg.view, v)] for e, v in cells.itertuples(index=False)]])
+    return out
 
 
 def with_exp(view, df):
@@ -1951,9 +1970,14 @@ def analysis_meta(cfg, aid, r0):
         else:
             conf = m.get('confound', CONFOUND_FALLBACK.get(aid, ''))
         conf = conf if isinstance(conf, str) else ''
-        return {'id': aid, 'family': 'B', 'experiment': m.get('experiment', cfg.view.get('exp')),
-                'control': arm_of(cfg.view, m['control']), 'treatment': arm_of(cfg.view, m['treatment']),
-                'confound': conf, 'n_units': int(r0['n_units'])}
+        an = cfg.dom.analysis(aid)
+        out = {'id': aid, 'family': 'B', 'experiment': m.get('experiment', cfg.view.get('exp')),
+               'control': arm_of(cfg.view, m['control']), 'treatment': arm_of(cfg.view, m['treatment']),
+               'confound': conf, 'n_units': int(r0['n_units']), 'arms': analysis_arms(cfg, an)}
+        if an.arm != cfg.view.get('arm', 'T'):  # ants infested vs healthy: arms across two experiments, every day
+            ts = an.where.get('T', ())
+            out.update(cross=True, stratum='t=' + '+'.join(str(t) for t in ts), day_match=bool(an.day_match))
+        return out
     return ({'id': aid, 'family': 'A', 'genotype': r0['genotype'], 'stages': stages_of(aid),
              'n_units': int(r0['n_units'])} if aid.startswith('A') else
             {'id': aid, 'family': 'B', 'stage': int(r0['stage']), 'n_units': int(r0['n_units'])})
@@ -1973,7 +1997,7 @@ def censored_arms(cfg, o, aid):
     if cfg.dom is FROGS:
         labs = (an.meta['control'], an.meta['treatment'])
     elif cfg.dom is not MICE:
-        labs = (f't={an.meta["control"]}', f't={an.meta["treatment"]}')
+        labs = (arm_label(cfg.view, an.meta['control']), arm_label(cfg.view, an.meta['treatment']))
     elif an.family == 'A':
         labs = tuple(f'stage {x}' for x in an.stages)
     else:

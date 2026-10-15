@@ -267,11 +267,11 @@ const DETAILS = {
   ],
   ants: [
     ['Organism', 'Ants: a focal ant and two nestmates marked with orange and blue dots, filmed together.'],
-    ['Filming', 'One 10 min video per group (3000 frames at 5 frames per second). Two experiments: v2 (the ISTAnt dataset) and v3.'],
-    ['Units', 'Unit = video. v2: t=1 (24 videos) vs t=2 (20). v3: t=2 (38), t=6 (34), t=8 (35); the other v3 treatments are not shown. 151 videos in all.'],
-    ['Comparisons', 'Treated vs control videos within one experiment: v2 t=1 vs t=2, v3 t=2 vs t=6, v3 t=2 vs t=8. t = the treatment number; control = the lower number; τ = treated − control.'],
-    ['Time window', 'The whole 10 min video.'],
-    ['Design caveat', 'In v3, t=8 was recorded only on day C (brighter arena) and t=2 and t=6 only on days A and B, so t=2 vs t=8 is confounded with the recording day.'],
+    ['Filming', 'One video per group at 5 frames per second. Four series: v2 (the ISTAnt dataset, 10 min = 3000 frames: no longer footage), v3, v4 (Exp4, healthy colonies) and v4_infested (Exp4, infested colonies), 30 min each (9000 frames).'],
+    ['Units', 'Unit = video. v2: t=1 (24 videos) vs t=2 (20). v3: t=2 (38), t=6 (34), t=8 (35); the other v3 treatments are not shown. v4: t=2 (20), t=6 (20). v4_infested: t=2 (18), t=6 (23); the other Exp4 treatments are not shown.'],
+    ['Comparisons', 'Treated vs control videos within one series: v2 t=1 vs t=2, v3 t=2 vs t=6, v3 t=2 vs t=8, v4 t=2 vs t=6, v4_infested t=2 vs t=6 (t = the treatment number; control = the lower number; τ = treated − control). Exp4 infested vs healthy colonies: v4_infested vs v4 videos at t=2, at t=6, and t=2 and 6 pooled (τ = infested − healthy).'],
+    ['Time window', 'The whole video: 30 min for v3, v4 and v4_infested, 10 min for v2.'],
+    ['Design caveat', 'In v3, t=8 was recorded only on day C (brighter arena) and t=2 and t=6 only on days A and B, so t=2 vs t=8 is confounded with the recording day. Infested and healthy Exp4 colonies share only one recording day (F), so infested vs healthy is compared on all days without day matching: these comparisons are confounded with the recording day and batch. The within-series comparisons use only the recording days that hold both arms.'],
   ],
   frogs: [
     ['Organism', 'Xenopus juvenile froglets (Sweeney group, ISTA): wild type (WT) and half-embryo CRISPR mutants, where one side of the body is edited (FoxP1 gRNA1, En1 gRNA4). All frogs are genotyped.'],
@@ -352,6 +352,13 @@ const aSubj = () => DATA.subject==='ant' ? 'an ant' : DATA.subject==='frog' ? 't
 /* an arm value as shown: treatment number 't=2' (ants) or the group name 'FoxP1' (frogs) */
 const armL = v => typeof v === 'number' ? `t=${v}` : String(v);
 const armOrd = v => typeof v === 'number' ? v : (DATA.arms||[]).indexOf(v);
+/* the two arms of an ants / frogs comparison (i = 0 control, 1 treated): a.arms = [[name, [[experiment, value], ...]],
+   ...] from the build (one cell per arm within an experiment; ants infested vs healthy: v4 vs v4_infested videos of
+   one or two treatment values); older builds without a.arms: the experiment's control / treatment value */
+const armCells = (a, i) => a.arms ? a.arms[i][1] : [[a.experiment, i ? a.treatment : a.control]];
+const armName = (a, i) => a.arms ? a.arms[i][0] : armL(i ? a.treatment : a.control);
+const armKeys = (a, i) => armCells(a, i).map(([e, t]) => `${e}|${t}`);
+const inArm = (a, i, vv) => armCells(a, i).some(([e, t]) => vv[0]===e && vv[1]===t);
 /* per-video values of the current outcome for the current neuron: in its entry, or in the outcome's bundle file */
 function valsOf(n){
   const F = GOT[rfile()];
@@ -367,17 +374,20 @@ function clipLabel(v){
 }
 function label(a){
   if(FROGS()) return `${a.treatment} vs ${a.control}`;
+  if(a.cross) return `Exp4 infested vs healthy colonies · ${a.stratum} · not day-matched`;
   if(a.experiment) return `${a.experiment} · t=${a.control} vs t=${a.treatment}`;
   if(a.family==='A') return `${a.genotype} · ${TRANS[a.id.split('_')[2]]}`;
   return `het vs wt · stage ${a.stage} (${STAGE[a.stage]})`;
 }
 function shortLabel(a){
   if(FROGS()) return `${a.treatment} vs ${a.control}`;
+  if(a.cross) return `infested vs healthy ${a.stratum}`;
   if(a.experiment) return `${a.experiment} ${a.control}vs${a.treatment}`;
   return a.family==='A' ? `${a.genotype} ${a.stages[0]}→${a.stages[1]}` : `B${a.stage}`;
 }
 function longLabel(a){
   if(FROGS()) return `${a.treatment} frogs vs ${a.control} frogs (one video per frog, ${a.experiment})${a.confound?` (confounded with the ${a.confound})`:''}`;
+  if(a.cross) return `Exp4, ${a.stratum}: infested colonies (v4_infested videos) vs healthy colonies (v4 videos), on every recording day: confounded with the ${a.confound || 'recording day'}`;
   if(a.experiment) return `${a.experiment}: t=${a.treatment} videos vs t=${a.control} videos${a.confound?` (confounded with the ${a.confound})`:''}`;
   if(a.family==='A') return `${a.genotype}, stage ${a.stages[0]} (${STAGE_LONG[a.stages[0]]}) → stage ${a.stages[1]} (${STAGE_LONG[a.stages[1]]})`;
   return `het vs wt in stage ${a.stage} (${STAGE_LONG[a.stage]})`;
@@ -435,8 +445,9 @@ function sessionInfo(j){
 const CS_TIP = 'Change share: fraction of the neuron\'s decoder weight (squared norm) on the change half of the input [token, token − token 1 s earlier]; 0% = only what is there, 100% = only how it moves.';
 const csOf = j => DATA.change_share ? DATA.change_share[j] : null;
 const csHTML = j => { const c = csOf(j); return c==null ? '' : `<span class="pv tip" title="${CS_TIP}">Δ ${Math.round(c*100)}%</span>`; };
-/* columns of the charts highlighted for comparison a: stages (mice) or 'experiment|T' groups (ants) */
-const hlOf = a => a.experiment ? [`${a.experiment}|${a.control}`, `${a.experiment}|${a.treatment}`] : a.family==='A' ? a.stages : [a.stage];
+/* columns of the charts highlighted for comparison a: stages (mice) or the 'experiment|T' groups of its arms (ants;
+   .c / .t = the control / treated groups, coloured as in the histogram) */
+const hlOf = a => a.experiment ? Object.assign([...armKeys(a,0), ...armKeys(a,1)], {c:armKeys(a,0), t:armKeys(a,1)}) : a.family==='A' ? a.stages : [a.stage];
 /* outcome = (kind: event rate | average time) x (spatial aggregation: max | mean | SOMP); the id of the
    current model's outcome with that kind and aggregation, else that kind, else its first outcome */
 function pickOutcome(kind, agg){
@@ -510,7 +521,7 @@ function antPicker(){
   const AN = DATA.analyses, cur = analysis(state.aid) || AN[0];
   const E = $('#apE'), C = $('#apC'), T = $('#apT');
   const exps = [...new Set(AN.map(a=>a.experiment))];
-  const conv = FROGS() ? (x => x) : (x => +x);   // arm values: group names (frogs) or treatment numbers (ants)
+  const conv = FROGS() ? (x => x) : (x => (x!=='' && !isNaN(+x)) ? +x : x);   // arm values: group names (frogs), treatment numbers (ants) or 'healthy t=2' (ants infested vs healthy)
   const tvals = e => [...new Set([...VIDS().filter(v=>v[0]===e).map(v=>conv(v[1])), ...AN.filter(a=>a.experiment===e).flatMap(a=>[a.control, a.treatment])])].sort((p,q)=>armOrd(p)-armOrd(q));
   const find = (e, c, t) => AN.find(a => a.experiment===e && a.control===c && a.treatment===t);
   const cnt = a => { const R = res(a.id); return R.loading ? '·' : R.rows.length; };
@@ -724,10 +735,13 @@ function histSVG(n, a){
   const norm = c => { const s = c.reduce((p,q)=>p+q, 0) || 1; return c.map(v => v / s); };
   const series = [{c:norm(H.counts.all), col:'var(--faint)', fill:true, name:'all frames'}];
   if(a){
-    const keys = a.experiment ? [[`${a.experiment}|${a.control}`,'var(--wt)',armL(a.control)],[`${a.experiment}|${a.treatment}`,'var(--het)',armL(a.treatment)]]
-               : a.family==='A' ? [[`${a.genotype}|${a.stages[0]}`,'var(--wt)',`stage ${a.stages[0]}`],[`${a.genotype}|${a.stages[1]}`,'var(--het)',`stage ${a.stages[1]}`]]
-                                : [[`wt|${a.stage}`,'var(--wt)','wt'],[`het|${a.stage}`,'var(--het)','het']];
-    for(const [k,col,name] of keys) if(H.counts[k]) series.push({c:norm(H.counts[k]), col, name});
+    const keys = a.experiment ? [[armKeys(a,0),'var(--wt)',armName(a,0)],[armKeys(a,1),'var(--het)',armName(a,1)]]
+               : a.family==='A' ? [[[`${a.genotype}|${a.stages[0]}`],'var(--wt)',`stage ${a.stages[0]}`],[[`${a.genotype}|${a.stages[1]}`],'var(--het)',`stage ${a.stages[1]}`]]
+                                : [[[`wt|${a.stage}`],'var(--wt)','wt'],[[`het|${a.stage}`],'var(--het)','het']];
+    for(const [ks,col,name] of keys){  // an arm of several groups (ants infested vs healthy, t=2+6): their frames pooled
+      const cs = ks.map(k=>H.counts[k]).filter(Boolean);
+      if(cs.length) series.push({c:norm(cs.reduce((p,q)=>p.map((v,b)=>v+q[b]))), col, name});
+    }
   }
   const pos = series.flatMap(s => s.c).filter(v => v > 0), lo = Math.log10(Math.min(...pos)), hi = Math.log10(Math.max(...pos));
   const x = v => m.l + (v - E[0]) / (E[B] - E[0]) * (W - m.l - m.r);
@@ -818,7 +832,7 @@ function chartGroups(T, hl){
     s+=`<text x="${m.l-6}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)" ${F}>${fmt3(v)}</text>`;
   }
   T.forEach((t,i) => {
-    const k=`${t.experiment}|${t.T}`, col = k===hl[0] ? 'var(--wt)' : k===hl[1] ? 'var(--het)' : 'var(--ink)';
+    const k=`${t.experiment}|${t.T}`, col = (hl.c||[hl[0]]).includes(k) ? 'var(--wt)' : (hl.t||[hl[1]]).includes(k) ? 'var(--het)' : 'var(--ink)';
     if(i && T[i-1].experiment!==t.experiment) s+=`<line x1="${x(i)-bw/2}" x2="${x(i)-bw/2}" y1="${m.t}" y2="${H-m.b+30}" stroke="var(--line)"/>`;
     if(!i || T[i-1].experiment!==t.experiment) s+=`<text x="${x(i)-bw/2+3}" y="${H-m.b+29}" font-size="10" fill="var(--muted)" ${F}>${esc(t.experiment)}</text>`;
     s+=`<text x="${x(i)}" y="${H-m.b+15}" text-anchor="middle" font-size="11" fill="var(--ink)" ${F}>${esc(armL(t.T))}</text>`;
@@ -869,7 +883,7 @@ function renderDetail(){
     ? `The ${KR} highest single frames of this neuron (codes_${cd}), at most one per video: each video's highest frame, videos ranked by it.`
     : `Windows of ${w} consecutive frames (${LAB[L]} at 5 fps). In each video, the window with the highest MEAN activation (codes_${cd}) over its ${w} frames; the ${KR} videos with the highest such mean, ranked. Sustained events, not one-frame peaks.`) + cropTip;
   const silent = C.least_rule==='silent';
-  const pool = ca ? (FROGS() ? ` among the ${ca.control} and ${ca.treatment} frogs` : ca.experiment ? ` among the t=${ca.control} and t=${ca.treatment} videos of ${ca.experiment}` : ca.family==='A' ? ` among the ${ca.genotype} videos of stages ${ca.stages[0]} and ${ca.stages[1]}` : ` among the het and wt videos of stage ${ca.stage}`) : '';
+  const pool = ca ? (FROGS() ? ` among the ${ca.control} and ${ca.treatment} frogs` : ca.experiment ? ` among the ${armName(ca,0)} and ${armName(ca,1)} videos${ca.cross ? '' : ` of ${ca.experiment}`}` : ca.family==='A' ? ` among the ${ca.genotype} videos of stages ${ca.stages[0]} and ${ca.stages[1]}` : ` among the het and wt videos of stage ${ca.stage}`) : '';
   const leastTip = silent
     ? `${L==='frame'?'Frames':`Windows of ${w} consecutive frames`} where the neuron is exactly 0${L==='frame'?'':' on every frame'} (codes_${cd}): one picked at random in each of ${M.K} random videos${pool} (fixed seed)${KR<M.K?`; the first ${KR} are shown`:''}.`
     : `Fewer than ${M.K} videos${pool} contain a ${what} where the neuron is 0${L==='frame'?'':' on every frame'}, so these are the ${M.K} videos whose lowest-mean ${what} is lowest, that ${what} in each${KR<M.K?` (the first ${KR} shown)`:''}. Not silent: the neuron is weakly active here.`;
@@ -878,8 +892,8 @@ function renderDetail(){
   let split = '';
   if(ca){  // one row: the top windows among every video of the comparison; count them per stage / genotype / treatment
     const cnt = {};
-    for(const [v] of C.info.top){ const [, st, g] = VIDS()[v]; const k = ca.experiment ? armL(st) : ca.family==='A' ? `stage ${st}` : g; cnt[k] = (cnt[k]||0)+1; }
-    const keys = ca.experiment ? [armL(ca.control), armL(ca.treatment)] : ca.family==='A' ? ca.stages.map(s=>`stage ${s}`) : ['het','wt'];
+    for(const [v] of C.info.top){ const [, st, g] = VIDS()[v]; const k = ca.experiment ? (inArm(ca,1,VIDS()[v]) ? armName(ca,1) : inArm(ca,0,VIDS()[v]) ? armName(ca,0) : armL(st)) : ca.family==='A' ? `stage ${st}` : g; cnt[k] = (cnt[k]||0)+1; }
+    const keys = ca.experiment ? [armName(ca,0), armName(ca,1)] : ca.family==='A' ? ca.stages.map(s=>`stage ${s}`) : ['het','wt'];
     split = ' · ' + keys.map(k=>`${cnt[k]||0} ${k}`).join(', ');
   }
   if(GEN()){  // recording day (ants: the arena lighting differs between days) or recording session (frogs) of the top clips
@@ -962,8 +976,8 @@ function poolPanel(n, a){
   const lat = !!lwin(), cens = [];   // latency: censored videos (no bout) per arm, hollow dots
   const arm = (name, col, ix) => { ix = ix.filter(i=>V[i]!=null); if(lat) cens.push([name, ix.filter(i=>isCens(V[i],i)).length, ix.length]); return {name, col, v:ix.map(i=>V[i]), c:lat ? ix.map(i=>isCens(V[i],i)) : null}; };
   const idx = f => VIDS().map((vv,i)=>f(vv)?i:null).filter(i=>i!=null);
-  if(a.experiment){  // ants: control and treated videos of the experiment
-    for(const [t, col] of [[a.control,'var(--wt)'],[a.treatment,'var(--het)']]) rows.push(arm(armL(t), col, idx(vv=>vv[0]===a.experiment&&vv[1]===t)));
+  if(a.experiment){  // ants: control and treated videos of the experiment (infested vs healthy: of v4 / v4_infested)
+    for(const [i, col] of [[0,'var(--wt)'],[1,'var(--het)']]) rows.push(arm(armName(a,i), col, idx(vv=>inArm(a,i,vv))));
     axis = `${a.experiment} value (${u})`; lg = FROGS() ? 'dot = one frog (video)' : 'dot = one video';
   } else if(a.family==='A'){
     const [s0, s1] = a.stages, by = {};
