@@ -1770,6 +1770,42 @@ def cmd_report(args):
         vdir = bee(dom) / 'videos'
         d['videos_encoded'] = sum((vdir / f'{v["obs"]}.npz').exists() for v in P['videos']) if vdir.exists() else 0
         R['domains'][dom] = d
+    # seeds: chosen seed and every seed's held-out stats (OUT/<dom>/train.json)
+    for dom in list(R['domains']) + ['ants_pooled']:
+        f = OUT / dom / 'train.json'
+        if f.exists():
+            t = json.loads(f.read_text())
+            R.setdefault('seeds', {})[dom] = {v_: {'chosen': r['chosen'], 'per_seed': {
+                s_: {k_: x[k_] for k_ in ('eval_fve', 'eval_l0_per_token', 'eval_dead_frac', 'theta_star')}
+                for s_, x in r['seeds'].items()}} for v_, r in t['variants'].items()}
+    # r4 pooled ants manifest (atlas builder entry point)
+    if (OUT / 'ants_pooled' / 'sae' / 'best.json').exists():
+        best = json.loads((OUT / 'ants_pooled' / 'sae' / 'best.json').read_text())
+        M = {'name': 'r4 pooled', 'description': 'ONE ants SAE per variant (d2 = [z, z - z_{t-2 s}], d0 = z) for v2, v3 '
+                                                  '(t = 2, 6, 8), v4 and v4_infested (t = 2, 6); per-series input sizes',
+             'sae': {v_: {'name': best[v_]['name'], 'dir': str(OUT / 'ants_pooled' / 'sae' / best[v_]['name']),
+                          'theta_star': best[v_]['theta_star']} for v_ in VARIANTS},
+             'prepass': str(BEE / 'ants_pooled' / 'prepass'), 'primary_rule': 'fnorm', 'series': {}}
+        for dom in ('ants_v2p', 'ants_v3p', 'ants_v4p'):
+            c = DOMS[dom]
+            e = {'layout': str(REPO / c['eci']), 'ANTS_ECI': c['ants_eci'], 'codes_root': str(bee(dom) / 'layout' / 'codes'),
+                 'S': c['S'], 'source_offset': c['offset'], 'variants': {}}
+            for v_ in VARIANTS:
+                nm = best[v_]['name']
+                e['variants'][v_] = {
+                    'codes': {r: str(bee(dom) / 'layout' / 'codes' / (nm + suf)) for r, suf in
+                              (('gt0', ''), ('fnorm', '_fnorm'), ('ftheta', '_ftheta'))},
+                    'codes_exist': {r: (bee(dom) / 'layout' / 'codes' / (nm + suf) / 'DONE').exists() for r, suf in
+                                    (('gt0', ''), ('fnorm', '_fnorm'), ('ftheta', '_ftheta'))},
+                    'nes': {r: str(REPO / 'results/vision/ants' / c['ants_eci'] / 'nes' / (nm + suf)) for r, suf in
+                            (('gt0', ''), ('fnorm', '_fnorm'), ('ftheta', '_ftheta'))},
+                    'ness': {r: str(OUT / 'ness' / f'ants_{c["ants_eci"]}' / (nm + suf)) for r, suf in
+                             (('gt0', ''), ('fnorm', '_fnorm'), ('ftheta', '_ftheta'))},
+                    'summaries': str(OUT / dom / f'summaries_{v_}.npz')}
+            e['align'] = str(OUT / dom / 'align.json')
+            M['series'][c['series']] = e
+        (OUT / 'ants_pooled').mkdir(parents=True, exist_ok=True)
+        (OUT / 'ants_pooled' / 'manifest.json').write_text(json.dumps(M, indent=1))
     (OUT / 'report.json').write_text(json.dumps(R, indent=1, default=str))
     print(json.dumps({dom: {k_: v_ for k_, v_ in d.items() if k_ in ('S', 'G', 'patches_per_body', 'n_frames',
                                                                      'videos_encoded')}
