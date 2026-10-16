@@ -501,9 +501,12 @@ def step_render_new(c):
     if os.environ.get('LOCAL_DIR'):
         lst = loc.parent / 'frames.txt'
         loc.mkdir(parents=True, exist_ok=True)
-        lst.write_text('\n'.join(sorted(set(picks['frame_path'].values()))) + '\n')
+        rows = {r for n in picks['by_key'].get('max', {}).values()
+                for rr in BE.clip_rows(n, c.kr, BE.SHOW_LENGTHS).values() for r in rr}  # the rendered clips only
+        need = sorted({picks['frame_path'][str(r)] for r in rows})
+        lst.write_text('\n'.join(need) + '\n')
         subprocess.run(f'tar -C {BE.DATASET.resolve()} -cf - -T {lst} | tar -C {loc} -xf -', shell=True, check=True)
-        log(f'{c.tag} render: staged {len(set(picks["frame_path"].values()))} frames to {loc}')
+        log(f'{c.tag} render: staged {len(need)} frames (of {len(set(picks["frame_path"].values()))} picked) to {loc}')
         BE.DATASET = loc
     BE.step_render(c, A.overwrite, A.pack_mb)
 
