@@ -50,8 +50,9 @@ import numpy as np
 import pandas as pd
 
 REPO = Path(__file__).resolve().parents[2]
-LAYOUT = {'ants_v2': 'eci_r4v2', 'ants_v3': 'eci_r4v3', 'ants_v4': 'eci_r4v4', 'mice': None, 'frogs': None}
-FP16_KEYS = {'ants_v2'}  # rollout_r4.FP16_DOMAINS (asserted below)
+LAYOUT = {'ants_v2': 'eci_r4v2', 'ants_v3': 'eci_r4v3', 'ants_v4': 'eci_r4v4', 'mice': None, 'frogs': None,
+          'ants_v2p': 'eci_r4v2p', 'ants_v3p': 'eci_r4v3p', 'ants_v4p': 'eci_r4v4p'}  # *p: series of the pooled ants SAE
+FP16_KEYS = {'ants_v2', 'ants_v2p'}  # rollout_r4.FP16_DOMAINS (asserted below)
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--key', required=True, choices=list(LAYOUT))
@@ -83,6 +84,15 @@ import build_explorer as BE  # noqa: E402
 
 log = R4.log
 OUT37 = REPO / 'results/vision/eci_atlas_v37'
+
+
+def sae_root(dom):
+    """rollout_r4.sae_root (pooled ants series: OUT/ants_pooled/sae) where it exists."""
+    return R4.sae_root(dom) if hasattr(R4, 'sae_root') else R4.OUT / dom / 'sae'
+
+
+def prepass_json(dom):
+    return R4.prepass_json(dom) if hasattr(R4, 'prepass_json') else R4.OUT / dom / 'prepass.json'
 
 
 def enc_gpus(dom):
@@ -117,9 +127,9 @@ def setup():
     R4.check_amp(dom)
     c = R4.DOMS[dom]
     P = R4.load_plan(dom)
-    pre_amp = json.loads((R4.OUT / dom / 'prepass.json').read_text()).get('amp', 'bf16')
+    pre_amp = json.loads(prepass_json(dom).read_text()).get('amp', 'bf16')
     assert pre_amp == R4.AMP, (pre_amp, R4.AMP)
-    best = json.loads((R4.OUT / dom / 'sae' / 'best.json').read_text())[A.variant]
+    best = json.loads((sae_root(dom) / 'best.json').read_text())[A.variant]
     name = best['name']
     fname = f'{name}_fnorm'
     work = OUT37 / 'res' / f'{dom}_{A.variant}' / fname / '_cache' / 'explorer'
@@ -243,7 +253,7 @@ def gpu_part(S):
     torch.backends.cuda.matmul.allow_tf32 = False  # as rollout_r4 cmd_encode
     pipe = R4.Pipe(dom, dev, Rsrc)
     from src.eci.sae import load_sae
-    sae, norm, _ = load_sae(R4.OUT / dom / 'sae' / S['name'] / 'sae.pt', dev)
+    sae, norm, _ = load_sae(sae_root(dom) / S['name'] / 'sae.pt', dev)
     assert abs(float(sae.threshold) - S['best']['theta_star']) < 1e-6
     dec_s, n_dec = [0.0], [0]
 

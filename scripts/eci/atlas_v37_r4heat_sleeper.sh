@@ -23,7 +23,8 @@ while [ -n "$todo" ]; do
 import json, sys, time
 from pathlib import Path
 k, var = sys.argv[1], sys.argv[2]
-name = json.loads(Path(f'results/vision/eci_rollout_r4/{k}/sae/best.json').read_text())[var]['name']
+sr = 'ants_pooled' if k.endswith('p') else k  # pooled ants series: one SAE in ants_pooled/sae
+name = json.loads(Path(f'results/vision/eci_rollout_r4/{sr}/sae/best.json').read_text())[var]['name']
 w = Path(f'results/vision/eci_atlas_v37/res/{k}_{var}/{name}_fnorm/_cache/explorer')
 try:
     p = json.loads((w / 'picks.json').read_text())
