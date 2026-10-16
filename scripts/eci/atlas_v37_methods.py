@@ -453,6 +453,8 @@ def main():
                     help="mice: habituation window (whole = the runners' 'hwhole', the pre-2026-10-07 primary)")
     ap.add_argument('--prefixes', default=None, help='default 128,256 and the full width (512 / 1024)')
     ap.add_argument('--outcomes', default=','.join(OUTCOMES))
+    ap.add_argument('--nes-subdir', default=None, help='the NES searches of <res>/<subdir> (its sanity.json settings: '
+                    'e.g. v3_2_vs_8_noday, the run without --day) instead of <res>/pairs or <res>')
     ap.add_argument('--analyses', default=None, help='comma list (default: every core analysis, + C_* for mice)')
     ap.add_argument('--no-family-c', action='store_true')
     ap.add_argument('--workers', type=int, default=int(os.environ.get('SLURM_CPUS_PER_TASK', 1)))
@@ -466,9 +468,6 @@ def main():
     sys.path.insert(0, str(ROOT / 'src'))
     from eci import contrasts as C
     import eci.domain as Dm
-    if dom == 'ants' and ants_eci.startswith('eci_r4v3'):  # as scripts/eci/rollout_r4_nes.py: the pooled v3 2 vs 6+8
-        A = Dm.AntsDomain
-        A.LAYOUT_CONTRASTS = {**A.LAYOUT_CONTRASTS, ants_eci: A.LAYOUT_CONTRASTS['eci30']}
     D = Dm.get_domain(dom, 'core')
     if dom == 'ants' and D.ECI != ants_eci:
         raise SystemExit(f'AntsDomain.ECI {D.ECI} != {ants_eci}')
@@ -478,7 +477,7 @@ def main():
         raise SystemExit('--hab-window whole: mice only')
     # the NES searches the page reads (build_explorer.rdir_of): <res>/pairs/ when that analysis-set run exists (ants;
     # its first analyses repeat the core ones), else <res>
-    rdir = res / 'pairs' if (res / 'pairs' / 'summary.csv').exists() else res
+    rdir = res / args.nes_subdir if args.nes_subdir else res / 'pairs' if (res / 'pairs' / 'summary.csv').exists() else res
     sanity = json.loads((rdir / 'sanity.json').read_text())
     nes_nuis = sanity.get('nuisance') or 'none'
     nes_day = sanity.get('day')
@@ -540,8 +539,7 @@ def main():
             'dines_settings': DINES_KW, 'family_c_nes': 'neural_effect_search two-sample, bonferroni 0.05, select p, '
                                                         'nuisance = per-pool n_fg difference (b - a)',
             'skipped': skipped, 'n_tasks': len(specs), 'start': time.strftime('%Y-%m-%dT%H:%M:%S'),
-            'ants_layout_patch': 'LAYOUT_CONTRASTS[eci_r4v3*] = LAYOUT_CONTRASTS[eci30]' if dom == 'ants' and
-            ants_eci.startswith('eci_r4v3') else None}
+            'ants_layout_patch': None, 'nes_subdir': args.nes_subdir}
     (base / 'code.json').write_text(json.dumps(code, indent=1))
     print(f'{len(specs)} tasks, {args.workers} workers -> {base}', flush=True)
 

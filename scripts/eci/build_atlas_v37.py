@@ -120,11 +120,8 @@ import pandas as pd  # noqa: E402
 
 import src.eci.domain as Dm  # noqa: E402
 
-# the R4 NES wrapper's class patch for the eci_r4v3* layouts (scripts/eci/rollout_r4_nes.py): pooled v3 t=2 vs t=6+8
-_eci = os.environ.get('ANTS_ECI', 'eci')
-if _eci.startswith('eci_r4v3'):
-    _A = Dm.AntsDomain
-    _A.LAYOUT_CONTRASTS = {**_A.LAYOUT_CONTRASTS, _eci: _A.LAYOUT_CONTRASTS['eci30']}
+# the eci_r4v3* layouts: the core v3 contrasts t=2 vs t=6 and t=2 vs t=8 (the pooled t=2 vs t=6+8 patch of the R4 NES
+# wrapper was dropped on 2026-10-16; its old rows are left out by the analysis list)
 
 # mice family C (genotype x phase transition): unit = pool, outcome = stage b - stage a per pool, het vs wt
 _mice_an = Dm.MiceDomain.analyses.fget
@@ -291,43 +288,29 @@ def read_tidy(files):
 
 def mirror_outcome(dst, srcs):
     """dst/summary.csv = the union of the srcs' summary.csv (+ C_summary.csv); dst/<aid> -> the src analysis dirs
-    (result.json: first-round tables, latency W); size_adjusted.csv of the first src that has one."""
+    (result.json: first-round tables, latency W); size_adjusted.csv of the first src that has one. A src may be
+    (path, analysis ids): only those analyses of it are taken."""
     dst.mkdir(parents=True, exist_ok=True)
-    files = []
+    parts = []
     for s in srcs:
-        files += [s / 'summary.csv', s / 'C_summary.csv']
+        s, only = s if isinstance(s, tuple) else (s, None)
         for d in sorted(p for p in s.iterdir() if p.is_dir() and (p / 'result.json').exists()):
-            link(d.resolve(), dst / d.name)
-    t = read_tidy(files)
-    if t is None:
+            if only is None or d.name in only:
+                link(d.resolve(), dst / d.name)
+        t = read_tidy([s / 'summary.csv', s / 'C_summary.csv'])
+        if t is not None and only is not None:
+            t = t[t['analysis_id'].astype(str).isin(only)]
+        if t is not None:
+            parts.append(t)
+    if not parts:
         return False
-    t.to_csv(dst / 'summary.csv', index=False)
+    pd.concat(parts, ignore_index=True, sort=False).to_csv(dst / 'summary.csv', index=False)
     for s in srcs:
+        if isinstance(s, tuple):
+            continue
         if (s / 'size_adjusted.csv').exists() and not (dst / 'size_adjusted.csv').exists():
             shutil.copy(s / 'size_adjusted.csv', dst / 'size_adjusted.csv')
     return True
-
-
-def make_cfg(res, sae, dom, tag, out):
-    """A build_explorer Cfg without its __init__ (whose outcome discovery assumes one NES result set): the outcomes
-    are set by add_outcomes."""
-    c = object.__new__(BE.Cfg)
-    c.res, c.sae, c.tag, c.dom = res, sae, tag, dom
-    c.view = BE.VIEW[dom.name]
-    c.vdom = None if dom is BE.MICE else dom
-    c.order = BE.kept_analyses(dom, c.view)
-    c.out, c.assets, c.work = out, out / 'assets', res / '_cache' / 'explorer'
-    c.rdir, c.ameta = res, {}
-    c.outcomes, c.extras, c.subsets, c.xsubsets = [], [], {}, {}
-    nf = dom.eci_dir / 'codes' / sae / 'n_fg.npy'
-    c.size_ok = not (nf.exists() and np.ptp(np.load(nf, mmap_mode='r')[::97]) == 0)
-    c.noclip, c.clipplan = set(), None
-    c.keys = ['max']
-    c.rep, c.align, c.rot = 'fg448', 'none', None  # whole-frame square grid (frame_box), no alignment
-    c.artefact, c.interp = set(), {}
-    c.crf = c.view['crf']
-    c.tile, c.cols, c.kr, c.crop = (c.view[k] for k in ('tile', 'cols', 'kr', 'crop'))
-    return c
 
 
 def add_outcomes(c, base, prefix, cache, kinds=('rate', 'time', 'latency'), dines=False):
@@ -364,6 +347,12 @@ def add_outcomes(c, base, prefix, cache, kinds=('rate', 'time', 'latency'), dine
 
 
 # ---------------------------------------------------------------------- new model (R4)
+# searches added to a build's virtual result set: key -> (NES subdir of the R4 result set, methods out-root, analyses).
+# v3 t=2 vs t=8 shares no recording day, so the --day runs skip it; it is searched without --day (n_fg only,
+# scripts/eci/r4_v3_2v8.sh), its NES rows from <R4 result set>/v3_2_vs_8_noday, its DINES rows from methods_v3_2v8
+EXTRA_SEARCHES = {'ants_v3p_d2': ('v3_2_vs_8_noday', OUT / 'methods_v3_2v8', ('v3_2_vs_8',))}
+
+
 def new_paths():
     dom_name, lay, nes_root, rdom = NEW[A.dom]
     sae = best_sae(rdom, A.variant) + '_fnorm'
@@ -383,10 +372,14 @@ def step_prep_new():
     for f in (src / '_cache').glob('bout_thresholds*.npz'):
         link(f.resolve(), V / '_cache' / f.name)
     have = {}
-    for meth, srcs in (('nes', [src, M / 'familyC_nes']), ('dines', [M / 'dines', M / 'familyC_dines'])):
+    xs = EXTRA_SEARCHES.get(key)
+    xn = [(src / xs[0], xs[2])] if xs else []
+    xd = [(xs[1] / METHOD_KEY[A.dom] / sae / 'dines', xs[2])] if xs else []
+    for meth, srcs in (('nes', [src, M / 'familyC_nes'] + xn), ('dines', [M / 'dines', M / 'familyC_dines'] + xd)):
         have[meth] = []
         for kind, sub, *_ in OUTS:
-            ss = [s / sub if sub != '.' else s for s in srcs if (s / sub).is_dir()]
+            ss = [((s[0] / sub if sub != '.' else s[0]), s[1]) if isinstance(s, tuple) else (s / sub if sub != '.' else s)
+                  for s in srcs if ((s[0] if isinstance(s, tuple) else s) / sub).is_dir()]
             if ss and mirror_outcome(V / meth / sub if sub != '.' else V / meth, ss):
                 have[meth].append(kind)
         if (srcs[0] / 'selected_neurons.json').exists():

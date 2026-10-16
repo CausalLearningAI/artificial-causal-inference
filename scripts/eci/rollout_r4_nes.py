@@ -3,8 +3,11 @@ Run one existing NES runner (scripts/eci/run_nes.py / run_nes_bouts.py / run_nes
 from the code tree ROOT (env NES_CODE_ROOT, default this repo; rollout_r4_nes.sh points it at a clean `git archive`
 of HEAD when the working tree of the NES code is dirty).
 The ants R4 layouts get two class-attribute patches (no file of the shared tree is edited):
-    ANTS_ECI=eci_r4v3*  the 30-min layout's pooled contrast v3 t=2 vs t=6+8 (LAYOUT_CONTRASTS['eci30']), and the
-                        null / frame-illustration analysis v3_2_vs_6 instead of v2_1_vs_2 (no v2 videos there)
+    ANTS_ECI=eci_r4v3*  the null / frame-illustration analysis v3_2_vs_6 instead of v2_1_vs_2 (no v2 videos there).
+                        The v3 contrasts are the core ones, t=2 vs t=6 and t=2 vs t=8 (until 2026-10-16 this wrapper
+                        also added the pooled t=2 vs t=6+8 of the 30-min layout; the user never wanted it). t=2 vs t=8
+                        shares no recording day, so a --day run skips it: it is searched without --day
+                        (scripts/eci/r4_v3_2v8.sh)
     ANTS_ECI=eci_r4v2*  nothing (v2_1_vs_2 is the only contrast, as in every ants layout)
     usage: python scripts/eci/rollout_r4_nes.py run_nes.py --domain ants --sae ... (runner arguments)
 """
@@ -20,7 +23,6 @@ import eci.domain as Dm  # noqa: E402
 eci = os.environ.get('ANTS_ECI', 'eci')
 A = Dm.AntsDomain
 if eci.startswith('eci_r4v3'):
-    A.LAYOUT_CONTRASTS = {**A.LAYOUT_CONTRASTS, eci: A.LAYOUT_CONTRASTS['eci30']}
     A.null_two = A.frame_analysis = A.frame_key = 'v3_2_vs_6'
     A.text = {**A.text, 'null_two': 'Treatment labels shuffled across videos (v3_2_vs_6', 'frame': 'treatment in v3 (2 vs 6)',
               'null_two_bouts': 'treatment shuffled across videos (v3_2_vs_6)'}
