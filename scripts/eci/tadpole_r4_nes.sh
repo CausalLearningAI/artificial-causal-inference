@@ -38,6 +38,10 @@ H=$(cd $L && sha1sum src/eci/dines.py src/eci/nes.py scripts/eci/atlas_v37_metho
 NESSC=$(git log -1 --format=%h $CODE_COMMIT -- src/eci/dines.py scripts/eci/atlas_v37_methods.py)
 printf '{"commit": "%s", "ness_last_change_commit": "%s", "file_sha1": "%s", "code_root": "%s", "sae": "%s", "domain": "tadpoles", "TADPOLE_TAG": "_r4", "time": "%s"}\n' \
   "$CODE_COMMIT" "$NESSC" "$H" "$L" "$SAE" "$(date -Is)" > results/vision/eci_rollout_r4/nes_code/frogs_tadpole_${SAE}.json
+python - <<PY
+import json; f='results/vision/eci_rollout_r4/nes_code/frogs_tadpole_${SAE}.json'; j=json.load(open(f))
+j['qc'] = json.load(open('results/vision/eci_rollout_r4/frogs_tadpole/qc.json')); json.dump(j, open(f, 'w'), indent=1)
+PY
 echo "code $CODE_COMMIT (NESS files last changed in $NESSC) -> $L"
 W="python -u $L/scripts/eci/tadpole_r4_nes.py"
 COMMON="--domain tadpoles --sae $SAE --prefixes $PREFIXES --nuisance nfg --select p"

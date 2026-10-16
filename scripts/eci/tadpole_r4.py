@@ -857,6 +857,58 @@ def cmd_check(args):
         raise SystemExit(f'SEEK != SEQUENTIAL: {bad}')
 
 
+# ---------------------------------------------------------------------------------------------- QC exclusion
+QC_MIN_NODES_IN_CROP = 0.80
+
+
+def qc_excluded():
+    """QC exclusion rule (decided 2026-10-16 08:05 after the v2 crop validation): a video whose fraction of predicted
+    SLEAP nodes inside the crop box is < QC_MIN_NODES_IN_CROP leaves every downstream analysis (summaries, NES, NESS).
+    SLEAP is the check here, never an input of the crop. The SAE keeps its training sample (unsupervised, no test)."""
+    V = json.loads((OUT / 'crop_validation.json').read_text())
+    return sorted(p['obs'] for p in V['per_video'] if p['nodes_in_box_frac'] < QC_MIN_NODES_IN_CROP), V
+
+
+def cmd_qc(args):
+    ex, V = qc_excluded()
+    q = {'rule': f'exclude a video when the fraction of its predicted SLEAP nodes inside the crop box is < '
+                 f'{QC_MIN_NODES_IN_CROP} (crop_validation.json per_video nodes_in_box_frac; SLEAP only as a check)',
+         'excluded': ex, 'excluded_nodes_in_box_frac': {p['obs']: p['nodes_in_box_frac'] for p in V['per_video']
+                                                        if p['obs'] in ex},
+         'n_videos_kept': V['n_videos'] - len(ex), 'applies_to': ['summaries', 'NES', 'NESS'],
+         'sae': 'unchanged: trained on the prepass sample of all 118 videos (unsupervised; no test uses it)',
+         'gate': {'frac_frames_gt_48px': V['crop_centre_vs_sleap_centre_px']['frac_gt_48'], 'max_allowed': 0.015,
+                  'min_video_nodes_in_box_frac': min(p['nodes_in_box_frac'] for p in V['per_video'])}}
+    (OUT / 'qc.json').write_text(json.dumps(q, indent=1))
+    log(json.dumps(q))
+
+
+def cmd_summaries(args):
+    """rollout_r4 summaries (all 118 videos -> summaries_all_<v>.npz), then the QC-kept videos -> summaries_<v>.npz and
+    summaries.json (same statistics, computed on the kept videos only)."""
+    R.cmd_summaries(args)
+    ex, _ = qc_excluded()
+    S = {}
+    for v_ in R.VARIANTS:
+        f = OUT / f'summaries_{v_}.npz'
+        z = dict(np.load(f, allow_pickle=False))
+        os.replace(f, OUT / f'summaries_all_{v_}.npz')
+        keep = ~np.isin(z['obs'], ex)
+        nv = len(z['obs'])
+        out = {k_: (a[keep] if a.ndim >= 1 and len(a) == nv else a) for k_, a in z.items()}
+        out['qc_excluded'] = np.array(ex)
+        np.savez_compressed(f, **out)
+        S[v_] = {r: {'median_time_spent': float(np.median(out[f'time_spent_{r}'].mean(0))),
+                     'mean_time_spent': float(out[f'time_spent_{r}'].mean()),
+                     'median_bout_rate_per_min': float(np.median(out[f'bout_rate_per_min_{r}'].mean(0))),
+                     'never_firing_video_neuron_frac': float(out[f'latency_censored_{r}'].mean())}
+                 for r in ('fnorm', 'ftheta', 'gt0')}
+        S[v_]['n_videos'] = int(keep.sum())
+    S['qc_excluded'] = ex
+    (OUT / 'summaries.json').write_text(json.dumps(S, indent=1))
+    log(json.dumps(S))
+
+
 # ---------------------------------------------------------------------------------------------- register in rollout_r4
 R.DOMS[DOM] = dict(ann=str(LAYOUT_LINK / 'annotations.csv'), exp=str(LAYOUT_LINK / 'experiment.csv'), fps=FPS,
                    step=STEP, offset=OFFSET, S=S, rule='tadpoles_r4_tracker_free', bg=str(BEE / LOCATE),
@@ -887,8 +939,10 @@ def cmd_manifest(args):
             'summaries': str(OUT / f'summaries_{v_}.npz')}
     for f in sorted((OUT / 'code').glob('*.json')) if (OUT / 'code').exists() else []:
         M['commits'][f.stem] = json.loads(f.read_text())
-    M['files'] = {k_: str(OUT / f'{k_}.json') for k_ in ('plan', 'design', 'crop_validation', 'prepass', 'train', 'merge',
-                                                          'ftheta', 'summaries') if (OUT / f'{k_}.json').exists()}
+    M['files'] = {k_: str(OUT / f'{k_}.json') for k_ in ('plan', 'design', 'crop_validation', 'check', 'prepass', 'train',
+                                                          'merge', 'ftheta', 'summaries', 'qc') if (OUT / f'{k_}.json').exists()}
+    M['qc'] = json.loads((OUT / 'qc.json').read_text()) if (OUT / 'qc.json').exists() else None
+    M['summaries_all_videos'] = {v_: str(OUT / f'summaries_all_{v_}.npz') for v_ in R.VARIANTS}
     M['crop_sheet'] = str(OUT / 'crop_sheet.jpg')
     M['mask_sheet'] = str(OUT / 'mask_sheet.jpg')
     (OUT / 'manifest.json').write_text(json.dumps(M, indent=1))
@@ -898,7 +952,7 @@ def cmd_manifest(args):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('step', choices=('plan', 'check', 'locate', 'validate', 'prepass', 'train', 'encode', 'merge', 'ftheta',
-                                    'summaries', 'manifest'))
+                                    'summaries', 'manifest', 'qc'))
     p.add_argument('--task', type=int, default=None)
     p.add_argument('--shard', type=int, default=0)
     p.add_argument('--videos', default=None)
@@ -916,7 +970,7 @@ def main():
     args = p.parse_args()
     args.domain = DOM
     {'plan': cmd_plan, 'check': cmd_check, 'locate': cmd_locate, 'validate': cmd_validate, 'prepass': cmd_prepass, 'train': R.cmd_train,
-     'encode': cmd_encode, 'merge': R.cmd_merge, 'ftheta': R.cmd_ftheta, 'summaries': R.cmd_summaries,
+     'encode': cmd_encode, 'merge': R.cmd_merge, 'ftheta': R.cmd_ftheta, 'summaries': cmd_summaries, 'qc': cmd_qc,
      'manifest': cmd_manifest}[args.step](args)
 
 

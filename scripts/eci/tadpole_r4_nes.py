@@ -23,6 +23,24 @@ import eci.domain as Dm  # noqa: E402
 
 CONTRASTS = (('WT', 'FoxP1'), ('WT', 'En1'))
 Dm.TadpolesDomain.CONTRASTS = CONTRASTS
+# QC exclusion (results/vision/eci_rollout_r4/frogs_tadpole/qc.json): those videos leave the design; obs_row is
+# renumbered 0..n-1 so every per-video cache of the runners is computed on the kept videos only
+import json  # noqa: E402
+import numpy as np  # noqa: E402
+QC = json.loads((Path('/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_rollout_r4/'
+                      'frogs_tadpole/qc.json')).read_text())
+EXCL = set(QC['excluded'])
+_load = Dm.TadpolesDomain.load_design
+
+
+def _load_qc(self):
+    d = _load(self)
+    d = d[~d['observation_id'].isin(EXCL)].reset_index(drop=True)
+    d['obs_row'] = np.arange(len(d))
+    return d
+
+
+Dm.TadpolesDomain.load_design = _load_qc
 assert str(Dm.TadpolesDomain.eci_dir).endswith('eci_tadpole_r4'), Dm.TadpolesDomain.eci_dir
 runner = ROOT / 'scripts/eci' / sys.argv[1]
 if sys.argv[1] == 'atlas_v37_methods.py':
@@ -37,6 +55,7 @@ if sys.argv[1] == 'atlas_v37_methods.py':
     runner = runner.with_name('atlas_v37_methods_tadpole_r4.py')
     runner.write_text(src)
 sys.argv = [str(runner)] + sys.argv[2:]
-print(f'[tadpole_r4_nes] code root {ROOT}, eci_dir {Dm.TadpolesDomain.eci_dir}, contrasts {CONTRASTS}, runner {runner.name}',
+print(f'[tadpole_r4_nes] code root {ROOT}, eci_dir {Dm.TadpolesDomain.eci_dir}, contrasts {CONTRASTS}, '
+      f'QC excluded {sorted(EXCL)}, runner {runner.name}',
       flush=True)
 runpy.run_path(str(runner), run_name='__main__')
