@@ -24,6 +24,10 @@ if eci.startswith('eci_r4v3'):
     A.null_two = A.frame_analysis = A.frame_key = 'v3_2_vs_6'
     A.text = {**A.text, 'null_two': 'Treatment labels shuffled across videos (v3_2_vs_6', 'frame': 'treatment in v3 (2 vs 6)',
               'null_two_bouts': 'treatment shuffled across videos (v3_2_vs_6)'}
+if eci.startswith('eci_r4v4'):  # ants v4 healthy + infested: no v2 videos there
+    A.null_two = A.frame_analysis = A.frame_key = 'v4_2_vs_6'
+    A.text = {**A.text, 'null_two': 'Treatment labels shuffled across videos (v4_2_vs_6', 'frame': 'treatment in v4 (2 vs 6)',
+              'null_two_bouts': 'treatment shuffled across videos (v4_2_vs_6)'}
 runner = ROOT / 'scripts/eci' / sys.argv[1]
 sys.argv = [str(runner)] + sys.argv[2:]
 print(f'[rollout_r4_nes] code root {ROOT}, ANTS_ECI {eci}, runner {runner.name}', flush=True)

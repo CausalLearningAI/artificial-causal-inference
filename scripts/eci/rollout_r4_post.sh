@@ -23,6 +23,7 @@ case $DOMAIN in
   mice) ND=mice; AE="";;
   ants_v2) ND=ants; AE=eci_r4v2;;
   ants_v3) ND=ants; AE=eci_r4v3;;
+  ants_v4) ND=ants; AE=eci_r4v4;;
   frogs) ND=frogs; AE="";;
 esac
 for v in d2 d0; do
@@ -31,5 +32,5 @@ for v in d2 d0; do
   sbatch -J r4_nes_${DOMAIN}_${v}ft --export=ALL,DOMAIN=$ND,ANTS_ECI=$AE,SAE=${SAE}_ftheta,TAG=$DOMAIN,POOLINGS=max scripts/eci/rollout_r4_nes.sh
   sbatch -J r4_nes_${DOMAIN}_$v --export=ALL,DOMAIN=$ND,ANTS_ECI=$AE,SAE=$SAE,TAG=$DOMAIN scripts/eci/rollout_r4_nes.sh
 done
-if [ "$DOMAIN" != "frogs" ]; then python -u scripts/eci/rollout_r4.py align --domain $DOMAIN; fi
+if [ "$DOMAIN" != "frogs" ] && [ "$DOMAIN" != "ants_v4" ]; then python -u scripts/eci/rollout_r4.py align --domain $DOMAIN; fi
 echo done

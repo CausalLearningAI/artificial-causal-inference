@@ -87,6 +87,10 @@ def check_amp(dom):
     if AMP != 'bf16' and not os.environ.get('R4_TEST') and dom not in FP16_DOMAINS:
         raise SystemExit(f'{dom}: tokens / codes are written only with the bf16 recipe (R4_AMP={AMP})')
 
+# v4 / v4_infested source offset 2 (results/vision/eci_rollout_r4/v4_offset.json: 3 videos x 3 frames per series, offsets
+# 0-5; offset 2 is closest to the dataset JPG on every frame with clear motion; static frames are ambiguous within 1-2
+# source frames, some old-file frames k < 3000 favour 0)
+OFF_V4, OFF_V4I = 2, 2
 DOMS = {
     'mice': dict(ann='dataset/mice/v1/annotations.csv', exp='data/mice/v1/experiment.csv', fps=30, step=6, offset=2,
                  S=1024, rule='fg448', bg='dataset/mice/v1/eci/fg448/background', eci='dataset/mice/v1/eci',
@@ -111,12 +115,28 @@ DOMS = {
                     c1='dataset/ants/eci/codes/matryoshka_btk_4096_k16_antsfgm5_s0',
                     deployed='dataset/ants/eci/codes/matryoshka_btk_1024_k16_antsfg_s0', c1_ann='dataset/ants/eci/annotations.csv',
                     p_store=1.0, chunk=600, par=4, threads=4, bs=32, n_shards=4),
+    # ants v4: healthy (v4) + infested (v4_infested) Exp4 colonies, t = 2 and 6, 30 min; per-series source offset
+    # (measured with the dataset JPGs, results/vision/eci_rollout_r4/v4_offset.json); body length not measured (v4 is not
+    # in results/vision/animal_scale): S = native 812 rounded up to 816 as the other ants series
+    'ants_v4': dict(ann='dataset/ants/eci30/annotations.csv', exp='dataset/ants/eci30/experiment.csv', fps=30, step=6,
+                    offset={'v4': OFF_V4, 'v4_infested': OFF_V4I}, S=816, rule='ants',
+                    bg='dataset/ants/eci30/fg448/background', eci='dataset/ants/eci_r4v4', layout='eci_r4v4',
+                    select=(('v4', 'v4_infested'), (2, 6)),
+                    srcdir={'v4': 'data/ants/v4/observations/source', 'v4_infested': 'data/ants/v4_infested/observations/source'},
+                    domain='ants', ants_eci='eci_r4v4', native=812, body=None,
+                    ref_nfg='dataset/ants/eci30/codes/matryoshka_btk_1024_k16_antsfg_s0/n_fg.npy', c1=None, deployed=None,
+                    p_store=1.0, chunk=600, par=4, threads=4, bs=32, n_shards=10),
     'frogs': dict(ann='dataset/frogs/eci/annotations.csv', exp='data/frogs/v1/experiment.csv', fps=60, step=12,
                   offset=5, S=800, rule='frogs', bg='dataset/frogs/eci/fg448/background', eci='dataset/frogs/eci',
                   layout=None, srcdir='data/frogs/v1/observations/source', domain='frogs', ants_eci=None, native=800,
                   body=73, ref_nfg='dataset/frogs/eci/codes/matryoshka_btk_4096_k16_frogsfgm5_s0/n_fg.npy',
                   c1=None, deployed=None, p_store=1.0, chunk=600, par=4, threads=4, bs=32, n_shards=3),
 }
+
+
+def voff(c, v):
+    """Source-frame offset of a plan video (per video since ants v4; older plans: the domain constant)."""
+    return int(v['offset']) if 'offset' in v else int(c['offset'])
 
 
 def sae_name(v, seed):
@@ -189,7 +209,8 @@ def cmd_plan(args):
         E = pd.read_csv(REPO / c['exp'])
         if dom.startswith('ants'):
             ex, ts = c['select']
-            sel = E[(E['experiment'] == ex) & (E['T'].isin(ts) if ts else True)]
+            exs = ex if isinstance(ex, tuple) else (ex,)
+            sel = E[E['experiment'].isin(exs) & (E['T'].isin(ts) if ts else True)]
             vids = [o for o in R if o in set(sel['observation_id'])]
         else:
             vids = list(R)
@@ -206,9 +227,15 @@ def cmd_plan(args):
                 hflip = int(Ei.loc[o, 'hflip'])
                 assert int(Ei.loc[o, 'start_frame']) == 0
             else:
-                path = REPO / c['srcdir'] / f'{o}.mkv'
+                ex_o = str(Ei.loc[o, 'experiment'])
+                sd = c['srcdir'][ex_o] if isinstance(c['srcdir'], dict) else c['srcdir']
+                path = REPO / sd / f'{o}.mkv'
                 hflip = 0
-            videos.append({'obs': o, 'src_lo': lo, 'n': hi - lo, 'lay_lo': lay, 'path': str(path), 'hflip': hflip})
+            off = c['offset'][str(Ei.loc[o, 'experiment'])] if isinstance(c['offset'], dict) else c['offset']
+            if off < 0:
+                raise SystemExit(f'{dom}: source offset not measured')
+            videos.append({'obs': o, 'src_lo': lo, 'n': hi - lo, 'lay_lo': lay, 'path': str(path), 'hflip': hflip,
+                           'offset': int(off)})
             lay += hi - lo
         # ffprobe every source (headers only)
         with ThreadPoolExecutor(16) as ex_:
@@ -216,7 +243,7 @@ def cmd_plan(args):
         bad = []
         for v, p in zip(videos, probes):
             v['probe'] = p
-            need = c['offset'] + c['step'] * (v['n'] - 1) + 1
+            need = voff(c, v) + c['step'] * (v['n'] - 1) + 1
             have = p['nb_frames'] if p['nb_frames'] else int(round(p['duration'] * c['fps']))
             v['src_frames'] = have
             if have < need or max(p['w'], p['h']) not in range(c['native'] - 8, c['native'] + 9):
@@ -246,7 +273,7 @@ def cmd_plan(args):
         shards = [s.tolist() for s in shards if len(s)]
         G = c['S'] // 16
         plan = {'domain': dom, 'cfg': c, 'G': G, 'n_videos': len(videos), 'n_frames': int(n.sum()),
-                'patches_per_body': c['body'] * c['S'] / c['native'] / 16, 'bursts_per_video': n_b,
+                'patches_per_body': c['body'] * c['S'] / c['native'] / 16 if c['body'] else None, 'bursts_per_video': n_b,
                 'n_prepass_frames': 4 * n_b * len(videos), 'roles': {r: sum(v['role'] == r for v in videos)
                                                                     for r in ('train', 'calib', 'eval')},
                 'shards': shards, 'shard_frames': [int(n[s].sum()) for s in shards], 'videos': videos}
@@ -269,7 +296,7 @@ def cmd_plan(args):
             plan['layout_dir'] = str(L)
         (OUT / dom).mkdir(parents=True, exist_ok=True)
         (OUT / dom / 'plan.json').write_text(json.dumps(plan, indent=1, default=str))
-        log(f'{dom}: {len(videos)} videos, {n.sum():,} frames, G {G}, patches/body {plan["patches_per_body"]:.2f}, '
+        log(f'{dom}: {len(videos)} videos, {n.sum():,} frames, G {G}, patches/body {plan["patches_per_body"]}, '
             f'{n_b} bursts/video ({plan["n_prepass_frames"]:,} prepass frames), roles {plan["roles"]}, '
             f'shards {plan["shard_frames"]}, codecs {sorted({p["codec"] for p in probes})}, '
             f'sizes {sorted({(p["w"], p["h"]) for p in probes})} ({time.time() - t0:.0f}s)')
@@ -550,7 +577,7 @@ def cmd_check(args):
             if dom == 'ants_v3':
                 ks += [2995, 3003, 6001]
             for k in ks:
-                fr = decode(v['path'], c['offset'] + c['step'] * k, 1, c['step'], c['S'], v['hflip'], c['fps'])
+                fr = decode(v['path'], voff(c, v) + c['step'] * k, 1, c['step'], c['S'], v['hflip'], c['fps'])
                 x = torch.from_numpy(np.ascontiguousarray(fr)).to(dev).permute(0, 3, 1, 2).float()
                 g = pipe.grey(pipe.frame512(x)).float().cpu().numpy()[0]
                 rows = [v['src_lo'] + k + d for d in (-1, 0, 1)]
@@ -561,8 +588,8 @@ def cmd_check(args):
         log(f'{dom} alignment: ' + json.dumps(al))
         # 2. seek decode == sequential decode
         v = vids[0]
-        seq = decode(v['path'], c['offset'], 40, c['step'], c['S'], v['hflip'], c['fps'])
-        sk = decode(v['path'], c['offset'] + c['step'] * 23, 10, c['step'], c['S'], v['hflip'], c['fps'])
+        seq = decode(v['path'], voff(c, v), 40, c['step'], c['S'], v['hflip'], c['fps'])
+        sk = decode(v['path'], voff(c, v) + c['step'] * 23, 10, c['step'], c['S'], v['hflip'], c['fps'])
         res['seek_equal'] = bool((seq[23:33] == sk).all())
         res['seek_max_abs_diff'] = int(np.abs(seq[23:33].astype(int) - sk.astype(int)).max())
         log(f'{dom} seek == sequential: {res["seek_equal"]} (max abs diff {res["seek_max_abs_diff"]})')
@@ -591,7 +618,7 @@ def cmd_check(args):
         thr = []
         for v in vids:
             n = min(300, v['n'])
-            jobs = [((v['obs'], k0), dict(path=v['path'], s0=c['offset'] + c['step'] * k0, n=min(c['chunk'] // 2, n - k0),
+            jobs = [((v['obs'], k0), dict(path=v['path'], s0=voff(c, v) + c['step'] * k0, n=min(c['chunk'] // 2, n - k0),
                                           step=c['step'], S=c['S'], hflip=v['hflip'], fps=c['fps'], threads=c['threads']))
                     for k0 in range(0, n, c['chunk'] // 2)]
             t0 = time.time()
@@ -638,7 +665,7 @@ def cmd_maskdiag(args):
         for v in [P['videos'][i] for i in (0, len(P['videos']) // 2)]:
             n = 200
             ks = np.arange(0, n)
-            fr = decode(v['path'], c['offset'], n, c['step'], c['S'], v['hflip'], c['fps'])
+            fr = decode(v['path'], voff(c, v), n, c['step'], c['S'], v['hflip'], c['fps'])
             jp = np.stack([np.asarray(Image.open(REPO / 'dataset' / A.frame_path.values[v['src_lo'] + k]).convert('RGB'))
                            for k in ks])
             rows = v['src_lo'] + ks
@@ -710,7 +737,7 @@ def cmd_prepass(args):
     for vi, v in enumerate(P['videos']):
         for a in v['bursts']:
             rr = [v['src_lo'] + a + o for o in BURST]
-            jobs.append(((vi, a), dict(path=v['path'], s0=c['offset'] + c['step'] * a, n=len(BURST),
+            jobs.append(((vi, a), dict(path=v['path'], s0=voff(c, v) + c['step'] * a, n=len(BURST),
                                        step=c['step'] * 5, S=c['S'], hflip=v['hflip'], fps=c['fps'], threads=2,
                                        jpgs=[jdir / fp[r] for r in rr])))
     if args.limit:  # self-test: bursts spread over the videos
@@ -1015,7 +1042,7 @@ def cmd_encode(args):
         rels += list(fp[v['src_lo']:v['src_lo'] + n])
         for k0 in range(0, n, c['chunk']):
             m_ = min(c['chunk'], n - k0)
-            jobs.append(((vi, k0, n), dict(path=v['path'], s0=c['offset'] + c['step'] * k0, n=m_,
+            jobs.append(((vi, k0, n), dict(path=v['path'], s0=voff(c, v) + c['step'] * k0, n=m_,
                                            step=c['step'], S=c['S'], hflip=v['hflip'], fps=c['fps'],
                                            threads=c['threads'],
                                            jpgs=[jdir / f for f in fp[v['src_lo'] + k0:v['src_lo'] + k0 + m_]])))
@@ -1497,7 +1524,7 @@ def cmd_spotcheck(args):
     v, ks = pick
     rows, info = [], []
     for k in ks:
-        fr = decode(v['path'], c['offset'] + c['step'] * k, 1, c['step'], c['S'], v['hflip'], c['fps'], threads=2)[0]
+        fr = decode(v['path'], voff(c, v) + c['step'] * k, 1, c['step'], c['S'], v['hflip'], c['fps'], threads=2)[0]
         nat = np.asarray(Image.fromarray(fr).resize((512, 512), Image.BICUBIC))
         g = np.asarray(Image.fromarray(nat).convert('L'), np.float32)
         J = [np.asarray(Image.open(REPO / 'dataset' / A.frame_path.values[v['src_lo'] + k + d]).convert('RGB'))
@@ -1569,7 +1596,8 @@ def cmd_report(args):
         P = load_plan(dom)
         d = {'S': DOMS[dom]['S'], 'G': P['G'], 'patches_per_body': P['patches_per_body'], 'n_videos': P['n_videos'],
              'n_frames': P['n_frames']}
-        for k_ in ('check', 'prepass', 'train', 'merge', 'align'):
+        for k_ in ('check', 'prepass', 'train', 'merge', 'align', 'align_partial', 'ftheta', 'summaries', 'maskdiag',
+                   'bout_spotcheck'):
             f = OUT / dom / f'{k_}.json'
             if f.exists():
                 d[k_] = json.loads(f.read_text())
@@ -1581,10 +1609,15 @@ def cmd_report(args):
                            + '/nes')
             d['nes'] = {}
             for v_ in VARIANTS:
-                rd = root / best[v_]['name']
-                d['nes'][v_] = {'dir': str(rd), 'core': nes_top(rd)}
-                if dom.startswith('ants'):
-                    d['nes'][v_]['pairs'] = nes_top(rd / 'pairs')
+                for rule, suf in (('fnorm', '_fnorm'), ('ftheta', '_ftheta'), ('gt0', '')):
+                    rd = root / (best[v_]['name'] + suf)
+                    if not (rd / 'summary.csv').exists():
+                        continue
+                    e = {'dir': str(rd), 'core': nes_top(rd)}
+                    if dom.startswith('ants'):
+                        e['pairs'] = nes_top(rd / 'pairs')
+                        e['pairs_noday'] = nes_top(rd / 'pairs_noday')
+                    d['nes'][f'{v_}_{rule}'] = e
         vdir = BEE / dom / 'videos'
         d['videos_encoded'] = sum((vdir / f'{v["obs"]}.npz').exists() for v in P['videos']) if vdir.exists() else 0
         R['domains'][dom] = d
