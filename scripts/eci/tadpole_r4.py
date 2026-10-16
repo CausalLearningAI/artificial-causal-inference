@@ -70,7 +70,7 @@ STEP, OFFSET, FPS = 12, 5, 60
 SIDE, S = 96, 384
 G = S // 16
 N_BG, BG_Q1, BG_Q, R_EX, MIN_FREE = 200, 0.98, 0.9, 10, 5
-DARK_REL, MIN_BLOB, SMOOTH = 15, 20, 5
+DARK_REL, MIN_BLOB, SMOOTH, DEADBAND = 15, 20, 5, 2
 DARK_FRAC = 0.05
 FRAMES_TARGET = 12_000
 log = R.log
@@ -248,9 +248,19 @@ def smooth_track(cx, cy, found, r=SMOOTH):
     return hx, hy, sx, sy
 
 
-def boxes_of(sx, sy):
-    """Smoothed centroid -> crop box top-left (source px of the un-padded frame, may be < 0)."""
-    return (np.round(sx).astype(np.int32) - SIDE // 2, np.round(sy).astype(np.int32) - SIDE // 2)
+def boxes_of(sx, sy, band=DEADBAND):
+    """Smoothed centroid -> crop box top-left (source px of the un-padded frame, may be < 0). Dead band: the box
+    centre stays where it is until the smoothed centroid is more than `band` px away from it (Chebyshev), then jumps to
+    the rounded centroid; a still tadpole keeps one box (no pixel jitter of the crop, and the lag frame's own tokens
+    serve the 2 s difference), the body is never more than `band` px off the crop centre by the dead band."""
+    cx = np.empty(len(sx), np.int32)
+    cy = np.empty(len(sy), np.int32)
+    ux, uy = int(np.round(sx[0])), int(np.round(sy[0]))
+    for i in range(len(sx)):
+        if abs(sx[i] - ux) > band or abs(sy[i] - uy) > band:
+            ux, uy = int(np.round(sx[i])), int(np.round(sy[i]))
+        cx[i], cy[i] = ux, uy
+    return cx - SIDE // 2, cy - SIDE // 2
 
 
 def cmd_locate(args):
@@ -385,7 +395,8 @@ def cmd_validate(args):
         ok = np.isfinite(c).all(1)
         d = np.hypot(sx - c[:, 0], sy - c[:, 1])[ok]
         dr = np.hypot(L['cx'] - c[:, 0], L['cy'] - c[:, 1])[ok & found]
-        x0, y0 = L['x0'].astype(np.float64), L['y0'].astype(np.float64)
+        bx, by = boxes_of(sx, sy)
+        x0, y0 = bx.astype(np.float64), by.astype(np.float64)
         fin = np.isfinite(nd[..., 0])
         inside = (nd[..., 0] >= x0[:, None]) & (nd[..., 0] < x0[:, None] + SIDE) & \
                  (nd[..., 1] >= y0[:, None]) & (nd[..., 1] < y0[:, None] + SIDE)
@@ -511,8 +522,11 @@ class Enc:
 
 
 def load_locate(obs):
+    """Locate outputs of a video; the crop boxes from the smoothed centroid with the dead band (boxes_of)."""
     L = np.load(BEE / 'locate' / f'{obs}.npz')
-    return {k: L[k] for k in ('x0', 'y0', 'found', 'pix_bg', 'roi')}
+    d = {k: L[k] for k in ('sx', 'sy', 'found', 'pix_bg', 'roi')}
+    d['x0'], d['y0'] = boxes_of(d['sx'], d['sy'])
+    return d
 
 
 def lag_index(k):
@@ -520,6 +534,24 @@ def lag_index(k):
 
 
 # ---------------------------------------------------------------------------------------------- prepass
+def mask_sheet(items, path):
+    """items: [(x (3, S, S) uint8, mask (G*G,) bool, title)] -> one JPEG (red tint = kept tokens)."""
+    from PIL import Image, ImageDraw
+    tiles = []
+    for x, m, t in items:
+        im = x.transpose(1, 2, 0).astype(np.float32)
+        up = np.kron(m.reshape(G, G), np.ones((16, 16))).astype(bool)
+        im[up] = 0.6 * im[up] + 0.4 * np.array([255, 0, 0], np.float32)
+        tile = Image.fromarray(im.clip(0, 255).astype(np.uint8))
+        ImageDraw.Draw(tile).text((4, 4), t, fill=(255, 255, 0))
+        tiles.append(tile)
+    nc = 4
+    sheet = Image.new('RGB', (nc * S, int(np.ceil(len(tiles) / nc)) * S))
+    for i, t in enumerate(tiles):
+        sheet.paste(t, ((i % nc) * S, (i // nc) * S))
+    sheet.save(path, quality=85)
+
+
 def cmd_prepass(args):
     import torch
     P = R.load_plan(DOM)
@@ -632,7 +664,7 @@ def cmd_prepass(args):
         log('limit set: test only, nothing written to OUT / BEE')
         return
     if sheet:
-        R.mask_sheet([(x, mm, t) for x, mm, t in sheet], G, OUT / 'mask_sheet.jpg')
+        mask_sheet(sheet, OUT / 'mask_sheet.jpg')
     (OUT / 'prepass.json').write_text(json.dumps(info, indent=1, default=float))
     R.atomic_copy(loc, BEE / 'prepass')
     log(f'-> {BEE / "prepass"}')
@@ -703,11 +735,12 @@ def cmd_encode(args):
 
     def finish(vi, acc, tv):
         v = P['videos'][vi]
-        arr = {k_: np.concatenate(x) for k_, x in acc.items() if k_ not in ('l0', 'ntok')}
+        arr = {k_: np.concatenate(x) for k_, x in acc.items() if k_ not in ('l0', 'ntok', 'n_lag')}
         nn = len(arr['n_fg'])
         f = R.local_dir() / f'{v["obs"]}.npz'
         np.savez(f, **arr, l0=np.array([acc['l0'][v_] for v_ in R.VARIANTS]),
-                 ntok=np.array([acc['ntok'][v_] for v_ in R.VARIANTS]), obs=v['obs'], n=nn)
+                 ntok=np.array([acc['ntok'][v_] for v_ in R.VARIANTS]), obs=v['obs'], n=nn, n_lag=acc['n_lag'][0],
+                 code_commit=os.environ.get('CODE_COMMIT', ''))
         R.atomic_copy(f, outdir / f.name)
         f.unlink()
         dt = time.time() - tv
