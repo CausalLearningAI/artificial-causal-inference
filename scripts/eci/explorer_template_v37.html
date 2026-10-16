@@ -730,7 +730,8 @@ function buildControls(){
   const ca = analysis(state.aid), CN = $('#cfNote');
   CN.hidden = !(state.view==='cmp' && ca && ca.confound);
   if(!CN.hidden) CN.textContent = FROGS() ? `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip names its video (group_session_slot) and the clip rows count their sessions: a neuron found in one session only is suspect; a one-sided (left/right) change in FoxP1 only cannot come from a session.`
-                                           : `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip shows its recording day: check whether a neuron follows the lighting or the behavior.`;
+                                           : ca.cross ? `⚠ Exp4 infested vs healthy colonies · ${ca.stratum} · not day-matched: ${(String(ca.confound).match(/not day-matched: ([^)]*)/)||[,'the colonies were recorded on different days'])[1].replace('healthy colonies on days', 'healthy colonies were recorded on days')}, so colony is confounded with recording day. Each clip shows its recording day: check whether a neuron follows the lighting or the behaviour.`
+                                           : `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip shows its recording day: check whether a neuron follows the lighting or the behaviour.`;
   const S = SUB(), NB = $('#subNote');
   NB.hidden = !S;
   if(S){
