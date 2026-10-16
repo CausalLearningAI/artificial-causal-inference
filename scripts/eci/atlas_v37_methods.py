@@ -68,8 +68,10 @@ Family C NES rows: the NES runner's tidy rows (round-r tau / se / t / df / p of 
 result.json [setting key, the NES runners' keys]:
   DINES: {'first_round': {'neuron', 'tau' (arm mean difference), 'p' (first-round p given W only), 'rho'},
           'selected', 'kept', 'undetermined', 'set_aside', 'n_units', 'units', 'm', 'level', ...; latency also
-          'W_frames', 'W_s', 'window_frames', 'window_s' (copied from the NES latency run of that analysis when it
-          exists; recomputed with the same rule otherwise, checked equal when both exist)}
+          'W_frames', 'W_s', 'window_frames', 'window_s' (both = the window length L of the setting used, recomputed
+          with the NES rule and checked equal to the NES run's window_frames of that setting; nes_W_frames = the NES
+          run's W_frames, its primary common W, which differs for mice B_stage1 / B_stage4 under --hab-window whole:
+          4500 vs L = 9000, the whole 1800 s as on the pre-2026-10-07 page)}
   family C NES: the NES runners' result.json content (strip(res) + n_units, units, n_het, n_wt; latency W_*).
 dines.json [setting]: the full dines() output (forward path, terminal records, sets) without first_round arrays.
 
@@ -364,12 +366,15 @@ def task(spec):
             ra = rb = an.select(design)['obs_row'].values
         L = window_len(ra, rb, wa, wb)
         ref = nes_ref('latency', aid, prefix, rw)
-        if ref is not None and (int(ref['W_frames']) != L or int(ref['window_frames']) != L):
-            raise SystemExit(f'{aid} p{prefix}: latency window {L} != NES W_frames {ref["W_frames"]} / '
-                             f'window_frames {ref["window_frames"]}')
+        # the NES run's window_frames = the length of this setting's window; its W_frames = the analysis's PRIMARY
+        # common W (for an 'hwhole' setting of B_stage1 / B_stage4: 4500, while the whole-habituation window is 9000).
+        # Here the setting used IS the page's primary, so W_frames = window_frames = L (as the builder asserts).
+        if ref is not None and int(ref['window_frames']) != L:
+            raise SystemExit(f'{aid} p{prefix}: latency window {L} != NES window_frames {ref["window_frames"]}')
         sm = lat_summ(L)
         extra = {'W_frames': L, 'W_s': L / G['fps'], 'window_frames': L, 'window_s': L / G['fps'],
-                 'W_source': 'copied from the NES latency run (equal)' if ref is not None else 'recomputed'}
+                 'W_source': 'NES latency run window_frames (equal)' if ref is not None else 'recomputed',
+                 'nes_W_frames': None if ref is None else int(ref['W_frames'])}
     else:
         sm = G[outcome]
     ref = nes_ref(outcome, aid, prefix, rw)
