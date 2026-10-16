@@ -554,6 +554,8 @@ function setSae(sae){
    v1 = the deployed model (internal key 'online'), v2 = the model in progress (internal key 'new') */
 const MLAB = {online:'v1', new:'v2 (in progress)'}, MSHORT = {online:'v1', new:'v2'}, MORD = ['online', 'new'];
 const V0TIP = 'to be replicated: the original ECI paper recipe';
+/* v0 = the original ECI paper recipe (arXiv 2510.14073, App. D.2 and Table 2), the same for every domain; not run yet */
+const V0_CELLS = {fm:'DINOv2-S/14 · 224 px (16×16 patches), full frame', input:'token', mask:'none', sae:'TopK · 4608 · k=20', pool:'mean over all patches', cov:'none', hab:'—'};
 const SPEC_ROWS = [['fm', 'Foundation model'], ['input', 'Input'], ['mask', 'Mask'], ['sae', 'SAE'], ['pool', 'Pooling'], ['cov', 'Search covariates'], ['hab', 'Habituation window']];
 function modelBar(){
   for(const ax of ALL.axes){
@@ -577,7 +579,8 @@ function modelBar(){
     const rows = SPEC_ROWS.filter(([k]) => cell(c1, k)!=null || cell(c2, k)!=null);
     SB.innerHTML = `<table class="spec3"><thead><tr><th></th><th title="${esc(V0TIP)}">v0 (to be replicated)</th><th>v1 (deployed)</th><th>v2 (in progress)</th></tr></thead><tbody>${rows.map(([k, lab]) => {
         const a = cell(c1, k), b = cell(c2, k), dif = a!=null && b!=null && a!==b ? ' diff' : '';
-        return `<tr><td class="rl">${esc(lab)}</td><td class="na">—</td><td class="${dif}">${esc(a ?? '—')}</td><td class="${dif}">${esc(b ?? '—')}</td></tr>`; }).join('')}</tbody></table>
+        return `<tr><td class="rl">${esc(lab)}</td><td>${esc(V0_CELLS[k] ?? '—')}</td><td class="${dif}">${esc(a ?? '—')}</td><td class="${dif}">${esc(b ?? '—')}</td></tr>`; }).join('')}</tbody></table>
+      <p class="pa">v0 = recipe of the original ECI paper, not yet run on these data.</p>
       <p class="pa"><b>Priors:</b> effect on the animals (mask) · fixed camera (patch = arena spot) · anywhere on the animal (max pooling) · v2: ~10 patches per body length, motion (2 s change)</p>
       <p class="pa"><b>Assumptions:</b> effect = shift of a per-video neuron outcome · independent units (video, or pool when paired) · only the listed confounds</p>`;
   }

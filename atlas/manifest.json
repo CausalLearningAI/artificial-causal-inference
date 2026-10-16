@@ -1,6 +1,6 @@
 {
  "artifact": "https://claude.ai/artifact/JfJnP4CqjYWoprEq9dM8Qa",
- "artifact_version": "version 47 (version id 1792146132-6a54), published 2026-10-16",
+ "artifact_version": "version 48 (version id 1792146255-5c8c), published 2026-10-16",
  "build_command": "ARGS=\"--steps assemble --asset-map atlas/asset_map.json\" sbatch scripts/eci/build_atlas_v37.sh (after sbatch scripts/eci/atlas_clip_frames.sh; ants v3 t=2 vs t=8 of v2: sbatch scripts/eci/r4_v3_2v8.sh, then ARGS=\"--dom ants_v3p --model new --steps prep,data,patch,arena,render,dump\")",
  "build_dir": "results/vision/eci_atlas_v37/site",
  "models": [
@@ -131,7 +131,7 @@
   "assets/r4v2pd2_arena_bg.webp": 1740,
   "assets/r4v3pd2_arena_bg.webp": 1662,
   "assets/r4v4pd2_arena_bg.webp": 1438,
-  "index.html": 324240
+  "index.html": 324651
  },
  "packs_to_upload": {
   "r4frogsd2_1s_9341284096.mp4": 4028005,
@@ -153,7 +153,7 @@
   "antsfg_frame_bf19bd7b9b.mp4": 7881963
  },
  "asset_store_urls_referenced": 22,
- "code_commit": "f9b2efd (assemble job 865286)",
+ "code_commit": "e325176 (assemble job 865331)",
  "online_input": "results/vision/eci_atlas_v37/live_v39/index.html = git show ea6a534:atlas/index.html (live version 39)",
- "published_files": "index.html + the 79 assets/data/*.json; all clip packs kept from earlier versions / the asset store"
+ "published_files": "index.html only (data files identical to version 47); all clip packs kept from earlier versions / the asset store"
 }
