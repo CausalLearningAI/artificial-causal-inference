@@ -56,7 +56,9 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'results/vision/eci_atlas_v37'
 R4 = ROOT / 'results/vision/eci_rollout_r4'
 V36 = ROOT / 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v36'
-V36_PAGE = ROOT / 'atlas/index.html'  # the published page (git snapshot); since 2026-10-16 08:11 = version 39
+# the online model's input page: live version 39 (git show ea6a534:atlas/index.html). atlas/index.html itself is the
+# output of this builder since version 42, so reading it would feed the build its own online entries back (duplicates)
+V36_PAGE = OUT / 'live_v39' / 'index.html'
 # versions 38 / 39 (another session, commits ca7ef24 / ea6a534) only drop the mean-pool and SOMP outcomes and mark those
 # aggregations off in ALL.aggs; the max-pool data of every entry is unchanged since version 37
 # version 37 (published 2026-10-16) = v36 with the ants entries replaced by the 30-min ants build (explorer_v39, ANTS_ECI
@@ -768,6 +770,195 @@ def rw_json(src, dst, amap=None):
     Path(dst).write_text(t)
 
 
+# ---- design spec per entry (the model bar line + its Details panel). Sources: online = the codes config.json of each
+# online SAE (dataset/<dom>/.../codes/<sae>/config.json: facebook/dinov2-base, last_hidden_state after the final
+# LayerNorm, 512 px frame resized to 448 = 32 x 32 patches, motion_delta 0, 'global threshold', max over foreground
+# patches); new = scripts/eci/rollout_r4.py (docstring + DOMS: DINOv3-L/16 blocks 1-20 + final LayerNorm, S per domain,
+# LAG 10 frames = 2 s, WIDTH 512, K 16, PREFIXES 128/256/512, 3 seeds, best held-out FVE) and scripts/eci/rollout_r4_nes.sh
+# (--nuisance nfg, --day for ants); NESS covariates: METHOD_NOTES above; outcome settings: the entries' own 'setting'.
+R4_SIZE = {'mice': (1024, 64), 'ants_v2p': (768, 48), 'ants_v3p': (832, 52), 'ants_v4p': (816, 51), 'frogs': (800, 50)}
+MASK = {'mice': 'mouse mask (rule fg448, per-video backgrounds)', 'ants': 'ant mask (rule ants, per-video backgrounds)',
+        'frogs': 'frog mask (rule frogs, per-video backgrounds)'}
+
+
+def spec_of(e):
+    dom, online, meth = e['domain'], e['model']['model'] == 'online', e['model']['method']
+    key = e['sae'].split('#')[1].rsplit('_', 1)[0] if '#' in e['sae'] else None
+    seed = re.search(r'_s(\d)', e['sae']).group(1)
+    if online:
+        fm, layer = 'DINOv2-base', 'last layer (after the final LayerNorm)'
+        res = '448 px (32×32 patches): the 512 px frame resized'
+        sae = 'Matryoshka BatchTopK 1024, k=16'
+        inp = 'token'
+        fire = 'global threshold (the SAE\'s inference threshold)'
+        seedtxt = f'seed {seed} (single run)'
+        rot = ('arena rotated so the odor corner is top right' if dom == 'mice' else
+               'videos mirrored so the mutant side is on the right' if dom == 'frogs' else 'none')
+        cov = 'none' if meth == 'NES' else 'foreground size (n_fg)'
+    else:
+        S, G = R4_SIZE[key]
+        fm, layer = 'DINOv3-L/16', 'block 20 of 24 (+ the final LayerNorm)'
+        res = f'{S} px ({G}×{G} patches), decoded from the native video'
+        sae = 'Matryoshka BatchTopK 512, k=16'
+        inp = 'token + 2 s change'
+        fire = 'fnorm: a frame fires when its code ÷ the neuron\'s typical size passes one domain-wide threshold'
+        seedtxt = f'seed {seed}: best held-out reconstruction (FVE) of 3 seeds'
+        rot = ('none (videos not rotated)' if dom == 'mice' else
+               'videos mirrored so the mutant side is on the right' if dom == 'frogs' else 'none')
+        cov = 'foreground size (n_fg)' + (' + recording day' if dom == 'ants' else '')
+    line = [['FM', fm], ['SAE', sae.replace(' BatchTopK', '')], ['Input', inp], ['Resolution', res.split(' (')[0]],
+            ['Pooling', 'max']]
+    win = {'mice': ('habituation: whole 30 min; odor, post: whole 15 min' if online else
+                    'habituation: last 15 min (minutes 15–30); odor, post: whole 15 min'),
+           'ants': 'whole video (v2: 10 min; v3, v4, v4_infested: 30 min)',
+           'frogs': 'hour 1 of each frog (18,000 frames)'}[dom]
+    test = ('t-test, Bonferroni; forward: add the most significant neuron, re-test the others given those found'
+            if meth == 'NES' else
+            'generalized covariance measure tests (cross-fitted); forward by p-value, then a backward check of each '
+            'found neuron given every subset of the others')
+    sets = {o['kind']: o['setting'] for o in e['outcomes']}
+    th = re.search(r'threshold_q ([\d.]+)', sets.get('rate', '') or sets.get('latency', ''))
+    details = [
+        ['Foundation model', f'{fm}, {layer}'],
+        ['Frames', '5 per second'],
+        ['Resolution', res],
+        ['Mask', MASK[dom] + ('' if online else ', projected from the 32×32 grid')],
+        ['Rotation / mirroring', rot],
+        ['Patch input', 'token z_t' if online else '[z_t, z_t − z_(t − 2 s)] (2048-d)'],
+        ['SAE', sae + (', prefixes 128 / 256 / 512' if not online else ', Matryoshka prefixes')
+         + (', one SAE for v2, v3, v4, v4_infested' if dom == 'ants' and not online else '')],
+        ['Seed', seedtxt],
+        ['Frame firing rule', fire],
+        ['Spatial pooling', 'max over the mask patches'],
+        ['Temporal aggregation', 'bout rate (bouts/min), mean activation, latency to first bout'
+         + (f'; bout threshold q {th.group(1)}' if th else '')],
+        ['Neurons searched', 'first 128 (main) or first 256'],
+        ['Search', f'{meth}: {test}'],
+        ['Search covariates', cov],
+        ['Time window', win],
+        ['Priors (built in)', 'the effect is on the animals (mask); fixed camera, so a patch is a fixed arena spot; '
+                              'a concept anywhere on the animal counts (max pooling)'
+         + ('' if online else '; ~10 patches per body length; behaviour includes motion (2 s change)')],
+        ['Hypotheses (assumed)', 'an effect shows as a shift of a per-video neuron outcome; units independent (video, '
+                                 'or pool when paired); known confounds are only those listed in the experiment details'],
+    ]
+    return {'line': line, 'details': details}
+
+
+def source_table():
+    """{domain: {observation id: [source file name, source offset, source frames per 5 fps step, source fps]}} from the
+    R4 plans (results/vision/eci_rollout_r4/<dom>/plan.json; source frame = offset + step k, k = frame_idx on the 5 fps
+    grid; rollout_r4.py DOMS: mice offset 2, frogs 5, ants per video). The page shows a clip's time in its raw file."""
+    off0 = {'mice': 2, 'frogs': 5}
+    out = {}
+    for rd, dom in (('mice', 'mice'), ('ants_v2p', 'ants'), ('ants_v3p', 'ants'), ('ants_v4p', 'ants'), ('frogs', 'frogs')):
+        P = json.loads((R4 / rd / 'plan.json').read_text())
+        T = out.setdefault(dom, {})
+        for v in P['videos']:
+            num, den = (int(x) for x in v['probe']['rate'].split('/'))
+            fps = num / den
+            step = fps / 5
+            assert step == int(step), (rd, v['obs'], fps)
+            row = [Path(v['path']).name, int(v.get('offset', off0.get(dom, -1))), int(step), fps]
+            assert row[1] >= 0, (rd, v['obs'])
+            assert T.get(v['obs'], row) == row, (rd, v['obs'], T[v['obs']], row)
+            T[v['obs']] = row
+    log('source table: ' + ', '.join(f'{d} {len(t)} videos' for d, t in out.items()))
+    return out
+
+
+PICKS = {'r4miced2': OUT / 'res/mice_d2', 'r4v2pd2': OUT / 'res/ants_v2p_d2', 'r4v3pd2': OUT / 'res/ants_v3p_d2',
+         'r4v4pd2': OUT / 'res/ants_v4p_d2', 'r4frogsd2': OUT / 'res/frogs_d2',
+         'fg448al': ROOT / ONLINE['mice'][2], 'antsfg': ROOT / ONLINE['ants'][2], 'frogsfg': ROOT / ONLINE['frogs'][2]}
+
+
+def clip_times(site, saes, data):
+    """Every clip of the page's neuron files gets its frame_idx (5 fps grid, first frame of the clip) as a third info
+    element, [video, mean, k], read from the build's picks.json: the clip at the same position (same source, length,
+    row) when its video and mean match, else the unique picks clip of that neuron and length with the same video and
+    mean (the online model's published clips vs its later picks cache); null when there is none or several frames
+    (the page then says 'time unknown')."""
+    stats = {}
+    for tag, base in PICKS.items():
+        es = [e for e in saes if e['tag'] == tag]
+        if not es:
+            continue
+        pj = [base / '_cache/explorer/picks.json'] if (base / '_cache/explorer/picks.json').exists() else \
+            sorted(base.glob('*/_cache/explorer/picks.json'))
+        assert len(pj) == 1, (tag, pj)
+        P = json.loads(pj[0].read_text())['by_key']['max']
+        obs = es[0].get('obs') or data['obs']
+        src = data['src'][es[0]['domain']]
+        files = sorted({f for e in es for f in e['nfile']['max']['files']})
+        st = stats.setdefault(tag, {'direct': 0, 'search': 0, 'exact': 0, 'unknown': 0, 'nosrc': 0})
+        # online mice / frogs: the picks cache was re-run after the publish, so the frames come from the codes
+        # themselves (scripts/eci/atlas_clip_frames.py: the unique window of that video with that mean, else null)
+        xf = OUT / 'clip_frames' / f'{tag}.json'
+        XF = json.loads(xf.read_text()) if tag in ('fg448al', 'frogsfg') and xf.exists() else None
+        if tag in ('fg448al', 'frogsfg') and XF is None:
+            raise SystemExit(f'{xf} missing: run scripts/eci/atlas_clip_frames.sh first')
+        for f in files:
+            D = json.loads((site / f).read_text())
+            N = D['by']['max'] if 'by' in D else D['neurons']
+            for j, n in N.items():
+                pn = P.get(str(j))
+                for sname, Ls in (n.get('clips') or {}).items():
+                    for L, c in Ls.items():
+                        for kind, lst in c['info'].items():
+                            for i, it in enumerate(lst):
+                                assert len(it) == 2, (f, j)
+                                o, k = obs[it[0]][0], None
+                                if o not in src:
+                                    st['nosrc'] += 1
+                                if XF is not None:
+                                    k = XF[f'{j}|{L}|{it[0]}|{it[1]:g}']
+                                    st['exact' if k is not None else 'unknown'] += 1
+                                elif pn is not None:
+                                    d = pn['clips'].get(sname, {}).get(L, {}).get(kind, [])
+                                    if i < len(d) and d[i]['obs'] == o and BE.sig4(d[i]['act']) == it[1]:
+                                        k = int(d[i]['frame'])
+                                        st['direct'] += 1
+                                    else:
+                                        ks = {int(x['frame']) for s2 in pn['clips'].values() for kk in ('top', 'least')
+                                              for x in s2.get(L, {}).get(kk, [])
+                                              if x['obs'] == o and BE.sig4(x['act']) == it[1]}
+                                        k = ks.pop() if len(ks) == 1 else None
+                                        st['search' if k is not None else 'unknown'] += 1
+                                else:
+                                    st['unknown'] += 1
+                                it.append(k)
+            (site / f).write_text(json.dumps(D, separators=(',', ':')))
+    log('clip times: ' + json.dumps(stats))
+    return stats
+
+
+# the ants new-model 1 s pack r4v4pd2_1s_6dbcf5fe22.mp4 was refused by the artifact upload filter; the live page holds it
+# split in three version files (results/vision/eci_atlas_v37/remux/split/: pages 0-10, 11-28, 29-45; the middle one as
+# WebM), and its data files point at those (remux/split/patch_json.py; the WebM variant is the live one)
+SPLIT_NAME, SPLIT = 'r4v4pd2_1s_6dbcf5fe22', [(0, 0, 10, 'mp4'), (1, 11, 28, 'webm'), (2, 29, 45, 'mp4')]
+
+
+def split_v4_pack(site):
+    pat = re.compile(r'"src":"assets/' + SPLIT_NAME + r'\.mp4","page":(\d+),')
+
+    def rep(m):
+        p = int(m.group(1))
+        k, a, _, ext = next(c for c in SPLIT if c[1] <= p <= c[2])
+        return f'"src":"assets/{SPLIT_NAME}_p{k}.{ext}","page":{p - a},'
+    n = 0
+    for f in sorted((site / 'assets' / 'data').glob('*.json')):
+        t = f.read_text()
+        if SPLIT_NAME + '.mp4' not in t:
+            continue
+        t, m = pat.subn(rep, t)
+        assert SPLIT_NAME + '.mp4' not in t, f
+        f.write_text(t)
+        n += m
+    for k, _, _, ext in SPLIT:
+        shutil.copy(OUT / 'remux' / 'split' / f'{SPLIT_NAME}_p{k}.{ext}', site / 'assets' / f'{SPLIT_NAME}_p{k}.{ext}')
+    log(f'split pack: {n} references -> {SPLIT_NAME}_p0/1/2')
+
+
 def step_assemble():
     site = OUT / 'site'
     if site.exists():
@@ -970,8 +1161,8 @@ def step_assemble():
     for f in (site / 'assets' / 'data').glob('*.json'):  # the blocked family-A text of the method's searches
         t = f.read_text()
         if 'Not shown for DINES' in t:
-            f.write_text(t.replace('Not shown for DINES', 'Not shown for NESS').replace('so DINES cannot',
-                                                                                         'so NESS cannot'))
+            f.write_text(t.replace('Not shown for DINES', 'Not shown for NESS').replace('so DINES cannot', 'so NESS cannot')
+                         .replace('Use NES for family A.', 'Use NES for phase transitions.'))
     data['axes'][1] = {'key': 'method', 'label': 'Method', 'values': ['NES', 'NESS'],
                        'missing': {'NESS': 'coming'},
                        'tips': {'NES': METHOD_TIPS['NES'], 'NESS': METHOD_TIPS['DINES'].replace(
@@ -990,6 +1181,16 @@ def step_assemble():
             if not (site / 'assets' / name).exists():
                 shutil.copy(src, site / 'assets' / name)
                 log(f'assemble: {name} copied from {src.parent} (a version file of the live page)')
+    # ---- page cleanup (user, 2026-10-16): no model / method prose (the Details panel holds the design), the pooled
+    # v3 t=2 vs t=6+8 is not shown, clip times in the raw source video, the split v4 pack
+    for e in saes:
+        e.pop('note', None)
+        e['analyses'] = [a for a in e['analyses'] if a['id'] != 'v3_2_vs_6_8']
+        e['spec'] = spec_of(e)
+    data.pop('method_notes', None)
+    data['src'] = source_table()
+    clip_times(site, saes, data)
+    split_v4_pack(site)
     tpl = TEMPLATE.read_text()
     assert tpl.count('/*__DATA__*/null') == 1
     page = tpl.replace('/*__DATA__*/null', json.dumps(data, separators=(',', ':')))
@@ -1008,7 +1209,7 @@ def check_site(site, amap, saes):
     page = (site / 'index.html').read_text()
     drefs = set(re.findall(r'assets/data/[\w.\-]+\.json', page))
     texts = [page] + [(site / r).read_text() for r in sorted(drefs) if (site / r).exists()]
-    refs = {r for t in texts for r in re.findall(r'assets/[\w.\-]+\.(?:mp4|webp|png|jpg)', t)}
+    refs = {r for t in texts for r in re.findall(r'assets/[\w.\-]+\.(?:mp4|webm|webp|png|jpg)', t)}
     urls = {u for t in texts for u in re.findall(r'/_blob/[0-9a-f]+', t)}
     missing = sorted(r for r in drefs | refs if not (site / r).exists())
     files = [p for p in (site / 'assets').rglob('*') if p.is_file()]
@@ -1016,20 +1217,20 @@ def check_site(site, amap, saes):
     for p in unused:
         p.unlink()
     files = [p for p in files if p not in unused]
-    packs = [p for p in files if p.suffix == '.mp4']
+    packs = [p for p in files if p.suffix in ('.mp4', '.webm')]
     big = max((p.stat().st_size for p in files), default=0)
     total = sum(p.stat().st_size for p in files) + len(page.encode())
     log(f'check: page {len(page.encode()) / 1e3:.0f} KB, {len(drefs)} data files, {len(refs)} local media refs '
         f'({len(packs)} local packs, {sum(p.stat().st_size for p in packs) / 1e6:.1f} MB), {len(urls)} distinct '
         f'asset-store URLs, {len(missing)} missing {missing[:5]}, {len(unused)} unused removed; largest file '
         f'{big / 1e6:.1f} MB; total version {total / 1e6:.1f} MB in {len(files) + 1} files')
-    man = {'artifact': 'https://claude.ai/artifact/JfJnP4CqjYWoprEq9dM8Qa', 'artifact_version': 'v40 build (not published; the live page is version 39)',
+    man = {'artifact': 'https://claude.ai/artifact/JfJnP4CqjYWoprEq9dM8Qa', 'artifact_version': 'build only: the published version id is set in atlas/manifest.json after publishing',
            'build_command': 'ARGS="--steps assemble [--asset-map <map.json>]" sbatch scripts/eci/build_atlas_v37.sh',
            'build_dir': str(site.relative_to(ROOT)),
            'models': [f'{e["domain"]}: {e["model"]["model"]} · {e["model"]["method"]} ({e["sae"]})' for e in saes],
            'options': {'prefixes': [128, 256], 'default_prefix': 128, 'spatial_aggregation': ['max'],
-                       'clip_lengths': ['frame', '1s'], 'methods': ['NES', 'DINES'], 'models': ['new', 'online']},
-           'version_files': {str(p.relative_to(site)): p.stat().st_size for p in sorted(files) if p.suffix != '.mp4'},
+                       'clip_lengths': ['frame', '1s'], 'methods': ['NES', 'NESS'], 'models': ['new', 'online']},
+           'version_files': {str(p.relative_to(site)): p.stat().st_size for p in sorted(files) if p.suffix not in ('.mp4', '.webm')},
            'packs_to_upload': {p.name: p.stat().st_size for p in sorted(packs) if p.name.startswith('r4')},
            'live_version_file_packs': {p.name: p.stat().st_size for p in sorted(packs) if not p.name.startswith('r4')},
            'asset_store_urls_referenced': len(urls)}
