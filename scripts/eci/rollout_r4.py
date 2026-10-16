@@ -1534,6 +1534,51 @@ def cmd_summaries(args):
     (OUT / dom / 'summaries.json').write_text(json.dumps(S, indent=1))
 
 
+def rprec_halves(codes, y, rows, dev, chunk=256):
+    """Per neuron on the frames `rows`: R-precision P = share of positives among the top N frames (N = number of
+    positives; ties at the cut shared pro rata = expected value under random tie-breaking), and the normalised
+    R~ = (P - pi) / (1 - pi), pi = base rate. Unit weights. -> (R~ (m,) numpy, pi)."""
+    import torch
+    X = codes[rows]
+    yy = y[rows].bool()
+    n, m = X.shape
+    Np = int(yy.sum())
+    pi = Np / max(n, 1)
+    out = np.full(m, np.nan)
+    if Np == 0 or Np == n:
+        return out, pi
+    yf = yy.float()
+    for a_ in range(0, m, chunk):
+        x = X[:, a_:a_ + chunk].float()
+        cut = torch.topk(x, Np, dim=0).values[-1]  # the N-th largest value per neuron
+        above = x > cut[None]
+        tied = x == cut[None]
+        n_above = above.sum(0).float()
+        n_tied = tied.sum(0).float()
+        pos_above = (above.float() * yf[:, None]).sum(0)
+        pos_tied = (tied.float() * yf[:, None]).sum(0)
+        P = (pos_above + pos_tied * (Np - n_above) / n_tied.clamp(min=1)) / Np
+        out[a_:a_ + chunk] = ((P - pi) / (1 - pi)).cpu().numpy()
+    return out, pi
+
+
+def rprec_cf(codes, y, valid, half, dev):
+    """Cross-fitted normalised R-precision: the neuron with the highest R~ on one half of the units is scored on the
+    other half, both directions averaged (as sae_levers.score_model's cf_* metrics)."""
+    import torch
+    R, dirs = {}, []
+    for h in (0, 1):
+        rows = torch.from_numpy(np.flatnonzero(valid & (half == h))).to(codes.device)
+        R[h] = rprec_halves(codes, y, rows, dev)
+    for s_, t_ in ((0, 1), (1, 0)):
+        sc = np.where(np.isfinite(R[s_][0]), R[s_][0], -np.inf)
+        j = int(np.argmax(sc))
+        dirs.append({'select_half': s_, 'neuron': j, 'select_rprec_norm': float(sc[j]),
+                     'test_rprec_norm': float(R[t_][0][j]), 'test_base_rate': float(R[t_][1])})
+    return {'cf_rprec_norm': float(np.mean([d['test_rprec_norm'] for d in dirs])), 'cf_rprec_dirs': dirs,
+            'cf_rprec_neurons': [d['neuron'] for d in dirs]}
+
+
 # ---------------------------------------------------------------------------------------------- align
 def cmd_align(args):
     """Behaviour alignment test check (descriptive; never changes the recipe): best-neuron cross-fitted AUROC / AP /
@@ -1630,8 +1675,14 @@ def cmd_align(args):
         res, _ = score_model(codes, Yt, labels, valid, half, decile, dev)
         Rz['models'][nm] = {'codes': str(cd), 'width': int(cm.shape[1]),
                             **{b: {k_: v_ for k_, v_ in r.items() if k_ != 'dirs'} for b, r in res.items()}}
+        for li, b in enumerate(labels):  # PRIMARY (user, 2026-10-16): cross-fitted normalised R-precision
+            rp = rprec_cf(codes, Yt[:, li], valid[b], half, dev)
+            Rz['models'][nm][b].update(rp)
+            br = float(Yt[:, li].cpu().numpy()[valid[b]].mean())
+            Rz['models'][nm][b]['cf_ap_lift'] = Rz['models'][nm][b]['cf_ap'] / br if br > 0 else None
         log(f'{dom} {nm} ({cm.shape[1]} neurons, {time.time() - t0:.0f}s): ' + json.dumps(
-            {b: {k_: round(r[k_], 4) for k_ in ('cf_auroc', 'cf_ap', 'cf_top1', 'insample_auroc')} for b, r in res.items()}))
+            {b: {k_: round(Rz['models'][nm][b][k_], 4) for k_ in ('cf_rprec_norm', 'cf_auroc', 'cf_ap', 'cf_ap_lift',
+                                                                 'cf_top1')} for b in labels}))
         del codes
     Rz['partial'] = bool(args.partial)
     (OUT / dom / ('align_partial.json' if args.partial else 'align.json')).write_text(json.dumps(Rz, indent=1, default=float))
@@ -1767,6 +1818,10 @@ def cmd_report(args):
                         e['pairs'] = nes_top(rd / 'pairs')
                         e['pairs_noday'] = nes_top(rd / 'pairs_noday')
                     d['nes'][f'{v_}_{rule}'] = e
+                    key = {'mice': 'mice', 'frogs': 'frogs'}.get(dom, f'ants_{dm["ants_eci"]}')
+                    nd = OUT / 'ness' / key / (best[v_]['name'] + suf) / 'dines'
+                    if (nd / 'summary.csv').exists():  # NESS (= DINES) on the same outcomes
+                        d.setdefault('ness', {})[f'{v_}_{rule}'] = {'dir': str(nd), 'core': nes_top(nd)}
         vdir = bee(dom) / 'videos'
         d['videos_encoded'] = sum((vdir / f'{v["obs"]}.npz').exists() for v in P['videos']) if vdir.exists() else 0
         R['domains'][dom] = d
