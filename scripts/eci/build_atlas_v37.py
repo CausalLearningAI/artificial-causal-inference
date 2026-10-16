@@ -67,7 +67,11 @@ NEW = {'mice': ('mice', None, 'results/vision/mice/eci/nes', 'mice'),
 # online builds: (domain, ANTS_ECI, v36 result set, v36 tag)
 ONLINE = {'mice': ('mice', None, 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0', 'fg448al'),
           'ants': ('ants', 'eci', 'results/vision/ants/eci/nes/matryoshka_btk_1024_k16_antsfg_s0', 'antsfg'),
-          'frogs': ('frogs', None, 'results/vision/frogs/eci/nes/matryoshka_btk_1024_k16_frogsfg_s0', 'frogsfg')}
+          'frogs': ('frogs', None, 'results/vision/frogs/eci/nes/matryoshka_btk_1024_k16_frogsfg_s0', 'frogsfg'),
+          # ants v4 + v4_infested through the online model (scripts/eci/online_v4.py, another session, 2026-10-16): the
+          # v36 SAE on the v4-only layout; the run without recording-day conditioning, as the v36 ants searches
+          'ants_v4': ('ants', 'eci_c1v4_noday',
+                      'results/vision/ants/eci_c1v4_noday/nes/matryoshka_btk_1024_k16_antsfg_s0', 'antsfg')}
 # methods output (scripts/eci/atlas_v37_methods.py): <METHODS>/<domain key>/<sae>/{dines, familyC_nes, familyC_dines}
 METHODS = OUT / 'methods'
 METHOD_KEY = {'mice': 'mice', 'ants_v2': 'ants_eci_r4v2', 'ants_v3': 'ants_eci_r4v3', 'ants_v4': 'ants_eci_r4v4',
@@ -558,8 +562,12 @@ def split_methods(core, key, model_value):
 def online_paths():
     dom_name, lay, res, tag = ONLINE[A.dom]
     res = ROOT / res
+    if A.dom == 'ants_v4':  # its DINES run wrote to <layout>/methods/ants_<layout>/<sae>
+        M = ROOT / 'results/vision/ants' / lay / 'methods' / f'ants_{lay}' / res.name
+    else:
+        M = METHODS / METHOD_KEY[f'online_{A.dom}'] / res.name
     return dom_name, res.name, res, OUT / 'res' / f'online_{A.dom}' / res.name, OUT / 'build' / f'online_{A.dom}', \
-        METHODS / METHOD_KEY[f'online_{A.dom}'] / res.name, tag
+        M, tag
 
 
 def step_prep_online():
@@ -570,7 +578,9 @@ def step_prep_online():
     for f in (src / '_cache').glob('bout_thresholds*.npz'):
         link(f.resolve(), V / '_cache' / f.name)
     have = {}
-    for meth, srcs in (('dines', [M / 'dines', M / 'familyC_dines']), ('nesC', [M / 'familyC_nes'])):
+    nes_src = [src / 'pairs'] if (src / 'pairs' / 'summary.csv').exists() else [src]  # build_explorer rdir_of
+    for meth, srcs in (('dines', [M / 'dines', M / 'familyC_dines']), ('nesC', [M / 'familyC_nes']),
+                       ('nes', nes_src if A.dom == 'ants_v4' else [])):
         have[meth] = []
         for kind, sub, *_ in OUTS:
             ss = [s / sub if sub != '.' else s for s in srcs if (s / sub).is_dir()]
@@ -635,6 +645,73 @@ def step_dump_online():
     log(f'dump online {A.dom} -> {bout}/online.json')
 
 
+def step_dump_online_v4():
+    """Online model on ants v4 / v4_infested: NES and DINES entries of the v36 SAE on the v4-only layout. No clips (the
+    old model's clip packs are not extended): every listed neuron gets a no-clip entry (the v36 arena map, per-video
+    values); the same neuron number has its clips on the online v2 / v3 comparisons (same SAE)."""
+    dom_name, sae, src, V, bout, M, tag = online_paths()
+    dom = DOMOBJ[dom_name]
+    v36 = v36_all()
+    e36 = next(e for e in v36['saes'] if e['tag'] == tag)
+    ar = np.load(ROOT / ONLINE['ants'][2] / '_cache' / 'explorer' / 'arena.npz')
+    vm, videos, obs, _ = BE._vt(dom)
+    (bout / 'data').mkdir(parents=True, exist_ok=True)
+    for f in (bout / 'data').glob('*.json'):
+        f.unlink()
+    c = make_cfg(V, sae, dom, tag + 'v4', bout)
+    entries = []
+    for meth, base in (('NES', V / 'nes'), ('DINES', V / 'dines')):
+        if not base.is_dir():
+            log(f'online v4: no {meth} results in {base}')
+            continue
+        c.outcomes, c.extras = [], []
+        outs = add_outcomes(c, base, '', V / '_cache', dines=meth == 'DINES')
+        analyses = {}
+        R = annotate_status(BE.search_results(c, outs, analyses, top=True), outs)
+        x = f'{tag}v4{meth.lower()}'
+        rfiles, nb, lw = {}, {}, {}
+        for o in outs:
+            ids, Y = BE.video_outcome(c, o)
+            ix = ids.get_indexer(vm['observation_id'].astype(str))
+            assert (ix >= 0).all()
+            Ro = {k: v for k, v in R.items() if k.startswith(o['id'] + '|')}
+            js = sorted({str(r['neuron']) for v in Ro.values() for r in v['rows']}
+                        | {str(t[0]) for v in Ro.values() for t in v.get('top', [])}, key=int)
+            vals = {j: [BE.sig4(v) for v in Y[ix, int(j)]] for j in js}
+            if o['kind'] != 'latency':
+                print(f'[{x}] {o["id"]}: tau check {BE.tau_check(vm, vals, Ro, o["id"], dom=dom):.2e}')
+            else:
+                lw[o['id']] = {aid: BE.sig4(BE.latency_W(o, aid) / dom.fps) for aid in c.order
+                               if (BE.primary_rows(o)['analysis_id'] == aid).any()}
+            for j in js:
+                nb.setdefault(j, {'noclip': True, 'artefact': False, 'arena': BE.q16(ar['act'][:, int(j)]),
+                                  'vals': {}})['vals'][o['id']] = vals[j]
+            f = f'{x}_r_{o["id"]}.json'
+            (bout / 'data' / f).write_text(json.dumps({'results': Ro, 'vals': {o['id']: vals}}, separators=(',', ':')))
+            rfiles[o['id']] = f'assets/data/{f}'
+        nf = f'{x}_n.json'
+        (bout / 'data' / nf).write_text(json.dumps({'by': {'max': nb}}, separators=(',', ':')))
+        e = {k: copy.deepcopy(e36[k]) for k in ('rep', 'artefact', 'artefact_text', 'arena_note', 'montage', 'arena',
+                                                 'subject', 'subjects', 'top') if k in e36}
+        e.update(sae=f'{e36["sae"]}@v4{meth.lower()}', tag=x, model={'model': 'online', 'method': meth},
+                 outcomes=[copy.deepcopy(next(q for q in e36['outcomes'] if q['id'] == o['id'])) for o in outs],
+                 analyses=[analyses[a] for a in c.order if a in analyses], subsets={}, rfiles=rfiles, pre={},
+                 lwin=lw, nfile={'max': {'files': [f'assets/data/{nf}'], 'of': {j: 0 for j in nb}}},
+                 domain='ants', sub_ui=False, videos=videos, obs=obs, vnote='v4 and v4_infested t=2, 6',
+                 n_frames=int(len(np.load(dom.eci_dir / 'codes' / sae / 'n_fg.npy', mmap_mode='r'))),
+                 noclip_note='Online model on v4: no clips rendered (the old model\'s clip packs are reused, not '
+                             'extended); the same neuron number has clips on the online v2 / v3 comparisons',
+                 note='Online model (the v36 SAE, unchanged) applied to the Exp4 series v4 / v4_infested (30 min; '
+                      'codes of the 30-min ants layout, re-checked by scripts/eci/online_v4.py); no recording-day '
+                      'conditioning, as the v36 ants searches. No clips for these comparisons.')
+        entries.append(e)
+        log(f'online v4 {meth}: ' + ', '.join(
+            f'{o["id"]} {sum(len(v["rows"]) for k, v in R.items() if k.startswith(o["id"] + "|"))} rows' for o in outs)
+            + f'; {len(nb)} neurons (no clips)')
+    (bout / 'core.json').write_text(json.dumps({'entries': entries}, separators=(',', ':')))
+    log(f'dump online v4 -> {bout}/core.json')
+
+
 # ---------------------------------------------------------------------- assemble
 def v36_all():
     s = V36_PAGE.read_text()
@@ -657,7 +734,9 @@ METHOD_TIPS = {'NES': 'Neural Effect Search (Mencattini, Cadei, Locatello 2025):
                'DINES': 'Direct-Indirect Neural Effect Search (successor of NES, src/eci/dines.py): a forward phase '
                         'ordered by p-value, then a backward check of every found neuron given every subset of the '
                         'others (generalized covariance measure tests, cross-fitted); reports the neurons changed '
-                        'directly by the treatment'}
+                        'directly by the treatment',
+               'NESS': 'NESS: minimal neuron sets that carry the treatment information (design draft, '
+                       'docs of commit e04f371); not implemented yet'}
 METHOD_NOTES = {'DINES': 'DINES: reported neurons = kept (significant given every tested subset of the other found '
                          'neurons) plus undetermined (significant except given a set of neurons that nearly reveals '
                          'the treatment). τ = the plain difference of the per-video means (paired: mean change), p = '
@@ -820,6 +899,15 @@ def step_assemble():
             add_method(di, on['dines'], 'dines', replace=True)
             entries.append(di)
         saes += entries
+    ov4 = OUT / 'build' / 'online_ants_v4' / 'core.json'
+    if ov4.exists():  # online model on ants v4 (step_dump_online_v4)
+        for f in sorted((ov4.parent / 'data').glob('*.json')):
+            shutil.copy(f, site / 'assets' / 'data' / f.name)
+        v4e = json.loads(ov4.read_text())['entries']
+        for x in saes:
+            if x['domain'] == 'ants' and x['model']['model'] == 'online' and any(y['model'] == x['model'] for y in v4e):
+                x.pop('pending', None)
+        saes += v4e
 
     for e in saes:  # frogs: the tadpole phase (stage 44-48) has no codes in either model yet
         if e['domain'] == 'frogs':
@@ -840,8 +928,8 @@ def step_assemble():
                              x['model']['method'] != 'NES'))
     data = {'default': doms[0]['default'], 'saes': saes,
             'axes': [{'key': 'model', 'label': 'Model', 'tips': MODEL_TIPS, 'values': ['new', 'online']},
-                     {'key': 'method', 'label': 'Method', 'tips': METHOD_TIPS, 'values': ['NES', 'DINES'],
-                      'missing': {'DINES': 'coming'}}],
+                     {'key': 'method', 'label': 'Method', 'tips': METHOD_TIPS, 'values': ['NES', 'DINES', 'NESS'],
+                      'missing': {'DINES': 'coming', 'NESS': 'to be implemented'}}],
             'videos': v36['videos'], 'obs': v36['obs'], 'montage': v36['montage'], 'tcrit': v36['tcrit'],
             'domains': doms, 'kinds': v36['kinds'], 'aggs': [g for g in v36['aggs'] if g['id'] == 'max'],
             'method_notes': METHOD_NOTES}
@@ -925,4 +1013,4 @@ if __name__ == '__main__':
         if 'prep' in steps:
             step_prep_online()
         if 'dump' in steps:
-            step_dump_online()
+            step_dump_online_v4() if A.dom == 'ants_v4' else step_dump_online()

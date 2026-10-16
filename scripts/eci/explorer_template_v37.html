@@ -990,7 +990,7 @@ function chartsHTML(j, n, cmp, a, hl, ct){
 /* a neuron left without clips (beyond the build's clip budget): arena map, chart and per-pool panel */
 function renderNoClip(D, h, j, n, cmp, a){
   const AT = `Mean activation of this neuron on each image patch over ${DATA.arena_note || 'all frames'}.`;
-  h+=`<div class="two"><div class="hd"><div class="row"><h3 class="tip" title="${esc(AT)}">Arena map</h3><span class="meta tip" title="Beyond the clip budget of this build (--max-pages): no clips or histogram rendered">no clips</span></div>${arenaHTML()}</div><div></div></div>`;
+  h+=`<div class="two"><div class="hd"><div class="row"><h3 class="tip" title="${esc(AT)}">Arena map</h3><span class="meta tip" title="${esc(DATA.noclip_note || 'Beyond the clip budget of this build (--max-pages): no clips or histogram rendered')}">no clips</span></div>${arenaHTML()}</div><div></div></div>`;
   h+=chartsHTML(j, n, cmp, a, cmp ? hlOf(a) : [], chartTable(j, n));
   D.innerHTML = h+'</div>';
   drawArena(n);
