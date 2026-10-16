@@ -30,7 +30,7 @@ for k in $KEYS; do
     sleep 120
   done
   echo "$(date +%H:%M) $k: methods ready ($M)"
-  j=$(sbatch --parsable --export=ALL,ARGS="--dom $k --model new --steps prep,data,patch,arena,render,dump" -J a37new_$k \
+  j=$(sbatch --parsable --export=ALL,ARGS="--dom $k --model new --steps prep,checks,data,patch,arena,render,dump" -J a37new_$k \
       scripts/eci/build_atlas_v37.sh)
   echo "$(date +%H:%M) $k: build -> $j"
   deps="$deps:$j"
