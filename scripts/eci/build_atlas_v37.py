@@ -437,8 +437,8 @@ def step_patch_new(c):
         f = BE.patch_file(c, 'max', j)
         rr = BE.clip_rows(n, c.kr, BE.SHOW_LENGTHS)
         sig = 'peak-' + json.dumps(rr)
-        if f.exists() and not A.overwrite and str(np.load(f)['sig']) == sig:
-            continue
+        if f.exists() and not A.overwrite and str(np.load(f)['sig']) in (sig, 'r4heat-' + json.dumps(rr)):
+            continue  # r4heat-: real per-patch codes (scripts/eci/atlas_v37_r4heat.py, GPU)
         jj = int(j)
         arrs, pos = {}, []
         for name, rows in rr.items():
@@ -522,6 +522,11 @@ def dump(c, entries, out):
         f.unlink()
     for f, x in files.items():
         (out / 'data' / f).write_text(BE.jdump(x))
+    picks = json.loads((c.work / 'picks.json').read_text())
+    sigs = [str(np.load(BE.patch_file(c, 'max', j))['sig']) for j in picks['by_key'].get('max', {})]
+    heat = 'real' if sigs and all(x.startswith('r4heat-') for x in sigs) else 'peak'
+    log(f'dump {c.tag}: heat maps {heat} ({sum(x.startswith("r4heat-") for x in sigs)}/{len(sigs)} real)')
+    core['heat_kind'] = heat
     cores = entries(core)
     (out / 'core.json').write_text(json.dumps({'entries': cores, 'videos_mice': BE._vt()[1] if c.dom is BE.MICE else None},
                                               separators=(',', ':')))
@@ -711,8 +716,9 @@ def step_assemble():
         for e in cj['entries']:
             if amap:
                 e = json.loads(rw_text(json.dumps(e), amap))
-            e['heat_note'] = ('New model: R4 stores, per frame and neuron, only the position of its strongest patch, so '
-                              'the heat shows that peak patch (blurred), not a full map of every patch.')
+            if e.get('heat_kind') != 'real':
+                e['heat_note'] = ('New model: R4 stores, per frame and neuron, only the position of its strongest '
+                                  'patch, so the heat shows that peak patch (blurred), not a full map of every patch.')
             dom = e['domain']
             series = {'ants_v2': 'v2', 'ants_v3': 'v3', 'ants_v4': 'v4'}.get(key.rsplit('_', 1)[0])
             e['note'] = ('New model (R4, ' + ('2 s change, d2' if key.endswith('d2') else 'no change half, d0') +
