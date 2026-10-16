@@ -1024,7 +1024,8 @@ def check_site(site, amap, saes):
            'options': {'prefixes': [128, 256], 'default_prefix': 128, 'spatial_aggregation': ['max'],
                        'clip_lengths': ['frame', '1s'], 'methods': ['NES', 'DINES'], 'models': ['new', 'online']},
            'version_files': {str(p.relative_to(site)): p.stat().st_size for p in sorted(files) if p.suffix != '.mp4'},
-           'packs_to_upload': {p.name: p.stat().st_size for p in sorted(packs)},
+           'packs_to_upload': {p.name: p.stat().st_size for p in sorted(packs) if p.name.startswith('r4')},
+           'live_version_file_packs': {p.name: p.stat().st_size for p in sorted(packs) if not p.name.startswith('r4')},
            'asset_store_urls_referenced': len(urls)}
     man['version_files']['index.html'] = len(page.encode())
     (site / 'manifest.json').write_text(json.dumps(man, indent=1))
