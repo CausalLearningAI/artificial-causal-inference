@@ -14,9 +14,12 @@ from pathlib import Path
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--site', default=str(Path(__file__).resolve().parents[2] / 'results/vision/eci_atlas_v37/site'))
-ap.add_argument('--shots', default=None)
+ap.add_argument('--shots', default=str(Path(__file__).resolve().parents[2] / 'results/vision/eci_atlas_v37/pagetest'))
 ap.add_argument('--port', type=int, default=8737)
 a = ap.parse_args()
+Path(a.shots).mkdir(parents=True, exist_ok=True)
+for f in Path(a.shots).glob('*.png'):
+    f.unlink()
 
 H = functools.partial(http.server.SimpleHTTPRequestHandler, directory=a.site)
 class Q(http.server.SimpleHTTPRequestHandler):
@@ -108,8 +111,7 @@ with sync_playwright() as p:
     note = pg.eval_on_selector('#mNote', 'e => e.textContent')
     report.append(f'last model note: {note}')
     b.close()
-print('\n'.join(report))
-print(f'JS errors: {len(errors)}')
-for e in errors[:30]:
-    print('  ', e)
+out = '\n'.join(report) + f'\nJS errors: {len(errors)}\n' + '\n'.join('   ' + e for e in errors[:30])
+print(out)
+Path(a.shots, 'report.txt').write_text(out)
 srv.shutdown()
