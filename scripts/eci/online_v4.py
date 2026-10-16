@@ -138,8 +138,9 @@ def step_verify(args):
     res['passed'] = bool(all(v['codes_max']['cos_min'] > 0.99 and v['codes_mean']['cos_min'] > 0.99
                              and v['n_fg']['max_abs_diff'] <= 5 for v in res['videos'].values()))
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / 'verify.json').write_text(json.dumps(res, indent=1))
-    log(f'verify passed={res["passed"]} -> {OUT / "verify.json"}')
+    vf = OUT / f'verify{os.environ.get("VERIFY_TAG", "")}.json'
+    vf.write_text(json.dumps(res, indent=1))
+    log(f'verify passed={res["passed"]} -> {vf}')
     if not res['passed']:
         raise SystemExit('verification FAILED')
 
@@ -245,11 +246,15 @@ def step_check(args):
     res = {}
     a = np.load(nes_root('eci_c1v4_noday') / '_cache/video_summaries_max.npz', allow_pickle=True)
     b = np.load(REPO / f'results/vision/ants/eci30/nes/{SAE}/_cache/video_summaries_max.npz', allow_pickle=True)
-    res['cache_keys'] = {'new': sorted(a.files), 'eci30': sorted(b.files)}
+    ib = {o: i for i, o in enumerate(b['observation_id'])}
+    sel = np.array([ib[o] for o in a['observation_id']])
+    res['videos_compared'] = int(len(sel))
+    res['summary_max_abs_diff'] = {k: float(np.abs(a[k] - b[k][sel]).max())
+                                   for k in a.files if k.endswith(('__mean', '__rate')) and k in b.files}
     s_new = pd.read_csv(nes_root('eci_c1v4_noday') / 'summary.csv')
     s_old = pd.read_csv(REPO / f'results/vision/ants/eci30/nes/{SAE}/summary.csv')
     ids = sorted(set(s_new.analysis_id) & set(s_old.analysis_id))
-    cols = ['analysis_id', 'prefix', 'pooling', 'outcome_type', 'window', 'round', 'neuron', 'n_units']
+    cols = ['analysis_id', 'prefix', 'pooling', 'outcome_type', 'test', 'correction', 'window', 'round', 'neuron', 'n_units']
     m = s_new[s_new.analysis_id.isin(ids)][cols + ['tau', 'p']].merge(
         s_old[s_old.analysis_id.isin(ids)][cols + ['tau', 'p']], on=cols, how='outer', suffixes=('', '_eci30'),
         indicator=True)
@@ -258,9 +263,10 @@ def step_check(args):
     both = m[m['_merge'] == 'both']
     res['activation_max_abs_tau_diff'] = float(np.nanmax(np.abs(both.tau - both.tau_eci30))) if len(both) else None
     res['analyses'] = ids
-    res['passed'] = bool(res['activation_rows_only_one_side'] == 0 and (res['activation_max_abs_tau_diff'] or 0) < 1e-6)
+    res['passed'] = bool(res['activation_rows_only_one_side'] == 0 and (res['activation_max_abs_tau_diff'] or 0) < 1e-6
+                         and max(res['summary_max_abs_diff'].values()) < 1e-9)
     (OUT / 'check.json').write_text(json.dumps(res, indent=1, default=str))
-    log(json.dumps({k: v for k, v in res.items() if k != 'cache_keys'}, default=str))
+    log(json.dumps(res, default=str))
 
 
 def step_manifest(args):
@@ -295,8 +301,46 @@ def step_manifest(args):
     print(json.dumps(man, indent=1))
 
 
+def step_hits(args):
+    """Primary hits (pooling max, t test, Bonferroni, whole window, bout / latency threshold q 0.95, merge gap 0, bout rule 0, latency untransformed) per layout variant x method x outcome x analysis x
+    prefix: number of reported neurons and their ids in selection order -> hits.csv / hits.json."""
+    rows = []
+    for lay in LINKS:
+        base = nes_root(lay)
+        dines = REPO / f'results/vision/ants/{lay}/methods/ants_{lay}/{SAE}/dines'
+        src = {('NES', 'activation'): base / 'pairs/summary.csv', ('NES', 'bout_rate'): base / 'pairs/maxpool_bouts/summary.csv',
+               ('NES', 'latency'): base / 'pairs/maxpool_latency/summary.csv', ('DINES', 'activation'): dines / 'summary.csv',
+               ('DINES', 'bout_rate'): dines / 'maxpool_bouts/summary.csv',
+               ('DINES', 'latency'): dines / 'maxpool_latency/summary.csv'}
+        for (meth, outc), f in src.items():
+            if not f.exists():
+                rows.append({'layout': lay, 'method': meth, 'outcome': outc, 'missing': str(f)})
+                continue
+            t = pd.read_csv(f)
+            win = 'common' if outc == 'latency' else 'full'
+            otype = {'activation': 'mean', 'bout_rate': 'bout_rate', 'latency': 'latency'}[outc]
+            t = t[(t.pooling == 'max') & (t.test == 't') & (t.correction == 'bonferroni') & (t.window == win)
+                  & (t.outcome_type == otype)]
+            for c, v in (('threshold_q', 0.95), ('merge_gap', 0), ('bout_rule', 0), ('transform', 'none')):
+                if c in t.columns:  # the primary bout / latency setting (build_explorer DEFAULT_OUTCOMES)
+                    t = t[t[c].astype(str) == v] if isinstance(v, str) else t[np.isclose(t[c].astype(float), v)]
+            for (aid, pre), g in t.groupby(['analysis_id', 'prefix'], sort=False):
+                g = g[g['round'] >= 1].sort_values('round')
+                r = {'layout': lay, 'day': 'conditioned' if lay == 'eci_c1v4' else 'day-unmatched', 'method': meth,
+                     'outcome': outc, 'analysis_id': aid, 'prefix': int(pre), 'n_units': int(t[t.analysis_id == aid].n_units.iloc[0]),
+                     'n_hits': len(g), 'neurons': ' '.join(str(int(n)) for n in g['neuron']),
+                     'taus': ' '.join(f'{x:+.3g}' for x in g.get('tau', []))}
+                if meth == 'DINES' and 'status' in g:
+                    r['n_kept'] = int((g.status == 'kept').sum())
+                    r['n_undetermined'] = int((g.status == 'undetermined').sum())
+                rows.append(r)
+    h = pd.DataFrame(rows)
+    h.to_csv(OUT / 'hits.csv', index=False)
+    print(h.to_string())
+
+
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('step', choices=('verify', 'layout', 'check', 'manifest'))
+    ap.add_argument('step', choices=('verify', 'layout', 'check', 'manifest', 'hits'))
     A = ap.parse_args()
-    {'verify': step_verify, 'layout': step_layout, 'check': step_check, 'manifest': step_manifest}[A.step](A)
+    {'verify': step_verify, 'layout': step_layout, 'check': step_check, 'manifest': step_manifest, 'hits': step_hits}[A.step](A)
