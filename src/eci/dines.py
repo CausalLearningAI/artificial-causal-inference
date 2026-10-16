@@ -47,8 +47,13 @@ known by design and is learned (only A = {} without covariates uses the share of
 Relevance margin delta (theory Sections 2.6-2.8, Theorem 3; default 0). Effect size = the partial correlation
     rho_j,A = mean((T - pi)(Z^j - mu)) / sqrt(mean((T - pi)^2) mean((Z^j - mu)^2)),
 and with delta > 0 every test (both phases) is the test of H0: |rho| <= delta, p = Phi((delta - |rho^|) / se) +
-Phi((-delta - |rho^|) / se), se from the delta method (influence function of the ratio, which includes the
-estimation error of the two denominators). At delta = 0 the plain GCM statistic is used.
+Phi((-delta - |rho^|) / se). se = max(delta-method SE (influence function of the ratio, which includes the estimation
+error of the two denominators), GCM-scale SE = se(mean R) / sqrt(mean (T - pi)^2 mean (Z - mu)^2)). The floor makes
+p(delta) >= p(0): the margin test never rejects where the exact test does not. Without it the delta-method SE
+collapsed for sparse atoms at small n (an atom firing in a few units: the denominator terms cancel the main term) and
+the margin test rejected far MORE often than the exact one (measured on the CelebA null trials, tau = 0: any selection
+in 10/10 runs at N = 100 and 250 with delta = 0.02, vs 1/10 and 0/10 at delta = 0). At delta = 0 the plain GCM
+statistic is used.
 
 Pre-treatment covariates W (optional): appended to every conditioning set in both phases (they add power, not
 validity, in a randomized experiment; Section 3.2, Proposition 10). Clusters (optional): cluster-robust standard
@@ -124,9 +129,11 @@ def _gcm_from_residuals(rT, RZ, delta=0.0, Gm=None, scale=None):
             ok &= se_a > 0
             stat = np.where(ok, a / se_a, 0.0)
             se_rho = np.where(ok, se_a / s, np.inf)
-        else:  # delta method for rho = a / sqrt(b c)
+        else:  # delta method for rho = a / sqrt(b c), floored at the GCM scale se(a) / s
             psi = (R - a) / s - (a / (2 * s)) * ((rT[:, None] ** 2 - b) / b + (RZ ** 2 - c) / c)
-            se_rho = _se_of_mean(np.where(ok, psi, 0.0), Gm)
+            se_dm = _se_of_mean(np.where(ok, psi, 0.0), Gm)
+            se_gcm = _se_of_mean(np.where(ok, R - a, 0.0), Gm) / np.where(ok, s, 1.0)
+            se_rho = np.maximum(se_dm, se_gcm)
             ok &= se_rho > 0
             stat = np.where(ok, (np.abs(rho) - delta) / se_rho, -np.inf)
     df = None if Gm is None else Gm.shape[1] - 1

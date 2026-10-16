@@ -158,6 +158,19 @@ def test_gcm_matches_formula():
     assert np.allclose(np.exp(r0['logp'][1:]), np.exp(res['logp'][1:]), atol=0.02)
 
 
+def test_margin_never_below_exact():
+    """p(delta) >= p(0) for every atom, including sparse atoms at small n (the delta-method SE alone collapsed there)."""
+    rng = np.random.default_rng(3)
+    for n in (30, 100, 250):
+        for _ in range(50):
+            T = rng.binomial(1, 0.5, n)
+            Z = np.maximum(rng.normal(-1.8, 1.0, size=(n, 40)), 0.0)  # fires in ~4% of units
+            Z = Z[:, (Z > 0).sum(0) >= 1]
+            p0 = linear_gcm(Z, T)['logp']
+            for d in (0.02, 0.05):
+                assert (linear_gcm(Z, T, delta=d)['logp'] >= p0 - 1e-9).all(), (n, d)
+
+
 def test_subset_order():
     order, complete = _subset_order([3, 5, 7], None)
     assert complete and order[0] == () and set(order) == {(), (5, 7), (3, 7), (3, 5), (3,), (5,), (7,)}
