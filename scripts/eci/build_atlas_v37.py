@@ -313,6 +313,28 @@ def mirror_outcome(dst, srcs):
     return True
 
 
+def make_cfg(res, sae, dom, tag, out):
+    """A build_explorer Cfg without its __init__ (whose outcome discovery assumes one NES result set): the outcomes
+    are set by add_outcomes."""
+    c = object.__new__(BE.Cfg)
+    c.res, c.sae, c.tag, c.dom = res, sae, tag, dom
+    c.view = BE.VIEW[dom.name]
+    c.vdom = None if dom is BE.MICE else dom
+    c.order = BE.kept_analyses(dom, c.view)
+    c.out, c.assets, c.work = out, out / 'assets', res / '_cache' / 'explorer'
+    c.rdir, c.ameta = res, {}
+    c.outcomes, c.extras, c.subsets, c.xsubsets = [], [], {}, {}
+    nf = dom.eci_dir / 'codes' / sae / 'n_fg.npy'
+    c.size_ok = not (nf.exists() and np.ptp(np.load(nf, mmap_mode='r')[::97]) == 0)
+    c.noclip, c.clipplan = set(), None
+    c.keys = ['max']
+    c.rep, c.align, c.rot = 'fg448', 'none', None  # whole-frame square grid (frame_box), no alignment
+    c.artefact, c.interp = set(), {}
+    c.crf = c.view['crf']
+    c.tile, c.cols, c.kr, c.crop = (c.view[k] for k in ('tile', 'cols', 'kr', 'crop'))
+    return c
+
+
 def add_outcomes(c, base, prefix, cache, kinds=('rate', 'time', 'latency'), dines=False):
     """Outcomes of one method from base/<sub>/summary.csv: ids prefix + the NES id (build_explorer names); rate and
     time are core outcomes (own data file), latency an extra one (the bundle), as build_explorer does."""
