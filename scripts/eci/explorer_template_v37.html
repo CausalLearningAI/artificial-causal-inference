@@ -699,12 +699,13 @@ function renderTop(S, h, top, fold){
   const thr1 = 0.05 / (res().n_tested_total || 128);   // round-1 Bonferroni threshold of this search
   for(const [j, tau, p, cens] of top){
     const up=tau>0, sig = p < thr1;
-    const why = sig ? `significant in round 1 (p ${fmtP(p)} < ${fmtP(thr1)}) but not selected: once the selected neurons were conditioned on, this one was no longer significant (it overlaps with them)`
+    const why = sig && METH()==='DINES' ? `significant on its own (first-round p ${fmtP(p)} < ${fmtP(thr1)}) but not reported by DINES: it was dropped in the backward check (not significant given some set of the other forward-phase neurons) or set aside as revealing the treatment`
+              : sig ? `significant in round 1 (p ${fmtP(p)} < ${fmtP(thr1)}) but not selected: once the selected neurons were conditioned on, this one was no longer significant (it overlaps with them)`
                     : `not selected: p above the round-1 Bonferroni threshold (${fmtP(thr1)})`;
     h+=`<button type="button" class="nr" data-n="${j}" aria-pressed="${j===state.neuron}" title="first-round p ${fmtP(p)}: not selected by ${METH()}">
       <span class="id">#${j}</span>
       <span class="l1"><span class="${up?'up':'down'}">${up?'▲':'▼'} ${fmtTau(tau)}</span><span class="pv">p ${fmtP(p)}</span>${csHTML(j)}</span>
-      <span class="chips"><span class="chip na" title="${esc(why)}">${sig?'explained by the picks':'not selected'}</span>${censChip(cens)}</span></button>`;
+      <span class="chips"><span class="chip na" title="${esc(why)}">${sig?(METH()==='DINES'?'dropped by DINES':'explained by the picks'):'not selected'}</span>${censChip(cens)}</span></button>`;
   }
   S.innerHTML = h+'</div></details>';
   for(const b of S.querySelectorAll('.nr')) b.onclick=()=>{ state.neuron=+b.dataset.n; render(); };
