@@ -1681,7 +1681,7 @@ def cmd_align(args):
             br = float(Yt[:, li].cpu().numpy()[valid[b]].mean())
             Rz['models'][nm][b]['cf_ap_lift'] = Rz['models'][nm][b]['cf_ap'] / br if br > 0 else None
         log(f'{dom} {nm} ({cm.shape[1]} neurons, {time.time() - t0:.0f}s): ' + json.dumps(
-            {b: {k_: round(Rz['models'][nm][b][k_], 4) for k_ in ('cf_rprec_norm', 'cf_auroc', 'cf_ap', 'cf_ap_lift',
+            {b: {k_: (round(Rz['models'][nm][b][k_], 4) if Rz['models'][nm][b][k_] is not None else None) for k_ in ('cf_rprec_norm', 'cf_auroc', 'cf_ap', 'cf_ap_lift',
                                                                  'cf_top1')} for b in labels}))
         del codes
     Rz['partial'] = bool(args.partial)
