@@ -752,14 +752,11 @@ def v36_all():
 
 
 KEEP_IDS = ('boutratemaxpool', 'meanactivationma', 'xlatencymax')  # the v36 max-pooling outcomes
-MODEL_TIPS = {'online': 'The published configuration (atlas version 39): DINOv2 patch features at 448 px, the '
-                        'animal mask, Matryoshka BatchTopK SAE with 1024 neurons (k 16), max pooling',
-              'new': 'R4: DINOv3-L/16 (block 20) at an input sized to the animal (mice 1024 px, ants 768-832 px, '
-                     'frogs 800 px), the same lab animal masks, each patch described by its token and its change over '
-                     'the last 2 s ([z_t, z_t - z_(t-2 s)]), Matryoshka BatchTopK SAE with 512 neurons (k 16), max '
-                     'pooling; a frame fires when its code, divided by the neuron\'s typical size, passes one '
-                     'domain-wide threshold (fnorm)',
-              'new (no Δ)': 'R4 without the 2 s change half: DINOv3-L/16 token only (variant d0)'}
+MODEL_TIPS = {'online': 'v1 (deployed): DINOv2-base at 448 px, the animal mask, token only, Matryoshka BatchTopK SAE '
+                        'with 1024 neurons (k 16), max pooling',
+              'new': 'v2 (in progress): DINOv3-L/16 at an input sized to the animal, the same lab masks, token + its '
+                     'change over 2 s, Matryoshka BatchTopK SAE with 512 neurons (k 16), max pooling',
+              'new (no Δ)': 'v2 without the 2 s change half (variant d0)'}
 METHOD_TIPS = {'NES': 'Neural Effect Search (Mencattini, Cadei, Locatello 2025): add the most significant neuron, '
                       're-test the others given the ones found, repeat until nothing is significant (Bonferroni)',
                'DINES': 'Direct-Indirect Neural Effect Search (successor of NES, src/eci/dines.py): a forward phase '
@@ -797,67 +794,26 @@ MASK = {'mice': 'mouse mask (rule fg448, per-video backgrounds)', 'ants': 'ant m
 
 
 def spec_of(e):
+    """The compact Details cells of an entry (page table v0 | v1 | v2; v0 = the ECI paper recipe, not filled yet)."""
     dom, online, meth = e['domain'], e['model']['model'] == 'online', e['model']['method']
     key = e['sae'].split('#')[1].rsplit('_', 1)[0] if '#' in e['sae'] else None
-    seed = re.search(r'_s(\d)', e['sae']).group(1)
     if online:
-        fm, layer = 'DINOv2-base', 'last layer (after the final LayerNorm)'
-        res = '448 px (32×32 patches): the 512 px frame resized'
-        sae = 'Matryoshka BatchTopK 1024, k=16'
-        inp = 'token'
-        fire = 'global threshold (the SAE\'s inference threshold)'
-        seedtxt = f'seed {seed} (single run)'
-        rot = ('arena rotated so the odor corner is top right' if dom == 'mice' else
-               'videos mirrored so the mutant side is on the right' if dom == 'frogs' else 'none')
+        fm = 'DINOv2-base · 448 px (32×32 patches)'
+        sae = 'Matryoshka BatchTopK · 1024 · k=16'
+        mask = {'mice': 'mouse mask · odor corner rotated to top right', 'ants': 'ant mask',
+                'frogs': 'frog mask · mutant side mirrored right'}[dom]
         cov = 'none' if meth == 'NES' else 'foreground size (n_fg)'
     else:
         S, G = R4_SIZE[key]
-        fm, layer = 'DINOv3-L/16', 'block 20 of 24 (+ the final LayerNorm)'
-        res = f'{S} px ({G}×{G} patches), decoded from the native video'
-        sae = 'Matryoshka BatchTopK 512, k=16'
-        inp = 'token + 2 s change'
-        fire = 'fnorm: a frame fires when its code ÷ the neuron\'s typical size passes one domain-wide threshold'
-        seedtxt = f'seed {seed}: best held-out reconstruction (FVE) of 3 seeds'
-        rot = ('none (videos not rotated)' if dom == 'mice' else
-               'videos mirrored so the mutant side is on the right' if dom == 'frogs' else 'none')
-        cov = 'foreground size (n_fg)' + (' + recording day' if dom == 'ants' else '')
-    line = [['FM', fm], ['SAE', sae.replace(' BatchTopK', '')], ['Input', inp], ['Resolution', res.split(' (')[0]],
-            ['Pooling', 'max']]
-    win = {'mice': ('habituation: whole 30 min; odor, post: whole 15 min' if online else
-                    'habituation: last 15 min (minutes 15–30); odor, post: whole 15 min'),
-           'ants': 'whole video (v2: 10 min; v3, v4, v4_infested: 30 min)',
-           'frogs': 'hour 1 of each frog (18,000 frames)'}[dom]
-    test = ('t-test, Bonferroni; forward: add the most significant neuron, re-test the others given those found'
-            if meth == 'NES' else
-            'generalized covariance measure tests (cross-fitted); forward by p-value, then a backward check of each '
-            'found neuron given every subset of the others')
-    sets = {o['kind']: o['setting'] for o in e['outcomes']}
-    th = re.search(r'threshold_q ([\d.]+)', sets.get('rate', '') or sets.get('latency', ''))
-    details = [
-        ['Foundation model', f'{fm}, {layer}'],
-        ['Frames', '5 per second'],
-        ['Resolution', res],
-        ['Mask', MASK[dom] + ('' if online else ', projected from the 32×32 grid')],
-        ['Rotation / mirroring', rot],
-        ['Patch input', 'token z_t' if online else '[z_t, z_t − z_(t − 2 s)] (2048-d)'],
-        ['SAE', sae + (', prefixes 128 / 256 / 512' if not online else ', Matryoshka prefixes')
-         + (', one SAE for v2, v3, v4, v4_infested' if dom == 'ants' and not online else '')],
-        ['Seed', seedtxt],
-        ['Frame firing rule', fire],
-        ['Spatial pooling', 'max over the mask patches'],
-        ['Temporal aggregation', 'bout rate (bouts/min), mean activation, latency to first bout'
-         + (f'; bout threshold q {th.group(1)}' if th else '')],
-        ['Neurons searched', 'first 128 (main) or first 256'],
-        ['Search', f'{meth}: {test}'],
-        ['Search covariates', cov],
-        ['Time window', win],
-        ['Priors (built in)', 'the effect is on the animals (mask); fixed camera, so a patch is a fixed arena spot; '
-                              'a concept anywhere on the animal counts (max pooling)'
-         + ('' if online else '; ~10 patches per body length; behaviour includes motion (2 s change)')],
-        ['Hypotheses (assumed)', 'an effect shows as a shift of a per-video neuron outcome; units independent (video, '
-                                 'or pool when paired); known confounds are only those listed in the experiment details'],
-    ]
-    return {'line': line, 'details': details}
+        fm = f'DINOv3-L/16 · {S} px ({G}×{G} patches)'
+        sae = 'Matryoshka BatchTopK · 512 · k=16' + (' · one SAE for all series' if dom == 'ants' else '')
+        mask = {'mice': 'mouse mask · not rotated', 'ants': 'ant mask', 'frogs': 'frog mask · mutant side mirrored right'}[dom]
+        cov = 'foreground size (n_fg)' + (' + recording day (not for t=8 vs t=2, infested vs healthy)' if dom == 'ants' else '')
+    cells = {'fm': fm, 'input': 'token' if online else 'token + 2 s change', 'mask': mask, 'sae': sae,
+             'pool': 'max over the mask', 'cov': cov}
+    if dom == 'mice':
+        cells['hab'] = 'whole 30 min' if online else 'last 15 min'
+    return {'cells': cells}
 
 
 def source_table():
@@ -1019,7 +975,7 @@ def step_assemble():
             if amap:
                 e = json.loads(rw_text(json.dumps(e), amap))
             if e.get('heat_kind') != 'real':
-                e['heat_note'] = ('New model: R4 stores, per frame and neuron, only the position of its strongest '
+                e['heat_note'] = ('v2 stores, per frame and neuron, only the position of its strongest '
                                   'patch, so the heat shows that peak patch (blurred), not a full map of every patch.')
             dom = e['domain']
             k0 = key.rsplit('_', 1)[0]
@@ -1155,8 +1111,9 @@ def step_assemble():
     for d, title in (('mice', 'Mice'), ('ants', 'Ants'), ('frogs', 'Frogs')):
         es = [x for x in saes if x['domain'] == d]
         if es:
+            # default = v1 (the deployed online model, NES); v2 (new) is still being iterated (user, 2026-10-16)
             doms.append({'id': d, 'title': title, 'default': next((x['sae'] for x in es if x['model'] ==
-                                                                   {'model': 'new', 'method': 'NES'}), es[0]['sae'])})
+                                                                   {'model': 'online', 'method': 'NES'}), es[0]['sae'])})
     saes.sort(key=lambda x: ({'mice': 0, 'ants': 1, 'frogs': 2}[x['domain']], x['model']['model'] != 'new',
                              x['model']['method'] != 'NES'))
     data = {'default': doms[0]['default'], 'saes': saes,
