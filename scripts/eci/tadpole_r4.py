@@ -774,6 +774,42 @@ def cmd_encode(args):
         f'({enc.n_fwd / max(enc.gpu_s, 1e-9):.1f} crops/s), decode thread-s {dec_s:.0f}, {torch.cuda.get_device_name(0)}')
 
 
+# ---------------------------------------------------------------------------------------------- check
+def cmd_check(args):
+    """seek decode == sequential decode (2 videos), DINOv3-L crops/s at S = 384 per batch size, decode frames/s."""
+    import torch
+    P = R.load_plan(DOM)
+    res = {'seek': []}
+    for vi in (0, len(P['videos']) // 2):
+        v = P['videos'][vi]
+        t0 = time.time()
+        seq = np.stack(list(decode_iter(v['path'], v['w'], v['h'], 0, 40)))
+        t_seq = time.time() - t0
+        for s0 in (1, 23, 30):
+            sk = np.stack(list(decode_iter(v['path'], v['w'], v['h'], s0, 10)))
+            res['seek'].append({'obs': v['obs'], 's0': s0, 'equal': bool((seq[s0:s0 + 10] == sk).all()),
+                                'max_abs_diff': int(np.abs(seq[s0:s0 + 10].astype(int) - sk.astype(int)).max())})
+        res.setdefault('decode_40_frames_s', []).append(t_seq)
+    log(json.dumps(res))
+    dev = torch.device('cuda')
+    enc = Enc(dev)
+    x = torch.rand((256, 3, S, S), device=dev) * 255
+    thr = {}
+    for bs in (32, 64, 128):
+        enc.tokens(x[:bs])
+        enc.gpu_s, enc.n_fwd = 0.0, 0
+        for _ in range(6):
+            enc.tokens(x[:bs])
+        thr[bs] = enc.n_fwd / enc.gpu_s
+    res['crops_per_s'] = thr
+    res['gpu'] = torch.cuda.get_device_name(0)
+    log(json.dumps(res))
+    (OUT / 'check.json').write_text(json.dumps(res, indent=1))
+    bad = [r for r in res['seek'] if not r['equal']]
+    if bad:
+        raise SystemExit(f'SEEK != SEQUENTIAL: {bad}')
+
+
 # ---------------------------------------------------------------------------------------------- register in rollout_r4
 R.DOMS[DOM] = dict(ann=str(LAYOUT_LINK / 'annotations.csv'), exp=str(LAYOUT_LINK / 'experiment.csv'), fps=FPS,
                    step=STEP, offset=OFFSET, S=S, rule='tadpoles_r4_tracker_free', bg=str(BEE / 'locate'),
@@ -814,7 +850,7 @@ def cmd_manifest(args):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('plan', 'locate', 'validate', 'prepass', 'train', 'encode', 'merge', 'ftheta',
+    p.add_argument('step', choices=('plan', 'check', 'locate', 'validate', 'prepass', 'train', 'encode', 'merge', 'ftheta',
                                     'summaries', 'manifest'))
     p.add_argument('--task', type=int, default=None)
     p.add_argument('--shard', type=int, default=0)
@@ -832,7 +868,7 @@ def main():
     p.add_argument('--force', action='store_true')
     args = p.parse_args()
     args.domain = DOM
-    {'plan': cmd_plan, 'locate': cmd_locate, 'validate': cmd_validate, 'prepass': cmd_prepass, 'train': R.cmd_train,
+    {'plan': cmd_plan, 'check': cmd_check, 'locate': cmd_locate, 'validate': cmd_validate, 'prepass': cmd_prepass, 'train': R.cmd_train,
      'encode': cmd_encode, 'merge': R.cmd_merge, 'ftheta': R.cmd_ftheta, 'summaries': R.cmd_summaries,
      'manifest': cmd_manifest}[args.step](args)
 
