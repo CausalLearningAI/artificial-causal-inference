@@ -359,6 +359,31 @@ def step_prep_new():
     log(f'prep {key}: {V}; outcomes {have}')
 
 
+def step_checks_new():
+    """The confound checks of the published page on the new model's NES picks, run read-only on this build's NES mirror
+    (res/<key>/<sae>/nes, the R4 NES result set + family C rows): mice camera-period checks (scripts/eci/period_check.py,
+    max pooling), frogs recording-session checks (scripts/eci/session_check.py, level session). Written to
+    <V>/nes/period_check|session_check and linked as <V>/<name> (build_explorer period_checks / session_checks)."""
+    dom_name, sae, src, V, bout, M, key = new_paths()
+    if dom_name not in ('mice', 'frogs'):
+        log(f'checks {key}: none for {dom_name}')
+        return
+    link((V / '_cache').resolve(), V / 'nes' / '_cache')
+    root = OUT / 'res' / f'{key}_checks'
+    link((V / 'nes').resolve(), root / sae)
+    if dom_name == 'mice':
+        cmd = [sys.executable, '-u', str(ROOT / 'scripts/eci/period_check.py'), '--sae', sae, '--pooling', 'max',
+               '--out-root', str(root)]
+        name = 'period_check'
+    else:
+        cmd = [sys.executable, '-u', str(ROOT / 'scripts/eci/session_check.py'), '--domain', 'frogs', '--sae', sae,
+               '--pooling', 'max', '--level', 'session', '--out-root', str(root)]
+        name = 'session_check'
+    log('checks:', ' '.join(cmd))
+    subprocess.run(cmd, check=True, cwd=ROOT)
+    link((V / 'nes' / name).resolve(), V / name)
+
+
 def new_cfg():
     dom_name, sae, src, V, bout, M, key = new_paths()
     dom = DOMOBJ[dom_name]
@@ -847,7 +872,9 @@ if __name__ == '__main__':
     if A.model == 'new':
         if 'prep' in steps:
             step_prep_new()
-        rest = [s for s in steps if s != 'prep']
+        if 'checks' in steps:
+            step_checks_new()
+        rest = [s for s in steps if s not in ('prep', 'checks')]
         if rest:
             c = new_cfg()
             for s in rest:
