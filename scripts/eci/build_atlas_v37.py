@@ -817,6 +817,7 @@ def step_assemble():
             k0 = key.rsplit('_', 1)[0]
             series = {'ants_v2': 'v2', 'ants_v3': 'v3', 'ants_v4': 'v4'}.get(k0)
             e['pooled'] = k0.endswith('p') and k0.startswith('ants')
+            e['sae'] = f'{e["sae"]}#{key}'  # unique per build (the pooled ants series share one SAE name)
             e['note'] = ('New model (R4, ' + ('2 s change, d2' if key.endswith('d2') else 'no change half, d0') +
                          '). ' + (f'Ants: one SAE per series; this is the {series} SAE, so its neuron numbers are '
                                   f'its own. ' if series else '') +
