@@ -1,10 +1,10 @@
 {
  "artifact": "https://claude.ai/artifact/JfJnP4CqjYWoprEq9dM8Qa",
- "artifact_version": "1792129799-6b2f (version 38)",
- "previous_version": "1792114597-e304 (version 37)",
+ "artifact_version": "1792130379-3b48 (version 39)",
+ "previous_version": "1792129799-6b2f (version 38)",
  "published": "2026-10-16",
  "published_from": "work account (riccardo.cadei@ist.ac.at)",
- "change": "spatial aggregation 'mean' (average pooling) removed for all six models, its clips deleted; Spatial aggregation selector moved into the model bar; ants Experiment = v2 / v3 / v4, v4 contrasts A (t=2 vs t=6 per colony), B (infested vs healthy per t), C (infested vs healthy, t=2+6 pooled); next-hypothesis candidates shown only when a result has zero discoveries (top 3 by p)",
+ "change": "spatial aggregation: max pooling only; average pooling and SOMP shown as disabled buttons ('not available in this version'); SOMP results and SOMP-only clips removed (all else as version 38)",
  "ants_comparisons": [
   "v2_1_vs_2",
   "v3_2_vs_6",
@@ -17,7 +17,7 @@
   "infested_vs_healthy_t2_6"
  ],
  "build_command": "ANTS_ECI=eci30 python scripts/eci/build_explorer.py --steps page,check --out results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v39 --asset-map results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v36/publish_v36/asset_map_v36.json --asset-map results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v38/publish_v38/asset_map_v38.json --asset-map results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v39/publish_ants30/asset_map_ants30.json",
- "page_assembly": "index.html = v37 page patched by results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v39/publish_nomean/build.py + patches.py (diff: js_diff_v37_vs_new.diff; proof: verify.py; tests: pagetest/)",
+ "page_assembly": "index.html = v38 page patched by results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v39/publish_maxonly/build.py + patches.py (diff: js_diff_v38_vs_new.diff; proof: verify.py; tests: pagetest/)",
  "build_dir": "results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v39",
  "code_commit": "a781b20 (build_explorer.py and explorer_template.html unchanged since, at HEAD d486fa4 when built)",
  "procedure": "results/vision/eci_ants30/PUBLISH_FROM_WORK.md",
@@ -36,8 +36,7 @@
   ],
   "default_prefix": 128,
   "spatial_aggregation": [
-   "max",
-   "somp"
+   "max"
   ],
   "clip_lengths": [
    "frame",
@@ -52,10 +51,10 @@
  },
  "family_B_period_handling": "no data dropped; period-dependent chips (within-genotype AUC, family-wise thr 0.936, pointwise 0.754) + recording-day-adjusted re-test chip (period_check/)",
  "asset_store": {
-  "packs_referenced": 58,
+  "packs_referenced": 42,
   "local_pack_version_files": 4,
-  "assets_in_store": 96,
-  "bytes": 693345135,
+  "assets_in_store": 84,
+  "bytes": 617071842,
   "limit_bytes": 1073741824,
   "deleted_2026_10_16": {
    "mean_only_packs": 32,
@@ -67,11 +66,26 @@
    ]
   },
   "not_referenced": "38 assets uploaded 2026-10-07 for the unpublished explorer_v38 build (M/explorer_v38/publish_v38/asset_map_v38.json); left in place",
-  "note": "17 packs mix average-pooling pages with max/SOMP pages (126 MB); freeing their mean part needs repacking"
+  "note": "12 kept packs still carry dead mean/SOMP pages next to their max pages (~94.5 MB); freeing them needs repacking",
+  "deleted_2026_10_16_v39": {
+   "packs": 12,
+   "bytes": 76273293,
+   "list": "results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v39/publish_maxonly/delete_assets.json"
+  },
+  "unreferenced_pending_delete": {
+   "ids": [
+    "278d6de29f9c9c9ad24503f5671f4a73",
+    "8f97e6f22c9a1254d7030fbda03e7d70",
+    "eba558b0cd10b22c15ddf88a55a1d7f3",
+    "faa13190f1130f2a82a51809f66a4c9f"
+   ],
+   "bytes": 29234103,
+   "why": "SOMP/mean-only, unreferenced since version 39; deletion blocked by the Claude Code permission check, awaiting the user"
+  }
  },
  "backups": "old v32 packs: local copies in results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer/assets and .../fg448_s0/explorer/assets (+ backup_v1790862630-1928/ for the v31 ants packs); old versions remain in the artifact history",
  "version_files": {
-  "index.html": 312292,
+  "index.html": 309768,
   "assets/antsfg_1s_4ed4326dec.mp4": 7893787,
   "assets/antsfg_1s_d6db1848d8.mp4": 7874054,
   "assets/antsfg_arena_bg.webp": 1422,
@@ -106,8 +120,7 @@
   "assets/data/ff448al_max_4.json": 188685,
   "assets/data/ff448al_r_boutratemaxpool.json": 63938,
   "assets/data/ff448al_r_meanactivationma.json": 88277,
-  "assets/data/ff448al_somp_0.json": 189414,
-  "assets/data/ff448al_x.json": 166371,
+  "assets/data/ff448al_x.json": 65504,
   "assets/data/fg448al_max_0.json": 199709,
   "assets/data/fg448al_max_1.json": 189867,
   "assets/data/fg448al_max_2.json": 192148,
@@ -117,19 +130,16 @@
   "assets/data/fg448al_max_6.json": 192348,
   "assets/data/fg448al_max_7.json": 37253,
   "assets/data/fg448al_r_meanactivationma.json": 109839,
-  "assets/data/fg448al_somp_0.json": 189116,
-  "assets/data/fg448al_x.json": 158584,
+  "assets/data/fg448al_x.json": 64293,
   "assets/data/frogsfg_max_0.json": 162508,
   "assets/data/frogsfg_r_boutratemaxpool.json": 4031,
   "assets/data/frogsfg_r_meanactivationma.json": 1626,
-  "assets/data/frogsfg_somp_0.json": 115555,
-  "assets/data/frogsfg_x.json": 27524,
+  "assets/data/frogsfg_x.json": 10624,
   "assets/data/frogsfull_max_0.json": 196928,
   "assets/data/frogsfull_max_1.json": 80690,
   "assets/data/frogsfull_r_boutratemaxpool.json": 1075,
   "assets/data/frogsfull_r_meanactivationma.json": 2182,
-  "assets/data/frogsfull_somp_0.json": 50735,
-  "assets/data/frogsfull_x.json": 30747,
+  "assets/data/frogsfull_x.json": 25314,
   "assets/ff448al_arena_bg.webp": 1654,
   "assets/fg448al_arena_bg.webp": 1654,
   "assets/frogsfg_arena_bg.webp": 3648,
