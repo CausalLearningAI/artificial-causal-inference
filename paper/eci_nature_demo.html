@@ -201,6 +201,18 @@ ul.tight li::marker { color: var(--muted); }
 .steps > div { min-width: 0; background: var(--human-soft); border-radius: 6px; padding: 10px 12px; font-family: var(--font-ui); font-size: 0.82rem; line-height: 1.45; display: grid; gap: 3px; align-content: start; }
 .steps b { color: var(--human); font-size: 0.9rem; }
 .steps .tests { font-size: 0.74rem; color: var(--muted); }
+.checks { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr) minmax(0, 1fr); gap: 10px; align-items: start; }
+.check { min-width: 0; background: var(--human-soft); border-radius: 8px; padding: 14px 16px; display: grid; gap: 8px; font-family: var(--font-ui); }
+.check p { font-size: 0.86rem; line-height: 1.5; }
+.check.out { background: transparent; border: 1.5px dashed var(--rule); color: var(--muted); }
+.check.out b, .check.out .ck-l { color: var(--muted); border-color: var(--rule); }
+.ck-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.ck-head b { font-size: 0.95rem; color: var(--human); }
+.ck-l { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--human); color: var(--human); display: grid; place-items: center; font-size: 0.78rem; font-weight: 600; }
+.ck-t { font-size: 0.72rem; color: var(--muted); margin-left: auto; }
+.routes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.routes > div { min-width: 0; background: var(--bg); border-radius: 6px; padding: 9px 11px; font-size: 0.8rem; line-height: 1.45; }
+.routes b { display: block; font-size: 0.82rem; margin-bottom: 2px; }
 .steps-note { font-family: var(--font-ui); font-size: 0.84rem; color: var(--muted); line-height: 1.5; padding-top: 4px; }
 
 .compare { overflow-x: auto; }
@@ -262,10 +274,11 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
   .edge { top: 8px; bottom: auto; height: 52px; background: none; }
   .steps { grid-template-columns: 1fr 1fr; }
   .bench { grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .checks { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
   body { font-size: 17px; }
-  .steps, .val { grid-template-columns: 1fr; }
+  .steps, .val, .routes { grid-template-columns: 1fr; }
   .tldr { grid-template-columns: 1fr; gap: 4px; }
   .priors { grid-template-columns: 1fr; }
   .priors dt { border-bottom: none; padding-bottom: 0; }
@@ -291,7 +304,7 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
 
   <section class="col abstract stack" aria-labelledby="abs">
     <div class="eyebrow" id="abs">Abstract</div>
-    <p>Randomized experiments are how behavioural science establishes cause and effect, yet what an experiment can reveal is fixed before it starts: researchers decide which behaviours to score, and any effect outside that list goes unseen. Video records far more than anyone annotates. Here we introduce <em>do</em>-pilot, an empiricist assistant that reads the raw videos of a randomized experiment and proposes which behaviours the treatment changed, before anyone decides what to look for. <em>do</em>-pilot learns, without labels, a dictionary of interpretable visual units (neurons) that each fire on one recognisable pattern of behaviour, and searches it with an interventional contrast that returns the smallest set of neurons carrying everything the treatment changed, with statistical error control. The scientist stays in the loop throughout: behaviours they already score can be given to the search so that it reports only what is new, their own hypotheses are tested alongside the tool's, and every proposal is named, interpreted and validated by people, with AI models as aids. Applied to three systems, <span class="todo">fungal exposure in ant colonies</span>, <span class="todo">autism-risk genes in mice</span> and <span class="todo">motor-neuron transcription factors in <i>Xenopus</i> frogs</span>, <em>do</em>-pilot proposes novel hypotheses in each, which we validate with <span class="todo">held-out annotation and independent cohorts</span>, yielding new insights into <span class="todo">social immunity, social behaviour and motor development</span>.</p>
+    <p>Randomized experiments are how behavioural science establishes cause and effect, yet what an experiment can reveal is fixed before it starts: researchers decide which behaviours to score, and any effect outside that list goes unseen. Video records far more than anyone annotates. Here we introduce <em>do</em>-pilot, an empiricist assistant that reads the raw videos of a randomized experiment and proposes which behaviours the treatment changed, before anyone decides what to look for. <em>do</em>-pilot learns, without labels, a dictionary of interpretable visual units (neurons) that each fire on one recognisable pattern of behaviour, and searches it with an interventional contrast that returns the smallest set of neurons carrying everything the treatment changed, with statistical error control. The scientist stays in the loop throughout: behaviours they already score can be given to the search so that it reports only what is new, their own hypotheses are tested alongside the tool's, and every proposal is named, interpreted and validated by people, with AI models as aids. Applied to three systems, <span class="todo">fungal exposure in ant colonies</span>, <span class="todo">autism-risk genes in mice</span> and <span class="todo">motor-neuron transcription factors in <i>Xenopus</i> frogs</span>, <em>do</em>-pilot proposes novel hypotheses in each, which we validate with <span class="todo">blind annotation of held-out videos</span>, yielding new insights into <span class="todo">social immunity, social behaviour and motor development</span>.</p>
   </section>
 
   <div class="col tldr">
@@ -339,7 +352,7 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
         <h4>Validation</h4>
         <span class="parts">
           <span><b>a · Name check:</b> blind raters see the named behaviour</span>
-          <span><b>b · Effect check:</b> the behaviour, scored on unseen videos by an AI annotator, shows the effect (PPCI)</span>
+          <span><b>b · Effect check:</b> the named behaviour, measured on unseen videos, shows the effect (PPCI)</span>
         </span>
         <span class="more">§2.5</span>
       </button>
@@ -390,10 +403,10 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
       <p>“How odd it is that anyone should not see that all observation must be for or against some view if it is to be of any service!”</p>
       <cite>Charles Darwin, letter to Henry Fawcett, 18 September 1861</cite>
     </blockquote>
-    <p>Behavioural experiments follow Darwin's rule: the view comes first. Before filming, the researcher fixes a short list of behaviours to score (an ethogram), and the experiment can only confirm or reject effects on that list. Whatever else the treatment changed stays in the footage, unseen. AI annotators have made scoring faster, but they still answer only the questions already asked.</p>
+    <p>Darwin's point holds: observation is useful only when it tests a view. In behavioural experiments, though, the views are fixed before filming and come only from the researcher. From the species' ethogram (its catalogue of known behaviours) the researcher picks a few to score, and the experiment can only confirm or reject effects on those. Whatever else the treatment changed stays in the footage, unseen. AI annotators have made scoring faster, but they still answer only the questions already asked.</p>
     <div class="seen" role="img" aria-label="Illustration: a large field of everything the video records, a small box for the behaviours scored, and treatment effects lying outside that box.">
       <span class="lab" style="right:12px; top:10px; text-align:right"><b>Everything the video records</b></span>
-      <div class="etho"><span class="lab">The ethogram: behaviours chosen in advance</span></div>
+      <div class="etho"><span class="lab">Behaviours scored: chosen in advance</span></div>
       <i class="s" style="left:13%; top:66%"></i><i class="s" style="left:22%; top:58%"></i><i class="s" style="left:27%; top:71%"></i>
       <i style="left:42%; top:24%"></i><i style="left:48%; top:62%"></i><i style="left:55%; top:40%"></i><i style="left:61%; top:78%"></i>
       <i style="left:70%; top:30%"></i><i style="left:76%; top:58%"></i><i style="left:84%; top:44%"></i><i style="left:90%; top:72%"></i>
@@ -401,7 +414,7 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
       <i class="u" style="left:51%; top:48%"></i><i class="u" style="left:79%; top:68%"></i><i class="u" style="left:72%; top:20%"></i>
     </div>
     <p class="seen-cap"><b class="s">Brown:</b> effects an experiment can test today. <b class="u">Blue:</b> effects of the treatment that nobody scored. <em>do</em>-pilot searches the whole field.</p>
-    <p>We build an <strong>empiricist assistant</strong> that lets the data suggest the view. It proposes; the scientist decides. To be trusted it must be <b>label-free</b> (the expected result cannot shape what it sees), <b>readable</b> (every proposal can be watched and named) and <b>statistically controlled</b> (the list is not a list of noise).</p>
+    <p>We build an <strong>empiricist assistant</strong> that lets the data suggest further views, each of which is then tested. It proposes; the scientist decides. To be trusted it must be <b>label-free</b> (the expected result cannot shape what it sees), <b>readable</b> (every proposal can be watched and named) and <b>statistically controlled</b> (the list is not a list of noise).</p>
   </section>
 
   <!-- ===== 2 do-pilot ===== -->
@@ -468,13 +481,13 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
       <div class="stagetag">Step 3 · <em>do</em>-pilot</div>
       <p>Neurons are correlated, so one real effect lights up many neurons that only co-vary with it. We identify the few that carry the whole effect, in two tiers: a statistical target that needs only randomization, and a causal refinement that needs one further assumption.</p>
       <div class="def">
-        <div class="eyebrow">Tier 1 · Neural Effect Sufficiency Search, NESS(ε)</div>
+        <div class="eyebrow">Tier 1 · Neural interventional contrast search, NESS(ε)</div>
         <p>Let <i>T</i> be the randomized treatment and <i>Z</i> ∈ ℝ<sup>m</sup> a video's neuron summaries. A set <i>S</i> ⊆ {1,…,<i>m</i>} is ε-sufficient if</p>
         <div class="math"><i>I</i>( <i>T</i> ; <i>Z</i><sub>−S</sub> | <i>Z</i><sub>S</sub> ) ≤ ε</div>
         <p>NESS(ε) returns an inclusion-minimal ε-sufficient set: a treatment classifier that sees only <i>Z<sub>S</sub></i> loses at most ε nats of log-loss against one that sees every neuron. Because <i>T</i> is randomized, any behavioural change it causes passes through <i>Z<sub>S</sub></i>, up to an error that shrinks with ε <span class="todo">bound to be verified</span>. Assumes only independent videos, a dictionary fixed beforehand, and sample splitting.</p>
       </div>
       <div class="def">
-        <div class="eyebrow">Tier 2 · Direct effects, with one causal assumption</div>
+        <div class="eyebrow">Tier 2 · Direct effect identification, with one causal assumption</div>
         <p>NESS can include <i>context</i> neurons that the treatment does not change but that are needed to read another neuron's change. To separate them, assume that <b>whatever must be held fixed is itself in the dictionary</b>: neurons capture the relevant behavioural factors closely, and no hidden cause links two affected factors. Then a selected neuron is a <b>direct effect</b> if it stays dependent on <i>T</i> given every subset of the other selected neurons. A neuron that almost perfectly reveals the treatment hides the others; they are reported as <i>undetermined</i>, never as absent.</p>
       </div>
 
@@ -511,18 +524,28 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
     <div class="sub">
       <h3 id="s25"><span class="secnum">2.5</span>Validation</h3>
       <div class="stagetag h">Step 5 · Scientist + ML</div>
-      <p>A new experiment is the strongest test of a hypothesis, but it is slow and often not possible. Validation therefore uses data that already exist but that the search never saw. The name is checked first, because an effect on a named behaviour only means something if the neuron really shows that behaviour.</p>
-      <p>Scoring the named behaviour by hand on every unseen video would be slow, so the scientist labels a small sample and an AI annotator, trained on those labels, scores the rest. Prediction-powered causal inference (PPCI) combines the two so that the effect estimate and its confidence interval stay valid even though the annotator makes mistakes.</p>
+      <p>Each interpretation from step 4 gets its own check, on videos the search never saw: before the search, the videos are split into a discovery set and a confirmation set. No new experiment is needed. The name is checked first, because an effect on a named behaviour only means something if the neuron really shows that behaviour.</p>
     </div>
   </section>
 
-  <div class="wide steps" aria-label="Validation pipeline">
-    <div><b>Name check</b>Blind raters see top and random clips from both arms and mark whether the named behaviour is present.<span class="tests">checks 4a</span></div>
-    <div><b>Nuisance check</b>The effect is tested against recording day, camera and batch.<span class="tests">guards 4a and 4b</span></div>
-    <div><b>Effect check</b>The search runs on half the videos. On the other half, the named behaviour is scored blind to treatment (a few by hand, the rest by an AI annotator) and its effect estimated with PPCI in a pre-registered test.<span class="tests">checks 4b</span></div>
-    <div><b>Replication</b>The same effect in an independent cohort already filmed: another experiment series, genetic line or species.<span class="tests">checks 4b, generality</span></div>
+  <div class="wide checks" aria-label="Validation">
+    <div class="check">
+      <div class="ck-head"><span class="ck-l">a</span><b>Is the name right?</b><span class="ck-t">validates 4a</span></div>
+      <p>Blind raters see clips where the neuron fires most and clips where it fires at random, from both arms, and mark whether the named behaviour is present. Result: how often the name holds.</p>
+    </div>
+    <div class="check">
+      <div class="ck-head"><span class="ck-l">b</span><b>Is the effect real?</b><span class="ck-t">validates 4b</span></div>
+      <p>The named behaviour itself, not the neuron, is measured on the confirmation set, blind to treatment, and its effect estimated in a pre-registered test that also accounts for recording day, camera and batch.</p>
+      <div class="routes">
+        <div><b>Re-annotation + PPCI</b>A person labels a small sample of confirmation clips; an AI annotator trained on them scores the rest; prediction-powered causal inference keeps the estimate and its interval valid despite the annotator's errors.</div>
+        <div><b>Literature match</b>The effect agrees with a published result for the same treatment. A positive control: it shows the tool rediscovers known effects, but it cannot confirm a new one on its own.</div>
+      </div>
+    </div>
+    <div class="check out">
+      <div class="ck-head"><span class="ck-l">c</span><b>Does it replicate?</b><span class="ck-t">outside this paper</span></div>
+      <p>The same effect in an independent cohort, genetic line or species, or a targeted follow-up experiment that tests the mechanism. Its videos would go back into step 1.</p>
+    </div>
   </div>
-  <div class="col steps-note">When a collaborating lab can run a targeted follow-up experiment, it is the final test of the mechanism, and its videos go back into step 1. It is not required for a validated hypothesis.</div>
 
   <!-- ===== 3 Results ===== -->
   <section class="col" aria-labelledby="s3">
@@ -704,11 +727,11 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
     2: { h: false, t: "Step 2 · Behavioural representation (do-pilot)", s: "#s22",
       b: "<p>Frame → frozen vision encoder → tokens on the animals with their recent change → sparse dictionary → per-video time, bouts and latency for every neuron.</p><ul><li>Priors: fixed viewpoint, behaviour lives on the animals, position and rotation invariance, sparsity, heterogeneous recurrence rate.</li><li>Every choice tested on public annotated datasets (MABe22, CalMS21) by neuron–behaviour alignment.</li><li>A priori: behaviours the lab already scores can be added as extra units; the search keeps or discards them like any neuron.</li></ul>" },
     3: { h: false, t: "Step 3 · Interventional contrast identification (do-pilot)", s: "#s23",
-      b: "<ul><li><b>Tier 1, NESS(ε):</b> the smallest set of neurons such that the rest add at most ε nats of information about the treatment. Needs only randomization.</li><li><b>Tier 2, direct effects:</b> assuming whatever must be held fixed is in the dictionary, each selected neuron is tagged direct effect, context or undetermined.</li><li>Replaces NES, which has no defined target and loses precision as data grow.</li></ul>" },
+      b: "<ul><li><b>Tier 1, neural interventional contrast search (NESS):</b> the smallest set of neurons such that the rest add at most ε nats of information about the treatment. Needs only randomization.</li><li><b>Tier 2, direct effect identification:</b> assuming whatever must be held fixed is in the dictionary, each selected neuron is tagged direct effect, context or undetermined.</li><li>Replaces NES, which has no defined target and loses precision as data grow.</li></ul>" },
     4: { h: true, t: "Step 4 · Interpretation (scientist + AI)", s: "#s24",
       b: "<ul><li><b>a · Neural:</b> watch top and random clips from both arms; a vision-language model drafts a name; the scientist accepts, edits or rejects it.</li><li><b>b · Biological:</b> a language model searches the literature and drafts explanations; the scientist states a testable prediction.</li><li>A posteriori: the scientist's own hypotheses join the list here.</li></ul>" },
     5: { h: true, t: "Step 5 · Validation (scientist + ML)", s: "#s25",
-      b: "<p>On data the search never saw; no new experiment required.</p><ul><li><b>Name check</b> (4a): blind raters confirm the clips show the named behaviour.</li><li><b>Nuisance check:</b> recording day, camera, batch.</li><li><b>Effect check</b> (4b): search on half the videos; on the other half a few videos are labelled by hand, an AI annotator scores the rest, and PPCI gives a valid, pre-registered effect estimate.</li><li><b>Replication:</b> an independent cohort already filmed (another series, line or species).</li></ul>" }
+      b: "<p>Before the search, videos are split into a discovery set and a confirmation set. No new experiment is needed.</p><ul><li><b>a · Is the name right?</b> Blind raters check clips of the neuron against its name.</li><li><b>b · Is the effect real?</b> The named behaviour is measured on the confirmation set: a small labelled sample plus an AI annotator, combined with PPCI. A literature match serves as a positive control.</li><li><b>c · Replication</b> in independent cohorts: outside this paper.</li></ul>" }
   };
   var tabs = document.querySelectorAll(".stage");
   var panel = document.getElementById("detail");
