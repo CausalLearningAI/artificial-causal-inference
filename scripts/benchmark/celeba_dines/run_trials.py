@@ -40,6 +40,10 @@ SIZES = [30, 50, 100, 250, 500, 1000, 2500, 5000]
 NEW_SIZES = [250, 1000, 2500, 5000]
 DELTAS = [0.0, 0.02, 0.05]
 N_FOLDS, MAX_SUBSETS = 2, 1024
+# v2: forward set-aside + reported = kept u undetermined (theory 7dd7c26). v2b: + the margin-test SE floor
+# (p(delta) >= p(0)); identical to v2 at delta = 0. The delta = 0 arm of the CelebA runs is v2 (written before v2b; the
+# code path did not change), the delta > 0 arms were rerun with v2b (--update-deltas 0.02 0.05).
+VERSION = 'v2b'
 CHUNK = {30: 9, 50: 9, 100: 9, 250: 9, 500: 9, 1000: 3, 2500: 1, 5000: 1}
 
 
@@ -95,6 +99,8 @@ def main():
     ap.add_argument('--task', type=int, default=None)
     ap.add_argument('--count', action='store_true')
     ap.add_argument('--overwrite', action='store_true')
+    ap.add_argument('--update-deltas', type=float, nargs='*', default=None,
+                    help='rerun only these DINES arms inside existing trial JSONs (other arms are kept)')
     args = ap.parse_args()
     tasks = task_list(args.design)
     if args.count:
@@ -105,7 +111,8 @@ def main():
     src, prefix = (BEEGFS / 'original_trials.npz', '') if args.design == 'original' else (BEEGFS / 'designs.npz', f'{args.design}_')
     out_dir = OUT / 'trials' / args.design
     out_dir.mkdir(parents=True, exist_ok=True)
-    todo = [(t, sd) for t, sd in block if args.overwrite or not (out_dir / f'{t}_{N}_{sd}.json').exists()]
+    upd = args.update_deltas
+    todo = [(t, sd) for t, sd in block if args.overwrite or upd is not None or not (out_dir / f'{t}_{N}_{sd}.json').exists()]
     print(f'design {args.design} task {args.task} N {N}: {len(todo)} of {len(block)} trials to run', flush=True)
     if not todo:
         return
@@ -123,16 +130,22 @@ def main():
         t1 = time.time()
         idx, T = np.searchsorted(rows, arr[:, 0]), arr[:, 1].astype(np.int64)
         Z = block_codes[idx].astype(np.float64)
-        rec = {'design': args.design, 'tau': tau, 'N': N, 'seed': seed, 'n_treated': int(T.sum()),
-               'host': socket.gethostname(), 'dines_version': 'v2 (forward set-aside, reported = kept + undetermined)',
-               'n_folds': N_FOLDS, 'max_subsets': MAX_SUBSETS, 'methods': {}}
-        if meta:
-            rec['roles'] = meta['roles']
-        for d in DELTAS:
-            rec['methods'][f'DINES_d{d}'] = run_dines(Z, T, d, seed)
-        rec['methods']['NES_repo'] = run_nes(Z, T)
+        path = out_dir / f'{tau}_{N}_{seed}.json'
+        if upd is not None:
+            rec = json.loads(path.read_text())
+            for d in upd:
+                rec['methods'][f'DINES_d{d}'] = {**run_dines(Z, T, d, seed), 'version': VERSION}
+            rec['updated'] = rec.get('updated', []) + [{'deltas': upd, 'version': VERSION, 'host': socket.gethostname()}]
+        else:
+            rec = {'design': args.design, 'tau': tau, 'N': N, 'seed': seed, 'n_treated': int(T.sum()),
+                   'host': socket.gethostname(), 'n_folds': N_FOLDS, 'max_subsets': MAX_SUBSETS, 'methods': {}}
+            if meta:
+                rec['roles'] = meta['roles']
+            for d in DELTAS:
+                rec['methods'][f'DINES_d{d}'] = {**run_dines(Z, T, d, seed), 'version': VERSION}
+            rec['methods']['NES_repo'] = run_nes(Z, T)
         rec['elapsed_trial_s'] = time.time() - t1
-        (out_dir / f'{tau}_{N}_{seed}.json').write_text(json.dumps(rec))
+        path.write_text(json.dumps(rec))
         summary = '  '.join(f"{k}: {v['selected']} ({v['elapsed_s']:.1f}s{', ERR' if 'error' in v else ''})"
                             for k, v in rec['methods'].items())
         print(f'tau {tau} N {N} seed {seed} [{rec["elapsed_trial_s"]:.0f}s]  {summary}', flush=True)

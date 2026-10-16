@@ -77,7 +77,7 @@ def load_trials(design):
         for name, m in meths.items():
             pred = set(m['selected'])
             row = {'design': design, 'tau': rec['tau'], 'N': rec['N'], 'seed': rec['seed'], 'method': name,
-                   **set_metrics(pred, gt), 'error': 'error' in m, 'elapsed_s': m.get('elapsed_s', np.nan),
+                   **set_metrics(pred, gt), 'false': ','.join(sorted(pred - gt)), 'error': 'error' in m, 'elapsed_s': m.get('elapsed_s', np.nan),
                    'forward_size': len(m['forward_set']) if 'forward_set' in m else np.nan,
                    'undetermined': len(m.get('undetermined', [])), 'set_aside': len(m.get('set_aside', [])),
                    'complete': m.get('terminal_complete', True),
@@ -114,6 +114,14 @@ def tables(design):
                 if sub[f'{role}_sel'].notna().any():
                     md += [f'### {role} atom selected (share of runs), {title}', '',
                            _pivot(sub, f'{role}_sel').round(3).to_markdown(), '']
+    big = pooled[pooled.N == pooled.N.max()]
+    md += [f'### most frequent false atoms at N = {int(pooled.N.max())}, pooled over tau = 0.1..0.8 (runs out of '
+           f'{int(big.groupby("method").size().max())})', '']
+    for meth in [m for m in METHODS if m in set(big.method)]:
+        cnt = big[big.method == meth]['false'].str.split(',').explode()
+        cnt = cnt[cnt.astype(bool)].value_counts().head(6)
+        md.append(f'- {meth}: ' + ', '.join(f'{a} ({c})' for a, c in cnt.items()))
+    md.append('')
     null = df[df.tau == 0]
     md += ['### tau = 0: share of runs with any selection (false-positive rate)', '', _pivot(null, 'any').round(3).to_markdown(), '']
     rt = df[(df.method != 'NES_published') & ~df.method.str.endswith('_kept')]
