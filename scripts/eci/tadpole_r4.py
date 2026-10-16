@@ -70,7 +70,10 @@ STEP, OFFSET, FPS = 12, 5, 60
 SIDE, S = 96, 384
 G = S // 16
 N_BG, BG_Q1, BG_Q, R_EX, MIN_FREE = 200, 0.98, 0.9, 10, 5
-DARK_REL, MIN_BLOB, SMOOTH, DEADBAND = 15, 20, 5, 2
+# v2 (2026-10-16 08:00, after the v1 validation: 6.5% of frames > 48 px from SLEAP): MAX_EXTENT rejects the rim strip /
+# speckle components; SMOOTH 5 -> 1 (the +-5 median lagged real fast swims by ~50 px where the raw blob was right)
+DARK_REL, MIN_BLOB, SMOOTH, DEADBAND, MAX_EXTENT = 15, 20, 1, 2, 70
+LOCATE = 'locate_v2'
 DARK_FRAC = 0.05
 FRAMES_TARGET = 12_000
 log = R.log
@@ -218,20 +221,30 @@ def grey_np(x):
 
 
 # ---------------------------------------------------------------------------------------------- locate
-def blob(diff_dark, min_px=MIN_BLOB):
+def blob(diff_dark, min_px=MIN_BLOB, max_extent=MAX_EXTENT):
     """bool (h, w) dark-pixel map -> (found, cx, cy, area, component mask or None) of the largest 8-connected
-    component with >= min_px pixels."""
+    component with >= min_px pixels whose bounding box is at most max_extent px on its longer side (a tadpole is
+    22-60 px long; v2 measured the false blobs of v1 = the dark dish rim strip inside the ROI oval and diffuse
+    lighting speckle, both components > 100 px across)."""
     from scipy import ndimage
     lab, nl = ndimage.label(diff_dark, structure=np.ones((3, 3), bool))
     if nl == 0:
         return False, np.nan, np.nan, 0, None
     cnt = np.bincount(lab.ravel())
     cnt[0] = 0
-    j = int(cnt.argmax())
-    if cnt[j] < min_px:
-        return False, np.nan, np.nan, int(cnt[j]), None
-    yy, xx = np.nonzero(lab == j)
-    return True, float(xx.mean() + 0.5), float(yy.mean() + 0.5), int(cnt[j]), lab == j
+    sl = ndimage.find_objects(lab)
+    ext = np.zeros(len(cnt), np.int64)
+    for j, s_ in enumerate(sl, start=1):
+        if s_ is not None:
+            ext[j] = max(s_[0].stop - s_[0].start, s_[1].stop - s_[1].start)
+    ok = (cnt >= min_px) & (ext <= max_extent)
+    if not ok.any():
+        return False, np.nan, np.nan, int(cnt.max()), None
+    j = int(np.where(ok, cnt, -1).argmax())
+    yy, xx = np.nonzero(lab[sl[j - 1]] == j)
+    m = np.zeros(diff_dark.shape, bool)
+    m[sl[j - 1]] = lab[sl[j - 1]] == j
+    return True, float(xx.mean() + sl[j - 1][1].start + 0.5), float(yy.mean() + sl[j - 1][0].start + 0.5), int(cnt[j]), m
 
 
 def smooth_track(cx, cy, found, r=SMOOTH):
@@ -271,7 +284,7 @@ def cmd_locate(args):
     P = R.load_plan(DOM)
     E = videos_df().set_index('observation_id')
     vids = [args.task] if args.task is not None else range(len(P['videos']))
-    outd = BEE / 'locate'
+    outd = BEE / LOCATE
     outd.mkdir(parents=True, exist_ok=True)
     for vi in vids:
         v = P['videos'][vi]
@@ -339,7 +352,8 @@ def cmd_locate(args):
                  sy=sy, x0=bx, y0=by, side=SIDE, pix_bg=full_bg, roi=roi, n_ok=n_ok, n_filled=int(todo.sum()),
                  bg_idx=bg_idx, roi_box=np.array([y0b, y1b, x0b, x1b]), stage1_blobs=n_s1,
                  params=json.dumps({'N_BG': N_BG, 'BG_Q1': BG_Q1, 'BG_Q': BG_Q, 'R_EX': R_EX, 'MIN_FREE': MIN_FREE,
-                                    'DARK_REL': DARK_REL, 'MIN_BLOB': MIN_BLOB, 'SMOOTH': SMOOTH, 'SIDE': SIDE}))
+                                    'DARK_REL': DARK_REL, 'MIN_BLOB': MIN_BLOB, 'SMOOTH': SMOOTH, 'SIDE': SIDE,
+                                    'MAX_EXTENT': MAX_EXTENT, 'DEADBAND': DEADBAND}))
         os.replace(tmp, f)
         jump = np.hypot(np.diff(sx), np.diff(sy))
         log(f'{v["obs"]}: {n} frames, blob found {found.mean():.4f}, area median {np.median(area[found]):.0f}, '
@@ -384,7 +398,7 @@ def cmd_validate(args):
            'nodes_in_120': 0}
     dist_all, raw_all = [], []
     for vi, v in enumerate(P['videos']):
-        L = np.load(BEE / 'locate' / f'{v["obs"]}.npz')
+        L = np.load(BEE / LOCATE / f'{v["obs"]}.npz')
         z = np.load(REPO / 'dataset/frogs/v1_tadpole/sleap' / f'{v["obs"]}.npz')
         n = int(L['n'])
         nd = z['nodes'][:n].astype(np.float64)
@@ -523,7 +537,7 @@ class Enc:
 
 def load_locate(obs):
     """Locate outputs of a video; the crop boxes from the smoothed centroid with the dead band (boxes_of)."""
-    L = np.load(BEE / 'locate' / f'{obs}.npz')
+    L = np.load(BEE / LOCATE / f'{obs}.npz')
     d = {k: L[k] for k in ('sx', 'sy', 'found', 'pix_bg', 'roi')}
     d['x0'], d['y0'] = boxes_of(d['sx'], d['sy'])
     return d
@@ -845,7 +859,7 @@ def cmd_check(args):
 
 # ---------------------------------------------------------------------------------------------- register in rollout_r4
 R.DOMS[DOM] = dict(ann=str(LAYOUT_LINK / 'annotations.csv'), exp=str(LAYOUT_LINK / 'experiment.csv'), fps=FPS,
-                   step=STEP, offset=OFFSET, S=S, rule='tadpoles_r4_tracker_free', bg=str(BEE / 'locate'),
+                   step=STEP, offset=OFFSET, S=S, rule='tadpoles_r4_tracker_free', bg=str(BEE / LOCATE),
                    eci=str(LAYOUT_LINK), layout=None, domain='tadpoles', ants_eci=None, native=800, body=38,
                    ref_nfg=None, c1=None, deployed=None, p_store=1.0, chunk=600, par=6, threads=4, bs=32, n_shards=0)
 
@@ -861,7 +875,7 @@ def cmd_manifest(args):
          'contrasts': ['FoxP1_vs_WT', 'En1_vs_WT'], 'primary_rule': 'fnorm',
          'sae': {v_: {'name': best[v_]['name'], 'dir': str(OUT / 'sae' / best[v_]['name']),
                       'theta_star': best[v_]['theta_star']} for v_ in R.VARIANTS},
-         'prepass': str(BEE / 'prepass'), 'locate': str(BEE / 'locate'), 'variants': {}, 'commits': {}}
+         'prepass': str(BEE / 'prepass'), 'locate': str(BEE / LOCATE), 'variants': {}, 'commits': {}}
     for v_ in R.VARIANTS:
         nm = best[v_]['name']
         M['variants'][v_] = {
