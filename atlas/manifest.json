@@ -1,7 +1,7 @@
 {
  "artifact": "https://claude.ai/artifact/JfJnP4CqjYWoprEq9dM8Qa",
- "artifact_version": "version 46 (version id 1792142802-b05e), published 2026-10-16",
- "build_command": "ARGS=\"--steps assemble --asset-map atlas/asset_map.json\" sbatch scripts/eci/build_atlas_v37.sh (after sbatch scripts/eci/atlas_clip_frames.sh; ants v3 t=2 vs t=8 of the new model: sbatch scripts/eci/r4_v3_2v8.sh, then ARGS=\"--dom ants_v3p --model new --steps prep,data,patch,arena,render,dump\")",
+ "artifact_version": "version 47 (version id 1792146132-6a54), published 2026-10-16",
+ "build_command": "ARGS=\"--steps assemble --asset-map atlas/asset_map.json\" sbatch scripts/eci/build_atlas_v37.sh (after sbatch scripts/eci/atlas_clip_frames.sh; ants v3 t=2 vs t=8 of v2: sbatch scripts/eci/r4_v3_2v8.sh, then ARGS=\"--dom ants_v3p --model new --steps prep,data,patch,arena,render,dump\")",
  "build_dir": "results/vision/eci_atlas_v37/site",
  "models": [
   "mice: new \u00b7 NES (matryoshka_btk_512_k16_r4d2_s0_fnorm@nes#mice_d2)",
@@ -131,7 +131,7 @@
   "assets/r4v2pd2_arena_bg.webp": 1740,
   "assets/r4v3pd2_arena_bg.webp": 1662,
   "assets/r4v4pd2_arena_bg.webp": 1438,
-  "index.html": 343122
+  "index.html": 324240
  },
  "packs_to_upload": {
   "r4frogsd2_1s_9341284096.mp4": 4028005,
@@ -153,7 +153,7 @@
   "antsfg_frame_bf19bd7b9b.mp4": 7881963
  },
  "asset_store_urls_referenced": 22,
- "code_commit": "3c12a64 (assemble job 864678; v3p build job 864628; 2 vs 8 searches job 864617)",
+ "code_commit": "f9b2efd (assemble job 865286)",
  "online_input": "results/vision/eci_atlas_v37/live_v39/index.html = git show ea6a534:atlas/index.html (live version 39)",
- "published_files": "index.html + the 79 assets/data/*.json; the new v3 packs r4v3pd2_frame_5d773ce8a0.mp4 / r4v3pd2_1s_7394e23b1e.mp4 in the asset store; other packs kept from earlier versions"
+ "published_files": "index.html + the 79 assets/data/*.json; all clip packs kept from earlier versions / the asset store"
 }
