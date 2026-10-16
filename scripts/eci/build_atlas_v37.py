@@ -67,7 +67,13 @@ NEW = {'mice': ('mice', None, 'results/vision/mice/eci/nes', 'mice'),
        'ants_v2': ('ants', 'eci_r4v2', 'results/vision/ants/eci_r4v2/nes', 'ants_v2'),
        'ants_v3': ('ants', 'eci_r4v3', 'results/vision/ants/eci_r4v3/nes', 'ants_v3'),
        'ants_v4': ('ants', 'eci_r4v4', 'results/vision/ants/eci_r4v4/nes', 'ants_v4'),
-       'frogs': ('frogs', None, 'results/vision/frogs/eci/nes', 'frogs')}
+       'frogs': ('frogs', None, 'results/vision/frogs/eci/nes', 'frogs'),
+       # R4 pooled ants (rollout_r4.py, the user's design correction of 2026-10-16): ONE SAE per variant for every ants
+       # series (v2, v3, v4 + v4_infested), each series in its own layout eci_r4<s>p; it replaces the per-series SAEs
+       # above on the page whenever a pooled build exists (step_assemble)
+       'ants_v2p': ('ants', 'eci_r4v2p', 'results/vision/ants/eci_r4v2p/nes', 'ants_pooled'),
+       'ants_v3p': ('ants', 'eci_r4v3p', 'results/vision/ants/eci_r4v3p/nes', 'ants_pooled'),
+       'ants_v4p': ('ants', 'eci_r4v4p', 'results/vision/ants/eci_r4v4p/nes', 'ants_pooled')}
 # online builds: (domain, ANTS_ECI, v36 result set, v36 tag)
 ONLINE = {'mice': ('mice', None, 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0', 'fg448al'),
           'ants': ('ants', 'eci30', 'results/vision/ants/eci30/nes/matryoshka_btk_1024_k16_antsfg_s0', 'antsfg'),
@@ -79,6 +85,7 @@ ONLINE = {'mice': ('mice', None, 'results/vision/mice/eci/nes/matryoshka_btk_102
 # methods output (scripts/eci/atlas_v37_methods.py): <METHODS>/<domain key>/<sae>/{dines, familyC_nes, familyC_dines}
 METHODS = OUT / 'methods'
 METHOD_KEY = {'mice': 'mice', 'ants_v2': 'ants_eci_r4v2', 'ants_v3': 'ants_eci_r4v3', 'ants_v4': 'ants_eci_r4v4',
+              'ants_v2p': 'ants_eci_r4v2p', 'ants_v3p': 'ants_eci_r4v3p', 'ants_v4p': 'ants_eci_r4v4p',
               'frogs': 'frogs', 'online_mice': 'mice', 'online_ants': 'ants_eci30', 'online_frogs': 'frogs'}
 # the three temporal aggregations: (kind, outcome sub dir, NES outcome id as build_explorer names it, label, unit, short)
 OUTS = [('rate', 'maxpool_bouts', 'boutratemaxpool', 'Bout rate (max-pool)', 'bouts/min', 'bouts'),
@@ -413,7 +420,8 @@ def step_checks_new():
 def new_cfg():
     dom_name, sae, src, V, bout, M, key = new_paths()
     dom = DOMOBJ[dom_name]
-    tag = 'r4' + {'mice': 'mice', 'ants_v2': 'v2', 'ants_v3': 'v3', 'ants_v4': 'v4', 'frogs': 'frogs'}[A.dom] + A.variant
+    tag = 'r4' + {'mice': 'mice', 'ants_v2': 'v2', 'ants_v3': 'v3', 'ants_v4': 'v4', 'frogs': 'frogs', 'ants_v2p': 'v2p',
+                  'ants_v3p': 'v3p', 'ants_v4p': 'v4p'}[A.dom] + A.variant
     c = make_cfg(V, sae, dom, tag, bout)
     if A.kr:
         c.kr = A.kr
@@ -806,19 +814,31 @@ def step_assemble():
                 e['heat_note'] = ('New model: R4 stores, per frame and neuron, only the position of its strongest '
                                   'patch, so the heat shows that peak patch (blurred), not a full map of every patch.')
             dom = e['domain']
-            series = {'ants_v2': 'v2', 'ants_v3': 'v3', 'ants_v4': 'v4'}.get(key.rsplit('_', 1)[0])
+            k0 = key.rsplit('_', 1)[0]
+            series = {'ants_v2': 'v2', 'ants_v3': 'v3', 'ants_v4': 'v4'}.get(k0)
+            e['pooled'] = k0.endswith('p') and k0.startswith('ants')
             e['note'] = ('New model (R4, ' + ('2 s change, d2' if key.endswith('d2') else 'no change half, d0') +
                          '). ' + (f'Ants: one SAE per series; this is the {series} SAE, so its neuron numbers are '
                                   f'its own. ' if series else '') +
-                         ('Mice: habituation on its last 15 min; camera-period checks not run for this model. '
-                          if dom == 'mice' else '') +
-                         ('Frogs: recording-session checks not run for this model. ' if dom == 'frogs' else ''))
+                         ('Ants: one SAE for all series (v2, v3, v4), so a neuron number means the same neuron in '
+                          'every series. ' if e['pooled'] else '') +
+                         ('Mice: habituation on its last 15 min. ' if dom == 'mice' else '') +
+                         ('Camera-period checks not run for this model. ' if dom == 'mice' and not e.get('period')
+                          else '') +
+                         ('Recording-session checks not run for this model. ' if dom == 'frogs' and not e.get('session')
+                          else ''))
             ents.append(e)
         builds[key] = cj
         new_entries[key] = ents
+    for v in ('d2', 'd0'):  # pooled ants SAE built: it replaces the per-series SAEs of that variant
+        if any(k.startswith('ants_') and k.endswith(f'p_{v}') for k in new_entries):
+            for k in [k for k in new_entries if k.startswith('ants_') and k.endswith(f'_{v}') and not k.endswith(f'p_{v}')]:
+                log(f'assemble: {k} left out (the pooled ants SAE of {v} is built)')
+                new_entries.pop(k)
     have_v4 = any(k.startswith('ants_v4') for k in new_entries)
-    order_new = [k for k in ('mice_d2', 'ants_v2_d2', 'ants_v3_d2', 'ants_v4_d2', 'frogs_d2', 'mice_d0', 'ants_v2_d0',
-                             'ants_v3_d0', 'ants_v4_d0', 'frogs_d0') if k in new_entries]
+    order_new = [k for k in ('mice_d2', 'ants_v2p_d2', 'ants_v3p_d2', 'ants_v4p_d2', 'ants_v2_d2', 'ants_v3_d2',
+                             'ants_v4_d2', 'frogs_d2', 'mice_d0', 'ants_v2p_d0', 'ants_v3p_d0', 'ants_v4p_d0',
+                             'ants_v2_d0', 'ants_v3_d0', 'ants_v4_d0', 'frogs_d0') if k in new_entries]
     for k in order_new:
         for e in new_entries[k]:
             if e['domain'] == 'ants' and not have_v4:
