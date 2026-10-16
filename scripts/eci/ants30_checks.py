@@ -74,6 +74,7 @@ def run_contrasts():
         e.to_csv(p, index=False)
         D = AntsDomain('core')
         D.experiment_csv = p
+        D.ECI = 'eci'  # whatever ANTS_ECI the check runs under
         ids = D.analysis_ids()
         want = ['v2_1_vs_2', 'v3_2_vs_6', 'v3_2_vs_8', 'v4_2_vs_6', 'v4_infested_2_vs_6', 'infested_vs_healthy_t2',
                 'infested_vs_healthy_t6', 'infested_vs_healthy_t2_6']
@@ -100,7 +101,7 @@ def run_contrasts():
         check('v4_2_vs_6 --day: day F (t=2 only) dropped', set(d['recording_date']) == {'D'}, sorted(set(d['recording_date'])))
         an = D.analysis('infested_vs_healthy_t2')
         check('infested confound text names both arms\' days', an.meta['confound'] ==
-              'recording day (not day-matched: healthy colonies on days D/F, infested on days E/F)', an.meta['confound'])
+              'recording day and colony (not day-matched: healthy colonies on days D/F, infested on days E/F)', an.meta['confound'])
         check('infested meta labels', (an.meta['experiment'], an.meta['control'], an.meta['treatment']) ==
               ('v4 infested vs healthy', 'healthy t=2', 'infested t=2'), an.meta)
         check('pooled meta label', D.analysis('infested_vs_healthy_t2_6').meta['treatment'] == 'infested t=2+6')
@@ -122,12 +123,14 @@ def run_contrasts():
         D.ECI = 'eci'
         P = AntsDomain('pairs')
         P.experiment_csv = p
+        P.ECI = 'eci'  # whatever ANTS_ECI the check runs under
         extra = [a for a in P.analysis_ids() if a not in want]
         check('pairs = core + the other within-experiment pairs', extra == ['v3_6_vs_8'], extra)
         e2 = e[e['experiment'].isin(('v2', 'v3'))]
         e2.to_csv(p, index=False)
         D2 = AntsDomain('core')
         D2.experiment_csv = p
+        D2.ECI = 'eci'  # whatever ANTS_ECI the check runs under
         check('10-min layout (v2 + v3 only): the three original analyses',
               D2.analysis_ids() == ['v2_1_vs_2', 'v3_2_vs_6', 'v3_2_vs_8'], D2.analysis_ids())
 
@@ -141,6 +144,7 @@ def run_atlas():
         e.to_csv(p, index=False)
         D = AntsDomain('pairs')
         D.experiment_csv = p
+        D.ECI = 'eci'  # whatever ANTS_ECI the check runs under
         view = B.VIEW['ants']
         kept = B.kept_analyses(D, view)
         check('kept: core minus v3_6_vs_8 (VIEW drop)', kept == [a for a in D.analysis_ids() if a != 'v3_6_vs_8'], kept)
@@ -152,7 +156,7 @@ def run_atlas():
         check('infested meta: string arms over v4 / v4_infested, cross, stratum, confound',
               m['arms'] == [['healthy t=2+6', [['v4', 2], ['v4', 6]]], ['infested t=2+6', [['v4_infested', 2], ['v4_infested', 6]]]]
               and m['cross'] and m['stratum'] == 't=2+6' and m['day_match'] is False
-              and m['confound'].startswith('recording day (not day-matched'), m)
+              and m['confound'].startswith('recording day and colony (not day-matched'), m)
         D.ECI = 'eci30'
         m = B.analysis_meta(cfg, 'v3_2_vs_6_8', {'n_units': 12})
         check('pooled v3 meta: arms t=2 / t=6+8', m['arms'] == [['t=2', [['v3', 2]]], ['t=6+8', [['v3', 6], ['v3', 8]]]]

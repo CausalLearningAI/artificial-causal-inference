@@ -374,7 +374,7 @@ function clipLabel(v){
 }
 function label(a){
   if(FROGS()) return `${a.treatment} vs ${a.control}`;
-  if(a.cross) return `Exp4 infested vs healthy colonies · ${a.stratum} · not day-matched`;
+  if(a.cross) return `Exp4 infested vs healthy colonies · ${a.stratum} · not day-matched (confounded with recording day and colony)`;
   if(a.experiment) return `${a.experiment} · t=${a.control} vs t=${a.treatment}`;
   if(a.family==='A') return `${a.genotype} · ${TRANS[a.id.split('_')[2]]}`;
   return `het vs wt · stage ${a.stage} (${STAGE[a.stage]})`;
@@ -387,7 +387,7 @@ function shortLabel(a){
 }
 function longLabel(a){
   if(FROGS()) return `${a.treatment} frogs vs ${a.control} frogs (one video per frog, ${a.experiment})${a.confound?` (confounded with the ${a.confound})`:''}`;
-  if(a.cross) return `Exp4, ${a.stratum}: infested colonies (v4_infested videos) vs healthy colonies (v4 videos), on every recording day: confounded with the ${a.confound || 'recording day'}`;
+  if(a.cross) return `Exp4, ${a.stratum}: infested colonies (v4_infested videos) vs healthy colonies (v4 videos), on every recording day: confounded with the ${a.confound || 'recording day and colony'}`;
   if(a.experiment) return `${a.experiment}: t=${a.treatment} videos vs t=${a.control} videos${a.confound?` (confounded with the ${a.confound})`:''}`;
   if(a.family==='A') return `${a.genotype}, stage ${a.stages[0]} (${STAGE_LONG[a.stages[0]]}) → stage ${a.stages[1]} (${STAGE_LONG[a.stages[1]]})`;
   return `het vs wt in stage ${a.stage} (${STAGE_LONG[a.stage]})`;

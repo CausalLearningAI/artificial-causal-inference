@@ -498,8 +498,8 @@ class AntsDomain(Domain):
                       arm='infested', control=(0,), treatment=(1,), day_match=False)
         days = self.day_confound(e, an)[2] if e is not None else {}
         on = {v: '/'.join(sorted(days.get(v, {}))) or '?' for v in ('control', 'treatment')}
-        an.meta['confound'] = (f'recording day (not day-matched: healthy colonies on days {on["control"]}, infested on '
-                               f'days {on["treatment"]})')
+        an.meta['confound'] = (f'recording day and colony (not day-matched: healthy colonies on days {on["control"]}, '
+                               f'infested on days {on["treatment"]})')
         return an
 
     @property
