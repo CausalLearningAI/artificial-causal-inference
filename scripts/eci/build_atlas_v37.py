@@ -56,7 +56,9 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'results/vision/eci_atlas_v37'
 R4 = ROOT / 'results/vision/eci_rollout_r4'
 V36 = ROOT / 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v36'
-V36_PAGE = ROOT / 'atlas/index.html'  # the published page (git snapshot); since 2026-10-16 03:38 = version 37
+V36_PAGE = ROOT / 'atlas/index.html'  # the published page (git snapshot); since 2026-10-16 08:11 = version 39
+# versions 38 / 39 (another session, commits ca7ef24 / ea6a534) only drop the mean-pool and SOMP outcomes and mark those
+# aggregations off in ALL.aggs; the max-pool data of every entry is unchanged since version 37
 # version 37 (published 2026-10-16) = v36 with the ants entries replaced by the 30-min ants build (explorer_v39, ANTS_ECI
 # eci30); mice and frogs data byte-identical to v36. The data files of each online entry are in its build's folder.
 V39 = ROOT / 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v39'
@@ -733,7 +735,7 @@ def v36_all():
 
 
 KEEP_IDS = ('boutratemaxpool', 'meanactivationma', 'xlatencymax')  # the v36 max-pooling outcomes
-MODEL_TIPS = {'online': 'The published configuration (atlas version 37): DINOv2 patch features at 448 px, the '
+MODEL_TIPS = {'online': 'The published configuration (atlas version 39): DINOv2 patch features at 448 px, the '
                         'animal mask, Matryoshka BatchTopK SAE with 1024 neurons (k 16), max pooling',
               'new': 'R4: DINOv3-L/16 (block 20) at an input sized to the animal (mice 1024 px, ants 768-832 px, '
                      'frogs 800 px), the same lab animal masks, each patch described by its token and its change over '
@@ -869,8 +871,8 @@ def step_assemble():
             if k in base:
                 base[k] = {i: v for i, v in base[k].items() if i in KEEP_IDS}
         base['model'] = {'model': 'online', 'method': 'NES'}
-        base['note'] = ('Online model: the published page (version 37 of 2026-10-16; mice and frogs unchanged since '
-                        'v36 of 2026-10-04), data reused as published'
+        base['note'] = ('Online model: the published page (version 39 of 2026-10-16, max pooling data unchanged since '
+                        'version 37; mice and frogs unchanged since v36 of 2026-10-04), data reused as published'
                         + ('; habituation analysed on its whole 30 min (before the 2026-10-07 choice of its last '
                            '15 min). Family C is new: computed on the same per-video values.' if dkey == 'mice' else
                            '; ants: the 30-min results published in version 37 (v2: its whole 10 min).'
@@ -956,7 +958,10 @@ def step_assemble():
                      {'key': 'method', 'label': 'Method', 'tips': METHOD_TIPS, 'values': ['NES', 'DINES', 'NESS'],
                       'missing': {'DINES': 'coming', 'NESS': 'to be implemented'}}],
             'videos': v36['videos'], 'obs': v36['obs'], 'montage': v36['montage'], 'tcrit': v36['tcrit'],
-            'domains': doms, 'kinds': v36['kinds'], 'aggs': [g for g in v36['aggs'] if g['id'] == 'max'],
+            'domains': doms, 'kinds': v36['kinds'],
+            # every aggregation of the live page is listed (live version 39), only max pooling is on
+            'aggs': [g if g['id'] == 'max' else {**g, 'off': g.get('off', 'not available in this version')}
+                     for g in v36['aggs']],
             'method_notes': METHOD_NOTES}
     for e in saes:  # the page names the method NESS (the user's name for DINES, src/eci/dines.py)
         if e['model']['method'] == 'DINES':
@@ -1018,7 +1023,7 @@ def check_site(site, amap, saes):
         f'({len(packs)} local packs, {sum(p.stat().st_size for p in packs) / 1e6:.1f} MB), {len(urls)} distinct '
         f'asset-store URLs, {len(missing)} missing {missing[:5]}, {len(unused)} unused removed; largest file '
         f'{big / 1e6:.1f} MB; total version {total / 1e6:.1f} MB in {len(files) + 1} files')
-    man = {'artifact': 'https://claude.ai/artifact/JfJnP4CqjYWoprEq9dM8Qa', 'artifact_version': 'v38 build (not published; the live page is version 37)',
+    man = {'artifact': 'https://claude.ai/artifact/JfJnP4CqjYWoprEq9dM8Qa', 'artifact_version': 'v40 build (not published; the live page is version 39)',
            'build_command': 'ARGS="--steps assemble [--asset-map <map.json>]" sbatch scripts/eci/build_atlas_v37.sh',
            'build_dir': str(site.relative_to(ROOT)),
            'models': [f'{e["domain"]}: {e["model"]["model"]} · {e["model"]["method"]} ({e["sae"]})' for e in saes],

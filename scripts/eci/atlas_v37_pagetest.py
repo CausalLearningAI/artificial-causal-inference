@@ -84,16 +84,39 @@ with sync_playwright() as p:
                                 continue
                             pg.select_option('#apE', e[0])
                             pg.wait_for_timeout(900)
-                            ts = pg.eval_on_selector_all('#apT option:not([disabled])', 'os => os.map(o => o.value)')
-                            for t in ts:
-                                pg.select_option('#apT', t)
+                            # ants Exp4 (v4): contrast group x colony / treatment instead of control x treatment
+                            if pg.locator('#apGo').is_visible():
+                                picks = []
+                                for g in pg.eval_on_selector_all('#apG option', 'os => os.map(o => [o.value, o.disabled])'):
+                                    if g[1]:
+                                        report.append(f'{d} · {model} · {meth[0]} · {kind[0]} · v4 group {g[0]} (disabled)')
+                                        continue
+                                    pg.select_option('#apG', g[0])
+                                    pg.wait_for_timeout(700)
+                                    if pg.locator('#apSo').is_visible():
+                                        for sv in pg.eval_on_selector_all('#apS option:not([disabled])', 'os => os.map(o => o.value)'):
+                                            picks.append(('#apS', sv, f'group {g[0]} · {sv}', g[0]))
+                                    else:
+                                        picks.append((None, None, f'group {g[0]}', g[0]))
+                            else:
+                                picks = [('#apT', t, f'c={pg.eval_on_selector("#apC", "e=>e.value")} t={t}', None)
+                                         for t in pg.eval_on_selector_all('#apT option:not([disabled])', 'os => os.map(o => o.value)')]
+                            for sel, val, lab, grp in picks:
+                                if grp is not None and pg.eval_on_selector('#apG', 'e => e.value') != grp:
+                                    pg.select_option('#apG', grp)
+                                    pg.wait_for_timeout(700)
+                                if sel:
+                                    pg.select_option(sel, val)
                                 pg.wait_for_timeout(900)
+                                if sel == '#apT':
+                                    lab = f'c={pg.eval_on_selector("#apC", "e=>e.value")} t={val}'
                                 n = pg.eval_on_selector('#apN', 'e => e.textContent')
                                 nr = pg.eval_on_selector_all('#side .nr .id', 'es => es.map(e => e.textContent)')
                                 h2 = pg.eval_on_selector('#detail', 'e => (e.querySelector("h2")||{}).textContent || "(no detail)"')
                                 emp = pg.eval_on_selector('#side', 'e => (e.querySelector(".empty")||{}).textContent || ""')
-                                report.append(f'{d} · {model} · {meth[0]} · {kind[0]} · {e[0]} c={pg.eval_on_selector("#apC", "e=>e.value")} t={t}: '
-                                              f'{n}; listed {nr[:10]} {emp}; detail {h2}')
+                                topd = pg.locator('#side details.topd').count()
+                                report.append(f'{d} · {model} · {meth[0]} · {kind[0]} · {e[0]} {lab}: '
+                                              f'{n}; listed {nr[:10]} {emp}{" (candidates)" if topd else ""}; detail {h2}')
                                 if not nr:
                                     pass
                                 elif pg.locator('#side .nr:visible').count() == 0:
@@ -106,11 +129,16 @@ with sync_playwright() as p:
                                     report.append(f'      clicked first listed: detail {h2}')
                                 if a.shots and shot < 24 and nr:
                                     pg.wait_for_timeout(900)
-                                    pg.screenshot(path=f'{a.shots}/shot_{shot:02d}_{d}_{model}_{meth[0]}_{kind[0]}_{e[0]}_{t}.png'.replace(' ', ''))
+                                    pg.screenshot(path=f'{a.shots}/shot_{shot:02d}_{d}_{model}_{meth[0]}_{kind[0]}_{e[0]}_{lab}.png'.replace(' ', '').replace('·', '_').replace('=', ''))
                                     shot += 1
+                # spatial aggregation selector (model bar): max pooling on, the others off
+                ag = pg.eval_on_selector_all('#aggSeg button', 'bs => bs.map(b => [b.dataset.agg, b.disabled, b.getAttribute("aria-pressed")])')
+                report.append(f'{d} · {model} · spatial aggregation buttons [agg, disabled, pressed]: {ag}')
     note = pg.eval_on_selector('#mNote', 'e => e.textContent')
     report.append(f'last model note: {note}')
     b.close()
+bad = [r for r in report if '(candidates)' in r and "listed []" not in r and ' 0 found' not in r]
+report.append(f'candidate lists shown next to discoveries (must be 0): {len(bad)}')
 out = '\n'.join(report) + f'\nJS errors: {len(errors)}\n' + '\n'.join('   ' + e for e in errors[:30])
 print(out)
 Path(a.shots, 'report.txt').write_text(out)
