@@ -51,6 +51,14 @@ tokens (A3: rotated, tight mask, DINOv3-L block 20 at 1024 px, no change channel
         winner's and S0's modal nn / nt neurons on held-out frames, with the round-1 locality numbers.
     CROSS-DATASET CHECK: the winning knob is re-run on the CalMS21 swap (sniff_face), CRIM13 (sniff) and MABe22
         (oral_oral, oral_genital) with their own frozen pipelines; reported next to the mice numbers.
+ZOOM ESCALATION (R2_S=2048; PRE-REGISTERED 2026-10-16 ~22:00 CEST, before any sweep or ceiling score was seen): the same
+    pipeline with the DINOv3 input at 2048 px (mice v1 native 2064 px; 128 x 128 grid, body ~19 patches instead of
+    ~9.4; tight mask rule unchanged at the finer patch). Diagnosis frames = every 20th 5 fps frame (43,200 frames, a
+    subset of the 1024 diagnosis frames); pool = 8 bursts per video. Arms: the S0, S2, S3 recipes (+ the 1024 sweep
+    winner if it is not among them), seeds 0-2. Comparison: each recipe at 2048 vs the SAME recipe at 1024 scored on
+    the same 43,200 frames (the 1024 SAEs re-read on that subset). KEEP 2048 iff, for the best 2048 recipe vs the best
+    1024 recipe, primary R~ gains >= +0.02 with the Welch 95% CI (3 vs 3 seeds) excluding 0 and neither nose_nose nor
+    nose_tail R~ drops by more than 0.02.
 """
 import argparse
 import json
@@ -68,8 +76,14 @@ sys.path.insert(0, str(HERE))
 import nnnt as N  # noqa: E402  (Pipe, plan, scorer; read-only use)
 
 R4, REPO, C = N.R4, N.REPO, N.C
-OUT2 = Path(os.environ.get('R2_OUT') or N.OUT / 'r2')
-BEE2 = Path(os.environ.get('R2_BEE') or N.BEE / 'r2')
+# R2_S = DINOv3 input side (default 1024 = round 1, 64 x 64 grid); 2048 = the 'zoom' escalation (128 x 128 grid, same 16 px
+# patch and tight-mask rule, body length ~19 patches); its outputs live in their own r2_s2048 directories
+RES = int(os.environ.get('R2_S', '1024'))
+if RES != 1024:
+    N.S, N.G64 = RES, RES // 16
+SUF = '' if RES == 1024 else f'_s{RES}'
+OUT2 = Path(os.environ.get('R2_OUT') or N.OUT / f'r2{SUF}')
+BEE2 = Path(os.environ.get('R2_BEE') or N.BEE / f'r2{SUF}')
 log = N.log
 SPL_DIAG = ('rnd0', 'rnd1', 'rnd2', 'rnd3', 'rnd4')
 
@@ -100,12 +114,12 @@ def cmd_tokens(args):
     loc.mkdir(parents=True, exist_ok=True)
     jobs, rels = [], []
     for vi, v in vids:
-        ks = np.arange(v['fps1_off'], v['n'], 10)[:args.max_frames or None]
+        ks = np.arange(v['fps1_off'], v['n'], args.every)[:args.max_frames or None]
         for c0 in range(0, len(ks), 60):
             kk = ks[c0:c0 + 60]
             rels += list(fp[v['src_lo'] + kk])
             jobs.append(((vi, kk), dict(path=v['path'], s0=v['offset'] + C['step'] * int(kk[0]), n=len(kk),
-                                        step=C['step'] * 10, S=N.S, hflip=v['hflip'], fps=C['fps'], threads=2,
+                                        step=C['step'] * args.every, S=N.S, hflip=v['hflip'], fps=C['fps'], threads=2,
                                         jpgs=[jdir / f for f in fp[v['src_lo'] + kk]])))
     st = ThreadPoolExecutor(1).submit(R4.stage_jpgs, rels, jdir)
     pipe = N.Pipe(dev, Rr)
@@ -518,7 +532,7 @@ def cmd_sweep(args):
     loc = N.local_dir()
     seeds = [int(x) for x in args.seeds.split(',')]
     arms = args.arms.split(',') if args.arms else list(SWEEP)
-    sroot = OUT2 / ('sae_selftest' if args.selftest else 'sae')
+    sroot = (OUT2 / 'sae_selftest') if args.selftest else BEE2 / 'sae'  # checkpoints on BeeGFS (NFS is full)
     res_f = OUT2 / ('sweep_selftest.json' if args.selftest else 'sweep.json')
     res = json.loads(res_f.read_text()) if res_f.exists() else {'train': {}, 'sets': {}}
     t0 = time.time()
@@ -637,7 +651,8 @@ def cmd_sweep(args):
             log(f'{name}: nn R~ {m["nose_nose"]["R"]:.4f} AUROC {m["nose_nose"]["A"]:.4f} | nt R~ '
                 f'{m["nose_tail"]["R"]:.4f} AUROC {m["nose_tail"]["A"]:.4f} | primary {out["primary"]:.4f} '
                 f'({time.time() - t1:.0f}s)')
-            np.save(sroot / name / 'diag_codes_max.npy', X.half().cpu().numpy()) if args.save_codes else None
+            if args.save_codes:
+                np.save(sroot / name / 'diag_codes_max.npy', X.half().cpu().numpy())
             del X
             torch.cuda.empty_cache()
             res_f.write_text(json.dumps(res, indent=1, default=float))
@@ -675,7 +690,7 @@ def cmd_sheets(args):
     (OUT2 / 'sheets').mkdir(parents=True, exist_ok=True)
     for name in args.names.split(','):
         arm = name.split('_')[0]
-        sae, norm, _ = load_sae(OUT2 / 'sae' / name / 'sae_theta.pt', dev)
+        sae, norm, _ = load_sae(BEE2 / 'sae' / name / 'sae_theta.pt', dev)
         if SWEEP[arm][5] and VM is None:
             pdir = N.local_dir() / 'pool'
             R4.atomic_copy(BEE2 / 'pool', pdir)
@@ -738,6 +753,7 @@ def main():
     p.add_argument('--max-videos', type=int, default=0)
     p.add_argument('--max-frames', type=int, default=0)
     p.add_argument('--bursts-per-video', type=int, default=16)
+    p.add_argument('--every', type=int, default=10, help='tokens: every n-th 5 fps frame (from fps1_off)')
     p.add_argument('--seeds', default='0,1,2')
     p.add_argument('--arms', default='')
     p.add_argument('--pool-dir', default='')
