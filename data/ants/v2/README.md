@@ -9,8 +9,8 @@ This dataset contains videos and expert annotations from a controlled behavioral
 
 - **Randomized Controlled Trial**
 - **Observations:** 44 videos total (**10min valid each**)
-  - 20 with treatment `T = 1`
-  - 24 with treatment `T = 2`
+  - 24 with treatment `T = 1`
+  - 20 with treatment `T = 2`
 - **Annotations (per video):** one behavior (*grooming*) annotated per frame for both nestmates
   - yellow-to-focal grooming (binary)
   - blue-to-focal grooming (binary)
