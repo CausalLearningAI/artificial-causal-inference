@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: one reading column (manuscript); Fig. 1, Fig. 2, the validation strip and the results break out
+/* Layout: one reading column (manuscript); Fig. 1, figures, the validation strip and the results break out
    to a wider measure. §2 follows the five steps of Fig. 1. Blue = do-pilot, brown = scientist, both = scientist + AI.
    Domain colours encode ants / mice / frogs. */
 :root {
@@ -25,6 +25,7 @@
   --todo-bg: #fff4c2;
   --todo-fg: #6b5300;
   --clip-bg: #0e1318;
+  --dot: #b9c3cc;
   --font-display: "Source Serif 4", "Iowan Old Style", Georgia, serif;
   --font-body: "Source Serif 4", "Iowan Old Style", Georgia, serif;
   --font-ui: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
@@ -36,7 +37,7 @@
     --accent: #7fb6e0; --accent-soft: #1b2c3b; --human: #e2a283; --human-soft: #2f221c;
     --ants: #e5a253; --mice: #b39ae6; --frogs: #6fc493;
     --ants-soft: #2e2416; --mice-soft: #251f33; --frogs-soft: #17291f;
-    --todo-bg: #3a3214; --todo-fg: #f0d77a; --clip-bg: #05080b;
+    --todo-bg: #3a3214; --todo-fg: #f0d77a; --clip-bg: #05080b; --dot: #44515e;
     color-scheme: dark;
   }
 }
@@ -45,7 +46,7 @@
   --accent: #7fb6e0; --accent-soft: #1b2c3b; --human: #e2a283; --human-soft: #2f221c;
   --ants: #e5a253; --mice: #b39ae6; --frogs: #6fc493;
   --ants-soft: #2e2416; --mice-soft: #251f33; --frogs-soft: #17291f;
-  --todo-bg: #3a3214; --todo-fg: #f0d77a; --clip-bg: #05080b;
+  --todo-bg: #3a3214; --todo-fg: #f0d77a; --clip-bg: #05080b; --dot: #44515e;
   color-scheme: dark;
 }
 
@@ -65,6 +66,7 @@ h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 
 h1 { font-size: clamp(2rem, 4.6vw, 3.1rem); font-weight: 700; letter-spacing: -0.01em; }
 h2 { font-size: 1.65rem; font-weight: 700; }
 h3 { font-size: 1.2rem; font-weight: 600; }
+h4.minor { font-family: var(--font-ui); font-size: 0.95rem; font-weight: 600; margin: 0; }
 h2, h3 { scroll-margin-top: 20px; }
 p { margin: 0; }
 .stack { display: grid; gap: 18px; }
@@ -85,7 +87,7 @@ header .meta { font-family: var(--font-ui); font-size: 0.9rem; color: var(--mute
 .abstract { border-top: 2px solid var(--fg); border-bottom: 1px solid var(--rule); padding-block: 22px; }
 .abstract p { font-size: 1.06rem; }
 .todo { background: var(--todo-bg); color: var(--todo-fg); padding: 0 4px; border-radius: 3px; font-family: var(--font-ui); font-size: 0.86em; }
-.tldr { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: baseline; background: var(--surface); padding: 16px 18px; border-radius: 6px; }
+.tldr { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: baseline; background: var(--surface); padding: 14px 18px; border-radius: 6px; }
 .tldr p { font-family: var(--font-ui); font-size: 1rem; line-height: 1.55; }
 
 /* ===== Fig. 1 ===== */
@@ -147,6 +149,21 @@ header .meta { font-family: var(--font-ui); font-size: 0.9rem; color: var(--mute
 .lane.frogs > div:not(.name) { border-left: 3px solid var(--frogs); }
 .lane .ph { color: var(--muted); font-style: italic; }
 
+/* ===== motivation ===== */
+blockquote { margin: 0; padding: 4px 0 4px 20px; border-left: 2px solid var(--fg); display: grid; gap: 6px; }
+blockquote p { font-size: 1.15rem; font-style: italic; line-height: 1.5; }
+blockquote cite { font-family: var(--font-ui); font-size: 0.82rem; font-style: normal; color: var(--muted); }
+.seen { position: relative; aspect-ratio: 2.4 / 1; max-width: 100%; border: 1.5px solid var(--rule); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.seen .lab { position: absolute; font-family: var(--font-ui); font-size: 0.78rem; line-height: 1.3; color: var(--muted); }
+.seen .lab b { color: var(--fg); font-weight: 600; }
+.seen .etho { position: absolute; left: 6%; top: 30%; width: 28%; height: 52%; border: 2px solid var(--human); border-radius: 8px; background: var(--human-soft); }
+.seen .etho .lab { left: 8px; top: 6px; right: 6px; color: var(--human); font-weight: 600; }
+.seen i { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--dot); }
+.seen i.s { background: var(--human); }
+.seen i.u { background: var(--accent); width: 13px; height: 13px; box-shadow: 0 0 0 4px var(--accent-soft); }
+.seen-cap { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
+.seen-cap b.u { color: var(--accent); } .seen-cap b.s { color: var(--human); }
+
 /* ===== sections ===== */
 section { display: grid; gap: 18px; }
 .sub { display: grid; gap: 12px; }
@@ -158,11 +175,23 @@ figure img { width: 100%; height: auto; border-radius: 6px; background: #ffffff;
 figcaption { font-family: var(--font-ui); font-size: 0.85rem; line-height: 1.5; color: var(--muted); }
 figcaption b { color: var(--fg); }
 
+.priors { display: grid; grid-template-columns: minmax(0, 13em) minmax(0, 1fr); border-top: 1px solid var(--rule); margin: 0; }
+.priors dt, .priors dd { margin: 0; padding: 9px 0; border-bottom: 1px solid var(--rule); font-family: var(--font-ui); font-size: 0.88rem; line-height: 1.45; min-width: 0; }
+.priors dt { font-weight: 600; padding-right: 14px; }
+.priors dd { color: var(--muted); }
+
+.bench { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.bench figure { gap: 6px; min-width: 0; }
+.bench video { width: 100%; max-width: 100%; aspect-ratio: 1 / 1; object-fit: contain; background: var(--clip-bg); border-radius: 6px; display: block; }
+.bench figcaption { font-size: 0.8rem; }
+
 .linkout { font-family: var(--font-ui); font-size: 0.92rem; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 12px 14px; border: 1px solid var(--rule); border-radius: 6px; }
 .linkout span { color: var(--muted); }
 
 .def { border-left: 3px solid var(--accent); padding: 12px 16px; background: var(--accent-soft); border-radius: 0 6px 6px 0; display: grid; gap: 8px; }
+.def.h { border-left-color: var(--human); background: var(--human-soft); }
 .def .eyebrow { color: var(--accent); }
+.def.h .eyebrow { color: var(--human); }
 .math { font-family: var(--font-mono); font-size: 0.95rem; text-align: center; padding: 6px 0; overflow-x: auto; }
 .math i { font-family: var(--font-body); font-size: 1.08em; }
 ul.tight { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
@@ -172,6 +201,7 @@ ul.tight li::marker { color: var(--muted); }
 .steps > div { min-width: 0; background: var(--human-soft); border-radius: 6px; padding: 10px 12px; font-family: var(--font-ui); font-size: 0.82rem; line-height: 1.45; display: grid; gap: 3px; align-content: start; }
 .steps b { color: var(--human); font-size: 0.9rem; }
 .steps .tests { font-size: 0.74rem; color: var(--muted); }
+.steps-note { font-family: var(--font-ui); font-size: 0.84rem; color: var(--muted); line-height: 1.5; padding-top: 4px; }
 
 .compare { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-family: var(--font-ui); font-size: 0.86rem; line-height: 1.4; }
@@ -180,16 +210,31 @@ th { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.07em; colo
 td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 td.pend { color: var(--muted); font-style: italic; }
 
-/* ===== results ===== */
-.discoveries { display: grid; gap: 22px; }
-.disc { min-width: 0; border-radius: 10px; padding: 20px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 22px; align-items: start; }
-.disc.ants { background: var(--ants-soft); } .disc.mice { background: var(--mice-soft); } .disc.frogs { background: var(--frogs-soft); }
+/* ===== results: one horizontal carousel per domain ===== */
+.domains { display: grid; gap: 34px; }
+.domain { display: grid; gap: 10px; min-width: 0; }
+.domain-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 14px; }
+.domain-head .dname { font-family: var(--font-ui); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.domain-head .count { font-family: var(--font-ui); font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.domain.ants .dname { color: var(--ants); } .domain.mice .dname { color: var(--mice); } .domain.frogs .dname { color: var(--frogs); }
+.carousel { position: relative; min-width: 0; }
+.track { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; border-radius: 10px; }
+.track::-webkit-scrollbar { display: none; }
+.edge { all: unset; box-sizing: border-box; cursor: pointer; position: absolute; top: 0; bottom: 0; width: 52px; display: grid; place-items: center;
+  font-family: var(--font-ui); font-size: 1.5rem; color: var(--fg); z-index: 2; }
+.edge.next { right: 0; border-radius: 0 10px 10px 0; background: linear-gradient(to right, transparent, color-mix(in srgb, var(--bg) 70%, transparent)); }
+.edge.prev { left: 0; border-radius: 10px 0 0 10px; background: linear-gradient(to left, transparent, color-mix(in srgb, var(--bg) 70%, transparent)); }
+.edge span { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--bg); border: 1px solid var(--rule); font-size: 1.1rem; }
+.edge:hover span { border-color: var(--fg); }
+.edge:focus-visible span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.disc { flex: 0 0 100%; scroll-snap-align: start; min-width: 0; border-radius: 10px; padding: 20px 64px 20px 20px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 22px; align-items: start; }
+.domain.ants .disc { background: var(--ants-soft); } .domain.mice .disc { background: var(--mice-soft); } .domain.frogs .disc { background: var(--frogs-soft); }
 .clip { display: grid; gap: 8px; min-width: 0; }
 .clip video { width: 100%; max-width: 100%; aspect-ratio: 1 / 1; object-fit: contain; background: var(--clip-bg); border-radius: 6px; display: block; }
 .clip .cap { font-family: var(--font-ui); font-size: 0.78rem; line-height: 1.45; color: var(--muted); }
 .disc-body { display: grid; gap: 14px; min-width: 0; }
-.disc .dom { font-family: var(--font-ui); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
-.disc.ants .dom { color: var(--ants); } .disc.mice .dom { color: var(--mice); } .disc.frogs .dom { color: var(--frogs); }
+.disc .tag { font-family: var(--font-ui); font-size: 0.74rem; font-weight: 600; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; letter-spacing: 0.04em; }
 .disc h3 { font-size: 1.22rem; }
 .blk { display: grid; gap: 4px; }
 .blk .k { font-family: var(--font-ui); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
@@ -198,10 +243,8 @@ td.pend { color: var(--muted); font-style: italic; }
 .val { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .val > div { background: var(--bg); border-radius: 6px; padding: 9px 11px; font-family: var(--font-ui); font-size: 0.82rem; line-height: 1.4; min-width: 0; }
 .val b { display: block; font-size: 0.74rem; color: var(--human); letter-spacing: 0.03em; }
-.chip { font-family: var(--font-ui); font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--todo-bg); color: var(--todo-fg); letter-spacing: 0.02em; text-transform: none; }
+.chip { font-family: var(--font-ui); font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--todo-bg); color: var(--todo-fg); letter-spacing: 0.02em; }
 .caveat { font-family: var(--font-ui); font-size: 0.8rem; color: var(--muted); }
-
-.placeholder { border: 1.5px dashed var(--rule); border-radius: 8px; padding: 16px 18px; font-family: var(--font-ui); font-size: 0.9rem; color: var(--muted); display: grid; gap: 8px; }
 
 footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 16px; }
 
@@ -215,16 +258,22 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
   .lane-head { display: none; }
   .lane .name { padding-top: 8px; }
   .lane > div[data-k]::before { content: attr(data-k) " · "; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
-  .disc { grid-template-columns: 1fr; }
+  .disc { grid-template-columns: 1fr; padding: 16px 16px 20px; }
+  .edge { top: 8px; bottom: auto; height: 52px; background: none; }
   .steps { grid-template-columns: 1fr 1fr; }
+  .bench { grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 }
 @media (max-width: 480px) {
   body { font-size: 17px; }
   .steps, .val { grid-template-columns: 1fr; }
   .tldr { grid-template-columns: 1fr; gap: 4px; }
+  .priors { grid-template-columns: 1fr; }
+  .priors dt { border-bottom: none; padding-bottom: 0; }
+  .seen { aspect-ratio: 1.5 / 1; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .stage { transition: border-color .15s ease; }
+  .track { scroll-behavior: smooth; }
 }
 </style>
 
@@ -242,38 +291,38 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
 
   <section class="col abstract stack" aria-labelledby="abs">
     <div class="eyebrow" id="abs">Abstract</div>
-    <p>Randomized experiments are how behavioural science establishes cause and effect, yet what an experiment can reveal is fixed before it starts: researchers decide which behaviours to score, and any effect outside that list goes unseen. Video records far more than anyone annotates. Here we introduce <em>do</em>-pilot, an empiricist assistant that reads the raw videos of a randomized experiment and proposes which behaviours the treatment changed, before anyone decides what to look for. <em>do</em>-pilot learns, without labels, a dictionary of interpretable visual units (neurons) that each fire on one recognisable pattern of behaviour, and searches it with an interventional contrast that returns the smallest set of neurons carrying everything the treatment changed, with statistical error control. The scientist stays in the loop throughout: behaviours they already score can be given to the search so that it reports only what is new, their own hypotheses are tested alongside the tool's, and every proposal is named, interpreted and validated by people, with a language model as an aid. Applied to three systems, <span class="todo">fungal exposure in ant colonies</span>, <span class="todo">autism-risk genes in mice</span> and <span class="todo">motor-neuron transcription factors in <i>Xenopus</i> frogs</span>, <em>do</em>-pilot proposes novel hypotheses in each, which we validate with <span class="todo">targeted follow-up annotation and experiments</span>, yielding new insights into <span class="todo">social immunity, social behaviour and motor development</span>.</p>
+    <p>Randomized experiments are how behavioural science establishes cause and effect, yet what an experiment can reveal is fixed before it starts: researchers decide which behaviours to score, and any effect outside that list goes unseen. Video records far more than anyone annotates. Here we introduce <em>do</em>-pilot, an empiricist assistant that reads the raw videos of a randomized experiment and proposes which behaviours the treatment changed, before anyone decides what to look for. <em>do</em>-pilot learns, without labels, a dictionary of interpretable visual units (neurons) that each fire on one recognisable pattern of behaviour, and searches it with an interventional contrast that returns the smallest set of neurons carrying everything the treatment changed, with statistical error control. The scientist stays in the loop throughout: behaviours they already score can be given to the search so that it reports only what is new, their own hypotheses are tested alongside the tool's, and every proposal is named, interpreted and validated by people, with AI models as aids. Applied to three systems, <span class="todo">fungal exposure in ant colonies</span>, <span class="todo">autism-risk genes in mice</span> and <span class="todo">motor-neuron transcription factors in <i>Xenopus</i> frogs</span>, <em>do</em>-pilot proposes novel hypotheses in each, which we validate with <span class="todo">held-out annotation and independent cohorts</span>, yielding new insights into <span class="todo">social immunity, social behaviour and motor development</span>.</p>
   </section>
 
   <div class="col tldr">
     <div class="eyebrow">TL;DR</div>
-    <p>A behavioural experiment only finds effects on the behaviours someone chose to score. Here the scientist and an AI system choose together. The videos propose what the treatment changed; the scientist's own knowledge can enter before the search, as behaviours already scored, or after it, as hypotheses of their own; and every candidate is named and tested by people. In ants, mice and frogs this produced new, validated findings.</p>
+    <p>Experiments find only the effects someone thought to score. Here the videos propose what changed, the scientist adds what they already know, and people name and test every candidate: new, validated findings in ants, mice and frogs.</p>
   </div>
 
   <!-- ===== Fig. 1 ===== -->
   <div class="wide story" role="figure" aria-label="Fig. 1: from a randomized experiment to a validated insight">
     <div class="story-head">
       <div class="eyebrow">Fig. 1 · From experiment to insight</div>
-      <div class="legend"><span><i></i><em>do</em>-pilot</span><span><i class="d"></i>Scientist + AI</span><span><i class="h"></i>Scientist</span><span>Select a step for details</span></div>
+      <div class="legend"><span><i></i><em>do</em>-pilot</span><span><i class="d"></i>Scientist + AI / ML</span><span><i class="h"></i>Scientist</span><span>Select a step for details</span></div>
     </div>
 
     <div class="grid5" role="tablist" aria-label="Pipeline steps">
       <button class="stage h" role="tab" id="tab-1" aria-controls="detail" aria-selected="true" data-s="1">
         <span class="top"><span class="dot">1</span><span class="who">Scientist</span></span>
         <h4>Experiment</h4>
-        <p>Randomize a treatment, film treated and control animals with a fixed camera. No annotation needed.</p>
+        <p>Randomize a treatment; film treated and control animals with a fixed camera.</p>
         <span class="more">§2.1</span>
       </button>
       <button class="stage" role="tab" id="tab-2" aria-controls="detail" aria-selected="false" data-s="2">
         <span class="top"><span class="dot">2</span><span class="who"><em>do</em>-pilot</span></span>
         <h4>Behavioural representation</h4>
-        <p>Each video becomes neurons that each fire on one visible pattern. Label-free; built from priors that hold in every domain and tested on public data.</p>
+        <p>Each video becomes neurons that each fire on one visible pattern. Label-free, built from domain-general priors tested on public data.</p>
         <span class="more">§2.2</span>
       </button>
       <button class="stage" role="tab" id="tab-3" aria-controls="detail" aria-selected="false" data-s="3">
         <span class="top"><span class="dot">3</span><span class="who"><em>do</em>-pilot</span></span>
-        <h4>Interventional contrast</h4>
-        <p>NESS returns the smallest set of neurons that carries everything the treatment changed, with error control.</p>
+        <h4>Interventional contrast identification</h4>
+        <p>NESS finds the smallest set of neurons that carries everything the treatment changed; one causal assumption then marks the direct effects.</p>
         <span class="more">§2.3</span>
       </button>
       <button class="stage d" role="tab" id="tab-4" aria-controls="detail" aria-selected="false" data-s="4">
@@ -285,12 +334,12 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
         </span>
         <span class="more">§2.4</span>
       </button>
-      <button class="stage h" role="tab" id="tab-5" aria-controls="detail" aria-selected="false" data-s="5">
-        <span class="top"><span class="dot">5</span><span class="who">Scientist</span></span>
+      <button class="stage d" role="tab" id="tab-5" aria-controls="detail" aria-selected="false" data-s="5">
+        <span class="top"><span class="dot">5</span><span class="who">Scientist + ML</span></span>
         <h4>Validation</h4>
         <span class="parts">
           <span><b>a · Name check:</b> blind raters see the named behaviour</span>
-          <span><b>b · Effect check:</b> the behaviour, scored anew, shows the effect</span>
+          <span><b>b · Effect check:</b> the behaviour, scored on unseen videos by an AI annotator, shows the effect (PPCI)</span>
         </span>
         <span class="more">§2.5</span>
       </button>
@@ -298,7 +347,7 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
 
     <div class="grid5 knowledge" aria-label="Where the scientist's own knowledge enters">
       <div class="lbl">The scientist's own knowledge can enter at two points</div>
-      <div class="inj"><b>A PRIORI</b>Behaviours already scored are added as extra units. The search then reports only what changed beyond them.</div>
+      <div class="inj"><b>A PRIORI</b>Behaviours already scored are added as extra units and compete with the neurons: kept if they carry part of the effect, discarded if not.</div>
       <div class="empty"></div>
       <div class="inj"><b>A POSTERIORI</b>The scientist's own hypotheses join the list and go through the same validation.</div>
       <div class="empty"></div>
@@ -327,7 +376,7 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
       <div class="lane frogs">
         <div class="name"><span class="swatch"></span>Frogs</div>
         <div data-k="Experiment">FoxP1 mutant vs wild type</div>
-        <div data-k="Neuron">#104, higher in mutants</div>
+        <div data-k="Neuron">#104, fires in every mutant, in no wild type</div>
         <div data-k="Interpretation" class="ph">to name from clips</div>
         <div data-k="Validation" class="ph">pending</div>
       </div>
@@ -337,8 +386,22 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
   <!-- ===== 1 Motivation ===== -->
   <section class="col" aria-labelledby="s1">
     <h2 id="s1"><span class="secnum">1</span>Motivation</h2>
-    <p>Behavioural experiments measure the effect of a treatment on a short list of behaviours chosen in advance. That list is the bottleneck: it reflects what the field already expects, and whatever else the treatment changed stays in the footage, unseen. AI annotators have made scoring faster, but they still answer only questions someone already asked.</p>
-    <p>We build an <strong>empiricist assistant</strong> for the step before: choosing what to measure. It proposes; the scientist decides. To be trusted it must be <b>label-free</b> (the expected result cannot shape what it sees), <b>readable</b> (every proposal can be watched and named) and <b>statistically controlled</b> (the list is not a list of noise).</p>
+    <blockquote>
+      <p>“How odd it is that anyone should not see that all observation must be for or against some view if it is to be of any service!”</p>
+      <cite>Charles Darwin, letter to Henry Fawcett, 18 September 1861</cite>
+    </blockquote>
+    <p>Behavioural experiments follow Darwin's rule: the view comes first. Before filming, the researcher fixes a short list of behaviours to score (an ethogram), and the experiment can only confirm or reject effects on that list. Whatever else the treatment changed stays in the footage, unseen. AI annotators have made scoring faster, but they still answer only the questions already asked.</p>
+    <div class="seen" role="img" aria-label="Illustration: a large field of everything the video records, a small box for the behaviours scored, and treatment effects lying outside that box.">
+      <span class="lab" style="right:12px; top:10px; text-align:right"><b>Everything the video records</b></span>
+      <div class="etho"><span class="lab">The ethogram: behaviours chosen in advance</span></div>
+      <i class="s" style="left:13%; top:66%"></i><i class="s" style="left:22%; top:58%"></i><i class="s" style="left:27%; top:71%"></i>
+      <i style="left:42%; top:24%"></i><i style="left:48%; top:62%"></i><i style="left:55%; top:40%"></i><i style="left:61%; top:78%"></i>
+      <i style="left:70%; top:30%"></i><i style="left:76%; top:58%"></i><i style="left:84%; top:44%"></i><i style="left:90%; top:72%"></i>
+      <i style="left:38%; top:84%"></i><i style="left:66%; top:12%"></i><i style="left:94%; top:22%"></i>
+      <i class="u" style="left:51%; top:48%"></i><i class="u" style="left:79%; top:68%"></i><i class="u" style="left:72%; top:20%"></i>
+    </div>
+    <p class="seen-cap"><b class="s">Brown:</b> effects an experiment can test today. <b class="u">Blue:</b> effects of the treatment that nobody scored. <em>do</em>-pilot searches the whole field.</p>
+    <p>We build an <strong>empiricist assistant</strong> that lets the data suggest the view. It proposes; the scientist decides. To be trusted it must be <b>label-free</b> (the expected result cannot shape what it sees), <b>readable</b> (every proposal can be watched and named) and <b>statistically controlled</b> (the list is not a list of noise).</p>
   </section>
 
   <!-- ===== 2 do-pilot ===== -->
@@ -349,15 +412,12 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
     <div class="sub">
       <h3 id="s21"><span class="secnum">2.1</span>Experiment</h3>
       <div class="stagetag h">Step 1 · Scientist</div>
-      <p>Videos from a randomized experiment with a fixed camera, and the treatment of each animal or group. Behaviours the lab already scores are optional; if given, they become extra units of the representation, so the search reports only what changed beyond them.</p>
+      <p>We focus on randomized experiments in the behavioural sciences: a gene is mutated, a colony is exposed to a pathogen, an odour or a drug is given, and the animals are filmed. These experiments are common across ecology, neuroscience and developmental biology, and their videos are usually analysed only for a few predefined behaviours. The input to <em>do</em>-pilot is exactly what such a lab already has: videos from a fixed camera and the treatment of each animal or group.</p>
     </div>
 
     <div class="sub">
       <h3 id="s22"><span class="secnum">2.2</span>Behavioural representation</h3>
       <div class="stagetag">Step 2 · <em>do</em>-pilot</div>
-      <p>A frozen vision model encodes each frame; the tokens on the animals, each with its recent change, pass through a sparse dictionary (sparse autoencoder) whose neurons each fire on one visual pattern. Every video is summarised per neuron by time active, bouts per minute and latency to the first bout.</p>
-      <p><b>Priors.</b> The representation is shaped only by assumptions that hold in every domain: a fixed viewpoint, sparsity (few behaviours at once), position and rotation invariance, and recurrence (behaviour repeats). Labels never shape it.</p>
-      <p><b>How choices are made.</b> Every prior and implementation choice is treated as a hypothesis and tested on public, expert-annotated behaviour datasets (MABe22: mice, beetles and ants; CalMS21: mouse pairs). These are not controlled experiments, but their labels tell us whether neurons match behaviour. The score is alignment: for each annotated behaviour, the best single neuron is picked on half the videos and its precision measured on the other half. A choice is kept only if alignment rises across datasets. Our own experiments are never used for tuning; they get one pre-registered run of the frozen recipe.</p>
     </div>
   </section>
 
@@ -366,129 +426,246 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
     <figcaption><b>Fig. 2 | One label-free behavioural representation for every domain.</b> Rows: ants (<i>Lasius neglectus</i>), mice, <i>Xenopus</i> froglets. <b>a</b>, video, 448 px at 5 fps. <b>b</b>, frozen DINOv2 tokens → animal mask → each token and its 1 s change → sparse code (4,096 neurons, 16 active). <b>c</b>, one neuron's activation over time (hand-picked: ants #186 grooming, in-sample AUROC 0.86; mice #915 two mice in contact, nose-to-nose AUROC 0.72; frogs #500 extended hind limb). <b>d</b>, per-video time, bouts and latency. This shows the previous recipe; the current one uses DINOv3-L, 512 neurons and 2 s of context.</figcaption>
   </figure>
 
+  <section class="col" aria-label="Section 2.2 continued">
+    <div class="sub">
+      <p>A frozen vision model encodes each frame. The tokens on the animals, each paired with its recent change, pass through a sparse dictionary (sparse autoencoder) whose neurons each fire on one visual pattern. Every video is summarised per neuron by time active, bouts per minute and latency to the first bout. Labels never shape the representation. The only assumptions are these priors:</p>
+      <dl class="priors">
+        <dt>Fixed viewpoint</dt><dd>One camera, one arena: a change in the image is a change in the animals.</dd>
+        <dt>Behaviour lives on the animals</dt><dd>What matters is the animals' appearance and how it changes over a few seconds.</dd>
+        <dt>Position invariance</dt><dd>A behaviour means the same thing anywhere in the arena.</dd>
+        <dt>Rotation invariance</dt><dd>…and in any orientation.</dd>
+        <dt>Sparsity</dt><dd>At any moment, only a few behaviours are present.</dd>
+        <dt>Heterogeneous recurrence rate</dt><dd>A behaviour recurs, and how often it recurs differs between animals and videos. That variation is what a treatment can change.</dd>
+      </dl>
+      <p><b>Prior knowledge, a priori.</b> If the lab already scores some behaviours, the scores can be appended as extra units. They are hypotheses too, and the search in §2.3 treats them like any neuron: a scored behaviour is kept if it carries part of the treatment's effect and discarded if it does not. When kept, the neurons selected beside it show what the treatment changed beyond it.</p>
+      <h4 class="minor">How choices are made</h4>
+      <p>Every prior and implementation choice is treated as a hypothesis and tested on public, expert-annotated behaviour datasets. These are not controlled experiments, but their labels tell us whether neurons match behaviour. The score is alignment: for each annotated behaviour, the best single neuron is picked on half the videos and its precision measured on the other half. A choice is kept only if alignment rises across datasets. Our own experiments are never used for tuning; they get one pre-registered run of the frozen recipe.</p>
+    </div>
+  </section>
+
+  <div class="wide bench" aria-label="Public datasets used to choose the design">
+    <figure>
+      <video src="demo/bench_mabe22_mice.mp4" poster="demo/bench_mabe22_mice.png" muted loop playsinline autoplay preload="metadata" aria-label="MABe22 mice"></video>
+      <figcaption><b>MABe22 · mice</b><br><span id="cap-mabe-mice">Three mice in an open arena, top view. 1,828 clips; labels include approach, chase, huddle and oral contacts.</span></figcaption>
+    </figure>
+    <figure>
+      <video src="demo/bench_mabe22_beetle.mp4" poster="demo/bench_mabe22_beetle.png" muted loop playsinline autoplay preload="metadata" aria-label="MABe22 beetle and ant"></video>
+      <figcaption><b>MABe22 · beetle + ant</b><br><span id="cap-mabe-beetle">A beetle with an ant in a round arena. Labels: grooming and exploring, alone or with the other animal or an object.</span></figcaption>
+    </figure>
+    <figure>
+      <video src="demo/bench_calms21.mp4" poster="demo/bench_calms21.png" muted loop playsinline autoplay preload="metadata" aria-label="CalMS21 mice"></video>
+      <figcaption><b>CalMS21 · mouse pairs</b><br><span id="cap-calms">A resident and an intruder mouse. 89 videos; labels: attack, investigation, mount, plus 7 finer behaviours.</span></figcaption>
+    </figure>
+  </div>
+
   <div class="col stack-sm">
     <div class="linkout"><a href="https://claude.ai/artifact/JjLjfBdfkx9SuzrD61QWqf">Interpretable Representation × Behavioral Sciences</a><span>Full design brief: priors, assumptions, every tested choice and its result.</span></div>
   </div>
 
   <section class="col" aria-label="Sections 2.3 to 2.5">
     <div class="sub">
-      <h3 id="s23"><span class="secnum">2.3</span>Interventional contrast</h3>
+      <h3 id="s23"><span class="secnum">2.3</span>Interventional contrast identification</h3>
       <div class="stagetag">Step 3 · <em>do</em>-pilot</div>
-      <p>Neurons are correlated, so one real effect lights up many neurons that only co-vary with it. We want the few that carry the whole effect.</p>
+      <p>Neurons are correlated, so one real effect lights up many neurons that only co-vary with it. We identify the few that carry the whole effect, in two tiers: a statistical target that needs only randomization, and a causal refinement that needs one further assumption.</p>
       <div class="def">
-        <div class="eyebrow">Definition · Neural Effect Sufficiency Search, NESS(ε)</div>
+        <div class="eyebrow">Tier 1 · Neural Effect Sufficiency Search, NESS(ε)</div>
         <p>Let <i>T</i> be the randomized treatment and <i>Z</i> ∈ ℝ<sup>m</sup> a video's neuron summaries. A set <i>S</i> ⊆ {1,…,<i>m</i>} is ε-sufficient if</p>
         <div class="math"><i>I</i>( <i>T</i> ; <i>Z</i><sub>−S</sub> | <i>Z</i><sub>S</sub> ) ≤ ε</div>
-        <p>NESS(ε) returns an inclusion-minimal ε-sufficient set: a treatment classifier that sees only <i>Z<sub>S</sub></i> loses at most ε nats of log-loss against one that sees every neuron.</p>
+        <p>NESS(ε) returns an inclusion-minimal ε-sufficient set: a treatment classifier that sees only <i>Z<sub>S</sub></i> loses at most ε nats of log-loss against one that sees every neuron. Because <i>T</i> is randomized, any behavioural change it causes passes through <i>Z<sub>S</sub></i>, up to an error that shrinks with ε <span class="todo">bound to be verified</span>. Assumes only independent videos, a dictionary fixed beforehand, and sample splitting.</p>
       </div>
-      <p>Because <i>T</i> is randomized, any behavioural change it causes passes through <i>Z<sub>S</sub></i>, up to an error that shrinks with ε <span class="todo">bound to be verified</span>. It assumes only independent videos, a dictionary fixed before the analysis, and sample splitting. Neurons are added by held-out information gain, redundant ones removed, and the final set certified on held-out data.</p>
-      <p><b>Why not NES.</b> Our earlier Neural Effect Search has no defined target, orders neurons by raw effect size under an assumption that fails in general, and never removes a neuron once selected, so its precision falls as data grow.</p>
+      <div class="def">
+        <div class="eyebrow">Tier 2 · Direct effects, with one causal assumption</div>
+        <p>NESS can include <i>context</i> neurons that the treatment does not change but that are needed to read another neuron's change. To separate them, assume that <b>whatever must be held fixed is itself in the dictionary</b>: neurons capture the relevant behavioural factors closely, and no hidden cause links two affected factors. Then a selected neuron is a <b>direct effect</b> if it stays dependent on <i>T</i> given every subset of the other selected neurons. A neuron that almost perfectly reveals the treatment hides the others; they are reported as <i>undetermined</i>, never as absent.</p>
+      </div>
+
+      <h4 class="minor">Comparison with NES</h4>
+      <p>Our earlier method, Neural Effect Search (NES), fails on four counts:</p>
+      <ul class="tight">
+        <li><b>No defined target.</b> It never states which set of neurons it is trying to recover, and its additivity assumption rules out mediated effects.</li>
+        <li><b>Ordering by raw effect size.</b> It picks the neuron with the largest change first, which depends on each neuron's scale; its claim that this neuron always belongs to the true set is false.</li>
+        <li><b>No backward step.</b> A neuron, once selected, is never removed, so redundant neurons accumulate and precision falls as data grow.</li>
+        <li><b>Error control.</b> Its claim that the family-wise error rate goes to zero does not hold at a fixed test level.</li>
+      </ul>
       <div class="compare">
         <table>
-          <thead><tr><th>CelebA benchmark, N = 5,000</th><th>Successor (margin 0.05)</th><th>NES (published)</th></tr></thead>
+          <thead><tr><th>Semi-synthetic CelebA benchmark</th><th>Successor (margin 0.05)</th><th>NES (published)</th></tr></thead>
           <tbody>
-            <tr><td>Precision, effect 0.7</td><td class="num">0.87</td><td class="num">0.49</td></tr>
-            <tr><td>Exact set recovered, all effect sizes</td><td class="num">46 / 80</td><td class="num">11 / 80</td></tr>
+            <tr><td>Precision, effect 0.7, N = 5,000</td><td class="num">0.87</td><td class="num">0.49</td></tr>
+            <tr><td>Exact set recovered, effect 0.7, N = 5,000</td><td class="num">6 / 10</td><td class="num">0 / 10</td></tr>
+            <tr><td>Exact set recovered, all effect sizes, N = 5,000</td><td class="num">46 / 80</td><td class="num">11 / 80</td></tr>
+            <tr><td>Mediation chain: exact set recovered</td><td class="num">0.94 – 1.0</td><td class="num">0.0 (picks the mediator)</td></tr>
+            <tr><td>NES precision as N grows 250 → 5,000</td><td class="num">—</td><td class="num">0.80 → 0.49</td></tr>
           </tbody>
         </table>
       </div>
-      <p class="note">Measured for DINES, the direct-set predecessor of NESS. The NESS(ε) benchmark is <span class="todo">to run</span>.</p>
+      <p class="note">Measured for DINES, the direct-set predecessor of NESS with a fixed margin. The NESS(ε) benchmark is <span class="todo">to run</span>.</p>
     </div>
 
     <div class="sub">
       <h3 id="s24"><span class="secnum">2.4</span>Interpretation</h3>
       <div class="stagetag h">Step 4 · Scientist + AI</div>
-      <p><b>a · Neural interpretation: what does the neuron show?</b> The scientist watches the clips where the neuron fires most, and a random sample where it fires at all, from both arms. A vision-language model drafts a short name and description from the same clips; the scientist accepts, edits or rejects it. NESS also says whether the neuron is an <i>effect</i> (it shifts with the treatment) or <i>context</i> (needed only to read another neuron).</p>
+      <p><b>a · Neural interpretation: what does the neuron show?</b> The scientist watches the clips where the neuron fires most, and a random sample where it fires at all, from both arms. A vision-language model drafts a short name and description from the same clips; the scientist accepts, edits or rejects it.</p>
       <p><b>b · Biological interpretation: why would the treatment change it?</b> The named behaviour becomes a hypothesis about mechanism. A language model searches the literature for known links between the treatment and the behaviour and drafts candidate explanations; the scientist judges them and states a testable prediction. The scientist's own hypotheses join the list here.</p>
     </div>
 
     <div class="sub">
       <h3 id="s25"><span class="secnum">2.5</span>Validation</h3>
-      <div class="stagetag h">Step 5 · Scientist</div>
-      <p>Each interpretation gets its own check, on data the search never saw. The name must be checked first: an effect on a named behaviour only means something if the neuron really shows that behaviour. The biological mechanism itself is tested by the next experiment.</p>
+      <div class="stagetag h">Step 5 · Scientist + ML</div>
+      <p>A new experiment is the strongest test of a hypothesis, but it is slow and often not possible. Validation therefore uses data that already exist but that the search never saw. The name is checked first, because an effect on a named behaviour only means something if the neuron really shows that behaviour.</p>
+      <p>Scoring the named behaviour by hand on every unseen video would be slow, so the scientist labels a small sample and an AI annotator, trained on those labels, scores the rest. Prediction-powered causal inference (PPCI) combines the two so that the effect estimate and its confidence interval stay valid even though the annotator makes mistakes.</p>
     </div>
   </section>
 
   <div class="wide steps" aria-label="Validation pipeline">
     <div><b>Name check</b>Blind raters see top and random clips from both arms and mark whether the named behaviour is present.<span class="tests">checks 4a</span></div>
-    <div><b>Nuisance check</b>The neuron's effect is tested against recording day, camera and batch.<span class="tests">guards 4a and 4b</span></div>
-    <div><b>Effect check</b>The named behaviour is scored on held-out videos or a new cohort, blind to treatment, and its effect estimated in a pre-registered test (prediction-powered when an AI annotator scores it).<span class="tests">checks 4b</span></div>
-    <div><b>Next experiment</b>A targeted experiment that tests the proposed mechanism; its videos go back into step 1.<span class="tests">tests the mechanism</span></div>
+    <div><b>Nuisance check</b>The effect is tested against recording day, camera and batch.<span class="tests">guards 4a and 4b</span></div>
+    <div><b>Effect check</b>The search runs on half the videos. On the other half, the named behaviour is scored blind to treatment (a few by hand, the rest by an AI annotator) and its effect estimated with PPCI in a pre-registered test.<span class="tests">checks 4b</span></div>
+    <div><b>Replication</b>The same effect in an independent cohort already filmed: another experiment series, genetic line or species.<span class="tests">checks 4b, generality</span></div>
   </div>
+  <div class="col steps-note">When a collaborating lab can run a targeted follow-up experiment, it is the final test of the mechanism, and its videos go back into step 1. It is not required for a validated hypothesis.</div>
 
   <!-- ===== 3 Results ===== -->
   <section class="col" aria-labelledby="s3">
     <h2 id="s3"><span class="secnum">3</span>Results</h2>
-    <p>The same pipeline, unchanged, on three randomized experiments in three fields. Each discovery is shown as it would be in the paper: the contrast where it emerges, a clip of the neuron firing, its interpretation, and its validation. More discoveries per domain can be added as they are confirmed.</p>
+    <p>The same pipeline, unchanged, on three randomized experiments in three fields. Each discovery shows the contrast where it emerges, a clip of the neuron firing, its interpretation and its validation. Use the arrow on the right of a card to see the next discovery in that domain.</p>
   </section>
 
-  <div class="wide discoveries">
-    <article class="disc ants">
-      <div class="clip">
-        <video src="demo/ants_r4_224.mp4" poster="demo/ants_r4_224.png" muted loop playsinline autoplay controls preload="metadata" aria-label="Clip: ants neuron 224 activation"></video>
-        <div class="cap">Neuron #224, its 4 top-activating 1 s clips (slowed 2×). Overlay: the neuron's activation on each image patch. <span class="todo">overlay too faint; re-render</span></div>
-      </div>
-      <div class="disc-body">
-        <div class="dom">Ants · ecology · discovery 1 <span class="chip">Placeholder · not validated</span></div>
-        <h3>Fungus-infested colonies show less of one visual pattern</h3>
-        <div class="blk"><div class="k">Where it emerges</div>
-          <p>Focal ant with two nestmates, infested vs healthy colonies (v4), pooled over the two treatment groups. Strongest of all ants contrasts.</p>
-          <div class="stat">mean activation −0.086, p = 8.3 × 10⁻⁸ · NESS: undetermined</div></div>
-        <div class="blk"><div class="k">Interpretation</div>
-          <p><span class="todo">a · neural: name from clips.</span> <span class="todo">b · biological: if it is a form of nestmate contact, colonies under pathogen pressure would change social care before any ant is exposed.</span></p></div>
-        <div class="blk"><div class="k">Validation</div>
-          <div class="val">
-            <div><b>Name check</b><span class="todo">_ / 20 blind clips</span></div>
-            <div><b>Effect check</b><span class="todo">Δ = _ (95% CI _)</span></div>
-          </div></div>
-        <div class="caveat">Infested vs healthy is confounded with recording day and colony.</div>
-      </div>
-    </article>
+  <div class="wide domains">
 
-    <article class="disc mice">
-      <div class="clip">
-        <video src="demo/mice_r4_138.mp4" poster="demo/mice_r4_138.png" muted loop playsinline autoplay controls preload="metadata" aria-label="Clip: mice neuron 138 activation"></video>
-        <div class="cap">Neuron #138, its 4 top-activating 1 s clips (slowed 2×). Overlay: the neuron's activation on each image patch. <span class="todo">overlay too faint; re-render</span></div>
+    <div class="domain ants">
+      <div class="domain-head"><span class="dname"><span class="swatch" style="width:10px;height:10px;border-radius:2px;background:var(--ants)"></span>Ants · ecology</span><span class="count" aria-live="polite"></span></div>
+      <div class="carousel">
+        <div class="track" tabindex="0" aria-label="Ant discoveries">
+          <article class="disc">
+            <div class="clip">
+              <video src="demo/ants_r4_224.mp4" poster="demo/ants_r4_224.png" muted loop playsinline autoplay controls preload="metadata" aria-label="Clip: ants neuron 224 activation"></video>
+              <div class="cap">Neuron #224, its 4 top-activating 1 s clips (slowed 2×). Overlay: the neuron's activation on each image patch. <span class="todo">overlay too faint; re-render</span></div>
+            </div>
+            <div class="disc-body">
+              <div class="tag">Discovery 1 <span class="chip">Placeholder · not validated</span></div>
+              <h3>Fungus-infested colonies show less of one visual pattern</h3>
+              <div class="blk"><div class="k">Where it emerges</div>
+                <p>Focal ant with two nestmates, infested vs healthy colonies (v4), both treatment groups pooled. The strongest of all ant contrasts.</p>
+                <div class="stat">mean activation −0.086, p = 8.3 × 10⁻⁸ · NESS: undetermined</div></div>
+              <div class="blk"><div class="k">Interpretation</div>
+                <p><span class="todo">a · neural: name from clips.</span> <span class="todo">b · biological: if it is a form of nestmate contact, colonies under pathogen pressure would change social care before any ant is exposed.</span></p></div>
+              <div class="blk"><div class="k">Validation</div>
+                <div class="val">
+                  <div><b>Name check</b><span class="todo">_ / 20 blind clips</span></div>
+                  <div><b>Effect check (PPCI)</b><span class="todo">Δ = _ (95% CI _)</span></div>
+                </div></div>
+              <div class="caveat">Infested vs healthy is confounded with recording day and colony.</div>
+            </div>
+          </article>
+        </div>
+        <button class="edge prev" aria-label="Previous ant discovery" hidden><span>‹</span></button>
+        <button class="edge next" aria-label="Next ant discovery" hidden><span>›</span></button>
       </div>
-      <div class="disc-body">
-        <div class="dom">Mice · neuroscience · discovery 1 <span class="chip">Placeholder · not validated</span></div>
-        <h3>Autism-risk mice respond differently to a fear odour</h3>
-        <div class="blk"><div class="k">Where it emerges</div>
-          <p>Heterozygous vs wild-type pools (ash1l, kdm6b, kmt5b lines) at the fear-odour stage, and in the change from habituation to fear odour. Not at the social-odour stages.</p>
-          <div class="stat">mean activation +0.72, p = 5.2 × 10⁻⁵ · NESS: kept</div></div>
-        <div class="blk"><div class="k">Interpretation</div>
-          <p><span class="todo">a · neural: name from clips.</span> <span class="todo">b · biological: a genotype difference only under threat would point to altered threat processing rather than a general social deficit.</span></p></div>
-        <div class="blk"><div class="k">Validation</div>
-          <div class="val">
-            <div><b>Name check</b><span class="todo">_ / 20 blind clips</span></div>
-            <div><b>Effect check</b><span class="todo">Δ = _ (95% CI _)</span></div>
-          </div></div>
-        <div class="caveat">The neuron also tracks a camera recording period; the nuisance check must rule this out first.</div>
-      </div>
-    </article>
+    </div>
 
-    <article class="disc frogs">
-      <div class="clip">
-        <video src="demo/frogs_r4_104.mp4" poster="demo/frogs_r4_104.png" muted loop playsinline autoplay controls preload="metadata" aria-label="Clip: frogs neuron 104 activation"></video>
-        <div class="cap">Neuron #104, its 4 top-activating 1 s clips (slowed 2×), all from FoxP1 froglets. Overlay: the neuron's activation on each image patch; it sits on the rear body and hind leg.</div>
+    <div class="domain mice">
+      <div class="domain-head"><span class="dname"><span class="swatch" style="width:10px;height:10px;border-radius:2px;background:var(--mice)"></span>Mice · neuroscience</span><span class="count" aria-live="polite"></span></div>
+      <div class="carousel">
+        <div class="track" tabindex="0" aria-label="Mouse discoveries">
+          <article class="disc">
+            <div class="clip">
+              <video src="demo/mice_r4_138.mp4" poster="demo/mice_r4_138.png" muted loop playsinline autoplay controls preload="metadata" aria-label="Clip: mice neuron 138 activation"></video>
+              <div class="cap">Neuron #138, its 4 top-activating 1 s clips (slowed 2×). Overlay: the neuron's activation on each image patch. <span class="todo">overlay too faint; re-render</span></div>
+            </div>
+            <div class="disc-body">
+              <div class="tag">Discovery 1 <span class="chip">Placeholder · not validated</span></div>
+              <h3>Autism-risk mice respond differently to a fear odour</h3>
+              <div class="blk"><div class="k">Where it emerges</div>
+                <p>Heterozygous vs wild-type pools (ash1l, kdm6b, kmt5b lines; 36 pools each) at the fear-odour stage, and in the change from habituation to fear odour. Not at the social-odour stages.</p>
+                <div class="stat">mean activation +0.72, p = 5.2 × 10⁻⁵ · NESS: kept</div></div>
+              <div class="blk"><div class="k">Interpretation</div>
+                <p><span class="todo">a · neural: name from clips.</span> <span class="todo">b · biological: a genotype difference only under threat would point to altered threat processing rather than a general social deficit.</span></p></div>
+              <div class="blk"><div class="k">Validation</div>
+                <div class="val">
+                  <div><b>Name check</b><span class="todo">_ / 20 blind clips</span></div>
+                  <div><b>Effect check (PPCI)</b><span class="todo">Δ = _ (95% CI _)</span></div>
+                </div></div>
+              <div class="caveat">The neuron also tracks a camera recording period; the nuisance check must rule this out first.</div>
+            </div>
+          </article>
+          <article class="disc">
+            <div class="clip">
+              <video src="demo/mice_r4_50.mp4" poster="demo/mice_r4_50.png" muted loop playsinline autoplay controls preload="metadata" aria-label="Clip: mice neuron 50 activation"></video>
+              <div class="cap" id="cap-mice50">Neuron #50, its 4 top-activating 1 s clips (slowed 2×), all from heterozygous pools during the social-odour stage. Overlay: the neuron's activation on each image patch; it covers whole bodies of one to three mice.</div>
+            </div>
+            <div class="disc-body">
+              <div class="tag">Discovery 2 <span class="chip">Placeholder · not validated</span></div>
+              <h3>Behaviour drops once the social odour is removed</h3>
+              <div class="blk"><div class="k">Where it emerges</div>
+                <p id="where-mice50">Within heterozygous pools (36), from the social-odour stage to the post-odour stage: mean activation falls from 24.0 to 12.9, and bouts per minute from 19.6 to 8.2.</p>
+                <div class="stat">mean activation −9.21, p = 1.8 × 10⁻¹⁰ · NES</div></div>
+              <div class="blk"><div class="k">Interpretation</div>
+                <p><span class="todo">a · neural: name from clips.</span> <span class="todo">b · biological: to draft.</span></p></div>
+              <div class="blk"><div class="k">Validation</div>
+                <div class="val">
+                  <div><b>Name check</b><span class="todo">_ / 20 blind clips</span></div>
+                  <div><b>Effect check (PPCI)</b><span class="todo">Δ = _ (95% CI _)</span></div>
+                </div></div>
+              <div class="caveat">A phase change, not a genotype effect: the odour bag is removed at the same time, so a bag-driven neuron must be ruled out.</div>
+            </div>
+          </article>
+        </div>
+        <button class="edge prev" aria-label="Previous mouse discovery" hidden><span>‹</span></button>
+        <button class="edge next" aria-label="Next mouse discovery" hidden><span>›</span></button>
       </div>
-      <div class="disc-body">
-        <div class="dom">Frogs · developmental biology · discovery 1 <span class="chip">Placeholder · not validated</span></div>
-        <h3>FoxP1 mutant froglets move differently</h3>
-        <div class="blk"><div class="k">Where it emerges</div>
-          <p>FoxP1 mutant vs wild-type <i>Xenopus</i> juveniles, first hour of recording. No neuron passes for En1 mutants under NES.</p>
-          <div class="stat">mean activation +9.78, p = 2.3 × 10⁻¹³ · NESS: not kept</div>
-          <p>The neuron never fires in any wild-type froglet during the first hour (13 / 13) and fires in every FoxP1 froglet (14 / 14).</p></div>
-        <div class="blk"><div class="k">Interpretation</div>
-          <p><span class="todo">a · neural: name from clips.</span> b · biological: FoxP1 sets the identity of the motor neurons that innervate the limbs, so a change in limb posture or movement would be a behavioural read-out of mis-wired limb motor control. The previous model's neuron #500, "extended hind limb", rose in the same contrast.</p></div>
-        <div class="blk"><div class="k">Validation</div>
-          <div class="val">
-            <div><b>Name check</b><span class="todo">_ / 20 blind clips</span></div>
-            <div><b>Effect check</b><span class="todo">Δ = _ (95% CI _)</span></div>
-          </div></div>
-        <div class="caveat">Genotype is fully confounded with recording session.</div>
+    </div>
+
+    <div class="domain frogs">
+      <div class="domain-head"><span class="dname"><span class="swatch" style="width:10px;height:10px;border-radius:2px;background:var(--frogs)"></span>Frogs · developmental biology</span><span class="count" aria-live="polite"></span></div>
+      <div class="carousel">
+        <div class="track" tabindex="0" aria-label="Frog discoveries">
+          <article class="disc">
+            <div class="clip">
+              <video src="demo/frogs_r4_104.mp4" poster="demo/frogs_r4_104.png" muted loop playsinline autoplay controls preload="metadata" aria-label="Clip: frogs neuron 104 activation"></video>
+              <div class="cap">Neuron #104, its 4 top-activating 1 s clips (slowed 2×), all from FoxP1 froglets. Overlay: the neuron's activation on each image patch; it sits on the rear body and hind leg.</div>
+            </div>
+            <div class="disc-body">
+              <div class="tag">Discovery 1 <span class="chip">Placeholder · not validated</span></div>
+              <h3>FoxP1 mutant froglets show a hind-limb pattern wild types never show</h3>
+              <div class="blk"><div class="k">Where it emerges</div>
+                <p>FoxP1 mutant vs wild-type <i>Xenopus</i> juveniles, first hour of recording. The neuron never fires in any wild-type froglet (13 / 13) and fires in every FoxP1 froglet (14 / 14).</p>
+                <div class="stat">mean activation +9.78, p = 2.3 × 10⁻¹³ · NESS: not kept</div></div>
+              <div class="blk"><div class="k">Interpretation</div>
+                <p><span class="todo">a · neural: name from clips.</span> b · biological: FoxP1 sets the identity of the motor neurons that innervate the limbs, so a change in limb posture or movement would be a behavioural read-out of mis-wired limb motor control. The previous model's neuron #500, “extended hind limb”, rose in the same contrast.</p></div>
+              <div class="blk"><div class="k">Validation</div>
+                <div class="val">
+                  <div><b>Name check</b><span class="todo">_ / 20 blind clips</span></div>
+                  <div><b>Effect check (PPCI)</b><span class="todo">Δ = _ (95% CI _)</span></div>
+                </div></div>
+              <div class="caveat">Genotype is fully confounded with recording session.</div>
+            </div>
+          </article>
+          <article class="disc">
+            <div class="clip">
+              <video src="demo/frogs_r4_79.mp4" poster="demo/frogs_r4_79.png" muted loop playsinline autoplay controls preload="metadata" aria-label="Clip: frogs neuron 79 activation"></video>
+              <div class="cap" id="cap-frogs79">Neuron #79, its 4 top-activating 1 s clips (slowed 2×); 3 of 4 from wild-type froglets. Overlay: the neuron's activation on each image patch; a small patch on the rear body. <span class="todo">overlay faint</span></div>
+            </div>
+            <div class="disc-body">
+              <div class="tag">Discovery 2 <span class="chip">Placeholder · not validated</span></div>
+              <h3>En1 mutants show less of one pattern</h3>
+              <div class="blk"><div class="k">Where it emerges</div>
+                <p id="where-frogs79">En1 mutant (8) vs wild-type (13) <i>Xenopus</i> juveniles, first hour of recording: mean activation 0.09 vs 0.34.</p>
+                <div class="stat">mean activation −0.25, p = 1.7 × 10⁻⁴ · NESS: kept</div></div>
+              <div class="blk"><div class="k">Interpretation</div>
+                <p><span class="todo">a · neural: name from clips.</span> <span class="todo">b · biological: En1 marks a class of spinal interneurons that shape the locomotor rhythm; to draft.</span></p></div>
+              <div class="blk"><div class="k">Validation</div>
+                <div class="val">
+                  <div><b>Name check</b><span class="todo">_ / 20 blind clips</span></div>
+                  <div><b>Effect check (PPCI)</b><span class="todo">Δ = _ (95% CI _)</span></div>
+                </div></div>
+              <div class="caveat">Genotype is fully confounded with recording session.</div>
+            </div>
+          </article>
+        </div>
+        <button class="edge prev" aria-label="Previous frog discovery" hidden><span>‹</span></button>
+        <button class="edge next" aria-label="Next frog discovery" hidden><span>›</span></button>
       </div>
-    </article>
+    </div>
   </div>
 
   <div class="col stack-sm">
@@ -523,15 +700,15 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
 (function () {
   var D = {
     1: { h: true, t: "Step 1 · Experiment (scientist)", s: "#s21",
-      b: "<p>What the lab already has: videos from a randomized experiment, a fixed camera, and the treatment of each animal or group.</p><ul><li>No annotation required.</li><li>Optional, a priori: behaviours already scored, added as extra units so the search reports only what is new.</li></ul>" },
+      b: "<p>A randomized experiment in the behavioural sciences: a gene, a pathogen, an odour or a drug, and the animals filmed with a fixed camera.</p><ul><li>Input: the videos and the treatment of each animal or group.</li><li>No annotation required.</li></ul>" },
     2: { h: false, t: "Step 2 · Behavioural representation (do-pilot)", s: "#s22",
-      b: "<p>Frame → frozen vision encoder → tokens on the animals with their recent change → sparse dictionary → per-video time, bouts and latency for every neuron.</p><ul><li>Priors: fixed viewpoint, sparsity, position and rotation invariance, recurrence.</li><li>Every choice tested on public annotated datasets (MABe22, CalMS21) by neuron–behaviour alignment; our experiments only get one pre-registered run.</li><li>Labels never shape it.</li></ul>" },
-    3: { h: false, t: "Step 3 · Interventional contrast (do-pilot)", s: "#s23",
-      b: "<p>NESS(ε): the smallest set of neurons S such that the other neurons add at most ε nats of information about the treatment once S is known.</p><ul><li>Randomization makes the selected set carry the treatment's effect.</li><li>Error control by sample splitting and held-out certification.</li><li>Replaces NES, which has no defined target and loses precision as data grow.</li></ul>" },
+      b: "<p>Frame → frozen vision encoder → tokens on the animals with their recent change → sparse dictionary → per-video time, bouts and latency for every neuron.</p><ul><li>Priors: fixed viewpoint, behaviour lives on the animals, position and rotation invariance, sparsity, heterogeneous recurrence rate.</li><li>Every choice tested on public annotated datasets (MABe22, CalMS21) by neuron–behaviour alignment.</li><li>A priori: behaviours the lab already scores can be added as extra units; the search keeps or discards them like any neuron.</li></ul>" },
+    3: { h: false, t: "Step 3 · Interventional contrast identification (do-pilot)", s: "#s23",
+      b: "<ul><li><b>Tier 1, NESS(ε):</b> the smallest set of neurons such that the rest add at most ε nats of information about the treatment. Needs only randomization.</li><li><b>Tier 2, direct effects:</b> assuming whatever must be held fixed is in the dictionary, each selected neuron is tagged direct effect, context or undetermined.</li><li>Replaces NES, which has no defined target and loses precision as data grow.</li></ul>" },
     4: { h: true, t: "Step 4 · Interpretation (scientist + AI)", s: "#s24",
       b: "<ul><li><b>a · Neural:</b> watch top and random clips from both arms; a vision-language model drafts a name; the scientist accepts, edits or rejects it.</li><li><b>b · Biological:</b> a language model searches the literature and drafts explanations; the scientist states a testable prediction.</li><li>A posteriori: the scientist's own hypotheses join the list here.</li></ul>" },
-    5: { h: true, t: "Step 5 · Validation (scientist)", s: "#s25",
-      b: "<ul><li><b>Name check</b> (validates 4a): blind raters confirm the clips show the named behaviour.</li><li><b>Nuisance check:</b> recording day, camera, batch.</li><li><b>Effect check</b> (validates 4b): the behaviour, scored anew and blind to treatment, shows the effect in a pre-registered test.</li><li><b>Next experiment:</b> tests the mechanism; its videos go back to step 1.</li></ul>" }
+    5: { h: true, t: "Step 5 · Validation (scientist + ML)", s: "#s25",
+      b: "<p>On data the search never saw; no new experiment required.</p><ul><li><b>Name check</b> (4a): blind raters confirm the clips show the named behaviour.</li><li><b>Nuisance check:</b> recording day, camera, batch.</li><li><b>Effect check</b> (4b): search on half the videos; on the other half a few videos are labelled by hand, an AI annotator scores the rest, and PPCI gives a valid, pre-registered effect estimate.</li><li><b>Replication:</b> an independent cohort already filmed (another series, line or species).</li></ul>" }
   };
   var tabs = document.querySelectorAll(".stage");
   var panel = document.getElementById("detail");
@@ -545,6 +722,36 @@ footer { font-family: var(--font-ui); font-size: 0.82rem; color: var(--muted); b
   }
   tabs.forEach(function (t) { t.addEventListener("click", function () { show(t.dataset.s); }); });
   show(1);
+
+  // Results: one horizontal carousel per domain; edge buttons scroll by one card.
+  document.querySelectorAll(".domain").forEach(function (dom) {
+    var track = dom.querySelector(".track");
+    var cards = track.querySelectorAll(".disc");
+    var prev = dom.querySelector(".edge.prev");
+    var next = dom.querySelector(".edge.next");
+    var count = dom.querySelector(".count");
+    function idx() { return Math.round(track.scrollLeft / Math.max(1, track.clientWidth)); }
+    function update() {
+      var i = Math.min(cards.length - 1, Math.max(0, idx()));
+      count.textContent = cards.length > 1 ? (i + 1) + " / " + cards.length + " discoveries" : "1 discovery";
+      prev.hidden = i <= 0;
+      next.hidden = i >= cards.length - 1;
+    }
+    function go(d) {
+      var i = Math.min(cards.length - 1, Math.max(0, idx() + d));
+      track.scrollTo({ left: cards[i].offsetLeft - track.offsetLeft, behavior: "smooth" });
+    }
+    prev.addEventListener("click", function () { go(-1); });
+    next.addEventListener("click", function () { go(1); });
+    track.addEventListener("scroll", function () { window.requestAnimationFrame(update); }, { passive: true });
+    track.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowRight") { e.preventDefault(); go(1); }
+      if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
+    });
+    window.addEventListener("resize", update);
+    update();
+  });
+
   try {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       document.querySelectorAll("video[autoplay]").forEach(function (v) { v.removeAttribute("autoplay"); v.pause(); });
