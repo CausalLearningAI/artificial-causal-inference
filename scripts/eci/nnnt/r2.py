@@ -475,6 +475,8 @@ SWEEP = {  # name: (store, width, prefixes, k, steps, centre)
     'S6': ('pool', 2048, (128, 512, 2048), 16, 30000, True),
     'S7': ('pool', 2048, (2048,), 16, 30000, False),
 }
+if RES != 1024:  # no round-1 store at other resolutions: S0 = the round-1 recipe on this resolution's pool
+    SWEEP['S0'] = ('pool',) + SWEEP['S0'][1:]
 
 
 def train_k(cfg, seed, X, steps, out, dev, width, prefixes, k, n_init=500_000, bs=4096, lr=5e-4, warmup=500):
