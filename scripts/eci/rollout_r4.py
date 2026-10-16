@@ -80,7 +80,7 @@ log = lambda s: print(time.strftime('%H:%M:%S'), s, flush=True)  # noqa: E731
 AMP = os.environ.get('R4_AMP', 'bf16')
 # fp16 for whole domains run on debug_gpu (no bf16 there; decided by the orchestrator 2026-10-15: ants_v2): every token of
 # such a domain (prepass, theta*, full pass) is fp16; the encode step refuses a precision that differs from its prepass.
-FP16_DOMAINS = {'ants_v2'}
+FP16_DOMAINS = {'ants_v2', 'ants_v2p'}
 
 
 def check_amp(dom):
@@ -134,9 +134,37 @@ DOMS = {
 }
 
 
+def bee(dom):
+    """BeeGFS root of a domain: r4/<dom>; the pooled ants SAE and its series: r4/ants_pooled[/<series>]."""
+    c = DOMS.get(dom, {})
+    if dom == 'ants_pooled':
+        return BEE / 'ants_pooled'
+    return BEE / 'ants_pooled' / c['series'] if c.get('pooled') else BEE / dom
+
+
+def sae_root(dom):
+    return OUT / 'ants_pooled' / 'sae' if DOMS.get(dom, {}).get('pooled') else OUT / dom / 'sae'
+
+
+def prepass_json(dom):
+    """The prepass record whose token precision a domain's codes must match (pooled series: their own series)."""
+    return OUT / (DOMS[dom].get('base') or dom) / 'prepass.json'
+
+
 def voff(c, v):
     """Source-frame offset of a plan video (per video since ants v4; older plans: the domain constant)."""
     return int(v['offset']) if 'offset' in v else int(c['offset'])
+
+
+# r4 pooled (user's design correction 2026-10-16): ONE ants SAE per variant for all ant experiments, trained on equal
+# prepass frame counts per experiment (v2, v3, v4, v4_infested); the series keep their own input sizes and masks.
+# v3 is re-encoded at source offset 2 (results/vision/eci_rollout_r4/lagcheck.json: 24 / 24 frames best at 2; the
+# per-series v3 codes used 1, from the old 10-min files).
+DOMS['ants_pooled'] = dict(DOMS['ants_v3'], S=None, layout=None, eci=None, domain='ants', ants_eci=None, native=None,
+                           body=None, n_shards=0)
+for _b, _s, _off in (('ants_v2', 'v2', 2), ('ants_v3', 'v3', 2), ('ants_v4', 'v4', None)):
+    DOMS[f'{_b}p'] = dict(DOMS[_b], pooled=True, base=_b, series=_s, layout=f'eci_r4{_s}p', eci=f'dataset/ants/eci_r4{_s}p',
+                          ants_eci=f'eci_r4{_s}p', **({'offset': _off} if _off is not None else {}))
 
 
 def sae_name(v, seed):
@@ -279,7 +307,7 @@ def cmd_plan(args):
                 'shards': shards, 'shard_frames': [int(n[s].sum()) for s in shards], 'videos': videos}
         # ants layouts: subsets of the eci30 layout on BeeGFS, symlinked as dataset/ants/eci_r4v*
         if c['layout']:
-            L = BEE / dom / 'layout'
+            L = bee(dom) / 'layout'
             L.mkdir(parents=True, exist_ok=True)
             Afull = pd.read_csv(REPO / c['ann'])
             idx = np.concatenate([np.arange(v['src_lo'], v['src_lo'] + v['n']) for v in videos])
@@ -540,10 +568,10 @@ def sae_codes(torch, saes, z, P, m):
 
 def load_saes(dom, dev):
     from src.eci.sae import load_sae
-    best = json.loads((OUT / dom / 'sae' / 'best.json').read_text())
+    best = json.loads((sae_root(dom) / 'best.json').read_text())
     saes = {}
     for v in VARIANTS:
-        sae, norm, ck = load_sae(OUT / dom / 'sae' / best[v]['name'] / 'sae.pt', dev)
+        sae, norm, ck = load_sae(sae_root(dom) / best[v]['name'] / 'sae.pt', dev)
         assert abs(float(sae.threshold) - best[v]['theta_star']) < 1e-6, 'theta* not baked into the checkpoint'
         saes[v] = (sae, norm)
     return saes, best
@@ -834,8 +862,85 @@ def cmd_prepass(args):
     if ok < len(align) / 2:
         raise SystemExit(f'ALIGNMENT FAILED: only {ok}/{len(align)} decoded frames closest to their JPG')
     if True:
-        atomic_copy(loc, BEE / dom / 'prepass')
-        log(f'-> {BEE / dom / "prepass"}')
+        atomic_copy(loc, bee(dom) / 'prepass')
+        log(f'-> {bee(dom) / "prepass"}')
+
+
+# ---------------------------------------------------------------------------------------------- pool (ants)
+def cmd_pool(args):
+    """r4 pooled ants training set (CPU): from the per-series prepass pools (ants_v2: v2; ants_v3: v3 t=2/6/8; ants_v4:
+    v4 + v4_infested t=2/6), per experiment and role the SAME number of frames, the smallest experiment's count
+    (uniform seeded draw; roles stay those of the series plans, i.e. held-out frames come from held-out videos of every
+    experiment). All stored tokens of a drawn frame are kept. -> BEE/ants_pooled/prepass/, OUT/ants_pooled/prepass.json"""
+    E = pd.read_csv(REPO / 'dataset/ants/eci30/experiment.csv').set_index('observation_id')['experiment']
+    parts = []
+    for b in ('ants_v2', 'ants_v3', 'ants_v4'):
+        F = pd.read_parquet(BEE / b / 'prepass' / 'frames.parquet')
+        F['series'], F['experiment'], F['frame_in_series'] = b, E.loc[F.obs].values, np.arange(len(F))
+        F['amp'] = json.loads((OUT / b / 'prepass.json').read_text()).get('amp', 'bf16')
+        parts.append(F)
+    A = pd.concat(parts, ignore_index=True)
+    cnt = A.groupby(['experiment', 'role']).size().unstack()
+    m = cnt.min(0)
+    log('frames per experiment x role:\n' + cnt.to_string() + f'\ndrawn per experiment: {m.to_dict()}')
+    g = np.random.default_rng(0)
+    keep = np.concatenate([g.choice(np.flatnonzero((A.experiment == ex).values & (A.role == r).values), int(m[r]),
+                                    replace=False) for ex in sorted(A.experiment.unique()) for r in m.index])
+    keep.sort()
+    S = A.iloc[keep].reset_index(drop=True)
+    loc = local_dir() / 'pool'
+    loc.mkdir(parents=True, exist_ok=True)
+    ft, fp_ = open(loc / 'tok.f16', 'wb'), open(loc / 'prev.f16', 'wb')
+    tok_frame, tok_pos, n_tok = [], [], 0
+    for b in ('ants_v2', 'ants_v3', 'ants_v4'):
+        pre = BEE / b / 'prepass'
+        tf = np.load(pre / 'tok_frame.npy')
+        tp = np.load(pre / 'tok_pos.npy')
+        N = len(tf)
+        tok = np.memmap(pre / 'tok.f16', np.float16, 'r', shape=(N, D))
+        prv = np.memmap(pre / 'prev.f16', np.float16, 'r', shape=(N, D))
+        sub = S[S.series == b]
+        starts = np.r_[0, np.cumsum(np.bincount(tf, minlength=int(tf.max()) + 1))]
+        for new_id, fi in zip(sub.index.values, sub.frame_in_series.values):
+            a_, e_ = starts[fi], starts[fi + 1]
+            assert (tf[a_:e_] == fi).all()
+            ft.write(np.asarray(tok[a_:e_]).tobytes())
+            fp_.write(np.asarray(prv[a_:e_]).tobytes())
+            tok_frame.append(np.full(e_ - a_, new_id, np.int32))
+            tok_pos.append(tp[a_:e_])
+            n_tok += e_ - a_
+        log(f'{b}: {len(sub)} frames gathered')
+    ft.close()
+    fp_.close()
+    # token order must follow frame order for the readers: sort the per-series blocks by frame id
+    tfr = np.concatenate(tok_frame)
+    order = np.argsort(tfr, kind='stable')
+    if not (order == np.arange(len(order))).all():
+        tokm = np.memmap(loc / 'tok.f16', np.float16, 'r', shape=(n_tok, D))
+        prvm = np.memmap(loc / 'prev.f16', np.float16, 'r', shape=(n_tok, D))
+        for nm_, src in (('tok2.f16', tokm), ('prev2.f16', prvm)):
+            with open(loc / nm_, 'wb') as fo:
+                for a_ in range(0, n_tok, 500_000):
+                    fo.write(np.asarray(src[order[a_:a_ + 500_000]]).tobytes())
+        del tokm, prvm
+        os.replace(loc / 'tok2.f16', loc / 'tok.f16')
+        os.replace(loc / 'prev2.f16', loc / 'prev.f16')
+    np.save(loc / 'tok_frame.npy', tfr[order])
+    np.save(loc / 'tok_pos.npy', np.concatenate(tok_pos)[order])
+    S['n_stored'] = np.bincount(tfr, minlength=len(S))
+    S.drop(columns=['frame_in_series']).to_parquet(loc / 'frames.parquet')
+    info = {'domain': 'ants_pooled', 'n_frames': int(len(S)), 'n_tokens': int(n_tok),
+            'frames_by_experiment_role': {f'{ex}|{r}': int(v) for (ex, r), v in S.groupby(['experiment', 'role']).size().items()},
+            'tokens_by_experiment': {k_: int(v) for k_, v in S.groupby('experiment').n_stored.sum().items()},
+            'available_frames_by_experiment_role': {f'{ex}|{r}': int(v) for (ex, r), v in cnt.stack().items()},
+            'amp': 'mixed: ' + ', '.join(f'{b} {a}' for b, a in S.groupby('series').amp.first().items()),
+            'sources': [str(BEE / b / 'prepass') for b in ('ants_v2', 'ants_v3', 'ants_v4')],
+            'note': 'v2 has treatments 1 and 2 only (all 44 valid videos used); v3 t = 2, 6, 8; v4 / v4_infested t = 2, 6. '
+                    'v3 prepass tokens were decoded at source offset 1 (33 ms early; irrelevant for a training sample).'}
+    (OUT / 'ants_pooled').mkdir(parents=True, exist_ok=True)
+    (OUT / 'ants_pooled' / 'prepass.json').write_text(json.dumps(info, indent=1))
+    atomic_copy(loc, BEE / 'ants_pooled' / 'prepass')
+    log(json.dumps(info))
 
 
 # ---------------------------------------------------------------------------------------------- train
@@ -892,7 +997,7 @@ def cmd_train(args):
     from src.eci.sae_calibrate import calibrate_threshold, set_threshold, sparsity_stats
     dom = args.domain
     dev = torch.device('cuda')
-    src = BEE / dom / 'prepass'
+    src = bee(dom) / 'prepass'
     loc = local_dir() / 'prepass'
     t0 = time.time()
     atomic_copy(src, loc)
@@ -910,7 +1015,7 @@ def cmd_train(args):
     def build(cfg_, din, seed):
         return MatryoshkaBatchTopKSAE(d_in=din, n_latents=WIDTH, prefixes=PREFIXES, k=K, seed=seed)
     ET.build = build
-    out_root = OUT / dom / 'sae'
+    out_root = sae_root(dom)
     res = {'domain': dom, 'n_tokens': {r: int((role == r).sum()) for r in ('train', 'calib', 'eval')},
            'n_frames': {r: int((F.role == r).sum()) for r in ('train', 'calib', 'eval')}, 'variants': {}}
     best = {}
@@ -994,11 +1099,11 @@ def cmd_train(args):
         nd.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(out_root / f'{v}_s{b}' / 'sae_theta.pt', nd / 'sae.pt')
         shutil.copyfile(out_root / f'{v}_s{b}' / 'train.json', nd / 'train.json')
-        metrics = {'args': {'domain': dom, 'tokens_dir': str(BEE / dom / 'prepass'), 'n_latents': WIDTH,
+        metrics = {'args': {'domain': dom, 'tokens_dir': str(bee(dom) / 'prepass'), 'n_latents': WIDTH,
                             'prefixes': ','.join(map(str, PREFIXES)), 'k': K, 'seed': b, 'variant': v, 'lag': LAG,
                             'encoder': D3L, 'layer': LAYER, 'S': DOMS[dom]['S'], 'fg_rule': DOMS[dom]['rule']},
                    'selection': 'seed with the highest FVE on the held-out evaluation videos (no labels)',
-                   'amp': json.loads((OUT / dom / 'prepass.json').read_text()).get('amp', 'bf16'),
+                   'amp': json.loads(prepass_json(dom).read_text()).get('amp', 'bf16'),
                    'train_pool_cap': args.cap or None,
                    'seeds': R, 'chosen_seed': b}
         (nd / 'metrics.json').write_text(json.dumps(metrics, indent=1, default=float))
@@ -1018,13 +1123,13 @@ def cmd_encode(args):
     check_amp(dom)
     c = DOMS[dom]
     P = load_plan(dom)
-    pre_amp = json.loads((OUT / dom / 'prepass.json').read_text()).get('amp', 'bf16')
+    pre_amp = json.loads(prepass_json(dom).read_text()).get('amp', 'bf16')
     if pre_amp != AMP:
         raise SystemExit(f'{dom}: prepass tokens are {pre_amp}, this encode would be {AMP}')
     dev = torch.device('cuda')
     torch.backends.cuda.matmul.allow_tf32 = False
     _, R = obs_ranges_of(REPO / c['ann'])
-    outdir = Path(args.out_dir) if args.out_dir else BEE / dom / 'videos'
+    outdir = Path(args.out_dir) if args.out_dir else bee(dom) / 'videos'
     outdir.mkdir(parents=True, exist_ok=True)
     vids = P['shards'][args.shard] if args.videos is None else [int(x) for x in args.videos.split(',')]
     todo = [vi for vi in vids if not (outdir / f'{P["videos"][vi]["obs"]}.npz').exists()]
@@ -1110,8 +1215,8 @@ def cmd_merge(args):
     dom = args.domain
     c = DOMS[dom]
     P = load_plan(dom)
-    vdir = BEE / dom / 'videos'
-    best = json.loads((OUT / dom / 'sae' / 'best.json').read_text())
+    vdir = bee(dom) / 'videos'
+    best = json.loads((sae_root(dom) / 'best.json').read_text())
     N = P['n_frames']
     missing = [v['obs'] for v in P['videos'] if not (vdir / f'{v["obs"]}.npz').exists()]
     if missing:
@@ -1120,7 +1225,7 @@ def cmd_merge(args):
     stats = {}
     for v_ in VARIANTS:
         name = best[v_]['name']
-        cd = BEE / dom / ('layout/codes' if c['layout'] else 'codes') / name
+        cd = bee(dom) / ('layout/codes' if c['layout'] else 'codes') / name
         tmp = cd.with_name(name + '.tmp')
         if tmp.exists():
             shutil.rmtree(tmp)
@@ -1156,7 +1261,7 @@ def cmd_merge(args):
                          'argmax': 'G-grid position of the max token (-1 = silent)', 'n_fg': 'kept G-grid tokens',
                          'n_fg32': 'kept 32-grid cells (comparable with C1 n_fg)'},
                'recipe': 'scripts/eci/rollout_r4.py',
-               'amp': json.loads((OUT / dom / 'prepass.json').read_text()).get('amp', 'bf16')}
+               'amp': json.loads(prepass_json(dom).read_text()).get('amp', 'bf16')}
         (tmp / 'config.json').write_text(json.dumps(cfg, indent=1))
         st = {'n_frames': N, 'rows_nonfinite': nonfinite, 'token_l0_mean': l0 / max(ntok, 1), 'n_tokens': ntok,
               'kept_per_frame_mean': float(nf.mean()), 'frames_0_kept_frac': float((nf == 0).mean()),
@@ -1177,7 +1282,7 @@ def cmd_merge(args):
             os.symlink(cd, link)
         sl = eci / 'sae' / name
         if not (sl.is_symlink() or sl.exists()):
-            os.symlink(OUT / dom / 'sae' / name, sl)
+            os.symlink(sae_root(dom) / name, sl)
         stats[v_] = st
         log(f'{dom} {v_} merged -> {cd}: {json.dumps(st)}')
     (OUT / dom / 'merge.json').write_text(json.dumps(stats, indent=1))
@@ -1186,7 +1291,7 @@ def cmd_merge(args):
 # ---------------------------------------------------------------------------------------------- summaries
 def codes_dir_of(dom, name):
     c = DOMS[dom]
-    return BEE / dom / ('layout/codes' if c['layout'] else 'codes') / name
+    return bee(dom) / ('layout/codes' if c['layout'] else 'codes') / name
 
 
 def exact_theta(vals, n_units, k=K):
@@ -1234,7 +1339,7 @@ def write_rule_codes(cd, name, suffix, mx, thr_j, desc, c):
     if fd.exists():
         shutil.rmtree(fd)
     tmp.rename(fd)
-    links = [(REPO / c['eci'] / 'sae' / fd.name, OUT / c['dom'] / 'sae' / name)]
+    links = [(REPO / c['eci'] / 'sae' / fd.name, sae_root(c['dom']) / name)]
     if not c['layout']:
         links.append((REPO / c['eci'] / 'codes' / fd.name, fd))
     for l_, t_ in links:
@@ -1260,8 +1365,18 @@ def cmd_ftheta(args):
     torch.set_num_threads(int(os.environ.get('SLURM_CPUS_PER_TASK', 8)))
     dom = args.domain
     c = {**DOMS[dom], 'dom': dom}
-    best = json.loads((OUT / dom / 'sae' / 'best.json').read_text())
-    pre = BEE / dom / 'prepass'
+    best = json.loads((sae_root(dom) / 'best.json').read_text())
+    out = {'domain': dom, 'k': K, 'primary_rule': 'fnorm', 'variants': {}}
+    if c.get('pooled'):  # a series of the pooled ants SAE: thresholds calibrated once on the pooled prepass
+        FT = json.loads((OUT / 'ants_pooled' / 'ftheta.json').read_text())
+        out['calibrated_on'] = 'ants_pooled (held-out calibration frames of every ants experiment)'
+        for v_ in VARIANTS:
+            sj = np.load(OUT / 'ants_pooled' / f'scale_{v_}.npy').astype(np.float64)
+            R = {k_: v for k_, v in FT['variants'][v_].items() if k_ not in ('fullpass', 'codes')}
+            out['variants'][v_] = apply_rules(dom, c, best[v_]['name'], sj, R)
+        (OUT / dom / 'ftheta.json').write_text(json.dumps(out, indent=1))
+        return
+    pre = bee(dom) / 'prepass'
     F = pd.read_parquet(pre / 'frames.parquet')
     tf = np.load(pre / 'tok_frame.npy')
     N = len(tf)
@@ -1271,12 +1386,11 @@ def cmd_ftheta(args):
     sel = np.flatnonzero(np.isin(tf, held))
     fr_of = tf[sel]
     is_cal_tok = F.role.values[fr_of] == 'calib'
-    out = {'domain': dom, 'k': K, 'primary_rule': 'fnorm',
-           'frames': {r: int((F.role == r).sum()) for r in ('calib', 'eval')}, 'variants': {}}
+    out['frames'] = {r: int((F.role == r).sum()) for r in ('calib', 'eval')}
     cal = F.role.values == 'calib'
     ev = F.role.values == 'eval'
     for v_ in VARIANTS:
-        sae, norm, _ = load_sae(OUT / dom / 'sae' / best[v_]['name'] / 'sae.pt', 'cpu')
+        sae, norm, _ = load_sae(sae_root(dom) / best[v_]['name'] / 'sae.pt', 'cpu')
         fvt = torch.zeros((len(F), WIDTH), dtype=torch.float32)
         nz_j, nz_v = [], []
         with torch.no_grad():
@@ -1304,17 +1418,26 @@ def cmd_ftheta(args):
         th_f, info_f = exact_theta(fv[cal], cal.sum())
         vn = fv / sj[None]
         th_n, info_n = exact_theta(vn[cal], cal.sum())
-        thr = {'fnorm': (th_n * sj).astype(np.float32), 'ftheta': np.full(WIDTH, th_f, np.float32),
-               'gt0': np.zeros(WIDTH, np.float32)}
+        thr = rule_thresholds(sj, th_n, th_f)
         R = {'theta_star': best[v_]['theta_star'], 'theta_f': th_f, 'theta_n': th_n, 'calib_ftheta': info_f,
              'calib_fnorm': info_n, 'scale': {'n_never_active_calib': n_never, 'median': float(np.median(sj)),
                                                'p10': float(np.quantile(sj, 0.1)), 'p90': float(np.quantile(sj, 0.9)),
                                                'n_calib_tokens': int(is_cal_tok.sum())},
              'fires_per_frame_heldout': {r: {'calib': float((fv[cal] > thr[r][None]).sum(1).mean()),
                                              'eval': float((fv[ev] > thr[r][None]).sum(1).mean())} for r in thr}}
+        if 'experiment' in F:  # pooled calibration: per experiment
+            R['fires_per_frame_heldout_by_experiment'] = {
+                ex: {r: {'calib': float((fv[cal & (F.experiment.values == ex)] > thr[r][None]).sum(1).mean()),
+                         'eval': float((fv[ev & (F.experiment.values == ex)] > thr[r][None]).sum(1).mean())}
+                     for r in thr} for ex in sorted(F.experiment.unique())}
+        np.save(OUT / dom / f'scale_{v_}.npy', sj.astype(np.float32))
+        if dom == 'ants_pooled':  # calibration only; the series apply it
+            out['variants'][v_] = R
+            log(f'{dom} {v_}: theta_n {th_n:.4f} theta_f {th_f:.4f} | ' + json.dumps(R['fires_per_frame_heldout']) +
+                ' | ' + json.dumps(R.get('fires_per_frame_heldout_by_experiment', {})))
+            continue
         name = best[v_]['name']
-        cd = codes_dir_of(dom, name)
-        mx = np.load(cd / 'codes_max.npy', mmap_mode='r')
+        mx = np.load(codes_dir_of(dom, name) / 'codes_max.npy', mmap_mode='r')
         hrow = F.lay_row.values[held]
         oo = np.argsort(hrow)
         full = np.empty((len(held), WIDTH), np.float32)
@@ -1324,27 +1447,41 @@ def cmd_ftheta(args):
                                     'mean_abs_diff': float(d_.mean()),
                                     'fire_agreement_fnorm': float(((full > thr['fnorm'][None]) ==
                                                                    (fv[held] > thr['fnorm'][None])).mean())}
-        # full pass participation under every rule (+ the per-frame top-16 rule on v)
-        Nr = mx.shape[0]
-        fire = {r: np.zeros(WIDTH, np.int64) for r in (*thr, 'top16')}
-        for a_ in range(0, Nr, 200_000):
-            blk = np.asarray(mx[a_:a_ + 200_000]).astype(np.float32)
-            for r in thr:
-                fire[r] += (blk > thr[r][None]).sum(0)
-            vb = blk / sj[None].astype(np.float32)
-            top = np.argpartition(-vb, K, axis=1)[:, :K]
-            ok = np.take_along_axis(vb, top, 1) > 0
-            np.add.at(fire['top16'], top[ok], 1)
-        R['fullpass'] = {r: rule_stats(f, Nr) for r, f in fire.items()}
-        R['codes'] = {r: str(write_rule_codes(cd, name, r, mx, thr[r],
-                                              {'fnorm': f'fires iff codes_max_j / s_j > theta_n = {th_n:.6g}',
-                                               'ftheta': f'fires iff codes_max_j > theta_f = {th_f:.6g}'}[r], c))
-                      for r in ('fnorm', 'ftheta')}
-        np.save(OUT / dom / f'scale_{v_}.npy', sj.astype(np.float32))
-        out['variants'][v_] = R
-        log(f'{dom} {v_}: theta_n {th_n:.4f} theta_f {th_f:.4f} | held-out fires/frame {json.dumps(R["fires_per_frame_heldout"])}'
-            f' | full pass {json.dumps(R["fullpass"])} | prepass vs full pass {json.dumps(R["prepass_vs_fullpass"])}')
+        out['variants'][v_] = apply_rules(dom, c, name, sj, R)
     (OUT / dom / 'ftheta.json').write_text(json.dumps(out, indent=1))
+
+
+def rule_thresholds(sj, th_n, th_f):
+    return {'fnorm': (th_n * np.asarray(sj)).astype(np.float32), 'ftheta': np.full(WIDTH, th_f, np.float32),
+            'gt0': np.zeros(WIDTH, np.float32)}
+
+
+def apply_rules(dom, c, name, sj, R):
+    """Full-pass participation under every rule (+ the per-frame top-16 rule on v) and the thresholded codes sets."""
+    th_n, th_f = R['theta_n'], R['theta_f']
+    thr = rule_thresholds(sj, th_n, th_f)
+    cd = codes_dir_of(dom, name)
+    mx = np.load(cd / 'codes_max.npy', mmap_mode='r')
+    Nr = mx.shape[0]
+    fire = {r: np.zeros(WIDTH, np.int64) for r in (*thr, 'top16')}
+    for a_ in range(0, Nr, 200_000):
+        blk = np.asarray(mx[a_:a_ + 200_000]).astype(np.float32)
+        for r in thr:
+            fire[r] += (blk > thr[r][None]).sum(0)
+        vb = blk / np.asarray(sj, np.float32)[None]
+        top = np.argpartition(-vb, K, axis=1)[:, :K]
+        ok = np.take_along_axis(vb, top, 1) > 0
+        np.add.at(fire['top16'], top[ok], 1)
+    R['fullpass'] = {r: rule_stats(f, Nr) for r, f in fire.items()}
+    R['codes'] = {r: str(write_rule_codes(cd, name, r, mx, thr[r],
+                                          {'fnorm': f'fires iff codes_max_j / s_j > theta_n = {th_n:.6g}',
+                                           'ftheta': f'fires iff codes_max_j > theta_f = {th_f:.6g}'}[r], c))
+                  for r in ('fnorm', 'ftheta')}
+    if c.get('pooled'):
+        np.save(OUT / dom / f'scale_{"d2" if "r4d2" in name else "d0"}.npy', np.asarray(sj, np.float32))
+    log(f'{dom} {name}: theta_n {th_n:.4f} theta_f {th_f:.4f} | full pass {json.dumps(R["fullpass"])} | '
+        f'prepass vs full pass {json.dumps(R.get("prepass_vs_fullpass"))}')
+    return R
 
 
 def video_rules(x, fps=5.0):
@@ -1360,7 +1497,7 @@ def cmd_summaries(args):
     codes_max_j / s_j > theta_n), 'ftheta' (codes_max_j > theta_f), 'gt0' (codes_max_j > 0, theta* only)."""
     dom = args.domain
     P = load_plan(dom)
-    best = json.loads((OUT / dom / 'sae' / 'best.json').read_text())
+    best = json.loads((sae_root(dom) / 'best.json').read_text())
     FT = json.loads((OUT / dom / 'ftheta.json').read_text())
     RULES_ = ('fnorm', 'ftheta', 'gt0')
     Q = ('time_spent', 'n_bouts', 'bout_rate_per_min', 'latency_s', 'latency_censored')
@@ -1409,21 +1546,21 @@ def cmd_align(args):
     c = DOMS[dom]
     P = load_plan(dom)
     dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    best = json.loads((OUT / dom / 'sae' / 'best.json').read_text())
+    best = json.loads((sae_root(dom) / 'best.json').read_text())
     lay_ann = REPO / c['eci'] / 'annotations.csv' if c['layout'] else REPO / c['ann']
     if dom == 'mice':
         a = pd.read_csv(lay_ann, usecols=['observation_id', 'frame_idx', 'Y_nn', 'Y_np', 'Y_nt'])
         ok = a[['Y_nn', 'Y_np', 'Y_nt']].notna().all(1).values
         lab = {'nose_nose': (a.Y_nn.values > 0) | (a.Y_np.values > 0), 'nose_tail': a.Y_nt.values > 0}
     else:
-        a = pd.read_csv(lay_ann, usecols=['observation_id', 'frame_idx', 'Y_Y2F', 'Y_B2F'])
+        a = pd.read_csv(lay_ann, usecols=['observation_id', 'frame_idx', 'Y_Y2F', 'Y_B2F', 'Y_YOL'])
         ok = a[['Y_Y2F', 'Y_B2F']].notna().all(1).values
         lab = {'groom_any': (a.Y_Y2F.values > 0) | (a.Y_B2F.values > 0), 'groom_yellow': a.Y_Y2F.values > 0,
                'groom_blue': a.Y_B2F.values > 0}
     ranges = {v['obs']: (v['lay_lo'], v['lay_lo'] + v['n']) for v in P['videos']}
     rows = np.sort(np.concatenate(list(fps1_rows(ranges, 5, 0).values())))
     rows = rows[ok[rows]]
-    vdir = BEE / dom / 'videos'
+    vdir = bee(dom) / 'videos'
     if args.partial:  # only videos already encoded (per-video files, before the merge)
         have = [v for v in P['videos'] if (vdir / f'{v["obs"]}.npz').exists()]
         keep = np.zeros(len(a), bool)
@@ -1431,14 +1568,25 @@ def cmd_align(args):
             keep[v['lay_lo']:v['lay_lo'] + v['n']] = True
         rows = rows[keep[rows]]
         log(f'{dom} partial: {len(have)} of {len(P["videos"])} videos encoded, {len(rows):,} labelled frames')
+    if not len(rows):
+        (OUT / dom / 'align.json').write_text(json.dumps({'domain': dom, 'note': 'no labelled frames'}))
+        log(f'{dom}: no labelled frames, alignment skipped')
+        return
     labels = list(lab)
+    yol_valid = None
+    if dom != 'mice' and a.Y_YOL.notna().values[rows].sum() >= 100:  # on-the-lid (yellow), where labelled
+        lab['onlid_yellow'] = np.nan_to_num(a.Y_YOL.values) > 0
+        yol_valid = a.Y_YOL.notna().values[rows]
+        labels.append('onlid_yellow')
     obs = a.observation_id.values[rows]
     unit = pd.Series(obs).str.rsplit('_', n=2).str[0].values if dom == 'mice' else obs
     units = sorted(set(unit))
     half = pd.Series(unit).map({u: i % 2 for i, u in enumerate(units)}).values
     Yt = torch.from_numpy(np.stack([lab[b][rows] for b in labels], 1)).to(dev)
     valid = {b: np.ones(len(rows), bool) for b in labels}
-    sets = {f'r4_{v_}': (BEE / dom / ('layout/codes' if c['layout'] else 'codes') / best[v_]['name'], rows)
+    if yol_valid is not None:
+        valid['onlid_yellow'] = yol_valid
+    sets = {f'r4_{v_}': (bee(dom) / ('layout/codes' if c['layout'] else 'codes') / best[v_]['name'], rows)
             for v_ in VARIANTS}
     if c.get('c1'):  # old codes; ants: rows of the 10-min layout by (observation, frame_idx)
         if c['layout']:
@@ -1452,7 +1600,8 @@ def cmd_align(args):
         sets['C1'] = (REPO / c['c1'], r1)
         sets['deployed'] = (REPO / c['deployed'], r1)
     Rz = {'domain': dom, 'n_frames': int(len(rows)), 'n_videos': int(len(set(obs))), 'n_units': len(units),
-          'base_rate': {b: float(lab[b][rows].mean()) for b in labels},
+          'base_rate': {b: float(lab[b][rows][valid[b]].mean()) for b in labels},
+          'n_valid': {b: int(valid[b].sum()) for b in labels},
           'note': 'IN-SAMPLE for every SAE (no labels used in training; the SAEs saw tokens of these videos except the '
                   'r4 held-out videos). Neuron selection cross-fitted over two halves of the units (mice pools, ants '
                   'videos).', 'models': {}}
@@ -1601,7 +1750,7 @@ def cmd_report(args):
             f = OUT / dom / f'{k_}.json'
             if f.exists():
                 d[k_] = json.loads(f.read_text())
-        bj = OUT / dom / 'sae' / 'best.json'
+        bj = sae_root(dom) / 'best.json'
         if bj.exists():
             best = json.loads(bj.read_text())
             dm = DOMS[dom]
@@ -1618,7 +1767,7 @@ def cmd_report(args):
                         e['pairs'] = nes_top(rd / 'pairs')
                         e['pairs_noday'] = nes_top(rd / 'pairs_noday')
                     d['nes'][f'{v_}_{rule}'] = e
-        vdir = BEE / dom / 'videos'
+        vdir = bee(dom) / 'videos'
         d['videos_encoded'] = sum((vdir / f'{v["obs"]}.npz').exists() for v in P['videos']) if vdir.exists() else 0
         R['domains'][dom] = d
     (OUT / 'report.json').write_text(json.dumps(R, indent=1, default=str))
@@ -1633,7 +1782,7 @@ def cmd_report(args):
 # ---------------------------------------------------------------------------------------------- main
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('plan', 'reshard', 'check', 'maskdiag', 'prepass', 'train', 'encode', 'merge', 'summaries', 'align', 'report', 'spotcheck', 'ftheta'))
+    p.add_argument('step', choices=('plan', 'reshard', 'check', 'maskdiag', 'pool', 'prepass', 'train', 'encode', 'merge', 'summaries', 'align', 'report', 'spotcheck', 'ftheta'))
     p.add_argument('--domain', default='mice', choices=list(DOMS))
     p.add_argument('--domains', nargs='+', default=list(DOMS))
     p.add_argument('--shard', type=int, default=0)
@@ -1649,7 +1798,7 @@ def main():
     p.add_argument('--partial', action='store_true')
     p.add_argument('--encoder-check', action='store_true')
     args = p.parse_args()
-    {'plan': cmd_plan, 'reshard': cmd_reshard, 'check': cmd_check, 'maskdiag': cmd_maskdiag, 'prepass': cmd_prepass, 'train': cmd_train, 'encode': cmd_encode,
+    {'plan': cmd_plan, 'reshard': cmd_reshard, 'check': cmd_check, 'maskdiag': cmd_maskdiag, 'pool': cmd_pool, 'prepass': cmd_prepass, 'train': cmd_train, 'encode': cmd_encode,
      'merge': cmd_merge, 'summaries': cmd_summaries, 'align': cmd_align, 'report': cmd_report, 'spotcheck': cmd_spotcheck, 'ftheta': cmd_ftheta}[args.step](args)
 
 

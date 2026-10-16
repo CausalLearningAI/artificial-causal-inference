@@ -11,4 +11,7 @@ conda activate crl
 export PYTHONUNBUFFERED=1 TQDM_DISABLE=1
 set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
+export LOCAL_DIR=/localhome/$USER/${SLURM_JOB_ID:-local}_r4cpu
+mkdir -p $LOCAL_DIR
+trap 'rm -rf $LOCAL_DIR' EXIT
 for s in ${STEPS:?}; do python -u scripts/eci/rollout_r4.py $s --domain ${DOMAIN:?} ${EXTRA:-}; done

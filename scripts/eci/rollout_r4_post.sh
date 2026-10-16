@@ -24,13 +24,22 @@ case $DOMAIN in
   ants_v2) ND=ants; AE=eci_r4v2;;
   ants_v3) ND=ants; AE=eci_r4v3;;
   ants_v4) ND=ants; AE=eci_r4v4;;
+  ants_v2p) ND=ants; AE=eci_r4v2p;;
+  ants_v3p) ND=ants; AE=eci_r4v3p;;
+  ants_v4p) ND=ants; AE=eci_r4v4p;;
   frogs) ND=frogs; AE="";;
 esac
+NR=$( [ "$ND" = "ants" ] && echo "results/vision/ants/$AE/nes" || echo "results/vision/$ND/eci/nes" )
 for v in d2 d0; do
-  SAE=$(python -c "import json;print(json.load(open('results/vision/eci_rollout_r4/$DOMAIN/sae/best.json'))['$v']['name'])")
-  sbatch -J r4_nes_${DOMAIN}_${v}fn --export=ALL,DOMAIN=$ND,ANTS_ECI=$AE,SAE=${SAE}_fnorm,TAG=$DOMAIN,POOLINGS=max scripts/eci/rollout_r4_nes.sh
-  sbatch -J r4_nes_${DOMAIN}_${v}ft --export=ALL,DOMAIN=$ND,ANTS_ECI=$AE,SAE=${SAE}_ftheta,TAG=$DOMAIN,POOLINGS=max scripts/eci/rollout_r4_nes.sh
-  sbatch -J r4_nes_${DOMAIN}_$v --export=ALL,DOMAIN=$ND,ANTS_ECI=$AE,SAE=$SAE,TAG=$DOMAIN scripts/eci/rollout_r4_nes.sh
+  SAE=$(python -c "import sys,json;sys.argv=['x'];sys.path.insert(0,'scripts/eci');import rollout_r4 as R;print(json.load(open(R.sae_root('$DOMAIN')/'best.json'))['$v']['name'])")
+  for suf in _fnorm _ftheta ""; do
+    EXP="ALL,DOMAIN=$ND,ANTS_ECI=$AE,SAE=${SAE}${suf},TAG=$DOMAIN"; [ -n "$suf" ] && EXP="$EXP,POOLINGS=max"
+    j=$(sbatch --parsable -J r4_nes_${DOMAIN}_${v}${suf} --export=$EXP scripts/eci/rollout_r4_nes.sh)
+    # NESS (= DINES, src/eci/dines.py) on the same NES result set, committed code (git archive of HEAD, recorded)
+    sbatch --dependency=afterok:$j -J r4_ness_${DOMAIN}_${v}${suf} -o results/vision/eci_rollout_r4/logs/%x_%j.out \
+      --export=ALL,RES=$NR/${SAE}${suf},EXTRA="--out-root $PWD/results/vision/eci_rollout_r4/ness" scripts/eci/atlas_v37_methods.sh
+  done
 done
+# alignment test check (ants_v4p runs r4 only: no C1 codes for v4)
 if [ "$DOMAIN" != "frogs" ] && [ "$DOMAIN" != "ants_v4" ]; then python -u scripts/eci/rollout_r4.py align --domain $DOMAIN; fi
 echo done

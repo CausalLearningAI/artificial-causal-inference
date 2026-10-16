@@ -19,8 +19,10 @@ for round in 1 2 3 4 5 6; do
   while squeue -u $USER -h -o "%j" | grep -q "^r4_enc_${DOM}"; do sleep 120; done
   MISS=$(python - <<PY
 import json, pathlib
+import sys; sys.argv = ['x']; sys.path.insert(0, 'scripts/eci')
+import rollout_r4 as R
 P = json.load(open('results/vision/eci_rollout_r4/$DOM/plan.json'))
-d = pathlib.Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/r4/$DOM/videos')
+d = R.bee('$DOM') / 'videos'
 print(','.join(str(j) for j, s in enumerate(P['shards']) if any(not (d / f"{P['videos'][i]['obs']}.npz").exists() for i in s)))
 PY
 )
@@ -28,7 +30,7 @@ PY
   if [ -z "$MISS" ]; then
     p=$(sbatch --parsable -J r4_post_$DOM --export=ALL,DOMAIN=$DOM scripts/eci/rollout_r4_post.sh); echo "post -> $p"; exit 0
   fi
-  j=$(sbatch --parsable $GPU --cpus-per-task=24 --mem=96G --time=01:00:00 -J r4_enc_$DOM --array=$MISS \
+  j=$(sbatch --parsable $GPU ${NICE:-} --cpus-per-task=24 --mem=96G --time=01:00:00 -J r4_enc_$DOM --array=$MISS \
       --export=ALL,STEP=encode,DOMAIN=$DOM scripts/eci/rollout_r4.sh); echo "resubmitted $MISS -> $j"
   sleep 60
 done
