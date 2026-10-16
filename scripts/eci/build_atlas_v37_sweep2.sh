@@ -32,10 +32,10 @@ for k in $KEYS; do
   done
   echo "$(date +%H:%M) $k: NES ready ($R)"
   m=$(RES=$R sbatch --parsable --export=ALL -J v37m_$k scripts/eci/atlas_v37_methods.sh)
-  j=$(sbatch --parsable --dependency=afterok:$m --export=ALL,ARGS="--dom $k --model new --steps prep,checks,data,patch,arena,render,dump" \
-      -J a37new_$k scripts/eci/build_atlas_v37.sh)
+  j=$(ARGS="--dom $k --model new --steps prep,checks,data,patch,arena,render,dump" sbatch --parsable \
+      --dependency=afterok:$m --export=ALL -J a37new_$k scripts/eci/build_atlas_v37.sh)
   deps="$deps:$j"
-  a=$(sbatch --parsable --dependency=afterok${deps} --export=ALL,ARGS="--steps assemble" -J a37asm --cpus-per-task=2 \
+  a=$(sbatch --parsable --dependency=afterok${deps} --export=ALL,ARGS=--steps\ assemble -J a37asm --cpus-per-task=2 \
       --mem=8G --time=00:30:00 scripts/eci/build_atlas_v37.sh)
   echo "$(date +%H:%M) $k: methods $m -> build $j -> assemble $a"
 done
