@@ -56,7 +56,11 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'results/vision/eci_atlas_v37'
 R4 = ROOT / 'results/vision/eci_rollout_r4'
 V36 = ROOT / 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v36'
-V36_PAGE = ROOT / 'atlas/index.html'  # the published v36 page (git snapshot); its data files are in V36/assets/data
+V36_PAGE = ROOT / 'atlas/index.html'  # the published page (git snapshot); since 2026-10-16 03:38 = version 37
+# version 37 (published 2026-10-16) = v36 with the ants entries replaced by the 30-min ants build (explorer_v39, ANTS_ECI
+# eci30); mice and frogs data byte-identical to v36. The data files of each online entry are in its build's folder.
+V39 = ROOT / 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v39'
+PUB_DIR = {'antsfg': V39, 'antsfull': V39}  # tag -> build folder of the published data (default V36)
 TEMPLATE = ROOT / 'scripts/eci/explorer_template_v37.html'
 # R4 build keys: (domain, ANTS_ECI layout, NES root relative to ROOT, R4 rollout domain)
 NEW = {'mice': ('mice', None, 'results/vision/mice/eci/nes', 'mice'),
@@ -66,7 +70,7 @@ NEW = {'mice': ('mice', None, 'results/vision/mice/eci/nes', 'mice'),
        'frogs': ('frogs', None, 'results/vision/frogs/eci/nes', 'frogs')}
 # online builds: (domain, ANTS_ECI, v36 result set, v36 tag)
 ONLINE = {'mice': ('mice', None, 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0', 'fg448al'),
-          'ants': ('ants', 'eci', 'results/vision/ants/eci/nes/matryoshka_btk_1024_k16_antsfg_s0', 'antsfg'),
+          'ants': ('ants', 'eci30', 'results/vision/ants/eci30/nes/matryoshka_btk_1024_k16_antsfg_s0', 'antsfg'),
           'frogs': ('frogs', None, 'results/vision/frogs/eci/nes/matryoshka_btk_1024_k16_frogsfg_s0', 'frogsfg'),
           # ants v4 + v4_infested through the online model (scripts/eci/online_v4.py, another session, 2026-10-16): the
           # v36 SAE on the v4-only layout; the run without recording-day conditioning, as the v36 ants searches
@@ -75,7 +79,7 @@ ONLINE = {'mice': ('mice', None, 'results/vision/mice/eci/nes/matryoshka_btk_102
 # methods output (scripts/eci/atlas_v37_methods.py): <METHODS>/<domain key>/<sae>/{dines, familyC_nes, familyC_dines}
 METHODS = OUT / 'methods'
 METHOD_KEY = {'mice': 'mice', 'ants_v2': 'ants_eci_r4v2', 'ants_v3': 'ants_eci_r4v3', 'ants_v4': 'ants_eci_r4v4',
-              'frogs': 'frogs', 'online_mice': 'mice', 'online_ants': 'ants_eci', 'online_frogs': 'frogs'}
+              'frogs': 'frogs', 'online_mice': 'mice', 'online_ants': 'ants_eci30', 'online_frogs': 'frogs'}
 # the three temporal aggregations: (kind, outcome sub dir, NES outcome id as build_explorer names it, label, unit, short)
 OUTS = [('rate', 'maxpool_bouts', 'boutratemaxpool', 'Bout rate (max-pool)', 'bouts/min', 'bouts'),
         ('time', '.', 'meanactivationma', 'Mean activation (max-pool)', 'activation', 'max-pool'),
@@ -721,7 +725,7 @@ def v36_all():
 
 
 KEEP_IDS = ('boutratemaxpool', 'meanactivationma', 'xlatencymax')  # the v36 max-pooling outcomes
-MODEL_TIPS = {'online': 'The published configuration (atlas v36, 2026-10-04): DINOv2 patch features at 448 px, the '
+MODEL_TIPS = {'online': 'The published configuration (atlas version 37): DINOv2 patch features at 448 px, the '
                         'animal mask, Matryoshka BatchTopK SAE with 1024 neurons (k 16), max pooling',
               'new': 'R4: DINOv3-L/16 (block 20) at an input sized to the animal (mice 1024 px, ants 768-832 px, '
                      'frogs 800 px), the same lab animal masks, each patch described by its token and its change over '
@@ -763,15 +767,15 @@ def step_assemble():
     for f in A.asset_map:
         amap.update(json.loads(Path(f).read_text()))
     v36 = v36_all()
-    files36 = V36 / 'assets' / 'data'
+    ddir = lambda e: PUB_DIR.get(e['tag'], V36) / 'assets' / 'data'  # noqa: E731
     saes, notes, copied = [], {}, set()
 
-    def put36(rel):  # a v36 data file, as published
+    def put36(rel, e):  # a published data file, as published
         if rel.startswith('pre:'):
             return rel
         name = Path(rel).name
         if name not in copied:
-            shutil.copy(files36 / name, site / 'assets' / 'data' / name)
+            shutil.copy(ddir(e) / name, site / 'assets' / 'data' / name)
             copied.add(name)
         return rel
 
@@ -780,7 +784,7 @@ def step_assemble():
         return f'assets/data/{name}'
 
     def load36(rel, e):
-        return e['pre'][rel] if rel.startswith('pre:') else json.loads((files36 / Path(rel).name).read_text())
+        return e['pre'][rel] if rel.startswith('pre:') else json.loads((ddir(e) / Path(rel).name).read_text())
 
     # ---- new model entries (one build per R4 domain; NES + DINES entries share the build's data files)
     new_entries, builds = {}, {}
@@ -827,7 +831,7 @@ def step_assemble():
         if e['tag'] not in ('fg448al', 'antsfg', 'frogsfg'):
             continue
         dkey = {'fg448al': 'mice', 'antsfg': 'ants', 'frogsfg': 'frogs'}[e['tag']]
-        bg = V36 / 'assets' / f'{e["tag"]}_arena_bg.webp'
+        bg = PUB_DIR.get(e['tag'], V36) / 'assets' / f'{e["tag"]}_arena_bg.webp'
         if bg.exists():
             shutil.copy(bg, site / 'assets' / bg.name)
         on = OUT / 'build' / f'online_{dkey}' / 'online.json'
@@ -837,19 +841,18 @@ def step_assemble():
         base['rfiles'] = {k: v for k, v in e['rfiles'].items() if k in KEEP_IDS}
         base['nfile'] = {'max': copy.deepcopy(e['nfile']['max'])}
         for f in base['nfile']['max']['files']:
-            put36(f)
+            put36(f, e)
         base['pre'] = {}
         for k in ('lwin', 'period', 'session'):
             if k in base:
                 base[k] = {i: v for i, v in base[k].items() if i in KEEP_IDS}
         base['model'] = {'model': 'online', 'method': 'NES'}
-        base['note'] = ('Online model: the published page of 2026-10-04 (atlas v36), data reused as published'
+        base['note'] = ('Online model: the published page (version 37 of 2026-10-16; mice and frogs unchanged since '
+                        'v36 of 2026-10-04), data reused as published'
                         + ('; habituation analysed on its whole 30 min (before the 2026-10-07 choice of its last '
                            '15 min). Family C is new: computed on the same per-video values.' if dkey == 'mice' else
-                           '; ants: the first 10 min of v2 and v3; v4 not computed for this model.'
+                           '; ants: the 30-min results published in version 37 (v2: its whole 10 min).'
                            if dkey == 'ants' else '.'))
-        if dkey == 'ants':
-            base['pending'] = {'v4': 'not computed for this model'}
 
         def add_method(ent, M, tagx, replace):
             """Searches of one new method (online.json) into entry ent: its rfiles become new files (the v36 searches
@@ -882,7 +885,7 @@ def step_assemble():
 
         nes = copy.deepcopy(base)
         for k, v in base['rfiles'].items():
-            put36(v) if not v.startswith('pre:') else None
+            put36(v, e) if not v.startswith('pre:') else None
         if 'nesC' in on:
             add_method(nes, on['nesC'], 'v37', replace=False)
         else:
@@ -966,7 +969,7 @@ def check_site(site, amap, saes):
         f'({len(packs)} local packs, {sum(p.stat().st_size for p in packs) / 1e6:.1f} MB), {len(urls)} distinct '
         f'asset-store URLs, {len(missing)} missing {missing[:5]}, {len(unused)} unused removed; largest file '
         f'{big / 1e6:.1f} MB; total version {total / 1e6:.1f} MB in {len(files) + 1} files')
-    man = {'artifact': 'https://claude.ai/artifact/JfJnP4CqjYWoprEq9dM8Qa', 'artifact_version': 'v37 (not published)',
+    man = {'artifact': 'https://claude.ai/artifact/JfJnP4CqjYWoprEq9dM8Qa', 'artifact_version': 'v38 build (not published; the live page is version 37)',
            'build_command': 'ARGS="--steps assemble [--asset-map <map.json>]" sbatch scripts/eci/build_atlas_v37.sh',
            'build_dir': str(site.relative_to(ROOT)),
            'models': [f'{e["domain"]}: {e["model"]["model"]} · {e["model"]["method"]} ({e["sae"]})' for e in saes],
