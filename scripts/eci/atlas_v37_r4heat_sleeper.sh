@@ -4,7 +4,7 @@
 # picks exist, its peak-patch step has written a patch file for every picked neuron, and nothing in patch/ changed for
 # 3 min; then it runs scripts/eci/atlas_v37_r4heat_key.sh (GPU parts per encode GPU + assemble with MOVE=1). If the
 # submitter fails (e.g. a clip video whose encode log is not there yet), it retries on the next poll. Polls every 2 min.
-#   KEYS="mice ants_v4" sbatch scripts/eci/atlas_v37_r4heat_sleeper.sh
+#   KEYS="mice ants_v4" [VARIANT=d0] sbatch scripts/eci/atlas_v37_r4heat_sleeper.sh
 #SBATCH --job-name=r4heat_sleep
 #SBATCH --output=results/vision/eci_atlas_v37/logs/%x_%j.out
 #SBATCH --partition=defaultp
@@ -19,12 +19,12 @@ todo="$KEYS"
 while [ -n "$todo" ]; do
   left=""
   for k in $todo; do
-    st=$(python - "$k" <<'PY'
+    st=$(python - "$k" "${VARIANT:-d2}" <<'PY'
 import json, sys, time
 from pathlib import Path
-k = sys.argv[1]
-name = json.loads(Path(f'results/vision/eci_rollout_r4/{k}/sae/best.json').read_text())['d2']['name']
-w = Path(f'results/vision/eci_atlas_v37/res/{k}_d2/{name}_fnorm/_cache/explorer')
+k, var = sys.argv[1], sys.argv[2]
+name = json.loads(Path(f'results/vision/eci_rollout_r4/{k}/sae/best.json').read_text())[var]['name']
+w = Path(f'results/vision/eci_atlas_v37/res/{k}_{var}/{name}_fnorm/_cache/explorer')
 try:
     p = json.loads((w / 'picks.json').read_text())
 except Exception:
@@ -39,7 +39,7 @@ print('ready' if age > 180 else f'settling {age:.0f}s')
 PY
 )
     echo "$(date +%T) $k: $st"
-    if [ "$st" = "ready" ] && MOVE=1 bash scripts/eci/atlas_v37_r4heat_key.sh $k; then
+    if [ "$st" = "ready" ] && MOVE=1 VARIANT=${VARIANT:-d2} bash scripts/eci/atlas_v37_r4heat_key.sh $k; then
       echo "$(date +%T) $k: submitted"
     else
       left="$left $k"

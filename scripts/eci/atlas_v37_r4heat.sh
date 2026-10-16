@@ -36,10 +36,10 @@ for d in data dataset results; do ln -s $PWD/$d $LOCAL_DIR/code/$d; done
 cp scripts/eci/atlas_v37_r4heat.py $LOCAL_DIR/code/scripts/eci/
 echo "code: HEAD $(git rev-parse HEAD) in $LOCAL_DIR/code; working-tree diffs not used: $(git status --porcelain -- scripts/eci/rollout_r4.py src/eci scripts/eci/build_explorer.py | tr '\n' ' ')"
 df -h /localhome | tail -1
-echo "host $(hostname) job ${SLURM_JOB_ID:-} key $KEY mode ${MODE:-gpu} gpu ${GPU:-} task ${TASK:-0}/${NTASKS:-1} move ${MOVE:-}"
+echo "host $(hostname) job ${SLURM_JOB_ID:-} key $KEY variant ${VARIANT:-d2} mode ${MODE:-gpu} gpu ${GPU:-} task ${TASK:-0}/${NTASKS:-1} move ${MOVE:-}"
 if [ "${MODE:-gpu}" = "assemble" ]; then
   MV=""; [ -n "${MOVE:-}" ] && MV="--move"
-  python -u $LOCAL_DIR/code/scripts/eci/atlas_v37_r4heat.py --key $KEY --assemble $MV
+  python -u $LOCAL_DIR/code/scripts/eci/atlas_v37_r4heat.py --key $KEY --variant ${VARIANT:-d2} --assemble $MV
 else
-  python -u $LOCAL_DIR/code/scripts/eci/atlas_v37_r4heat.py --key $KEY --gpu "$GPU" --task ${TASK:-0} --ntasks ${NTASKS:-1} ${EXTRA:-}
+  python -u $LOCAL_DIR/code/scripts/eci/atlas_v37_r4heat.py --key $KEY --variant ${VARIANT:-d2} --gpu "$GPU" --task ${TASK:-0} --ntasks ${NTASKS:-1} ${EXTRA:-}
 fi

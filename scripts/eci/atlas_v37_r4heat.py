@@ -55,7 +55,7 @@ FP16_KEYS = {'ants_v2'}  # rollout_r4.FP16_DOMAINS (asserted below)
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--key', required=True, choices=list(LAYOUT))
-ap.add_argument('--variant', default='d2', choices=('d2',))
+ap.add_argument('--variant', default='d2', choices=('d2', 'd0'), help='d2: x = [z_t, z_t - z_(t-10)]; d0: x = z_t')
 ap.add_argument('--kr', type=int, default=8, help='clips per row rendered by the build (8 for every domain)')
 ap.add_argument('--gpu', default=None, help='encode the videos whose full pass ran on this GPU model')
 ap.add_argument('--task', type=int, default=0)
@@ -126,7 +126,7 @@ def setup():
     cdir = REPO / c['eci'] / 'codes' / fname
     cfg = json.loads((cdir / 'config.json').read_text())
     parent = Path(cfg['parent_codes'])
-    assert cfg['amp'] == R4.AMP and cfg['variant'] == A.variant and cfg['lag'] == R4.LAG, cfg
+    assert cfg['amp'] == R4.AMP and cfg['variant'] == A.variant and cfg['lag'] == (R4.LAG if A.variant == 'd2' else None), cfg
     G = int(cfg['G'])
     assert G == c['S'] // 16
     picks = json.loads((work / 'picks.json').read_text())
@@ -158,7 +158,7 @@ def video_batches(c, v, clip):
     """clip [(k, row)] of one video -> (sorted needed batches [(kb, len)], clip batches set, needed prev frames set)."""
     n = v['n']
     cb = {batch_of(k, n, c['chunk'], c['bs']) for k, _ in clip}
-    prev = {max(k - R4.LAG, 0) for k, _ in clip}
+    prev = {max(k - R4.LAG, 0) for k, _ in clip} if A.variant == 'd2' else set()  # d0: no t-10 frame
     pb = {batch_of(k, n, c['chunk'], c['bs']) for k in prev}
     return sorted(cb | pb), cb, prev
 
@@ -294,12 +294,13 @@ def gpu_part(S):
                     continue
                 Pv = z.clone()  # rows of non-clip frames: t-10 half = 0 (their values do not change clip rows)
                 ci = [t for t, k in enumerate(ks) if int(k) in clip]
-                for t in ci:
+                for t in ci if A.variant == 'd2' else ():
                     Pv[t] = store[max(int(ks[t]) - R4.LAG, 0)]
                 with torch.no_grad():
                     bi, pi = m.nonzero(as_tuple=True)
                     x = z[bi, pi]
-                    x = torch.cat([x, (x.float() - Pv[bi, pi].float()).half()], 1)  # sae_codes, variant d2
+                    if A.variant == 'd2':  # sae_codes
+                        x = torch.cat([x, (x.float() - Pv[bi, pi].float()).half()], 1)
                     zz = sae.encode(norm(x.float()), mode='threshold') if len(x) else \
                         torch.zeros((0, W), device=dev)
                     full = torch.zeros((ln, GG, W), dtype=torch.float32, device=dev)
