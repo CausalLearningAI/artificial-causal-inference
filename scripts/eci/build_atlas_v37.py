@@ -158,6 +158,24 @@ DINES_A_BLOCK = ('Not shown for DINES: in the paired design (within-pool centred
                  '"undetermined"). Use NES for family A.')
 
 
+def annotate_status(results, outs):
+    """DINES rows: r['st'] = 'kept' / 'undetermined' (status column of the DINES tables)."""
+    for o in outs:
+        if 'status' not in o['tidy'].columns:
+            continue
+        t = BE.primary_rows(o).dropna(subset=['neuron'])
+        st = {(a, int(p), int(j)): x for a, p, j, x in zip(t['analysis_id'], t['prefix'], t['neuron'], t['status'])}
+        for k, R in results.items():
+            oid, aid, p, _ = k.split('|')
+            if oid != o['id']:
+                continue
+            for r in R['rows']:
+                x = st.get((aid, int(p), int(r['neuron'])))
+                if isinstance(x, str):
+                    r['st'] = x
+    return results
+
+
 def block_dines_A(results, oids, aids):
     """DINES searches + a 'blocked' (empty) search for every family A analysis of each DINES outcome."""
     out = dict(results)
@@ -493,6 +511,8 @@ def step_render_new(c):
 def dump(c, entries, out):
     """page_data + split_data of the build -> out/core.json ({entries: [core, ...]}) and out/data/*.json."""
     d = BE.page_data(c)
+    annotate_status(d['results'], c.outcomes)
+    annotate_status(d['xresults'], c.extras)
     if c.dom is BE.MICE:
         d['results'] = block_dines_A(d['results'], [o['id'] for o in c.outcomes if o['id'].startswith('d')], c.order)
         d['xresults'] = block_dines_A(d['xresults'], [o['id'] for o in c.extras if o['id'].startswith('d')], c.order)
@@ -576,7 +596,7 @@ def step_dump_online():
         outs = add_outcomes(c, V / meth, '', V / '_cache', dines=meth == 'dines')
         if not outs:
             continue
-        R = BE.search_results(c, outs, analyses, top=True)
+        R = annotate_status(BE.search_results(c, outs, analyses, top=True), outs)
         vals, extra = {}, {}
         for o in outs:
             ids, Y = BE.video_outcome(c, o)
