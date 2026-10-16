@@ -83,7 +83,9 @@ Output: results/vision/eci_atlas_v37/methods/<domain_key>/<sae>/
   dines/{summary.csv, <aid>/result.json, <aid>/dines.json, maxpool_bouts/..., maxpool_latency/...}
   familyC_nes/{C_summary.csv, <aid>/result.json, maxpool_bouts/..., maxpool_latency/...}     (mice)
   familyC_dines/{C_summary.csv, <aid>/result.json, <aid>/dines.json, ...}                    (mice)
-  code.json (git HEAD, settings), checks.csv, timing.csv, tests.json (--tests)
+  code.json (git HEAD, settings, skipped analyses), checks.csv, timing.csv, tests.json (--tests)
+A family B analysis with fewer than 5 units in an arm is skipped, as in the NES runners (--min-units 5; ants under
+--day: v3_2_vs_8, whose arms share no recording day).
 domain_key = mice | ants_<ANTS_ECI> (ants_eci = the 10-min layout, ants_eci_r4v2, ...) | frogs.
 
 Usage (Slurm wrapper scripts/eci/atlas_v37_methods.sh runs it from a git archive of HEAD):
@@ -112,6 +114,7 @@ OUTCOMES = ('mean', 'bouts', 'latency')
 SUBDIR = {'mean': '', 'bouts': 'maxpool_bouts', 'latency': 'maxpool_latency'}
 DINES_KW = dict(alpha=0.05, delta=0.0, gate='bonferroni', learner='ridge', seed=0, keep_first=True, min_active=0.01)
 CHECK_TOL = 1e-6
+MIN_UNITS = 5  # the NES runners' --min-units default
 C_IDS = {'1to2': (1, 2), '2to3': (2, 3), '4to5': (4, 5), '5to6': (5, 6)}
 
 
@@ -505,6 +508,16 @@ def main():
              hab_label=('whole30' if args.hab_window == 'whole' else 'last15') if dom == 'mice' else '')
     outcomes = tuple(args.outcomes.split(','))
     aids = args.analyses.split(',') if args.analyses else D.analysis_ids()
+    skipped = []  # as the NES runners (--min-units 5): a family B analysis with < 5 units in an arm is not run (ants
+    #               under --day: v3_2_vs_8, whose arms share no recording day, has no rows left)
+    for a in list(aids):
+        if a.startswith('C_') or D.analysis(a).family != 'B':
+            continue
+        T0 = D.analysis(a).select(dfull)['T'].values
+        if min(T0.sum(), (1 - T0).sum()) < MIN_UNITS:
+            skipped.append({'analysis_id': a, 'n_treatment': int(T0.sum()), 'n_control': int((1 - T0).sum())})
+            aids.remove(a)
+            print(f'{a}: SKIPPED, {skipped[-1]} (< {MIN_UNITS} units in an arm, as the NES runners)', flush=True)
     specs = [('D', a, o, p) for a in aids if not a.startswith('C_') for o in outcomes for p in prefixes]
     if dom == 'mice' and not args.no_family_c:
         cids = [a for a in aids if a.startswith('C_')] if args.analyses else [f'C_{t}' for t in C_IDS]
@@ -526,7 +539,7 @@ def main():
             'dines_W': 'per-unit mean n_fg of the outcome window' + (' + recording-day indicators' if nes_day else ''),
             'dines_settings': DINES_KW, 'family_c_nes': 'neural_effect_search two-sample, bonferroni 0.05, select p, '
                                                         'nuisance = per-pool n_fg difference (b - a)',
-            'n_tasks': len(specs), 'start': time.strftime('%Y-%m-%dT%H:%M:%S'),
+            'skipped': skipped, 'n_tasks': len(specs), 'start': time.strftime('%Y-%m-%dT%H:%M:%S'),
             'ants_layout_patch': 'LAYOUT_CONTRASTS[eci_r4v3*] = LAYOUT_CONTRASTS[eci30]' if dom == 'ants' and
             ants_eci.startswith('eci_r4v3') else None}
     (base / 'code.json').write_text(json.dumps(code, indent=1))
