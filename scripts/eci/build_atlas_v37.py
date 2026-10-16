@@ -830,11 +830,12 @@ def step_assemble():
             ents.append(e)
         builds[key] = cj
         new_entries[key] = ents
-    for v in ('d2', 'd0'):  # pooled ants SAE built: it replaces the per-series SAEs of that variant
-        if any(k.startswith('ants_') and k.endswith(f'p_{v}') for k in new_entries):
-            for k in [k for k in new_entries if k.startswith('ants_') and k.endswith(f'_{v}') and not k.endswith(f'p_{v}')]:
-                log(f'assemble: {k} left out (the pooled ants SAE of {v} is built)')
-                new_entries.pop(k)
+    # the new model on the page (coordinator, 2026-10-16 07:55): ants = the pooled SAE only (the per-series SAEs never
+    # appear), variant d2 only (d0 was built for frogs and the per-series ants only: left out rather than partial)
+    for k in list(new_entries):
+        if k.endswith('_d0') or (k.startswith('ants_') and not k.endswith('p_d2')):
+            log(f'assemble: {k} left out (new model on the page = d2, pooled ants SAE)')
+            new_entries.pop(k)
     have_v4 = any(k.startswith('ants_v4') for k in new_entries)
     order_new = [k for k in ('mice_d2', 'ants_v2p_d2', 'ants_v3p_d2', 'ants_v4p_d2', 'ants_v2_d2', 'ants_v3_d2',
                              'ants_v4_d2', 'frogs_d2', 'mice_d0', 'ants_v2p_d0', 'ants_v3p_d0', 'ants_v4p_d0',
@@ -956,6 +957,33 @@ def step_assemble():
             'videos': v36['videos'], 'obs': v36['obs'], 'montage': v36['montage'], 'tcrit': v36['tcrit'],
             'domains': doms, 'kinds': v36['kinds'], 'aggs': [g for g in v36['aggs'] if g['id'] == 'max'],
             'method_notes': METHOD_NOTES}
+    for e in saes:  # the page names the method NESS (the user's name for DINES, src/eci/dines.py)
+        if e['model']['method'] == 'DINES':
+            e['model']['method'] = 'NESS'
+            e['sae'] = e['sae'].replace('@dines', '@ness')
+    for f in (site / 'assets' / 'data').glob('*.json'):  # the blocked family-A text of the method's searches
+        t = f.read_text()
+        if 'Not shown for DINES' in t:
+            f.write_text(t.replace('Not shown for DINES', 'Not shown for NESS').replace('so DINES cannot',
+                                                                                         'so NESS cannot'))
+    data['axes'][1] = {'key': 'method', 'label': 'Method', 'values': ['NES', 'NESS'],
+                       'missing': {'NESS': 'coming'},
+                       'tips': {'NES': METHOD_TIPS['NES'], 'NESS': METHOD_TIPS['DINES'].replace(
+                           'Direct-Indirect Neural Effect Search (successor of NES', 'NESS (successor of NES; '
+                           'implemented as DINES')}}
+    data['method_notes'] = {'NESS': METHOD_NOTES['DINES'].replace('DINES', 'NESS')}
+    # local clip packs of the online entries (the live page's ants packs that are version files, not asset-store
+    # uploads): copied as published
+    for e in saes:
+        if e['model']['model'] != 'online':
+            continue
+        txt = json.dumps(e) + ''.join((site / f).read_text() for f in set(e['rfiles'].values()) |
+                                      set(e['nfile']['max']['files']) if not f.startswith('pre:') and (site / f).exists())
+        for name in set(re.findall(r'assets/([\w.\-]+\.mp4)', txt)):
+            src = PUB_DIR.get(e['tag'], V36) / 'assets' / name
+            if not (site / 'assets' / name).exists():
+                shutil.copy(src, site / 'assets' / name)
+                log(f'assemble: {name} copied from {src.parent} (a version file of the live page)')
     tpl = TEMPLATE.read_text()
     assert tpl.count('/*__DATA__*/null') == 1
     page = tpl.replace('/*__DATA__*/null', json.dumps(data, separators=(',', ':')))

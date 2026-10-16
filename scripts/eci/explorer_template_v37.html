@@ -293,8 +293,8 @@ const DETAILS = {
 };
 const TAU_TIP = 'tau: effect size in the outcome unit. A: mean paired change from the first to the second stage. B: het − wt (mean of the het videos minus mean of the wt videos; positive = higher in het). C: mean change of the het pools minus mean change of the wt pools (positive = the stage change is larger in het).';
 const METH = () => (DATA.model||{}).method || 'NES';
-const stChip = r => r.st==='undetermined' ? '<span class="chip warn2" title="DINES: significant given every tested set of the other found neurons except sets that nearly reveal the treatment (overlap failure); it may be changed directly or only through such a neuron">undetermined</span>' : r.st==='kept' ? '<span class="chip Y" title="DINES: significant given every tested subset of the other found neurons">kept</span>' : '';
-const pTip = () => METH()==='DINES' ? 'p: DINES p-value (generalized covariance measure test of the neuron given the other found neurons). For a reported neuron: the largest p over every tested conditioning set (or, flagged undetermined, its p given all the others). Reported = below alpha / m (m = neurons tested) at every tested set.' : 'p: t-test p-value. Found = p below the Bonferroni threshold of that search round.';
+const stChip = r => r.st==='undetermined' ? '<span class="chip warn2" title="NESS: significant given every tested set of the other found neurons except sets that nearly reveal the treatment (overlap failure); it may be changed directly or only through such a neuron">undetermined</span>' : r.st==='kept' ? '<span class="chip Y" title="NESS: significant given every tested subset of the other found neurons">kept</span>' : '';
+const pTip = () => METH()==='NESS' ? 'p: NESS p-value (generalized covariance measure test of the neuron given the other found neurons). For a reported neuron: the largest p over every tested conditioning set (or, flagged undetermined, its p given all the others). Reported = below alpha / m (m = neurons tested) at every tested set.' : 'p: t-test p-value. Found = p below the Bonferroni threshold of that search round.';
 const state = {sae:DATA0.sae, from:'all', len:'1s', view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:128, window:'full', neuron:null, heat:true, sort:'count', line:'all', sex:'all', nper:8};
 try{ Object.assign(state, JSON.parse(localStorage.getItem('nes-atlas')||'{}')); }catch(e){}
 DATA = SAES[state.sae] || DATA0; state.sae = DATA.sae; state.window = 'full'; M = DATA.montage || ALL.montage;
@@ -699,13 +699,13 @@ function renderTop(S, h, top, fold){
   const thr1 = 0.05 / (res().n_tested_total || 128);   // round-1 Bonferroni threshold of this search
   for(const [j, tau, p, cens] of top){
     const up=tau>0, sig = p < thr1;
-    const why = sig && METH()==='DINES' ? `significant on its own (first-round p ${fmtP(p)} < ${fmtP(thr1)}) but not reported by DINES: it was dropped in the backward check (not significant given some set of the other forward-phase neurons) or set aside as revealing the treatment`
+    const why = sig && METH()==='NESS' ? `significant on its own (first-round p ${fmtP(p)} < ${fmtP(thr1)}) but not reported by NESS: it was dropped in the backward check (not significant given some set of the other forward-phase neurons) or set aside as revealing the treatment`
               : sig ? `significant in round 1 (p ${fmtP(p)} < ${fmtP(thr1)}) but not selected: once the selected neurons were conditioned on, this one was no longer significant (it overlaps with them)`
                     : `not selected: p above the round-1 Bonferroni threshold (${fmtP(thr1)})`;
     h+=`<button type="button" class="nr" data-n="${j}" aria-pressed="${j===state.neuron}" title="first-round p ${fmtP(p)}: not selected by ${METH()}">
       <span class="id">#${j}</span>
       <span class="l1"><span class="${up?'up':'down'}">${up?'▲':'▼'} ${fmtTau(tau)}</span><span class="pv">p ${fmtP(p)}</span>${csHTML(j)}</span>
-      <span class="chips"><span class="chip na" title="${esc(why)}">${sig?(METH()==='DINES'?'dropped by DINES':'explained by the picks'):'not selected'}</span>${censChip(cens)}</span></button>`;
+      <span class="chips"><span class="chip na" title="${esc(why)}">${sig?(METH()==='NESS'?'dropped by NESS':'explained by the picks'):'not selected'}</span>${censChip(cens)}</span></button>`;
   }
   S.innerHTML = h+'</div></details>';
   for(const b of S.querySelectorAll('.nr')) b.onclick=()=>{ state.neuron=+b.dataset.n; render(); };
