@@ -77,7 +77,10 @@ NEW = {'mice': ('mice', None, 'results/vision/mice/eci/nes', 'mice'),
        # above on the page whenever a pooled build exists (step_assemble)
        'ants_v2p': ('ants', 'eci_r4v2p', 'results/vision/ants/eci_r4v2p/nes', 'ants_pooled'),
        'ants_v3p': ('ants', 'eci_r4v3p', 'results/vision/ants/eci_r4v3p/nes', 'ants_pooled'),
-       'ants_v4p': ('ants', 'eci_r4v4p', 'results/vision/ants/eci_r4v4p/nes', 'ants_pooled')}
+       'ants_v4p': ('ants', 'eci_r4v4p', 'results/vision/ants/eci_r4v4p/nes', 'ants_pooled'),
+       # frog tadpoles (stage 44-48) on the new model (scripts/eci/tadpole_r4.py, its own SAE, crops of the raw video):
+       # step 'tad' only (step_dump_tadpoles: NES + NESS entries without clips)
+       'frogs_tad': ('tadpoles', None, 'results/vision/frogs/eci_tadpole_r4/nes', 'frogs_tadpole')}
 # online builds: (domain, ANTS_ECI, v36 result set, v36 tag)
 ONLINE = {'mice': ('mice', None, 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0', 'fg448al'),
           'ants': ('ants', 'eci30', 'results/vision/ants/eci30/nes/matryoshka_btk_1024_k16_antsfg_s0', 'antsfg'),
@@ -90,7 +93,7 @@ ONLINE = {'mice': ('mice', None, 'results/vision/mice/eci/nes/matryoshka_btk_102
 METHODS = OUT / 'methods'
 METHOD_KEY = {'mice': 'mice', 'ants_v2': 'ants_eci_r4v2', 'ants_v3': 'ants_eci_r4v3', 'ants_v4': 'ants_eci_r4v4',
               'ants_v2p': 'ants_eci_r4v2p', 'ants_v3p': 'ants_eci_r4v3p', 'ants_v4p': 'ants_eci_r4v4p',
-              'frogs': 'frogs', 'online_mice': 'mice', 'online_ants': 'ants_eci30', 'online_frogs': 'frogs'}
+              'frogs': 'frogs', 'frogs_tad': 'frogs_tadpole', 'online_mice': 'mice', 'online_ants': 'ants_eci30', 'online_frogs': 'frogs'}
 # the three temporal aggregations: (kind, outcome sub dir, NES outcome id as build_explorer names it, label, unit, short)
 OUTS = [('rate', 'maxpool_bouts', 'boutratemaxpool', 'Bout rate (max-pool)', 'bouts/min', 'bouts'),
         ('time', '.', 'meanactivationma', 'Mean activation (max-pool)', 'activation', 'max-pool'),
@@ -101,7 +104,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--dom', default=None, help='build key: ' + ', '.join(NEW) + ' (new) / mice, ants, frogs (online)')
 ap.add_argument('--model', default='new', choices=('new', 'online'))
 ap.add_argument('--variant', default='d2', choices=('d2', 'd0'))
-ap.add_argument('--steps', default='prep,data,patch,arena,render,dump')
+ap.add_argument('--steps', default='prep,data,patch,arena,render,dump', help='frogs_tad: tad')
 ap.add_argument('--max-pages', type=int, default=0, help='clip pages per build (build_explorer --max-pages)')
 ap.add_argument('--kr', type=int, default=None, help='clips rendered per row (default: build_explorer VIEW kr; mice 8)')
 ap.add_argument('--pack-mb', type=float, default=12.0)
@@ -109,6 +112,7 @@ ap.add_argument('--asset-map', action='append', default=[], help='assemble: JSON
 ap.add_argument('--overwrite', action='store_true')
 A = ap.parse_args()
 
+os.environ.setdefault('TADPOLE_TAG', '_r4')  # TadpolesDomain = the r4 tadpole layout (dataset/frogs/eci_tadpole_r4)
 if A.dom is not None:  # the ants layout is fixed when src/eci/domain.py is imported (AntsDomain.ECI)
     lay = (NEW if A.model == 'new' else ONLINE)[A.dom][1]
     if lay:
@@ -743,6 +747,121 @@ def step_dump_online_v4():
     log(f'dump online v4 -> {bout}/core.json')
 
 
+# ---------------------------------------------------------------------- new model: frog tadpoles
+TAD_EXP = 'tadpoles (stage 44–48)'  # the frogs phase selector value (the juveniles are experiment 'hour 1')
+TAD_QC = R4 / 'frogs_tadpole' / 'qc.json'
+TAD_NESS = R4 / 'ness' / 'frogs_tadpole'
+
+
+def step_dump_tadpoles():
+    """New model on the frog tadpoles: NES (results/vision/frogs/eci_tadpole_r4/nes/<sae>) and NESS
+    (results/vision/eci_rollout_r4/ness/frogs_tadpole/<sae>/dines) entries of the d2 fnorm SAE, read through the
+    build_explorer search functions with the tadpole domain standing in for the juvenile frogs (contrasts WT vs FoxP1,
+    WT vs En1; the QC exclusion of qc.json, as scripts/eci/tadpole_r4_nes.py ran them). No clips and no arena map:
+    the codes are of a moving body crop of the raw video (no dataset frames, no fixed arena). Analysis ids get the
+    prefix 'tad_' (the juvenile comparisons share the names). -> OUT/build/frogs_tad_<variant>/{core.json, data/}."""
+    Dm.TadpolesDomain.CONTRASTS = (('WT', 'FoxP1'), ('WT', 'En1'))
+    excl = set(json.loads(TAD_QC.read_text())['excluded'])
+    _ld, _vm = Dm.TadpolesDomain.load_design, Dm.TadpolesDomain.video_meta
+
+    def load_qc(self):
+        d = _ld(self)
+        d = d[~d['observation_id'].isin(excl)].reset_index(drop=True)
+        d['obs_row'] = np.arange(len(d))
+        return d
+
+    def vmeta_qc(self):
+        v = _vm(self)
+        v = v[~v['observation_id'].isin(excl) & v['group'].isin(['WT', 'FoxP1', 'En1'])].reset_index(drop=True)
+        return v.assign(mutant_side='')  # bilateral crispants: no edited side
+    Dm.TadpolesDomain.load_design, Dm.TadpolesDomain.video_meta = load_qc, vmeta_qc
+    TAD = Dm.get_domain('tadpoles')
+    assert str(TAD.eci_dir).endswith('eci_tadpole_r4'), TAD.eci_dir
+    assert TAD.analysis_ids() == ['FoxP1_vs_WT', 'En1_vs_WT'], TAD.analysis_ids()
+    BE.VIEW['tadpoles'] = dict(BE.VIEW['frogs'], title='Frogs', exp=TAD_EXP, subject='tadpole', subjects='tadpoles')
+    BE.FROGS = TAD  # build_explorer's frogs code paths (video table, arms, labels) on the tadpole domain
+    sae = best_sae('frogs_tadpole', A.variant) + '_fnorm'
+    src = ROOT / NEW['frogs_tad'][2] / sae
+    key = f'frogs_tad_{A.variant}'
+    V, bout = OUT / 'res' / key / sae, OUT / 'build' / key
+    (V / '_cache').mkdir(parents=True, exist_ok=True)
+    for f in (src / '_cache').glob('*.npz'):
+        link(f.resolve(), V / '_cache' / f.name)
+    for meth, base in (('nes', src), ('dines', TAD_NESS / sae / 'dines')):
+        for kind, sub, *_ in OUTS:
+            if (base / sub / 'summary.csv').exists():
+                mirror_outcome(V / meth / sub if sub != '.' else V / meth, [base / sub if sub != '.' else base])
+    vm, videos, obs, _ = BE._vt(TAD)
+    videos = [[TAD_EXP] + v[1:] for v in videos]  # video_table_frogs names the experiment by VIEW['frogs'] ('hour 1')
+    assert len(vm) == json.loads(TAD_QC.read_text())['n_videos_kept'], len(vm)
+    (bout / 'data').mkdir(parents=True, exist_ok=True)
+    for f in (bout / 'data').glob('*.json'):
+        f.unlink()
+    c = make_cfg(V, sae, TAD, 'r4tad' + A.variant, bout)
+    ren = lambda a: f'tad_{a}'  # noqa: E731
+    entries = []
+    for meth, base in (('NES', V / 'nes'), ('DINES', V / 'dines')):
+        if not base.is_dir():
+            log(f'tadpoles: no {meth} results in {base}')
+            continue
+        c.outcomes, c.extras = [], []
+        outs = add_outcomes(c, base, '' if meth == 'NES' else 'd', V / '_cache', dines=meth == 'DINES')
+        analyses = {}
+        R = annotate_status(BE.search_results(c, outs, analyses, top=True), outs)
+        R = {'|'.join([k.split('|')[0], ren(k.split('|')[1])] + k.split('|')[2:]): v for k, v in R.items()}
+        x = f'r4tad{A.variant}{meth.lower()}'
+        rfiles, nb, lw = {}, {}, {}
+        for o in outs:
+            ids, Y = BE.video_outcome(c, o)
+            ix = ids.get_indexer(vm['observation_id'].astype(str))
+            assert (ix >= 0).all()
+            Ro = {k: v for k, v in R.items() if k.startswith(o['id'] + '|')}
+            js = sorted({str(r['neuron']) for v in Ro.values() for r in v['rows']}
+                        | {str(t[0]) for v in Ro.values() for t in v.get('top', [])}, key=int)
+            vals = {j: [BE.sig4(v) for v in Y[ix, int(j)]] for j in js}
+            if o['kind'] != 'latency':
+                Rt = {'|'.join([k.split('|')[0], k.split('|')[1][4:]] + k.split('|')[2:]): v for k, v in Ro.items()}
+                print(f'[{x}] {o["id"]}: tau check {BE.tau_check(vm, vals, Rt, o["id"], dom=TAD):.2e}')
+            else:
+                lw[o['id']] = {ren(aid): BE.sig4(BE.latency_W(o, aid) / TAD.fps) for aid in c.order
+                               if (BE.primary_rows(o)['analysis_id'] == aid).any()}
+            for j in js:
+                nb.setdefault(j, {'noclip': True, 'artefact': False, 'vals': {}})['vals'][o['id']] = vals[j]
+            f = f'{x}_r_{o["id"]}.json'
+            (bout / 'data' / f).write_text(json.dumps({'results': Ro}, separators=(',', ':')))
+            rfiles[o['id']] = f'assets/data/{f}'
+        nf = f'{x}_n.json'
+        (bout / 'data' / nf).write_text(json.dumps({'by': {'max': nb}}, separators=(',', ':')))
+        ans = []
+        for a in c.order:
+            if a in analyses:
+                m = dict(analyses[a], id=ren(a), experiment=TAD_EXP)
+                m['arms'] = [[n, [[TAD_EXP, v] for _, v in cells]] for n, cells in m['arms']]
+                ans.append(m)
+        po = []
+        for o in outs:
+            q = {k: o[k] for k in ('id', 'label', 'codes', 'unit', 'kind', 'agg')}
+            q.update(bout=o['kind'] == 'rate', prefixes=sorted(int(p) for p in BE.primary_rows(o)['prefix'].unique()
+                                                               if int(p) in (128, 256)),
+                     setting=str(BE.primary_rows(o)['setting'].iloc[0]))
+            po.append(q)
+        e = {'sae': f'{sae}@{meth.lower()}', 'tag': x, 'model': {'model': 'new', 'method': meth}, 'domain': 'frogs',
+             'outcomes': po, 'analyses': ans, 'subsets': {}, 'rfiles': rfiles, 'pre': {}, 'lwin': lw,
+             'nfile': {'max': {'files': [f'assets/data/{nf}'], 'of': {j: 0 for j in nb}}},
+             'artefact': [], 'artefact_text': {}, 'sub_ui': False, 'videos': videos, 'obs': obs,
+             'arms': ['WT', 'FoxP1', 'En1'], 'subject': 'tadpole', 'subjects': 'tadpoles', 'top': 3,
+             'vnote': 'tadpoles WT, FoxP1, En1 (hour 1)', 'tadpole': True, 'heat_kind': 'none',
+             'n_frames': int(len(np.load(TAD.eci_dir / 'codes' / sae / 'n_fg.npy', mmap_mode='r'))),
+             'noclip_note': 'Tadpoles: no clips and no arena map: the model sees a crop that follows the tadpole in '
+                            'the raw video (no dataset frames, no fixed arena)'}
+        entries.append(e)
+        log(f'tadpoles {meth}: ' + ', '.join(
+            f'{o["id"]} {sum(len(v["rows"]) for k, v in R.items() if k.startswith(o["id"] + "|"))} rows' for o in outs)
+            + f'; {len(nb)} neurons (no clips); {len(vm)} videos')
+    (bout / 'core.json').write_text(json.dumps({'entries': entries}, separators=(',', ':')))
+    log(f'dump tadpoles -> {bout}/core.json')
+
+
 # ---------------------------------------------------------------------- assemble
 def v36_all():
     s = V36_PAGE.read_text()
@@ -788,7 +907,7 @@ def rw_json(src, dst, amap=None):
 # patches); new = scripts/eci/rollout_r4.py (docstring + DOMS: DINOv3-L/16 blocks 1-20 + final LayerNorm, S per domain,
 # LAG 10 frames = 2 s, WIDTH 512, K 16, PREFIXES 128/256/512, 3 seeds, best held-out FVE) and scripts/eci/rollout_r4_nes.sh
 # (--nuisance nfg, --day for ants); NESS covariates: METHOD_NOTES above; outcome settings: the entries' own 'setting'.
-R4_SIZE = {'mice': (1024, 64), 'ants_v2p': (768, 48), 'ants_v3p': (832, 52), 'ants_v4p': (816, 51), 'frogs': (800, 50)}
+R4_SIZE = {'frogs_tad': (384, 24), 'mice': (1024, 64), 'ants_v2p': (768, 48), 'ants_v3p': (832, 52), 'ants_v4p': (816, 51), 'frogs': (800, 50)}
 MASK = {'mice': 'mouse mask (rule fg448, per-video backgrounds)', 'ants': 'ant mask (rule ants, per-video backgrounds)',
         'frogs': 'frog mask (rule frogs, per-video backgrounds)'}
 
@@ -808,6 +927,9 @@ def spec_of(e):
         fm = f'DINOv3-L/16 · {S} px ({G}×{G} patches)'
         sae = 'Matryoshka BatchTopK · 512 · k=16' + (' · one SAE for all series' if dom == 'ants' else '')
         mask = {'mice': 'mouse mask · not rotated', 'ants': 'ant mask', 'frogs': 'frog mask · mutant side mirrored right'}[dom]
+        if key == 'frogs_tad':  # tadpoles: a crop that follows the tadpole (scripts/eci/tadpole_r4.py)
+            fm, mask = f'DINOv3-L/16 · {S} px crop around the tadpole ({G}×{G} patches)', 'frog pixel mask on the crop'
+            sae = 'Matryoshka BatchTopK · 512 · k=16 · own tadpole SAE'
         cov = 'foreground size (n_fg)' + (' + recording day (not for t=8 vs t=2, infested vs healthy)' if dom == 'ants' else '')
     cells = {'fm': fm, 'input': 'token' if online else 'token + 2 s change', 'mask': mask, 'sae': sae,
              'pool': 'max over the mask', 'cov': cov}
@@ -1073,6 +1195,8 @@ def v0_entries(site, saes, data):
         for k in ('videos', 'obs', 'arms', 'vnote'):
             if k in ref:
                 e[k] = copy.deepcopy(ref[k])
+        if dom == 'frogs':
+            e['pending'] = {TAD_EXP: 'not run: no tadpole run for this model'}
         if e['n_frames'] is None:  # ants v2: 2 fps frames of its 10 min
             e['n_frames'] = int(sum(R0['frames_per_video'].values()))
         out.append(e)
@@ -1269,7 +1393,7 @@ def step_assemble():
             new_entries.pop(k)
     have_v4 = any(k.startswith('ants_v4') for k in new_entries)
     order_new = [k for k in ('mice_d2', 'ants_v2p_d2', 'ants_v3p_d2', 'ants_v4p_d2', 'ants_v2_d2', 'ants_v3_d2',
-                             'ants_v4_d2', 'frogs_d2', 'mice_d0', 'ants_v2p_d0', 'ants_v3p_d0', 'ants_v4p_d0',
+                             'ants_v4_d2', 'frogs_d2', 'frogs_tad_d2', 'mice_d0', 'ants_v2p_d0', 'ants_v3p_d0', 'ants_v4p_d0',
                              'ants_v2_d0', 'ants_v3_d0', 'ants_v4_d0', 'frogs_d0') if k in new_entries]
     for k in order_new:
         for e in new_entries[k]:
@@ -1364,10 +1488,10 @@ def step_assemble():
                 x.pop('pending', None)
         saes += v4e
 
-    for e in saes:  # frogs: the tadpole phase (stage 44-48) has no codes in either model yet
-        if e['domain'] == 'frogs':
-            e.setdefault('pending', {})['tadpoles (stage 44–48)'] = ('pending: no tadpole codes exist yet for this '
-                                                                     'model (WT, FoxP1, En1; 118 videos of 60 min)')
+    tad_models = {(e['model']['model'], e['model']['method']) for e in saes if e.get('tadpole')}
+    for e in saes:  # frogs: the tadpole phase (stage 44-48) exists for the new model only (step_dump_tadpoles)
+        if e['domain'] == 'frogs' and (e['model']['model'], e['model']['method']) not in tad_models:
+            e.setdefault('pending', {})[TAD_EXP] = 'not run: no tadpole run for this model'
     # ---- top level
     mice_new = next((e for e in saes if e['domain'] == 'mice' and e['model']['model'] == 'new'), None)
     if mice_new is not None:  # the shared mice video list
@@ -1487,7 +1611,10 @@ if __name__ == '__main__':
     if steps == ['assemble']:
         step_assemble()
         sys.exit(0)
-    if A.model == 'new':
+    if A.model == 'new' and A.dom == 'frogs_tad':
+        assert steps == ['tad'], 'frogs_tad: --steps tad'
+        step_dump_tadpoles()
+    elif A.model == 'new':
         if 'prep' in steps:
             step_prep_new()
         if 'checks' in steps:

@@ -322,7 +322,7 @@ const DETAILS = {
     ['Comparisons', 'FoxP1 vs WT and En1 vs WT (21–27 frogs per comparison); τ = mutant − WT. FoxP1 vs En1 is not searched.'],
     ['Time window', 'Hour 1 of each frog.'],
     ['Preprocessing', 'Videos are mirrored where needed so the mutant side is always the frog’s right; 5 of the 13 WT videos are mirrored at random too, to balance the mirrored dish labels.'],
-    ['Phases', 'Juveniles (froglets; half-body mutants) are analysed. Tadpoles (stage 44–48, bilateral mutants; WT, FoxP1 and En1 only; 118 valid videos of 60 min) are pending for both models: no tadpole codes exist yet.'],
+    ['Phases', 'Juveniles (froglets; half-body mutants): every model. Tadpoles (stage 44–48, whole-embryo mutants; WT, FoxP1 and En1; 116 videos of 60 min after quality control): v2 only, on a crop that follows the tadpole, no clips; not run for v0 and v1.'],
     ['Design caveat', 'Each group was filmed in its own recording sessions (no session holds both WT and mutant frogs), so group is fully confounded with session and date. The session checks can only measure how much a neuron varies between sessions of one group, and whether a discovery survives dropping any one session.'],
   ],
 };
@@ -787,7 +787,7 @@ function buildControls(){
   $('#allN').textContent = GOT[rfile()] ? allFound().length : '·';
   const ca = analysis(state.aid), CN = $('#cfNote');
   CN.hidden = !(state.view==='cmp' && ca && ca.confound);
-  if(!CN.hidden) CN.textContent = FROGS() ? `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip names its video (group_session_slot) and the clip rows count their sessions: a neuron found in one session only is suspect; a one-sided (left/right) change in FoxP1 only cannot come from a session.`
+  if(!CN.hidden) CN.textContent = DATA.tadpole ? '⚠ Tadpoles: genotype is fully confounded with recording session in tadpoles (no session holds two groups), so a session-driven neuron can look like a genotype effect.' : FROGS() ? `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip names its video (group_session_slot) and the clip rows count their sessions: a neuron found in one session only is suspect; a one-sided (left/right) change in FoxP1 only cannot come from a session.`
                                            : ca.cross ? `⚠ Exp4 infested vs healthy colonies · ${ca.stratum} · not day-matched: ${(String(ca.confound).match(/not day-matched: ([^)]*)/)||[,'the colonies were recorded on different days'])[1].replace('healthy colonies on days', 'healthy colonies were recorded on days')}, so colony is confounded with recording day. Each clip shows its recording day: check whether a neuron follows the lighting or the behaviour.`
                                            : `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip shows its recording day: check whether a neuron follows the lighting or the behaviour.`;
   const VB = $('#v0Ban'), V0 = DATA.v0;
@@ -1154,10 +1154,11 @@ function chartsHTML(j, n, cmp, a, hl, ct){
 function renderNoClip(D, h, j, n, cmp, a){
   if(isV0()) return renderV0(D, h, j, n, cmp, a);
   const AT = `Mean activation of this neuron on each image patch over ${DATA.arena_note || 'all frames'}.`;
-  h+=`<div class="two"><div class="hd"><div class="row"><h3 class="tip" title="${esc(AT)}">Arena map</h3><span class="meta tip" title="${esc(DATA.noclip_note || 'Beyond the clip budget of this build (--max-pages): no clips or histogram rendered')}">no clips</span></div>${arenaHTML()}</div><div></div></div>`;
+  if(DATA.arena && n.arena) h+=`<div class="two"><div class="hd"><div class="row"><h3 class="tip" title="${esc(AT)}">Arena map</h3><span class="meta tip" title="${esc(DATA.noclip_note || 'Beyond the clip budget of this build (--max-pages): no clips or histogram rendered')}">no clips</span></div>${arenaHTML()}</div><div></div></div>`;
+  else h+=`<p class="note">${esc(DATA.noclip_note || 'No clips for this neuron.')}.</p>`;
   h+=chartsHTML(j, n, cmp, a, cmp ? hlOf(a) : [], chartTable(j, n));
   D.innerHTML = h+'</div>';
-  drawArena(n);
+  if(DATA.arena && n.arena) drawArena(n);
   for(const b of D.querySelectorAll('.tags .tag')) b.onclick=()=>{ state.view='cmp'; state.aid=b.dataset.aid; render(); };
   stopClips();
 }
