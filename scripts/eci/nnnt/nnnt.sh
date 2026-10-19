@@ -55,6 +55,28 @@ print('A0ref vs stored r4: max abs diff', np.abs(a - s).max(), 'mean', np.abs(a 
 EOF
   exit 0
 fi
+if [ "$STEP" = "xcheck" ]; then  # cross-GPU check: re-encode the first NF frames of plan video VIDEO here, compare
+  NF=${NF:-600}
+  $PY encode --videos $VIDEO --max-frames $NF --out-dir $LOCAL_DIR/xc
+  python - <<EOF
+import json, glob, numpy as np, torch
+f = glob.glob('$LOCAL_DIR/xc/*.npz')[0]; a = np.load(f); obs = str(a['obs'])
+b = np.load('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/nnnt/videos/' + obs + '.npz')
+out = {'obs': obs, 'n_frames': int(a['n']), 'gpu_here': torch.cuda.get_device_name(0), 'sets': {}}
+for k in a.files:
+    if '|' not in k: continue
+    x, y = a[k].astype(np.float32), b[k][:len(a[k])].astype(np.float32)
+    out['sets'][k] = {'max_abs': float(np.abs(x - y).max()), 'mean_abs': float(np.abs(x - y).mean()),
+                      'fire_agree': float(((x > 0) == (y > 0)).mean()), 'rel_l1': float(np.abs(x - y).sum() / max(np.abs(y).sum(), 1e-9))}
+for k in ('nk_r64L', 'nk_r64T', 'nk_r32T', 'nk_u64L'):
+    out[k + '_exact'] = float((a[k] == b[k][:len(a[k])]).mean())
+S = out['sets']
+out['summary'] = {q: {'median': float(np.median([s[q] for s in S.values()])), 'worst': float((max if q != 'fire_agree' else min)(s[q] for s in S.values()))} for q in ('max_abs', 'mean_abs', 'fire_agree', 'rel_l1')}
+print(json.dumps({k: v for k, v in out.items() if k != 'sets'}, indent=1))
+json.dump(out, open('results/vision/eci_nnnt/xcheck_' + obs + '_' + out['gpu_here'].replace(' ', '_') + '.json', 'w'), indent=1)
+EOF
+  exit 0
+fi
 if [ "$STEP" = "refs" ]; then  # scorer check (synthetic) + the reference codes re-scored (r4 stored, C1, deployed)
   python -u scripts/eci/nnnt/check_scorer.py
   $PY score --refs-only

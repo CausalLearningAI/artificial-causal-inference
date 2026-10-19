@@ -903,6 +903,8 @@ def cmd_score(args):
             f'({time.time() - t0:.0f}s)')
         del Xg, Yg
         torch.cuda.empty_cache()
+        if len(res['sets']) % 10 == 0:  # partial save; a re-run resumes from it
+            (OUT / 'score.json').write_text(json.dumps(res, indent=1, default=float))
 
     # references: stored r4 d2 codes, C1, deployed (annotations.csv rows)
     refs = {'r4_d2_stored': R4BEE / 'codes' / 'matryoshka_btk_512_k16_r4d2_s0',
@@ -1252,6 +1254,11 @@ def cmd_cost(args):
         if ut:
             out[f.name] = {'gpu': name, 'gpu_h': (ts[-1] - ts[0]).total_seconds() / 3600 + 1 / 60,
                            'util_mean': float(np.mean(ut)), 'samples': len(ut)}
+            for line in f.read_text(errors='replace').splitlines():
+                if ' DONE: ' in line and 'fps wall' in line:  # encode shard throughput
+                    w = line.split()
+                    out[f.name]['shard_frames'] = int(w[w.index('DONE:') + 1].replace(',', ''))
+                    out[f.name]['shard_fps_wall'] = float(line.split('(')[1].split()[0])
     tot = {}
     for k_, v_ in out.items():
         st = k_.split('_')[0]
