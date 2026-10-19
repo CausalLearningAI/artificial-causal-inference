@@ -3,7 +3,7 @@
 # NN/NT round 3 job wrapper (scripts/eci/nnnt/r3.py). STEP = geom | train | score | sheets; EXTRA = arguments.
 # Staging in /localhome/$USER/<job>_<task>_r3 (removed on exit); GPU utilisation / memory logged every 60 s ([gpu] lines).
 #   sbatch -p gpu --gres=gpu:1 --constraint="L40S|A100|A40" --exclude=gpu240,gpu241,gpu242 \
-#     --export=ALL,STEP=train,EXTRA="--arms R2,R3" scripts/eci/nnnt/r3.sh      (geom: CPU, -p defaultp)
+#     --export=ALL,STEP=train,EXTRA="--arms R2:R3" scripts/eci/nnnt/r3.sh      (geom: CPU, -p defaultp)
 #SBATCH --job-name=nnnt_r3
 #SBATCH --output=/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_nnnt/logs/%x_%A_%a.out
 #SBATCH --time=06:00:00
@@ -25,5 +25,6 @@ fi
 trap 'rm -rf $LOCAL_DIR; [ -n "$SMI" ] && kill $SMI 2>/dev/null || true' EXIT
 df -h /localhome | tail -1
 echo "host $(hostname) job ${SLURM_JOB_ID:-} task ${SLURM_ARRAY_TASK_ID:-} step $STEP extra ${EXTRA:-}"
+EXTRA=${EXTRA:-}; EXTRA=${EXTRA//:/,}  # sbatch --export splits on commas: pass lists with ":" (e.g. --seeds 0:1:2)
 PY="python -u scripts/eci/nnnt/r3.py"
 $PY $STEP ${EXTRA:-}

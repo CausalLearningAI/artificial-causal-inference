@@ -25,6 +25,7 @@ fi
 trap 'rm -rf $LOCAL_DIR; [ -n "$SMI" ] && kill $SMI 2>/dev/null || true' EXIT
 df -h /localhome | tail -1
 echo "host $(hostname) job ${SLURM_JOB_ID:-} task ${SLURM_ARRAY_TASK_ID:-} step $STEP extra ${EXTRA:-}"
+EXTRA=${EXTRA:-}; EXTRA=${EXTRA//:/,}  # sbatch --export splits on commas: pass lists with ":" (e.g. --seeds 0:1:2)
 PY="python -u scripts/eci/nnnt/r2.py"
 if [ "$STEP" = "selftest" ]; then
   # diagnosis on 36 videos x 30 frames (6 pools), written to local disk only
