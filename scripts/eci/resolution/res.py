@@ -282,13 +282,13 @@ def cmd_msweep(args):
     nf = len(rows)
     res['scored'] = {'n_frames': int(nf), 'sae_tokens_per_frame': float(len(tfg) / nf)}
     Y, unit = R2.labels_of(rows)
-    a = pd.read_csv(REPO / C['ann'], usecols=['W_annotator'])
+    a = pd.read_csv(REPO / C['ann'], usecols=['W_annotator'], dtype={'W_annotator': str})
     ann = a.W_annotator.values[rows]
     sc = json.loads((N.OUT / 'score.json').read_text())
     units, SPL = sc['units'], {k_: np.array(v_) for k_, v_ in sc['splits'].items()}
     uidx = pd.Series(range(len(units)), index=units).loc[unit].values
     sets = {'all': np.arange(nf), 'consistent': np.flatnonzero(pd.Series(ann).isin(CONSISTENT).values)}
-    sets = {k_: ix for k_, ix in sets.items() if len(ix) >= 200 and Y[ix, :2].sum(0).min() >= 10}
+    sets = {k_: ix for k_, ix in sets.items() if k_ == 'all' or (len(ix) >= 200 and Y[ix, :2].sum(0).min() >= 10)}
     res['scored']['n_frames_sets'] = {k_: int(len(v_)) for k_, v_ in sets.items()}
     res['scored']['base_rate'] = {k_: {lb: float(Y[ix, i].mean()) for i, lb in enumerate(N.LABELS)}
                                   for k_, ix in sets.items()}
