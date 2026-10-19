@@ -90,6 +90,8 @@ BASE = dict(W=2048, prefixes=(128, 512, 2048), k=16, steps=30000)
 ARMS = {  # prep: id | white | ctx ; sel: all | edge (train + readout) ; sampler: uniform | cluster ; reuse: r2 arm
     'S0': dict(reuse='S0', prep='id', sel='all'),
     'S2': dict(reuse='S2', prep='id', sel='all'),
+    'S3': dict(reuse='S3', prep='id', sel='all', W=8192, prefixes=(128, 512, 2048, 8192)),  # round-2 refs (sheets)
+    'S7': dict(reuse='S7', prep='id', sel='all', prefixes=(2048,)),
     'R1': dict(reuse='S2', prep='id', sel='edge'),
     'R2': dict(prep='id', sel='edge'),
     'R3': dict(prep='white', sel='all'),
