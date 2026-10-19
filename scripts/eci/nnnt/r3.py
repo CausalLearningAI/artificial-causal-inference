@@ -349,7 +349,7 @@ def cmd_train(args):
     P = Store(loc / 'pool', BEE3 / 'geom_pool.npz', dev, torch)
     role = P.F.role.values[P.tf]
     edge = P.dist == 1
-    res_f = OUT3 / 'train.json'
+    res_f = OUT3 / (args.out or 'train.json')  # one file per concurrent job
     res = json.loads(res_f.read_text()) if res_f.exists() else {}
     seeds = [int(s) for s in args.seeds.split(',')]
     arms = [a for a in args.arms.split(',') if 'reuse' not in ARMS[a]]
