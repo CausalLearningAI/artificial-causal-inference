@@ -228,7 +228,10 @@ class Store:
     def inputs(self, prep, tok_sel, frames_per=48):
         """Concatenated input rows for the tokens where tok_sel (bool, per token) is True: fp16 (n, d) cuda."""
         torch = self.torch
-        out = []
+        # preallocated (job 909599 died in torch.cat of the 31 GB context stream: list + copy = 2x)
+        out = torch.empty((int(tok_sel.sum()), N.D * (2 if prep == 'ctx' else 1)), dtype=torch.float16,
+                          device=self.dev)
+        o = 0
         for f0, f1, a, b, z in self.chunks(frames_per):
             m = tok_sel[a:b]
             if not m.any():
@@ -241,8 +244,10 @@ class Store:
                 x = torch.cat([zf, ctx_of(torch, zf, ps, fl, f1 - f0)], 1)[mt].half()
             else:
                 x = z[mt]
-            out.append(x)
-        return torch.cat(out)
+            out[o:o + len(x)] = x
+            o += len(x)
+        assert o == len(out)
+        return out
 
 
 # ---------------------------------------------------------------------------------------------- training

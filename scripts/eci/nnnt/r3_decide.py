@@ -9,7 +9,7 @@ from r2_decide import welch
 
 OUT = Path(__file__).resolve().parents[3] / 'results/vision/eci_nnnt'
 ONLINE = {'deployed': {'nose_nose': 0.070, 'nose_tail': 0.108}, 'C1': {'nose_nose': 0.059, 'nose_tail': 0.087}}
-ARMS = ['S0', 'S2', 'R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7']
+ARMS = ['S0', 'S2', 'S3', 'S7', 'R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8']
 
 
 def get(sets, arm, seeds, f):
