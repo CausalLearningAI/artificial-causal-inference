@@ -34,6 +34,12 @@ round-2 rule KEEPS a different winner the base width / k / centring follow it - 
     R6  wider Matryoshka: 32,768 latents (128/512/2048/8192/32768), k 16, 30,000 steps (rare concepts get atoms);
         seeds 0-2 (3-5 only if it wins).
     R7  R5 context tokens, trained and read out on edge tokens only (R2 + R5).
+    R8  (ADDED 2026-10-19 ~19:10, after the round-2 token ceiling T-max was seen - one linear direction over tokens with
+        max readout reaches nn R~ 0.356 / nt R~ 0.296 vs best SAE neuron 0.11 / 0.07 - and BEFORE any round-3 score):
+        FastICA, label-free: PCA-whiten the train tokens to the top 512 components (1M random train tokens), symmetric
+        FastICA (logcosh, 200 iterations, 512 components); neurons = relu(s) and relu(-s) (1024 neurons; ICA finds
+        heavy-tailed, rarely-active directions - what a detector direction looks like - without a reconstruction
+        budget that favours frequent high-variance content). Dense codes, max readout over all kept tokens.
     refs scored by this same code (pipeline check vs round 2's sweep.json): S0 (round-1 A3 recipe) and S2, seeds 0-5.
 SEEDS 0-5 for R2-R5, R7 (R1 reuses S2 seeds 0-5); identical splits for every arm.
 
@@ -91,6 +97,7 @@ ARMS = {  # prep: id | white | ctx ; sel: all | edge (train + readout) ; sampler
     'R5': dict(prep='ctx', sel='all'),
     'R6': dict(prep='id', sel='all', W=32768, prefixes=(128, 512, 2048, 8192, 32768)),
     'R7': dict(prep='ctx', sel='edge'),
+    'R8': dict(prep='id', sel='all', ica=512),
 }
 
 
@@ -325,10 +332,61 @@ def train_arm(torch, cfg, seed, Xtr, Xca, Xev, od, dev):
             int((sae.tokens_since_fired >= sae.dead_tokens).sum()), 'history': hist, **extra}
 
 
+class ICAEnc:
+    """FastICA read-out with the SAE interface used here: encode(x) -> (n, 2 n_comp) = [relu(s), relu(-s)]."""
+
+    def __init__(self, mu, Wt):
+        self.mu, self.Wt = mu, Wt  # (d,), (d, n_comp): s = (x - mu) @ Wt
+        self.n_latents = 2 * Wt.shape[1]
+
+    def encode(self, x, mode='threshold'):
+        s_ = (x - self.mu) @ self.Wt
+        return __import__('torch').cat([s_.clamp_min(0), (-s_).clamp_min(0)], 1)
+
+
+def train_ica(torch, cfg, seed, Xtr, Xev, od, iters=200):
+    od.mkdir(parents=True, exist_ok=True)
+    t0 = time.time()
+    g = torch.Generator(device=Xtr.device).manual_seed(seed)
+    ii = torch.randperm(len(Xtr), generator=g, device=Xtr.device)[:1_000_000]
+    x = Xtr[ii].double()
+    mu = x.mean(0)
+    x = x - mu
+    lam, U = torch.linalg.eigh(x.T @ x / (len(x) - 1))
+    m = cfg['ica']
+    lam, U = lam[-m:], U[:, -m:]
+    P = U * lam.rsqrt()  # (d, m) PCA whitening
+    z = (x @ P).float()
+    W = torch.linalg.qr(torch.randn(m, m, generator=g, device=Xtr.device, dtype=torch.float32))[0]
+    hist = []
+    for it in range(iters):
+        wx = z @ W.T  # (n, m)
+        gx = torch.tanh(wx)
+        W1 = (gx.T @ z) / len(z) - torch.diag((1 - gx ** 2).mean(0)) @ W
+        u_, s_, vh = torch.linalg.svd(W1, full_matrices=False)
+        W1 = u_ @ vh  # symmetric decorrelation
+        lim = float((torch.abs(torch.diag(W1 @ W.T)) - 1).abs().max())
+        W = W1
+        if it % 50 == 0 or it == iters - 1:
+            hist.append({'it': it, 'lim': lim})
+        if lim < 1e-5:
+            break
+    Wt = (P.float() @ W.T)  # (d, m)
+    s_ = ((Xev[:200_000].float().to(Xtr.device) - mu.float()) @ Wt)
+    kurt = ((s_ ** 4).mean(0) / (s_ ** 2).mean(0) ** 2 - 3)
+    torch.save({'mu': mu.float().cpu(), 'Wt': Wt.cpu()}, od / 'ica.pt')
+    return {'train_time_s': time.time() - t0, 'n_train_tokens': len(Xtr), 'iters': it + 1, 'history': hist,
+            'pca_var_share': float(lam.sum() / torch.linalg.eigvalsh(x.T @ x / (len(x) - 1)).sum()),
+            'eval_kurtosis_median': float(kurt.median()), 'eval_kurtosis_max': float(kurt.max())}
+
+
 def load_arm(torch, a, seed, dev):
     """-> sae, full-transform callable (raw input rows -> normalised SAE input)."""
     from src.eci.sae import load_sae
     cfg = arm_cfg(a)
+    if 'ica' in cfg:
+        ck = torch.load(BEE3 / 'sae' / f'{a}_s{seed}' / 'ica.pt')
+        return ICAEnc(ck['mu'].to(dev), ck['Wt'].to(dev)), (lambda x: x.float())
     if 'reuse' in cfg:
         sae, norm, _ = load_sae(BEE2 / 'sae' / f'{cfg["reuse"]}_s{seed}' / 'sae_theta.pt', dev)
         return sae, (lambda x: norm(x.float()))
@@ -355,7 +413,8 @@ def cmd_train(args):
     arms = [a for a in args.arms.split(',') if 'reuse' not in ARMS[a]]
     for key in sorted({(arm_cfg(a)['prep'] == 'ctx', arm_cfg(a)['sel']) for a in arms}):
         todo = [(a, s) for a in arms for s in seeds if (arm_cfg(a)['prep'] == 'ctx', arm_cfg(a)['sel']) == key
-                and (args.force or not (BEE3 / 'sae' / f'{a}_s{s}' / 'sae_theta.pt').exists())]
+                and (args.force or not (BEE3 / 'sae' / f'{a}_s{s}' / ('ica.pt' if 'ica' in arm_cfg(a) else
+                                                                         'sae_theta.pt')).exists())]
         if not todo:
             continue
         t0 = time.time()
@@ -368,6 +427,13 @@ def cmd_train(args):
             f'{torch.cuda.memory_allocated() / 2**30:.1f} GiB')
         for a, s in todo:
             name = f'{a}_s{s}'
+            if 'ica' in arm_cfg(a):
+                ti = train_ica(torch, arm_cfg(a), s, X['train'], X['eval'], BEE3 / 'sae' / name)
+                res[name] = {'cfg': arm_cfg(a), **ti}
+                log(f'{name}: ICA {ti["train_time_s"]:.0f}s, {ti["iters"]} iterations, ' + json.dumps(
+                    {k: ti[k] for k in ('pca_var_share', 'eval_kurtosis_median', 'eval_kurtosis_max')}))
+                res_f.write_text(json.dumps(res, indent=1, default=float))
+                continue
             ti = train_arm(torch, arm_cfg(a), s, X['train'], X['calib'], X['eval'], BEE3 / 'sae' / name, dev)
             res[name] = {'cfg': {k: (list(v) if isinstance(v, tuple) else v) for k, v in arm_cfg(a).items()}, **ti}
             log(f'{name}: {ti["train_time_s"]:.0f}s ({ti["steps_per_s"]:.1f} steps/s), theta* {ti["theta_star"]:.4f} '
