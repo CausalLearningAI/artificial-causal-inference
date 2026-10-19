@@ -490,7 +490,9 @@ def cmd_sheets(args):
     cf, A1, _ = contact_frames(D.F, D.g)
     Pl = N.load_plan()
     V = {v['obs']: v for v in Pl['videos']}
-    res = json.loads((OUT3 / 'score.json').read_text())
+    res = {}
+    for f_ in sorted(OUT3.glob('score*.json')):
+        res.update(json.loads(f_.read_text()))
     sc = json.loads((N.OUT / 'score.json').read_text())
     half = dict(zip(sc['units'], sc['splits']['rnd0']))
     hold = np.array([half[o.rsplit('_', 2)[0]] == 1 for o in D.F.obs.values])
