@@ -37,7 +37,38 @@ Q4   temporal: post-SAE aggregation of the frame codes (all 512 neurons, seeds 0
      mean R~. Probe level (seed 2): logistic on [c_t, centred means 5 / 11 / 21] vs on c_t; same >= +0.01, >= 4/5
      splits rule.
 
-Steps (analysis.sh runs each in Slurm): labels (CPU) | diag (GPU: Q1b, Q1c, Q2, Q3) | temporal (GPU: Q4)
+
+Q1-STYLE (step 'style', CPU; coordinator request 2026-10-19 ~19:00, PRE-REGISTERED before any style score):
+     annotator STYLE for nose_nose (nn | np), nn_mutual, np_directional, nose_tail on the 144 annotated videos.
+     Label-free CONTACT EVENTS at 5 fps on EVERY annotated frame: the 144 videos decoded at 512 px (source frame
+     offset + 6 k), odour-rotated, tight mask = >= 25 % dark pixels (grey < 60 and pix_bg - grey > 40, fg448al
+     512 px background) in each 8 x 8 px block -> 64 grid (= nnnt Pipe 'dark64_jpg'); components (8-conn, >= 5
+     cells); A1(video) = median largest component over the video's 4-component frames; CONTACT frame = largest
+     component >= 1.5 A1 (round-3 rule); contact EVENT = maximal run of contact frames; END-TO-END frame = the largest
+     component's elongation sqrt(l1 / l2) >= the 75th percentile of elongation over all contact frames (label-free
+     threshold). Mask check vs the 1024 px diagnosis tokens (Jaccard on the diagnosis frames).
+     Measures per annotator (and per line x annotator): BORIS bout durations (median, share < 0.4 s); per 5 fps label
+     run: onset lag = run start - start of the contact event it overlaps most (s), offset lag = event end - run end,
+     share of runs overlapping no contact event; PASS-BY share = share of labelled frames whose contact event lasts
+     < 0.5 s or that are not contact frames; MISS proxy = share of long contact events (> 1 s) with >= 50 % end-to-end
+     frames that carry no nn / np / nt label at all; confusion = for frames labelled X, share also labelled Y; usage
+     = share of labelled frames per code.
+     H-a (some annotators MISS bouts): annotator A supports H-a iff its MISS proxy exceeds the pooled other
+       annotators' by >= 0.10 (absolute) with the pool-bootstrap 95 % CI of the difference excluding 0 AND its
+       labelled bouts per minute (union nn | np | nt) are lower than the others'.
+     H-b (some annotators count PASS-BY contacts): annotator A supports H-b for a code iff its PASS-BY share exceeds
+       the others' by >= 0.05 with the pool-bootstrap 95 % CI excluding 0 AND its BORIS share of bouts < 0.4 s is
+       higher than the others'.
+     Only annotators with >= 3 pools (SG, SD, MB, MF) are tested; CP / MR (1 pool each) are reported only.
+     Line-matched: the same two differences are recomputed within each line where A and the others both have
+       videos, and reported.
+     STYLE SEPARABILITY: per-video features (frame rates, bouts / min, median bout length, share < 0.4 s for nn / np
+       / nt; pass-by share; onset lag median), residualised on line x phase means; multinomial logistic, leave-one-
+       POOL-out CV (annotator is nested in pool), annotators with >= 3 pools; balanced accuracy vs chance (1 / 4) and
+       vs a pool-level label permutation null (200 permutations, p = share of permuted >= observed). Separable iff
+       p < 0.05.
+
+Steps (analysis.sh runs each in Slurm): labels (CPU) | diag (GPU: Q1b, Q1c, Q2, Q3) | temporal (GPU: Q4) | style (CPU)
 """
 import argparse
 import json
@@ -829,11 +860,315 @@ def cmd_temporal(args):
     log(json.dumps(out['decision'], default=str)[:4000])
 
 
+# ---------------------------------------------------------------------------------------------- Q1 style
+def mask_video(v, workers=2):
+    """-> (n, 64, 64) bool tight 512 px mask of every 5 fps frame of video v (rotated), via chunked decode."""
+    pb = np.load(REPO / 'dataset/mice/v1/eci/fg448al/background' / f'{v["obs"]}.npz')['pix_bg'].astype(np.int16)
+    out = np.zeros((v['n'], G, G), bool)
+    for k0 in range(0, v['n'], 300):
+        m = min(300, v['n'] - k0)
+        fr = R4.decode(v['path'], v['offset'] + C['step'] * k0, m, C['step'], 512, v['hflip'], C['fps'],
+                       threads=workers)
+        fr = np.rot90(fr, v['rot'], axes=(1, 2)).astype(np.int32)
+        gr = (fr[..., 0] * 19595 + fr[..., 1] * 38470 + fr[..., 2] * 7471 + 32768) >> 16
+        dark = (gr < 60) & ((pb[None] - gr) > 40)
+        out[k0:k0 + m] = dark.reshape(m, G, 8, G, 8).mean((2, 4)) >= 0.25
+    return out
+
+
+def geom_frames(M):
+    """M (n, 64, 64) bool -> ncomp (>= 5), maxc, elongation of the largest component, centroid (r, c)."""
+    from scipy import ndimage
+    n = len(M)
+    nc, mx, el = np.zeros(n, np.int16), np.zeros(n, np.int16), np.zeros(n, np.float32)
+    st = np.ones((3, 3), bool)
+    rr, cc = np.mgrid[0:G, 0:G]
+    for i in range(n):
+        lab, k = ndimage.label(M[i], structure=st)
+        if k == 0:
+            continue
+        sz = np.bincount(lab.ravel())
+        sz[0] = 0
+        big = sz[sz >= 5]
+        nc[i] = len(big)
+        j = int(np.argmax(sz))
+        mx[i] = sz[j]
+        if sz[j] >= 3:
+            m = lab == j
+            r, c = rr[m].astype(float), cc[m].astype(float)
+            cv = np.cov(np.stack([r, c]))
+            ev = np.linalg.eigvalsh(cv)
+            el[i] = np.sqrt(max(ev[1], 1e-6) / max(ev[0], 1e-3))
+    return nc, mx, el
+
+
+def runs(x):
+    """bool (n,) -> (starts, ends exclusive)."""
+    d = np.diff(np.r_[0, x.astype(np.int8), 0])
+    return np.flatnonzero(d == 1), np.flatnonzero(d == -1)
+
+
+def cmd_style(args):
+    P = N.load_plan()
+    vids = [v for v in P['videos'] if v['annotated']]
+    sdir = BEEA / 'style'
+    sdir.mkdir(parents=True, exist_ok=True)
+    nw = int(os.environ.get('SLURM_CPUS_PER_TASK', 16))
+
+    def one(v):
+        f = sdir / f'{v["obs"]}.npz'
+        if f.exists():
+            return
+        t0 = time.time()
+        M = mask_video(v)
+        nc, mx, el = geom_frames(M)
+        loc = N.local_dir() / f'{v["obs"]}.npz'
+        np.savez(loc, mask=np.packbits(M.reshape(len(M), -1), axis=1), ncomp=nc, maxc=mx, elong=el)
+        R4.atomic_copy(loc, f)
+        loc.unlink()
+        log(f'style {v["obs"]}: {len(M)} frames in {time.time() - t0:.0f}s')
+    with ThreadPoolExecutor(max(1, nw // 2)) as ex:
+        list(ex.map(one, vids))
+    style_analysis(vids)
+
+
+def style_analysis(vids):
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import balanced_accuracy_score
+    sdir = BEEA / 'style'
+    e = pd.read_csv(REPO / 'data/mice/v1/experiment.csv').set_index('observation_id')
+    a = pd.read_csv(REPO / C['ann'], usecols=['observation_id', 'Y_nn', 'Y_np', 'Y_nt'])
+    Z = {}
+    for v in vids:
+        z = np.load(sdir / f'{v["obs"]}.npz')
+        Z[v['obs']] = {k_: z[k_] for k_ in z.files}
+    # mask check vs the 1024 px diagnosis tokens
+    root = R2.BEE2 / 'diag'
+    Fd = pd.read_parquet(root / 'frames.parquet')
+    tf = np.load(root / 'tok_frame.npy')
+    pos = np.load(root / 'tok_pos.npy').astype(np.int64)
+    st_ = np.r_[0, np.cumsum(np.bincount(tf, minlength=len(Fd)))]
+    jac = []
+    for i in range(0, len(Fd), 37):
+        o, k = Fd.obs.values[i], int(Fd.k.values[i])
+        m512 = np.unpackbits(Z[o]['mask'][k])[:G * G].astype(bool)
+        m1024 = np.zeros(G * G, bool)
+        m1024[pos[st_[i]:st_[i + 1]]] = True
+        u = (m512 | m1024).sum()
+        jac.append((m512 & m1024).sum() / u if u else 1.0)
+    res = {'mask_check_jaccard_512_vs_1024_tight': {'n_frames': len(jac), 'mean': float(np.mean(jac)),
+                                                    'median': float(np.median(jac))}}
+    # A1, contact, end-to-end threshold
+    per = {}
+    for v in vids:
+        z = Z[v['obs']]
+        nc, mx, el = z['ncomp'], z['maxc'].astype(float), z['elong']
+        four = mx[nc == 4]
+        per[v['obs']] = {'A1': float(np.median(four)) if len(four) >= 20 else np.nan, 'mx': mx, 'el': el}
+    glob = float(np.nanmedian([p['A1'] for p in per.values()]))
+    for p in per.values():
+        if not np.isfinite(p['A1']):
+            p['A1'] = glob
+        p['contact'] = p['mx'] >= 1.5 * p['A1']
+    thr_el = float(np.quantile(np.concatenate([p['el'][p['contact']] for p in per.values()]), 0.75))
+    res['end_to_end_elongation_threshold_p75'] = thr_el
+    res['contact_frame_share'] = float(np.mean(np.concatenate([p['contact'] for p in per.values()])))
+    codes = {'nn': 'Y_nn', 'np': 'Y_np', 'nt': 'Y_nt'}
+    vrows = []
+    lagrows = []
+    for v in vids:
+        o = v['obs']
+        y = a.iloc[v['src_lo']:v['src_lo'] + v['n']]
+        assert (y.observation_id == o).all()
+        L = {c_: y[col].values > 0 for c_, col in codes.items()}
+        L['nose_nose'] = L['nn'] | L['np']
+        L['any'] = L['nose_nose'] | L['nt']
+        p = per[o]
+        ct = p['contact']
+        e2e = ct & (p['el'] >= thr_el)
+        cs, ce = runs(ct)
+        ev_id = np.full(v['n'], -1)
+        for i, (s0, s1) in enumerate(zip(cs, ce)):
+            ev_id[s0:s1] = i
+        ev_len = (ce - cs) / 5.0
+        fr_ev_len = np.where(ev_id >= 0, ev_len[np.maximum(ev_id, 0)], 0.0)
+        row = {'obs': o, 'annotator': e.loc[o, 'annotator'] if isinstance(e.loc[o, 'annotator'], str) else '?',
+               'pool': e.loc[o, 'pool'], 'line': e.loc[o, 'line'], 'phase': e.loc[o, 'phase'],
+               'minutes': v['n'] / 300, 'contact_events': len(cs)}
+        long_e2e = [(s0, s1) for s0, s1 in zip(cs, ce) if (s1 - s0) > 5 and e2e[s0:s1].mean() >= 0.5]
+        row['long_e2e_events'] = len(long_e2e)
+        row['long_e2e_unlabelled'] = sum(not L['any'][s0:s1].any() for s0, s1 in long_e2e)
+        for c_ in ('nn', 'np', 'nt', 'nose_nose', 'any'):
+            lab = L[c_]
+            row[f'rate_{c_}'] = float(lab.mean())
+            rs, re_ = runs(lab)
+            row[f'runs_{c_}'] = len(rs)
+            row[f'passby_frames_{c_}'] = int((lab & (fr_ev_len < 0.5)).sum())
+            row[f'labelled_frames_{c_}'] = int(lab.sum())
+            nocon = 0
+            for s0, s1 in zip(rs, re_):
+                ids = ev_id[max(0, s0 - 1):min(v['n'], s1 + 1)]
+                ids = ids[ids >= 0]
+                if not len(ids):
+                    nocon += 1
+                    continue
+                j = np.bincount(ids).argmax()
+                lagrows.append({'obs': o, 'annotator': row['annotator'], 'line': row['line'], 'code': c_,
+                                'onset_lag_s': (s0 - cs[j]) / 5, 'offset_lag_s': (ce[j] - s1) / 5,
+                                'event_len_s': ev_len[j], 'run_len_s': (s1 - s0) / 5})
+            row[f'runs_no_contact_{c_}'] = nocon
+        for x in ('nn', 'np', 'nt'):
+            for y_ in ('nn', 'np', 'nt'):
+                if x != y_:
+                    row[f'co_{x}_{y_}'] = int((L[x] & L[y_]).sum())
+        vrows.append(row)
+    Vd = pd.DataFrame(vrows)
+    Lg = pd.DataFrame(lagrows)
+    # BORIS bouts
+    B = []
+    for o, r in e[e.annotation_file.notna()].iterrows():
+        d = pd.read_csv(REPO / 'data/mice/v1/annotations' / r.annotation_file)
+        d = d[d.behavior_type.notna()]
+        du = pd.to_numeric(d['Duration (s)'], errors='coerce')
+        du = du.where(du.notna(), pd.to_numeric(d['Stop (s)'], errors='coerce') -
+                      pd.to_numeric(d['Start (s)'], errors='coerce'))
+        B.append(pd.DataFrame({'obs': o, 'code': d.behavior_type.replace({'np?': 'np'}).values, 'dur': du.values}))
+    B = pd.concat(B)
+    B['annotator'] = B.obs.map(Vd.set_index('obs').annotator)
+    B['line'] = B.obs.map(Vd.set_index('obs').line)
+    B['pool'] = B.obs.map(Vd.set_index('obs').pool)
+    tested = [an for an, g in Vd.groupby('annotator') if g.pool.nunique() >= 3]
+    res['tested_annotators'] = tested
+
+    def ann_stats(V, Bb, Lgg):
+        st = {}
+        for an, g in V.groupby('annotator'):
+            bb, ll = Bb[Bb.annotator == an], Lgg[Lgg.annotator == an]
+            d = {'videos': int(len(g)), 'pools': int(g.pool.nunique()),
+                 'bouts_per_min_any': float(g.runs_any.sum() / g.minutes.sum()),
+                 'miss_proxy_long_e2e_unlabelled': float(g.long_e2e_unlabelled.sum() / max(1, g.long_e2e_events.sum())),
+                 'long_e2e_events': int(g.long_e2e_events.sum())}
+            for c_ in ('nn', 'np', 'nt', 'nose_nose'):
+                d[f'{c_}_rate'] = float((g[f'rate_{c_}'] * g.minutes).sum() / g.minutes.sum())
+                d[f'{c_}_passby_share'] = float(g[f'passby_frames_{c_}'].sum() / max(1, g[f'labelled_frames_{c_}'].sum()))
+                d[f'{c_}_runs_no_contact_share'] = float(g[f'runs_no_contact_{c_}'].sum() / max(1, g[f'runs_{c_}'].sum()))
+                lc = ll[ll.code == c_]
+                d[f'{c_}_onset_lag_median_s'] = float(lc.onset_lag_s.median()) if len(lc) else np.nan
+                d[f'{c_}_offset_lag_median_s'] = float(lc.offset_lag_s.median()) if len(lc) else np.nan
+                d[f'{c_}_contact_event_len_median_s'] = float(lc.event_len_s.median()) if len(lc) else np.nan
+            for c_ in ('nn', 'np', 'nt'):
+                du = bb[bb.code == c_].dur.dropna()
+                d[f'{c_}_boris_dur_median_s'] = float(du.median()) if len(du) else np.nan
+                d[f'{c_}_boris_share_lt_0.4s'] = float((du < 0.4).mean()) if len(du) else np.nan
+                d[f'{c_}_usage_share'] = float(g[f'labelled_frames_{c_}'].sum() /
+                                              max(1, sum(g[f'labelled_frames_{x}'].sum() for x in ('nn', 'np', 'nt'))))
+                for y_ in ('nn', 'np', 'nt'):
+                    if y_ != c_:
+                        d[f'P({y_}|{c_})'] = float(g[f'co_{c_}_{y_}'].sum() / max(1, g[f'labelled_frames_{c_}'].sum()))
+            st[an] = d
+        return st
+    res['per_annotator'] = ann_stats(Vd, B, Lg)
+    res['per_line_annotator'] = {ln: ann_stats(Vd[Vd.line == ln], B[B.line == ln], Lg[Lg.line == ln])
+                                 for ln in sorted(Vd.line.unique())}
+
+    # hypotheses (pool bootstrap of A - others)
+    def boot_diff(Vsub, Bsub, an, fn, nb=500, seed=0):
+        pools = Vsub.pool.unique()
+        g = np.random.default_rng(seed)
+        obs = fn(Vsub, Bsub, an)
+        bs = []
+        pa = Vsub[Vsub.annotator == an].pool.unique()
+        po = Vsub[Vsub.annotator != an].pool.unique()
+        for _ in range(nb):
+            sa = g.choice(pa, len(pa))
+            so = g.choice(po, len(po))
+            Vb = pd.concat([Vsub[(Vsub.pool == p_) & (Vsub.annotator == an)] for p_ in sa] +
+                           [Vsub[(Vsub.pool == p_) & (Vsub.annotator != an)] for p_ in so])
+            bs.append(fn(Vb, Bsub, an))
+        return {'diff': float(obs), 'ci95': [float(np.nanquantile(bs, .025)), float(np.nanquantile(bs, .975))]}
+
+    def miss_diff(Vs, Bs, an):
+        A_, O_ = Vs[Vs.annotator == an], Vs[Vs.annotator != an]
+        return A_.long_e2e_unlabelled.sum() / max(1, A_.long_e2e_events.sum()) - \
+            O_.long_e2e_unlabelled.sum() / max(1, O_.long_e2e_events.sum())
+
+    def passby_diff(c_):
+        def f(Vs, Bs, an):
+            A_, O_ = Vs[Vs.annotator == an], Vs[Vs.annotator != an]
+            return A_[f'passby_frames_{c_}'].sum() / max(1, A_[f'labelled_frames_{c_}'].sum()) - \
+                O_[f'passby_frames_{c_}'].sum() / max(1, O_[f'labelled_frames_{c_}'].sum())
+        return f
+    hyp = {}
+    for an in tested:
+        A_, O_ = Vd[Vd.annotator == an], Vd[Vd.annotator != an]
+        bpm = (A_.runs_any.sum() / A_.minutes.sum(), O_.runs_any.sum() / O_.minutes.sum())
+        md = boot_diff(Vd, B, an, miss_diff)
+        h = {'H-a': {'miss_proxy_diff': md, 'bouts_per_min_A_vs_others': bpm,
+                     'supported': bool(md['diff'] >= 0.10 and md['ci95'][0] > 0 and bpm[0] < bpm[1])}}
+        for c_ in ('nn', 'np', 'nt'):
+            pdd = boot_diff(Vd, B, an, passby_diff(c_))
+            sh = (float((B[(B.annotator == an) & (B.code == c_)].dur < 0.4).mean()),
+                  float((B[(B.annotator != an) & (B.code == c_)].dur < 0.4).mean()))
+            h[f'H-b {c_}'] = {'passby_diff': pdd, 'boris_share_lt_0.4s_A_vs_others': sh,
+                              'supported': bool(pdd['diff'] >= 0.05 and pdd['ci95'][0] > 0 and sh[0] > sh[1])}
+        lm = {}
+        for ln in sorted(Vd.line.unique()):
+            Vl = Vd[Vd.line == ln]
+            if (Vl.annotator == an).any() and (Vl.annotator != an).any():
+                lm[ln] = {'miss_diff': float(miss_diff(Vl, B, an)),
+                          **{f'passby_diff_{c_}': float(passby_diff(c_)(Vl, B, an)) for c_ in ('nn', 'np', 'nt')}}
+        h['line_matched'] = lm
+        hyp[an] = h
+    res['hypotheses'] = hyp
+    # style separability
+    feats = []
+    for c_ in ('nn', 'np', 'nt'):
+        Vd[f'bpm_{c_}'] = Vd[f'runs_{c_}'] / Vd.minutes
+        Vd[f'passby_{c_}'] = Vd[f'passby_frames_{c_}'] / Vd[f'labelled_frames_{c_}'].clip(lower=1)
+        bb = B[B.code == c_].groupby('obs').dur
+        Vd[f'durmed_{c_}'] = Vd.obs.map(bb.median()).fillna(0)
+        Vd[f'short_{c_}'] = Vd.obs.map(bb.apply(lambda x: (x < 0.4).mean())).fillna(0)
+        Vd[f'lrate_{c_}'] = np.log(Vd[f'rate_{c_}'] + 1e-4)
+        feats += [f'lrate_{c_}', f'bpm_{c_}', f'durmed_{c_}', f'short_{c_}', f'passby_{c_}']
+    Vd['onset_med'] = Vd.obs.map(Lg[Lg.code == 'any'].groupby('obs').onset_lag_s.median()).fillna(0)
+    feats.append('onset_med')
+    S_ = Vd[Vd.annotator.isin(tested)].copy()
+    X = S_[feats].values.astype(float)
+    grp = S_.line.astype(str) + '_' + S_.phase.astype(str)
+    X = X - pd.DataFrame(X).groupby(grp.values).transform('mean').values
+    X = (X - X.mean(0)) / np.where(X.std(0) > 0, X.std(0), 1)
+    yA = S_.annotator.values
+    pools = S_.pool.values
+
+    def lopo(yv):
+        pred = np.empty(len(yv), object)
+        for p_ in np.unique(pools):
+            te = pools == p_
+            clf = LogisticRegression(C=0.5, max_iter=2000).fit(X[~te], yv[~te])
+            pred[te] = clf.predict(X[te])
+        return balanced_accuracy_score(yv, pred)
+    obs_acc = lopo(yA)
+    pool_ann = S_.groupby('pool').annotator.agg(lambda x: x.mode()[0])
+    g = np.random.default_rng(3)
+    null = []
+    for _ in range(200):
+        perm = pd.Series(g.permutation(pool_ann.values), index=pool_ann.index)
+        null.append(lopo(S_.pool.map(perm).values))
+    res['style_separability'] = {'annotators': tested, 'n_videos': int(len(S_)), 'n_pools': int(S_.pool.nunique()),
+                                 'features': feats, 'balanced_accuracy_LOPO': float(obs_acc), 'chance': 1 / len(tested),
+                                 'perm_null_mean': float(np.mean(null)), 'perm_null_p95': float(np.quantile(null, .95)),
+                                 'p_perm': float((np.array(null) >= obs_acc).mean()),
+                                 'separable': bool((np.array(null) >= obs_acc).mean() < 0.05)}
+    Vd.to_csv(OUTA / 'style_per_video.csv', index=False)
+    jdump(res, OUTA / 'q1_style.json')
+    log(json.dumps({k: res[k] for k in ('mask_check_jaccard_512_vs_1024_tight', 'style_separability')}))
+
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('labels', 'diag', 'temporal'))
+    p.add_argument('step', choices=('labels', 'diag', 'temporal', 'style'))
     args = p.parse_args()
-    {'labels': cmd_labels, 'diag': cmd_diag, 'temporal': cmd_temporal}[args.step](args)
+    {'labels': cmd_labels, 'diag': cmd_diag, 'temporal': cmd_temporal, 'style': cmd_style}[args.step](args)
 
 
 if __name__ == '__main__':
