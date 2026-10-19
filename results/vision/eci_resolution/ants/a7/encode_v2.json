@@ -1,0 +1,16 @@
+{
+ "arm": "a7",
+ "series": "v2",
+ "S": 1344,
+ "G": 84,
+ "patches_per_body": 6.9818181818181815,
+ "n_frames_encoded": 13200,
+ "n_scored": 13200,
+ "n_videos": 44,
+ "sae_tokens_per_frame": 392.68060606060607,
+ "encoder_tokens_per_frame": 7056,
+ "wall_s": 1167.853180885315,
+ "gpu_s": 1114.3574769496918,
+ "frames_per_gpu_s": 11.845390974655722,
+ "gpu": "NVIDIA L40S"
+}
