@@ -698,7 +698,7 @@ def geom_video(obs_n):
     """One video's tight masks -> per-frame ncomp, maxc, speed, flux, area."""
     from scipy import ndimage
     obs, nv = obs_n
-    z = np.load(BEE / 'masks' / f'{obs}.npz')
+    z = np.load(next((BEE / 'ctx').glob(f'shard_*/masks/{obs}.npz')))
     m = np.unpackbits(z['bits'], axis=1)[:, :G * G].astype(bool).reshape(-1, G, G)
     n = len(m)
     assert n == nv, (obs, n, nv)
