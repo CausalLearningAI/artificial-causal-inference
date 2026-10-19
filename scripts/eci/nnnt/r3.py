@@ -553,27 +553,81 @@ def cmd_score(args):
 
 
 # ---------------------------------------------------------------------------------------------- sheets
+class SheetCtx:
+    """Everything a contact sheet needs: diagnosis store on the GPU, geometry, contact flags, held-out frames."""
+
+    def __init__(self, torch, dev):
+        loc = N.local_dir()
+        R4.atomic_copy(BEE2 / 'diag', loc / 'diag')
+        self.D = Store(loc / 'diag', BEE3 / 'geom_diag.npz', dev, torch)
+        self.D.T = R2.tokens_to(torch, self.D.tok, dev)
+        self.cf, self.A1, _ = contact_frames(self.D.F, self.D.g)
+        self.V = {v['obs']: v for v in N.load_plan()['videos']}
+        sc = json.loads((N.OUT / 'score.json').read_text())
+        half = dict(zip(sc['units'], sc['splits']['rnd0']))
+        self.hold = np.array([half[o.rsplit('_', 2)[0]] == 1 for o in self.D.F.obs.values])
+        self.ann = pd.read_csv(REPO / C['ann'], usecols=['Y_nn', 'Y_np', 'Y_nt'])
+        self.fd = np.load(loc / 'diag' / 'tok_fdark.npy').astype(np.float32)
+
+
+def make_sheet(X, act, ro, lb, fn, title):
+    """act = per-token activation shown, ro = per-token readout values (frame value = max); 24 top held-out frames,
+    <= 1 per video -> (summary, per-frame records)."""
+    D = X.D
+    fmax = np.maximum.reduceat(ro, D.starts[:-1].clip(max=len(ro) - 1))
+    fmax[np.diff(D.starts) == 0] = 0
+    cand = pd.DataFrame({'f': np.arange(D.nf), 'v': fmax, 'obs': D.F.obs.values})[X.hold]
+    cand = cand.sort_values('v', ascending=False).drop_duplicates('obs').head(24)
+    tiles, recs = [], []
+    for f, val in zip(cand.f.values, cand.v.values):
+        o, k, row = D.F.obs.values[f], int(D.F.k.values[f]), int(D.F.row.values[f])
+        v = X.V[o]
+        fr = R4.decode(v['path'], v['offset'] + C['step'] * k, 1, C['step'], N.S, v['hflip'], C['fps'], threads=4)[0]
+        x = np.rot90(fr, v['rot'], axes=(0, 1)).transpose(2, 0, 1).copy()
+        a0, b0 = D.starts[f], D.starts[f + 1]
+        ps = D.pos[a0:b0]
+        h = np.zeros(G * G, np.float32)
+        h[ps] = np.maximum(act[a0:b0], 0)
+        pk = a0 + int(np.argmax(ro[a0:b0]))
+        y = X.ann.iloc[row]
+        lab = ''.join(c for c, col in (('nn', 'Y_nn'), ('np', 'Y_np'), ('nt', 'Y_nt')) if y[col] > 0) or '-'
+        hi = h >= 0.5 * h.max() if h.max() > 0 else np.zeros_like(h, bool)
+        fdk = np.zeros(G * G, np.float32)
+        fdk[ps] = X.fd[a0:b0]
+        r = {'obs': o, 'k': k, 'stored': float(val), 'label': lab, 'contact': bool(X.cf[f]),
+             'peak_dist': int(D.dist[pk]), 'peak_n_nb': int(D.nnb[pk]),
+             'peak_comp_over_A1': float(D.g['comp'][pk] / X.A1[o]), 'n_half_max': int(hi.sum()),
+             'mass_animal_px': float((h * fdk).sum() / h.sum()) if h.sum() > 0 else np.nan}
+        recs.append(r)
+        tiles.append((x, h.reshape(G, G), r))
+    R = pd.DataFrame(recs)
+    want = {'nose_nose': ('nn', 'np'), 'nose_tail': ('nt',)}[lb]
+    pos_ = R.label.apply(lambda s_: any(w in s_ for w in want))
+    summ = {'share_label_pos': float(pos_.mean()),
+            'share_generic_contact': float((R.contact & (R.label == '-')).mean()),
+            'share_other_label': float((~pos_ & (R.label != '-')).mean()),
+            'share_contact': float(R.contact.mean()),
+            'share_peak_boundary': float((R.peak_dist == 1).mean()),
+            'share_peak_interior': float((R.peak_dist >= 2).mean()),
+            'share_peak_tip': float((R.peak_n_nb <= 4).mean()),
+            'share_peak_in_merged_blob': float((R.peak_comp_over_A1 >= 1.5).mean()),
+            'mean_n_half_max': float(R.n_half_max.mean()), 'mass_animal_px': float(R.mass_animal_px.mean()),
+            'label_counts': R.label.value_counts().to_dict()}
+    N.contact_sheet(tiles, fn, title, G)
+    return summ, recs
+
+
 def cmd_sheets(args):
     import torch
     dev = torch.device('cuda')
-    loc = N.local_dir()
-    R4.atomic_copy(BEE2 / 'diag', loc / 'diag')
-    D = Store(loc / 'diag', BEE3 / 'geom_diag.npz', dev, torch)
-    D.T = R2.tokens_to(torch, D.tok, dev)
-    cf, A1, _ = contact_frames(D.F, D.g)
-    Pl = N.load_plan()
-    V = {v['obs']: v for v in Pl['videos']}
+    X = SheetCtx(torch, dev)
+    D = X.D
     res = {}
     for f_ in sorted(OUT3.glob('score*.json')):
         res.update(json.loads(f_.read_text()))
-    sc = json.loads((N.OUT / 'score.json').read_text())
-    half = dict(zip(sc['units'], sc['splits']['rnd0']))
-    hold = np.array([half[o.rsplit('_', 2)[0]] == 1 for o in D.F.obs.values])
-    ann = pd.read_csv(REPO / C['ann'], usecols=['Y_nn', 'Y_np', 'Y_nt'])
     out_f = OUT3 / 'locality.json'
     out = json.loads(out_f.read_text()) if out_f.exists() else {}
     (OUT3 / 'sheets').mkdir(parents=True, exist_ok=True)
-    fd_all = np.load(loc / 'diag' / 'tok_fdark.npy').astype(np.float32)
     for name in args.names.split(','):
         a, s = name.rsplit('_s', 1)
         cfg = arm_cfg(a)
@@ -591,64 +645,97 @@ def cmd_sheets(args):
                     act[a_:b_] = sae.encode(full(z), mode='threshold')[:, j]
             act = act.cpu().numpy()
             ro = act * (D.dist == 1) if cfg['sel'] == 'edge' else act  # the readout's tokens
-            fmax = np.maximum.reduceat(ro, D.starts[:-1].clip(max=len(ro) - 1))
-            fmax[np.diff(D.starts) == 0] = 0
-            cand = pd.DataFrame({'f': np.arange(D.nf), 'v': fmax, 'obs': D.F.obs.values})[hold]
-            cand = cand.sort_values('v', ascending=False).drop_duplicates('obs').head(24)
-            tiles, recs = [], []
-            for f, val in zip(cand.f.values, cand.v.values):
-                o, k, row = D.F.obs.values[f], int(D.F.k.values[f]), int(D.F.row.values[f])
-                v = V[o]
-                fr = R4.decode(v['path'], v['offset'] + C['step'] * k, 1, C['step'], N.S, v['hflip'], C['fps'],
-                               threads=4)[0]
-                x = np.rot90(fr, v['rot'], axes=(0, 1)).transpose(2, 0, 1).copy()
-                a0, b0 = D.starts[f], D.starts[f + 1]
-                ps = D.pos[a0:b0]
-                h = np.zeros(G * G, np.float32)
-                h[ps] = act[a0:b0]
-                pk = a0 + int(np.argmax(ro[a0:b0]))
-                y = ann.iloc[row]
-                lab = ''.join(c for c, col in (('nn', 'Y_nn'), ('np', 'Y_np'), ('nt', 'Y_nt')) if y[col] > 0) or '-'
-                hi = h >= 0.5 * h.max() if h.max() > 0 else np.zeros_like(h, bool)
-                fdk = np.zeros(G * G, np.float32)
-                fdk[ps] = fd_all[a0:b0]
-                r = {'obs': o, 'k': k, 'stored': float(val), 'label': lab, 'contact': bool(cf[f]),
-                     'peak_dist': int(D.dist[pk]), 'peak_n_nb': int(D.nnb[pk]),
-                     'peak_comp_over_A1': float(D.g['comp'][pk] / A1[o]), 'n_half_max': int(hi.sum()),
-                     'mass_animal_px': float((h * fdk).sum() / h.sum()) if h.sum() > 0 else np.nan}
-                recs.append(r)
-                tiles.append((x, h.reshape(G, G), r))
-            R = pd.DataFrame(recs)
-            want = {'nose_nose': ('nn', 'np'), 'nose_tail': ('nt',)}[lb]
-            pos_ = R.label.apply(lambda s_: any(w in s_ for w in want))
-            summ = {'share_label_pos': float(pos_.mean()),
-                    'share_generic_contact': float((R.contact & (R.label == '-')).mean()),
-                    'share_other_label': float((~pos_ & (R.label != '-')).mean()),
-                    'share_contact': float(R.contact.mean()),
-                    'share_peak_boundary': float((R.peak_dist == 1).mean()),
-                    'share_peak_interior': float((R.peak_dist >= 2).mean()),
-                    'share_peak_tip': float((R.peak_n_nb <= 4).mean()),
-                    'share_peak_in_merged_blob': float((R.peak_comp_over_A1 >= 1.5).mean()),
-                    'mean_n_half_max': float(R.n_half_max.mean()), 'mass_animal_px': float(R.mass_animal_px.mean()),
-                    'label_counts': R.label.value_counts().to_dict()}
             fn = OUT3 / 'sheets' / f'{name}_{lb}_n{j}.jpg'
-            N.contact_sheet(tiles, fn, f'round 3 {name} neuron {j} ({lb}-selected on pools half 0 of rnd0; top held-out '
-                                       f'frames, 1 per video; readout {cfg["sel"]})', G)
+            summ, recs = make_sheet(X, act, ro, lb, fn, f'round 3 {name} neuron {j} ({lb}-selected on pools half 0 '
+                                                        f'of rnd0; top held-out frames, 1 per video; readout {cfg["sel"]})')
             out[f'{name}|{lb}'] = {'neuron': j, 'summary': summ, 'frames': recs, 'sheet': str(fn)}
             log(f'{name} {lb} n{j}: ' + json.dumps(summ))
             out_f.write_text(json.dumps(out, indent=1, default=float))
 
 
+def cmd_tmax(args):
+    """DIAGNOSIS (supervised; labels used only here, nothing enters any SAE): the round-2 T-max ceiling direction w
+    (one linear direction on standardised tokens, frame score = max over kept tokens) fitted on pools half 0 of rnd0,
+    shown on the held-out half (contact sheet + the same interpretability numbers), and where w lies relative to the
+    unsupervised dictionaries: share of token variance along w vs an average direction, best |cos| of w with any decoder
+    atom of each listed dictionary (in the dictionary's input space)."""
+    import torch
+    dev = torch.device('cuda')
+    X = SheetCtx(torch, dev)
+    D = X.D
+    Y, unit = R2.labels_of(D.F.row.values)
+    T = D.T
+    ii = torch.from_numpy(np.random.default_rng(0).choice(len(D.tf), 1_000_000, replace=False))
+    sub = T[ii].to(dev).float()
+    mu, sd = sub.mean(0), sub.std(0) + 1e-3
+    Tn = torch.empty((len(D.tf), N.D), dtype=torch.float16, device=dev)
+    for a in range(0, len(D.tf), 1_000_000):
+        Tn[a:a + 1_000_000] = ((R2.chunk_of(T, a, a + 1_000_000, dev).float() - mu) / sd).half()
+    D.T = None
+    del T
+    bags = R2.Bags(torch, Tn, D.tf, D.nf, dev)
+    tr = torch.from_numpy(np.flatnonzero(~X.hold)).to(dev)
+    te = np.flatnonzero(X.hold)
+    cov = ((sub - mu) / sd).T @ ((sub - mu) / sd) / len(sub)
+    out = {}
+    (OUT3 / 'sheets').mkdir(parents=True, exist_ok=True)
+    for li, lb in enumerate(('nose_nose', 'nose_tail')):
+        torch.manual_seed(0)
+        f = R2.fit_probe(torch, 'max', bags, None, Y[:, li], tr, dev, steps=1500)
+        m = R2.metrics(f(torch.from_numpy(te).to(dev)), Y[te, li])
+        net_w, net_b = f.net.weight[0].detach(), f.net.bias.detach()
+        with torch.no_grad():
+            act = torch.cat([(Tn[a:a + 1_000_000].float() @ net_w + net_b) for a in range(0, len(D.tf), 1_000_000)])
+        act = act.cpu().numpy()
+        wu = net_w / net_w.norm()
+        var_share = float(wu @ cov @ wu / torch.diagonal(cov).mean())  # variance along w / mean per-dim variance
+        lam = torch.linalg.eigvalsh(cov.double())
+        rank = float((lam > float(wu.double() @ cov.double() @ wu.double())).float().mean())
+        # alignment with dictionaries: w in raw token space = net_w / sd; compare with decoder atoms (raw space)
+        wraw = (net_w / sd)
+        wraw = wraw / wraw.norm()
+        cos = {}
+        for name in args.names.split(','):
+            a, s = name.rsplit('_s', 1)
+            cfg = arm_cfg(a)
+            if cfg['prep'] != 'id':
+                continue
+            if 'ica' in cfg:
+                ck = torch.load(BEE3 / 'sae' / name / 'ica.pt')
+                Wd = torch.linalg.pinv(ck['Wt'].to(dev))  # (m, d): x - mu ~ s @ Wd, rows = mixing atoms
+            else:
+                sae, _ = load_arm(torch, a, int(s), dev)
+                Wd = sae.W_dec.detach()
+                if 'reuse' in cfg:
+                    from src.eci.sae import load_sae
+                    _, norm, _ = load_sae(BEE2 / 'sae' / f'{cfg["reuse"]}_s{s}' / 'sae_theta.pt', dev)
+                else:
+                    from src.eci.sae import load_sae
+                    _, norm, _ = load_sae(BEE3 / 'sae' / name / 'sae_theta.pt', dev)
+                Wd = Wd / norm.scale  # back to raw token space (TokenNorm: (x - mean) * scale)
+            c_ = torch.nn.functional.normalize(Wd.float(), dim=1) @ wraw
+            cos[name] = {'max_abs_cos': float(c_.abs().max()), 'n_atoms_cos_gt_0.3': int((c_.abs() > 0.3).sum())}
+        fn = OUT3 / 'sheets' / f'TMAX_{lb}.jpg'
+        summ, recs = make_sheet(X, act, act, lb, fn, f'DIAGNOSIS supervised T-max direction for {lb} (fit on pools half '
+                                                     f'0 of rnd0; top held-out frames, 1 per video)')
+        out[lb] = {'heldout_rnd0_half1': m, 'variance_share_vs_mean_dim': var_share,
+                   'share_of_eigenvalues_above_w_variance': rank, 'dict_alignment': cos, 'summary': summ,
+                   'frames': recs, 'sheet': str(fn)}
+        log(f'T-max {lb}: held-out R~ {m["R"]:.4f} AUROC {m["A"]:.4f}; var along w / mean dim {var_share:.3f}; '
+            f'eig share above {rank:.3f}; ' + json.dumps(cos) + ' ' + json.dumps(summ))
+        (OUT3 / 'tmax.json').write_text(json.dumps(out, indent=1, default=float))
+
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('geom', 'train', 'score', 'sheets'))
+    p.add_argument('step', choices=('geom', 'train', 'score', 'sheets', 'tmax'))
     p.add_argument('--arms', default='R2,R3,R4,R5,R7')
     p.add_argument('--seeds', default='0,1,2,3,4,5')
     p.add_argument('--names', default='')
     p.add_argument('--out', default='')
     p.add_argument('--force', action='store_true')
     args = p.parse_args()
-    {'geom': cmd_geom, 'train': cmd_train, 'score': cmd_score, 'sheets': cmd_sheets}[args.step](args)
+    {'geom': cmd_geom, 'train': cmd_train, 'score': cmd_score, 'sheets': cmd_sheets, 'tmax': cmd_tmax}[args.step](args)
 
 
 if __name__ == '__main__':

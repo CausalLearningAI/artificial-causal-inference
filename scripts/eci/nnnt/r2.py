@@ -363,6 +363,7 @@ def fit_probe(torch, kind, bags, Xf, y, tr, dev, steps=1500, bs=2048, lr=1e-3, w
             for a in range(0, len(frames), 4096):
                 out.append(fwd(frames[a:a + 4096]).double().cpu())
         return torch.cat(out).numpy()
+    score.net = net  # the fitted module (r3 tmax diagnosis reads the direction)
     return score
 
 
