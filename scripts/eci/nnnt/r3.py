@@ -64,6 +64,19 @@ INTERPRETABILITY (step 'sheets', every winner + refs): neuron selected on pools 
     component size relative to A1. Summary: share labelled positive, share generic contact, share of peaks on the mask
     boundary (dist 1) vs interior (dist >= 2), share of peaks at blob tips (n_nb <= 4).
 """
+# ROUND 4 (PRE-REGISTERED 2026-10-20 ~01:30, after the round-3 table; nothing below has been scored yet).
+#   Observation that motivates it (post hoc, therefore tested fresh): the context arms have a heavy upper tail across
+#   seeds (R7 nose_nose R~ by seed 0.170 / 0.090 / 0.103 / 0.317 / 0.278 / 0.159; R5 seed 4 0.256), while no SAE without
+#   context in rounds 2-3 (81 distinct SAEs: r2 S0-S7 x 6 seeds, r3 R1-R4 / R8 x 6, R6 x 3) exceeded nose_nose R~ 0.194.
+#   If the good atom is found by some seeds only, the label-honest way to use that is a UNION dictionary: the codes of
+#   many fresh seeds side by side, the neuron selected on one pool half and scored on the other exactly as before (the
+#   selection now also picks the seed).
+#   ARMS: union of R7 (context tokens, edge tokens) seeds 6-25 vs the comparator union of 'R0' (= S2 recipe: no
+#   context, all tokens, Matryoshka 2048 k16, trained by this code) seeds 6-25; same neuron count. Each arm is scored
+#   as two disjoint 10-seed unions (seeds 6-15 and 16-25; 20,480 neurons each) and the 20-seed union.
+#   RULE: KEEP the R7 union iff BOTH of its 10-seed unions beat BOTH R0 10-seed unions on primary R~ by >= +0.02;
+#   nose_nose and nose_tail reported separately (with the split-to-split sd); the goal criterion (r3 docstring) is
+#   re-applied to the 20-seed union; contact sheets for its selected nn / nt neurons.
 import argparse
 import json
 import os
@@ -100,6 +113,7 @@ ARMS = {  # prep: id | white | ctx ; sel: all | edge (train + readout) ; sampler
     'R6': dict(prep='id', sel='all', W=32768, prefixes=(128, 512, 2048, 8192, 32768)),
     'R7': dict(prep='ctx', sel='edge'),
     'R8': dict(prep='id', sel='all', ica=512),
+    'R0': dict(prep='id', sel='all'),  # = S2 recipe trained by this code (round-4 comparator)
 }
 
 
@@ -521,6 +535,34 @@ def cmd_score(args):
     Yg = torch.from_numpy(Y).to(dev)
     res_f = OUT3 / (args.out or 'score.json')
     res = json.loads(res_f.read_text()) if res_f.exists() else {}
+    if args.union:
+        seeds = [int(x) for x in args.seeds.split(',')]
+        for a in args.arms.split(','):
+            name = f'U_{a}_{seeds[0]}-{seeds[-1]}'
+            if name in res and not args.force:
+                continue
+            Xs, blocks = [], []
+            for s in seeds:
+                sae, full = load_arm(torch, a, s, dev)
+                Xs.append(read_codes(torch, D, sae, full, arm_cfg(a), dev))
+                blocks.append([s, int(sae.n_latents)])
+                del sae
+            X = torch.cat(Xs, 1)
+            del Xs
+            torch.cuda.empty_cache()
+            out, _ = N.score_set(torch, X, Yg, half_of, dev)
+            out['spec'] = spec_metrics(X, out, Y, half_of, cf)
+            out['width'], out['blocks'], out['arm'] = int(X.shape[1]), blocks, a
+            res[name] = out
+            m = out['mean']
+            log(f'{name}: nn R~ {m["nose_nose"]["R"]:.4f} (sd splits {m["nose_nose"]["R_sd_splits"]:.4f}) AUROC '
+                f'{m["nose_nose"]["A"]:.4f} | nt R~ {m["nose_tail"]["R"]:.4f} (sd {m["nose_tail"]["R_sd_splits"]:.4f}) '
+                f'AUROC {m["nose_tail"]["A"]:.4f} | primary R~ {out["primary"]:.4f}; GPU peak '
+                f'{torch.cuda.max_memory_allocated() / 2**30:.1f} GiB')
+            del X
+            torch.cuda.empty_cache()
+            res_f.write_text(json.dumps(res, indent=1, default=float))
+        return
     for a in args.arms.split(','):
         for s in [int(x) for x in args.seeds.split(',')]:
             name = f'{a}_s{s}'
@@ -629,11 +671,18 @@ def cmd_sheets(args):
     out = json.loads(out_f.read_text()) if out_f.exists() else {}
     (OUT3 / 'sheets').mkdir(parents=True, exist_ok=True)
     for name in args.names.split(','):
-        a, s = name.rsplit('_s', 1)
-        cfg = arm_cfg(a)
-        sae, full = load_arm(torch, a, int(s), dev)
         for lb in ('nose_nose', 'nose_tail'):
             j = res[name]['splits']['rnd0'][lb]['neurons'][0]
+            if name.startswith('U_'):  # union dictionary: index -> (seed, local neuron)
+                a = res[name]['arm']
+                for s, w in res[name]['blocks']:
+                    if j < w:
+                        break
+                    j -= w
+            else:
+                a, s = name.rsplit('_s', 1)
+            cfg = arm_cfg(a)
+            sae, full = load_arm(torch, a, int(s), dev)
             act = torch.zeros(len(D.tf), dtype=torch.float32, device=dev)
             with torch.no_grad():
                 for f0, f1, a_, b_, z in D.chunks(16 if cfg['W'] > 8192 else 48):
@@ -645,7 +694,8 @@ def cmd_sheets(args):
                     act[a_:b_] = sae.encode(full(z), mode='threshold')[:, j]
             act = act.cpu().numpy()
             ro = act * (D.dist == 1) if cfg['sel'] == 'edge' else act  # the readout's tokens
-            fn = OUT3 / 'sheets' / f'{name}_{lb}_n{j}.jpg'
+            fn = OUT3 / 'sheets' / f'{name}_{lb}_{a}s{s}n{j}.jpg' if name.startswith('U_') else \
+                OUT3 / 'sheets' / f'{name}_{lb}_n{j}.jpg'
             summ, recs = make_sheet(X, act, ro, lb, fn, f'round 3 {name} neuron {j} ({lb}-selected on pools half 0 '
                                                         f'of rnd0; top held-out frames, 1 per video; readout {cfg["sel"]})')
             out[f'{name}|{lb}'] = {'neuron': j, 'summary': summ, 'frames': recs, 'sheet': str(fn)}
@@ -734,6 +784,7 @@ def main():
     p.add_argument('--names', default='')
     p.add_argument('--out', default='')
     p.add_argument('--force', action='store_true')
+    p.add_argument('--union', action='store_true', help='score: one union dictionary per arm over --seeds')
     args = p.parse_args()
     {'geom': cmd_geom, 'train': cmd_train, 'score': cmd_score, 'sheets': cmd_sheets, 'tmax': cmd_tmax}[args.step](args)
 
