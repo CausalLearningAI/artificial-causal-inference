@@ -197,6 +197,8 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
   .fb{grid-template-columns:repeat(3,minmax(0,1fr))}
   .bar{justify-content:flex-start}
 }
+.v0g{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:4px;margin:4px 0 10px}
+.v0t{aspect-ratio:1;background-color:#111;background-repeat:no-repeat;background-size:800% 200%;border-radius:4px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -209,7 +211,7 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
     <details class="xdet" id="expDet"><summary>experiment details</summary><div class="xbox" id="expBox"></div></details>
     <div class="model" id="modelBar" role="group" aria-label="Behavioural representation">
       <span class="mlab">Behavioural representation:</span>
-      <span class="opt" id="modelOpt"><span class="tip" title="The representation of the videos the search runs on: v0 = the original ECI paper recipe (to be replicated), v1 = deployed, v2 = in progress">Model</span></span>
+      <span class="opt" id="modelOpt"><span class="tip" title="The representation of the videos the search runs on: v0 = the baseline (the original ECI paper recipe), v1 = deployed, v2 = in progress">Model</span></span>
       <span class="opt" id="outcomeOpt"><span class="tip" title="Temporal aggregation: how the frame values of one video become the per-video outcome the search tests (event rate = bouts per minute; average time = mean over the video; latency = seconds to the first bout)">Temporal aggregation</span><span class="seg" id="kindSeg"></span></span>
       <span class="opt" id="prefixOpt"><span class="tip" title="Search only the first 128 or the first 256 neurons (coarse Matryoshka prefixes). 128 is the main search">Neurons</span><span class="seg" id="prefixSeg"><button type="button" data-p="128" title="Search the first 128 neurons (the coarse Matryoshka prefix): the main search">128</button><button type="button" data-p="256" title="Search the first 256 neurons (the next Matryoshka prefix)">256</button></span></span>
       <button type="button" class="dbtn" id="specBtn" aria-expanded="false" aria-controls="specBox" title="The design choices of v0, v1 and v2">Details</button>
@@ -227,6 +229,7 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
 
   <p class="warnbox one" id="subNote" hidden></p>
   <p class="warnbox one" id="cfNote" hidden></p>
+  <p class="warnbox one" id="v0Ban" hidden></p>
 
   <section class="picker" id="picker" aria-label="Choose a comparison">
     <div class="fam" id="micePick">
@@ -326,7 +329,7 @@ const DETAILS = {
 const TAU_TIP = 'tau: effect size in the outcome unit. Phase transition: mean paired change from the earlier to the later phase. Mutation: het − wt (mean of the het videos minus mean of the wt videos; positive = higher in het). Mutation in phase transition: mean change of the het pools minus mean change of the wt pools (positive = the change is larger in het).';
 const METH = () => (DATA.model||{}).method || 'NES';
 const stChip = r => r.st==='undetermined' ? '<span class="chip warn2" title="NESS: significant given every tested set of the other found neurons except sets that nearly reveal the treatment (overlap failure); it may be changed directly or only through such a neuron">undetermined</span>' : r.st==='kept' ? '<span class="chip Y" title="NESS: significant given every tested subset of the other found neurons">kept</span>' : '';
-const pTip = () => METH()==='NESS' ? 'p: NESS p-value (generalized covariance measure test of the neuron given the other found neurons). For a reported neuron: the largest p over every tested conditioning set (or, flagged undetermined, its p given all the others). Reported = below alpha / m (m = neurons tested) at every tested set.' : 'p: t-test p-value. Found = p below the Bonferroni threshold of that search round.';
+const pTip = () => isV0() ? 'p: single-pass t-test p-value of the neuron alone (no conditioning on other neurons). v0 lists every neuron with p < 0.05, without correction for the number of neurons tested.' : METH()==='NESS' ? 'p: NESS p-value (generalized covariance measure test of the neuron given the other found neurons). For a reported neuron: the largest p over every tested conditioning set (or, flagged undetermined, its p given all the others). Reported = below alpha / m (m = neurons tested) at every tested set.' : 'p: t-test p-value. Found = p below the Bonferroni threshold of that search round.';
 const state = {sae:DATA0.sae, from:'all', len:'1s', view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:128, window:'full', neuron:null, heat:true, sort:'count', line:'all', sex:'all', nper:8};
 try{ Object.assign(state, JSON.parse(localStorage.getItem('nes-atlas')||'{}')); }catch(e){}
 DATA = SAES[state.sae] || DATA0; state.sae = DATA.sae; state.window = 'full'; M = DATA.montage || ALL.montage;
@@ -550,12 +553,32 @@ function setSae(sae){
   const SB = $('#specBtn');
   SB.onclick = () => { const B = $('#specBox'); B.hidden = !B.hidden; SB.setAttribute('aria-expanded', String(!B.hidden)); };
 }
-/* model names on the page: v0 = the original ECI paper recipe (SAEnce, arXiv 2510.14073; not computed yet),
-   v1 = the deployed model (internal key 'online'), v2 = the model in progress (internal key 'new') */
-const MLAB = {online:'v1', new:'v2 (in progress)'}, MSHORT = {online:'v1', new:'v2'}, MORD = ['online', 'new'];
-const V0TIP = 'to be replicated: the original ECI paper recipe';
-/* v0 = the original ECI paper recipe (arXiv 2510.14073, App. D.2 and Table 2), the same for every domain; not run yet */
+/* model names on the page: v0 = the baseline, the original ECI paper recipe (SAEnce, arXiv 2510.14073; internal key
+   'v0', entries from build_atlas_v37.py v0_entries), v1 = the deployed model (internal key 'online'), v2 = the model in
+   progress (internal key 'new') */
+const MLAB = {v0:'v0 (baseline)', online:'v1', new:'v2 (in progress)'}, MSHORT = {v0:'v0', online:'v1', new:'v2'}, MORD = ['v0', 'online', 'new'];
+const V0TIP = 'the baseline: the original ECI paper recipe, run on these data (single-pass t-test per neuron, raw p < 0.05, no correction)';
+const isV0 = () => (DATA.model||{}).model==='v0';
+/* v0 rows: Bonferroni / raw-p chip, and a warning chip per recording field that structures the neuron's per-unit
+   values (permutation p < 0.05, checked by scripts/eci/v0 for the 25 smallest-p hits of each comparison) */
+function v0Chips(r){
+  if(!isV0() || !r) return '';
+  let h = r.st==='bonf' ? `<span class="chip Y" title="p ${fmtP(r.p)} is also below the Bonferroni threshold ${fmtP(0.05/r.n_tested)} (0.05 / ${r.n_tested} testable neurons)">Bonferroni ✓</span>`
+                        : `<span class="chip na" title="Found by the original rule only (raw p ${fmtP(r.p)} < 0.05, no correction for the ${r.n_tested} neurons tested); not below the Bonferroni threshold ${fmtP(0.05/r.n_tested)}">raw p only</span>`;
+  for(const [lab, tip] of (r.nuis||[])) h += `<span class="chip warn" title="${esc(`Nuisance check: ${tip}. A neuron that follows ${lab} may reflect the recording, not the treatment.`)}">⚠ ${esc(lab)}</span>`;
+  return h;
+}
+/* v0 = the original ECI paper recipe (arXiv 2510.14073, App. D.2 and Table 2), the same for every domain; run 2026-10-16
+   (scripts/eci/v0/), its search results per comparison are ALL.v0[domain][analysis id] (build_atlas_v37.py v0_table) */
 const V0_CELLS = {fm:'DINOv2-S/14 · 224 px (16×16 patches), full frame', input:'token', mask:'none', sae:'TopK · 4608 · k=20', pool:'mean over all patches', cov:'none', hab:'—'};
+/* v0 results of the shown comparison (all units of the domain: no line / sex subgroups, no day matching) */
+function v0Note(cur){
+  const V = ((ALL.v0||{})[DATA.domain||'mice']||{})[cur && cur.id];
+  if(!V) return '<p class="pa">v0 = recipe of the original ECI paper; not run on this comparison.</p>';
+  const f = (x, k=2) => x==null ? '—' : (Math.abs(x)>=10 ? x.toFixed(0) : x.toFixed(k));
+  return `<p class="pa"><b>v0 on this comparison</b> (${esc(V.n)}; all units, single-pass t-test per code, no covariates): <b>${V.hits}</b> neurons at raw p &lt; 0.05 vs <b>${f(V.expected, 1)}</b> expected by chance (${V.tested} testable codes); <b>${V.bonf}</b> survive Bonferroni${V.fdr==null ? '' : `, ${V.fdr} survive FDR (BH 0.05)`}.${V.names.length ? ` Found: ${esc(V.names.join(', '))}${V.hits>V.names.length ? ', …' : ''}.` : ''}</p>
+      <p class="pa">v0 SAE: trained on single patch tokens (FVE ${f(V.fve_tok)}) but applied to the mean-pooled token, where its FVE is <b>${f(V.fve_pool)}</b> (fraction of variance explained; below 0 = worse than predicting the mean); ${V.alive_pool} of 4608 codes ever fire there.${V.align ? ` Behaviour check — ${esc(V.align)}.` : ''}${V.nuis ? ` Nuisance check — ${esc(V.nuis)}.` : ''}${V.confound ? ` Design: ${esc(V.confound)}.` : ''}</p>`;
+}
 const SPEC_ROWS = [['fm', 'Foundation model'], ['input', 'Input'], ['mask', 'Mask'], ['sae', 'SAE'], ['pool', 'Pooling'], ['cov', 'Search covariates'], ['hab', 'Habituation window']];
 function modelBar(){
   for(const ax of ALL.axes){
@@ -566,21 +589,21 @@ function modelBar(){
     const lab = v => ax.key==='model' ? MLAB[v] || v : v;
     el.disabled = vals.length<2;
     if(ax.key==='model') vals.sort((p,q)=>MORD.indexOf(p)-MORD.indexOf(q));
-    el.innerHTML = (ax.key==='model' ? `<option value="v0" disabled title="${esc(V0TIP)}">v0 (to be replicated)</option>` : '') + vals.map(v=>`<option value="${esc(v)}" title="${esc((ax.tips[v]||v) + (ok.has(v) ? '' : ` (${why(v)})`))}"${ok.has(v)?'':' disabled'}>${esc(lab(v))}${ok.has(v)?'':` (${esc(why(v))})`}</option>`).join('');
+    el.innerHTML = vals.map(v=>`<option value="${esc(v)}" title="${esc((ax.tips[v]||v) + (ok.has(v) ? '' : ` (${why(v)})`))}"${ok.has(v)?'':' disabled'}>${esc(lab(v))}${ok.has(v)?'':` (${esc(why(v))})`}</option>`).join('');
   }
   // Details: one compact table v0 | v1 | v2 (current domain and search method; ants: the v2 SAE of the shown series)
   const SB = $('#specBox'), cur = analysis(state.aid), ex = cur && ANTS() ? expOf(cur) : null;
   const col = m => { const L = domSaes().filter(d => d.model.model===m && d.model.method===METH());
     return L.find(d => d===DATA) || L.find(d => ex && d.analyses.some(a => expOf(a)===ex)) || L[0]; };
-  const c1 = (col('online')||{}).spec, c2 = (col('new')||{}).spec, sk = `${DATA.sae}|${ex}`;
+  const c1 = (col('online')||{}).spec, c2 = (col('new')||{}).spec, sk = `${DATA.sae}|${ex}|${state.aid}`;
   if(SB.dataset.key!==sk){
     SB.dataset.key = sk;
     const cell = (c, k) => c && c.cells && c.cells[k] != null ? c.cells[k] : null;
     const rows = SPEC_ROWS.filter(([k]) => cell(c1, k)!=null || cell(c2, k)!=null);
-    SB.innerHTML = `<table class="spec3"><thead><tr><th></th><th title="${esc(V0TIP)}">v0 (to be replicated)</th><th>v1 (deployed)</th><th>v2 (in progress)</th></tr></thead><tbody>${rows.map(([k, lab]) => {
+    SB.innerHTML = `<table class="spec3"><thead><tr><th></th><th title="${esc(V0TIP)}">v0 (original recipe)</th><th>v1 (deployed)</th><th>v2 (in progress)</th></tr></thead><tbody>${rows.map(([k, lab]) => {
         const a = cell(c1, k), b = cell(c2, k), dif = a!=null && b!=null && a!==b ? ' diff' : '';
         return `<tr><td class="rl">${esc(lab)}</td><td>${esc(V0_CELLS[k] ?? '—')}</td><td class="${dif}">${esc(a ?? '—')}</td><td class="${dif}">${esc(b ?? '—')}</td></tr>`; }).join('')}</tbody></table>
-      <p class="pa">v0 = recipe of the original ECI paper, not yet run on these data.</p>
+      ${v0Note(cur)}
       <p class="pa"><b>Priors:</b> effect on the animals (mask) · fixed camera (patch = arena spot) · anywhere on the animal (max pooling) · v2: ~10 patches per body length, motion (2 s change)</p>
       <p class="pa"><b>Assumptions:</b> effect = shift of a per-video neuron outcome · independent units (video, or pool when paired) · only the listed confounds</p>`;
   }
@@ -767,6 +790,9 @@ function buildControls(){
   if(!CN.hidden) CN.textContent = FROGS() ? `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip names its video (group_session_slot) and the clip rows count their sessions: a neuron found in one session only is suspect; a one-sided (left/right) change in FoxP1 only cannot come from a session.`
                                            : ca.cross ? `⚠ Exp4 infested vs healthy colonies · ${ca.stratum} · not day-matched: ${(String(ca.confound).match(/not day-matched: ([^)]*)/)||[,'the colonies were recorded on different days'])[1].replace('healthy colonies on days', 'healthy colonies were recorded on days')}, so colony is confounded with recording day. Each clip shows its recording day: check whether a neuron follows the lighting or the behaviour.`
                                            : `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip shows its recording day: check whether a neuron follows the lighting or the behaviour.`;
+  const VB = $('#v0Ban'), V0 = DATA.v0;
+  VB.hidden = !isV0();
+  if(isV0()) VB.innerHTML = `<b>v0 = baseline</b> (the original ECI paper recipe, not a candidate model): its rule lists every neuron at raw p &lt; 0.05 with no correction, so about 5% of the tested neurons are listed by chance. Known limitation: its SAE was trained on single patch tokens but is applied to the mean token, where it is out of distribution (fraction of variance explained ${fmt3(V0.fve_pool)}, below 0 = worse than predicting the mean).`;
   const S = SUB(), NB = $('#subNote');
   NB.hidden = !S;
   if(S){
@@ -805,6 +831,7 @@ function renderCmpList(){
   const a=analysis(state.aid), R=res(), S=$('#side');
   const nu = nUnits(a), unit = a.family==='A' ? `${nu} paired pools` : a.family==='C' ? `${nu} pools (het vs wt change)` : `${nu} videos`;
   let h=`<div class="side-head">${GEN() ? '' : `<h2 title="${esc(longLabel(a))}">${esc(label(a))}</h2>`}<span class="meta">${SUB()?`${esc(subLabel())} · `:''}${unit} · ${R.n_tested_total||0} tested · <span class="tip" title="${tauTip()}">τ${FROGS()?` = ${esc(a.treatment)} − ${esc(a.control)}`:!ANTS()&&a.family==='B'?' = het − wt':!ANTS()&&a.family==='C'?' = het − wt change':''}</span> in ${esc(outcome().unit)}</span></div>`;
+  if(isV0() && R.v0) h+=`<p class="note">v0 rule (raw p &lt; 0.05, no correction): <b>${R.v0.hits}</b> listed vs <b>${fmt3(R.v0.expected)}</b> expected by chance; <b>${R.v0.bonf}</b> also pass Bonferroni.</p>`;
   if(R.stopped) h+=`<p class="warnbox one" title="${esc(R.stopped)}">${METH()} stopped early: the search ran out of degrees of freedom after the neurons listed here (${esc(R.stopped.split(':')[0])}).</p>`;
   // top-by-p list (domains with DATA.top): only when the method selected nothing, its 3 smallest first-round p
   const top = shownTop(R);
@@ -819,10 +846,10 @@ function renderCmpList(){
   h+='<div class="rows">';
   for(const r of R.rows){
     const up=r.tau>0;
-    h+=`<button type="button" class="nr" data-n="${r.neuron}" aria-pressed="${r.neuron===state.neuron}" title="round ${r.round}: p ${fmtP(r.p)} < threshold ${fmtP(r.threshold)} (${r.n_tested} tested)">
+    h+=`<button type="button" class="nr" data-n="${r.neuron}" aria-pressed="${r.neuron===state.neuron}" title="${isV0() ? `single-pass t-test: p ${fmtP(r.p)} < 0.05 (raw, ${r.n_tested} tested)` : `round ${r.round}: p ${fmtP(r.p)} < threshold ${fmtP(r.threshold)} (${r.n_tested} tested)`}">
       <span class="id">#${r.neuron}</span>
       <span class="l1"><span class="${up?'up':'down'}">${up?'▲':'▼'} ${fmtTau(r.tau)}</span><span class="pv">p ${fmtP(r.p)}</span>${csHTML(r.neuron)}</span>
-      <span class="chips">${chipsHTML(r)}${censChip(r.cens)}${stChip(r)}</span></button>`;
+      <span class="chips">${chipsHTML(r)}${censChip(r.cens)}${stChip(r)}${v0Chips(r)}</span></button>`;
   }
   if(top.length){ renderTop(S, h+'</div>', top); return; }
   S.innerHTML = h+'</div>';
@@ -835,13 +862,14 @@ function renderTop(S, h, top, fold){
   const thr1 = 0.05 / (res().n_tested_total || 128);   // round-1 Bonferroni threshold of this search
   for(const [j, tau, p, cens] of top){
     const up=tau>0, sig = p < thr1;
-    const why = sig && METH()==='NESS' ? `significant on its own (first-round p ${fmtP(p)} < ${fmtP(thr1)}) but not reported by NESS: it was dropped in the backward check (not significant given some set of the other forward-phase neurons) or set aside as revealing the treatment`
+    const why = isV0() ? `not listed: p ${fmtP(p)} is not below 0.05 (the v0 rule)`
+              : sig && METH()==='NESS' ? `significant on its own (first-round p ${fmtP(p)} < ${fmtP(thr1)}) but not reported by NESS: it was dropped in the backward check (not significant given some set of the other forward-phase neurons) or set aside as revealing the treatment`
               : sig ? `significant in round 1 (p ${fmtP(p)} < ${fmtP(thr1)}) but not selected: once the selected neurons were conditioned on, this one was no longer significant (it overlaps with them)`
                     : `not selected: p above the round-1 Bonferroni threshold (${fmtP(thr1)})`;
     h+=`<button type="button" class="nr" data-n="${j}" aria-pressed="${j===state.neuron}" title="first-round p ${fmtP(p)}: not selected by ${METH()}">
       <span class="id">#${j}</span>
       <span class="l1"><span class="${up?'up':'down'}">${up?'▲':'▼'} ${fmtTau(tau)}</span><span class="pv">p ${fmtP(p)}</span>${csHTML(j)}</span>
-      <span class="chips"><span class="chip na" title="${esc(why)}">${sig?(METH()==='NESS'?'dropped by NESS':'explained by the picks'):'not selected'}</span>${censChip(cens)}</span></button>`;
+      <span class="chips"><span class="chip na" title="${esc(why)}">${sig && !isV0()?(METH()==='NESS'?'dropped by NESS':'explained by the picks'):'not selected'}</span>${censChip(cens)}</span></button>`;
   }
   S.innerHTML = h+'</div></details>';
   for(const b of S.querySelectorAll('.nr')) b.onclick=()=>{ state.neuron=+b.dataset.n; render(); };
@@ -889,7 +917,7 @@ function groupTable(n){
   VIDS().forEach((v,i) => { if(V[i]==null) return; const k = `${v[0]}|${v[1]}`; (g[k] = g[k] || {e:v[0], t:v[1], y:[]}).y.push(V[i]); });
   return Object.values(g).sort((p,q)=>p.e.localeCompare(q.e) || armOrd(p.t)-armOrd(q.t)).map(x => { const s = meanCI(x.y); return {experiment:x.e, T:x.t, mean:s.m, lo:s.lo, hi:s.hi, n:s.n}; });
 }
-const owhat = o => o.kind==='latency' ? `latency to first bout (s, first ${latW()} s)` : o.bout ? o.unit : `mean codes_${o.codes}`;
+const owhat = o => isV0() ? 'mean of the neuron on the mean token' : o.kind==='latency' ? `latency to first bout (s, first ${latW()} s)` : o.bout ? o.unit : `mean codes_${o.codes}`;
 function chartTable(j, n){
   if(GEN()){ const o = outcome(); return {T:groupTable(n)||[], what:`${owhat(o)} per video (full videos)`}; }
   if(SUB() || !n.table || isLat()){
@@ -1027,7 +1055,7 @@ function renderDetail(){
   let h=`<div class="dh"><div class="l"><h2>Neuron ${j}</h2>
     <span class="facts">${n.firing_rate!=null?`<span class="tip" title="Fraction of all ${(DATA.n_frames/1e6).toFixed(2)} M frames where the neuron is active">fires ${(n.firing_rate*100).toFixed(1)}%</span>`:''}`;
   if(r) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${r.tau>0?'up':'down'}" title="${tauTip()}">τ${FROGS()&&a?` (${esc(a.treatment)} − ${esc(a.control)})`:!ANTS()&&a&&a.family==='B'?' (het − wt)':''} ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${pTip()}">p ${fmtP(r.p)}</span>`;
-  const pc = r ? chipsHTML(r) : '';
+  const pc = r ? chipsHTML(r) + v0Chips(r) : '';
   if(pc) h+=` · <span class="chips" style="display:inline-flex">${pc}</span>`;
   if(rt) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${rt[1]>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(rt[1])} ${esc(outcome().unit)}</span> · <span class="tip" title="First-round p-value: not selected by ${METH()}">p ${fmtP(rt[2])} · not selected</span>`;
   const cens = r ? r.cens : rt ? rt[3] : null;
@@ -1124,11 +1152,31 @@ function chartsHTML(j, n, cmp, a, hl, ct){
 }
 /* a neuron left without clips (beyond the build's clip budget): arena map, chart and per-pool panel */
 function renderNoClip(D, h, j, n, cmp, a){
+  if(isV0()) return renderV0(D, h, j, n, cmp, a);
   const AT = `Mean activation of this neuron on each image patch over ${DATA.arena_note || 'all frames'}.`;
   h+=`<div class="two"><div class="hd"><div class="row"><h3 class="tip" title="${esc(AT)}">Arena map</h3><span class="meta tip" title="${esc(DATA.noclip_note || 'Beyond the clip budget of this build (--max-pages): no clips or histogram rendered')}">no clips</span></div>${arenaHTML()}</div><div></div></div>`;
   h+=chartsHTML(j, n, cmp, a, cmp ? hlOf(a) : [], chartTable(j, n));
   D.innerHTML = h+'</div>';
   drawArena(n);
+  for(const b of D.querySelectorAll('.tags .tag')) b.onclick=()=>{ state.view='cmp'; state.aid=b.dataset.aid; render(); };
+  stopClips();
+}
+
+/* v0 neuron: behaviour check, frame strips (scripts/eci/v0/v0_atlas_frames.py: one WebP sprite, row 0 = most
+   activated, row 1 = least activated, 8 tiles each), charts and per-unit values; no heat, arena map or clips */
+function renderV0(D, h, j, n, cmp, a){
+  const F = n.frames, AL = (DATA.v0||{}).align;
+  const hit = ((allFound().find(x=>x.neuron===j)||{hits:[]}).hits.map(x=>x.r)).find(r=>r.align);
+  if(hit && AL) h+=`<p class="note">Behaviour check (${esc(AL.lab)}, frame level, annotated videos): AUROC ${fmt3(hit.align[0])} (0.5 = chance); F1 of “neuron &gt; 0” ${fmt3(hit.align[1])} vs ${fmt3(AL.always_on_f1)} for always predicting the behaviour.</p>`;
+  const tiles = (kind, r) => F[kind].length ? F[kind].map(([v, x, k], i) => `<div class="v0t" style="background-image:url('${F.sprite}');background-position:${i/7*100}% ${r*100}%" title="${esc(`#${i+1} · neuron ${x}\n${clipLabel(v)}\nraw video: ${srcTime(v, k)}`)}"></div>`).join('') : '<div class="pend">no frame where the neuron is exactly 0</div>';
+  const TT = 'The highest single frame of each video (v0 frame codes at 2 frames per second), the 8 videos with the highest such frame, ranked. Hover a tile for its video and its time in the raw source video.';
+  const LT = 'Frames where the neuron is exactly 0: one picked at random in each of 8 random videos that hold one (fixed seed).';
+  h += F ? `<div class="clips"><div class="hd"><div class="row"><h3 class="tip" title="${esc(TT)}">Most activated frames</h3><span class="meta">highest frame, 1 per video</span></div><div class="v0g">${tiles('top', 0)}</div></div>
+    <div class="hd"><div class="row"><h3 class="tip" title="${esc(LT)}">Least activated frames</h3><span class="meta">0, random, 1 per video</span></div><div class="v0g">${tiles('least', 1)}</div></div></div>`
+         : '<p class="note">No frames rendered for this neuron.</p>';
+  h += '<p class="note">v0 shows single frames only: no heat maps or arena map (it codes one mean token per frame, so it has no per-patch codes) and no 1 s clips (its codes are at 2 frames per second).</p>';
+  h += chartsHTML(j, n, cmp, a, cmp ? hlOf(a) : [], chartTable(j, n));
+  D.innerHTML = h+'</div>';
   for(const b of D.querySelectorAll('.tags .tag')) b.onclick=()=>{ state.view='cmp'; state.aid=b.dataset.aid; render(); };
   stopClips();
 }

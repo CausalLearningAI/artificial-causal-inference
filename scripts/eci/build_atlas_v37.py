@@ -816,6 +816,272 @@ def spec_of(e):
     return {'cells': cells}
 
 
+# ---- v0 = the original ECI paper recipe (scripts/eci/v0/: DINOv2-S/14 224 px tokens, TopK SAE 4608 k=20 applied to
+# the mean-pooled token, video mean, single-pass t-test per code, no covariates). Its searches are shown as numbers in
+# the Details panel only (no clips, no neuron pages). Sources: ants v2 = results/vision/ants/eci_v0/ (+ checks.json),
+# the other series / domains = results/vision/<subject>/eci_v0_<domain>/results.json (scripts/eci/v0/v0_domains.py).
+V0_RUNS = (('ants', 'ants_v3', 'results/vision/ants/eci_v0_ants_v3'), ('ants', 'ants_v4', 'results/vision/ants/eci_v0_ants_v4'),
+           ('mice', 'mice_v1', 'results/vision/mice/eci_v0_mice_v1'), ('frogs', 'frogs_v1', 'results/vision/frogs/eci_v0_frogs_v1'))
+V0_WIN = {'ants_v3': '30 min', 'ants_v4': '30 min', 'mice_v1': '15 min per stage, habituation its last 15', 'frogs_v1': 'hour 1'}
+V0_LAB = {'ants': 'grooming', 'mice': 'nose contact (nn / np / nt, union)'}
+
+
+def v0_table():
+    """{domain: {analysis id: v0 summary}}: n per arm, testable codes, raw-p hits vs expected false positives,
+    Bonferroni / FDR survivors, SAE quality on its real input, behaviour alignment, nuisance structure of the hits."""
+    out = {}
+    v2 = ROOT / 'results/vision/ants/eci_v0'
+    if (v2 / 'results.json').exists():
+        r = json.loads((v2 / 'results.json').read_text())
+        chk = json.loads((v2 / 'checks.json').read_text()) if (v2 / 'checks.json').exists() else {}
+        sp, q, g = r['single_pass'], r['quality'], r['all_codes_grooming']
+        found = r['found']
+        nuis = []
+        for f in found:
+            b = chk.get('found_background', {}).get(f['neuron'], {})
+            if b:
+                nuis.append(f"{f['neuron']}: position explains {100 * b['eta2_position']:.0f}% of the video means "
+                            f"(permutation p {b['eta2_position_perm_p']:.3f})")
+        bf = max(found, key=lambda f: f['f1_groom_any']) if found else None
+        out.setdefault('ants', {})['v2_1_vs_2'] = {
+            'n': f"t=1 {r['n_control']} · t=2 {r['n_treated']} videos (10 min, 2 fps)",
+            'tested': sp['n_testable_codes'], 'hits': sp['n_found_raw_p05'], 'expected': sp['expected_false_positives'],
+            'bonf': sp['n_found_bonferroni'], 'fdr': None, 'names': [f['neuron'] for f in found],
+            'fve_tok': q['fve_tokens'], 'fve_pool': q['fve_meanpooled'], 'alive_pool': q['alive_codes_meanpooled_frames'],
+            'align': (f"grooming: best found neuron F1 {bf['f1_groom_any']:.3f} ({bf['neuron']}) vs always-on F1 "
+                      f"{chk.get('always_on_f1_groom_any', float('nan')):.3f}; best of all alive codes F1 "
+                      f"{g['best_f1']['f1']:.3f}, AUROC {g['best_auroc']['auroc']:.3f}") if bf else '',
+            'nuis': '; '.join(nuis), 'confound': ''}
+    for dom, key, rel in V0_RUNS:
+        f = ROOT / rel / 'results.json'
+        if not f.exists():
+            log(f'v0: {f} missing, {key} left out')
+            continue
+        r = json.loads(f.read_text())
+        assert not r.get('smoke'), f'{f} is a smoke run'
+        q, al = r['quality'], r.get('alignment', {})
+        for a in r['analyses']:
+            if a['kind'] == 'paired':
+                n = f"{a['label']}: {a['n_pools']} pools, paired"
+            elif a['kind'] == 'did':
+                n = f"{a['label']}: {a['n_control']} wt · {a['n_treatment']} het pools"
+            else:
+                n = f"{a['label']}: {a['n_control']} control · {a['n_treatment']} treated videos"
+            n += f" ({V0_WIN[key]}, 2 fps)"
+            ali = ''
+            if 'any' in al:
+                x = al['any']
+                bh = a.get('best_aligned_hit_any')
+                ali = (f"{V0_LAB[dom]}: always-on F1 {x['always_on_f1']:.3f} (prevalence {x['prevalence']:.3f}); best of "
+                       f"all alive codes F1 {x['best_f1']['f1']:.3f} ({x['best_f1']['neuron']}); AUROC farthest from 0.5 "
+                       f"{x['best_auroc']['auroc']:.3f} ({x['best_auroc']['neuron']}{', fires less during it' if x['best_auroc']['auroc'] < 0.5 else ''})")
+                if bh:
+                    ali += f"; best found neuron F1 {bh['best_f1_any']:.3f} ({bh['best_f1_neuron']}), AUROC farthest from 0.5 {bh['auroc_any']:.3f} ({bh['neuron']})"
+            ns = a.get('nuisance_summary', {})
+            nuis = ''
+            if ns:
+                test = next(iter(ns.values()))['test']
+                nuis = ('found neurons structured by a recording field (' + test + ' permutation p < 0.05; 5% expected by '
+                        'chance): ' + ', '.join(f"{c.replace('_', ' ')} {v['n_perm_p05']}/{v['n_checked']}"
+                                                for c, v in ns.items()))
+            out.setdefault(dom, {})[a['id']] = {
+                'n': n, 'tested': a['n_testable_codes'], 'hits': a['n_found_raw_p05'], 'expected': a['expected_false_positives'],
+                'bonf': a['n_found_bonferroni'], 'fdr': a['n_found_fdr_bh'], 'names': [],
+                'fve_tok': q.get('fve_tokens_every5th_batch'), 'fve_pool': q['fve_meanpooled'],
+                'alive_pool': q['alive_codes_meanpooled_frames'], 'align': ali, 'nuis': nuis, 'confound': a['confound']}
+        hits = pd.read_csv(ROOT / rel / 'found_neurons.csv') if (ROOT / rel / 'found_neurons.csv').stat().st_size > 2 else None
+        if hits is not None and len(hits):
+            for aid, g in hits.groupby('analysis'):
+                out[dom][aid]['names'] = g.sort_values('p')['neuron'].head(8).tolist()
+    return out
+
+
+# ---- v0 as a selectable model (model value 'v0'): one entry per v0 run, the baseline next to v1 / v2. Its search =
+# the original recipe's single-pass t-test per code (Welch; mice A: paired t-test over pools, C: Welch on the per-pool
+# changes; scripts/eci/v0/v0_domains.py run_analysis): listed = raw p < 0.05, no correction (the paper's rule), each
+# row chipped Bonferroni / raw p only; no hit -> the 3 smallest p as candidates (the page's candidates rule). Outcome =
+# the per-video mean of the code (one temporal aggregation; no bouts or latency in v0). Neuron number = v0's N_<j+1>.
+# No arena maps or heat maps (v0 codes one mean token per frame, no patches); frames: the strips of
+# scripts/eci/v0/v0_atlas_frames.py (results/vision/eci_atlas_v37/v0/<key>/) when they exist.
+V0_OID = 'v0meantok'
+# key -> (domain, results dir, the page entry whose video list / comparison metadata v0 reuses (sae suffix or tag))
+V0_ENTRIES = {'mice_v1': ('mice', 'results/vision/mice/eci_v0_mice_v1', 'fg448al'),
+              'ants_v2': ('ants', 'results/vision/ants/eci_v0', '#ants_v2p_d2'),
+              'ants_v3': ('ants', 'results/vision/ants/eci_v0_ants_v3', '#ants_v3p_d2'),
+              'ants_v4': ('ants', 'results/vision/ants/eci_v0_ants_v4', '#ants_v4p_d2'),
+              'frogs_v1': ('frogs', 'results/vision/frogs/eci_v0_frogs_v1', 'frogsfg')}
+V0_FRAMES = OUT / 'v0'
+V0_NUIS = {'odor_corner': 'odor corner (camera period)', 'line': 'gene line', 'sex': 'sex', 'date': 'recording date',
+           'batch': 'batch', 'position': 'arena position', 'recording_date': 'recording day', 'nestbox': 'nest box',
+           'session': 'recording session', 'slot': 'dish slot', 'day': 'recording day'}
+MODEL_TIPS['v0'] = ('v0 (baseline): the original ECI paper recipe: DINOv2-S/14 at 224 px on the full frame, the mean of '
+                    'its 256 patch tokens, TopK SAE with 4608 neurons (k 20) trained on single patch tokens, '
+                    'single-pass t-test per neuron, raw p < 0.05, no correction, no covariates')
+
+
+def v0_entries(site, saes, data):
+    """The v0 page entries + their data files (site/assets/data/v0_<key>_{r,n}.json) and frame strips."""
+    from scipy.stats import ttest_1samp, ttest_ind
+    out = []
+    for key, (dom, rel, ref_key) in V0_ENTRIES.items():
+        res = ROOT / rel
+        if not (res / 'results.json').exists():
+            log(f'v0: {res} missing, {key} left out')
+            continue
+        R0 = json.loads((res / 'results.json').read_text())
+        ref = next(e for e in saes if e['model'] == {'model': 'new' if ref_key.startswith('#') else 'online',
+                                                       'method': 'NES'}
+                   and (e['sae'].endswith(ref_key) if ref_key.startswith('#') else e['tag'] == ref_key))
+        vids = pd.read_csv(res / 'videos.csv', dtype={'observation_id': str})
+        X = np.load(res / 'video_codes.npy').astype(np.float64)
+        obs = ref.get('obs') or data['obs']
+        V = ref.get('videos') or data['videos']
+        page_ix = {o[0]: i for i, o in enumerate(obs)}
+        assert len(obs) == len(vids) and set(page_ix) == set(vids.observation_id), (key, len(obs), len(vids))
+        Y = X[[vids.index[vids.observation_id == o[0]][0] for o in obs]]  # page video order
+        P = pd.read_csv(res / 'pvalues_all_codes.csv')
+        hits = pd.read_csv(res / 'found_neurons.csv')
+        if key == 'ants_v2':  # single analysis; nuisance checks of its hits in checks.json
+            sp = R0['single_pass']
+            A0 = [{'id': 'v2_1_vs_2', 'kind': 'welch', 'n_testable_codes': sp['n_testable_codes'],
+                   'n_found_raw_p05': sp['n_found_raw_p05'], 'n_found_bonferroni': sp['n_found_bonferroni'],
+                   'n_control': R0['n_control'], 'n_treatment': R0['n_treated']}]
+            P = P.rename(columns={'p': 'p_v2_1_vs_2'})
+            hits['analysis'] = 'v2_1_vs_2'
+            chk = json.loads((res / 'checks.json').read_text()).get('found_background', {})
+            for c in ('position', 'batch', 'day'):
+                hits[f'{c}_eta2'] = [chk.get(n, {}).get(f'eta2_{c}', np.nan) for n in hits.neuron]
+                hits[f'{c}_perm_p'] = [chk.get(n, {}).get(f'eta2_{c}_perm_p', np.nan) for n in hits.neuron]
+            hits = hits.rename(columns={'auroc_groom_any': 'auroc_any', 'f1_groom_any': 'f1_any'})
+            align = {'lab': 'grooming', 'always_on_f1': json.loads((res / 'checks.json').read_text()).get(
+                'always_on_f1_groom_any')}
+        else:
+            A0 = R0['analyses']
+            al = R0.get('alignment', {}).get('any')
+            align = {'lab': V0_LAB[dom], 'always_on_f1': al['always_on_f1']} if al else None
+        ameta = {a['id']: a for a in ref['analyses']}
+        FR = json.loads((V0_FRAMES / key / 'frames.json').read_text()) if (V0_FRAMES / key / 'frames.json').exists() \
+            else None
+        results, vals, an_out, shown = {}, {}, [], set()
+        for a in A0:
+            aid = a['id']
+            m = copy.deepcopy(ameta[aid])
+            # the test, recomputed on the page's per-video values (arms / pools as the page reads them)
+            with np.errstate(invalid='ignore', divide='ignore'):
+                if dom == 'mice':
+                    pool = np.array([v[0] for v in V])
+                    st, gt = np.array([v[1] for v in V]), np.array([v[2] for v in V])
+                    if m['family'] == 'B':
+                        c, t = (st == m['stage']) & (gt == 'wt'), (st == m['stage']) & (gt == 'het')
+                        tt, p = ttest_ind(Y[t], Y[c], axis=0, equal_var=False)
+                        tau, n_u = Y[t].mean(0) - Y[c].mean(0), int(c.sum() + t.sum())
+                    else:
+                        s0, s1 = m['stages']
+                        pools = sorted({pool[i] for i in range(len(V)) if m['family'] == 'C' or gt[i] == m['genotype']})
+                        ia = [int(np.where((pool == q) & (st == s0))[0][0]) for q in pools]
+                        ib = [int(np.where((pool == q) & (st == s1))[0][0]) for q in pools]
+                        D = Y[ib] - Y[ia]
+                        if m['family'] == 'A':
+                            tt, p = ttest_1samp(D, 0.0, axis=0)
+                            tau = D.mean(0)
+                        else:
+                            h = gt[ia] == 'het'
+                            tt, p = ttest_ind(D[h], D[~h], axis=0, equal_var=False)
+                            tau = D[h].mean(0) - D[~h].mean(0)
+                        n_u = len(pools)
+                else:
+                    m.setdefault('arms', [[str(m['control']), [[m['experiment'], m['control']]]],
+                                          [str(m['treatment']), [[m['experiment'], m['treatment']]]]])
+                    arm = lambda i: np.array([any(v[0] == e and v[1] == tv for e, tv in m['arms'][i][1])  # noqa: E731
+                                              for v in V])
+                    c, t = arm(0), arm(1)
+                    assert (int(c.sum()), int(t.sum())) == (a['n_control'], a['n_treatment']), (key, aid)
+                    tt, p = ttest_ind(Y[t], Y[c], axis=0, equal_var=False)
+                    tau, n_u = Y[t].mean(0) - Y[c].mean(0), int(c.sum() + t.sum())
+            p0 = P[f'p_{aid}'].to_numpy(float)
+            ok = np.isfinite(p0)
+            assert (np.isfinite(p) == ok).all() and np.allclose(p[ok], p0[ok], rtol=1e-4, atol=1e-6), \
+                (key, aid, np.nanmax(np.abs(p - p0)))
+            nt = int(ok.sum())
+            assert nt == a['n_testable_codes'], (key, aid)
+            sig = np.where(ok & (p < 0.05))[0]
+            sig = sig[np.argsort(p[sig], kind='stable')]
+            assert len(sig) == a['n_found_raw_p05'], (key, aid)
+            if 'index0' in hits:  # the same hits as the run's own list
+                assert set(sig.tolist()) == set(hits.loc[hits.analysis == aid, 'index0']), (key, aid)
+            hh = hits[hits.analysis == aid].set_index('index0')
+            rows = []
+            for j in sig:
+                h = hh.loc[j] if j in hh.index else None
+                warn = []
+                for col, lab in V0_NUIS.items():
+                    for k in (f'{col}_perm_p_within_arm', f'{col}_perm_p'):
+                        if h is not None and k in h.index and np.isfinite(h[k]):
+                            if h[k] < 0.05:
+                                e2 = h[k.replace('perm_p', 'eta2')]
+                                warn.append([lab, f'{lab} explains {100 * e2:.0f}% of the per-unit values'
+                                                  f'{" within arm" if "within" in k else ""} (permutation p '
+                                                  f'{h[k]:.3f})'])
+                            break
+                ali = None
+                if h is not None and 'auroc_any' in h.index and np.isfinite(h['auroc_any']) and align:
+                    ali = [BE.sig4(float(h['auroc_any'])), BE.sig4(float(h['f1_any']))]
+                rows.append({'neuron': int(j) + 1, 'tau': BE.sig4(float(tau[j])), 'p': float(p[j]), 'round': 1,
+                             'threshold': 0.05, 'n_tested': nt, 'rob': [],
+                             'st': 'bonf' if p[j] < 0.05 / nt else 'raw', 'nuis': warn, 'align': ali})
+            idx = np.where(ok)[0]
+            top = idx[np.argsort(p[idx], kind='stable')[:3]]
+            results[f'{V0_OID}|{aid}|4608|full'] = {
+                'rows': rows, 'top': [[int(j) + 1, BE.sig4(float(tau[j])), float(p[j]), None] for j in top],
+                'n_tested_total': nt, 'v0': {'hits': len(sig), 'expected': BE.sig4(0.05 * nt),
+                                             'bonf': int((ok & (p < 0.05 / nt)).sum())}}
+            assert results[f'{V0_OID}|{aid}|4608|full']['v0']['bonf'] == a['n_found_bonferroni'], (key, aid)
+            shown |= {int(j) for j in sig} | {int(j) for j in top}
+            m['n_units'] = n_u
+            an_out.append(m)
+        vals = {str(j + 1): [BE.sig4(float(v)) for v in Y[:, j]] for j in sorted(shown)}
+        nb = {}
+        for j in sorted(shown):
+            n = {'noclip': True, 'artefact': False, 'vals': {}}
+            f = (FR or {}).get('neurons', {}).get(str(j + 1))
+            if f:
+                n['firing_rate'] = f['firing_rate']
+                n['frames'] = {'sprite': f'assets/{f["sprite"]}', 'tile': FR['tile'],
+                               'top': [[page_ix[o], BE.sig4(v), k] for o, v, k in f['top']],
+                               'least': [[page_ix[o], BE.sig4(v), k] for o, v, k in f['least']]}
+                shutil.copy(V0_FRAMES / key / f['sprite'], site / 'assets' / f['sprite'])
+            nb[str(j + 1)] = n
+        rf = f'assets/data/v0_{key}_r.json'
+        nf = f'assets/data/v0_{key}_n.json'
+        (site / rf).write_text(json.dumps({'results': results, 'vals': {V0_OID: vals}}, separators=(',', ':')))
+        (site / nf).write_text(json.dumps({'by': {'v0': nb}}, separators=(',', ':')))
+        q = R0['quality']
+        e = {'sae': f'v0_topk4608_k20#{key}', 'tag': f'v0{key}', 'domain': dom,
+             'model': {'model': 'v0', 'method': 'NES'},
+             'outcomes': [{'id': V0_OID, 'label': 'Mean activation (mean token)', 'codes': 'v0', 'unit': 'activation',
+                           'bout': False, 'kind': 'time', 'agg': 'mean token', 'prefixes': [4608],
+                           'setting': 'v0: per-video mean of the code on the mean-pooled token, single-pass t-test, '
+                                      'raw p < 0.05'}],
+             'analyses': an_out, 'rfiles': {V0_OID: rf}, 'nfile': {'v0': {'files': [nf], 'of': {j: 0 for j in nb}}},
+             'artefact': [], 'artefact_text': {}, 'lwin': {}, 'pre': {}, 'subsets': {}, 'sub_ui': False,
+             'subject': ref.get('subject'), 'top': 3, 'n_frames': int(q['n_frames']) if 'n_frames' in q else None,
+             'v0': {'fve_pool': BE.sig4(q['fve_meanpooled']), 'alive': q['alive_codes_meanpooled_frames'],
+                    'frames': FR is not None, 'align': align},
+             'spec': {'cells': {}}}
+        if 'subjects' in ref:
+            e['subjects'] = ref['subjects']
+        for k in ('videos', 'obs', 'arms', 'vnote'):
+            if k in ref:
+                e[k] = copy.deepcopy(ref[k])
+        if e['n_frames'] is None:  # ants v2: 2 fps frames of its 10 min
+            e['n_frames'] = int(sum(R0['frames_per_video'].values()))
+        out.append(e)
+        log(f'v0 {key}: {len(an_out)} comparisons, ' + ', '.join(
+            f'{k.split("|")[1]} {len(r["rows"])}' for k, r in results.items()) + f'; {len(nb)} neurons, frames '
+            f'{"yes" if FR else "no"}')
+    return out
+
+
 def source_table():
     """{domain: {observation id: [source file name, source offset, source frames per 5 fps step, source fps]}} from the
     R4 plans (results/vision/eci_rollout_r4/<dom>/plan.json; source frame = offset + step k, k = frame_idx on the 5 fps
@@ -1161,6 +1427,10 @@ def step_assemble():
         e['spec'] = spec_of(e)
     data.pop('method_notes', None)
     data['src'] = source_table()
+    data['v0'] = v0_table()
+    v0e = v0_entries(site, saes, data)  # v0 = the baseline (original ECI paper recipe), a selectable model
+    saes += v0e
+    data['axes'][0]['values'] = data['axes'][0]['values'] + (['v0'] if v0e else [])
     clip_times(site, saes, data)
     split_v4_pack(site)
     tpl = TEMPLATE.read_text()
@@ -1201,7 +1471,7 @@ def check_site(site, amap, saes):
            'build_dir': str(site.relative_to(ROOT)),
            'models': [f'{e["domain"]}: {e["model"]["model"]} · {e["model"]["method"]} ({e["sae"]})' for e in saes],
            'options': {'prefixes': [128, 256], 'default_prefix': 128, 'spatial_aggregation': ['max'],
-                       'clip_lengths': ['frame', '1s'], 'methods': ['NES', 'NESS'], 'models': ['new', 'online']},
+                       'clip_lengths': ['frame', '1s'], 'methods': ['NES', 'NESS'], 'models': ['new', 'online', 'v0']},
            'version_files': {str(p.relative_to(site)): p.stat().st_size for p in sorted(files) if p.suffix not in ('.mp4', '.webm')},
            'packs_to_upload': {p.name: p.stat().st_size for p in sorted(packs) if p.name.startswith('r4')},
            'live_version_file_packs': {p.name: p.stat().st_size for p in sorted(packs) if not p.name.startswith('r4')},

@@ -64,18 +64,44 @@ with sync_playwright() as p:
                     pg.click(f'#kindSeg button[data-kind="{kind[0]}"]')
                     pg.wait_for_timeout(600)
                     if d == 'mice':
-                        cbs = pg.eval_on_selector_all('.cb[data-aid]', 'bs => bs.map(b => [b.dataset.aid, b.textContent.trim()])')
-                        report.append(f'{d} · {model} · {meth[0]} · {kind[0]}: ' + ' '.join(f'{x}={n}' for x, n in cbs))
-                        aids = [x for x, n in cbs if n not in ('0', '·', '–')][:3]
-                        for aid in aids:
-                            pg.click(f'.cb[data-aid="{aid}"]')
-                            pg.wait_for_timeout(900)
-                            h2 = pg.eval_on_selector('#detail', 'e => (e.querySelector("h2")||{}).textContent || "(no detail)"')
-                            nr = pg.eval_on_selector_all('#side .nr .id', 'es => es.map(e => e.textContent)')
-                            report.append(f'    {aid}: listed {nr[:12]}; detail {h2}')
-                            if a.shots and shot < 12:
-                                pg.screenshot(path=f'{a.shots}/shot_{shot:02d}_{d}_{model}_{meth[0]}_{kind[0]}_{aid}.png'.replace(' ', ''), full_page=False)
-                                shot += 1
+                        # mice picker: Contrast (#mC), then Control (#mK) and Strata (#mX); every enabled choice
+                        seen = []
+                        for fam in pg.eval_on_selector_all('#mC option', 'os => os.map(o => [o.value, o.disabled])'):
+                            if fam[1]:
+                                report.append(f'{d} · {model} · {meth[0]} · {kind[0]} · contrast {fam[0]} (disabled)')
+                                continue
+                            pg.select_option('#mC', fam[0])
+                            pg.wait_for_timeout(400)
+                            ks = pg.eval_on_selector_all('#mK option:not([disabled])', 'os => os.map(o => o.value)')
+                            for kv in (ks if fam[0] != 'B' else [None]):
+                                if kv is not None and pg.eval_on_selector('#mK', 'e => e.value') != kv:
+                                    pg.select_option('#mK', kv)
+                                    pg.wait_for_timeout(400)
+                                for sv in pg.eval_on_selector_all('#mX option:not([disabled])', 'os => os.map(o => o.value)'):
+                                    if pg.eval_on_selector('#mX', 'e => e.disabled') is False:
+                                        pg.select_option('#mX', sv)
+                                    pg.wait_for_timeout(500)
+                                    aid = pg.eval_on_selector('#mX', 'e => e.value')
+                                    if aid in seen:
+                                        continue
+                                    seen.append(aid)
+                                    n = pg.eval_on_selector('#mN', 'e => e.textContent')
+                                    nr = pg.eval_on_selector_all('#side .nr .id', 'es => es.map(e => e.textContent)')
+                                    emp = pg.eval_on_selector('#side', 'e => (e.querySelector(".empty")||{}).textContent || ""')
+                                    topd = pg.locator('#side details.topd').count()
+                                    h2 = '(no detail)'
+                                    if nr:
+                                        if pg.locator('#side .nr:visible').count() == 0:
+                                            pg.click('#side summary')
+                                            pg.wait_for_timeout(300)
+                                        pg.click('#side .nr:visible >> nth=0')
+                                        pg.wait_for_timeout(600)
+                                        h2 = pg.eval_on_selector('#detail', 'e => (e.querySelector("h2")||{}).textContent || "(no detail)"')
+                                    report.append(f'{d} · {model} · {meth[0]} · {kind[0]} · {aid}: {n}; listed {nr[:10]} '
+                                                  f'{emp}{" (candidates)" if topd else ""}; detail {h2}')
+                                    if a.shots and shot < 24 and nr and (model == 'v0' or shot < 8):
+                                        pg.screenshot(path=f'{a.shots}/shot_{shot:02d}_{d}_{model}_{meth[0]}_{kind[0]}_{aid}.png'.replace(' ', ''), full_page=True)
+                                        shot += 1
                     else:
                         exps = pg.eval_on_selector_all('#apE option', 'os => os.map(o => [o.value, o.disabled, o.textContent])')
                         for e in exps:
@@ -134,8 +160,8 @@ with sync_playwright() as p:
                 # spatial aggregation selector (model bar): max pooling on, the others off
                 ag = pg.eval_on_selector_all('#aggSeg button', 'bs => bs.map(b => [b.dataset.agg, b.disabled, b.getAttribute("aria-pressed")])')
                 report.append(f'{d} · {model} · spatial aggregation buttons [agg, disabled, pressed]: {ag}')
-    note = pg.eval_on_selector('#mNote', 'e => e.textContent')
-    report.append(f'last model note: {note}')
+    ban = pg.query_selector('#v0Ban')
+    report.append(f'v0 banner (last state): {ban.text_content() if ban else None}')
     b.close()
 bad = [r for r in report if '(candidates)' in r and "listed []" not in r and ' 0 found' not in r]
 report.append(f'candidate lists shown next to discoveries (must be 0): {len(bad)}')
