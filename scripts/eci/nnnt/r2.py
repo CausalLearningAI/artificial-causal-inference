@@ -243,6 +243,34 @@ def load_diag(root):
     return F, tf, tok
 
 
+def tokens_to(torch, tok, dev, frac=0.5):
+    """All diagnosis tokens as one fp16 tensor: on the GPU when they take <= frac of its memory, else in pinned host
+    RAM (the 2048 px diagnosis set is 24M tokens = 49.5 GB; chunks are moved to the GPU by chunk_of)."""
+    nb = tok.shape[0] * tok.shape[1] * 2
+    on_gpu = nb <= frac * torch.cuda.get_device_properties(dev).total_memory
+    T = torch.empty(tok.shape, dtype=torch.float16, device=dev if on_gpu else 'cpu')
+    for a in range(0, len(tok), 1_000_000):
+        T[a:a + 1_000_000] = torch.from_numpy(np.ascontiguousarray(tok[a:a + 1_000_000]))
+    log(f'diagnosis tokens {tuple(tok.shape)} ({nb / 2**30:.1f} GiB) on {"GPU" if on_gpu else "pinned host RAM"}')
+    return T
+
+
+def chunk_of(T, a, b, dev):
+    return T[a:b].to(dev, non_blocking=True)
+
+
+def enc_chunk(W):
+    """token chunk for encode: <= 2^27 code entries (0.5 GiB fp32) -> 262k tokens at width 512, 16k at 8192 (job 872311
+    died encoding 200k tokens x 8192 latents)."""
+    return max(4096, min(262_144, 2**27 // W))
+
+
+def sub20_mask(F):
+    """Diagnosis frames on the every-20th grid (k = fps1_off + 20 j): the 2048 px diagnosis set's frames."""
+    off = {v['obs']: v['fps1_off'] for v in N.load_plan()['videos']}
+    return ((F.k.values - F.obs.map(off).values) % 20) == 0
+
+
 # ---------------------------------------------------------------------------------------------- metrics
 def metrics(s, y):
     """Single score vector s (n,) float64, labels y (n,) bool -> R~ (ties at the cut pro rata), AUROC, AP lift."""
@@ -399,7 +427,10 @@ def cmd_probe(args):
     for a in range(0, len(tf), 1_000_000):
         Tn[a:a + 1_000_000] = ((T[a:a + 1_000_000].float() - mu) / sd).half()
     bags = Bags(torch, Tn, tf, nf, dev)
-    meanf = torch.zeros((nf, N.D), device=dev).index_add_(0, tfg, Tn.float()) / bags.cnt.clamp_min(1)[:, None].float()
+    meanf = torch.zeros((nf, N.D), device=dev)
+    for a in range(0, len(tf), 500_000):  # chunked (job 872308 died allocating Tn.float() = 50 GiB)
+        meanf.index_add_(0, tfg[a:a + 500_000], Tn[a:a + 500_000].float())
+    meanf /= bags.cnt.clamp_min(1)[:, None].float()
     cl = torch.log1p(cmaxf)
     cl = (cl - cl.mean(0)) / (cl.std(0) + 1e-3)
     cbag = Bags(torch, (CV, CI, W), tf, nf, dev)
@@ -535,7 +566,7 @@ def cmd_sweep(args):
     seeds = [int(x) for x in args.seeds.split(',')]
     arms = args.arms.split(',') if args.arms else list(SWEEP)
     sroot = (OUT2 / 'sae_selftest') if args.selftest else BEE2 / 'sae'  # checkpoints on BeeGFS (NFS is full)
-    res_f = OUT2 / ('sweep_selftest.json' if args.selftest else 'sweep.json')
+    res_f = OUT2 / ('sweep_selftest.json' if args.selftest else 'sweep_sub20.json' if args.sub20 else 'sweep.json')
     res = json.loads(res_f.read_text()) if res_f.exists() else {'train': {}, 'sets': {}}
     t0 = time.time()
     if not args.pool_dir:
@@ -572,15 +603,16 @@ def cmd_sweep(args):
     # ---- train (grouped by input stream)
     saes = {}
     for key in sorted({(SWEEP[a][0], SWEEP[a][5]) for a in arms}):
-        todo = [(a, s_) for a in arms for s_ in seeds if (SWEEP[a][0], SWEEP[a][5]) == key]
+        todo = [(a, s_) for a in arms for s_ in seeds if (SWEEP[a][0], SWEEP[a][5]) == key
+                and (args.force or not (sroot / f'{a}_s{s_}' / 'sae_theta.pt').exists())]
+        if not todo:
+            continue
         Xtr = X_of(key[0], 'train', key[1])
         log(f'stream {key}: {len(Xtr):,} train tokens')
         for a, s_ in todo:
             store, W, pre, k, steps, centre = SWEEP[a]
             name = f'{a}_s{s_}'
             od = sroot / name
-            if (od / 'sae_theta.pt').exists() and not args.force:
-                continue
             cfg = {'arm': a, 'store': store, 'width': W, 'prefixes': list(pre), 'k': k, 'steps': steps,
                    'centre': centre, 'tokens': 'A3 (r64T, d0)'}
             st = args.steps or steps
@@ -595,8 +627,6 @@ def cmd_sweep(args):
         for a, s_ in todo:
             name = f'{a}_s{s_}'
             od = sroot / name
-            if (od / 'sae_theta.pt').exists() and not args.force:
-                continue
             sae, norm, ck = load_sae(od / 'sae.pt', dev)
             th, _ = calibrate_threshold(sae, Xca, norm=norm)
             set_threshold(sae, th)
@@ -622,9 +652,15 @@ def cmd_sweep(args):
     units, SPL = sc['units'], {k_: np.array(v_) for k_, v_ in sc['splits'].items()}
     uidx = pd.Series(range(len(units)), index=units).loc[unit].values
     half_of = {s_: h[uidx] for s_, h in SPL.items()}
-    T = torch.empty((len(tf), N.D), dtype=torch.float16, device=dev)
-    for a in range(0, len(tf), 1_000_000):
-        T[a:a + 1_000_000] = torch.from_numpy(np.ascontiguousarray(tok[a:a + 1_000_000])).to(dev)
+    key = 'sets_sub20' if args.sub20 else 'sets'
+    res.setdefault(key, {})
+    fsel = None
+    if args.sub20:  # score on the every-20th frames only (= the 2048 px diagnosis frames); codes still read on all
+        fsel_np = np.flatnonzero(sub20_mask(F))
+        fsel = torch.from_numpy(fsel_np).to(dev)
+        Y, half_of = Y[fsel_np], {s_: h[fsel_np] for s_, h in half_of.items()}
+        log(f'sub20: scoring {len(fsel_np):,} of {nf:,} diagnosis frames')
+    T = tokens_to(torch, tok, dev)
     tfg = torch.from_numpy(tf.astype(np.int64)).to(dev)
     dvid = torch.from_numpy(pd.Series(F.obs.values).map(vix).fillna(-1).values.astype(np.int64)[tf]).to(dev) \
         if vix else None
@@ -632,27 +668,35 @@ def cmd_sweep(args):
     for a in arms:
         for s_ in seeds:
             name = f'{a}_s{s_}'
-            if name in res['sets'] and not args.force:
+            if name in res[key] and not args.force:
                 continue
             sae, norm, _ = load_sae(sroot / name / 'sae_theta.pt', dev)
             X = torch.zeros((nf, sae.n_latents), dtype=torch.float32, device=dev)
+            ch = enc_chunk(sae.n_latents)
+            t1 = time.time()
             with torch.no_grad():
-                for c0 in range(0, len(tf), 200_000):
-                    x = T[c0:c0 + 200_000].float()
+                for c0 in range(0, len(tf), ch):
+                    x = chunk_of(T, c0, c0 + ch, dev).float()
                     if SWEEP[a][5]:
-                        assert int(dvid[c0:c0 + 200_000].min()) >= 0
-                        x = x - VM[dvid[c0:c0 + 200_000]]
-                    X.index_reduce_(0, tfg[c0:c0 + 200_000], sae.encode(norm(x), mode='threshold'), 'amax',
+                        assert int(dvid[c0:c0 + ch].min()) >= 0
+                        x = x - VM[dvid[c0:c0 + ch]]
+                    X.index_reduce_(0, tfg[c0:c0 + ch], sae.encode(norm(x), mode='threshold'), 'amax',
                                     include_self=True)
+                    del x
+            te = time.time() - t1
+            if fsel is not None:
+                X = X[fsel]
             t1 = time.time()
             out, A = N.score_set(torch, X.half(), Yg, half_of, dev)
             out['width'] = int(sae.n_latents)
             out['frame_fire_rate_mean'] = float((X > 0).float().mean())
-            res['sets'][name] = out
+            out['encode_s'], out['encode_tok_per_s'] = te, len(tf) / te
+            res[key][name] = out
             m = out['mean']
             log(f'{name}: nn R~ {m["nose_nose"]["R"]:.4f} AUROC {m["nose_nose"]["A"]:.4f} | nt R~ '
                 f'{m["nose_tail"]["R"]:.4f} AUROC {m["nose_tail"]["A"]:.4f} | primary {out["primary"]:.4f} '
-                f'({time.time() - t1:.0f}s)')
+                f'(encode {te:.0f}s = {len(tf) / te / 1e6:.2f}M tok/s; score {time.time() - t1:.0f}s; '
+                f'GPU peak {torch.cuda.max_memory_allocated() / 2**30:.1f} GiB)')
             if args.save_codes:
                 np.save(sroot / name / 'diag_codes_max.npy', X.half().cpu().numpy())
             del X
@@ -682,9 +726,7 @@ def cmd_sheets(args):
     fd_all = np.load(droot / 'tok_fdark.npy').astype(np.float32)
     starts = np.r_[0, np.cumsum(np.bincount(tf, minlength=len(F)))]
     a = pd.read_csv(REPO / C['ann'], usecols=['Y_nn', 'Y_np', 'Y_nt'])
-    T = torch.empty((len(tf), N.D), dtype=torch.float16, device=dev)
-    for c0 in range(0, len(tf), 1_000_000):
-        T[c0:c0 + 1_000_000] = torch.from_numpy(np.ascontiguousarray(tok[c0:c0 + 1_000_000])).to(dev)
+    T = tokens_to(torch, tok, dev)
     tfg = torch.from_numpy(tf.astype(np.int64)).to(dev)
     VM = None
     hold = np.array([half[o.rsplit('_', 2)[0]] == 1 for o in F.obs.values])
@@ -706,11 +748,12 @@ def cmd_sheets(args):
             j = res['sets'][name]['splits']['rnd0'][lb]['neurons'][0]
             act = torch.empty(len(tf), dtype=torch.float32, device=dev)
             with torch.no_grad():
-                for c0 in range(0, len(tf), 200_000):
-                    x = T[c0:c0 + 200_000].float()
+                ch = enc_chunk(sae.n_latents)
+                for c0 in range(0, len(tf), ch):
+                    x = chunk_of(T, c0, c0 + ch, dev).float()
                     if SWEEP[arm][5]:
-                        x = x - VM[dvid[c0:c0 + 200_000]]
-                    act[c0:c0 + 200_000] = sae.encode(norm(x), mode='threshold')[:, j]
+                        x = x - VM[dvid[c0:c0 + ch]]
+                    act[c0:c0 + ch] = sae.encode(norm(x), mode='threshold')[:, j]
             fmax = torch.zeros(len(F), device=dev).index_reduce_(0, tfg, act, 'amax', include_self=True).cpu().numpy()
             act = act.cpu().numpy()
             cand = pd.DataFrame({'f': np.arange(len(F)), 'v': fmax, 'obs': F.obs.values})[hold]
@@ -761,6 +804,7 @@ def main():
     p.add_argument('--pool-dir', default='')
     p.add_argument('--force', action='store_true')
     p.add_argument('--save-codes', action='store_true')
+    p.add_argument('--sub20', action='store_true', help='sweep: score on the every-20th diagnosis frames (-> sets_sub20)')
     p.add_argument('--names', default='')
     p.add_argument('--diag-dir', default='')
     p.add_argument('--kinds', default='mean,clin,max,cmax,att')
