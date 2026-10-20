@@ -86,6 +86,11 @@ def best_name(c):
     return json.loads((OUT / c['domain'] / 'best.json').read_text())['name']
 
 
+def layout_ann(sc):
+    """annotations.csv of the series layout (the row space of its codes)."""
+    return REPO / sc.get('layout_ann', f'{sc["layout"]}/annotations.csv')
+
+
 def series_of(c, name):
     return next(s for s in c['series'] if s['name'] == name)
 
@@ -387,7 +392,7 @@ def cmd_merge(args):
     W = c['spec']['sae']['W']
     for sc in c['series']:
         P = json.loads((REPO / sc['plan']).read_text())
-        n_rows = len(pd.read_csv(REPO / sc['layout'] / 'annotations.csv', usecols=['observation_id']))
+        n_rows = len(pd.read_csv(layout_ann(sc), usecols=['observation_id']))
         cd = codes_dir(c, sc, f'{name}_raw')
         tmp = cd.with_name(cd.name + '.tmp')
         tmp.mkdir(parents=True, exist_ok=True)

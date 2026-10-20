@@ -74,7 +74,7 @@ def cmd_align(args):
         al = sc.get('align')
         if not al:
             continue
-        lay_ann = REPO / sc['layout'] / 'annotations.csv'
+        lay_ann = RUN.layout_ann(sc)
         cols = pd.read_csv(lay_ann, nrows=1).columns
         if 'Y_nn' in cols:
             a = pd.read_csv(lay_ann, usecols=['Y_nn'])
