@@ -1,0 +1,19 @@
+{
+ "series": "v3",
+ "kind": "pool",
+ "S": 832,
+ "G": 52,
+ "n_frames": 270,
+ "n_tokens": 4457,
+ "tokens_per_frame": 16.507407407407406,
+ "frames_0_kept": 0,
+ "animal_px_recall_mean": 0.8746427159722225,
+ "tokens_any_animal_px_per_frame": 31.118518518518517,
+ "roles": {
+  "train": 270
+ },
+ "wall_s": 19.92878222465515,
+ "gpu_s": 11.079481840133667,
+ "frames_per_s_wall": 13.548243789124555,
+ "gpu": "NVIDIA L40S"
+}

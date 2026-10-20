@@ -1,0 +1,21 @@
+{
+ "series": "fj",
+ "kind": "pool",
+ "S": 800,
+ "G": 50,
+ "n_frames": 40005,
+ "n_tokens": 871706,
+ "tokens_per_frame": 21.789926259217598,
+ "frames_0_kept": 0,
+ "animal_px_recall_mean": 0.8943853351385997,
+ "tokens_any_animal_px_per_frame": 42.97645294338208,
+ "roles": {
+  "train": 33147,
+  "eval": 3429,
+  "calib": 3429
+ },
+ "wall_s": 945.3516049385071,
+ "gpu_s": 906.2973918914795,
+ "frames_per_s_wall": 42.31758828251234,
+ "gpu": "NVIDIA L40S"
+}

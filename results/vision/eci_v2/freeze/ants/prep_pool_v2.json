@@ -1,0 +1,21 @@
+{
+ "series": "v2",
+ "kind": "pool",
+ "S": 768,
+ "G": 48,
+ "n_frames": 49104,
+ "n_tokens": 1411317,
+ "tokens_per_frame": 28.741385630498534,
+ "frames_0_kept": 0,
+ "animal_px_recall_mean": 0.8989385186688771,
+ "tokens_any_animal_px_per_frame": 53.84787390029326,
+ "roles": {
+  "train": 40176,
+  "eval": 4464,
+  "calib": 4464
+ },
+ "wall_s": 1093.3523337841034,
+ "gpu_s": 1048.3682780265808,
+ "frames_per_s_wall": 44.911414630680454,
+ "gpu": "NVIDIA L40S"
+}

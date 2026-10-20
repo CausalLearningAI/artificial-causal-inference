@@ -1,0 +1,19 @@
+{
+ "series": "v3",
+ "kind": "scored",
+ "S": 832,
+ "G": 52,
+ "n_frames": 480,
+ "n_tokens": 19026,
+ "tokens_per_frame": 39.6375,
+ "frames_0_kept": 0,
+ "animal_px_recall_mean": 0.9163452226007688,
+ "tokens_any_animal_px_per_frame": 67.9875,
+ "roles": {
+  "train": 480
+ },
+ "wall_s": 16.078733205795288,
+ "gpu_s": 12.751088380813599,
+ "frames_per_s_wall": 29.853098117642297,
+ "gpu": "NVIDIA L40S"
+}
