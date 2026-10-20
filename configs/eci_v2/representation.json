@@ -1,0 +1,12 @@
+{"status": "FROZEN 2026-10-20 16:10 by the pre-registered freeze rule (scripts/eci/v2/freeze.py, results/vision/eci_v2/freeze/decision.json)",
+ "encoder": "facebook/dinov3-vitl16-pretrain-lvd1689m @ ea8dc2863c51be0a264bab82070e3e8836b02d51, block 20 + final LayerNorm, bf16 + SDPA",
+ "resolution": "native side (multiple of 16), never upsampled; tadpoles: 96 px animal-following crop -> 384 px",
+ "canonical": "mice rot90 odour corner top right; frogs juveniles hflip mutant side right; others none",
+ "mask": "tight: token kept iff >= 25% of its 16 x 16 patch are animal pixels (per-domain pixel cue), no dilation",
+ "context_window": 0, "readout": "all",
+ "sae": {"type": "Matryoshka BatchTopK", "W": 2048, "prefixes": [128, 512, 2048], "k": 16, "steps": 30000, "bs": 4096, "lr": 0.0005},
+ "seeds": [6, 7, 8], "deploy": "highest held-out FVE among the seeds (label-free)",
+ "frame_readout": "max over kept tokens (theta* token codes)",
+ "smooth_h": 1, "smoothing": "centred mean over +-1 frame at 5 fps (0.6 s window), the only temporal step",
+ "fire": "fnorm: smoothed / sigma_j > theta_n, mean 16 firing neurons per calibration frame",
+ "domain_sae": "one SAE per domain, all experiments pooled with the same number of frames per experiment"}
