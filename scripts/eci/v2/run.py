@@ -492,6 +492,44 @@ def cmd_fire(args):
     (OUT / args.domain / 'fire.json').write_text(json.dumps(out, indent=1, default=float))
 
 
+def cmd_smooth(args):
+    """Sensitivity NES input <name>_smooth: the 0.6 s centred mean of the raw frame codes, NO firing threshold (added
+    2026-10-20 after the ants alignment table showed the fnorm threshold removes most grooming information)."""
+    import shutil
+    c = dcfg(args.domain)
+    name = best_name(c)
+    h = c['spec']['smooth_h']
+    for sc in c['series']:
+        P = json.loads((REPO / sc['plan']).read_text())
+        src = codes_dir(c, sc, f'{name}_raw')
+        mx = np.load(src / 'codes_max.npy', mmap_mode='r')
+        cd = codes_dir(c, sc, f'{name}_smooth')
+        tmp = cd.with_name(cd.name + '.tmp')
+        tmp.mkdir(parents=True, exist_ok=True)
+        y = np.lib.format.open_memmap(tmp / 'codes_max.npy', 'w+', np.float16, mx.shape)
+        for v in P['videos']:
+            r = slice(v['lay_lo'], v['lay_lo'] + v['n'])
+            y[r] = RO.smooth(np.asarray(mx[r]), h).astype(np.float16)
+        y.flush()
+        del y
+        shutil.copyfile(src / 'n_fg.npy', tmp / 'n_fg.npy')
+        cfg = json.loads((src / 'config.json').read_text())
+        cfg.update({'sae': f'{name}_smooth', 'parent_codes': str(src), 'rule': f'centred mean +-{h} frames of codes_max, '
+                    'no firing threshold'})
+        (tmp / 'config.json').write_text(json.dumps(cfg, indent=1))
+        (tmp / 'DONE').touch()
+        if cd.exists():
+            shutil.rmtree(cd)
+        tmp.rename(cd)
+        lay = REPO / sc['layout'] / 'codes' / f'{name}_smooth'
+        if not (lay.is_symlink() or lay.exists()):
+            os.symlink(cd, lay)
+        ls = REPO / sc['layout'] / 'sae' / f'{name}_smooth'
+        if not (ls.is_symlink() or ls.exists()):
+            os.symlink(Path(json.loads((OUT / args.domain / 'best.json').read_text())['dir']), ls)
+        log(f'{args.domain} {sc["name"]}: {cd}')
+
+
 def cmd_link(args):
     """Symlinks: <layout>/codes/<name>[_raw] -> BeeGFS codes dirs; <layout>/sae/<name> -> the SAE dir (sae.pt =
     sae_theta.pt link, read by the atlas builder)."""
@@ -519,7 +557,7 @@ def cmd_link(args):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('pool', 'train', 'encode', 'merge', 'fire', 'link', 'align', 'selftest',
+    p.add_argument('step', choices=('pool', 'train', 'encode', 'merge', 'fire', 'link', 'smooth', 'align', 'selftest',
                                     'manifest', 'heat'))
     p.add_argument('--picks', default='')
     p.add_argument('--out-dir', default='')
@@ -540,7 +578,7 @@ def main():
         spec_.loader.exec_module(T)
         return getattr(T, f'cmd_{args.step}')(args)
     {'pool': cmd_pool, 'train': cmd_train, 'encode': cmd_encode, 'merge': cmd_merge, 'fire': cmd_fire,
-     'link': cmd_link}[args.step](args)
+     'link': cmd_link, 'smooth': cmd_smooth}[args.step](args)
 
 
 if __name__ == '__main__':

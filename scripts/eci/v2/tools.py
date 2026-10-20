@@ -94,7 +94,8 @@ def cmd_align(args):
         units, SPL = splits_of(set(unit))
         uidx = pd.Series(range(len(units)), index=units).loc[unit].values
         models = {'v2_raw': (RUN.codes_dir(c, sc, f'{name}_raw') / 'codes_max.npy', None),
-                  'v2_nes': (RUN.codes_dir(c, sc, name) / 'codes_max.npy', None)}
+                  'v2_nes': (RUN.codes_dir(c, sc, name) / 'codes_max.npy', None),
+                  'v2_smooth': (RUN.codes_dir(c, sc, f'{name}_smooth') / 'codes_max.npy', None)}
         for nm, (path, ref_ann) in al.get('refs', {}).items():
             models[nm] = (REPO / path / 'codes_max.npy', REPO / ref_ann if ref_ann else None)
         res = {'n_frames': int(len(rows)), 'n_units': len(units),
