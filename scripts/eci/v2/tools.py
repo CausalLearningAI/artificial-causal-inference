@@ -32,8 +32,8 @@ log = RUN.log
 OUT, BEE = RUN.OUT, RUN.BEE
 
 
-def mice_labels(rows):
-    a = pd.read_csv(REPO / 'dataset/mice/v1/annotations.csv',
+def mice_labels(rows, ann='dataset/mice/v1/annotations.csv'):
+    a = pd.read_csv(REPO / ann,
                     usecols=['observation_id', 'Y_nn', 'Y_np', 'Y_nt', 'W_annotator'], dtype={'W_annotator': str})
     y = a.iloc[rows]
     Y = np.stack([(y.Y_nn.values > 0) | (y.Y_np.values > 0), y.Y_nt.values > 0, y.Y_nn.values > 0, y.Y_np.values > 0], 1)
@@ -75,19 +75,22 @@ def cmd_align(args):
         if not al:
             continue
         lay_ann = REPO / sc['layout'] / 'annotations.csv'
-        if args.domain == 'mice':
+        cols = pd.read_csv(lay_ann, nrows=1).columns
+        if 'Y_nn' in cols:
             a = pd.read_csv(lay_ann, usecols=['Y_nn'])
             rows = np.flatnonzero(a.Y_nn.notna().values)
-            Y, unit, ann, labs = mice_labels(rows)
+            Y, unit, ann, labs = mice_labels(rows, lay_ann)
             sets = {'all': np.arange(len(rows)),
                     'consistent': np.flatnonzero(pd.Series(ann).isin(('SG', 'SD', 'MR', 'CP')).values)}
-        else:
+        elif 'Y_Y2F' in cols:
             a = pd.read_csv(lay_ann, usecols=['Y_Y2F', 'Y_B2F'])
             rows = np.flatnonzero(a[['Y_Y2F', 'Y_B2F']].notna().all(1).values)
             if not len(rows):
                 continue
             Y, unit, labs = ants_labels(sc['layout'], rows)
             sets = {'all': np.arange(len(rows))}
+        else:
+            continue
         units, SPL = splits_of(set(unit))
         uidx = pd.Series(range(len(units)), index=units).loc[unit].values
         models = {'v2_raw': (RUN.codes_dir(c, sc, f'{name}_raw') / 'codes_max.npy', None),
