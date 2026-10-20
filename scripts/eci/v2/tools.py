@@ -322,13 +322,22 @@ def cmd_heat(args):
         return
     js = set()
     import glob
-    for f in glob.glob(str(REPO / 'results/vision/*/*/nes' / name / '**' / 'summary.csv'), recursive=True) + \
-            glob.glob(str(OUT / 'ness' / '*' / name / '**' / 'summary.csv'), recursive=True):
-        if f'/{Path(sc["layout"]).name}/' not in f and args.domain != 'mice' and '/ness/' not in f:
-            continue
-        s = pd.read_csv(f)
-        if 'neuron' in s:
-            js |= {int(x) for x in s.neuron.dropna().values}
+    nes_root = {'mice': 'mice/eci/nes', 'frogs': 'frogs/eci/nes' if sc['name'] == 'juv' else 'frogs/eci_tadpole_r4/nes',
+                'ants': f'ants/{Path(sc["layout"]).name}/nes'}[args.domain]
+    key = {'mice': 'mice', 'frogs': 'frogs' if sc['name'] == 'juv' else 'frogs_tadpole',
+           'ants': f'ants_{Path(sc["layout"]).name}'}[args.domain]
+    files = []
+    for nm in (name, f'{name}_smooth'):
+        files += glob.glob(str(REPO / 'results/vision' / nes_root / nm / '**' / 'result.json'), recursive=True)
+        files += glob.glob(str(OUT / 'ness' / key / nm / '**' / 'result.json'), recursive=True)
+        files += glob.glob(str(OUT / 'ness_v3_2v8' / key / nm / '**' / 'result.json'), recursive=True)
+    for f in files:
+        d = json.loads(Path(f).read_text())
+        for k_, r in d.items():
+            if 'bonferroni' not in k_ or not (k_.endswith('_full') or k_.endswith('_common')) or not isinstance(r, dict):
+                continue
+            for x in r.get('selected', []) or []:
+                js.add(int(x['neuron'] if isinstance(x, dict) else x))
     P = json.loads((REPO / sc['plan']).read_text())
     mx = np.load(RUN.codes_dir(c, sc, name) / 'codes_max.npy', mmap_mode='r')
     js = sorted(js)
@@ -359,3 +368,35 @@ def cmd_heat(args):
                  sae=name, note='per-token activation (theta*) of the full pass; 8 top videos x 1 s clip at the peak of '
                                 'the NES code')
     log(f'{len(meta)} neurons -> {outd}')
+
+
+def cmd_health(args):
+    """Per series of a domain: held-out (eval-video) FVE and token L0 of the deployed SAE on that series' pool tokens,
+    dead / alive neurons, and the overlap of the neurons each series uses (fires on >= 0.1% of its eval tokens)."""
+    import torch
+    from src.eci.v2 import sae as SA
+    c = RUN.dcfg(args.domain)
+    b = json.loads((OUT / args.domain / 'best.json').read_text())
+    dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    sae, norm = SA.load(Path(b['dir']) / 'sae_theta.pt', dev)
+    out, used = {}, {}
+    for sc in c['series']:
+        St = RUN.Store(RUN.pool_dir(c, sc), sc['S'] // 16)
+        sel = St.F.role.values == 'eval'
+        X = St.inputs(c['spec']['context_window'], sel, dev).float()
+        with torch.no_grad():
+            xn = norm(X)
+            z = sae.encode(xn, mode='threshold')
+            rec = sae.decode(z)
+            fve = 1 - ((xn - rec) ** 2).sum() / ((xn - xn.mean(0)) ** 2).sum()
+        rate = (z > 0).float().mean(0).cpu().numpy()
+        used[sc['name']] = set(np.flatnonzero(rate >= 0.001).tolist())
+        out[sc['name']] = {'eval_tokens': int(len(X)), 'fve': float(fve), 'token_l0': float((z > 0).sum(1).float().mean()),
+                           'neurons_used': len(used[sc['name']])}
+    names = list(used)
+    if len(names) > 1:
+        inter = set.intersection(*used.values())
+        out['shared_neurons'] = len(inter)
+        out['only'] = {n: len(used[n] - set.union(*[used[m] for m in names if m != n])) for n in names}
+    (OUT / args.domain / 'health.json').write_text(json.dumps(out, indent=1))
+    log(json.dumps(out))

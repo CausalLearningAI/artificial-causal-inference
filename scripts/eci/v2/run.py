@@ -558,7 +558,7 @@ def cmd_link(args):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('step', choices=('pool', 'train', 'encode', 'merge', 'fire', 'link', 'smooth', 'align', 'selftest',
-                                    'manifest', 'heat'))
+                                    'manifest', 'heat', 'health'))
     p.add_argument('--picks', default='')
     p.add_argument('--out-dir', default='')
     p.add_argument('--domain', default='mice')
@@ -571,7 +571,7 @@ def main():
     p.add_argument('--force', action='store_true')
     p.add_argument('--selftest', action='store_true')
     args = p.parse_args()
-    if args.step in ('align', 'selftest', 'manifest', 'heat'):
+    if args.step in ('align', 'selftest', 'manifest', 'heat', 'health'):
         import importlib.util
         spec_ = importlib.util.spec_from_file_location('v2_tools', Path(__file__).parent / 'tools.py')
         T = importlib.util.module_from_spec(spec_)
