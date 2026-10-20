@@ -1,0 +1,14 @@
+GPU 0: NVIDIA L40S (UUID: GPU-9020d48a-ab94-8680-b4e6-445dc7c43b0a)
+host gpu280 job 910593 mode encode extra --set eval --shard 0 --nshard 6 --bf16 --configs d3l_768_L20 d3l_1280_L20 --reuse-mask --max-per-video 16 --workers 2 --threads 3 tok /mnt/beegfs/locatgrp/shared/rcadei/eci_tok/calms21_res_smoke/tok out /mnt/beegfs/locatgrp/shared/rcadei/eci_tok/calms21_res_smoke/out
+/dev/sdb        3.5T  1.8T  1.8T  51% /localhome
+selftest OK: 623 masks; G 32 identity, G 64 == kron, G 48 / 80 parent sets exact
+21:32:17 eval_0of6_d3l_768_L20_d3l_1280_L20: 2 videos, 32 frames, configs ['d3l_768_L20', 'd3l_1280_L20'], offset 0, bf16 True, NVIDIA L40S
+21:32:45   video 1/2 mouse078_task1_annotator1: 16 frames, kept 68.0 cells; 0.43 frames/s wall; gpu d3l_768_L20 1s, d3l_1280_L20 3s; decode 24s summed, waited 24s
+21:32:48   video 2/2 mouse071_task1_annotator1: 16 frames, kept 79.1 cells; 0.80 frames/s wall; gpu d3l_768_L20 2s, d3l_1280_L20 5s; decode 51s summed, waited 24s
+21:32:48   saved eval_0of6_d3l_768_L20_t.npy (5327, 1024)
+21:32:48   saved eval_0of6_d3l_768_L20_p60.npy (5327, 1024)
+21:32:48   saved eval_0of6_d3l_768_L20_pos.npy (5327,)
+21:32:48   saved eval_0of6_d3l_1280_L20_t.npy (14760, 1024)
+21:32:48   saved eval_0of6_d3l_1280_L20_p60.npy (14760, 1024)
+21:32:48   saved eval_0of6_d3l_1280_L20_pos.npy (14760,)
+21:32:49 done: {"set": "eval", "shard": 0, "nshard": 6, "configs": ["d3l_768_L20", "d3l_1280_L20"], "videos": 2, "frames": 32, "offset": 0, "mask": "reused pos32", "bf16": true, "gpu": "NVIDIA L40S", "wall_s": 40.5, "frames_per_wall_s": 0.79, "decode_s_summed": 50.7, "decode_wait_s": 23.7, "workers": 2, "kept32_mean": 73.53125, "frames_with_0_kept": 0, "saved": {"eval_0of6_d3l_768_L20_t.npy": [5327, 1024], "eval_0of6_d3l_768_L20_p60.npy": [5327, 1024], "eval_0of6_d3l_768_L20_pos.npy": [5327], "eval_0of6_d3l_1280_L20_t.npy": [14760, 1024], "eval_0of6_d3l_1280_L20_p60.npy": [14760, 1024], "eval_0of6_d3l_1280_L20_pos.npy": [14760]}, "per_config": {"d3l_768_L20": {"grid": 48, "size": 768, "gpu_s": 2.0, "inputs": 64, "inputs_per_gpu_s": 32.8, "tokens_per_gpu_s": 75738.5}, "d3l_1280_L20": {"grid": 80, "size": 1280, "gpu_s": 5.2, "inputs": 64, "inputs_per_gpu_s": 12.31, "tokens_per_gpu_s": 78834.2}}, "peak_mem_gb": 3.21}

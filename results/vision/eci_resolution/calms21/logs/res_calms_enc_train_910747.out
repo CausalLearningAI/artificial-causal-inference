@@ -1,0 +1,121 @@
+GPU 0: NVIDIA L40S (UUID: GPU-6ad24917-a958-b67f-1865-ce03d9ef69a2)
+host gpu286 job 910747 mode encode extra --set train --shards 0 1 2 3 4 5 --nshard 6 --bf16 --configs d3l_768_L20 d3l_1280_L20 --reuse-mask --workers 4 --threads 3 tok default out default
+/dev/sda        3.5T  303G  3.2T   9% /localhome
+selftest OK: 623 masks; G 32 identity, G 64 == kron, G 48 / 80 parent sets exact
+21:36:44 train_0of6_d3l_768_L20_d3l_1280_L20: 12 videos, 2252 frames, configs ['d3l_768_L20', 'd3l_1280_L20'], offset 0, bf16 True, NVIDIA L40S
+21:39:13   video 1/12 mouse001_task1_annotator1: 546 frames, kept 83.7 cells; 1.93 frames/s wall; gpu d3l_768_L20 25s, d3l_1280_L20 89s; decode 35s summed, waited 35s
+21:40:42   video 2/12 mouse053_task1_annotator1: 422 frames, kept 78.6 cells; 2.60 frames/s wall; gpu d3l_768_L20 44s, d3l_1280_L20 159s; decode 68s summed, waited 35s
+21:41:46   video 3/12 mouse003_task1_annotator1: 302 frames, kept 86.6 cells; 2.91 frames/s wall; gpu d3l_768_L20 58s, d3l_1280_L20 209s; decode 97s summed, waited 35s
+21:42:31   video 4/12 mouse024_task1_annotator1: 211 frames, kept 67.8 cells; 3.08 frames/s wall; gpu d3l_768_L20 67s, d3l_1280_L20 244s; decode 119s summed, waited 35s
+21:43:10   video 5/12 mouse066_task1_annotator1: 184 frames, kept 86.9 cells; 3.20 frames/s wall; gpu d3l_768_L20 76s, d3l_1280_L20 274s; decode 130s summed, waited 35s
+21:43:42   video 6/12 mouse017_task1_annotator1: 155 frames, kept 66.1 cells; 3.29 frames/s wall; gpu d3l_768_L20 83s, d3l_1280_L20 300s; decode 135s summed, waited 35s
+21:44:09   video 7/12 mouse059_task1_annotator1: 126 frames, kept 81.3 cells; 3.36 frames/s wall; gpu d3l_768_L20 89s, d3l_1280_L20 321s; decode 140s summed, waited 35s
+21:44:29   video 8/12 mouse061_task1_annotator1: 94 frames, kept 89.7 cells; 3.41 frames/s wall; gpu d3l_768_L20 93s, d3l_1280_L20 336s; decode 144s summed, waited 35s
+21:44:45   video 9/12 mouse026_task1_annotator1: 79 frames, kept 68.6 cells; 3.44 frames/s wall; gpu d3l_768_L20 97s, d3l_1280_L20 349s; decode 148s summed, waited 35s
+21:44:59   video 10/12 mouse045_task1_annotator1: 64 frames, kept 78.4 cells; 3.47 frames/s wall; gpu d3l_768_L20 100s, d3l_1280_L20 360s; decode 151s summed, waited 35s
+21:45:08   video 11/12 mouse030_task1_annotator1: 42 frames, kept 83.3 cells; 3.49 frames/s wall; gpu d3l_768_L20 102s, d3l_1280_L20 367s; decode 153s summed, waited 35s
+21:45:13   video 12/12 mouse043_task1_annotator1: 27 frames, kept 53.6 cells; 3.50 frames/s wall; gpu d3l_768_L20 103s, d3l_1280_L20 371s; decode 155s summed, waited 35s
+21:45:15   saved train_0of6_d3l_768_L20_t.npy (402617, 1024)
+21:45:17   saved train_0of6_d3l_768_L20_p60.npy (402617, 1024)
+21:45:17   saved train_0of6_d3l_768_L20_pos.npy (402617,)
+21:45:22   saved train_0of6_d3l_1280_L20_t.npy (1120138, 1024)
+21:45:27   saved train_0of6_d3l_1280_L20_p60.npy (1120138, 1024)
+21:45:27   saved train_0of6_d3l_1280_L20_pos.npy (1120138,)
+21:45:27 done: {"set": "train", "shard": 0, "nshard": 6, "configs": ["d3l_768_L20", "d3l_1280_L20"], "videos": 12, "frames": 2252, "offset": 0, "mask": "reused pos32", "bf16": true, "gpu": "NVIDIA L40S", "wall_s": 657.4, "frames_per_wall_s": 3.426, "decode_s_summed": 154.8, "decode_wait_s": 35.4, "workers": 4, "kept32_mean": 79.77886323268206, "frames_with_0_kept": 0, "saved": {"train_0of6_d3l_768_L20_t.npy": [402617, 1024], "train_0of6_d3l_768_L20_p60.npy": [402617, 1024], "train_0of6_d3l_768_L20_pos.npy": [402617], "train_0of6_d3l_1280_L20_t.npy": [1120138, 1024], "train_0of6_d3l_1280_L20_p60.npy": [1120138, 1024], "train_0of6_d3l_1280_L20_pos.npy": [1120138]}, "per_config": {"d3l_768_L20": {"grid": 48, "size": 768, "gpu_s": 102.8, "inputs": 4504, "inputs_per_gpu_s": 43.83, "tokens_per_gpu_s": 101200.4}, "d3l_1280_L20": {"grid": 80, "size": 1280, "gpu_s": 371.1, "inputs": 4504, "inputs_per_gpu_s": 12.14, "tokens_per_gpu_s": 77729.7}}, "peak_mem_gb": 3.21}
+21:45:29 train_1of6_d3l_768_L20_d3l_1280_L20: 12 videos, 2100 frames, configs ['d3l_768_L20', 'd3l_1280_L20'], offset 0, bf16 True, NVIDIA L40S
+21:47:34   video 1/12 mouse002_task1_annotator1: 463 frames, kept 79.6 cells; 3.67 frames/s wall; gpu d3l_768_L20 21s, d3l_1280_L20 76s; decode 28s summed, waited 28s
+21:48:59   video 2/12 mouse054_task1_annotator1: 405 frames, kept 82.0 cells; 4.10 frames/s wall; gpu d3l_768_L20 39s, d3l_1280_L20 143s; decode 55s summed, waited 28s
+21:50:00   video 3/12 mouse069_task1_annotator1: 286 frames, kept 84.2 cells; 4.24 frames/s wall; gpu d3l_768_L20 52s, d3l_1280_L20 191s; decode 75s summed, waited 28s
+21:50:43   video 4/12 mouse009_task1_annotator1: 202 frames, kept 78.7 cells; 4.30 frames/s wall; gpu d3l_768_L20 62s, d3l_1280_L20 224s; decode 89s summed, waited 28s
+21:51:20   video 5/12 mouse014_task1_annotator1: 178 frames, kept 70.1 cells; 4.35 frames/s wall; gpu d3l_768_L20 70s, d3l_1280_L20 253s; decode 101s summed, waited 28s
+21:51:52   video 6/12 mouse064_task1_annotator1: 149 frames, kept 79.1 cells; 4.38 frames/s wall; gpu d3l_768_L20 77s, d3l_1280_L20 278s; decode 106s summed, waited 28s
+21:52:18   video 7/12 mouse031_task1_annotator1: 125 frames, kept 67.8 cells; 4.40 frames/s wall; gpu d3l_768_L20 82s, d3l_1280_L20 299s; decode 112s summed, waited 28s
+21:52:37   video 8/12 mouse011_task1_annotator1: 89 frames, kept 71.8 cells; 4.42 frames/s wall; gpu d3l_768_L20 86s, d3l_1280_L20 313s; decode 116s summed, waited 28s
+21:52:53   video 9/12 mouse025_task1_annotator1: 78 frames, kept 68.0 cells; 4.43 frames/s wall; gpu d3l_768_L20 90s, d3l_1280_L20 326s; decode 121s summed, waited 28s
+21:53:05   video 10/12 mouse038_task1_annotator1: 57 frames, kept 67.6 cells; 4.44 frames/s wall; gpu d3l_768_L20 93s, d3l_1280_L20 336s; decode 124s summed, waited 28s
+21:53:14   video 11/12 mouse023_task1_annotator1: 41 frames, kept 72.5 cells; 4.44 frames/s wall; gpu d3l_768_L20 94s, d3l_1280_L20 342s; decode 126s summed, waited 28s
+21:53:20   video 12/12 mouse048_task1_annotator1: 27 frames, kept 66.4 cells; 4.45 frames/s wall; gpu d3l_768_L20 96s, d3l_1280_L20 347s; decode 128s summed, waited 28s
+21:53:21   saved train_1of6_d3l_768_L20_t.npy (366189, 1024)
+21:53:23   saved train_1of6_d3l_768_L20_p60.npy (366189, 1024)
+21:53:23   saved train_1of6_d3l_768_L20_pos.npy (366189,)
+21:53:27   saved train_1of6_d3l_1280_L20_t.npy (1018082, 1024)
+21:53:32   saved train_1of6_d3l_1280_L20_p60.npy (1018082, 1024)
+21:53:32   saved train_1of6_d3l_1280_L20_pos.npy (1018082,)
+21:53:32 done: {"set": "train", "shard": 1, "nshard": 6, "configs": ["d3l_768_L20", "d3l_1280_L20"], "videos": 12, "frames": 2100, "offset": 0, "mask": "reused pos32", "bf16": true, "gpu": "NVIDIA L40S", "wall_s": 484.5, "frames_per_wall_s": 4.334, "decode_s_summed": 127.6, "decode_wait_s": 28.1, "workers": 4, "kept32_mean": 77.67476190476191, "frames_with_0_kept": 0, "saved": {"train_1of6_d3l_768_L20_t.npy": [366189, 1024], "train_1of6_d3l_768_L20_p60.npy": [366189, 1024], "train_1of6_d3l_768_L20_pos.npy": [366189], "train_1of6_d3l_1280_L20_t.npy": [1018082, 1024], "train_1of6_d3l_1280_L20_p60.npy": [1018082, 1024], "train_1of6_d3l_1280_L20_pos.npy": [1018082]}, "per_config": {"d3l_768_L20": {"grid": 48, "size": 768, "gpu_s": 95.6, "inputs": 4200, "inputs_per_gpu_s": 43.92, "tokens_per_gpu_s": 101406.1}, "d3l_1280_L20": {"grid": 80, "size": 1280, "gpu_s": 346.7, "inputs": 4200, "inputs_per_gpu_s": 12.11, "tokens_per_gpu_s": 77595.5}}, "peak_mem_gb": 5.57}
+21:53:33 train_2of6_d3l_768_L20_d3l_1280_L20: 12 videos, 2057 frames, configs ['d3l_768_L20', 'd3l_1280_L20'], offset 0, bf16 True, NVIDIA L40S
+21:55:35   video 1/12 mouse057_task1_annotator1: 456 frames, kept 70.5 cells; 3.72 frames/s wall; gpu d3l_768_L20 20s, d3l_1280_L20 75s; decode 26s summed, waited 26s
+21:56:59   video 2/12 mouse056_task1_annotator1: 398 frames, kept 84.0 cells; 4.13 frames/s wall; gpu d3l_768_L20 38s, d3l_1280_L20 141s; decode 51s summed, waited 26s
+21:57:57   video 3/12 mouse021_task1_annotator1: 278 frames, kept 74.0 cells; 4.26 frames/s wall; gpu d3l_768_L20 51s, d3l_1280_L20 187s; decode 71s summed, waited 26s
+21:58:40   video 4/12 mouse022_task1_annotator1: 200 frames, kept 74.8 cells; 4.33 frames/s wall; gpu d3l_768_L20 60s, d3l_1280_L20 220s; decode 88s summed, waited 26s
+21:59:17   video 5/12 mouse004_task1_annotator1: 176 frames, kept 74.8 cells; 4.37 frames/s wall; gpu d3l_768_L20 68s, d3l_1280_L20 249s; decode 97s summed, waited 26s
+21:59:48   video 6/12 mouse046_task1_annotator1: 149 frames, kept 77.4 cells; 4.40 frames/s wall; gpu d3l_768_L20 75s, d3l_1280_L20 274s; decode 100s summed, waited 26s
+22:00:14   video 7/12 mouse035_task1_annotator1: 121 frames, kept 63.4 cells; 4.42 frames/s wall; gpu d3l_768_L20 81s, d3l_1280_L20 294s; decode 106s summed, waited 26s
+22:00:32   video 8/12 mouse020_task1_annotator1: 87 frames, kept 63.9 cells; 4.44 frames/s wall; gpu d3l_768_L20 85s, d3l_1280_L20 308s; decode 110s summed, waited 26s
+22:00:48   video 9/12 mouse049_task1_annotator1: 73 frames, kept 69.2 cells; 4.45 frames/s wall; gpu d3l_768_L20 88s, d3l_1280_L20 320s; decode 113s summed, waited 26s
+22:01:00   video 10/12 mouse047_task1_annotator1: 57 frames, kept 71.4 cells; 4.46 frames/s wall; gpu d3l_768_L20 91s, d3l_1280_L20 330s; decode 116s summed, waited 26s
+22:01:08   video 11/12 mouse027_task1_annotator1: 38 frames, kept 70.8 cells; 4.46 frames/s wall; gpu d3l_768_L20 92s, d3l_1280_L20 336s; decode 118s summed, waited 26s
+22:01:13   video 12/12 mouse034_task1_annotator1: 24 frames, kept 76.2 cells; 4.46 frames/s wall; gpu d3l_768_L20 93s, d3l_1280_L20 340s; decode 120s summed, waited 26s
+22:01:14   saved train_2of6_d3l_768_L20_t.npy (342077, 1024)
+22:01:16   saved train_2of6_d3l_768_L20_p60.npy (342077, 1024)
+22:01:16   saved train_2of6_d3l_768_L20_pos.npy (342077,)
+22:01:19   saved train_2of6_d3l_1280_L20_t.npy (951820, 1024)
+22:01:24   saved train_2of6_d3l_1280_L20_p60.npy (951820, 1024)
+22:01:24   saved train_2of6_d3l_1280_L20_pos.npy (951820,)
+22:01:24 done: {"set": "train", "shard": 2, "nshard": 6, "configs": ["d3l_768_L20", "d3l_1280_L20"], "videos": 12, "frames": 2057, "offset": 0, "mask": "reused pos32", "bf16": true, "gpu": "NVIDIA L40S", "wall_s": 472.0, "frames_per_wall_s": 4.358, "decode_s_summed": 120.0, "decode_wait_s": 26.4, "workers": 4, "kept32_mean": 74.22557122022363, "frames_with_0_kept": 0, "saved": {"train_2of6_d3l_768_L20_t.npy": [342077, 1024], "train_2of6_d3l_768_L20_p60.npy": [342077, 1024], "train_2of6_d3l_768_L20_pos.npy": [342077], "train_2of6_d3l_1280_L20_t.npy": [951820, 1024], "train_2of6_d3l_1280_L20_p60.npy": [951820, 1024], "train_2of6_d3l_1280_L20_pos.npy": [951820]}, "per_config": {"d3l_768_L20": {"grid": 48, "size": 768, "gpu_s": 93.5, "inputs": 4114, "inputs_per_gpu_s": 44.0, "tokens_per_gpu_s": 101601.3}, "d3l_1280_L20": {"grid": 80, "size": 1280, "gpu_s": 339.9, "inputs": 4114, "inputs_per_gpu_s": 12.1, "tokens_per_gpu_s": 77531.7}}, "peak_mem_gb": 6.99}
+22:01:25 train_3of6_d3l_768_L20_d3l_1280_L20: 11 videos, 1979 frames, configs ['d3l_768_L20', 'd3l_1280_L20'], offset 0, bf16 True, NVIDIA L40S
+22:03:25   video 1/11 mouse058_task1_annotator1: 450 frames, kept 84.5 cells; 3.71 frames/s wall; gpu d3l_768_L20 20s, d3l_1280_L20 74s; decode 26s summed, waited 26s
+22:04:49   video 2/11 mouse055_task1_annotator1: 395 frames, kept 76.3 cells; 4.13 frames/s wall; gpu d3l_768_L20 38s, d3l_1280_L20 139s; decode 52s summed, waited 26s
+22:05:46   video 3/11 mouse008_task1_annotator1: 272 frames, kept 79.9 cells; 4.26 frames/s wall; gpu d3l_768_L20 51s, d3l_1280_L20 184s; decode 71s summed, waited 26s
+22:06:27   video 4/11 mouse065_task1_annotator1: 193 frames, kept 80.6 cells; 4.33 frames/s wall; gpu d3l_768_L20 59s, d3l_1280_L20 216s; decode 85s summed, waited 26s
+22:07:03   video 5/11 mouse067_task1_annotator1: 174 frames, kept 91.9 cells; 4.37 frames/s wall; gpu d3l_768_L20 67s, d3l_1280_L20 245s; decode 94s summed, waited 26s
+22:07:35   video 6/11 mouse005_task1_annotator1: 148 frames, kept 77.7 cells; 4.40 frames/s wall; gpu d3l_768_L20 74s, d3l_1280_L20 269s; decode 98s summed, waited 26s
+22:07:57   video 7/11 mouse019_task1_annotator1: 107 frames, kept 59.9 cells; 4.42 frames/s wall; gpu d3l_768_L20 79s, d3l_1280_L20 287s; decode 103s summed, waited 26s
+22:08:15   video 8/11 mouse044_task1_annotator1: 84 frames, kept 74.6 cells; 4.44 frames/s wall; gpu d3l_768_L20 83s, d3l_1280_L20 301s; decode 107s summed, waited 26s
+22:08:30   video 9/11 mouse039_task1_annotator1: 71 frames, kept 74.3 cells; 4.45 frames/s wall; gpu d3l_768_L20 86s, d3l_1280_L20 313s; decode 111s summed, waited 26s
+22:08:41   video 10/11 mouse033_task1_annotator1: 54 frames, kept 68.8 cells; 4.46 frames/s wall; gpu d3l_768_L20 89s, d3l_1280_L20 321s; decode 114s summed, waited 26s
+22:08:48   video 11/11 mouse050_task1_annotator1: 31 frames, kept 87.9 cells; 4.46 frames/s wall; gpu d3l_768_L20 90s, d3l_1280_L20 327s; decode 116s summed, waited 26s
+22:08:49   saved train_3of6_d3l_768_L20_t.npy (352850, 1024)
+22:08:51   saved train_3of6_d3l_768_L20_p60.npy (352850, 1024)
+22:08:51   saved train_3of6_d3l_768_L20_pos.npy (352850,)
+22:08:56   saved train_3of6_d3l_1280_L20_t.npy (981425, 1024)
+22:09:00   saved train_3of6_d3l_1280_L20_p60.npy (981425, 1024)
+22:09:00   saved train_3of6_d3l_1280_L20_pos.npy (981425,)
+22:09:00 done: {"set": "train", "shard": 3, "nshard": 6, "configs": ["d3l_768_L20", "d3l_1280_L20"], "videos": 11, "frames": 1979, "offset": 0, "mask": "reused pos32", "bf16": true, "gpu": "NVIDIA L40S", "wall_s": 456.0, "frames_per_wall_s": 4.34, "decode_s_summed": 115.5, "decode_wait_s": 26.2, "workers": 4, "kept32_mean": 79.50682162708439, "frames_with_0_kept": 0, "saved": {"train_3of6_d3l_768_L20_t.npy": [352850, 1024], "train_3of6_d3l_768_L20_p60.npy": [352850, 1024], "train_3of6_d3l_768_L20_pos.npy": [352850], "train_3of6_d3l_1280_L20_t.npy": [981425, 1024], "train_3of6_d3l_1280_L20_p60.npy": [981425, 1024], "train_3of6_d3l_1280_L20_pos.npy": [981425]}, "per_config": {"d3l_768_L20": {"grid": 48, "size": 768, "gpu_s": 89.9, "inputs": 3958, "inputs_per_gpu_s": 44.02, "tokens_per_gpu_s": 101632.5}, "d3l_1280_L20": {"grid": 80, "size": 1280, "gpu_s": 326.5, "inputs": 3958, "inputs_per_gpu_s": 12.12, "tokens_per_gpu_s": 77636.4}}, "peak_mem_gb": 6.99}
+22:09:01 train_4of6_d3l_768_L20_d3l_1280_L20: 11 videos, 1844 frames, configs ['d3l_768_L20', 'd3l_1280_L20'], offset 0, bf16 True, NVIDIA L40S
+22:10:56   video 1/11 mouse051_task1_annotator1: 434 frames, kept 72.8 cells; 3.75 frames/s wall; gpu d3l_768_L20 19s, d3l_1280_L20 71s; decode 24s summed, waited 24s
+22:12:07   video 2/11 mouse063_task1_annotator1: 337 frames, kept 86.6 cells; 4.13 frames/s wall; gpu d3l_768_L20 35s, d3l_1280_L20 127s; decode 45s summed, waited 24s
+22:12:57   video 3/11 mouse068_task1_annotator1: 240 frames, kept 85.7 cells; 4.26 frames/s wall; gpu d3l_768_L20 45s, d3l_1280_L20 166s; decode 62s summed, waited 24s
+22:13:36   video 4/11 mouse010_task1_annotator1: 185 frames, kept 79.5 cells; 4.33 frames/s wall; gpu d3l_768_L20 54s, d3l_1280_L20 197s; decode 78s summed, waited 24s
+22:14:11   video 5/11 mouse062_task1_annotator1: 165 frames, kept 77.6 cells; 4.38 frames/s wall; gpu d3l_768_L20 62s, d3l_1280_L20 224s; decode 86s summed, waited 24s
+22:14:41   video 6/11 mouse018_task1_annotator1: 144 frames, kept 77.2 cells; 4.41 frames/s wall; gpu d3l_768_L20 68s, d3l_1280_L20 248s; decode 91s summed, waited 24s
+22:15:04   video 7/11 mouse037_task1_annotator1: 106 frames, kept 70.9 cells; 4.43 frames/s wall; gpu d3l_768_L20 73s, d3l_1280_L20 265s; decode 96s summed, waited 24s
+22:15:21   video 8/11 mouse006_task1_annotator1: 84 frames, kept 79.3 cells; 4.45 frames/s wall; gpu d3l_768_L20 77s, d3l_1280_L20 279s; decode 100s summed, waited 24s
+22:15:36   video 9/11 mouse042_task1_annotator1: 68 frames, kept 70.1 cells; 4.46 frames/s wall; gpu d3l_768_L20 80s, d3l_1280_L20 290s; decode 103s summed, waited 24s
+22:15:46   video 10/11 mouse013_task1_annotator1: 51 frames, kept 84.7 cells; 4.47 frames/s wall; gpu d3l_768_L20 82s, d3l_1280_L20 298s; decode 106s summed, waited 24s
+22:15:53   video 11/11 mouse028_task1_annotator1: 30 frames, kept 67.4 cells; 4.47 frames/s wall; gpu d3l_768_L20 83s, d3l_1280_L20 303s; decode 107s summed, waited 24s
+22:15:54   saved train_4of6_d3l_768_L20_t.npy (325358, 1024)
+22:15:56   saved train_4of6_d3l_768_L20_p60.npy (325358, 1024)
+22:15:56   saved train_4of6_d3l_768_L20_pos.npy (325358,)
+22:16:00   saved train_4of6_d3l_1280_L20_t.npy (905473, 1024)
+22:16:05   saved train_4of6_d3l_1280_L20_p60.npy (905473, 1024)
+22:16:05   saved train_4of6_d3l_1280_L20_pos.npy (905473,)
+22:16:05 done: {"set": "train", "shard": 4, "nshard": 6, "configs": ["d3l_768_L20", "d3l_1280_L20"], "videos": 11, "frames": 1844, "offset": 0, "mask": "reused pos32", "bf16": true, "gpu": "NVIDIA L40S", "wall_s": 424.4, "frames_per_wall_s": 4.345, "decode_s_summed": 107.2, "decode_wait_s": 24.4, "workers": 4, "kept32_mean": 78.79067245119306, "frames_with_0_kept": 0, "saved": {"train_4of6_d3l_768_L20_t.npy": [325358, 1024], "train_4of6_d3l_768_L20_p60.npy": [325358, 1024], "train_4of6_d3l_768_L20_pos.npy": [325358], "train_4of6_d3l_1280_L20_t.npy": [905473, 1024], "train_4of6_d3l_1280_L20_p60.npy": [905473, 1024], "train_4of6_d3l_1280_L20_pos.npy": [905473]}, "per_config": {"d3l_768_L20": {"grid": 48, "size": 768, "gpu_s": 83.4, "inputs": 3688, "inputs_per_gpu_s": 44.21, "tokens_per_gpu_s": 102086.8}, "d3l_1280_L20": {"grid": 80, "size": 1280, "gpu_s": 303.3, "inputs": 3688, "inputs_per_gpu_s": 12.16, "tokens_per_gpu_s": 77889.4}}, "peak_mem_gb": 7.97}
+22:16:06 train_5of6_d3l_768_L20_d3l_1280_L20: 11 videos, 1768 frames, configs ['d3l_768_L20', 'd3l_1280_L20'], offset 0, bf16 True, NVIDIA L40S
+22:17:58   video 1/11 mouse052_task1_annotator1: 425 frames, kept 81.9 cells; 3.74 frames/s wall; gpu d3l_768_L20 19s, d3l_1280_L20 70s; decode 24s summed, waited 24s
+22:19:07   video 2/11 mouse070_task1_annotator1: 324 frames, kept 75.6 cells; 4.12 frames/s wall; gpu d3l_768_L20 34s, d3l_1280_L20 123s; decode 45s summed, waited 24s
+22:19:52   video 3/11 mouse007_task1_annotator1: 215 frames, kept 78.4 cells; 4.24 frames/s wall; gpu d3l_768_L20 43s, d3l_1280_L20 159s; decode 62s summed, waited 24s
+22:20:31   video 4/11 mouse015_task1_annotator1: 184 frames, kept 72.3 cells; 4.31 frames/s wall; gpu d3l_768_L20 52s, d3l_1280_L20 189s; decode 76s summed, waited 24s
+22:21:05   video 5/11 mouse012_task1_annotator1: 162 frames, kept 75.7 cells; 4.36 frames/s wall; gpu d3l_768_L20 59s, d3l_1280_L20 216s; decode 85s summed, waited 24s
+22:21:32   video 6/11 mouse032_task1_annotator1: 127 frames, kept 67.2 cells; 4.40 frames/s wall; gpu d3l_768_L20 65s, d3l_1280_L20 237s; decode 89s summed, waited 24s
+22:21:53   video 7/11 mouse060_task1_annotator1: 103 frames, kept 74.7 cells; 4.42 frames/s wall; gpu d3l_768_L20 70s, d3l_1280_L20 254s; decode 94s summed, waited 24s
+22:22:11   video 8/11 mouse016_task1_annotator1: 83 frames, kept 72.0 cells; 4.43 frames/s wall; gpu d3l_768_L20 73s, d3l_1280_L20 267s; decode 98s summed, waited 24s
+22:22:25   video 9/11 mouse029_task1_annotator1: 67 frames, kept 69.4 cells; 4.45 frames/s wall; gpu d3l_768_L20 76s, d3l_1280_L20 279s; decode 102s summed, waited 24s
+22:22:36   video 10/11 mouse040_task1_annotator1: 51 frames, kept 71.5 cells; 4.46 frames/s wall; gpu d3l_768_L20 79s, d3l_1280_L20 287s; decode 105s summed, waited 24s
+22:22:41   video 11/11 mouse041_task1_annotator1: 27 frames, kept 61.3 cells; 4.46 frames/s wall; gpu d3l_768_L20 80s, d3l_1280_L20 291s; decode 107s summed, waited 24s
+22:22:43   saved train_5of6_d3l_768_L20_t.npy (299962, 1024)
+22:22:44   saved train_5of6_d3l_768_L20_p60.npy (299962, 1024)
+22:22:44   saved train_5of6_d3l_768_L20_pos.npy (299962,)
+22:22:49   saved train_5of6_d3l_1280_L20_t.npy (834691, 1024)
+22:22:53   saved train_5of6_d3l_1280_L20_p60.npy (834691, 1024)
+22:22:53   saved train_5of6_d3l_1280_L20_pos.npy (834691,)
+22:22:53 done: {"set": "train", "shard": 5, "nshard": 6, "configs": ["d3l_768_L20", "d3l_1280_L20"], "videos": 11, "frames": 1768, "offset": 0, "mask": "reused pos32", "bf16": true, "gpu": "NVIDIA L40S", "wall_s": 408.3, "frames_per_wall_s": 4.33, "decode_s_summed": 106.8, "decode_wait_s": 24.1, "workers": 4, "kept32_mean": 75.72907239819004, "frames_with_0_kept": 0, "saved": {"train_5of6_d3l_768_L20_t.npy": [299962, 1024], "train_5of6_d3l_768_L20_p60.npy": [299962, 1024], "train_5of6_d3l_768_L20_pos.npy": [299962], "train_5of6_d3l_1280_L20_t.npy": [834691, 1024], "train_5of6_d3l_1280_L20_p60.npy": [834691, 1024], "train_5of6_d3l_1280_L20_pos.npy": [834691]}, "per_config": {"d3l_768_L20": {"grid": 48, "size": 768, "gpu_s": 80.0, "inputs": 3536, "inputs_per_gpu_s": 44.22, "tokens_per_gpu_s": 102099.6}, "d3l_1280_L20": {"grid": 80, "size": 1280, "gpu_s": 291.4, "inputs": 3536, "inputs_per_gpu_s": 12.14, "tokens_per_gpu_s": 77729.0}}, "peak_mem_gb": 10.3}

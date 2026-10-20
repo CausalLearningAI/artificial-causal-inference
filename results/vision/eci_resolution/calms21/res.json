@@ -1,0 +1,270 @@
+{
+ "labels": [
+  "attack",
+  "investigation",
+  "mount"
+ ],
+ "body_len_native_px": 160.0591199860804,
+ "arms": {
+  "d3l_512_L20": {
+   "name": "D3L-32",
+   "grid": 32,
+   "input_px": 512,
+   "patches_per_body": 5.001847499565012,
+   "upsampled_beyond_native": false,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "per_seed_primary_auroc": [
+    0.877858400173435,
+    0.8462327741255303,
+    0.8609567512927866,
+    0.8342110278509565,
+    0.8523063613153093,
+    0.8337367292357047
+   ],
+   "mean": 0.8508836739989537,
+   "se": 0.006891425811539883,
+   "sd": 0.01688047683851818,
+   "cf_auroc": {
+    "attack": 0.8551124576385791,
+    "investigation": 0.801827678332102,
+    "mount": 0.8957108860261799
+   },
+   "cf_ap": {
+    "attack": 0.4550359516647147,
+    "investigation": 0.5415518653844392,
+    "mount": 0.6862059192709399
+   },
+   "encoder_tokens_per_frame": 2058,
+   "sae_tokens_per_frame": 74.98018181818182,
+   "frames_per_gpu_s": 46.67939741141523,
+   "encode_gpu_s_summed": 471.3,
+   "source": "existing per-seed eval JSONs (eci_res.sh)"
+  },
+  "d3l_768_L20": {
+   "name": "D3L-48",
+   "grid": 48,
+   "input_px": 768,
+   "patches_per_body": 7.502771249347518,
+   "upsampled_beyond_native": false,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "per_seed_primary_auroc": [
+    0.8603458651439896,
+    0.8877139680691583,
+    0.9172492565806537,
+    0.88201758411934,
+    0.8661846030377891,
+    0.8869043921528322
+   ],
+   "mean": 0.8834026115172938,
+   "se": 0.00817809536750063,
+   "sd": 0.020032160718195417,
+   "cf_auroc": {
+    "attack": 0.8791772689313939,
+    "investigation": 0.8168428010689662,
+    "mount": 0.954187764551521
+   },
+   "cf_ap": {
+    "attack": 0.5361928572611394,
+    "investigation": 0.5562403842661409,
+    "mount": 0.7434818675670706
+   },
+   "encoder_tokens_per_frame": 4618,
+   "sae_tokens_per_frame": 168.31995454545455,
+   "frames_per_gpu_s": 22.16624685138539,
+   "encode_gpu_s_summed": 992.4999999999999,
+   "source": "new (this test)"
+  },
+  "d3l_1024_L20": {
+   "name": "D3L-64",
+   "grid": 64,
+   "input_px": 1024,
+   "patches_per_body": 10.003694999130024,
+   "upsampled_beyond_native": false,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "per_seed_primary_auroc": [
+    0.8404457397007654,
+    0.8966564620724711,
+    0.9022811664968456,
+    0.8922152433456226,
+    0.8766027310339993,
+    0.8798859537851774
+   ],
+   "mean": 0.881347882739147,
+   "se": 0.00910731117059207,
+   "sd": 0.022308265296699933,
+   "cf_auroc": {
+    "attack": 0.872220152363821,
+    "investigation": 0.8296925510010259,
+    "mount": 0.9421309448525941
+   },
+   "cf_ap": {
+    "attack": 0.5507078440691804,
+    "investigation": 0.5781996502457832,
+    "mount": 0.7458753980917757
+   },
+   "encoder_tokens_per_frame": 8202,
+   "sae_tokens_per_frame": 299.9207272727273,
+   "frames_per_gpu_s": 10.675465838509316,
+   "encode_gpu_s_summed": 2060.8,
+   "source": "existing per-seed eval JSONs (eci_res.sh)"
+  },
+  "d3l_1280_L20": {
+   "name": "D3L-80",
+   "grid": 80,
+   "input_px": 1280,
+   "patches_per_body": 12.504618748912531,
+   "upsampled_beyond_native": true,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "per_seed_primary_auroc": [
+    0.9071865003938555,
+    0.9042107411735817,
+    0.9033986236381492,
+    0.9004615367951195,
+    0.8806171580747927,
+    0.9078286067328666
+   ],
+   "mean": 0.9006171944680609,
+   "se": 0.0041466285839456204,
+   "sd": 0.010157124183506332,
+   "cf_auroc": {
+    "attack": 0.8913432139696987,
+    "investigation": 0.8403080902008426,
+    "mount": 0.9702002792336416
+   },
+   "cf_ap": {
+    "attack": 0.5409974634609248,
+    "investigation": 0.5823475169142682,
+    "mount": 0.7586163021106626
+   },
+   "encoder_tokens_per_frame": 12810,
+   "sae_tokens_per_frame": 467.9792727272727,
+   "frames_per_gpu_s": 6.072315760419542,
+   "encode_gpu_s_summed": 3623.0,
+   "source": "new (this test)"
+  }
+ },
+ "e1": {
+  "D3L-48 vs D3L-32": {
+   "delta": 0.03251893751834012,
+   "ci": [
+    0.008596881214446357,
+    0.05644099382223388
+   ],
+   "df": 9.720629609137111,
+   "verdict": "WIN"
+  },
+  "D3L-64 vs D3L-48": {
+   "delta": -0.0020547287781468304,
+   "ci": [
+    -0.029370310385172925,
+    0.025260852828879264
+   ],
+   "df": 9.886377408496049,
+   "verdict": "NO DIFFERENCE"
+  },
+  "D3L-80 vs D3L-64": {
+   "delta": 0.019269311728913885,
+   "ci": [
+    -0.004401692481905046,
+    0.04294031593973281
+   ],
+   "df": 6.9876314575024665,
+   "verdict": "NO DIFFERENCE"
+  }
+ },
+ "jobs": [
+  {
+   "job": "910747",
+   "name": "res_calms_enc_train",
+   "state": "COMPLETED",
+   "gpu_h": 0.8230555555555555,
+   "node": "gpu286"
+  },
+  {
+   "job": "910748",
+   "name": "res_calms_enc_eval",
+   "state": "COMPLETED",
+   "gpu_h": 0.6780555555555555,
+   "node": "gpu279"
+  },
+  {
+   "job": "910749",
+   "name": "res_calms_tr_d3l_768_L20",
+   "state": "COMPLETED",
+   "gpu_h": 0.14027777777777778,
+   "node": "gpu279"
+  },
+  {
+   "job": "910750",
+   "name": "res_calms_tr_d3l_1280_L20",
+   "state": "COMPLETED",
+   "gpu_h": 0.19416666666666665,
+   "node": "gpu279"
+  }
+ ],
+ "e2": {
+  "best_mean": "d3l_1280_L20",
+  "vs_best": {
+   "d3l_512_L20": {
+    "delta": -0.04973352046910717,
+    "ci": [
+     -0.06820139582734913,
+     -0.031265645110865214
+    ],
+    "df": 8.200942550174416,
+    "verdict": "LOSES"
+   },
+   "d3l_768_L20": {
+    "delta": -0.017214582950767054,
+    "ci": [
+     -0.03865482130687635,
+     0.004225655405342244
+    ],
+    "df": 7.41151420366747,
+    "verdict": "NO DIFFERENCE"
+   },
+   "d3l_1024_L20": {
+    "delta": -0.019269311728913885,
+    "ci": [
+     -0.04294031593973281,
+     0.004401692481905046
+    ],
+    "df": 6.9876314575024665,
+    "verdict": "NO DIFFERENCE"
+   },
+   "d3l_1280_L20": {
+    "verdict": "BEST"
+   }
+  },
+  "choice": "d3l_768_L20",
+  "choice_grid": 48
+ }
+}

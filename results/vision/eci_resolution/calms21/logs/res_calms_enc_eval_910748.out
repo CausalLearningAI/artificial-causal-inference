@@ -1,0 +1,71 @@
+GPU 0: NVIDIA L40S (UUID: GPU-063dc2e0-754b-e0d1-f018-335348180df1)
+host gpu279 job 910748 mode encode extra --set eval --shards 0 1 2 3 4 5 --nshard 6 --bf16 --configs d3l_768_L20 d3l_1280_L20 --reuse-mask --workers 4 --threads 3 tok default out default
+/dev/sda        3.5T  1.9T  1.7T  54% /localhome
+selftest OK: 623 masks; G 32 identity, G 64 == kron, G 48 / 80 parent sets exact
+21:36:44 eval_0of6_d3l_768_L20_d3l_1280_L20: 4 videos, 2337 frames, configs ['d3l_768_L20', 'd3l_1280_L20'], offset 0, bf16 True, NVIDIA L40S
+21:41:31   video 1/4 mouse078_task1_annotator1: 1238 frames, kept 64.4 cells; 2.77 frames/s wall; gpu d3l_768_L20 56s, d3l_1280_L20 204s; decode 28s summed, waited 28s
+21:43:56   video 2/4 mouse071_task1_annotator1: 685 frames, kept 68.1 cells; 3.26 frames/s wall; gpu d3l_768_L20 87s, d3l_1280_L20 317s; decode 58s summed, waited 28s
+21:45:03   video 3/4 mouse086_task1_annotator1: 320 frames, kept 64.0 cells; 3.41 frames/s wall; gpu d3l_768_L20 101s, d3l_1280_L20 369s; decode 77s summed, waited 28s
+21:45:22   video 4/4 mouse081_task1_annotator1: 94 frames, kept 72.6 cells; 3.45 frames/s wall; gpu d3l_768_L20 106s, d3l_1280_L20 385s; decode 93s summed, waited 28s
+21:45:24   saved eval_0of6_d3l_768_L20_t.npy (345745, 1024)
+21:45:26   saved eval_0of6_d3l_768_L20_p60.npy (345745, 1024)
+21:45:26   saved eval_0of6_d3l_768_L20_pos.npy (345745,)
+21:45:30   saved eval_0of6_d3l_1280_L20_t.npy (960349, 1024)
+21:45:34   saved eval_0of6_d3l_1280_L20_p60.npy (960349, 1024)
+21:45:34   saved eval_0of6_d3l_1280_L20_pos.npy (960349,)
+21:45:34 done: {"set": "eval", "shard": 0, "nshard": 6, "configs": ["d3l_768_L20", "d3l_1280_L20"], "videos": 4, "frames": 2337, "offset": 0, "mask": "reused pos32", "bf16": true, "gpu": "NVIDIA L40S", "wall_s": 688.7, "frames_per_wall_s": 3.394, "decode_s_summed": 93.0, "decode_wait_s": 27.7, "workers": 4, "kept32_mean": 65.7441163885323, "frames_with_0_kept": 0, "saved": {"eval_0of6_d3l_768_L20_t.npy": [345745, 1024], "eval_0of6_d3l_768_L20_p60.npy": [345745, 1024], "eval_0of6_d3l_768_L20_pos.npy": [345745], "eval_0of6_d3l_1280_L20_t.npy": [960349, 1024], "eval_0of6_d3l_1280_L20_p60.npy": [960349, 1024], "eval_0of6_d3l_1280_L20_pos.npy": [960349]}, "per_config": {"d3l_768_L20": {"grid": 48, "size": 768, "gpu_s": 105.6, "inputs": 4674, "inputs_per_gpu_s": 44.26, "tokens_per_gpu_s": 102192.4}, "d3l_1280_L20": {"grid": 80, "size": 1280, "gpu_s": 384.7, "inputs": 4674, "inputs_per_gpu_s": 12.15, "tokens_per_gpu_s": 77815.2}}, "peak_mem_gb": 3.21}
+21:45:35 eval_1of6_d3l_768_L20_d3l_1280_L20: 3 videos, 1881 frames, configs ['d3l_768_L20', 'd3l_1280_L20'], offset 0, bf16 True, NVIDIA L40S
+21:49:16   video 1/3 mouse076_task1_annotator1: 961 frames, kept 74.3 cells; 4.33 frames/s wall; gpu d3l_768_L20 42s, d3l_1280_L20 158s; decode 21s summed, waited 21s
+21:51:38   video 2/3 mouse075_task1_annotator1: 678 frames, kept 81.4 cells; 4.50 frames/s wall; gpu d3l_768_L20 73s, d3l_1280_L20 269s; decode 41s summed, waited 21s
+21:52:29   video 3/3 mouse088_task1_annotator1: 242 frames, kept 70.6 cells; 4.53 frames/s wall; gpu d3l_768_L20 84s, d3l_1280_L20 309s; decode 53s summed, waited 21s
+21:52:30   saved eval_1of6_d3l_768_L20_t.npy (324303, 1024)
+21:52:32   saved eval_1of6_d3l_768_L20_p60.npy (324303, 1024)
+21:52:32   saved eval_1of6_d3l_768_L20_pos.npy (324303,)
+21:52:36   saved eval_1of6_d3l_1280_L20_t.npy (899752, 1024)
+21:52:40   saved eval_1of6_d3l_1280_L20_p60.npy (899752, 1024)
+21:52:40   saved eval_1of6_d3l_1280_L20_pos.npy (899752,)
+21:52:40 done: {"set": "eval", "shard": 1, "nshard": 6, "configs": ["d3l_768_L20", "d3l_1280_L20"], "videos": 3, "frames": 1881, "offset": 0, "mask": "reused pos32", "bf16": true, "gpu": "NVIDIA L40S", "wall_s": 426.4, "frames_per_wall_s": 4.412, "decode_s_summed": 52.9, "decode_wait_s": 20.9, "workers": 4, "kept32_mean": 76.39766081871345, "frames_with_0_kept": 0, "saved": {"eval_1of6_d3l_768_L20_t.npy": [324303, 1024], "eval_1of6_d3l_768_L20_p60.npy": [324303, 1024], "eval_1of6_d3l_768_L20_pos.npy": [324303], "eval_1of6_d3l_1280_L20_t.npy": [899752, 1024], "eval_1of6_d3l_1280_L20_p60.npy": [899752, 1024], "eval_1of6_d3l_1280_L20_pos.npy": [899752]}, "per_config": {"d3l_768_L20": {"grid": 48, "size": 768, "gpu_s": 84.0, "inputs": 3762, "inputs_per_gpu_s": 44.78, "tokens_per_gpu_s": 103398.7}, "d3l_1280_L20": {"grid": 80, "size": 1280, "gpu_s": 309.1, "inputs": 3762, "inputs_per_gpu_s": 12.17, "tokens_per_gpu_s": 77963.2}}, "peak_mem_gb": 5.52}
+21:52:41 eval_2of6_d3l_768_L20_d3l_1280_L20: 3 videos, 1655 frames, configs ['d3l_768_L20', 'd3l_1280_L20'], offset 0, bf16 True, NVIDIA L40S
+21:55:43   video 1/3 mouse073_task1_annotator1: 784 frames, kept 70.6 cells; 4.28 frames/s wall; gpu d3l_768_L20 35s, d3l_1280_L20 129s; decode 19s summed, waited 19s
+21:58:00   video 2/3 mouse079_task1_annotator1: 651 frames, kept 81.0 cells; 4.49 frames/s wall; gpu d3l_768_L20 64s, d3l_1280_L20 236s; decode 36s summed, waited 19s
+21:58:46   video 3/3 mouse080_task1_annotator1: 220 frames, kept 69.4 cells; 4.52 frames/s wall; gpu d3l_768_L20 74s, d3l_1280_L20 272s; decode 44s summed, waited 19s
+21:58:48   saved eval_2of6_d3l_768_L20_t.npy (277600, 1024)
+21:58:49   saved eval_2of6_d3l_768_L20_p60.npy (277600, 1024)
+21:58:49   saved eval_2of6_d3l_768_L20_pos.npy (277600,)
+21:58:52   saved eval_2of6_d3l_1280_L20_t.npy (771079, 1024)
+21:58:56   saved eval_2of6_d3l_1280_L20_p60.npy (771079, 1024)
+21:58:56   saved eval_2of6_d3l_1280_L20_pos.npy (771079,)
+21:58:56 done: {"set": "eval", "shard": 2, "nshard": 6, "configs": ["d3l_768_L20", "d3l_1280_L20"], "videos": 3, "frames": 1655, "offset": 0, "mask": "reused pos32", "bf16": true, "gpu": "NVIDIA L40S", "wall_s": 375.5, "frames_per_wall_s": 4.407, "decode_s_summed": 44.1, "decode_wait_s": 18.5, "workers": 4, "kept32_mean": 74.54078549848943, "frames_with_0_kept": 0, "saved": {"eval_2of6_d3l_768_L20_t.npy": [277600, 1024], "eval_2of6_d3l_768_L20_p60.npy": [277600, 1024], "eval_2of6_d3l_768_L20_pos.npy": [277600], "eval_2of6_d3l_1280_L20_t.npy": [771079, 1024], "eval_2of6_d3l_1280_L20_p60.npy": [771079, 1024], "eval_2of6_d3l_1280_L20_pos.npy": [771079]}, "per_config": {"d3l_768_L20": {"grid": 48, "size": 768, "gpu_s": 74.1, "inputs": 3310, "inputs_per_gpu_s": 44.68, "tokens_per_gpu_s": 103177.5}, "d3l_1280_L20": {"grid": 80, "size": 1280, "gpu_s": 271.9, "inputs": 3310, "inputs_per_gpu_s": 12.17, "tokens_per_gpu_s": 77957.6}}, "peak_mem_gb": 5.79}
+21:58:57 eval_3of6_d3l_768_L20_d3l_1280_L20: 3 videos, 1542 frames, configs ['d3l_768_L20', 'd3l_1280_L20'], offset 0, bf16 True, NVIDIA L40S
+22:01:57   video 1/3 mouse072_task1_annotator1: 775 frames, kept 63.1 cells; 4.28 frames/s wall; gpu d3l_768_L20 34s, d3l_1280_L20 127s; decode 19s summed, waited 19s
+22:03:55   video 2/3 mouse074_task1_annotator1: 562 frames, kept 71.6 cells; 4.48 frames/s wall; gpu d3l_768_L20 59s, d3l_1280_L20 220s; decode 38s summed, waited 19s
+22:04:38   video 3/3 mouse082_task1_annotator1: 205 frames, kept 83.5 cells; 4.51 frames/s wall; gpu d3l_768_L20 68s, d3l_1280_L20 254s; decode 48s summed, waited 19s
+22:04:39   saved eval_3of6_d3l_768_L20_t.npy (238676, 1024)
+22:04:40   saved eval_3of6_d3l_768_L20_p60.npy (238676, 1024)
+22:04:40   saved eval_3of6_d3l_768_L20_pos.npy (238676,)
+22:04:43   saved eval_3of6_d3l_1280_L20_t.npy (663454, 1024)
+22:04:47   saved eval_3of6_d3l_1280_L20_p60.npy (663454, 1024)
+22:04:47   saved eval_3of6_d3l_1280_L20_pos.npy (663454,)
+22:04:47 done: {"set": "eval", "shard": 3, "nshard": 6, "configs": ["d3l_768_L20", "d3l_1280_L20"], "videos": 3, "frames": 1542, "offset": 0, "mask": "reused pos32", "bf16": true, "gpu": "NVIDIA L40S", "wall_s": 351.1, "frames_per_wall_s": 4.391, "decode_s_summed": 48.0, "decode_wait_s": 18.7, "workers": 4, "kept32_mean": 68.9118028534371, "frames_with_0_kept": 0, "saved": {"eval_3of6_d3l_768_L20_t.npy": [238676, 1024], "eval_3of6_d3l_768_L20_p60.npy": [238676, 1024], "eval_3of6_d3l_768_L20_pos.npy": [238676], "eval_3of6_d3l_1280_L20_t.npy": [663454, 1024], "eval_3of6_d3l_1280_L20_p60.npy": [663454, 1024], "eval_3of6_d3l_1280_L20_pos.npy": [663454]}, "per_config": {"d3l_768_L20": {"grid": 48, "size": 768, "gpu_s": 68.2, "inputs": 3084, "inputs_per_gpu_s": 45.25, "tokens_per_gpu_s": 104474.4}, "d3l_1280_L20": {"grid": 80, "size": 1280, "gpu_s": 253.7, "inputs": 3084, "inputs_per_gpu_s": 12.16, "tokens_per_gpu_s": 77863.1}}, "peak_mem_gb": 5.79}
+22:04:48 eval_4of6_d3l_768_L20_d3l_1280_L20: 3 videos, 1374 frames, configs ['d3l_768_L20', 'd3l_1280_L20'], offset 0, bf16 True, NVIDIA L40S
+22:07:47   video 1/3 mouse085_task1_annotator1: 772 frames, kept 69.6 cells; 4.29 frames/s wall; gpu d3l_768_L20 34s, d3l_1280_L20 127s; decode 18s summed, waited 18s
+22:09:18   video 2/3 mouse087_task1_annotator1: 433 frames, kept 85.6 cells; 4.45 frames/s wall; gpu d3l_768_L20 54s, d3l_1280_L20 198s; decode 30s summed, waited 18s
+22:09:53   video 3/3 mouse084_task1_annotator1: 169 frames, kept 77.7 cells; 4.49 frames/s wall; gpu d3l_768_L20 61s, d3l_1280_L20 226s; decode 38s summed, waited 18s
+22:09:54   saved eval_4of6_d3l_768_L20_t.npy (232599, 1024)
+22:09:55   saved eval_4of6_d3l_768_L20_p60.npy (232599, 1024)
+22:09:55   saved eval_4of6_d3l_768_L20_pos.npy (232599,)
+22:09:58   saved eval_4of6_d3l_1280_L20_t.npy (647452, 1024)
+22:10:01   saved eval_4of6_d3l_1280_L20_p60.npy (647452, 1024)
+22:10:01   saved eval_4of6_d3l_1280_L20_pos.npy (647452,)
+22:10:01 done: {"set": "eval", "shard": 4, "nshard": 6, "configs": ["d3l_768_L20", "d3l_1280_L20"], "videos": 3, "frames": 1374, "offset": 0, "mask": "reused pos32", "bf16": true, "gpu": "NVIDIA L40S", "wall_s": 313.9, "frames_per_wall_s": 4.377, "decode_s_summed": 37.9, "decode_wait_s": 18.0, "workers": 4, "kept32_mean": 75.63318777292577, "frames_with_0_kept": 0, "saved": {"eval_4of6_d3l_768_L20_t.npy": [232599, 1024], "eval_4of6_d3l_768_L20_p60.npy": [232599, 1024], "eval_4of6_d3l_768_L20_pos.npy": [232599], "eval_4of6_d3l_1280_L20_t.npy": [647452, 1024], "eval_4of6_d3l_1280_L20_p60.npy": [647452, 1024], "eval_4of6_d3l_1280_L20_pos.npy": [647452]}, "per_config": {"d3l_768_L20": {"grid": 48, "size": 768, "gpu_s": 61.4, "inputs": 2748, "inputs_per_gpu_s": 44.75, "tokens_per_gpu_s": 103328.7}, "d3l_1280_L20": {"grid": 80, "size": 1280, "gpu_s": 225.7, "inputs": 2748, "inputs_per_gpu_s": 12.18, "tokens_per_gpu_s": 77996.0}}, "peak_mem_gb": 7.9}
+22:10:02 eval_5of6_d3l_768_L20_d3l_1280_L20: 3 videos, 1211 frames, configs ['d3l_768_L20', 'd3l_1280_L20'], offset 0, bf16 True, NVIDIA L40S
+22:12:46   video 1/3 mouse077_task1_annotator1: 709 frames, kept 69.5 cells; 4.29 frames/s wall; gpu d3l_768_L20 31s, d3l_1280_L20 116s; decode 17s summed, waited 17s
+22:14:01   video 2/3 mouse089_task1_annotator1: 354 frames, kept 75.3 cells; 4.44 frames/s wall; gpu d3l_768_L20 47s, d3l_1280_L20 175s; decode 28s summed, waited 17s
+22:14:32   video 3/3 mouse083_task1_annotator1: 148 frames, kept 72.5 cells; 4.47 frames/s wall; gpu d3l_768_L20 54s, d3l_1280_L20 199s; decode 34s summed, waited 17s
+22:14:33   saved eval_5of6_d3l_768_L20_t.npy (195063, 1024)
+22:14:33   saved eval_5of6_d3l_768_L20_p60.npy (195063, 1024)
+22:14:33   saved eval_5of6_d3l_768_L20_pos.npy (195063,)
+22:14:36   saved eval_5of6_d3l_1280_L20_t.npy (541829, 1024)
+22:14:39   saved eval_5of6_d3l_1280_L20_p60.npy (541829, 1024)
+22:14:39   saved eval_5of6_d3l_1280_L20_pos.npy (541829,)
+22:14:39 done: {"set": "eval", "shard": 5, "nshard": 6, "configs": ["d3l_768_L20", "d3l_1280_L20"], "videos": 3, "frames": 1211, "offset": 0, "mask": "reused pos32", "bf16": true, "gpu": "NVIDIA L40S", "wall_s": 278.0, "frames_per_wall_s": 4.356, "decode_s_summed": 34.1, "decode_wait_s": 16.8, "workers": 4, "kept32_mean": 71.5813377374071, "frames_with_0_kept": 0, "saved": {"eval_5of6_d3l_768_L20_t.npy": [195063, 1024], "eval_5of6_d3l_768_L20_p60.npy": [195063, 1024], "eval_5of6_d3l_768_L20_pos.npy": [195063], "eval_5of6_d3l_1280_L20_t.npy": [541829, 1024], "eval_5of6_d3l_1280_L20_p60.npy": [541829, 1024], "eval_5of6_d3l_1280_L20_pos.npy": [541829]}, "per_config": {"d3l_768_L20": {"grid": 48, "size": 768, "gpu_s": 54.0, "inputs": 2422, "inputs_per_gpu_s": 44.86, "tokens_per_gpu_s": 103573.4}, "d3l_1280_L20": {"grid": 80, "size": 1280, "gpu_s": 199.0, "inputs": 2422, "inputs_per_gpu_s": 12.17, "tokens_per_gpu_s": 77962.5}}, "peak_mem_gb": 10.19}

@@ -1,0 +1,65 @@
+GPU 0: NVIDIA L40S (UUID: GPU-725abdc9-eea4-ca3e-67cf-fe2363704063)
+host gpu279 job 910749 mode train extra --config d3l_768_L20 --seeds 0 1 2 3 4 5 tok default out default
+/dev/sda        3.5T  1.9T  1.7T  53% /localhome
+22:23:58 d3l_768_L20: train (1740936, 2048) on 10000 frames (174.1 tokens / frame), calib (348117, 2048) on 2000 frames
+22:24:00     d3l_768_L20 s0 step 0/6000 fve 0.0703 l0 16.00 dead 0 thr 3.036 batch 4096 0.2s
+22:24:08     d3l_768_L20 s0 step 1000/6000 fve 0.7671 l0 16.00 dead 33 thr 2.983 batch 4096 8.5s
+22:24:19     d3l_768_L20 s0 step 2000/6000 fve 0.7886 l0 16.00 dead 78 thr 2.948 batch 4096 19.0s
+22:24:29     d3l_768_L20 s0 step 3000/6000 fve 0.8012 l0 16.00 dead 29 thr 2.974 batch 4096 29.4s
+22:24:40     d3l_768_L20 s0 step 4000/6000 fve 0.8099 l0 16.00 dead 14 thr 3.002 batch 4096 39.7s
+22:24:50     d3l_768_L20 s0 step 5000/6000 fve 0.8138 l0 16.00 dead 6 thr 3.022 batch 4096 50.1s
+22:25:00     d3l_768_L20 s0 step 5999/6000 fve 0.8160 l0 16.00 dead 0 thr 3.035 batch 4096 59.9s
+22:25:00     d3l_768_L20 s0: trained in 60s, final fve 0.8160, dead 0
+22:25:00     d3l_768_L20 s1 step 0/6000 fve 0.0720 l0 16.00 dead 0 thr 3.043 batch 4096 0.0s
+22:25:09     d3l_768_L20 s1 step 1000/6000 fve 0.7656 l0 16.00 dead 52 thr 2.985 batch 4096 8.4s
+22:25:19     d3l_768_L20 s1 step 2000/6000 fve 0.7895 l0 16.00 dead 89 thr 2.965 batch 4096 19.0s
+22:25:30     d3l_768_L20 s1 step 3000/6000 fve 0.8013 l0 16.00 dead 29 thr 2.976 batch 4096 29.4s
+22:25:40     d3l_768_L20 s1 step 4000/6000 fve 0.8095 l0 16.00 dead 12 thr 2.995 batch 4096 39.6s
+22:25:50     d3l_768_L20 s1 step 5000/6000 fve 0.8135 l0 16.00 dead 2 thr 3.014 batch 4096 50.0s
+22:26:00     d3l_768_L20 s1 step 5999/6000 fve 0.8167 l0 16.00 dead 1 thr 3.025 batch 4096 60.0s
+22:26:01     d3l_768_L20 s1: trained in 60s, final fve 0.8167, dead 1
+22:26:01     d3l_768_L20 s2 step 0/6000 fve 0.0710 l0 16.00 dead 0 thr 3.007 batch 4096 0.0s
+22:26:09     d3l_768_L20 s2 step 1000/6000 fve 0.7699 l0 16.00 dead 57 thr 2.970 batch 4096 8.3s
+22:26:20     d3l_768_L20 s2 step 2000/6000 fve 0.7881 l0 16.00 dead 72 thr 2.936 batch 4096 18.9s
+22:26:30     d3l_768_L20 s2 step 3000/6000 fve 0.8034 l0 16.00 dead 25 thr 2.951 batch 4096 29.4s
+22:26:41     d3l_768_L20 s2 step 4000/6000 fve 0.8089 l0 16.00 dead 9 thr 2.972 batch 4096 39.9s
+22:26:51     d3l_768_L20 s2 step 5000/6000 fve 0.8137 l0 16.00 dead 3 thr 2.987 batch 4096 50.4s
+22:27:01     d3l_768_L20 s2 step 5999/6000 fve 0.8160 l0 16.00 dead 0 thr 2.997 batch 4096 60.2s
+22:27:04     d3l_768_L20 s2: trained in 63s, final fve 0.8160, dead 0
+22:27:05     d3l_768_L20 s3 step 0/6000 fve 0.0697 l0 16.00 dead 0 thr 3.030 batch 4096 0.0s
+22:27:14     d3l_768_L20 s3 step 1000/6000 fve 0.7680 l0 16.00 dead 44 thr 2.994 batch 4096 8.5s
+22:27:24     d3l_768_L20 s3 step 2000/6000 fve 0.7874 l0 16.00 dead 85 thr 2.965 batch 4096 19.1s
+22:27:35     d3l_768_L20 s3 step 3000/6000 fve 0.8009 l0 16.00 dead 45 thr 2.979 batch 4096 29.7s
+22:27:45     d3l_768_L20 s3 step 4000/6000 fve 0.8079 l0 16.00 dead 9 thr 3.006 batch 4096 40.2s
+22:27:55     d3l_768_L20 s3 step 5000/6000 fve 0.8117 l0 16.00 dead 2 thr 3.021 batch 4096 50.1s
+22:28:06     d3l_768_L20 s3 step 5999/6000 fve 0.8147 l0 16.00 dead 0 thr 3.031 batch 4096 60.3s
+22:28:06     d3l_768_L20 s3: trained in 61s, final fve 0.8147, dead 0
+22:28:06     d3l_768_L20 s4 step 0/6000 fve 0.0704 l0 16.00 dead 0 thr 3.039 batch 4096 0.0s
+22:28:15     d3l_768_L20 s4 step 1000/6000 fve 0.7710 l0 16.00 dead 25 thr 2.993 batch 4096 8.4s
+22:28:25     d3l_768_L20 s4 step 2000/6000 fve 0.7892 l0 16.00 dead 76 thr 2.960 batch 4096 19.0s
+22:28:36     d3l_768_L20 s4 step 3000/6000 fve 0.8010 l0 16.00 dead 25 thr 2.977 batch 4096 29.6s
+22:28:46     d3l_768_L20 s4 step 4000/6000 fve 0.8083 l0 16.00 dead 11 thr 2.996 batch 4096 40.0s
+22:28:57     d3l_768_L20 s4 step 5000/6000 fve 0.8155 l0 16.00 dead 5 thr 3.017 batch 4096 50.4s
+22:29:07     d3l_768_L20 s4 step 5999/6000 fve 0.8171 l0 16.00 dead 0 thr 3.026 batch 4096 60.3s
+22:29:07     d3l_768_L20 s4: trained in 61s, final fve 0.8171, dead 0
+22:29:07     d3l_768_L20 s5 step 0/6000 fve 0.0715 l0 16.00 dead 0 thr 3.041 batch 4096 0.0s
+22:29:16     d3l_768_L20 s5 step 1000/6000 fve 0.7647 l0 16.00 dead 49 thr 2.976 batch 4096 8.5s
+22:29:26     d3l_768_L20 s5 step 2000/6000 fve 0.7871 l0 16.00 dead 92 thr 2.938 batch 4096 19.1s
+22:29:37     d3l_768_L20 s5 step 3000/6000 fve 0.8017 l0 16.00 dead 28 thr 2.957 batch 4096 29.6s
+22:29:47     d3l_768_L20 s5 step 4000/6000 fve 0.8107 l0 16.00 dead 7 thr 2.980 batch 4096 40.0s
+22:29:58     d3l_768_L20 s5 step 5000/6000 fve 0.8132 l0 16.00 dead 2 thr 2.998 batch 4096 50.4s
+22:30:08     d3l_768_L20 s5 step 5999/6000 fve 0.8170 l0 16.00 dead 1 thr 3.009 batch 4096 60.4s
+22:30:08     d3l_768_L20 s5: trained in 61s, final fve 0.8170, dead 1
+22:30:10   s0 theta* 3.0522 (EMA 3.0350) calib L0 16.000
+22:30:12   s1 theta* 3.0381 (EMA 3.0246) calib L0 16.000
+22:30:14   s2 theta* 3.0126 (EMA 2.9968) calib L0 16.000
+22:30:15   s3 theta* 3.0447 (EMA 3.0314) calib L0 16.000
+22:30:17   s4 theta* 3.0448 (EMA 3.0261) calib L0 16.000
+22:30:19   s5 theta* 3.0261 (EMA 3.0090) calib L0 16.000
+22:31:16   d3l_768_L20 s0: attack 0.858/0.4753/0.854, investigation 0.767/0.4800/0.373, mount 0.959/0.6946/0.795 (cf AUROC / AP / honest top-1%, split 0)
+22:31:18   d3l_768_L20 s1: attack 0.881/0.5713/0.748, investigation 0.819/0.5520/0.679, mount 0.959/0.6541/0.591 (cf AUROC / AP / honest top-1%, split 0)
+22:31:20   d3l_768_L20 s2: attack 0.917/0.5260/0.641, investigation 0.853/0.6236/0.708, mount 0.978/0.8314/0.941 (cf AUROC / AP / honest top-1%, split 0)
+22:31:22   d3l_768_L20 s3: attack 0.857/0.5074/0.594, investigation 0.840/0.5913/0.853, mount 0.975/0.7697/0.990 (cf AUROC / AP / honest top-1%, split 0)
+22:31:24   d3l_768_L20 s4: attack 0.862/0.5186/0.866, investigation 0.848/0.5980/0.596, mount 0.872/0.5294/0.528 (cf AUROC / AP / honest top-1%, split 0)
+22:31:25   d3l_768_L20 s5: attack 0.876/0.5192/0.852, investigation 0.803/0.5694/0.814, mount 0.973/0.7617/0.813 (cf AUROC / AP / honest top-1%, split 0)
+22:31:25 d3l_768_L20 done in 498s
