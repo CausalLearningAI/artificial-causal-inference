@@ -1,0 +1,26 @@
+{
+ "domain": "ants",
+ "series": [
+  {"name": "v2", "experiment": "v2", "plan": "results/vision/eci_rollout_r4/ants_v2p/plan.json",
+   "ann": "dataset/ants/eci30/annotations.csv", "layout": "dataset/ants/eci_r4v2p", "fps": 30, "step": 6, "offset": 2,
+   "S": 768, "geometry": "frame", "rot": null,
+   "mask": {"cue": "dark", "bg": "dataset/ants/eci30/fg448/background", "align": "none", "dark_abs": 256, "dark_rel": 40},
+   "pool_reuse": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/freeze/ants/pool_v2",
+   "align": {"refs": {"v1_online": ["dataset/ants/eci/codes/matryoshka_btk_1024_k16_antsfg_s0", "dataset/ants/eci/annotations.csv"],
+                      "r4_d2": ["dataset/ants/eci_r4v2p/codes/matryoshka_btk_512_k16_r4d2_s2", null]}}},
+  {"name": "v3", "experiment": "v3", "plan": "results/vision/eci_rollout_r4/ants_v3p/plan.json",
+   "ann": "dataset/ants/eci30/annotations.csv", "layout": "dataset/ants/eci_r4v3p", "fps": 30, "step": 6, "offset": 2,
+   "S": 832, "geometry": "frame", "rot": null,
+   "mask": {"cue": "dark", "bg": "dataset/ants/eci30/fg448/background", "align": "none", "dark_abs": 256, "dark_rel": 40},
+   "pool_reuse": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/freeze/ants/pool_v3",
+   "align": {"refs": {"v1_online": ["dataset/ants/eci/codes/matryoshka_btk_1024_k16_antsfg_s0", "dataset/ants/eci/annotations.csv"]}}},
+  {"name": "v4", "experiment": null, "plan": "results/vision/eci_rollout_r4/ants_v4p/plan.json",
+   "ann": "dataset/ants/eci30/annotations.csv", "layout": "dataset/ants/eci_r4v4p", "fps": 30, "step": 6, "offset": 2,
+   "S": 816, "geometry": "frame", "rot": null,
+   "mask": {"cue": "dark", "bg": "dataset/ants/eci30/fg448/background", "align": "none", "dark_abs": 256, "dark_rel": 40}}
+ ],
+ "pool": {"frames_per_experiment": 40000, "note": "the same number of frames from each experiment (v2, v3, v4, v4_infested)"},
+ "encode": {"n_shards": 12, "chunk": 600, "bs": 32, "par": 4, "threads": 4},
+ "nes": {"domain": "ants", "env": {"v2": {"ANTS_ECI": "eci_r4v2p"}, "v3": {"ANTS_ECI": "eci_r4v3p"}, "v4": {"ANTS_ECI": "eci_r4v4p"}},
+         "sets": ["core", "pairs"], "day": true}
+}

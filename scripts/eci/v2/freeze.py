@@ -514,7 +514,12 @@ def cmd_msheets(args):
 
 
 # ---------------------------------------------------------------------------------------------- ants
-ASER = {'v2': dict(dom='ants_v2p', S=768, bursts=124), 'v3': dict(dom='ants_v3p', S=832, bursts=52)}
+# ants pixel cue AMENDMENT (2026-10-20 ~15:00, label-free, before any ants score): darker than the background by > 40
+# grey levels WITHOUT the absolute limit grey < 60 (dark_abs 256 = off). Mask sheets (freeze/ants/mask_sheet_scored_*_
+# selftest_abs60 / _abs256.jpg): the absolute limit drops the painted abdomens and the reddish heads / bodies (16 vs 40
+# tokens per v3 frame, animal-pixel recall 0.86 vs 0.92), the relative cue keeps whole ants and no background.
+ASER = {'v2': dict(dom='ants_v2p', S=768, bursts=124, dark_abs=256),
+        'v3': dict(dom='ants_v3p', S=832, bursts=52, dark_abs=256)}
 # frogs juveniles (no labels): health / locality only; pixel cue 'frog' (dark_rel 30, dish ROI, no SLEAP restriction)
 FSER = {'fj': dict(dom='frogs', S=800, bursts=127, cue='frog', dark_rel=30)}
 
@@ -574,7 +579,8 @@ def cmd_aprep(args):
                          step=c['step'] * st, S=S, hflip=v['hflip'], fps=c['fps'], threads=2))
             for i, (v, kk0, kk, st) in enumerate(items)]
     enc = Encoder(dev)
-    tm = TightMask(REPO / c['bg'], Rr, cfg.get('cue', 'dark'), dev, dark_rel=cfg.get('dark_rel', 40))
+    dark_abs = args.dark_abs if args.dark_abs else cfg.get('dark_abs', 60)
+    tm = TightMask(REPO / c['bg'], Rr, cfg.get('cue', 'dark'), dev, dark_rel=cfg.get('dark_rel', 40), dark_abs=dark_abs)
     loc = N.local_dir() / f'{kind}_{ser}'
     loc.mkdir(parents=True, exist_ok=True)
     ftok = open(loc / 'tok.f16', 'wb')
@@ -609,7 +615,7 @@ def cmd_aprep(args):
                                'src_row': int(v['src_lo'] + k_), 'role': v['role'], 'n_kept': int(len(pos)),
                                'animal_px': npx, 'px_recall': kept_px / npx if npx > 0 else np.nan,
                                'n_any_px': int((fd[ii] > 0).sum())})
-                if len(sheet) < 8 and v['role'] == 'eval' and v['obs'] not in sheet_obs:
+                if len(sheet) < 8 and (v['role'] == 'eval' or args.selftest) and v['obs'] not in sheet_obs:
                     sheet_obs.add(v['obs'])
                     sheet.append((x[ii].cpu().numpy(), m[ii].cpu().numpy(), f'{v["obs"]} k{k_} kept {len(pos)}'))
         if i % 500 == 0:
@@ -635,6 +641,7 @@ def cmd_aprep(args):
     od = OUT / dom_
     od.mkdir(parents=True, exist_ok=True)
     tag = '_selftest' if args.selftest else ''
+    tag = tag + (f'_abs{dark_abs}' if args.dark_abs else '')
     (od / f'prep_{kind}_{ser}{tag}.json').write_text(json.dumps(info, indent=1))
     if sheet:
         mask_sheet(sheet, od / f'mask_sheet_{kind}_{ser}{tag}.jpg', G)
@@ -1080,6 +1087,7 @@ def main():
     p.add_argument('--tag', default='')
     p.add_argument('--max-videos', type=int, default=0)
     p.add_argument('--max-frames', type=int, default=0)
+    p.add_argument('--dark-abs', type=int, default=0, help='aprep: override the absolute darkness limit (256 = off)')
     p.add_argument('--force', action='store_true')
     p.add_argument('--selftest', action='store_true')
     args = p.parse_args()

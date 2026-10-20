@@ -1,0 +1,18 @@
+{
+ "domain": "frogs",
+ "series": [
+  {"name": "juv", "experiment": "juveniles", "plan": "results/vision/eci_rollout_r4/frogs/plan.json",
+   "ann": "dataset/frogs/eci/annotations.csv", "layout": "dataset/frogs/eci", "fps": 60, "step": 12, "offset": 5,
+   "S": 800, "geometry": "frame", "rot": null,
+   "mask": {"cue": "frog", "bg": "dataset/frogs/eci/fg448/background", "align": "none", "dark_rel": 30},
+   "pool_reuse": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/freeze/frogs/pool_fj"},
+  {"name": "tad", "experiment": "tadpoles", "plan": "results/vision/eci_rollout_r4/frogs_tadpole/plan.json",
+   "ann": "dataset/frogs/eci_tadpole_r4/annotations.csv", "layout": "dataset/frogs/eci_tadpole_r4", "fps": 60, "step": 12,
+   "offset": 5, "S": 384, "geometry": "crop", "rot": null,
+   "crop": {"side": 96, "locate": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/r4/frogs_tadpole/locate_v2"},
+   "mask": {"cue": "frog", "bg": null, "dark_rel": 15}}
+ ],
+ "pool": {"frames_per_experiment": 40000, "note": "the same number of frames from the juveniles and the tadpoles"},
+ "encode": {"n_shards": 12, "chunk": 600, "bs": 32, "par": 4, "threads": 4},
+ "nes": {"domain": "frogs", "env": {"juv": {}, "tad": {"TADPOLE_TAG": "_r4"}}, "sets": ["core"]}
+}
