@@ -22,7 +22,7 @@ cd $REPO
 MODE=${MODE:?}; SAE=${SAE:?}; PREFIXES=${PREFIXES:-128,512,2048}
 CODE_COMMIT=${CODE_COMMIT:-$(git rev-parse HEAD)}
 L=/localhome/$USER/${SLURM_JOB_ID:-local}_v2nesmice
-mkdir -p $L
+mkdir -p $L 2>/dev/null || { L=/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/tmp/$(basename $L); mkdir -p $L; }  # nodes without /localhome
 trap 'rm -rf $L' EXIT
 git archive $CODE_COMMIT src scripts/eci configs | tar -x -C $L
 for d in data dataset results; do ln -s $REPO/$d $L/$d; done
