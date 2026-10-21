@@ -496,7 +496,6 @@ def plot(args):
         a.tick_params(axis='x', length=1.0, labelsize=FS_S - 0.6)
         a.set_yticks([0, max(1, int(round(ymax / 1.3 / 5) * 5))])
         a.text((t - lo) / FPS, ymax * 0.985, 't−1, t, t+1', ha='center', va='top', fontsize=FS_S - 1.2, color='#b07800')
-        txt(xs['trace'], y0 - 2.7, 'temporal context: 0.6 s smoothing', color=C_DARK)
         for s in ('top', 'right'):
             a.spines[s].set_visible(False)
         # whole-video firing raster under the trace (s / sigma > theta_n), the 10 s window marked
