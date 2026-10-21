@@ -212,34 +212,61 @@ def mice_token_check(Se, dev, n=24):
 
 
 def cmd_manifest(args):
+    """results/vision/eci_v2/manifest.json: every output path of the v2 rollout, per domain and series."""
     import glob
-    man = {'created': time.strftime('%Y-%m-%d %H:%M'), 'spec': str(REPO / 'configs/eci_v2/representation.json'),
-           'library': str(REPO / 'src/eci/v2'), 'entry_point': str(REPO / 'scripts/eci/v2/run.py'),
-           'freeze': {'decision': str(OUT / 'freeze/decision.json'), 'table': str(OUT / 'freeze/table.md')},
+    import subprocess
+    V = REPO / 'results/vision'
+    g = lambda pat: sorted(glob.glob(str(pat), recursive=True))  # noqa: E731
+    head = subprocess.run(['git', '-C', str(REPO), 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
+    man = {'created': time.strftime('%Y-%m-%d %H:%M'), 'code_head': head,
+           'nes_code_records': g(OUT / 'nes_code' / '*.json'),
+           'spec': str(REPO / 'configs/eci_v2/representation.json'), 'library': str(REPO / 'src/eci/v2'),
+           'entry_point': str(REPO / 'scripts/eci/v2/run.py'), 'nes_wrapper': str(REPO / 'scripts/eci/v2/nes.sh'),
+           'freeze': {'decision': str(OUT / 'freeze/decision.json'), 'table': str(OUT / 'freeze/table.md'),
+                      'sheets': g(OUT / 'freeze/*/sheets')},
+           'discoveries': {'json': str(OUT / 'discoveries.json'), 'md': str(OUT / 'discoveries.md')},
+           'nes_input_sets': {
+               'primary_proposed': '<sae>_smooth: centred 0.6 s mean of the frame max codes, no firing threshold (keeps '
+                                   'the behaviour alignment; align.json v2_smooth)',
+               'secondary': '<sae>: the same smoothed codes zeroed below the fnorm firing threshold (pre-specified, but it '
+                            'destroys alignment: mice nose_nose R~ 0.174 raw -> 0.093, ants v2 groom_any 0.629 -> 0.075)',
+               'raw': '<sae>_raw: frame max codes, no smoothing (alignment reference)'},
            'domains': {}}
+    roots = {'mice': {'v1': ('mice/eci/nes', 'mice')},
+             'ants': {s_: (f'ants/{e}/nes', f'ants_{e}') for s_, e in (('v2', 'eci_r4v2p'), ('v3', 'eci_r4v3p'),
+                                                                     ('v4', 'eci_r4v4p'))},
+             'frogs': {'juv': ('frogs/eci/nes', 'frogs'), 'tad': ('frogs/eci_tadpole_r4/nes', 'frogs_tadpole')}}
     for dom in ('mice', 'ants', 'frogs'):
-        f = REPO / f'configs/eci_v2/{dom}.json'
-        if not f.exists() or not (OUT / dom / 'best.json').exists():
-            continue
         c = RUN.dcfg(dom)
         name = RUN.best_name(c)
-        d = {'config': str(f), 'sae': json.loads((OUT / dom / 'best.json').read_text()),
-             'train': str(OUT / dom / 'train.json'), 'fire': str(OUT / dom / 'fire.json'),
-             'align': str(OUT / dom / 'align.json'), 'series': {}}
+        b = json.loads((OUT / dom / 'best.json').read_text())
+        d = {'config': str(REPO / f'configs/eci_v2/{dom}.json'), 'sae': b, 'sae_checkpoint': b['dir'] + '/sae_theta.pt',
+             'train': str(OUT / dom / 'train.json'), 'health': str(OUT / dom / 'health.json'),
+             'fire': str(OUT / dom / 'fire.json'), 'align_json': str(OUT / dom / 'align.json'),
+             'align_md': str(OUT / dom / 'align.md'), 'selftest': str(OUT / dom / 'selftest.json'), 'series': {}}
         for sc in c['series']:
-            s_ = {'layout': str(REPO / sc['layout']), 'codes_nes': str(RUN.codes_dir(c, sc, name)),
-                  'codes_raw': str(RUN.codes_dir(c, sc, f'{name}_raw')),
-                  'per_video_token_codes': str(BEE / dom / 'videos' / sc['name']),
+            nr, key = roots[dom][sc['name']]
+            s_ = {'layout': str(REPO / sc['layout']), 'layout_annotations': str(RUN.layout_ann(sc)),
+                  'pool': str(RUN.pool_dir(c, sc)), 'per_video_full_pass': str(BEE / dom / 'videos' / sc['name']),
                   'summaries': str(OUT / dom / f'summaries_{sc["name"]}.npz'),
-                  'nes': sorted(glob.glob(str(REPO / 'results/vision/*' / '*' / 'nes' / name))) +
-                  sorted(glob.glob(str(REPO / 'results/vision/*' / '*' / 'nes' / name / '*' / 'summary.csv'))),
-                  'ness': sorted(glob.glob(str(OUT / 'ness' / '*' / name)))}
+                  'heat_dir': str(OUT / dom / 'heat' / sc['name']), 'heat_index': str(OUT / dom / 'heat' / sc['name'] / 'index.json'),
+                  'heat_files': len(g(OUT / dom / 'heat' / sc['name'] / 'n*.npz')), 'sets': {}}
+            for tag, nm in (('primary_proposed', f'{name}_smooth'), ('secondary', name), ('raw', f'{name}_raw')):
+                e = {'name': nm, 'codes': str(RUN.codes_dir(c, sc, nm)), 'codes_link': str(REPO / sc['layout'] / 'codes' / nm)}
+                if tag != 'raw':
+                    e['nes_dir'] = str(V / nr / nm)
+                    e['nes_result_json'] = g(V / nr / nm / '**' / 'result.json')
+                    e['nes_summary_csv'] = g(V / nr / nm / '**' / 'summary.csv')
+                    e['ness_dir'] = str(OUT / 'ness' / key / nm)
+                    e['ness_result_json'] = g(OUT / 'ness' / key / nm / '**' / 'result.json') + \
+                        g(OUT / 'ness_v3_2v8' / key / nm / '**' / 'result.json')
+                    e['ness_summary_csv'] = g(OUT / 'ness' / key / nm / '**' / '*summary.csv') + \
+                        g(OUT / 'ness_v3_2v8' / key / nm / '**' / '*summary.csv')
+                s_['sets'][tag] = e
             d['series'][sc['name']] = s_
-        d['heat'] = sorted(glob.glob(str(OUT / dom / 'heat' / '*')))
         man['domains'][dom] = d
     (OUT / 'manifest.json').write_text(json.dumps(man, indent=1))
     log(f'manifest: {OUT / "manifest.json"}')
-
 
 # ---------------------------------------------------------------------------------------------- heat maps
 class TokenCodes:
@@ -331,15 +358,42 @@ def cmd_heat(args):
         files += glob.glob(str(REPO / 'results/vision' / nes_root / nm / '**' / 'result.json'), recursive=True)
         files += glob.glob(str(OUT / 'ness' / key / nm / '**' / 'result.json'), recursive=True)
         files += glob.glob(str(OUT / 'ness_v3_2v8' / key / nm / '**' / 'result.json'), recursive=True)
+    why = {}
     for f in files:
         d = json.loads(Path(f).read_text())
-        for k_, r in d.items():
-            if 'bonferroni' not in k_ or not (k_.endswith('_full') or k_.endswith('_common')) or not isinstance(r, dict):
-                continue
+        sets = [k_ for k_, r in d.items() if isinstance(r, dict) and 'bonferroni' in k_ and
+                (k_.endswith('_full') or k_.endswith('_common'))]
+        for k_ in sets:
+            r = d[k_]
             for x in r.get('selected', []) or []:
-                js.add(int(x['neuron'] if isinstance(x, dict) else x))
+                j = int(x['neuron'] if isinstance(x, dict) else x)
+                js.add(j)
+                why.setdefault(j, set()).add('selected')
+        # candidates: the 5 lowest first-round p of the widest prefix of every setting (NES result.json only)
+        wide = {}
+        for k_ in sets:
+            fr = d[k_].get('first_round')
+            if isinstance(fr, dict) and isinstance(fr.get('p'), list) and fr['p']:
+                pre = int(k_.split('_')[0][1:])
+                base = k_.split('_', 1)[1]
+                if pre >= wide.get(base, (0, None))[0]:
+                    wide[base] = (pre, fr)
+        for pre, fr in wide.values():
+            pv = np.array([x if x is not None else np.nan for x in fr['p']], float)
+            for i in np.argsort(np.where(np.isfinite(pv), pv, np.inf))[:5]:
+                j = int(fr['neuron'][i])
+                js.add(j)
+                why.setdefault(j, set()).add('candidate')
+    al = OUT / args.domain / 'align.json'
+    if al.exists():
+        A = json.loads(al.read_text())['series'].get(sc['name'], {}).get('models', {})
+        for m in ('v2_raw', 'v2_smooth'):
+            for lb, ns in A.get(m, {}).get('sets', {}).get('all', {}).get('rnd0', {}).items():
+                for j in ns:
+                    js.add(int(j))
+                    why.setdefault(int(j), set()).add(f'aligned:{lb}')
     P = json.loads((REPO / sc['plan']).read_text())
-    mx = np.load(RUN.codes_dir(c, sc, name) / 'codes_max.npy', mmap_mode='r')
+    mx = np.load(RUN.codes_dir(c, sc, f'{name}_smooth') / 'codes_max.npy', mmap_mode='r')
     js = sorted(js)
     log(f'{len(js)} reported neurons')
     peaks = np.zeros((len(P['videos']), len(js)), np.float32)
@@ -359,14 +413,50 @@ def cmd_heat(args):
         for r in rows:
             need.setdefault(r, set()).add(j)
     H = heat_rows(c, sc, need)
+    import io
+    import torch
+    from PIL import Image
+    from src.eci.v2.pipeline import Series
+    Se = Series(sc, torch.device('cpu'), load_encoder=False)
+    lay = np.array([v['lay_lo'] for v in P['videos']])
+    thumb_cache = {}
+
+    def thumb(r):
+        if r not in thumb_cache:
+            vi = int(np.searchsorted(lay, r, side='right') - 1)
+            v = P['videos'][vi]
+            k = r - v['lay_lo']
+            fr = Se.run_job(**Se.job(v, k, 1))
+            x, _ = Se.frames(v, fr, np.array([k]))
+            im = Image.fromarray(x[0].permute(1, 2, 0).numpy()).resize((256, 256), Image.BILINEAR)
+            b = io.BytesIO()
+            im.save(b, format='JPEG', quality=85)
+            thumb_cache[r] = np.frombuffer(b.getvalue(), np.uint8)
+        return thumb_cache[r]
+    index = {}
     for j, rows in meta.items():
         if not rows:
             continue
         a = np.stack([H[(r, j)] for r in rows])
         pv = a[a > 0].astype(np.float32)
-        np.savez(outd / f'n{j:04d}.npz', rows=np.array(rows), heat=a, vmax=float(np.quantile(pv, 0.99)) if len(pv) else 1.0,
-                 sae=name, note='per-token activation (theta*) of the full pass; 8 top videos x 1 s clip at the peak of '
-                                'the NES code')
+        peaks = rows[2::5]
+        th = [thumb(r) for r in peaks]
+        P_ = json.loads((REPO / sc['plan']).read_text())['videos']
+        obs = [P_[int(np.searchsorted(lay, r, side='right') - 1)]['obs'] for r in rows]
+        np.savez(outd / f'n{j:04d}.npz', rows=np.array(rows), obs=np.array(obs), heat=a,
+                 vmax=float(np.quantile(pv, 0.99)) if len(pv) else 1.0, sae=name, why=np.array(sorted(why.get(j, []))),
+                 grid=a.shape[-1], frame=('canonical encoder input: ' + (f'rot90 CCW k = per-video odour-corner turn '
+                                          '(src/eci/v2/pipeline.py)' if sc.get('rot') else
+                                          'hflip per experiment.csv' if sc['name'] == 'juv' else
+                                          f'{sc["crop"]["side"]} px animal-following crop -> {sc["S"]} px'
+                                          if sc.get('geometry') == 'crop' else 'native frame')),
+                 rot90=np.array([Se.rot.get(o, 0) for o in obs]), peak_rows=np.array(peaks),
+                 thumbs=np.concatenate(th), thumb_len=np.array([len(t) for t in th]),
+                 note='per-token activation (theta*) of the full pass on the canonical frame; 8 top videos x 1 s clip '
+                      '(5 frames) centred on the peak of the smoothed codes; thumbs = 256 px JPEG of the canonical '
+                      'frame at each clip peak (concatenated, lengths thumb_len)')
+        index[j] = sorted(why.get(j, []))
+    (outd / 'index.json').write_text(json.dumps({'sae': name, 'series': sc['name'], 'neurons': index}, indent=1))
     log(f'{len(meta)} neurons -> {outd}')
 
 

@@ -77,14 +77,14 @@ def crop_np(frame, x0, y0, side, fill=None):
 
 
 class Series:
-    def __init__(self, cfg, dev, encoder=None):
+    def __init__(self, cfg, dev, encoder=None, load_encoder=True):
         self.cfg, self.dev = cfg, dev
         self.P = json.loads((REPO / cfg['plan']).read_text())
         self.videos = self.P['videos']
         self.V = {v['obs']: v for v in self.videos}
         self.S = cfg['S']
         self.G = self.S // 16
-        self.enc = encoder or Encoder(dev)
+        self.enc = encoder or (Encoder(dev) if load_encoder else None)
         self.geometry = cfg.get('geometry', 'frame')
         m = cfg['mask']
         if self.geometry == 'frame':

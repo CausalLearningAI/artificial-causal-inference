@@ -1,0 +1,22 @@
+{
+ "juv": {
+  "obs": "WT_157_1",
+  "frames": 64,
+  "fps": 9.83623426053124,
+  "kept_per_frame": null,
+  "vs_fullpass": {
+   "max_abs_diff": 0.0077915191650390625,
+   "fire_agreement": 1.0
+  }
+ },
+ "tad": {
+  "obs": "WT_100_1",
+  "frames": 64,
+  "fps": 67.99392390904303,
+  "kept_per_frame": null,
+  "vs_fullpass": {
+   "max_abs_diff": 2.041015625,
+   "fire_agreement": 0.9993362426757812
+  }
+ }
+}

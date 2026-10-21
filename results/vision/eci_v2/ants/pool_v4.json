@@ -1,0 +1,22 @@
+{
+ "domain": "ants",
+ "series": "v4",
+ "S": 816,
+ "G": 51,
+ "n_frames": 80541,
+ "n_tokens": 2764808,
+ "tokens_per_frame": 34.327957189505966,
+ "frames_0_kept": 0,
+ "frames_by_experiment": {
+  "v4": 40320,
+  "v4_infested": 40221
+ },
+ "roles": {
+  "train": 66591,
+  "eval": 7029,
+  "calib": 6921
+ },
+ "wall_s": 2140.2410514354706,
+ "gpu_s": 1993.863162279129,
+ "gpu": "NVIDIA L40S"
+}

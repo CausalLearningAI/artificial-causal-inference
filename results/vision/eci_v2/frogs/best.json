@@ -1,0 +1,8 @@
+{
+ "name": "v2_frogs_c0_w2048_s6",
+ "seed": 6,
+ "eval_fve": 0.8432402757247142,
+ "theta_star": 1.9781557321548462,
+ "rule": "highest held-out FVE among the spec seeds (label-free)",
+ "dir": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/frogs/sae/v2_frogs_c0_w2048_s6"
+}

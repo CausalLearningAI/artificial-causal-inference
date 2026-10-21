@@ -1,0 +1,32 @@
+{
+ "v2": {
+  "obs": "a1",
+  "frames": 64,
+  "fps": 9.922092146466811,
+  "kept_per_frame": null,
+  "vs_fullpass": {
+   "max_abs_diff": 0.01543426513671875,
+   "fire_agreement": 1.0
+  }
+ },
+ "v3": {
+  "obs": "3_1_1",
+  "frames": 64,
+  "fps": 24.151364065933514,
+  "kept_per_frame": null,
+  "vs_fullpass": {
+   "max_abs_diff": 0.01213836669921875,
+   "fire_agreement": 1.0
+  }
+ },
+ "v4": {
+  "obs": "4_1_1",
+  "frames": 64,
+  "fps": 27.087861861271552,
+  "kept_per_frame": null,
+  "vs_fullpass": {
+   "max_abs_diff": 0.007781982421875,
+   "fire_agreement": 1.0
+  }
+ }
+}

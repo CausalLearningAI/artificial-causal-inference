@@ -1,0 +1,12 @@
+{
+ "v1": {
+  "obs": "wt_ash1l_m_1_S_H",
+  "frames": 64,
+  "fps": 10.45804047350433,
+  "kept_per_frame": null,
+  "vs_fullpass": {
+   "max_abs_diff": 0.012241363525390625,
+   "fire_agreement": 1.0
+  }
+ }
+}

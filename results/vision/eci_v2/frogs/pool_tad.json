@@ -1,0 +1,21 @@
+{
+ "domain": "frogs",
+ "series": "tad",
+ "S": 384,
+ "G": 24,
+ "n_frames": 40356,
+ "n_tokens": 794942,
+ "tokens_per_frame": 19.698235702249974,
+ "frames_0_kept": 659,
+ "frames_by_experiment": {
+  "tadpoles": 40356
+ },
+ "roles": {
+  "train": 33516,
+  "calib": 3420,
+  "eval": 3420
+ },
+ "wall_s": 231.90010738372803,
+ "gpu_s": 159.20743560791016,
+ "gpu": "NVIDIA L40S"
+}

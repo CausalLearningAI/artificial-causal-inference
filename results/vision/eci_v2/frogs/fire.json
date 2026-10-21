@@ -1,0 +1,27 @@
+{
+ "sae": "v2_frogs_c0_w2048_s6",
+ "smooth_h": 1,
+ "theta_n": 2.3387794344190143,
+ "calib": {
+  "n_calib_frames": 234058,
+  "n_never_active": 0,
+  "mean_fires_per_frame": 15.999995727554708,
+  "sigma_median": 1.3863932490348816
+ },
+ "series": {
+  "juv": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/frogs/codes/juv/v2_frogs_c0_w2048_s6",
+   "summaries": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/frogs/summaries_juv.npz",
+   "mean_fires_per_frame": 21.48601923555194,
+   "median_time_spent": 0.00011187188647454605,
+   "never_firing_video_neuron_frac": 0.701367199420929
+  },
+  "tad": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/frogs/codes/tad/v2_frogs_c0_w2048_s6",
+   "summaries": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/frogs/summaries_tad.npz",
+   "mean_fires_per_frame": 22.726683997983667,
+   "median_time_spent": 0.005369106307625771,
+   "never_firing_video_neuron_frac": 0.4731528162956238
+  }
+ }
+}

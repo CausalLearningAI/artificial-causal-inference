@@ -1,0 +1,15 @@
+{
+ "v1": {
+  "obs": "wt_ash1l_m_1_S_H",
+  "frames": 64,
+  "fps": 10.275170776313317,
+  "kept_per_frame": null,
+  "vs_round2_tokens": {
+   "video": "wt_ash1l_m_1_S_H",
+   "frames": 24,
+   "mask_iou_mean": 1.0,
+   "mask_iou_min": 1.0,
+   "token_cos_min": 0.9999998211860657
+  }
+ }
+}

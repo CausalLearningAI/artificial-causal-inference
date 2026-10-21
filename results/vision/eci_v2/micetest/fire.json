@@ -1,0 +1,20 @@
+{
+ "sae": "v2_mice_c0_w2048_s7",
+ "smooth_h": 1,
+ "theta_n": 2.8561175415599602,
+ "calib": {
+  "n_calib_frames": 9000,
+  "n_never_active": 4,
+  "mean_fires_per_frame": 15.999888888888888,
+  "sigma_median": 1.2652994394302368
+ },
+ "series": {
+  "v1": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/micetest/codes/v1/v2_mice_c0_w2048_s7",
+   "summaries": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/micetest/summaries_v1.npz",
+   "mean_fires_per_frame": 34.8945,
+   "median_time_spent": 0.005157407373189926,
+   "never_firing_video_neuron_frac": 0.2515462338924408
+  }
+ }
+}

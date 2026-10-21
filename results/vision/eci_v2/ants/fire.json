@@ -1,0 +1,34 @@
+{
+ "sae": "v2_ants_c0_w2048_s6",
+ "smooth_h": 1,
+ "theta_n": 2.7095055477126544,
+ "calib": {
+  "n_calib_frames": 156000,
+  "n_never_active": 0,
+  "mean_fires_per_frame": 15.999993589743589,
+  "sigma_median": 1.0423177480697632
+ },
+ "series": {
+  "v2": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v2/v2_ants_c0_w2048_s6",
+   "summaries": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ants/summaries_v2.npz",
+   "mean_fires_per_frame": 12.872469696969699,
+   "median_time_spent": 0.0035719694569706917,
+   "never_firing_video_neuron_frac": 0.4320512115955353
+  },
+  "v3": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v3/v2_ants_c0_w2048_s6",
+   "summaries": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ants/summaries_v3.npz",
+   "mean_fires_per_frame": 19.81673001038422,
+   "median_time_spent": 0.007324506528675556,
+   "never_firing_video_neuron_frac": 0.23617297410964966
+  },
+  "v4": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v4/v2_ants_c0_w2048_s6",
+   "summaries": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ants/summaries_v4.npz",
+   "mean_fires_per_frame": 18.50962414266118,
+   "median_time_spent": 0.007262002676725388,
+   "never_firing_video_neuron_frac": 0.2610737383365631
+  }
+ }
+}

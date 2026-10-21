@@ -1,0 +1,19 @@
+{
+ "juv": {
+  "eval_tokens": 67797,
+  "fve": 0.863811731338501,
+  "token_l0": 14.686800003051758,
+  "neurons_used": 652
+ },
+ "tad": {
+  "eval_tokens": 62054,
+  "fve": 0.7614797949790955,
+  "token_l0": 17.922744750976562,
+  "neurons_used": 1025
+ },
+ "shared_neurons": 110,
+ "only": {
+  "juv": 542,
+  "tad": 915
+ }
+}
