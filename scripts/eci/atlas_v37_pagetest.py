@@ -36,6 +36,32 @@ threading.Thread(target=srv.serve_forever, daemon=True).start()
 from playwright.sync_api import sync_playwright  # noqa: E402
 
 errors, report = [], []
+VSTAT = {'checked': 0, 'webm': 0, 'loaded': 0, 'in_page': 0, 'looping': 0, 'bad': []}
+VJS = '''() => { const v = document.querySelector('#vM'); if(!v) return null;
+  return {src: v.currentSrc || v.src || '', ds: v.dataset.src || '', ready: v.readyState, t: v.currentTime,
+          dur: v.duration, err: v.error ? v.error.code : null}; }'''
+
+
+def vcheck(pg, lab):
+    """The clip pack of the shown neuron: loaded, playing inside its page (seek), and looping (1 s clips)."""
+    pg.wait_for_timeout(2500)
+    a_ = pg.evaluate(VJS)
+    if not a_ or not a_['ds']:
+        return
+    VSTAT['checked'] += 1
+    VSTAT['webm'] += a_['ds'].endswith('.webm')
+    if a_['ready'] >= 2 and a_['err'] is None:
+        VSTAT['loaded'] += 1
+    else:
+        VSTAT['bad'].append((lab, a_))
+        return
+    ts = [a_['t']]
+    for _ in range(4):
+        pg.wait_for_timeout(400)
+        ts.append(pg.evaluate(VJS)['t'])
+    page = pg.evaluate('() => { const C = document.querySelector("#vM"); return C ? C.dataset.src : null; }')
+    VSTAT['in_page'] += ts[0] > 0 or '_frame_' in a_['ds']
+    VSTAT['looping'] += len(set(round(t, 2) for t in ts)) > 1 or '_frame_' in a_['ds']
 with sync_playwright() as p:
     b = p.chromium.launch()
     pg = b.new_page(viewport={'width': 1300, 'height': 1000})
@@ -110,6 +136,8 @@ with sync_playwright() as p:
                                         pg.click('#side .nr:visible >> nth=0')
                                         pg.wait_for_timeout(600)
                                         h2 = pg.eval_on_selector('#detail', 'e => (e.querySelector("h2")||{}).textContent || "(no detail)"')
+                                        if model.startswith('new') and kind[0] == 'time':
+                                            vcheck(pg, f'{d} {model} {meth[0]} {kind[0]} {aid}')
                                     ann = pg.eval_on_selector_all('#side .warnbox, #side .note', 'es => es.map(e => e.textContent.trim()).filter(t => /annotat/.test(t))')
                                     if ann:
                                         report.append(f'      annotation check {model} {meth[0]} {kind[0]} {aid}: {ann}')
@@ -172,6 +200,8 @@ with sync_playwright() as p:
                                     pg.wait_for_timeout(900)
                                     h2 = pg.eval_on_selector('#detail', 'e => (e.querySelector("h2")||{}).textContent || "(no detail)"')
                                     report.append(f'      clicked first listed: detail {h2}')
+                                    if model.startswith('new'):
+                                        vcheck(pg, f'{d} {model} {meth[0]} {kind[0]} {e[0]} {lab}')
                                 if a.shots and shot < 24 and nr:
                                     pg.wait_for_timeout(900)
                                     pg.screenshot(path=f'{a.shots}/shot_{shot:02d}_{d}_{model}_{meth[0]}_{kind[0]}_{e[0]}_{lab}.png'.replace(' ', '').replace('·', '_').replace('=', ''))
@@ -226,6 +256,7 @@ with sync_playwright() as p:
     ban = pg.query_selector('#v0Ban')
     report.append(f'v0 banner (last state): {ban.text_content() if ban else None}')
     b.close()
+report.append(f'clip packs (v2): {json.dumps({k: v for k, v in VSTAT.items() if k != "bad"})}; not loaded: {VSTAT["bad"][:5]}')
 bad = [r for r in report if '(candidates)' in r and "listed []" not in r and ' 0 found' not in r]
 report.append(f'candidate lists shown next to discoveries (must be 0): {len(bad)}')
 out = '\n'.join(report) + f'\nJS errors: {len(errors)}\n' + '\n'.join('   ' + e for e in errors[:30])

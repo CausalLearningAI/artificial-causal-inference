@@ -1650,6 +1650,82 @@ def split_v4_pack(site):
     log(f'split pack: {n} references -> {SPLIT_NAME}_p0/1/2')
 
 
+# ---- clip packs as WebM (VP9): the artifact upload filter misdetects some H.264 MP4 packs as "cpio archive"; a VP9
+# WebM re-encode passes. Every page starts with a keyframe (g = page length in frames: 'frame' packs all-intra, '1s'
+# packs every 5th frame), so the page's seek to a page start decodes from that page alone. Cache: OUT/webm/.
+WEBM = OUT / 'webm'
+WEBM_CRF = 40  # VP9 at crf 30 was 1.3-1.9x the H.264 packs (largest 19.9 MB > the 15 MB file limit)
+
+
+def pack_w(name):
+    return 1 if '_frame_' in name else 5 if '_1s_' in name else None
+
+
+def to_webm(src):
+    """<pack>.mp4 -> OUT/webm/<pack>.webm (cached by source size + mtime)."""
+    w = pack_w(src.name)
+    assert w, src.name
+    out = WEBM / (src.stem + '.webm')
+    tag = WEBM / (src.stem + '.src')
+    key = f'{src.stat().st_size}|{int(src.stat().st_mtime)}|crf{WEBM_CRF}|g{w}'
+    if out.exists() and tag.exists() and tag.read_text() == key:
+        return out
+    tmp = out.with_suffix('.tmp.webm')
+    cmd = ['ffmpeg', '-y', '-loglevel', 'error', '-i', str(src), '-an', '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p',
+           '-crf', str(WEBM_CRF), '-b:v', '0', '-g', str(w), '-keyint_min', str(w),
+           '-force_key_frames', f'expr:eq(mod(n,{w}),0)', '-auto-alt-ref', '0', '-lag-in-frames', '0',
+           '-deadline', 'good', '-cpu-used', '2', '-row-mt', '1', '-threads', '4', str(tmp)]
+    subprocess.run(cmd, check=True)
+    tmp.rename(out)
+    tag.write_text(key)
+    return out
+
+
+def frames_at(path, idx, w, h):
+    """rgb frames (n, h, w, 3) uint8 of the given frame indices of a video (one sequential decode)."""
+    sel = '+'.join(f'eq(n\\,{i})' for i in idx)
+    r = subprocess.run(['ffmpeg', '-v', 'error', '-i', str(path), '-vf', f"select='{sel}'", '-vsync', '0',
+                        '-pix_fmt', 'rgb24', '-f', 'rawvideo', '-'], capture_output=True, check=True)
+    return np.frombuffer(r.stdout, np.uint8).reshape(-1, h, w, 3)
+
+
+def webm_check(pairs):
+    """Pixel MAE of 3 sample pages per pack type between the MP4 render and the WebM, at the page-start frames, and
+    the WebM's keyframe positions (every page start must be one)."""
+    rep_ = {}
+    by = {}
+    for m, wv in pairs:
+        by.setdefault(pack_w(m.name), []).append((m, wv))
+    for w, L in by.items():
+        out = []
+        for m, wv in L[:3]:
+            pr = json.loads(subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-count_frames',
+                                            '-show_entries', 'stream=width,height,nb_read_frames', '-of', 'json',
+                                            str(m)], capture_output=True, check=True).stdout)['streams'][0]
+            W, H, n = int(pr['width']), int(pr['height']), int(pr['nb_read_frames'])
+            pages = n // w
+            idx = sorted({0, (pages // 2) * w, (pages - 1) * w})
+            a, b = frames_at(m, idx, W, H), frames_at(wv, idx, W, H)
+            assert a.shape == b.shape, (m, a.shape, b.shape)
+            kf = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries',
+                                 'frame=key_frame', '-of', 'csv=p=0', str(wv)], capture_output=True, check=True
+                                ).stdout.decode().split()
+            kfi = [i for i, k in enumerate(kf) if k.strip().startswith('1')]
+            starts = list(range(0, n, w))
+            out.append({'pack': m.name, 'frames': n, 'pages': pages, 'checked_frames': idx,
+                        'mae': [round(float(np.abs(a[i].astype(np.int16) - b[i].astype(np.int16)).mean()), 3)
+                                for i in range(len(idx))],
+                        'keyframe_every_page_start': set(starts) <= set(kfi), 'n_keyframes': len(kfi),
+                        'mp4_mb': round(m.stat().st_size / 1e6, 2), 'webm_mb': round(wv.stat().st_size / 1e6, 2)})
+        rep_[{1: 'frame', 5: '1s'}[w]] = out
+    (WEBM / 'check.json').write_text(json.dumps(rep_, indent=1))
+    log('webm check: ' + json.dumps({k: [(x['pack'], x['mae'], x['keyframe_every_page_start']) for x in v]
+                                     for k, v in rep_.items()}))
+    bad = [x for v in rep_.values() for x in v if not x['keyframe_every_page_start']]
+    if bad:
+        raise SystemExit(f'webm: page starts without a keyframe in {[x["pack"] for x in bad]}')
+
+
 def step_assemble():
     site = OUT / 'site'
     if site.exists():
@@ -1681,6 +1757,8 @@ def step_assemble():
     # ---- new model entries (one build per R4 domain; NES + DINES entries share the build's data files)
     new_entries, builds = {}, {}
     keys_all = [f'{k}_{v}' for k in NEW for v in ('d2', 'd0', 'smooth', 'thr')]
+    WEBM.mkdir(parents=True, exist_ok=True)
+    webm_pairs = []
     v2_built = any(k.startswith('v2_') and (OUT / 'build' / k / 'core.json').exists() for k in keys_all)
     for key in keys_all:
         b = OUT / 'build' / key
@@ -1690,11 +1768,23 @@ def step_assemble():
             log(f'assemble: {key} left out (the frozen v2 replaces the R4 builds)')
             continue
         cj = json.loads((b / 'core.json').read_text())
+        # clip packs of this build as WebM (to_webm); references renamed in its data files
+        mp4s = sorted({m for f in (b / 'data').glob('*.json') for m in re.findall(r'assets/([\w.\-]+\.mp4)', f.read_text())
+                       if m not in amap})
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(6) as ex:
+            wm = dict(zip(mp4s, ex.map(lambda m: to_webm(b / 'assets' / m), mp4s)))
+        webm_pairs.extend((b / 'assets' / m, wv) for m, wv in wm.items())
         for f in sorted((b / 'data').glob('*.json')):
             rw_json(f, site / 'assets' / 'data' / f.name, amap)
-        for f in sorted((b / 'assets').glob('*')):
-            if f.suffix == '.webp' or (f.suffix == '.mp4' and f.name not in amap):
-                shutil.copy(f, site / 'assets' / f.name)
+            t = (site / 'assets' / 'data' / f.name).read_text()
+            for m in wm:
+                t = t.replace(f'assets/{m}', f'assets/{Path(m).stem}.webm')
+            (site / 'assets' / 'data' / f.name).write_text(t)
+        for m, wv in wm.items():
+            shutil.copy(wv, site / 'assets' / wv.name)
+        for f in sorted((b / 'assets').glob('*.webp')):
+            shutil.copy(f, site / 'assets' / f.name)
         ents = []
         for e in cj['entries']:
             if amap:
@@ -1894,6 +1984,7 @@ def step_assemble():
     data['v0'] = v0_table()
     v0e = v0_entries(site, saes, data)  # v0 = the baseline (original ECI paper recipe), a selectable model
     saes += v0e
+    webm_check(webm_pairs)
     data['align'] = align_table()
     data['anncheck'] = ann_check(saes, data)
     tadpole_strips(site, saes)
@@ -1940,7 +2031,7 @@ def check_site(site, amap, saes):
            'options': {'prefixes': [128, 256], 'default_prefix': 128, 'spatial_aggregation': ['max'],
                        'clip_lengths': ['frame', '1s'], 'methods': ['NES', 'NESS'], 'models': ['new', 'online', 'v0']},
            'version_files': {str(p.relative_to(site)): p.stat().st_size for p in sorted(files) if p.suffix not in ('.mp4', '.webm')},
-           'packs_to_upload': {p.name: p.stat().st_size for p in sorted(packs) if p.name.startswith('r4')},
+           'packs_to_upload': {p.name: p.stat().st_size for p in sorted(packs) if p.name.startswith(('r4', 'v2'))},
            'live_version_file_packs': {p.name: p.stat().st_size for p in sorted(packs) if not p.name.startswith('r4')},
            'asset_store_urls_referenced': len(urls)}
     man['version_files']['index.html'] = len(page.encode())
