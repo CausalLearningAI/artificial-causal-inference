@@ -96,7 +96,8 @@ def cmd_align(args):
         models = {'v2_raw': (RUN.codes_dir(c, sc, f'{name}_raw') / 'codes_max.npy', None),
                   'v2_nes': (RUN.codes_dir(c, sc, name) / 'codes_max.npy', None),
                   'v2_smooth': (RUN.codes_dir(c, sc, f'{name}_smooth') / 'codes_max.npy', None),
-                  'v2_prob': (RUN.codes_dir(c, sc, f'{name}_prob') / 'codes_max.npy', None)}
+                  'v2_prob': (RUN.codes_dir(c, sc, f'{name}_prob') / 'codes_max.npy', None),
+                  'v2_map': (RUN.codes_dir(c, sc, f'{name}_map') / 'codes_max.npy', None)}
         for nm, (path, ref_ann) in al.get('refs', {}).items():
             models[nm] = (REPO / path / 'codes_max.npy', REPO / ref_ann if ref_ann else None)
         res = {'n_frames': int(len(rows)), 'n_units': len(units),
@@ -123,6 +124,17 @@ def cmd_align(args):
                                                            f'{o2["mean"][lb]["A"]:.3f}' for lb in labs))
                 del Xg, Yg
                 torch.cuda.empty_cache()
+        mp = RUN.codes_dir(c, sc, f'{name}_map') / 'codes_max.npy'
+        if mp.exists() and 'v2_smooth' in res['models']:
+            M_ = np.load(mp, mmap_mode='r')
+            res['map_active_fraction_of_selected'] = {}
+            for lb in labs:
+                js = sorted(set(res['models']['v2_smooth']['sets']['all']['rnd0'][lb]) |
+                            set(res['models'].get('v2_map', {}).get('sets', {}).get('all', {}).get('rnd0', {}).get(lb, [])))
+                res['map_active_fraction_of_selected'][lb] = {
+                    int(j): {'all_frames': float(np.asarray(M_[rows[::7], j], np.float32).mean()),
+                             'label_positive_frames': float(np.asarray(M_[rows[Y[:, labs.index(lb)]][::3], j],
+                                                                       np.float32).mean())} for j in js}
         out['series'][sc['name']] = res
     (OUT / args.domain / 'align.json').write_text(json.dumps(out, indent=1, default=float))
     L = [f'# {args.domain}: behaviour alignment of {name}', '',

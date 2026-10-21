@@ -604,6 +604,66 @@ def cmd_prob(args):
     log(json.dumps({k: v for k, v in info.items() if k != 'series'}))
 
 
+def cmd_map(args):
+    """Per-neuron MAP binary '<name>_map' = 1[P(on) > 0.5] from the '<name>_prob' codes (src/eci/v2/prob.py
+    pre-registration), the bimodality arm on the calibration sample, active-fraction sanity -> OUT/<domain>/map.json."""
+    import shutil
+    from src.eci.v2 import prob as PR
+    c = dcfg(args.domain)
+    name = best_name(c)
+    cal = []
+    for sc in c['series']:
+        P = json.loads((REPO / sc['plan']).read_text())
+        mx = np.load(codes_dir(c, sc, f'{name}_smooth') / 'codes_max.npy', mmap_mode='r')
+        cal += [np.asarray(mx[v['lay_lo']:v['lay_lo'] + v['n']]).astype(np.float32) for v in P['videos'] if v['role'] == 'calib']
+    gain, sep, npos = PR.bimodality(np.concatenate(cal))
+    del cal
+    fb = np.load(codes_dir(c, c['series'][0], f'{name}_prob') / 'prob_model.npz')['fallback']
+    ok = np.isfinite(gain)
+    info = {'W': int(len(gain)), 'fallback_share': float(fb.mean()), 'n_lt200_positive': int((~ok).sum()),
+            'bic_gain_median': float(np.nanmedian(gain)), 'share_bic_gain_gt10': float((gain[ok] > 10).mean()),
+            'share_bic_gain_le10': float((gain[ok] <= 10).mean()), 'separation_median': float(np.nanmedian(sep)),
+            'separation_p10_p90': [float(np.nanquantile(sep, 0.1)), float(np.nanquantile(sep, 0.9))], 'series': {}}
+    np.savez(OUT / args.domain / 'bimodality.npz', bic_gain=gain, separation=sep, n_positive=npos, fallback=fb)
+    for sc in c['series']:
+        src = codes_dir(c, sc, f'{name}_prob')
+        mx = np.load(src / 'codes_max.npy', mmap_mode='r')
+        cd = codes_dir(c, sc, f'{name}_map')
+        tmp = cd.with_name(cd.name + '.tmp')
+        tmp.mkdir(parents=True, exist_ok=True)
+        y = np.lib.format.open_memmap(tmp / 'codes_max.npy', 'w+', np.float16, mx.shape)
+        act = np.zeros(mx.shape[1], np.float64)
+        for a_ in range(0, mx.shape[0], 200_000):
+            b_ = (np.asarray(mx[a_:a_ + 200_000]).astype(np.float32) > 0.5)
+            y[a_:a_ + 200_000] = b_.astype(np.float16)
+            act += b_.sum(0)
+        y.flush()
+        del y
+        act /= mx.shape[0]
+        shutil.copyfile(src / 'n_fg.npy', tmp / 'n_fg.npy')
+        np.save(tmp / 'active_fraction.npy', act.astype(np.float32))
+        cfg = json.loads((src / 'config.json').read_text())
+        cfg.update({'sae': f'{name}_map', 'parent_codes': str(src), 'rule': '1[P(on) > 0.5]: per-neuron MAP decision of '
+                    'the label-free mixture (src/eci/v2/prob.py)'})
+        (tmp / 'config.json').write_text(json.dumps(cfg, indent=1))
+        (tmp / 'DONE').touch()
+        if cd.exists():
+            shutil.rmtree(cd)
+        tmp.rename(cd)
+        for l_, t_ in ((REPO / sc['layout'] / 'codes' / f'{name}_map', cd),
+                       (REPO / sc['layout'] / 'sae' / f'{name}_map',
+                        Path(json.loads((OUT / args.domain / 'best.json').read_text())['dir']))):
+            if not (l_.is_symlink() or l_.exists()):
+                os.symlink(t_, l_)
+        info['series'][sc['name']] = {'codes': str(cd), 'active_fraction_median': float(np.median(act)),
+                                      'active_fraction_p10_p90': [float(np.quantile(act, 0.1)), float(np.quantile(act, 0.9))],
+                                      'never_active': int((act == 0).sum()), 'active_gt_50pct': int((act > 0.5).sum()),
+                                      'mean_active_neurons_per_frame': float(act.sum())}
+        log(f'{args.domain} {sc["name"]}: ' + json.dumps(info['series'][sc['name']]))
+    (OUT / args.domain / 'map.json').write_text(json.dumps(info, indent=1, default=float))
+    log(json.dumps({k: v for k, v in info.items() if k != 'series'}))
+
+
 def cmd_link(args):
     """Symlinks: <layout>/codes/<name>[_raw] -> BeeGFS codes dirs; <layout>/sae/<name> -> the SAE dir (sae.pt =
     sae_theta.pt link, read by the atlas builder)."""
@@ -631,7 +691,7 @@ def cmd_link(args):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('pool', 'train', 'encode', 'merge', 'fire', 'link', 'smooth', 'prob', 'align', 'selftest',
+    p.add_argument('step', choices=('pool', 'train', 'encode', 'merge', 'fire', 'link', 'smooth', 'prob', 'map', 'align', 'selftest',
                                     'manifest', 'heat', 'health'))
     p.add_argument('--picks', default='')
     p.add_argument('--nshards', type=int, default=1)
@@ -653,7 +713,7 @@ def main():
         spec_.loader.exec_module(T)
         return getattr(T, f'cmd_{args.step}')(args)
     {'pool': cmd_pool, 'train': cmd_train, 'encode': cmd_encode, 'merge': cmd_merge, 'fire': cmd_fire,
-     'link': cmd_link, 'smooth': cmd_smooth, 'prob': cmd_prob}[args.step](args)
+     'link': cmd_link, 'smooth': cmd_smooth, 'prob': cmd_prob, 'map': cmd_map}[args.step](args)
 
 
 if __name__ == '__main__':

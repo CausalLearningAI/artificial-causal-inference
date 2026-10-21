@@ -47,7 +47,7 @@ def main():
     res = {}
     for dom, items in SETS.items():
         for root, sae, key in items:
-            for nm in (sae, f'{sae}_smooth', f'{sae}_prob'):
+            for nm in (sae, f'{sae}_smooth', f'{sae}_prob', f'{sae}_map'):
                 r = {}
                 base = V / root / nm
                 for o, sub in SUB.items():

@@ -39,7 +39,7 @@ cp -rL $NES/$SAE/_cache $L/nes/$SAE/
 echo "HEAD $HEAD; staged $(du -sh $L | cut -f1) to $L; host $(hostname)"
 export ANTS_ECI=eci_r4v3p NES_CODE_ROOT=$L/code ATLAS_V37_HEAD=$HEAD
 cd $L/code
-W="python -u scripts/eci/rollout_r4_nes.py"
+W="python -u scripts/eci/rollout_r4_nes.py"; [ "${V2_ZERO_THR:-0}" = "1" ] && W="python -u scripts/eci/v2/nes_v2_dispatch.py scripts/eci/rollout_r4_nes.py"
 COMMON="--domain ants --sae $SAE --prefixes 128,512,2048 --nuisance nfg --select p --analysis-set core --subdir $SUB --codes-root $L/codes --out-root $L/nes"
 echo "=== NES activation (per-video mean of codes_max)"
 $W run_nes.py $COMMON --primary-pooling max --poolings max --skip-frame

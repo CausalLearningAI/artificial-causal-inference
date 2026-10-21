@@ -39,9 +39,9 @@ printf '{"commit": "%s", "nes_dines_last_change_commit": "%s", "file_sha1": "%s"
 echo "code $CODE_COMMIT (nes/dines last changed in $NC) -> $L; $H"
 export OMP_NUM_THREADS=4 OPENBLAS_NUM_THREADS=4 MKL_NUM_THREADS=4
 if [ "$KIND" = "tadpoles" ]; then
-  W="python -u $L/scripts/eci/tadpole_r4_nes.py"; DOM=tadpoles; RES=results/vision/frogs/eci_tadpole_r4/nes/$SAE
+  W="python -u $L/scripts/eci/tadpole_r4_nes.py"; [ "${V2_ZERO_THR:-0}" = "1" ] && W="python -u $L/scripts/eci/v2/nes_v2_dispatch.py $L/scripts/eci/tadpole_r4_nes.py"; DOM=tadpoles; RES=results/vision/frogs/eci_tadpole_r4/nes/$SAE
 else
-  W="python -u $L/scripts/eci/rollout_r4_nes.py"; DOM=$KIND
+  W="python -u $L/scripts/eci/rollout_r4_nes.py"; [ "${V2_ZERO_THR:-0}" = "1" ] && W="python -u $L/scripts/eci/v2/nes_v2_dispatch.py $L/scripts/eci/rollout_r4_nes.py"; DOM=$KIND
   case $KIND in mice) RES=results/vision/mice/eci/nes/$SAE ;; frogs) RES=results/vision/frogs/eci/nes/$SAE ;;
     ants) RES=results/vision/ants/$ANTS_ECI/nes/$SAE ;; esac
 fi
