@@ -1234,41 +1234,44 @@ MASK = {'mice': 'mouse mask (rule fg448, per-video backgrounds)', 'ants': 'ant m
         'frogs': 'frog mask (rule frogs, per-video backgrounds)'}
 
 
+CANON = {'mice': 'odour corner rotated to the top right', 'ants': 'none (as recorded)',
+         'frogs': 'mutant side mirrored to the right'}
+
+
 def spec_of(e):
     """The compact Details cells of an entry (page table v0 | v1 | v2; v0 = the ECI paper recipe, not filled yet)."""
     dom, online, meth = e['domain'], e['model']['model'] == 'online', e['model']['method']
     key = e['sae'].split('#')[1].rsplit('_', 1)[0] if '#' in e['sae'] else None
     if e['model']['model'] in ('new', 'new (thr)') and (e.get('v2spec') or (key or '').startswith('v2_')):
         S, G = e.get('v2spec', (None, None))
-        cells = {'fm': f'DINOv3-L/16 block 20 · {S} px native-capped ({G}×{G} patches)' if S else 'DINOv3-L/16 block 20 · native-capped',
-                 'input': 'token', 'mask': {'mice': 'tight mouse mask · odour corner rotated to top right',
-                                            'ants': 'tight ant mask', 'frogs': 'tight frog mask · mutant side right'}[dom]
-                 + (' · tadpole crop (96 px → 384)' if e.get('tadpole') else ''),
-                 'sae': 'Matryoshka BatchTopK · 2048 · k=16 · one SAE per domain',
-                 'pool': 'max over the mask · 0.6 s smoothing' + (' · no firing threshold' if e['model']['model'] == 'new'
-                                                                   else ' · fnorm firing threshold'),
+        # worded like the frozen v2 pipeline figure (scripts/eci/fig_pipeline_v2.py)
+        who = 'tadpoles' if e.get('tadpole') else {'mice': 'mice', 'ants': 'ants', 'frogs': 'frogs'}[dom]
+        fm = ('DINOv3-L/16 block 20 · 96 px crop following the tadpole → 384 px' if e.get('tadpole') else
+              f'DINOv3-L/16 block 20 · native resolution ({who} {S} px)' if S else 'DINOv3-L/16 block 20 · native resolution')
+        cells = {'fm': fm, 'mask': 'animal mask',
+                 'canon': CANON[dom] if not e.get('tadpole') else 'none (crop centred on the tadpole)',
+                 'input': 'token (no temporal channel)', 'pool': 'max over tokens · 0.6 s smoothing',
+                 'sae': 'Matryoshka 2048 · k 16 · one per domain',
                  'cov': 'foreground size (n_fg)' + (' + recording day (not for t=8 vs t=2, infested vs healthy)'
                                                     if dom == 'ants' else '')}
         if dom == 'mice':
             cells['hab'] = 'last 15 min'
         return {'cells': cells}
     if online:
-        fm = 'DINOv2-base · 448 px (32×32 patches)'
-        sae = 'Matryoshka BatchTopK · 1024 · k=16'
-        mask = {'mice': 'mouse mask · odor corner rotated to top right', 'ants': 'ant mask',
-                'frogs': 'frog mask · mutant side mirrored right'}[dom]
+        fm = 'DINOv2-B/14 · 448 px'
+        sae = 'Matryoshka 1024 · k 16 · one per domain'
         cov = 'none' if meth == 'NES' else 'foreground size (n_fg)'
+        inp, pool = 'token (no temporal channel)', 'max over tokens'
     else:
         S, G = R4_SIZE[key]
-        fm = f'DINOv3-L/16 · {S} px ({G}×{G} patches)'
-        sae = 'Matryoshka BatchTopK · 512 · k=16' + (' · one SAE for all series' if dom == 'ants' else '')
-        mask = {'mice': 'mouse mask · not rotated', 'ants': 'ant mask', 'frogs': 'frog mask · mutant side mirrored right'}[dom]
+        fm = f'DINOv3-L/16 · {S} px'
+        sae = 'Matryoshka 512 · k 16' + (' · one for all ant series' if dom == 'ants' else '')
         if key == 'frogs_tad':  # tadpoles: a crop that follows the tadpole (scripts/eci/tadpole_r4.py)
-            fm, mask = f'DINOv3-L/16 · {S} px crop around the tadpole ({G}×{G} patches)', 'frog pixel mask on the crop'
-            sae = 'Matryoshka BatchTopK · 512 · k=16 · own tadpole SAE'
+            fm, sae = f'DINOv3-L/16 · {S} px crop following the tadpole', 'Matryoshka 512 · k 16 · own tadpole SAE'
         cov = 'foreground size (n_fg)' + (' + recording day (not for t=8 vs t=2, infested vs healthy)' if dom == 'ants' else '')
-    cells = {'fm': fm, 'input': 'token' if online else 'token + 2 s change', 'mask': mask, 'sae': sae,
-             'pool': 'max over the mask', 'cov': cov}
+        inp, pool = 'token + 2 s change', 'max over tokens'
+    canon = CANON[dom] if online else {'mice': 'none (not rotated)', 'ants': CANON['ants'], 'frogs': CANON['frogs']}[dom]
+    cells = {'fm': fm, 'mask': 'animal mask', 'canon': canon, 'input': inp, 'pool': pool, 'sae': sae, 'cov': cov}
     if dom == 'mice':
         cells['hab'] = 'whole 30 min' if online else 'last 15 min'
     return {'cells': cells}

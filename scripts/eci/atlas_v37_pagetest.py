@@ -64,6 +64,11 @@ def vcheck(pg, lab):
     """The clip pack of the shown neuron: loaded, playing inside its page (seek), and looping (1 s clips)."""
     pg.wait_for_timeout(2500)
     a_ = pg.evaluate(VJS)
+    for _ in range(12):  # a pack read from NFS can take a few seconds more
+        if not a_ or a_['ready'] >= 2 or a_['err'] is not None:
+            break
+        pg.wait_for_timeout(500)
+        a_ = pg.evaluate(VJS)
     if not a_ or not a_['ds']:
         return
     VSTAT['checked'] += 1
@@ -355,6 +360,47 @@ with sync_playwright() as p:
     pg.screenshot(path=f'{a.shots}/badge_neutral.png', full_page=False)
     ban = pg.query_selector('#v0Ban')
     report.append(f'v0 banner (last state): {ban.text_content() if ban else None}')
+    # fresh-page shots of the Behavioural representation box (+ tab row), its Alignment and Details panels:
+    # mice, ants v4 (colony contrast), frogs tadpoles; each on a new page with no saved state
+    for d, tag in (('mice', 'mice'), ('ants', 'ants_v4'), ('frogs', 'frogs_tadpoles')):
+        ctx = b.new_context(viewport={'width': 1300, 'height': 1000})
+        q = ctx.new_page()
+        q.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
+        q.goto(f'http://127.0.0.1:{a.port}/index.html')
+        q.wait_for_timeout(1500)
+        q.select_option('#domSel', d)
+        q.wait_for_timeout(1200)
+        if tag == 'ants_v4':
+            q.select_option('#apE', 'v4')
+            q.wait_for_timeout(900)
+            if q.eval_on_selector_all('#apG option', 'os => os.map(o => o.value)').count('colony'):
+                q.select_option('#apG', 'colony')
+                q.wait_for_timeout(900)
+        if tag == 'frogs_tadpoles':
+            tv = [o[0] for o in q.eval_on_selector_all('#apE option', 'os => os.map(o => [o.value, o.disabled])')
+                  if o[0].startswith('tadpoles') and not o[1]]
+            if tv:
+                q.select_option('#apE', tv[0])
+                q.wait_for_timeout(1500)
+        q.locator('#modelBar').screenshot(path=f'{a.shots}/rep_box_{tag}.png')
+        q.locator('header').screenshot(path=f'{a.shots}/rep_header_{tag}.png')
+        q.locator('nav.bar').screenshot(path=f'{a.shots}/tab_row_{tag}.png')
+        q.screenshot(path=f'{a.shots}/fresh_{tag}.png', full_page=False)
+        q.click('#alBtn')
+        q.wait_for_timeout(700)
+        q.locator('header').screenshot(path=f'{a.shots}/alignment_{tag}.png')
+        report.append(f'fresh {tag}: model {q.eval_on_selector("#ax_model", "e => e.value")}, readout '
+                      f'{q.eval_on_selector_all("#ax_readout option", "os => os.map(o => o.textContent)")}, prefix '
+                      f'{q.eval_on_selector_all("#prefixSeg button", "bs => bs.map(b => b.textContent)")}, alignment '
+                      f'{q.eval_on_selector("#alBox", "e => e.innerText.slice(0, 160)")!r}')
+        q.click('#specBtn')
+        q.wait_for_timeout(500)
+        q.locator('header').screenshot(path=f'{a.shots}/details_{tag}.png')
+        q.locator('#expDet summary').click()
+        q.wait_for_timeout(300)
+        report.append(f'fresh {tag} experiment details: {q.eval_on_selector("#expBox", "e => e.innerText")!r}')
+        q.locator('#expDet').screenshot(path=f'{a.shots}/expdetails_{tag}.png')
+        ctx.close()
     b.close()
 report.append(f'clip packs (v2): {json.dumps({k: v for k, v in VSTAT.items() if k != "bad"})}; not loaded: {VSTAT["bad"][:5]}')
 bad = [r for r in report if '(candidates)' in r and "listed []" not in r and ' 0 found' not in r]
