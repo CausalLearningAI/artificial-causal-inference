@@ -1,6 +1,6 @@
 {
- "created": "2026-10-21 11:20",
- "code_head": "64ea6b361963c1f387b0317fbb08e572ca8c5486",
+ "created": "2026-10-21 11:57",
+ "code_head": "818cce59b297ffe812de34ad1d4d47103154c735",
  "nes_code_records": [
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v2p_v2_ants_c0_w2048_s6.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v2p_v2_ants_c0_w2048_s6_smooth.json",
@@ -33,7 +33,7 @@
   "md": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/discoveries.md"
  },
  "nes_input_sets": {
-  "primary_proposed": "<sae>_smooth: centred 0.6 s mean of the frame max codes, no firing threshold (keeps the behaviour alignment; align.json v2_smooth)",
+  "primary": "USER DECISION 2026-10-21: <sae>_smooth = centred 0.6 s mean of the frame max codes, no firing threshold (keeps the behaviour alignment; align.json v2_smooth)",
   "secondary": "<sae>: the same smoothed codes zeroed below the fnorm firing threshold (pre-specified, but it destroys alignment: mice nose_nose R~ 0.174 raw -> 0.093, ants v2 groom_any 0.629 -> 0.075)",
   "raw": "<sae>_raw: frame max codes, no smoothing (alignment reference)"
  },
@@ -66,7 +66,7 @@
      "heat_index": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/mice/heat/v1/index.json",
      "heat_files": 634,
      "sets": {
-      "primary_proposed": {
+      "primary": {
        "name": "v2_mice_c0_w2048_s7_smooth",
        "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/mice/codes/v1/v2_mice_c0_w2048_s7_smooth",
        "codes_link": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/mice/v1/eci/codes/v2_mice_c0_w2048_s7_smooth",
@@ -387,7 +387,7 @@
      "heat_index": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ants/heat/v2/index.json",
      "heat_files": 53,
      "sets": {
-      "primary_proposed": {
+      "primary": {
        "name": "v2_ants_c0_w2048_s6_smooth",
        "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v2/v2_ants_c0_w2048_s6_smooth",
        "codes_link": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci_r4v2p/codes/v2_ants_c0_w2048_s6_smooth",
@@ -478,7 +478,7 @@
      "heat_index": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ants/heat/v3/index.json",
      "heat_files": 127,
      "sets": {
-      "primary_proposed": {
+      "primary": {
        "name": "v2_ants_c0_w2048_s6_smooth",
        "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v3/v2_ants_c0_w2048_s6_smooth",
        "codes_link": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci_r4v3p/codes/v2_ants_c0_w2048_s6_smooth",
@@ -607,7 +607,7 @@
      "heat_index": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ants/heat/v4/index.json",
      "heat_files": 180,
      "sets": {
-      "primary_proposed": {
+      "primary": {
        "name": "v2_ants_c0_w2048_s6_smooth",
        "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v4/v2_ants_c0_w2048_s6_smooth",
        "codes_link": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci_r4v4p/codes/v2_ants_c0_w2048_s6_smooth",
@@ -806,7 +806,7 @@
      "heat_index": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/frogs/heat/juv/index.json",
      "heat_files": 110,
      "sets": {
-      "primary_proposed": {
+      "primary": {
        "name": "v2_frogs_c0_w2048_s6_smooth",
        "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/frogs/codes/juv/v2_frogs_c0_w2048_s6_smooth",
        "codes_link": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/frogs/eci/codes/v2_frogs_c0_w2048_s6_smooth",
@@ -889,7 +889,7 @@
      "heat_index": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/frogs/heat/tad/index.json",
      "heat_files": 114,
      "sets": {
-      "primary_proposed": {
+      "primary": {
        "name": "v2_frogs_c0_w2048_s6_smooth",
        "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/frogs/codes/tad/v2_frogs_c0_w2048_s6_smooth",
        "codes_link": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/frogs/eci_tadpole_r4/codes/v2_frogs_c0_w2048_s6_smooth",

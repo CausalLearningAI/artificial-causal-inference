@@ -217,7 +217,11 @@ def cmd_manifest(args):
     import subprocess
     V = REPO / 'results/vision'
     g = lambda pat: sorted(glob.glob(str(pat), recursive=True))  # noqa: E731
-    head = subprocess.run(['git', '-C', str(REPO), 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
+    try:
+        head = subprocess.run(['git', '-C', str(REPO), 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
+    except FileNotFoundError:  # CPU nodes without git: read the ref file
+        ref = (REPO / '.git/HEAD').read_text().split()[-1]
+        head = (REPO / '.git' / ref).read_text().strip() if (REPO / '.git' / ref).exists() else ref
     man = {'created': time.strftime('%Y-%m-%d %H:%M'), 'code_head': head,
            'nes_code_records': g(OUT / 'nes_code' / '*.json'),
            'spec': str(REPO / 'configs/eci_v2/representation.json'), 'library': str(REPO / 'src/eci/v2'),
