@@ -267,7 +267,13 @@ def cmd_manifest(args):
                                    'the behaviour alignment; align.json v2_smooth)',
                'secondary': '<sae>: the same smoothed codes zeroed below the fnorm firing threshold (pre-specified, but it '
                             'destroys alignment: mice nose_nose R~ 0.174 raw -> 0.093, ants v2 groom_any 0.629 -> 0.075)',
-               'prob': '<sae>_prob: per-neuron P(on | smoothed code), label-free 2-component mixture (src/eci/v2/prob.py)',
+               'prob': '<sae>_prob: per-neuron P(on | smoothed code), label-free (src/eci/v2/prob.py): a 2-component '
+                       'Gaussian mixture on log of the positive smoothed codes of the calibration videos; P(on) = '
+                       'posterior of the higher component (a probability under the mixture model), monotone, 0 on silent '
+                       'frames. NES mean on it = expected fraction of time active per video; the runners\' bout rate and '
+                       'latency threshold P(on) at its pooled q 0.95 (not an expected bout count). Single-neuron rank '
+                       'alignment (R~ / AUROC) is invariant to this monotone per-neuron map, so align.json v2_prob is a '
+                       'sanity check only.',
                'raw': '<sae>_raw: frame max codes, no smoothing (alignment reference)',
                'outcome_variants': {'continuous': '<sae>_smooth', 'binary': '<sae>', 'prob': '<sae>_prob'}},
            'domains': {}}
@@ -306,6 +312,10 @@ def cmd_manifest(args):
             d['series'][sc['name']] = s_
         d['prob'] = str(OUT / dom / 'prob.json')
         man['domains'][dom] = d
+    man['sensitivity'] = {'index': str(OUT / 'sensitivity.json'), 'summary': str(OUT / 'sensitivity_summary.json'),
+                          'code': str(REPO / 'scripts/eci/v2/sensitivity.py'),
+                          'note': 'stable in k of n checks per primary-selected neuron; per-setting result.json paths in '
+                                  'sensitivity.json files'}
     man['strata'] = strata_index(name_of={dm: RUN.best_name(RUN.dcfg(dm)) for dm in man['domains']})
     (OUT / 'manifest.json').write_text(json.dumps(man, indent=1))
     log(f'manifest: {OUT / "manifest.json"}')

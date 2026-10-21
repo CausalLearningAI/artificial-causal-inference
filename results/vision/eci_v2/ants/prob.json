@@ -1,0 +1,23 @@
+{
+ "n_fallback": 3,
+ "W": 2048,
+ "n_calib_frames": 156000,
+ "silent_frame_max_P": 0.0,
+ "mean_P_per_frame_calib": 213.1844482421875,
+ "spearman_P_vs_s_median": 0.946936021782436,
+ "spearman_P_vs_s_min": 0.5725154277936872,
+ "series": {
+  "v2": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v2/v2_ants_c0_w2048_s6_prob",
+   "mean_P_per_frame": 180.16434185606062
+  },
+  "v3": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v3/v2_ants_c0_w2048_s6_prob",
+   "mean_P_per_frame": 223.75546456386292
+  },
+  "v4": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v4/v2_ants_c0_w2048_s6_prob",
+   "mean_P_per_frame": 203.90119341563786
+  }
+ }
+}

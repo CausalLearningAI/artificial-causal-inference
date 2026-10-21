@@ -1,0 +1,15 @@
+{
+ "n_fallback": 5,
+ "W": 2048,
+ "n_calib_frames": 216000,
+ "silent_frame_max_P": 0.0,
+ "mean_P_per_frame_calib": 397.5007629394531,
+ "spearman_P_vs_s_median": 0.9202968090004583,
+ "spearman_P_vs_s_min": 0.5330820407723029,
+ "series": {
+  "v1": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/mice/codes/v1/v2_mice_c0_w2048_s7_prob",
+   "mean_P_per_frame": 396.0242991415895
+  }
+ }
+}

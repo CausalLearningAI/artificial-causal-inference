@@ -1,0 +1,19 @@
+{
+ "n_fallback": 15,
+ "W": 2048,
+ "n_calib_frames": 234058,
+ "silent_frame_max_P": 0.0,
+ "mean_P_per_frame_calib": 109.2895278930664,
+ "spearman_P_vs_s_median": 0.9358348909677007,
+ "spearman_P_vs_s_min": 0.6060248199939711,
+ "series": {
+  "juv": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/frogs/codes/juv/v2_frogs_c0_w2048_s6_prob",
+   "mean_P_per_frame": 112.4411655722252
+  },
+  "tad": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/frogs/codes/tad/v2_frogs_c0_w2048_s6_prob",
+   "mean_P_per_frame": 106.20044240918969
+  }
+ }
+}
