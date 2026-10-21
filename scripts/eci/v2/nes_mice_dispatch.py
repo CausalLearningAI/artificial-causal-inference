@@ -20,6 +20,7 @@ from pathlib import Path
 
 ROOT = Path(os.environ.get('NES_CODE_ROOT') or Path(__file__).resolve().parents[3])
 sys.path.insert(0, str(ROOT / 'src'))
+sys.path.insert(0, str(ROOT / 'scripts/eci'))  # the runners import their siblings (run_nes)
 import eci.domain as Dm  # noqa: E402
 from eci import contrasts as C  # noqa: E402
 

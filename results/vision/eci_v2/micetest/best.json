@@ -1,8 +1,0 @@
-{
- "name": "v2_mice_c0_w2048_s7",
- "seed": 7,
- "eval_fve": 0.8667725539195698,
- "theta_star": 2.059462070465088,
- "rule": "highest held-out FVE among the spec seeds (label-free)",
- "dir": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/mice/sae/v2_mice_c0_w2048_s7"
-}
