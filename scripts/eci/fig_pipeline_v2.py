@@ -414,7 +414,7 @@ def plot(args):
         pr = m['probe']
         wh = next(iter(sz_d.get('sizes', {})), f'{pr["w"]}x{pr["h"]}').replace('x', '×')
         fps0 = float(next(iter(sz_d.get('fps', {})), m['fps_src']))
-        used = f'used: {m["S"]}×{m["S"]} px, {FPS:.0f} fps' + (f', {m["canon"]}' if m['canon'] else '')
+        used = f'used: {m["S"]}×{m["S"]} px, {FPS:.0f} fps'
         txt(xa, y0 - (top_h - Y_TITLE), f'original: {wh} px, {fps0:.0f} fps\n{used}', fontsize=5.0, color=C_GREY)
         x0 = xa + j_ex * dx + fw * 0.55
         fig.patches.append(FancyArrowPatch((x0 / W, 1 - (top0 + j_ex * dy) / H), ((xs['grid'] - 0.4) / W, 1 - (y0 + 1.5) / H),
@@ -449,7 +449,7 @@ def plot(args):
         txt(xg + gw / 2, vy + vh + 0.3, f'd = {len(A["tok_z"])}', ha='center', fontsize=5.0, color='#a0a0a0')
         txt(xs['pre'], vy + vh + 0.3, f'd = {len(A["pre"])}, k = {K}', fontsize=5.0, color='#a0a0a0')
         txt((xs['vec'] + xs['pre'] + bw + 2.0) / 2, vy + vh + 2.2, 'token representation', ha='center', color=C_TOK)
-        for k_, lab_ in (('grid', f'{G} × {G} tokens'), ('zoom', 'tight animal mask'), ('spatial', 'neural activation')):
+        for k_, lab_ in (('grid', f'{G} × {G} tokens'), ('zoom', 'animal mask'), ('spatial', 'neural activation')):
             txt(xs[k_], y0 + sz + 0.5, lab_, color=C_DARK)
         fig.add_artist(ConnectionPatch(xyA=(sx_ + 1, sy + 0.5), coordsA=zoom_ax.transData, xyB=(0, 0.5),
                                        coordsB=g_.transAxes, color=C_TOK, lw=0.5, arrowstyle='-|>', mutation_scale=4))
@@ -484,7 +484,7 @@ def plot(args):
         bb = t1.get_window_extent(renderer=fig.canvas.get_renderer())
         txt(xs['trace'] + bb.width / fig.dpi / MM, y0 - 0.2, m['short'], color=C_N, style='italic')
         a = ax_mm(xs['trace'], y0 + 2.3, wt, sz - 6.4)
-        ymax = float(max(raw[lo:hi].max(), smo[lo:hi].max(), m['fire_thr'])) * 1.08
+        ymax = float(max(raw[lo:hi].max(), smo[lo:hi].max(), m['fire_thr'])) * 1.3  # headroom for the band label
         a.axvspan((t - 1.5 - lo) / FPS, (t + 1.5 - lo) / FPS, color=C_KEPT, alpha=0.18, lw=0)
         a.plot(tt, raw[lo:hi], color='#9e9e9e', lw=0.4)
         a.plot(tt, smo[lo:hi], color=C_N, lw=0.7)
@@ -494,7 +494,9 @@ def plot(args):
         a.set_xlim(0, WIN / FPS); a.set_ylim(0, ymax)
         a.set_xticks([0, WIN / FPS]); a.set_xticklabels(['0', f'{WIN / FPS:.0f} s'])
         a.tick_params(axis='x', length=1.0, labelsize=FS_S - 0.6)
-        a.set_yticks([0, max(1, int(round(ymax / 1.08 / 5) * 5))])
+        a.set_yticks([0, max(1, int(round(ymax / 1.3 / 5) * 5))])
+        a.text((t - lo) / FPS, ymax * 0.985, 't−1, t, t+1', ha='center', va='top', fontsize=FS_S - 1.2, color='#b07800')
+        txt(xs['trace'], y0 - 2.7, 'temporal context: 0.6 s smoothing', color=C_DARK)
         for s in ('top', 'right'):
             a.spines[s].set_visible(False)
         y_leg = y0 + 2.3 + sz - 6.4 + 0.55
