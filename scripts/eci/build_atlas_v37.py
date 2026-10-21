@@ -1024,9 +1024,9 @@ KEEP_IDS = ('boutratemaxpool', 'meanactivationma', 'xlatencymax')  # the v36 max
 MODEL_TIPS = {'online': 'v1 (deployed): DINOv2-base at 448 px, the animal mask, token only, Matryoshka BatchTopK SAE '
                         'with 1024 neurons (k 16), max pooling',
               'new': 'v2 (frozen 2026-10-20): DINOv3-L/16 block 20 at native-capped resolution, canonical rotation '
-                     '(mice odour corner top right, frogs mutant side right), tight animal mask, no context, one '
-                     'Matryoshka BatchTopK SAE per domain (2048 neurons, k 16), max over kept tokens, 0.6 s smoothing, '
-                     'no firing threshold (the primary v2 input)',
+                     '(mice odour corner top right, frogs mutant side right), tight animal mask, no temporal channel, '
+                     'one Matryoshka BatchTopK SAE per domain (2048 neurons, k 16), max over kept tokens, 0.6 s '
+                     'smoothing; Outcome selects continuous (default) or binary codes',
               'new (thr)': 'v2 with the firing threshold: the same frozen v2 SAE, its 0.6 s smoothed codes kept only '
                            'above each neuron\'s fnorm firing threshold (the pre-specified NES input)',
               'new_r4': 'v2 (in progress): DINOv3-L/16 at an input sized to the animal, the same lab masks, token + its '
@@ -1726,6 +1726,36 @@ def webm_check(pairs):
         raise SystemExit(f'webm: page starts without a keyframe in {[x["pack"] for x in bad]}')
 
 
+# ---- one model "v2" with an Outcome selector (user, 2026-10-21): readout = continuous (the smoothed codes, <sae>_smooth,
+# default) | binary (the fnorm-thresholded smoothed codes, <sae>) | prob (per-neuron P(on), 'coming' until the v2
+# manifest lists it). v0 and v1 have continuous codes only.
+READOUT_TIPS = {'continuous': 'Continuous: the neuron\'s smoothed code (0.6 s mean of the frame max over the animal mask), '
+                              'no firing threshold. The default (user decision 2026-10-21)',
+                'binary': 'Binary: the same smoothed code kept only above the neuron\'s firing threshold (fnorm), else 0 '
+                          '(v2 only)',
+                'prob': 'Probability: per-neuron P(on) (v2 only; being produced)'}
+
+
+def readout_axis(saes, data):
+    man = V2 / 'manifest.json'
+    has_prob = man.exists() and any('prob' in S.get('sets', {}) for D in json.loads(man.read_text())['domains'].values()
+                                    for S in D.get('series', {}).values())
+    for e in saes:
+        m = e['model']
+        binary = m['model'] == 'new (thr)' or e['sae'].endswith('_thr')
+        m['readout'] = 'binary' if binary else 'continuous'
+        if m['model'] == 'new (thr)':
+            m['model'] = 'new'
+    ax0 = data['axes'][0]
+    ax0['values'] = [v for v in ax0['values'] if v != 'new (thr)']
+    data['axes'].insert(1, {'key': 'readout', 'label': 'Outcome', 'tips': READOUT_TIPS,
+                            'values': ['continuous', 'binary', 'prob'],
+                            'missing': {'prob': 'listed in the v2 manifest, page build pending' if has_prob else
+                                        'coming'}})
+    log(f'readout axis: prob in manifest {has_prob}; ' + ', '.join(
+        f'{r} {sum(e["model"]["readout"] == r for e in saes)}' for r in ('continuous', 'binary')))
+
+
 def step_assemble():
     site = OUT / 'site'
     if site.exists():
@@ -1989,6 +2019,7 @@ def step_assemble():
     data['anncheck'] = ann_check(saes, data)
     tadpole_strips(site, saes)
     data['axes'][0]['values'] = data['axes'][0]['values'] + (['v0'] if v0e else [])
+    readout_axis(saes, data)
     clip_times(site, saes, data)
     split_v4_pack(site)
     tpl = TEMPLATE.read_text()

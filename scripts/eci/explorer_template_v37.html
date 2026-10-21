@@ -197,6 +197,24 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
   .fb{grid-template-columns:repeat(3,minmax(0,1fr))}
   .bar{justify-content:flex-start}
 }
+.xdl{display:grid;grid-template-columns:max-content 1fr;gap:2px 12px;margin:0;font-size:12.5px}
+.xdl dt{font-weight:600;color:var(--muted)}
+.xdl dd{margin:0}
+#ax_readout,#ax_model{max-width:170px}
+.dbtns{display:inline-flex;gap:4px;margin-left:auto}
+.tchips{display:inline-flex;flex-wrap:wrap;gap:4px}
+.tchip{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:2px 10px;font:500 12px var(--sans);color:var(--muted);cursor:pointer}
+.tchip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.notrun{border:2px dashed var(--line);border-radius:8px;padding:18px;text-align:center;font:600 14px var(--sans);color:var(--muted);margin:10px 0}
+.notrun b{display:block;font-size:18px;letter-spacing:.06em;color:var(--ink);margin-bottom:4px}
+.badge{display:inline-block;font:500 12px var(--sans);padding:3px 8px;border-radius:6px;margin:3px 0}
+.badge.ok{background:var(--pass-bg);color:var(--pass)}
+.badge.bad{background:var(--warn-bg);color:var(--warn)}
+.badge.neu{background:var(--soft);color:var(--muted)}
+.alg td{vertical-align:top}
+.alg .pn{font:600 14px var(--mono)}
+.alg .pm{font:400 11px var(--mono);color:var(--muted)}
+.alg .th{display:inline-block;width:40px;height:40px;border-radius:4px;background-repeat:no-repeat;background-size:800% 200%;vertical-align:middle;margin-right:6px}
 .alj{border:0;background:none;padding:0;color:var(--accent);cursor:pointer;font:inherit;text-align:left}
 .alj:hover{text-decoration:underline}
 table.al td{vertical-align:top;font-size:12px}
@@ -212,15 +230,15 @@ table.al td{vertical-align:top;font-size:12px}
       <span class="opt search" id="searchOpt"><span class="tip" title="The causal search run on the neurons' per-video outcomes">Search</span></span>
     </div>
     <details class="xdet" id="expDet"><summary>experiment details</summary><div class="xbox" id="expBox"></div></details>
-    <details class="xdet" id="alDet"><summary>behaviour alignment (v0 · v1 · v2)</summary><div class="xbox" id="alBox"></div></details>
     <div class="model" id="modelBar" role="group" aria-label="Behavioural representation">
       <span class="mlab">Behavioural representation:</span>
-      <span class="opt" id="modelOpt"><span class="tip" title="The representation of the videos the search runs on: v0 = the baseline (the original ECI paper recipe), v1 = deployed, v2 = frozen (default input without firing threshold; "v2 · with firing threshold" = the thresholded input)">Model</span></span>
+      <span class="opt" id="modelOpt"><span class="tip" title="The representation of the videos the search runs on: v0 = the baseline (the original ECI paper recipe), v1 = deployed, v2 = frozen">Model</span></span>
       <span class="opt" id="outcomeOpt"><span class="tip" title="Temporal aggregation: how the frame values of one video become the per-video outcome the search tests (event rate = bouts per minute; average time = mean over the video; latency = seconds to the first bout)">Temporal aggregation</span><span class="seg" id="kindSeg"></span></span>
       <span class="opt" id="prefixOpt"><span class="tip" title="Search only the first 128 or the first 256 neurons (coarse Matryoshka prefixes). 128 is the main search">Neurons</span><span class="seg" id="prefixSeg"><button type="button" data-p="128" title="Search the first 128 neurons (the coarse Matryoshka prefix): the main search">128</button><button type="button" data-p="256" title="Search the first 256 neurons (the next Matryoshka prefix)">256</button></span></span>
-      <button type="button" class="dbtn" id="specBtn" aria-expanded="false" aria-controls="specBox" title="The design choices of v0, v1 and v2">Details</button>
+      <span class="dbtns"><button type="button" class="dbtn" id="specBtn" aria-expanded="false" aria-controls="specBox" title="The design choices of v0, v1 and v2">Details</button><button type="button" class="dbtn" id="alBtn" aria-expanded="false" aria-controls="alBox" title="The neuron of each model most aligned with each annotated behaviour">Alignment</button></span>
     </div>
     <div class="xbox spec" id="specBox" hidden></div>
+    <div class="xbox spec" id="alBox" hidden></div>
   </header>
 
   <nav class="bar" aria-label="View and settings">
@@ -238,17 +256,13 @@ table.al td{vertical-align:top;font-size:12px}
   <section class="picker" id="picker" aria-label="Choose a comparison">
     <div class="fam" id="micePick">
       <div class="apick">
-        <div class="prow">
-          <span class="opt"><label for="mL" class="tip" title="Gene line: restrict the search to the pools of one line (12 het and 12 wt pools each)">Line</label><select id="mL" class="sel"></select></span>
-          <span class="opt"><label for="mS" class="tip" title="Sex: restrict the search to the female or the male pools (18 het and 18 wt pools each)">Sex</label><select id="mS" class="sel"></select></span>
-          <span class="opt cmpOnly"><label for="mC">Contrast</label><select id="mC" class="sel"></select></span>
-        </div>
         <div class="prow cmpOnly">
+          <span class="opt"><label for="mC">Contrast</label><select id="mC" class="sel"></select></span>
           <span class="opt"><label for="mK">Control</label><select id="mK" class="sel"></select></span>
           <span class="opt"><label for="mT">Treatment</label><select id="mT" class="sel"></select></span>
-          <span class="opt"><label for="mX">Strata</label><select id="mX" class="sel"></select></span>
           <span class="cnt" id="mN"></span>
         </div>
+        <div class="prow" id="mStrata"></div>
       </div>
     </div>
     <div class="fam" id="antPick" hidden>
@@ -261,7 +275,7 @@ table.al td{vertical-align:top;font-size:12px}
         <div class="prow">
           <span class="opt" id="apCo"><label for="apC">Control</label><select id="apC" class="sel"></select></span>
           <span class="opt" id="apTo"><label for="apT" id="apTl">Treatment</label><select id="apT" class="sel"></select></span>
-          <span class="opt" id="apSo" hidden><label for="apS" id="apSl">Strata</label><select id="apS" class="sel"></select></span>
+          <span class="opt" id="apSo" hidden><span class="tip" id="apSl">Strata</span><span class="tchips" id="apSc"></span></span>
           <span class="cnt" id="apN"></span>
         </div>
       </div>
@@ -302,34 +316,41 @@ const TRANS = {'1to2':'Social H→O','2to3':'Social O→P','4to5':'Fear H→O','
 /* "experiment details" under the title: the design of each domain's experiment (facts only, no results) */
 const DETAILS = {
   mice: [
-    ['Organism', 'Mice from three autism-associated gene lines (ash1l, kdm6b, kmt5b): heterozygous knockout (het) vs wild type (wt).'],
-    ['Filming', 'A pool (a group of four mice of one genotype) is filmed in an arena in six stages: habituation (30 min), odor (15 min) and post (15 min) with a social odor (stages 1–3), then the same three with a fear odor (stages 4–6). One video per stage, analysed at 5 frames per second.'],
-    ['Units', '72 pools (36 het, 36 wt), 432 videos. Per gene line 12 het and 12 wt pools; per sex 18 het and 18 wt pools.'],
-    ['Comparisons', 'Phase transition: the paired change of a pool from one phase to the next within one odor (social H→O, O→P; fear H→O, O→P), per genotype; unit = pool, τ = later − earlier phase. Mutation: het vs wt videos within one phase; unit = video, τ = het − wt. Mutation in phase transition: per pool its change from one phase to the next, het pools vs wt pools (difference in differences); τ = mean het change − mean wt change.'],
-    ['Time window', m => m==='online' ? 'Habituation: the whole 30 min; odor and post: the whole 15 min.' : 'Habituation: its last 15 min (minutes 15–30, just before the odor), so every phase is compared on 15 min; odor and post: the whole 15 min.'],
-    ['Preprocessing', 'v1: every video rotated so the odor corner is at the top right; the model sees only the mouse patches (mouse mask). v2: videos not rotated; the model sees the mouse patches of the same lab mask.'],
-    ['Design caveat', 'The camera period (odor-corner group) is unbalanced by genotype, so het vs wt can pick up recording-period differences; such discoveries carry a “camera period” chip (v1 only: the check was not run for v2). Mutation in phase transition removes any period effect that is constant within a pool, but not a period × transition interaction.'],
+    ['Animals', '3 autism gene lines (ash1l, kdm6b, kmt5b) · het vs wt · pools of 4 mice'],
+    ['Design', '72 pools (36 het, 36 wt) × 6 phases = 432 videos · 5 fps'],
+    ['Phases', '1–3 social odor, 4–6 fear odor · each: habituation 30 min → odor 15 min → post 15 min'],
+    ['Window', m => m==='online' ? 'v1: habituation whole 30 min · odor and post whole' : 'habituation: last 15 min · odor and post: whole 15 min'],
+    ['Contrasts', 'phase transition (paired, per genotype) · mutation (het vs wt, per phase) · mutation in transition (het − wt change) · sex (not run yet)'],
+    ['Strata', 'gene line · sex (default: all)'],
+    ['Labels', 'nose-nose (nn), nose-body (np), nose-tail (nt) on 24 pools (144 videos)'],
+    ['Confound', 'camera period unbalanced by genotype (affects het vs wt; the transition contrasts cancel constant period effects)'],
+    ['v2 frames', '1024 px native (64 × 64 patches) · odour corner rotated to the top right · tight mouse mask · no temporal channel'],
   ],
   ants: [
-    ['Organism', 'Ants: a focal ant and two nestmates marked with orange and blue dots, filmed together.'],
-    ['Filming', 'One video per group at 5 frames per second. Four series: v2 (the ISTAnt dataset, 10 min = 3000 frames: no longer footage), v3, v4 (Exp4, healthy colonies) and v4_infested (Exp4, infested colonies), 30 min each (9000 frames).'],
-    ['Units', 'Unit = video. v2: t=1 (24 videos) vs t=2 (20). v3: t=2 (38), t=6 (34), t=8 (35); the other v3 treatments are not shown. v4: t=2 (20), t=6 (20). v4_infested: t=2 (18), t=6 (23); the other Exp4 treatments are not shown.'],
-    ['Comparisons', 'Treated vs control videos within one series (t = treatment number; τ = treated − control): v2 t=2 vs control t=1; v3 t=6 or t=8 vs control t=2; Exp4 exposure: t=6 vs control t=2, within the healthy (v4) or the infested (v4_infested) colonies. Exp4 colony: infested vs healthy colonies at t=2, at t=6, or t=2 and t=6 together (τ = infested − healthy).'],
-    ['Time window', 'v1 and v2: the whole video, 30 min for v3, v4 and v4_infested, 10 min for v2 (the whole ISTAnt video).'],
-    ['Models', 'v1: one SAE (DINOv2, ants mask) for every series. v2: one SAE trained on the series v2, v3, v4 and v4_infested pooled, so a neuron number means the same neuron in every series.'],
-    ['Design caveat', 'In v3, t=8 was recorded only on day C (brighter arena) and t=2 and t=6 only on days A and B, so t=8 vs t=2 is confounded with the recording day. Infested and healthy Exp4 colonies share only one recording day (F), so infested vs healthy is compared on all days without day matching: these comparisons are confounded with the recording day and batch. The within-series comparisons use only the recording days that hold both arms.'],
+    ['Animals', 'focal ant + 2 nestmates (yellow and blue dots) · t = pathogen-exposure treatment'],
+    ['Series', 'v2 ISTAnt 10 min · v3 30 min · v4 healthy and v4 infested colonies (Exp4) 30 min · 5 fps'],
+    ['Units', 'video · v2 t=1 24 / t=2 20 · v3 t=2 38 / t=6 34 / t=8 35 · v4 t=2 20 / t=6 20 · v4 infested t=2 18 / t=6 23'],
+    ['Contrasts', 'treated vs control within a series · Exp4: exposure (t=6 vs 2 per colony) · colony (infested vs healthy at t=2, t=6 or both)'],
+    ['Labels', 'grooming by yellow (Y2F) / blue (B2F) · on the lid yellow (YOL) / blue (BOL) · v2: grooming only'],
+    ['Confounds', 'v3 t=8 recorded only on day C · infested vs healthy share one day (F): confounded with day and colony'],
+    ['Covariates', 'v2 searches: animal size (n_fg) + recording day where both arms share days'],
+    ['v2 frames', 'native 768 / 832 / 816 px (v2 / v3 / v4; 48–52 patches) · tight ant mask · no temporal channel · one SAE for every series'],
   ],
   frogs: [
-    ['Organism', 'Xenopus juvenile froglets (Sweeney group, ISTA): wild type (WT) and half-embryo CRISPR mutants, where one side of the body is edited (FoxP1 gRNA1, En1 gRNA4). All frogs are genotyped.'],
-    ['Filming', 'Top-down, one frog per dish. Hour 1 of each frog’s recording, one video per frog (18,000 frames at 5 frames per second).'],
-    ['Units', 'Unit = frog (one video). 35 frogs: 13 WT, 14 FoxP1, 8 En1.'],
-    ['Comparisons', 'FoxP1 vs WT and En1 vs WT (21–27 frogs per comparison); τ = mutant − WT. FoxP1 vs En1 is not searched.'],
-    ['Time window', 'Hour 1 of each frog.'],
-    ['Preprocessing', 'Videos are mirrored where needed so the mutant side is always the frog’s right; 5 of the 13 WT videos are mirrored at random too, to balance the mirrored dish labels.'],
-    ['Phases', 'Juveniles (froglets; half-body mutants): every model. Tadpoles (stage 44–48, whole-embryo mutants; WT, FoxP1 and En1; 116 videos of 60 min after quality control): v2 only, on a crop that follows the tadpole, no clips; not run for v0 and v1.'],
-    ['Design caveat', 'Each group was filmed in its own recording sessions (no session holds both WT and mutant frogs), so group is fully confounded with session and date. The session checks can only measure how much a neuron varies between sessions of one group, and whether a discovery survives dropping any one session.'],
+    ['Animals', 'Xenopus · WT vs FoxP1 / En1 CRISPR mutants'],
+    ['Juveniles', '35 froglets (13 WT, 14 FoxP1, 8 En1) · half-body mutants, mutant side mirrored right · hour 1'],
+    ['Tadpoles', 'stage 44–48 · whole-embryo mutants · 116 videos (QC excluded FoxP1_275_3, WT_206_5) · v2 only'],
+    ['Contrasts', 'FoxP1 vs WT · En1 vs WT (unit = animal)'],
+    ['Confound', 'group fully confounded with recording session and date'],
+    ['v2 frames', 'juveniles 800 px native (50 × 50 patches) · tadpoles: 96 px crop following the animal → 384 px (24 × 24) · tight frog mask'],
   ],
 };
+/* the v2 specification rows shared by every domain (frozen 2026-10-20) */
+const V2_ROWS = [
+  ['v2 encoder', 'DINOv3-L/16 block 20 · native-capped resolution (never upsampled, except the tadpole crop)'],
+  ['v2 dictionary', 'Matryoshka BatchTopK · 2048 neurons · k 16 · one SAE per domain'],
+  ['v2 readout', 'max over the mask per frame · 0.6 s smoothing · Outcome: continuous (default) / binary (firing threshold) / prob (coming)'],
+];
 const TAU_TIP = 'tau: effect size in the outcome unit. Phase transition: mean paired change from the earlier to the later phase. Mutation: het − wt (mean of the het videos minus mean of the wt videos; positive = higher in het). Mutation in phase transition: mean change of the het pools minus mean change of the wt pools (positive = the change is larger in het).';
 const METH = () => (DATA.model||{}).method || 'NES';
 const stChip = r => r.st==='undetermined' ? '<span class="chip warn2" title="NESS: significant given every tested set of the other found neurons except sets that nearly reveal the treatment (overlap failure); it may be changed directly or only through such a neuron">undetermined</span>' : r.st==='kept' ? '<span class="chip Y" title="NESS: significant given every tested subset of the other found neurons">kept</span>' : '';
@@ -538,7 +559,8 @@ function setSae(sae){
   const SO = $('#searchOpt');
   ALL.axes.forEach((ax, i) => {
     const el = document.createElement('span'); el.className = 'opt';
-    el.innerHTML = `<select id="ax_${ax.key}" class="sel" aria-label="${esc(ax.key==='method' ? 'Search' : ax.label)}"></select>`;
+    el.innerHTML = (ax.key!=='model' && ax.key!=='method' ? `<span class="tip" title="${esc(ax.key==='readout' ? 'Outcome: which per-frame value of a neuron the search uses (continuous = smoothed code, binary = above the firing threshold, prob = P(on))' : ax.label)}">${esc(ax.label)}</span>` : '')
+      + `<select id="ax_${ax.key}" class="sel" aria-label="${esc(ax.key==='method' ? 'Search' : ax.label)}"></select>`;
     if(ax.key==='method') SO.appendChild(el); else $('#modelOpt').appendChild(el);
     el.querySelector('select').onchange = e => {
       const v = e.target.value, cur = DATA.model;
@@ -554,13 +576,16 @@ function setSae(sae){
     const d = DOMS.find(x=>x.id===DSEL.value);
     if(d && d.id!==(DATA.domain||'mice')) setSae(d.default);
   };
-  const SB = $('#specBtn');
-  SB.onclick = () => { const B = $('#specBox'); B.hidden = !B.hidden; SB.setAttribute('aria-expanded', String(!B.hidden)); };
+  const SB = $('#specBtn'), AB = $('#alBtn');
+  const toggle = (btn, box, other, obtn) => { const B = $(box); B.hidden = !B.hidden; btn.setAttribute('aria-expanded', String(!B.hidden));
+    if(!B.hidden){ $(other).hidden = true; obtn.setAttribute('aria-expanded', 'false'); } };
+  SB.onclick = () => toggle(SB, '#specBox', '#alBox', AB);
+  AB.onclick = () => toggle(AB, '#alBox', '#specBox', SB);
 }
 /* model names on the page: v0 = the baseline, the original ECI paper recipe (SAEnce, arXiv 2510.14073; internal key
    'v0', entries from build_atlas_v37.py v0_entries), v1 = the deployed model (internal key 'online'), v2 = the model in
    progress (internal key 'new') */
-const MLAB = {v0:'v0 (baseline)', online:'v1', new:'v2', 'new (thr)':'v2 · with firing threshold'}, MSHORT = {v0:'v0', online:'v1', new:'v2', 'new (thr)':'v2 thr'}, MORD = ['v0', 'online', 'new', 'new (thr)'];
+const MLAB = {v0:'v0 (baseline)', online:'v1', new:'v2'}, MSHORT = {v0:'v0', online:'v1', new:'v2'}, MORD = ['v0', 'online', 'new'];
 const V0TIP = 'the baseline: the original ECI paper recipe, run on these data (single-pass t-test per neuron, raw p < 0.05, no correction)';
 const isV0 = () => (DATA.model||{}).model==='v0';
 /* v0 rows: Bonferroni / raw-p chip, and a warning chip per recording field that structures the neuron's per-unit
@@ -591,13 +616,14 @@ function modelBar(){
     const vals = [...new Set([...domSaes().map(d => d.model[ax.key]), ...(ax.values||[])])], el = $(`#ax_${ax.key}`);
     const why = v => !indom.has(v) ? ((ax.missing||{})[v] || 'not computed') : `not computed with this ${ALL.axes.filter(x=>x.key!==ax.key).map(x=>x.label.toLowerCase()).join(' / ')}`;
     const lab = v => ax.key==='model' ? MLAB[v] || v : v;
+    if(ax.key==='readout') vals.sort((p,q)=>(ax.values||[]).indexOf(p)-(ax.values||[]).indexOf(q));
     el.disabled = vals.length<2;
     if(ax.key==='model') vals.sort((p,q)=>MORD.indexOf(p)-MORD.indexOf(q));
     el.innerHTML = vals.map(v=>`<option value="${esc(v)}" title="${esc((ax.tips[v]||v) + (ok.has(v) ? '' : ` (${why(v)})`))}"${ok.has(v)?'':' disabled'}>${esc(lab(v))}${ok.has(v)?'':` (${esc(why(v))})`}</option>`).join('');
   }
   // Details: one compact table v0 | v1 | v2 (current domain and search method; ants: the v2 SAE of the shown series)
   const SB = $('#specBox'), cur = analysis(state.aid), ex = cur && ANTS() ? expOf(cur) : null;
-  const col = m => { const L = domSaes().filter(d => d.model.model===m && d.model.method===METH());
+  const col = m => { const L0 = domSaes().filter(d => d.model.model===m && d.model.method===METH()), L1 = L0.filter(d => d.model.readout===(DATA.model.readout||'continuous')), L = L1.length ? L1 : L0;
     return L.find(d => d===DATA) || L.find(d => ex && d.analyses.some(a => expOf(a)===ex)) || L[0]; };
   const c1 = (col('online')||{}).spec, c2 = (col('new')||{}).spec, sk = `${DATA.sae}|${ex}|${state.aid}`;
   if(SB.dataset.key!==sk){
@@ -618,7 +644,7 @@ function modelBar(){
   $('#expDet').hidden = !XD;
   if(XD && XB.dataset.key!==xk){
     XB.dataset.key = xk;
-    XB.innerHTML = `<dl>${XD.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(typeof v==='function' ? v(DATA.model.model) : v)}</dd>`).join('')}</dl>`;
+    XB.innerHTML = `<dl class="xdl">${XD.concat(V2_ROWS).map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(typeof v==='function' ? v(DATA.model.model) : v)}</dd>`).join('')}</dl>`;
   }
 }
 
@@ -639,9 +665,25 @@ function allFound(){
    without results is disabled with its reason. */
 const V4C = {
   exposure: {label:'exposure', T:'t=6', C:'t=2', tip:'Treatment t=6 vs control t=2 within one colony type (unit = video); strata = healthy (v4 videos) or infested (v4_infested videos) colonies',
-             opts:[['healthy colonies','v4_2_vs_6'],['infested colonies','v4_infested_2_vs_6']]},
+             opts:[['healthy colonies','v4_2_vs_6'],['infested colonies','v4_infested_2_vs_6']],
+             strata:'Colony', chips:[['healthy','healthy colonies (v4 videos)'],['infested','infested colonies (v4_infested videos)']],
+             of:{healthy:'v4_2_vs_6', infested:'v4_infested_2_vs_6'}},
   colony: {label:'colony', T:'infested', C:'healthy', tip:'Infested (v4_infested videos) vs healthy (v4 videos) colonies at one treatment value (unit = video). Not day-matched: confounded with the recording day and colony',
-           opts:[['t=2','infested_vs_healthy_t2'],['t=6','infested_vs_healthy_t6'],['t=2 and t=6','infested_vs_healthy_t2_6']]}};
+           opts:[['t=2','infested_vs_healthy_t2'],['t=6','infested_vs_healthy_t6'],['t=2 and t=6','infested_vs_healthy_t2_6']],
+           strata:'Pathogen exposure', chips:[['t2','t=2: infested vs healthy colonies at control exposure; colonies recorded on different days (only day F in common), so the contrast is confounded with the recording day and colony'],
+                                              ['t6','t=6: infested vs healthy colonies at pathogen exposure t=6; confounded with the recording day and colony in the same way']],
+           of:{t2:'infested_vs_healthy_t2', t6:'infested_vs_healthy_t6', 't2+t6':'infested_vs_healthy_t2_6'}}};
+const V4SEL = {exposure:{v4_2_vs_6:['healthy'], v4_infested_2_vs_6:['infested']},
+               colony:{infested_vs_healthy_t2:['t2'], infested_vs_healthy_t6:['t6'], infested_vs_healthy_t2_6:['t2','t6']}};
+/* toggle chips: items [[value, label, tip]], on = selected values; at least one stays selected */
+function chipGroup(label, tip, items, on, onSet){
+  const id = 'cg' + Math.random().toString(36).slice(2, 8);
+  setTimeout(() => { for(const b of document.querySelectorAll(`#${id} .tchip`)) b.onclick = () => {
+    const v = b.dataset.v, cur = new Set(on); if(cur.has(v)){ if(cur.size > 1) cur.delete(v); } else cur.add(v);
+    onSet(items.map(x => x[0]).filter(x => cur.has(x))); }; }, 0);
+  return `<span class="opt"><span class="tip" title="${esc(tip)}">${esc(label)}</span><span class="tchips" id="${id}">${items.map(([v, l, t]) => `<button type="button" class="tchip" data-v="${esc(v)}" aria-pressed="${on.includes(v)}" title="${esc(t || l)}">${esc(l)}</button>`).join('')}</span></span>`;
+}
+const NOTRUN = why => `<div class="notrun"><b>NOT RUN YET</b>${esc(why)}</div>`;
 const v4Of = id => { for(const [g, G] of Object.entries(V4C)){ const o = G.opts.find(x=>x[1]===id); if(o) return [g, G, o]; } return null; };
 const expOf = a => ANTS() && v4Of(a.id) ? 'v4' : a.experiment;   // the experiment shown in the picker
 const EXP_LAB = e => e==='hour 1' ? 'juveniles' : e;            // frogs: the juvenile phase
@@ -652,7 +694,7 @@ function antPicker(){
   const AN = SIB.flatMap(d => d.analyses.map(a => d===DATA ? a : Object.assign({}, a, {_sae:d.sae})));
   const cur = analysis(state.aid) || DATA.analyses[0];
   const PEND = Object.assign({}, ...SIB.map(d => d.pending || {}));   // experiment -> why it is not shown
-  const E = $('#apE'), C = $('#apC'), T = $('#apT'), G = $('#apG'), S = $('#apS');
+  const E = $('#apE'), C = $('#apC'), T = $('#apT'), G = $('#apG');
   const anOf = id => AN.find(a=>a.id===id), has = id => !!anOf(id);
   const ce = expOf(cur), v4 = ce==='v4' ? v4Of(cur.id) : null;
   const exps = [...new Set(AN.map(expOf))];
@@ -673,9 +715,23 @@ function antPicker(){
     G.value = g; G.title = G0.tip;
     T.innerHTML = `<option>${esc(G0.T)}</option>`; C.innerHTML = `<option>${esc(G0.C)}</option>`;
     T.disabled = C.disabled = true;
-    S.innerHTML = G0.opts.map(([l, id])=>`<option value="${id}"${has(id)?'':' disabled'}>${esc(l)}${has(id)?` (${cnt(anOf(id))})`:` (${NOTYET})`}</option>`).join('');
-    S.value = cur.id; S.title = g==='colony' ? 'Not day-matched: confounded with the recording day and colony' : '';
+    if(!state.v4sel || state.v4sel.g!==g || state.aid!==state.v4picked)   // opened elsewhere: follow the shown comparison
+      state.v4sel = {g, on: V4SEL[g][cur.id] || [G0.chips[0][0]]};
+    state.v4picked = state.aid;
+    const sel = state.v4sel.on, want = G0.of[sel.join('+')];
+    state.miss = !want ? `${G0.strata}: ${sel.map(x => G0.chips.find(c => c[0]===x)[0]).join(' and ')} pooled is not searched` :
+                 !has(want) ? `${G0.strata}: this stratum is ${NOTYET}` : null;
+    $('#apSl').textContent = G0.strata;
+    $('#apSl').title = g==='colony' ? 'Pathogen exposure of the compared colonies: one value, or both pooled. Not day-matched: confounded with the recording day and colony' : 'Colony type the exposure contrast is searched in';
+    $('#apSc').innerHTML = G0.chips.map(([v, t]) => `<button type="button" class="tchip" data-v="${esc(v)}" aria-pressed="${sel.includes(v)}" title="${esc(t)}">${esc(v==='t2' ? 't=2' : v==='t6' ? 't=6' : v)}</button>`).join('');
+    for(const b of document.querySelectorAll('#apSc .tchip')) b.onclick = () => {
+      const cur2 = new Set(state.v4sel.on), v = b.dataset.v; if(cur2.has(v)){ if(cur2.size > 1) cur2.delete(v); } else cur2.add(v);
+      state.v4sel.on = G0.chips.map(c => c[0]).filter(x => cur2.has(x));
+      const id = G0.of[state.v4sel.on.join('+')];
+      if(id && has(id)){ state.v4picked = id; go(anOf(id)); } else { state.neuron = null; render(); } };
+    if(want && has(want) && want!==cur.id){ state.v4picked = want; setTimeout(() => go(anOf(want)), 0); }
   } else {
+    state.miss = null;
     // Control first (the controls of the searched pairs); the treatment list keeps every other value, those without a
     // search of this control disabled
     const tv = tvals(cur.experiment), ctrls = tv.filter(t=>AN.some(a=>a.experiment===cur.experiment && a.control===t));
@@ -685,8 +741,8 @@ function antPicker(){
       return `<option value="${t}"${a?'':' disabled'}>${esc(armL(t))}${a?'':` (${NOTYET})`}</option>`; }).join('');
     C.value = String(cur.control); T.value = String(cur.treatment);
   }
-  const n = cnt(cur);
-  $('#apN').innerHTML = `<span title="${esc(longLabel(cur))}">${n} found</span>${cur.confound?` · <span class="tip" title="${esc(cur.confound)}">⚠ confounded</span>`:''}`;
+  const n = state.miss ? 'NOT RUN YET ·' : cnt(cur);
+  $('#apN').innerHTML = `<span title="${esc(longLabel(cur))}">${n}${state.miss ? '' : ' found'}</span>${cur.confound && !state.miss?` · <span class="tip" title="${esc(cur.confound)}">⚠ confounded</span>`:''}`;
   const go = a => { if(!a || a.id===state.aid) return; state.view='cmp'; state.aid=a.id; state.neuron=null;
     if(a._sae) setSae(a._sae); else render(); };
   E.onchange = () => { const e = E.value, L = AN.filter(a=>expOf(a)===e);
@@ -694,8 +750,7 @@ function antPicker(){
     go(L.find(a=>a.control===cur.control && a.treatment===cur.treatment) || L.find(a=>a.control===cur.control) || L[0]); };
   C.onchange = () => { const c = conv(C.value); go(find(cur.experiment, c, cur.treatment) || AN.find(a=>a.experiment===cur.experiment && a.control===c)); };
   T.onchange = () => go(find(cur.experiment, cur.control, conv(T.value)));
-  G.onchange = () => { const x = V4C[G.value], o = x && x.opts.find(o=>has(o[1])); if(o) go(anOf(o[1])); };
-  S.onchange = () => go(anOf(S.value));
+  G.onchange = () => { const x = V4C[G.value], o = x && x.opts.find(o=>has(o[1])); if(o){ state.v4sel = null; go(anOf(o[1])); } };
   $('#apEo').hidden = false; $('#apEl').textContent = FROGS() ? 'Phase' : 'Experiment'; $('#apTl').textContent = 'Treatment';
   $('#apH').textContent = FROGS() ? 'Mutant vs WT' : 'Treated vs control';
   $('#apH').title = FROGS() ? 'Mutant minus WT frogs (one video per frog). En1 and FoxP1 are each compared with WT; FoxP1 vs En1 is not searched.' : 'Treated minus control videos (unit = video); t = treatment number. Choices without results are disabled.';
@@ -705,7 +760,8 @@ function antPicker(){
    transition), Treatment, Control and Strata; every choice without results is disabled with its reason */
 const MC = {A:{label:'phase transition', tip:'Paired change of the same pool from one phase to the next within one odor (unit = pool); τ = later − earlier phase; strata = genotype'},
             B:{label:'mutation', tip:'het vs wt videos within one phase (unit = video); τ = het − wt; strata = phase'},
-            C:{label:'mutation in phase transition', tip:'Per pool its change from one phase to the next, het pools vs wt pools (difference in differences); τ = mean het change − mean wt change'}};
+            C:{label:'mutation in phase transition', tip:'Per pool its change from one phase to the next, het pools vs wt pools (difference in differences); τ = mean het change − mean wt change'},
+            S:{label:'sex', tip:'Female vs male videos within one phase, optionally within het or wt pools (family S; being produced for v2)'}};
 const PH = {1:'1 · habituation, social',2:'2 · odor, social',3:'3 · post, social',4:'4 · habituation, fear',5:'5 · odor, fear',6:'6 · post, fear'};
 const PREV = {2:1, 3:2, 5:4, 6:5};   // later phase -> the consecutive earlier phase of the same odor (the 4 searched transitions)
 const LINES = [['all','all'],['ash1l','ash1l'],['kdm6b','kdm6b'],['kmt5b','kmt5b']], SEXES = [['all','all'],['f','female'],['m','male']];
@@ -726,50 +782,72 @@ function subWhy(l, x){   // '' = the line x sex subgroup has searches for this m
   return 'not computed for this model and search method (full cohort only)';
 }
 function micePicker(){
-  const cur = analysis(state.aid) || DATA.analyses[0], f = cur.family;
-  const L = $('#mL'), X = $('#mS'), CS = $('#mC'), T = $('#mT'), K = $('#mK'), ST = $('#mX');
+  const cur = analysis(state.aid) || DATA.analyses[0];
+  const CS = $('#mC'), T = $('#mT'), K = $('#mK');
   const opt = (v, lab, why, extra='') => `<option value="${esc(v)}"${why?` disabled title="${esc(why)}"`:''}>${esc(lab)}${why?` (${esc(shortWhy(why))})`:extra}</option>`;
-  const cnt = id => { const R = res(id); return R.loading ? '·' : R.rows.length; };
-  L.innerHTML = LINES.map(([v, l])=>opt(v, l, subWhy(v, state.sex))).join(''); L.value = state.line;
-  X.innerHTML = SEXES.map(([v, l])=>opt(v, l, subWhy(state.line, v))).join(''); X.value = state.sex;
-  const fam = F => DATA.analyses.filter(a=>a.family===F).map(a=>a.id);
-  CS.innerHTML = Object.entries(MC).map(([F, m])=>{ const ids = fam(F), ok = ids.some(id=>!avail(id));
-    const w = ok ? '' : (ids.length ? avail(ids[0]) : 'not computed for this model');
-    return `<option value="${F}" title="${esc(m.tip + (w ? ` (${w})` : ''))}"${ok?'':' disabled'}>${esc(m.label)}${ok?'':` (${esc(shortWhy(w))})`}</option>`; }).join('');
-  CS.value = f; CS.title = MC[f].tip;
   const NEXT = {1:2, 2:3, 4:5, 5:6};   // control phase -> the consecutive later phase of the same odor (the 4 searched transitions)
-  const c = f==='B' ? null : cur.stages[0];
-  if(f==='B'){
-    K.innerHTML = opt('wt', 'wt', ''); T.innerHTML = opt('het', 'het', '');
-    ST.innerHTML = [1,2,3,4,5,6].map(s=>{ const id = `B_stage${s}`, w = avail(id); return opt(id, `phase ${PH[s]}`, w, w ? '' : ` (${cnt(id)})`); }).join('');
-    ST.value = cur.id; ST.disabled = false;
+  const fam = F => DATA.analyses.filter(a=>a.family===F).map(a=>a.id);
+  // strata state (chips): gene lines, sexes, phases (mutation / sex), genotypes (phase transition / sex)
+  if(!Array.isArray(state.lines) || !state.lines.length) state.lines = ['ash1l','kdm6b','kmt5b'];
+  if(!Array.isArray(state.sexes) || !state.sexes.length) state.sexes = ['f','m'];
+  if(!state.mfam || state.aid!==state.pickedAid){   // the shown comparison was opened elsewhere (a tag, a link, ...): follow it
+    state.mfam = cur.family;
+    if(cur.family==='B') state.phases = [cur.stage];
+    if(cur.family==='A') state.genos = [cur.genotype];
+    if(cur.stages) state.mctrl = cur.stages[0];
+  }
+  if(!Array.isArray(state.phases) || !state.phases.length) state.phases = [1];
+  if(!Array.isArray(state.genos) || !state.genos.length) state.genos = ['het'];
+  if(![1,2,4,5].includes(state.mctrl)) state.mctrl = 1;
+  const f = state.mfam, c = state.mctrl;
+  // the comparison the chips select, or why it is not run
+  const line = state.lines.length===3 ? 'all' : state.lines.length===1 ? state.lines[0] : 'multi';
+  const sex = state.sexes.length===2 ? 'all' : state.sexes.length===1 ? state.sexes[0] : 'multi';
+  let miss = null, aid = null;
+  if(line==='multi') miss = 'Line: searches exist for all three lines together or for one line, not for two lines pooled';
+  else if(f==='S') miss = 'Sex contrast (female vs male within a phase, optionally within het or wt; family S): being produced for v2';
+  else {
+    aid = f==='B' ? (state.phases.length===1 ? `B_stage${state.phases[0]}` : null)
+        : f==='A' ? (state.genos.length===1 ? `A_${state.genos[0]}_${c}to${NEXT[c]}` : null) : `C_${c}to${NEXT[c]}`;
+    if(!aid) miss = f==='B' ? 'Phase: pooled phases are not searched (pick one phase)' : 'Genotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)';
+    else if(!analysis(aid)) miss = 'this comparison is not computed for this model';
+  }
+  state.line = line==='multi' ? 'all' : line; state.sex = sex;
+  if(!miss){ const w = subWhy(state.line, state.sex) || avail(aid); if(w) miss = `${subLabel()}: ${w}`; }
+  state.missAll = line==='multi' ? 'Line: two lines pooled are not searched' : subWhy(state.line, state.sex) ? `${subLabel()}: not computed for this model and search method (full cohort only)` : null;
+  state.miss = miss;
+  if(!miss && aid!==state.aid){ state.aid = aid; state.neuron = null; }
+  state.pickedAid = state.aid;
+  // contrast / control / treatment
+  CS.innerHTML = Object.entries(MC).map(([F, m])=>`<option value="${F}" title="${esc(m.tip)}">${esc(m.label)}${F==='S' && !fam('S').length ? ' (not run yet)' : ''}</option>`).join('');
+  CS.value = f; CS.title = MC[f].tip;
+  if(f==='B' || f==='S'){
+    K.innerHTML = f==='B' ? opt('wt', 'wt', '') : opt('m', 'male', ''); T.innerHTML = f==='B' ? opt('het', 'het', '') : opt('f', 'female', '');
   } else {
-    K.innerHTML = [1,2,4,5].map(x=>{ const ids = fam(f).filter(id=>analysis(id).stages[0]===x), ok = ids.some(id=>!avail(id));
-      return opt(x, PH[x], ok ? '' : (ids.length ? avail(ids[0]) : 'not computed')); }).join('');
-    T.innerHTML = opt(NEXT[c], PH[NEXT[c]], '');   // the consecutive later phase of the same odor (the only searched treatment)
+    K.innerHTML = [1,2,4,5].map(x=>opt(x, PH[x], '')).join('');
+    T.innerHTML = opt(NEXT[c], PH[NEXT[c]], '');
     T.title = 'Treatment = the consecutive later phase of the same odor (the transitions searched)';
     K.value = String(c); T.value = String(NEXT[c]);
-    if(f==='A'){
-      ST.innerHTML = ['het','wt'].map(g=>{ const id = `A_${g}_${c}to${NEXT[c]}`, w = avail(id); return opt(id, g, w, w ? '' : ` (${cnt(id)})`); }).join('');
-      ST.value = cur.id; ST.disabled = false;
-    } else { ST.innerHTML = opt(cur.id, 'het − wt change', ''); ST.disabled = true; }
   }
-  K.disabled = f==='B'; T.disabled = true;
-  const R = res(cur.id);
-  $('#mN').innerHTML = `<span title="${esc(longLabel(cur))}">${R.loading ? '·' : R.rows.length} found</span>`;
-  const go = id => { if(!id || id===state.aid) return; state.view='cmp'; state.aid=id; state.neuron=null; render(); };
-  const first = ids => ids.find(id=>analysis(id) && !avail(id)) || ids.find(id=>analysis(id));
+  K.disabled = f==='B' || f==='S'; T.disabled = true;
+  const R = aid && !miss ? res(aid) : null;
+  $('#mN').innerHTML = miss ? '<span class="tip" title="' + esc(miss) + '">NOT RUN YET</span>' : `<span title="${esc(longLabel(analysis(aid)))}">${R.loading ? '·' : R.rows.length} found</span>`;
+  // strata chips
+  const cmp = state.view==='cmp';
+  const set = k => v => { state[k] = v; state.neuron = null; render(); };
+  let h = `<span class="tip strl" title="Strata: the subgroup of pools / videos the search is restricted to. Default = every chip on (the full cohort); a combination that was not searched shows NOT RUN YET">Strata</span>`;
+  h += chipGroup('Line', 'Gene line: all three (default) or one line (12 het and 12 wt pools each)', [['ash1l','ash1l'],['kdm6b','kdm6b'],['kmt5b','kmt5b']], state.lines, set('lines'));
+  h += chipGroup('Sex', 'Sex of the pools: both (default) or one sex (18 het and 18 wt pools each)', [['f','female'],['m','male']], state.sexes, set('sexes'));
+  if(cmp && (f==='B' || f==='S')) h += chipGroup('Phase', 'The phase the videos are compared in (one phase per search)', [1,2,3,4,5,6].map(x => [String(x), String(x), PH[x]]), state.phases.map(String), v => set('phases')(v.map(Number)));
+  if(cmp && (f==='A' || f==='S')) h += chipGroup('Genotype', 'The genotype whose pools are compared (one genotype per search)', [['het','het'],['wt','wt']], state.genos, set('genos'));
+  $('#mStrata').innerHTML = h;
   CS.onchange = () => {
-    const F = CS.value, s0 = cur.family==='B' ? cur.stage : cur.stages[1], tt = PREV[s0] ? s0 : s0 + 1, g = cur.genotype || 'het';
-    go(first(F==='A' ? [`A_${g}_${PREV[tt]}to${tt}`, `A_${g==='het'?'wt':'het'}_${PREV[tt]}to${tt}`, ...fam('A')]
-           : F==='B' ? [`B_stage${s0}`, ...fam('B')] : [`C_${PREV[tt]}to${tt}`, ...fam('C')]));
+    const F = CS.value; state.mfam = F; state.neuron = null; state.view = 'cmp';
+    if(F==='B' && cur.stages) state.phases = [cur.stages[1]];
+    if((F==='A' || F==='C') && cur.family==='B') state.mctrl = PREV[cur.stage] || 1;
+    render();
   };
-  K.onchange = () => { const x = +K.value, g = cur.genotype || 'het', y = {1:2, 2:3, 4:5, 5:6}[x];
-    go(first(f==='A' ? [`A_${g}_${x}to${y}`, `A_${g==='het'?'wt':'het'}_${x}to${y}`] : [`C_${x}to${y}`])); };
-  T.onchange = () => render();
-  ST.onchange = () => go(ST.value);
-  L.onchange = () => setSub(L.value, state.sex);
-  X.onchange = () => setSub(state.line, X.value);
+  K.onchange = () => { state.mctrl = +K.value; state.neuron = null; render(); };
 }
 
 /* prefixes searched for the current outcome (outcome().prefixes); a prefix without results falls back to the first */
@@ -821,12 +899,17 @@ for(const t of document.querySelectorAll('.tab')) t.onclick=()=>{ state.view=t.d
 
 /* one summary chip "robust k/n" over the plain-words checks of a discovery (r.rob [key, text, Y/N/-, note], plus the
    day-adjusted re-test for mice family B), then warning chips only (camera period, artefact) */
+/* the re-runs behind "stable in k of n checks" (r.rob keys of build_explorer robustness), in plain words */
+const CHECK_NAME = {thr:'bout threshold quantile', bout:'bout definition', BH:'multiple-testing correction', trim30:'time window',
+  size:'animal-size covariate', flip:'test', rank:'test', 'whole H':'habituation window', match:'time-matched windows',
+  bouts:'outcome', 'max-pool':'outcome', latency:'outcome', rate:'outcome', day:'recording-day covariate', session:'recording session left out'};
+const STABLE_LEGEND = '“stable in k of n checks”: the search was re-run n times, each changing one analysis choice (threshold quantile, bout definition, correction, time window, covariate, test or outcome); the neuron is still selected in k of them. Hover the chip for the list.';
 function chipsHTML(r){
   const pi = FROGS() ? sessionInfo(r.neuron) : periodInfo(r.neuron), C = r.rob.concat(pi.day ? [pi.day] : []);
   const run = C.filter(c => c[2]!=='-'), k = run.filter(c => c[2]==='Y').length, n = run.length;
-  const lines = C.map(([, text, v, note]) => `${v==='Y'?'✓ still found':v==='N'?'✗ not found':'· not run:'} ${text}${note?` (${note})`:''}`);
+  const lines = C.map(([key, text, v, note]) => `${v==='Y'?'✓ still found':v==='N'?'✗ no longer found':'· not run'} — ${CHECK_NAME[key] || key}: ${text}${note?` (${note})`:''}`);
   const cls = !n ? 'na' : k/n >= 0.75 ? 'Y' : k/n >= 0.4 ? 'warn2' : 'na';
-  let h = C.length ? `<span class="chip ${cls}" title="${esc(`Robustness: still selected when one choice of the analysis changes.\n${lines.join('\n')}`)}">robust ${k}/${n}</span>` : '';
+  let h = C.length ? `<span class="chip ${cls}" title="${esc(`Stability: the search re-run ${n} times, each time changing ONE choice of the analysis; the neuron is still selected in ${k} of them.\n${lines.join('\n')}`)}">stable in ${k} of ${n} checks</span>` : '';
   if(isArt(r.neuron)) h+=`<span class="chip warn" title="${esc(DATA.artefact_text[r.neuron]||'likely artefact')}">⚠ artefact</span>`;
   return h + pi.warn;
 }
@@ -838,7 +921,7 @@ function otherWith(e){
 }
 /* ---- behaviour alignment (ALL.align, scripts/eci/atlas_align.py) and annotation check (ALL.anncheck) ---- */
 let PIN = null;   // a neuron opened from the alignment panel stays selected
-const MKEY = {v0:'v0', online:'v1', new:'v2', 'new (thr)':'v2'};
+const MKEY = {v0:'v0', online:'v1', new:'v2'};
 function alSeries(){
   if(DATA.domain==='mice' || !DATA.domain) return 'mice';
   if(!ANTS()) return null;
@@ -853,28 +936,36 @@ function alTop(model, ser, beh){
   const M = A.models[MKEY[model]]; return M ? M.beh[beh] : undefined;
 }
 function renderAlign(){
-  const B = $('#alBox'), D = $('#alDet'), ser = alSeries(), A = ser && (ALL.align||{})[ser];
-  D.hidden = FROGS();
+  const B = $('#alBox'), ser = alSeries(), A = ser && (ALL.align||{})[ser];
+  $('#alBtn').disabled = FROGS();
+  $('#alBtn').title = FROGS() ? 'No behaviour annotations for frogs' : 'The neuron of each model most aligned with each annotated behaviour';
   const key = `${ser}|${DATA.sae}`;
   if(B.dataset.key===key) return; B.dataset.key = key;
   if(!A){ B.innerHTML = `<p class="pa">${FROGS() ? 'No behaviour annotations for frogs.' : 'Not measured for this series.'}</p>`; return; }
-  const cell = (m, b) => {
-    const M = A.models[MKEY[m]], x = M ? M.beh[b] : undefined, src = M ? M.source : '';
-    if(x===undefined) return `<td class="na" title="no alignment run for this model">not measured</td>`;
-    if(x===null) return `<td class="na" title="too few labelled frames or positives for this behaviour">not measured</td>`;
-    const E = alEntry(m, ser);
-    const items = x.top.slice(0, 3).map(([j, r, au]) => {
-      const has = E && E.nfile[(E.outcomes[0]||{}).codes] && (j in E.nfile[E.outcomes[0].codes].of);
-      const t = `#${j} R̃ ${fmt3(r)} · AUROC ${fmt3(au)}`;
-      return has ? `<button type="button" class="alj" data-sae="${esc(E.sae)}" data-n="${j}" title="open neuron ${j} (${esc(MLAB[m]||m)})">${t}</button>` : `<span title="no neuron page: not listed by any search of this model">${t}</span>`;
-    }).join('<br>');
-    return `<td title="${esc(`source: ${src}; base rate ${fmt3(x.base)} over ${x.n} frames; cross-fitted top-1 R̃ ${fmt3(x.cf1)}`)}">${items}</td>`;
+  const MODELS = [['v0','v0 (baseline)'], ['online','v1'], ['new','v2']];
+  const thumb = (E, j) => {   // v0: the first tile of the neuron's frame strip, when its data file is loaded
+    if(!E || E.model.model!=='v0') return '';
+    const nf = E.nfile[(E.outcomes[0]||{}).codes]; if(!nf || !(j in nf.of)) return '';
+    const F = GOT[nf.files[nf.of[j]]]; const n = F && F.by ? F.by[E.outcomes[0].codes][j] : null;
+    return n && n.frames ? `<span class="th" style="background-image:url('${n.frames.sprite}');background-position:0% 0%"></span>` : '';
   };
-  B.innerHTML = `<p class="pa">Neurons most aligned with each annotated behaviour, <b>cross-fitted</b>: picked by R̃ on one half of the ${esc(A.units)} (${A.n_units}), scored on the other half, both directions. <b>R̃</b> = normalised R-precision (primary): share of behaviour frames among the neuron's top N frames (N = behaviour frames), rescaled so 0 = chance and 1 = perfect; AUROC 0.5 = chance. ${esc(A.frames)}, ${A.n_frames} frames. Aligned (for the annotation check) = R̃ ≥ ${A.cut}.</p>
-    <div class="tw"><table class="spec3 al"><thead><tr><th>behaviour (base rate)</th><th>v0 (baseline)</th><th>v1</th><th>v2</th></tr></thead><tbody>${A.beh.map(([b, lab]) => {
+  const cell = (m, b) => {
+    const M = A.models[MKEY[m]], x = M ? M.beh[b] : undefined;
+    if(!x) return `<td class="na" title="${x===null ? 'too few labelled frames or positives' : 'no alignment run for this model'}">not measured</td>`;
+    const E = alEntry(m, ser), [j, r, au] = x.top[0];
+    const has = E && E.nfile[(E.outcomes[0]||{}).codes] && (j in E.nfile[E.outcomes[0].codes].of);
+    const id = has ? `<button type="button" class="alj pn" data-sae="${esc(E.sae)}" data-n="${j}" title="open neuron ${j} (${esc(MLAB[m]||m)})">#${j}</button>` : `<span class="pn" title="no neuron page: not listed by any search of this model">#${j}</span>`;
+    return `<td title="${esc(`source: ${M.source}`)}">${thumb(E, j)}${id}<br><span class="pm">R̃ ${fmt3(r)} · AUROC ${fmt3(au)}</span></td>`;
+  };
+  const more = (m, b) => { const M = A.models[MKEY[m]], x = M ? M.beh[b] : null; return x ? x.top.map(([j, r, au]) => `#${j} R̃ ${fmt3(r)} · AUROC ${fmt3(au)}`).join('; ') : 'not measured'; };
+  B.innerHTML = `<div class="tw"><table class="spec3 alg"><thead><tr><th>behaviour · base rate</th>${MODELS.map(([, l]) => `<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${A.beh.map(([b, lab]) => {
       const br = ['v2','v1','v0'].map(k => (A.models[k]||{beh:{}}).beh[b]).find(x => x);
-      return `<tr><td class="rl">${esc(lab)}${br ? ` (${fmt3(br.base)})` : ''}</td>${['v0','online','new'].map(m => cell(m, b)).join('')}</tr>`; }).join('')}</tbody></table></div>
-    <p class="pa">Sources: v0 = its frame codes (mean-pooled token, scripts/eci/v0); v1 = codes_max of the deployed SAE; v2 = the unthresholded codes of the page's SAE (scripts/eci/atlas_align.py; hover a cell for the file).</p>`;
+      return `<tr><td class="rl">${esc(lab)}<br><span class="pm">${br ? `base rate ${fmt3(br.base)}` : ''}</span></td>${MODELS.map(([m]) => cell(m, b)).join('')}</tr>`; }).join('')}</tbody></table></div>
+    <p class="pa">Principal aligned neuron per model: picked on one half of the ${esc(A.units)}, scored on the other (cross-fitted). R̃ = normalised R-precision (0 = chance, 1 = perfect), AUROC 0.5 = chance.</p>
+    <details class="xdet"><summary>more: top ${A.top_k} per model, frames, sources</summary>
+      <p class="pa">${esc(A.frames)}, ${A.n_frames} frames, ${A.n_units} ${esc(A.units)}. A listed neuron's R̃ and AUROC are the means of its held-out scores over the halves that picked it. The annotation check counts a neuron as aligned when R̃ ≥ ${A.cut}. v2 = its continuous outcome.</p>
+      <div class="tw"><table class="spec3 al"><thead><tr><th>behaviour</th>${MODELS.map(([, l]) => `<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${A.beh.map(([b, lab]) => `<tr><td class="rl">${esc(lab)}</td>${MODELS.map(([m]) => `<td>${esc(more(m, b))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      <p class="pa">Sources: ${MODELS.map(([m, l]) => `${esc(l)} = ${esc((A.models[MKEY[m]]||{}).source || 'none')}`).join('; ')}.</p></details>`;
   for(const b of B.querySelectorAll('.alj')) b.onclick = () => { const j = +b.dataset.n; PIN = j; if(b.dataset.sae!==DATA.sae) setSae(b.dataset.sae); state.view = 'all'; state.neuron = j; render(); };
 }
 /* annotation check of the shown comparison: the annotated behaviours' effect (ALL.anncheck[series][analysis]); a
@@ -885,18 +976,17 @@ function annCheck(a, R){
   if(!C || !A || SUB()) return '';
   const nb = Object.keys(C).length, thr = 0.05 / nb, lab = Object.fromEntries(A.beh);
   const found = new Set(R.rows.map(r => r.neuron));
+  const tip = `Annotation check: each annotated behaviour's per-video time fraction, compared as this contrast is; significant = p < ${fmtP(thr)} (0.05 / ${nb} behaviours, Bonferroni). Recovered = a neuron found here is among this model's top-aligned neurons for that behaviour with R̃ ≥ ${A.cut}.\n` +
+    Object.entries(C).map(([b, v]) => `${lab[b]||b}: ${v[0] >= 0 ? '+' : '−'}${fmt3(Math.abs(v[0]))}, p ${fmtP(v[1])} (${v[4]}, ${v[2]} vs ${v[3]})`).join('\n');
   const out = [];
-  for(const [b, [tau, p, nc, nt, test]] of Object.entries(C)){
+  for(const [b, [tau, p]] of Object.entries(C)){
     if(!(p < thr)) continue;
-    const x = alTop(DATA.model.model, ser, b);
-    const al = x ? x.top.filter(t => t[1] >= A.cut) : [];
-    const hit = al.find(t => found.has(t[0]));
-    const eff = `${tau >= 0 ? '+' : '−'}${fmt3(Math.abs(tau))} time fraction, p ${fmtP(p)}; ${test}, ${nc} vs ${nt}`;
-    out.push(hit ? `<p class="note"><span class="chip Y">recovered</span> annotated effect on ${esc(lab[b]||b)} (${esc(eff)}) recovered by neuron #${hit[0]} (R̃ ${fmt3(hit[1])})</p>`
-                 : `<p class="warnbox one" title="${esc(x ? `aligned neurons of this model (R̃ ≥ ${A.cut}): ${al.map(t=>'#'+t[0]).join(', ') || 'none'}` : 'alignment not measured for this model')}">⚠ annotated effect on ${esc(lab[b]||b)} (${esc(eff)}) not recovered by this model${x && !al.length ? ` (no neuron reaches R̃ ≥ ${A.cut})` : ''}</p>`);
+    const x = alTop(DATA.model.model, ser, b), al = x ? x.top.filter(t => t[1] >= A.cut) : [], hit = al.find(t => found.has(t[0]));
+    const eff = `${tau >= 0 ? '+' : '−'}${fmt3(Math.abs(tau))} (p ${fmtP(p)})`;
+    out.push(hit ? `<span class="badge ok tip" title="${esc(tip)}">annotation check: confirmed (neuron #${hit[0]}, R̃ ${fmt3(hit[1])})</span>`
+                 : `<span class="badge bad tip" title="${esc(tip)}">annotation check: not recovered — annotated ${esc(lab[b]||b)} effect ${esc(eff)}</span>`);
   }
-  const tip = `Annotation check: the annotated behaviours' per-video time fraction compared as this contrast is (${nb} behaviours, Bonferroni p < ${fmtP(thr)}). Not significant for: ${Object.entries(C).filter(([, v]) => !(v[1] < thr)).map(([b, v]) => `${lab[b]||b} p ${fmtP(v[1])}`).join('; ') || 'none'}.`;
-  return out.length ? `<div title="${esc(tip)}">${out.join('')}</div>` : `<p class="note tip" title="${esc(tip)}">Annotation check: no significant annotated effect in this contrast (${nb} behaviours, p &lt; ${fmtP(thr)}).</p>`;
+  return `<div>${out.length ? out.join('<br>') : `<span class="badge neu tip" title="${esc(tip)}">annotation check: no significant annotated effect</span>`}</div>`;
 }
 
 /* candidates listed for a search result (from live version 38): none if the method selected a neuron, else the 3
@@ -904,6 +994,7 @@ function annCheck(a, R){
 const shownTop = R => R.rows.length ? [] : (R.top||[]).slice().sort((x,y)=>x[2]-y[2]).slice(0,3);
 function renderCmpList(){
   const a=analysis(state.aid), R=res(), S=$('#side');
+  if(state.miss){ S.innerHTML = NOTRUN(state.miss); state.neuron = null; return; }
   const nu = nUnits(a), unit = a.family==='A' ? `${nu} paired pools` : a.family==='C' ? `${nu} pools (het vs wt change)` : `${nu} videos`;
   let h=`<div class="side-head">${GEN() ? '' : `<h2 title="${esc(longLabel(a))}">${esc(label(a))}</h2>`}<span class="meta">${SUB()?`${esc(subLabel())} · `:''}${unit} · ${R.n_tested_total||0} tested · <span class="tip" title="${tauTip()}">τ${FROGS()?` = ${esc(a.treatment)} − ${esc(a.control)}`:!ANTS()&&a.family==='B'?' = het − wt':!ANTS()&&a.family==='C'?' = het − wt change':''}</span> in ${esc(outcome().unit)}</span></div>`;
   if(isV0() && R.v0){
@@ -931,8 +1022,9 @@ function renderCmpList(){
       <span class="l1"><span class="${up?'up':'down'}">${up?'▲':'▼'} ${fmtTau(r.tau)}</span><span class="pv">p ${fmtP(r.p)}</span>${csHTML(r.neuron)}</span>
       <span class="chips">${chipsHTML(r)}${censChip(r.cens)}${stChip(r)}${v0Chips(r)}</span></button>`;
   }
-  if(top.length){ renderTop(S, h+'</div>', top); return; }
-  S.innerHTML = h+'</div>';
+  h+='</div>' + (R.rows.some(r => r.rob && r.rob.length) ? `<p class="note">${esc(STABLE_LEGEND)}</p>` : '');
+  if(top.length){ renderTop(S, h, top); return; }
+  S.innerHTML = h;
   for(const b of S.querySelectorAll('.nr')) b.onclick=()=>{ state.neuron=+b.dataset.n; render(); };
 }
 function renderTop(S, h, top, fold){
@@ -956,7 +1048,9 @@ function renderTop(S, h, top, fold){
 }
 
 function renderAllList(){
-  const S=$('#side'), L=allFound();
+  const S=$('#side');
+  if(!GEN() && state.missAll){ S.innerHTML = NOTRUN(state.missAll); state.neuron = null; return; }
+  const L=allFound();
   L.sort(state.sort==='neuron' ? (x,y)=>x.neuron-y.neuron : state.sort==='p' ? (x,y)=>x.best-y.best : (x,y)=>y.count-x.count||x.best-y.best);
   let h=`<div class="side-head"><h2>All discovered neurons</h2><span class="meta">${L.length} neurons · ${DATA.analyses.length} analyses</span></div>`;
   if(!GOT[rfile()]){ S.innerHTML=h+loadMsg(rfile()); return; }

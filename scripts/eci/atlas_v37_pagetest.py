@@ -42,6 +42,24 @@ VJS = '''() => { const v = document.querySelector('#vM'); if(!v) return null;
           dur: v.duration, err: v.error ? v.error.code : null}; }'''
 
 
+def set_chips(pg, root, label, values):
+    """Make exactly `values` pressed in the chip group `label` (None = the only group) under root."""
+    js = """([root, label]) => { const R = document.querySelector(root); if(!R) return [];
+      const g = label ? [...R.querySelectorAll('.opt')].find(o => (o.querySelector('.tip')||{}).textContent===label) : R;
+      return g ? [...g.querySelectorAll('.tchip')].map(b => [b.dataset.v, b.getAttribute('aria-pressed')==='true']) : []; }"""
+    click = """([root, label, v]) => { const R = document.querySelector(root);
+      const g = label ? [...R.querySelectorAll('.opt')].find(o => (o.querySelector('.tip')||{}).textContent===label) : R;
+      g.querySelector(`.tchip[data-v="${v}"]`).click(); }"""
+    for want in (True, False):
+        for _ in range(8):
+            st = pg.evaluate(js, [root, label])
+            todo = [v for v, on in st if (v in values) == want and on != want]
+            if not todo:
+                break
+            pg.evaluate(click, [root, label, todo[0]])
+            pg.wait_for_timeout(450)
+
+
 def vcheck(pg, lab):
     """The clip pack of the shown neuron: loaded, playing inside its page (seek), and looping (1 s clips)."""
     pg.wait_for_timeout(2500)
@@ -75,9 +93,22 @@ with sync_playwright() as p:
     for d in doms:
         pg.select_option('#domSel', d)
         pg.wait_for_timeout(500)
-        for model in pg.eval_on_selector_all('#ax_model option:not([disabled])', 'os => os.map(o => o.value)'):
+        pairs = []
+        for m_ in pg.eval_on_selector_all('#ax_model option:not([disabled])', 'os => os.map(o => o.value)'):
+            pg.select_option('#ax_model', m_)
+            pg.wait_for_timeout(400)
+            ros = pg.eval_on_selector_all('#ax_readout option', 'os => os.map(o => [o.value, o.disabled, o.textContent])')
+            report.append(f'{d} · {m_}: outcome options {ros}')
+            pairs += [(m_, r[0]) for r in ros if not r[1]] or [(m_, None)]
+        for model, ro in pairs:
+            pg.select_option('#domSel', d)
+            pg.wait_for_timeout(300)
             pg.select_option('#ax_model', model)
             pg.wait_for_timeout(400)
+            if ro and pg.eval_on_selector('#ax_readout', 'e => e.value') != ro:
+                pg.select_option('#ax_readout', ro)
+                pg.wait_for_timeout(400)
+            report.append(f'{d} · {model} · outcome {ro}: entry {pg.evaluate("() => DATA.sae")}')
             for meth in pg.eval_on_selector_all('#ax_method option', 'os => os.map(o => [o.value, o.disabled, o.textContent])'):
                 if meth[1]:
                     report.append(f'{d} · {model} · method {meth[2]} (disabled)')
@@ -103,49 +134,58 @@ with sync_playwright() as p:
                     pg.click(f'#kindSeg button[data-kind="{kind[0]}"]')
                     pg.wait_for_timeout(600)
                     if d == 'mice':
-                        # mice picker: Contrast (#mC), then Control (#mK) and Strata (#mX); every enabled choice
+                        # mice picker: Contrast (#mC), Control (#mK), strata chips (Phase / Genotype); then NOT RUN YET
+                        # combinations (pooled phases, both genotypes, two lines, the sex contrast)
                         seen = []
-                        for fam in pg.eval_on_selector_all('#mC option', 'os => os.map(o => [o.value, o.disabled])'):
-                            if fam[1]:
-                                report.append(f'{d} · {model} · {meth[0]} · {kind[0]} · contrast {fam[0]} (disabled)')
-                                continue
-                            pg.select_option('#mC', fam[0])
-                            pg.wait_for_timeout(400)
-                            ks = pg.eval_on_selector_all('#mK option:not([disabled])', 'os => os.map(o => o.value)')
-                            for kv in (ks if fam[0] != 'B' else [None]):
+                        for fam in pg.eval_on_selector_all('#mC option', 'os => os.map(o => o.value)'):
+                            pg.select_option('#mC', fam)
+                            pg.wait_for_timeout(500)
+                            combos = []
+                            if fam == 'B':
+                                combos = [(None, ('Phase', [str(x)])) for x in range(1, 7)] + [(None, ('Phase', ['1', '2']))]
+                            elif fam in ('A', 'C'):
+                                for kv in pg.eval_on_selector_all('#mK option', 'os => os.map(o => o.value)'):
+                                    combos += ([(kv, ('Genotype', [g])) for g in ('het', 'wt')] + [(kv, ('Genotype', ['het', 'wt']))]
+                                               if fam == 'A' else [(kv, None)])
+                            else:
+                                combos = [(None, None)]
+                            for kv, ch in combos:
                                 if kv is not None and pg.eval_on_selector('#mK', 'e => e.value') != kv:
                                     pg.select_option('#mK', kv)
                                     pg.wait_for_timeout(400)
-                                for sv in pg.eval_on_selector_all('#mX option:not([disabled])', 'os => os.map(o => o.value)'):
-                                    if pg.eval_on_selector('#mX', 'e => e.disabled') is False:
-                                        pg.select_option('#mX', sv)
-                                    pg.wait_for_timeout(500)
-                                    aid = pg.eval_on_selector('#mX', 'e => e.value')
-                                    if aid in seen:
-                                        continue
-                                    seen.append(aid)
-                                    n = pg.eval_on_selector('#mN', 'e => e.textContent')
-                                    nr = pg.eval_on_selector_all('#side .nr .id', 'es => es.map(e => e.textContent)')
-                                    emp = pg.eval_on_selector('#side', 'e => (e.querySelector(".empty")||{}).textContent || ""')
-                                    topd = pg.locator('#side details.topd').count()
-                                    h2 = '(no detail)'
-                                    if nr:
-                                        if pg.locator('#side .nr:visible').count() == 0:
-                                            pg.click('#side summary')
-                                            pg.wait_for_timeout(300)
-                                        pg.click('#side .nr:visible >> nth=0')
-                                        pg.wait_for_timeout(600)
-                                        h2 = pg.eval_on_selector('#detail', 'e => (e.querySelector("h2")||{}).textContent || "(no detail)"')
-                                        if model.startswith('new') and kind[0] == 'time':
-                                            vcheck(pg, f'{d} {model} {meth[0]} {kind[0]} {aid}')
-                                    ann = pg.eval_on_selector_all('#side .warnbox, #side .note', 'es => es.map(e => e.textContent.trim()).filter(t => /annotat/.test(t))')
-                                    if ann:
-                                        report.append(f'      annotation check {model} {meth[0]} {kind[0]} {aid}: {ann}')
-                                    report.append(f'{d} · {model} · {meth[0]} · {kind[0]} · {aid}: {n}; listed {nr[:10]} '
-                                                  f'{emp}{" (candidates)" if topd else ""}; detail {h2}')
-                                    if a.shots and shot < 24 and nr and (model == 'v0' or shot < 8):
-                                        pg.screenshot(path=f'{a.shots}/shot_{shot:02d}_{d}_{model}_{meth[0]}_{kind[0]}_{aid}.png'.replace(' ', ''), full_page=True)
-                                        shot += 1
+                                if ch:
+                                    set_chips(pg, '#mStrata', ch[0], ch[1])
+                                lab = f'{fam} ctrl={kv} {ch[0] + "=" + "+".join(ch[1]) if ch else ""}'
+                                n = pg.eval_on_selector('#mN', 'e => e.textContent')
+                                if 'NOT RUN' in n:
+                                    nrun = pg.eval_on_selector('#side', 'e => (e.querySelector(".notrun")||{}).textContent || "(no NOT RUN box)"')
+                                    report.append(f'{d} · {model} · {meth[0]} · {kind[0]} · {lab}: {n} | {nrun}')
+                                    continue
+                                if lab in seen:
+                                    continue
+                                seen.append(lab)
+                                nr = pg.eval_on_selector_all('#side .nr .id', 'es => es.map(e => e.textContent)')
+                                emp = pg.eval_on_selector('#side', 'e => (e.querySelector(".empty")||{}).textContent || ""')
+                                topd = pg.locator('#side details.topd').count()
+                                h2 = '(no detail)'
+                                if nr:
+                                    if pg.locator('#side .nr:visible').count() == 0:
+                                        pg.click('#side summary')
+                                        pg.wait_for_timeout(300)
+                                    pg.click('#side .nr:visible >> nth=0')
+                                    pg.wait_for_timeout(600)
+                                    h2 = pg.eval_on_selector('#detail', 'e => (e.querySelector("h2")||{}).textContent || "(no detail)"')
+                                    if model.startswith('new') and kind[0] == 'time':
+                                        vcheck(pg, f'{d} {model} {meth[0]} {kind[0]} {lab}')
+                                ann = pg.eval_on_selector_all('#side .badge', 'es => es.map(e => e.textContent.trim())')
+                                if ann:
+                                    report.append(f'      annotation check {model} {meth[0]} {kind[0]} {lab}: {ann}')
+                                report.append(f'{d} · {model} · {meth[0]} · {kind[0]} · {lab}: {n}; listed {nr[:10]} '
+                                              f'{emp}{" (candidates)" if topd else ""}; detail {h2}')
+                        # line strata: one line, two lines (NOT RUN YET), back to all
+                        for lines in (['ash1l'], ['ash1l', 'kdm6b'], ['ash1l', 'kdm6b', 'kmt5b']):
+                            set_chips(pg, '#mStrata', 'Line', lines)
+                            report.append(f'{d} · {model} · {meth[0]} · {kind[0]} · lines {lines}: {pg.eval_on_selector("#mN", "e => e.textContent")}')
                     else:
                         exps = pg.eval_on_selector_all('#apE option', 'os => os.map(o => [o.value, o.disabled, o.textContent])')
                         for e in exps:
@@ -164,8 +204,9 @@ with sync_playwright() as p:
                                     pg.select_option('#apG', g[0])
                                     pg.wait_for_timeout(700)
                                     if pg.locator('#apSo').is_visible():
-                                        for sv in pg.eval_on_selector_all('#apS option:not([disabled])', 'os => os.map(o => o.value)'):
-                                            picks.append(('#apS', sv, f'group {g[0]} · {sv}', g[0]))
+                                        vals = pg.eval_on_selector_all('#apSc .tchip', 'bs => bs.map(b => b.dataset.v)')
+                                        for sv in [[v] for v in vals] + [vals]:
+                                            picks.append(('chips', sv, f'group {g[0]} · {"+".join(sv)}', g[0]))
                                     else:
                                         picks.append((None, None, f'group {g[0]}', g[0]))
                             else:
@@ -175,7 +216,9 @@ with sync_playwright() as p:
                                 if grp is not None and pg.eval_on_selector('#apG', 'e => e.value') != grp:
                                     pg.select_option('#apG', grp)
                                     pg.wait_for_timeout(700)
-                                if sel:
+                                if sel == 'chips':
+                                    set_chips(pg, '#apSo', None, val)
+                                elif sel:
                                     pg.select_option(sel, val)
                                 pg.wait_for_timeout(900)
                                 if sel == '#apT':
@@ -185,7 +228,7 @@ with sync_playwright() as p:
                                 h2 = pg.eval_on_selector('#detail', 'e => (e.querySelector("h2")||{}).textContent || "(no detail)"')
                                 emp = pg.eval_on_selector('#side', 'e => (e.querySelector(".empty")||{}).textContent || ""')
                                 topd = pg.locator('#side details.topd').count()
-                                ann = pg.eval_on_selector_all('#side .warnbox, #side .note', 'es => es.map(e => e.textContent.trim()).filter(t => /annotat/.test(t))')
+                                ann = pg.eval_on_selector_all('#side .badge', 'es => es.map(e => e.textContent.trim())')
                                 if ann:
                                     report.append(f'      annotation check {model} {meth[0]} {kind[0]} {e[0]} {lab}: {ann}')
                                 report.append(f'{d} · {model} · {meth[0]} · {kind[0]} · {e[0]} {lab}: '
@@ -243,16 +286,69 @@ with sync_playwright() as p:
     for d, shot_name in (('mice', 'align_mice'), ('ants', 'align_ants')):
         pg.select_option('#domSel', d)
         pg.wait_for_timeout(1200)
-        pg.eval_on_selector('#alDet', 'e => e.open = true')
-        pg.wait_for_timeout(500)
+        if pg.eval_on_selector('#alBox', 'e => e.hidden'):
+            pg.click('#alBtn')
+        pg.wait_for_timeout(600)
         report.append(f'{d} alignment panel: {pg.eval_on_selector("#alBox", "e => e.innerText.slice(0, 600)")!r}')
-        pg.screenshot(path=f'{a.shots}/{shot_name}.png', full_page=True)
+        pg.screenshot(path=f'{a.shots}/{shot_name}.png', full_page=False)
         links = pg.locator('#alBox .alj')
         if links.count():
             links.nth(0).click()
             pg.wait_for_timeout(1500)
             report.append(f'{d} alignment link -> detail '
                           f'{pg.eval_on_selector("#detail", H2)}')
+    if not pg.eval_on_selector('#alBox', 'e => e.hidden'):
+        pg.click('#alBtn')
+    NOTRUN_JS = 'e => (e.querySelector(".notrun")||{}).textContent || ""'
+    # strata chips: ants v4 colony contrast (Pathogen exposure), mice (Line / Sex / Genotype); annotation badges
+    pg.select_option('#domSel', 'ants')
+    pg.wait_for_timeout(1000)
+    pg.select_option('#ax_model', 'new')
+    pg.wait_for_timeout(800)
+    pg.click('#tabCmp')
+    pg.wait_for_timeout(500)
+    pg.select_option('#apE', 'v4')
+    pg.wait_for_timeout(900)
+    pg.select_option('#apG', 'colony')
+    pg.wait_for_timeout(900)
+    for sv in (['t2'], ['t6'], ['t2', 't6']):
+        set_chips(pg, '#apSo', None, sv)
+        pg.wait_for_timeout(600)
+        report.append(f'ants v4 colony strata {sv}: {pg.eval_on_selector("#apN", "e => e.textContent")}')
+    pg.screenshot(path=f'{a.shots}/strata_ants_v4.png', full_page=False)
+    pg.select_option('#apG', 'exposure')
+    pg.wait_for_timeout(900)
+    set_chips(pg, '#apSo', None, ['healthy', 'infested'])
+    report.append(f'ants v4 exposure strata healthy+infested: {pg.eval_on_selector("#apN", "e => e.textContent")} | '
+                  f'{pg.eval_on_selector("#side", NOTRUN_JS)}')
+    pg.screenshot(path=f'{a.shots}/strata_ants_v4_notrun.png', full_page=False)
+    pg.select_option('#domSel', 'mice')
+    pg.wait_for_timeout(1000)
+    pg.select_option('#ax_model', 'new')
+    pg.wait_for_timeout(800)
+    pg.click('#tabCmp')
+    pg.wait_for_timeout(500)
+    pg.select_option('#mC', 'A')
+    pg.wait_for_timeout(600)
+    pg.select_option('#mK', '4')
+    pg.wait_for_timeout(600)
+    set_chips(pg, '#mStrata', 'Genotype', ['het'])
+    pg.wait_for_timeout(1200)
+    report.append(f'mice A het 4->5 badges: {pg.eval_on_selector_all("#side .badge", "es => es.map(e => e.textContent)")}')
+    pg.screenshot(path=f'{a.shots}/strata_mice_badge.png', full_page=False)
+    set_chips(pg, '#mStrata', 'Line', ['ash1l'])
+    report.append(f'mice line ash1l: {pg.eval_on_selector("#mN", "e => e.textContent")}')
+    pg.screenshot(path=f'{a.shots}/strata_mice_line.png', full_page=False)
+    set_chips(pg, '#mStrata', 'Line', ['ash1l', 'kdm6b', 'kmt5b'])
+    pg.select_option('#mC', 'S')
+    pg.wait_for_timeout(800)
+    report.append(f'mice sex contrast: {pg.eval_on_selector("#mN", "e => e.textContent")} | '
+                  f'{pg.eval_on_selector("#side", NOTRUN_JS)}')
+    pg.screenshot(path=f'{a.shots}/strata_mice_sex_notrun.png', full_page=False)
+    pg.select_option('#mC', 'B')
+    pg.wait_for_timeout(800)
+    report.append(f'mice B badges: {pg.eval_on_selector_all("#side .badge", "es => es.map(e => e.textContent)")}')
+    pg.screenshot(path=f'{a.shots}/badge_neutral.png', full_page=False)
     ban = pg.query_selector('#v0Ban')
     report.append(f'v0 banner (last state): {ban.text_content() if ban else None}')
     b.close()

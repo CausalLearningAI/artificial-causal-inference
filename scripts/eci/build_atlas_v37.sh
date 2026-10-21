@@ -22,7 +22,8 @@ set -euo pipefail
 REPO=/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 cd $REPO
 export LOCAL_DIR=/localhome/$USER/${SLURM_JOB_ID:-local}_atlas37
-mkdir -p $LOCAL_DIR results/vision/eci_atlas_v37/code
+mkdir -p results/vision/eci_atlas_v37/code
+mkdir -p $LOCAL_DIR 2>/dev/null || { export LOCAL_DIR=${TMPDIR:-/tmp}/${USER}_${SLURM_JOB_ID:-local}_atlas37; mkdir -p $LOCAL_DIR; echo "no /localhome on $(hostname): staging in $LOCAL_DIR"; }
 trap 'rm -rf $LOCAL_DIR' EXIT
 HEAD=$(git rev-parse HEAD)
 CODE=$REPO
