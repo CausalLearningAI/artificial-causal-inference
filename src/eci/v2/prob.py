@@ -19,6 +19,23 @@ PRE-REGISTERED 2026-10-21 (before any prob code or score existed):
               the mean P(on) (expected time ON), the bout rate and the latency of P(on) above its pooled q 0.95.
   sanity      (label-free, reported) P = 0 on silent frames and monotone by construction; share of fallback neurons;
               mean P(on) per frame; Spearman correlation of P with s on the fit sample.
+
+MAP BINARISATION TEST (PRE-REGISTERED 2026-10-21 ~19:00, before any MAP code or score existed):
+  definition  per-neuron 'active' = the MAP decision of the same mixture: active iff P(on | s) > 0.5 (equivalently a
+              per-neuron threshold on s, the point where the active component becomes more probable). Codes set
+              '<sae>_map' = 1[P(on) > 0.5] (0 / 1). NES outcomes on it: mean = fraction of time active; bouts / latency
+              from the SAME binary (the runners' pooled-quantile threshold is replaced by 0, i.e. 'above' = active;
+              scripts/eci/v2/nes_v2_dispatch.py, V2_ZERO_THR=1).
+  bimodality  per neuron on its fit sample: BIC gain of 2 vs 1 Gaussian component on log s (BIC_1 - BIC_2, > 10 =
+              strong evidence for two components), separation |mu_on - mu_low| / sqrt(mean variance); share of neurons
+              that fall back (no mixture) and share with BIC gain <= 10.
+  comparison  on the same frames and splits (tools.py align): R~ (ties at the cut shared pro rata = the expectation
+              under random tie-breaking) and cf AUROC of v2_map vs v2_smooth (continuous) for mice nose_nose,
+              nose_tail and ants v2 groom_any, v3 groom_any, v3 on_lid_any; active fraction per neuron (sanity) and the
+              active fraction of each label's selected neuron; labels grouped by base rate (< 10% rare, >= 10% common).
+  rule        PROPOSE map as the interpretable default outcome ('fraction of time active') iff for EVERY listed label
+              R~(map) >= R~(continuous) - 0.03 AND AUROC(map) >= AUROC(continuous) - 0.05; continuous stays the
+              ranking / alignment representation either way. NES / NESS discovery counts are reported, never decide.
 """
 import numpy as np
 
@@ -85,3 +102,41 @@ def apply(S, grids, curves, fb):
         else:
             P[:, j] = np.where(pos[:, j], np.interp(L[:, j], grids[j], curves[j]), 0)
     return P
+
+
+def bimodality(S_cal, seed=0, n_max=20000):
+    """Per neuron: (BIC_1 - BIC_2 on log of the positive values (nan if < 200), separation, n_positive)."""
+    rng = np.random.default_rng(seed)
+    W = S_cal.shape[1]
+    gain = np.full(W, np.nan)
+    sep = np.full(W, np.nan)
+    npos = np.zeros(W, int)
+    for j in range(W):
+        v = S_cal[:, j]
+        v = v[v > 0]
+        npos[j] = len(v)
+        if len(v) < 200:
+            continue
+        if len(v) > n_max:
+            v = v[rng.choice(len(v), n_max, replace=False)]
+        x = np.log(v.astype(np.float64))
+        n = len(x)
+        ll1 = -0.5 * n * (np.log(2 * np.pi * max(x.var(), 1e-4)) + 1)
+        mu = np.percentile(x, [25, 75]).astype(np.float64)
+        var = np.full(2, max(x.var(), 1e-4))
+        pi = np.array([0.5, 0.5])
+        for _ in range(200):
+            ll = -0.5 * (x[:, None] - mu[None]) ** 2 / var[None] - 0.5 * np.log(2 * np.pi * var[None]) + np.log(pi[None])
+            m = ll.max(1, keepdims=True)
+            r = np.exp(ll - m)
+            r /= r.sum(1, keepdims=True)
+            nk = r.sum(0) + 1e-12
+            pi = nk / nk.sum()
+            mu = (r * x[:, None]).sum(0) / nk
+            var = np.maximum((r * (x[:, None] - mu[None]) ** 2).sum(0) / nk, 1e-4)
+        ll = -0.5 * (x[:, None] - mu[None]) ** 2 / var[None] - 0.5 * np.log(2 * np.pi * var[None]) + np.log(pi[None])
+        m = ll.max(1, keepdims=True)
+        ll2 = float((m[:, 0] + np.log(np.exp(ll - m).sum(1))).sum())
+        gain[j] = (-2 * ll1 + 2 * np.log(n)) - (-2 * ll2 + 5 * np.log(n))
+        sep[j] = abs(mu[1] - mu[0]) / np.sqrt(var.mean())
+    return gain, sep, npos
