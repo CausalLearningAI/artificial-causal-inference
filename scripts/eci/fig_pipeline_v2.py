@@ -499,9 +499,6 @@ def plot(args):
         txt(xs['trace'], y0 - 2.7, 'temporal context: 0.6 s smoothing', color=C_DARK)
         for s in ('top', 'right'):
             a.spines[s].set_visible(False)
-        y_leg = y0 + 2.3 + sz - 6.4 + 0.55
-        txt(xs['trace'] + 0.30 * wt, y_leg, 'c(t) raw', ha='center', fontsize=FS_S - 1.0, color='#7a7a7a')
-        txt(xs['trace'] + 0.63 * wt, y_leg, 's(t) 0.6 s mean', ha='center', fontsize=FS_S - 1.0, color=C_N)
         # whole-video firing raster under the trace (s / sigma > theta_n), the 10 s window marked
         n = len(smo)
         vmin_ = n / FPS / 60
