@@ -226,7 +226,7 @@ def cmd_manifest(args):
                       'sheets': g(OUT / 'freeze/*/sheets')},
            'discoveries': {'json': str(OUT / 'discoveries.json'), 'md': str(OUT / 'discoveries.md')},
            'nes_input_sets': {
-               'primary_proposed': '<sae>_smooth: centred 0.6 s mean of the frame max codes, no firing threshold (keeps '
+               'primary': 'USER DECISION 2026-10-21: <sae>_smooth = centred 0.6 s mean of the frame max codes, no firing threshold (keeps '
                                    'the behaviour alignment; align.json v2_smooth)',
                'secondary': '<sae>: the same smoothed codes zeroed below the fnorm firing threshold (pre-specified, but it '
                             'destroys alignment: mice nose_nose R~ 0.174 raw -> 0.093, ants v2 groom_any 0.629 -> 0.075)',
@@ -251,7 +251,7 @@ def cmd_manifest(args):
                   'summaries': str(OUT / dom / f'summaries_{sc["name"]}.npz'),
                   'heat_dir': str(OUT / dom / 'heat' / sc['name']), 'heat_index': str(OUT / dom / 'heat' / sc['name'] / 'index.json'),
                   'heat_files': len(g(OUT / dom / 'heat' / sc['name'] / 'n*.npz')), 'sets': {}}
-            for tag, nm in (('primary_proposed', f'{name}_smooth'), ('secondary', name), ('raw', f'{name}_raw')):
+            for tag, nm in (('primary', f'{name}_smooth'), ('secondary', name), ('raw', f'{name}_raw')):
                 e = {'name': nm, 'codes': str(RUN.codes_dir(c, sc, nm)), 'codes_link': str(REPO / sc['layout'] / 'codes' / nm)}
                 if tag != 'raw':
                     e['nes_dir'] = str(V / nr / nm)
