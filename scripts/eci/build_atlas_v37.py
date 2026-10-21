@@ -95,7 +95,8 @@ V2_SERIES = {'v2_mice': 'v1', 'v2_ants_v2p': 'v2', 'v2_ants_v3p': 'v3', 'v2_ants
              'v2_frogs_tad': 'tad'}
 V2_NESS = {'v2_mice': 'mice', 'v2_ants_v2p': 'ants_eci_r4v2p', 'v2_ants_v3p': 'ants_eci_r4v3p',
            'v2_ants_v4p': 'ants_eci_r4v4p', 'v2_frogs': 'frogs', 'v2_frogs_tad': 'frogs_tadpole'}
-V2_MODEL = {'smooth': 'new', 'thr': 'new (thr)'}  # page model values of the two v2 input sets
+V2_MODEL = {'smooth': 'new', 'thr': 'new (thr)', 'prob': 'new'}  # page model values of the v2 input sets (readout_axis)
+V2_SUF = {'smooth': '_smooth', 'thr': '', 'prob': '_prob'}
 # online builds: (domain, ANTS_ECI, v36 result set, v36 tag)
 ONLINE = {'mice': ('mice', None, 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0', 'fg448al'),
           'ants': ('ants', 'eci30', 'results/vision/ants/eci30/nes/matryoshka_btk_1024_k16_antsfg_s0', 'antsfg'),
@@ -118,7 +119,7 @@ TRANS = {'1to2': (1, 2), '2to3': (2, 3), '4to5': (4, 5), '5to6': (5, 6)}
 ap = argparse.ArgumentParser()
 ap.add_argument('--dom', default=None, help='build key: ' + ', '.join(NEW) + ' (new) / mice, ants, frogs (online)')
 ap.add_argument('--model', default='new', choices=('new', 'online'))
-ap.add_argument('--variant', default='d2', choices=('d2', 'd0', 'smooth', 'thr'), help='r4: d2 / d0; v2: smooth / thr')
+ap.add_argument('--variant', default='d2', choices=('d2', 'd0', 'smooth', 'thr', 'prob'), help='r4: d2 / d0; v2: smooth / thr / prob')
 ap.add_argument('--steps', default='prep,data,patch,arena,render,dump', help='frogs_tad: tad')
 ap.add_argument('--max-pages', type=int, default=0, help='clip pages per build (build_explorer --max-pages)')
 ap.add_argument('--kr', type=int, default=None, help='clips rendered per row (default: build_explorer VIEW kr; mice 8)')
@@ -155,7 +156,22 @@ def _mice_analyses(self):
     return out
 
 
-Dm.MiceDomain.analyses = property(_mice_analyses)
+def _mice_analyses_s(self):
+    """+ family S (sex, the frozen v2's runs, scripts/eci/v2/nes_mice_dispatch.py mode S): female vs male pools within
+    a stage, also within one genotype; unit = pool, tau > 0 = higher in females."""
+    out = _mice_analyses(self)
+    for s_ in range(1, 7):
+        out.append(Dm.Analysis(f'S_stage{s_}', 'B', 'pool', {'genotype': 'all', 'stage': s_, 'transition': ''},
+                               ('f>m', 'f<m'), where={'stage': s_}, arm='sex', control=('m',), treatment=('f',)))
+    for g in ('het', 'wt'):
+        for s_ in range(1, 7):
+            out.append(Dm.Analysis(f'S_{g}_stage{s_}', 'B', 'pool', {'genotype': g, 'stage': s_, 'transition': ''},
+                                   ('f>m', 'f<m'), where={'stage': s_, 'genotype': g}, arm='sex', control=('m',),
+                                   treatment=('f',)))
+    return out
+
+
+Dm.MiceDomain.analyses = property(_mice_analyses_s)
 
 import src.eci.viz as VZ  # noqa: E402
 
@@ -182,6 +198,28 @@ VZ.load_full_codes = _load_full_codes
 import build_explorer as BE  # noqa: E402
 
 DOMOBJ = {'mice': BE.MICE, 'ants': BE.ANTS, 'frogs': BE.FROGS}
+_cg_s = BE.contrast_groups
+
+
+def _contrast_groups(cfg, aid, vids):
+    """+ mice family S: (female, male) videos of the stage (within the genotype for S_<g>_stage<s>); the pool's sex from
+    the mice experiment.csv (the video blocks carry pool / stage / genotype only)."""
+    if cfg.dom.name == 'tadpoles' and 'experiment' in vids:  # contrast clips only from the QC-kept videos
+        c0, t0 = _cg_s(cfg, aid, vids)
+        k = vids['experiment'].astype(str).values == TAD_EXP
+        return c0 & k, t0 & k
+    if cfg.dom is not BE.MICE or not str(aid).startswith('S_'):
+        return _cg_s(cfg, aid, vids)
+    an = cfg.dom.analysis(aid)
+    ex = pd.read_csv(BE.MICE.experiment_csv).drop_duplicates('pool').set_index('pool')['sex']
+    sx = ex.loc[vids['pool'].astype(str)].astype(str).values
+    m = vids['stage'].astype(int).values == an.where['stage']
+    if 'genotype' in an.where:
+        m &= vids['genotype'].astype(str).values == an.where['genotype']
+    return m & (sx == 'f'), m & (sx == 'm')
+
+
+BE.contrast_groups = _contrast_groups
 # the DINES tables' own columns (scripts/eci/atlas_v37_methods.py) are not setting columns
 BE.KNOWN |= {'status', 'p_kind', 'rho', 'set_aside', 'terminal_complete', 'method', 'hab_window', 'stages',
              'nes_W_frames'}
@@ -257,7 +295,8 @@ _tc = BE.tau_check
 
 def tau_check(vm, vals, results, oid, round_=1, dom=BE.MICE):
     """+ family C: tau = mean over het pools of (stage b - stage a) - the same over wt pools."""
-    worst = _tc(vm, vals, {k: R for k, R in results.items() if '|C_' not in k}, oid, round_, dom)
+    # family S (sex) is left out of build_explorer's own check (it reads every non-A id as B_stage<s>)
+    worst = _tc(vm, vals, {k: R for k, R in results.items() if '|C_' not in k and '|S_' not in k}, oid, round_, dom)
     for rk, R in results.items():
         o_, aid, _, _ = rk.split('|')
         if o_ != oid or not aid.startswith('C_'):
@@ -393,7 +432,8 @@ def add_outcomes(c, base, prefix, cache, kinds=('rate', 'time', 'latency'), dine
 # scripts/eci/r4_v3_2v8.sh), its NES rows from <R4 result set>/v3_2_vs_8_noday, its DINES rows from methods_v3_2v8
 EXTRA_SEARCHES = {'ants_v3p_d2': ('v3_2_vs_8_noday', OUT / 'methods_v3_2v8', ('v3_2_vs_8',)),
                   'v2_ants_v3p_thr': ('v3_2_vs_8_noday', V2 / 'ness_v3_2v8', ('v3_2_vs_8',)),
-                  'v2_ants_v3p_smooth': ('v3_2_vs_8_noday', V2 / 'ness_v3_2v8', ('v3_2_vs_8',))}
+                  'v2_ants_v3p_smooth': ('v3_2_vs_8_noday', V2 / 'ness_v3_2v8', ('v3_2_vs_8',)),
+                  'v2_ants_v3p_prob': ('v3_2_vs_8_noday', V2 / 'ness_v3_2v8', ('v3_2_vs_8',))}
 
 
 def v2_name(rdom):
@@ -405,7 +445,7 @@ def new_paths():
     key = f'{A.dom}_{A.variant}'
     if A.dom.startswith('v2_'):
         assert A.variant in V2_MODEL, A.variant
-        sae = v2_name(rdom) + ('_smooth' if A.variant == 'smooth' else '')
+        sae = v2_name(rdom) + V2_SUF[A.variant]
         return dom_name, sae, ROOT / nes_root / sae, OUT / 'res' / key / sae, OUT / 'build' / key, \
             V2 / 'ness' / V2_NESS[A.dom] / sae, key
     sae = best_sae(rdom, A.variant) + '_fnorm'
@@ -430,6 +470,9 @@ def step_prep_new():
     xd = [(xs[1] / xk / sae / 'dines', xs[2])] if xs else []
     xn = [x for x in xn if x[0].is_dir()]
     xd = [x for x in xd if x[0].is_dir()]
+    if A.dom == 'v2_mice':  # family S (sex) of the frozen v2: its own NES / NESS result sets
+        xn += [src / 'family_S'] if (src / 'family_S').is_dir() else []
+        xd += [V2 / 'ness_S' / 'mice' / sae / 'dines'] if (V2 / 'ness_S' / 'mice' / sae / 'dines').is_dir() else []
     for meth, srcs in (('nes', [src, M / 'familyC_nes'] + xn), ('dines', [M / 'dines', M / 'familyC_dines'] + xd)):
         have[meth] = []
         for kind, sub, *_ in OUTS:
@@ -473,7 +516,7 @@ def new_cfg():
     dom_name, sae, src, V, bout, M, key = new_paths()
     dom = DOMOBJ[dom_name]
     tag = ('v2' + {'v2_mice': 'mice', 'v2_ants_v2p': 'v2p', 'v2_ants_v3p': 'v3p', 'v2_ants_v4p': 'v4p',
-                   'v2_frogs': 'frogs'}[A.dom] + {'smooth': 's', 'thr': 't'}[A.variant]) if A.dom.startswith('v2_') else \
+                   'v2_frogs': 'frogs', 'v2_frogs_tad': 'tad'}[A.dom] + {'smooth': 's', 'thr': 't', 'prob': 'p'}[A.variant]) if A.dom.startswith('v2_') else \
         'r4' + {'mice': 'mice', 'ants_v2': 'v2', 'ants_v3': 'v3', 'ants_v4': 'v4', 'frogs': 'frogs', 'ants_v2p': 'v2p',
                 'ants_v3p': 'v3p', 'ants_v4p': 'v4p'}[A.dom] + A.variant
     c = make_cfg(V, sae, dom, tag, bout)
@@ -484,12 +527,46 @@ def new_cfg():
     add_outcomes(c, V / 'nes', '', V / '_cache')
     if (V / 'dines' / 'summary.csv').exists() or (V / 'dines' / 'maxpool_bouts' / 'summary.csv').exists():
         add_outcomes(c, V / 'dines', 'd', V / '_cache', dines=True)
+    if A.dom == 'v2_mice':
+        v2_subsets(c, src, sae)
     BE.plan_clips([c], A.max_pages)
     return c
 
 
+def v2_subsets(c, src, sae):
+    """Line / sex strata of the frozen v2 mice runs (families A and B): NES <res>/subsets/<line>_<sex>/<sub>, NESS
+    results/vision/eci_v2/ness_strata/<line>_<sex>/mice/<sae>/dines/<sub>; a stratum enters only when every outcome
+    of the build has it (core outcomes -> c.subsets, latency -> c.xsubsets)."""
+    sub_of = {o['id']: sub for o in c.outcomes + c.extras for kind, sub, oid, *_ in OUTS
+              if o['id'] in (oid, 'd' + oid)}
+    for name in BE.SUBSETS:
+        core, extra = [], []
+        for o in c.outcomes + c.extras:
+            base = (V2 / 'ness_strata' / name / 'mice' / sae / 'dines') if o['id'].startswith('d') else (src / 'subsets' / name)
+            d = base / sub_of[o['id']] if sub_of[o['id']] != '.' else base
+            if (d / 'summary.csv').exists():
+                t = c.trim(pd.read_csv(d / 'summary.csv'))
+                if o['id'].startswith('d'):
+                    t = t[~t['analysis_id'].astype(str).str.startswith('A_')].reset_index(drop=True)
+                (extra if o['extra'] else core).append({**o, 'dir': d, 'tidy': t})
+        if len(core) == len(c.outcomes) and core:
+            core.sort(key=lambda o: (o['id'].startswith('d'), sub_of[o['id']] != '.'))  # subset_meta reads core[0]
+            c.subsets[name] = core
+            if len(extra) == len(c.extras):
+                c.xsubsets[name] = extra
+    log(f'{c.tag} strata: {sorted(c.subsets)} (latency: {sorted(c.xsubsets)})')
+
+
 def codes_cfg(c):
     cc = json.loads((c.dom.eci_dir / 'codes' / c.sae / 'config.json').read_text())
+    for _ in range(3):  # the frozen v2's prob set points at the smoothed set, whose parent (raw) holds argmax.npy
+        pc = Path(cc['parent_codes'])
+        if (pc / 'argmax.npy').exists() or not (pc / 'config.json').exists():
+            break
+        nxt = json.loads((pc / 'config.json').read_text())
+        if 'parent_codes' not in nxt:
+            break
+        cc = dict(cc, parent_codes=nxt['parent_codes'])
     codes = np.load(c.dom.eci_dir / 'codes' / c.sae / 'codes_max.npy', mmap_mode='r')
     arg = np.load(Path(cc['parent_codes']) / 'argmax.npy', mmap_mode='r')
     return cc, codes, arg, int(cc['G'])
@@ -566,6 +643,9 @@ def step_arena_new(c):
                                    else ''))
         log(f'{c.tag} arena: {n} frames, grid {G}')
     bg_out = c.assets / BE.bg_name(c)
+    if c.dom.name == 'tadpoles':  # the crop follows the animal: no arena background
+        log(f'{c.tag} arena: crop-grid map of the argmax token (animal-centred, no background)')
+        return
     if not bg_out.exists() or A.overwrite or turned:
         c.assets.mkdir(parents=True, exist_ok=True)
         if 'backgrounds' in cc:
@@ -659,7 +739,7 @@ def step_v2heat(c):
     """Real per-token heat files of the build's clips from the frozen v2's stored token codes (scripts/eci/v2/run.py
     heat --picks: exact, its max over tokens equals the raw frame code) -> <work>/patch/ (sig 'v2heat-'). CPU."""
     dom_name, *_ = new_paths()
-    dom = {'mice': 'mice', 'ants': 'ants', 'frogs': 'frogs'}[dom_name]
+    dom = {'mice': 'mice', 'ants': 'ants', 'frogs': 'frogs', 'tadpoles': 'frogs'}[dom_name]
     (c.work / 'patch').mkdir(parents=True, exist_ok=True)
     cmd = [sys.executable, '-u', str(ROOT / 'scripts/eci/v2/run.py'), 'heat', '--domain', dom, '--series',
            V2_SERIES[A.dom], '--picks', str(c.work / 'picks.json'), '--out-dir', str(c.work / 'patch')]
@@ -677,8 +757,11 @@ def step_render_new(c):
         rows = {r for n in picks['by_key'].get('max', {}).values()
                 for rr in BE.clip_rows(n, c.kr, BE.SHOW_LENGTHS).values() for r in rr}  # the rendered clips only
         need = sorted({picks['frame_path'][str(r)] for r in rows})
-        lst.write_text('\n'.join(need) + '\n')
-        subprocess.run(f'tar -C {BE.DATASET.resolve()} -cf - -T {lst} | tar -C {loc} -xf -', shell=True, check=True)
+        if c.dom.name == 'tadpoles':
+            tad_crops(picks, rows, loc)
+        else:
+            lst.write_text('\n'.join(need) + '\n')
+            subprocess.run(f'tar -C {BE.DATASET.resolve()} -cf - -T {lst} | tar -C {loc} -xf -', shell=True, check=True)
         log(f'{c.tag} render: staged {len(need)} frames (of {len(set(picks["frame_path"].values()))} picked) to {loc}')
         BE.DATASET = loc
     BE.step_render(c, A.overwrite, A.pack_mb)
@@ -710,6 +793,20 @@ def dump(c, entries, out):
     if A.dom.startswith('v2_'):
         cc = json.loads((c.dom.eci_dir / 'codes' / c.sae / 'config.json').read_text())
         core['v2spec'] = [cc['S'], cc['G']]
+    for a in core.get('analyses', []):  # mice family S: its own page family (BE labels it as a family B contrast)
+        if str(a['id']).startswith('S_'):
+            g = a['id'].split('_')[1] if a['id'].count('_') == 2 else 'all'
+            a.update(family='S', genotype=g, stage=int(a['id'].rsplit('stage', 1)[1]))
+    if c.dom.name == 'tadpoles':  # tadpole comparisons get the prefix tad_ (the juvenile ones share the names)
+        core['tadpole'] = True
+        core['tadpole_clips'] = True
+        core['domain'] = 'frogs'
+        core['arena_note'] = 'every frame: the crop-grid cell of the strongest token (the crop follows the tadpole, so this is a body map, not an arena map)'
+        ren = lambda t: t.replace('"FoxP1_vs_WT"', '"tad_FoxP1_vs_WT"').replace('"En1_vs_WT"', '"tad_En1_vs_WT"') \
+            .replace('|FoxP1_vs_WT|', '|tad_FoxP1_vs_WT|').replace('|En1_vs_WT|', '|tad_En1_vs_WT|')  # noqa: E731
+        core = json.loads(ren(json.dumps(core)))
+        for f in (out / 'data').glob('*.json'):
+            f.write_text(ren(f.read_text()))
     cores = entries(core)
     (out / 'core.json').write_text(json.dumps({'entries': cores, 'videos_mice': BE._vt()[1] if c.dom is BE.MICE else None},
                                               separators=(',', ':')))
@@ -894,13 +991,11 @@ TAD_QC = R4 / 'frogs_tadpole' / 'qc.json'
 TAD_NESS = R4 / 'ness' / 'frogs_tadpole'
 
 
-def step_dump_tadpoles():
-    """New model on the frog tadpoles: NES (results/vision/frogs/eci_tadpole_r4/nes/<sae>) and NESS
-    (results/vision/eci_rollout_r4/ness/frogs_tadpole/<sae>/dines) entries of the d2 fnorm SAE, read through the
-    build_explorer search functions with the tadpole domain standing in for the juvenile frogs (contrasts WT vs FoxP1,
-    WT vs En1; the QC exclusion of qc.json, as scripts/eci/tadpole_r4_nes.py ran them). No clips and no arena map:
-    the codes are of a moving body crop of the raw video (no dataset frames, no fixed arena). Analysis ids get the
-    prefix 'tad_' (the juvenile comparisons share the names). -> OUT/build/frogs_tad_<variant>/{core.json, data/}."""
+def tad_setup(clips=False):
+    """The tadpole domain standing in for the juvenile frogs in build_explorer (contrasts WT vs FoxP1 / En1, the QC
+    exclusion). clips: also the standard clip steps (data / v2heat / arena / render / dump) on it: the experiment label
+    of the frogs view = TAD_EXP, and annotations get a synthetic frame_path tadcrop/<obs>/frame_<k>.jpg (the crops
+    are cut from the raw video at render time, step_render_new)."""
     Dm.TadpolesDomain.CONTRASTS = (('WT', 'FoxP1'), ('WT', 'En1'))
     excl = set(json.loads(TAD_QC.read_text())['excluded'])
     _ld, _vm = Dm.TadpolesDomain.load_design, Dm.TadpolesDomain.video_meta
@@ -914,23 +1009,94 @@ def step_dump_tadpoles():
     def vmeta_qc(self):
         v = _vm(self)
         v = v[~v['observation_id'].isin(excl) & v['group'].isin(['WT', 'FoxP1', 'En1'])].reset_index(drop=True)
-        return v.assign(mutant_side='')  # bilateral crispants: no edited side
+        v = v.assign(mutant_side='')  # bilateral crispants: no edited side
+        return v.assign(experiment=TAD_EXP) if clips else v
     Dm.TadpolesDomain.load_design, Dm.TadpolesDomain.video_meta = load_qc, vmeta_qc
     TAD = Dm.get_domain('tadpoles')
     assert str(TAD.eci_dir).endswith('eci_tadpole_r4'), TAD.eci_dir
     assert TAD.analysis_ids() == ['FoxP1_vs_WT', 'En1_vs_WT'], TAD.analysis_ids()
     BE.VIEW['tadpoles'] = dict(BE.VIEW['frogs'], title='Frogs', exp=TAD_EXP, subject='tadpole', subjects='tadpoles')
     BE.FROGS = TAD  # build_explorer's frogs code paths (video table, arms, labels) on the tadpole domain
+    DOMOBJ['tadpoles'] = TAD
+    if clips:
+        # clips only from the QC-kept videos of the three groups (VIEW 'keep' on the experiment column)
+        BE.VIEW['tadpoles']['keep'] = {TAD_EXP: None}
+        BE.VIEW['frogs'] = BE.VIEW['tadpoles']
+        BE.GROUP_COLS['tadpoles'] = BE.GROUP_COLS['frogs']
+        _prev = VZ.load_full_codes
+
+        def load_tad(sae_name, dataset_dir='dataset', data_dir='data', subject='mice', version='v1', codes_dir=None,
+                     domain=None):
+            d = Path(codes_dir) if codes_dir else TAD.eci_dir / 'codes' / sae_name
+            ann = pd.read_csv(TAD.ann_path, usecols=['observation_id', 'frame_idx', 'fps'])
+            ann['frame_path'] = [f'tadcrop/{o}/frame_{k:06d}.jpg' for o, k in zip(ann.observation_id, ann.frame_idx)]
+            vm = _vm(TAD).assign(mutant_side='')  # every recorded video (the QC-excluded ones are never shown)
+            meta = ann.merge(vm, on='observation_id', how='left', validate='m:1')
+            keep = ~meta['observation_id'].isin(excl) & meta['group'].isin(['WT', 'FoxP1', 'En1'])
+            meta['experiment'] = np.where(keep, TAD_EXP, 'not shown')
+            codes = {k: np.load(d / 'codes_max.npy', mmap_mode='r') for k in ('mean', 'max')}
+            assert codes['max'].shape[0] == len(meta), (codes['max'].shape, len(meta))
+            return VZ.CodeSource('full', codes, meta, Path(dataset_dir), {'codes_dir': str(d), 'n_rows': len(meta),
+                                                                          'meta_cols': tuple(TAD.meta_cols) + ('experiment', 'T')})
+        VZ.load_full_codes = load_tad
+    return TAD
+
+
+def tad_crops(picks, rows, loc):
+    """Cut the tadpole crops of the given picks rows from the raw videos (tadpole_r4: the 5 fps frame k = source frame
+    12 k + 5, the locate_v2 dead-band box of frame k), resized to 384 px like the encoder input -> loc/tadcrop/..."""
+    from concurrent.futures import ThreadPoolExecutor
+    from PIL import Image
+    sys.path.insert(0, str(ROOT / 'scripts/eci'))
+    import tadpole_r4 as T
+    P = json.loads((R4 / 'frogs_tadpole' / 'plan.json').read_text())
+    vb = {v['obs']: v for v in P['videos']}
+    need = {}
+    for r in rows:
+        f = picks['frame_path'][str(r)]
+        o, k = f.split('/')[1], int(f.split('frame_')[1][:6])
+        need.setdefault(o, set()).add(k)
+
+    def one(o):
+        v, L = vb[o], T.load_locate(o)
+        ks = sorted(need[o])
+        runs, a = [], ks[0]
+        for i in range(1, len(ks) + 1):
+            if i == len(ks) or ks[i] != ks[i - 1] + 1:
+                runs.append((a, ks[i - 1]))
+                if i < len(ks):
+                    a = ks[i]
+        (loc / 'tadcrop' / o).mkdir(parents=True, exist_ok=True)
+        for a0, a1 in runs:
+            for j, fr in enumerate(T.decode_iter(v['path'], v['w'], v['h'], a0, a1 - a0 + 1, threads=2)):
+                k = a0 + j
+                im = Image.fromarray(np.ascontiguousarray(T.crop(fr, int(L['x0'][k]), int(L['y0'][k]))))
+                im.resize((384, 384), Image.BICUBIC).save(loc / 'tadcrop' / o / f'frame_{k:06d}.jpg', quality=92)
+        return len(ks)
+    with ThreadPoolExecutor(8) as ex:
+        n = sum(ex.map(one, sorted(need)))
+    log(f'tadpole crops: {n} frames of {len(need)} videos cut from the raw videos -> {loc}/tadcrop')
+
+
+def step_dump_tadpoles():
+    """New model on the frog tadpoles: NES (results/vision/frogs/eci_tadpole_r4/nes/<sae>) and NESS
+    (results/vision/eci_rollout_r4/ness/frogs_tadpole/<sae>/dines) entries of the d2 fnorm SAE, read through the
+    build_explorer search functions with the tadpole domain standing in for the juvenile frogs (contrasts WT vs FoxP1,
+    WT vs En1; the QC exclusion of qc.json, as scripts/eci/tadpole_r4_nes.py ran them). No clips and no arena map:
+    the codes are of a moving body crop of the raw video (no dataset frames, no fixed arena). Analysis ids get the
+    prefix 'tad_' (the juvenile comparisons share the names). -> OUT/build/frogs_tad_<variant>/{core.json, data/}."""
+    TAD = tad_setup()
+    excl = set(json.loads(TAD_QC.read_text())['excluded'])
     v2m = A.dom == 'v2_frogs_tad'  # the frozen v2 (its frogs SAE) on the tadpoles
     if v2m:
-        sae = v2_name('frogs') + ('_smooth' if A.variant == 'smooth' else '')
+        sae = v2_name('frogs') + V2_SUF[A.variant]
         ness = V2 / 'ness' / 'frogs_tadpole' / sae
     else:
         sae = best_sae('frogs_tadpole', A.variant) + '_fnorm'
         ness = TAD_NESS / sae
     src = ROOT / NEW[A.dom][2] / sae
     key = f'{A.dom}_{A.variant}'
-    tg = ('v2tad' + {'smooth': 's', 'thr': 't'}[A.variant]) if v2m else 'r4tad' + A.variant
+    tg = ('v2tad' + {'smooth': 's', 'thr': 't', 'prob': 'p'}[A.variant]) if v2m else 'r4tad' + A.variant
     V, bout = OUT / 'res' / key / sae, OUT / 'build' / key
     (V / '_cache').mkdir(parents=True, exist_ok=True)
     for f in (src / '_cache').glob('*.npz'):
@@ -1518,7 +1684,7 @@ TAD_STRIPS = OUT / 'tadpole_strips'
 def tadpole_strips(site, saes):
     """Frame strips with real heat maps of the tadpole neurons (scripts/eci/tadpole_atlas_strips.py) into the
     tadpole entries' neuron files."""
-    ents = [e for e in saes if e.get('tadpole')]
+    ents = [e for e in saes if e.get('tadpole') and not e.get('tadpole_clips')]
     done = set()
     for e in ents:
         sd = TAD_STRIPS.with_name('tadpole_strips_v2smooth' if e['tag'].startswith('v2tads') else
@@ -1533,6 +1699,8 @@ def tadpole_strips(site, saes):
                 continue
             done.add(nf)
             D = json.loads((site / nf).read_text())
+            if 'by' not in D:
+                continue
             for j, n in D['by']['max'].items():
                 x = S['neurons'].get(str(j))
                 if not x:
@@ -1560,7 +1728,7 @@ PICKS = {'r4miced2': OUT / 'res/mice_d2', 'r4v2pd2': OUT / 'res/ants_v2p_d2', 'r
          'fg448al': ROOT / ONLINE['mice'][2], 'antsfg': ROOT / ONLINE['ants'][2], 'frogsfg': ROOT / ONLINE['frogs'][2],
          **{f'v2{t}{v[0]}': OUT / f'res/{k}_{v}' for k, t in (('v2_mice', 'mice'), ('v2_ants_v2p', 'v2p'),
                                                                ('v2_ants_v3p', 'v3p'), ('v2_ants_v4p', 'v4p'),
-                                                               ('v2_frogs', 'frogs')) for v in ('smooth', 'thr')}}
+                                                               ('v2_frogs', 'frogs'), ('v2_frogs_tad', 'tad')) for v in ('smooth', 'thr', 'prob')}}
 
 
 def clip_times(site, saes, data):
@@ -1733,7 +1901,124 @@ READOUT_TIPS = {'continuous': 'Continuous: the neuron\'s smoothed code (0.6 s me
                               'no firing threshold. The default (user decision 2026-10-21)',
                 'binary': 'Binary: the same smoothed code kept only above the neuron\'s firing threshold (fnorm), else 0 '
                           '(v2 only)',
-                'prob': 'Probability: per-neuron P(on) (v2 only; being produced)'}
+                'prob': 'Probability: per-neuron P(on) per frame (v2 only). Average time = the expected fraction of time '
+                        'active; event rate and latency threshold P(on) at its pooled 0.95 quantile'}
+
+
+V2_CHECKS = {'window_hwhole': 'with habituation taken whole (30 min) instead of its last 15 min',
+             'window_trim30': 'with the first 30 s of every video dropped',
+             'test_signflip': 'with a sign-flip permutation test instead of the t-test',
+             'test_rank': 'with a rank-based t-test',
+             'input_prob': 'with the outcome input P(on) instead of the continuous code',
+             'input_binary': 'with the thresholded (binary) input instead of the continuous code',
+             'q0.90': 'with the bout threshold at quantile 0.90 instead of 0.95',
+             'q0.99': 'with the bout threshold at quantile 0.99 instead of 0.95',
+             'gap2': 'with bouts merged across gaps of 2 frames'}
+
+
+def _nfiles(e):
+    nf = e['nfile'].get('max') or next(iter(e['nfile'].values()))
+    return nf['files']
+
+
+def _neurons(D):
+    return D['neurons'] if 'neurons' in D else D.get('by', {}).get('max', {})
+
+
+def share_v2_clips(site, saes):
+    """Version budget (256 MB): the v2 binary / prob outcomes show the clips of the continuous outcome (same SAE, same
+    neuron) instead of their own packs; a neuron with no continuous clips is listed without clips (its arena map,
+    histogram and per-video values are its own)."""
+    cont = {}
+    for e in saes:
+        if e['model']['model'] == 'new' and e['model'].get('readout') == 'continuous' and '#' in e['sae']:
+            k = e['sae'].split('#')[1].rsplit('_', 1)[0]
+            for f in _nfiles(e):
+                if (site / f).exists():
+                    cont.setdefault(k, {}).update(_neurons(json.loads((site / f).read_text())))
+    done, n_sh, n_no = set(), 0, 0
+    for e in saes:
+        if e['model']['model'] != 'new' or e['model'].get('readout') == 'continuous' or '#' not in e['sae']:
+            continue
+        k = e['sae'].split('#')[1].rsplit('_', 1)[0]
+        C = cont.get(k, {})
+        for f in _nfiles(e):
+            if f in done or not (site / f).exists():
+                continue
+            done.add(f)
+            D = json.loads((site / f).read_text())
+            for j, n in _neurons(D).items():
+                if not n.get('clips'):
+                    continue
+                cn = C.get(str(j))
+                if cn and cn.get('clips'):
+                    n['clips'] = cn['clips']
+                    for x in ('heat_vmax', 'bout_thr_bar'):
+                        if x in cn:
+                            n[x] = cn[x]
+                        else:
+                            n.pop(x, None)
+                    n['clips_from'] = 'continuous'
+                    n_sh += 1
+                else:
+                    n.pop('clips', None)
+                    n['noclip'] = True
+                    n_no += 1
+            (site / f).write_text(json.dumps(D, separators=(',', ':')))
+        e['noclip_note'] = ('No clips for this neuron with this outcome: clips are rendered for the continuous outcome '
+                            '(the version size budget); this neuron was not listed there')
+    log(f'v2 clips shared: {n_sh} neurons of the binary / prob outcomes show the continuous clips, {n_no} without clips')
+
+
+def v2_sensitivity(site, saes):
+    """'stable in k of n checks' of the frozen v2 from its fixed sensitivity grid (results/vision/eci_v2/
+    sensitivity.json; continuous input, NES only): every v2 row gets exactly the checks run for it (the grid's
+    {aggregation|prefix: {neuron: {k, n, checks}}}); a v2 row with no grid entry (NESS, binary / prob input, a
+    selection outside the index) gets none, so the page shows no chip for it."""
+    f = V2 / 'sensitivity.json'
+    if not f.exists():
+        log('v2 sensitivity: none')
+        return
+    IX = json.loads(f.read_text())['index']
+    agg = {'rate': 'bouts', 'time': 'mean', 'latency': 'latency'}
+    n_set = n_rows = 0
+    for e in saes:
+        if e['model']['model'] != 'new':
+            continue
+        key = e['sae'].split('#')[1] if '#' in e['sae'] else ''
+        prim = e['model'].get('readout') == 'continuous' and e['model']['method'] == 'NES'
+        rs = ('mice' if key.startswith('v2_mice') else 'frogs_tad' if key.startswith('v2_frogs_tad') else
+              'frogs_juv' if key.startswith('v2_frogs') else f'ants_{key.split("_")[2][:2]}' if key.startswith('v2_ants') else None)
+        kinds = {o['id']: o['kind'] for o in e['outcomes']}
+        for oid, rel in e['rfiles'].items():
+            p_ = site / rel
+            if not p_.exists():
+                continue
+            D = json.loads(p_.read_text())
+
+            def fix(R, sub):
+                nonlocal n_set, n_rows
+                for k, v in R.items():
+                    o_, aid, px = k.split('|')[:3]
+                    if o_ not in kinds:  # a bundle shared with the other method's entry: its own rows only
+                        continue
+                    a0 = aid[4:] if aid.startswith('tad_') else aid
+                    r_ = rs if not sub else f'{rs}/subsets/{sub}'
+                    if aid.startswith('S_'):
+                        r_ = f'{rs}/family_S'
+                    if rs == 'ants_v3' and a0 == 'v3_2_vs_8':
+                        r_ = 'ants_v3/v3_2_vs_8_noday'
+                    cell = IX.get(r_, {}).get(a0, {}).get(f'{agg[kinds.get(o_, "time")]}|p{px}', {}) if prim else {}
+                    for r in v.get('rows', []):
+                        n_rows += 1
+                        x = cell.get(str(r['neuron']))
+                        r['rob'] = [[ck, V2_CHECKS.get(ck, ck), 'Y' if ok else 'N', ''] for ck, ok in x['checks'].items()] if x else []
+                        n_set += bool(x)
+            fix(D.get('results', {}), None)
+            for sub, R in (D.get('subsets') or {}).items():
+                fix(R, sub)
+            p_.write_text(json.dumps(D, separators=(',', ':')))
+    log(f'v2 sensitivity: {n_set} of {n_rows} v2 rows carry grid checks (the others: no chip)')
 
 
 def readout_axis(saes, data):
@@ -1743,7 +2028,8 @@ def readout_axis(saes, data):
     for e in saes:
         m = e['model']
         binary = m['model'] == 'new (thr)' or e['sae'].endswith('_thr')
-        m['readout'] = 'binary' if binary else 'continuous'
+        prob = '_prob@' in e['sae'] or e['sae'].endswith('_prob')
+        m['readout'] = 'binary' if binary else 'prob' if prob else 'continuous'
         if m['model'] == 'new (thr)':
             m['model'] = 'new'
     ax0 = data['axes'][0]
@@ -1753,7 +2039,7 @@ def readout_axis(saes, data):
                             'missing': {'prob': 'listed in the v2 manifest, page build pending' if has_prob else
                                         'coming'}})
     log(f'readout axis: prob in manifest {has_prob}; ' + ', '.join(
-        f'{r} {sum(e["model"]["readout"] == r for e in saes)}' for r in ('continuous', 'binary')))
+        f'{r} {sum(e["model"]["readout"] == r for e in saes)}' for r in ('continuous', 'binary', 'prob')))
 
 
 def step_assemble():
@@ -1786,7 +2072,7 @@ def step_assemble():
 
     # ---- new model entries (one build per R4 domain; NES + DINES entries share the build's data files)
     new_entries, builds = {}, {}
-    keys_all = [f'{k}_{v}' for k in NEW for v in ('d2', 'd0', 'smooth', 'thr')]
+    keys_all = [f'{k}_{v}' for k in NEW for v in ('d2', 'd0', 'smooth', 'thr', 'prob')]
     WEBM.mkdir(parents=True, exist_ok=True)
     webm_pairs = []
     v2_built = any(k.startswith('v2_') and (OUT / 'build' / k / 'core.json').exists() for k in keys_all)
@@ -1801,6 +2087,8 @@ def step_assemble():
         # clip packs of this build as WebM (to_webm); references renamed in its data files
         mp4s = sorted({m for f in (b / 'data').glob('*.json') for m in re.findall(r'assets/([\w.\-]+\.mp4)', f.read_text())
                        if m not in amap})
+        if key.startswith('v2_') and not key.endswith('_smooth'):
+            mp4s = []  # binary / prob outcomes: clips shared from the continuous build (share_v2_clips)
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(6) as ex:
             wm = dict(zip(mp4s, ex.map(lambda m: to_webm(b / 'assets' / m), mp4s)))
@@ -1819,6 +2107,8 @@ def step_assemble():
         for e in cj['entries']:
             if amap:
                 e = json.loads(rw_text(json.dumps(e), amap))
+            if e.get('domain') == 'tadpoles':  # tadpole clip builds (dumped before the domain fix)
+                e['domain'] = 'frogs'
             if e.get('heat_kind') not in ('real', 'none'):
                 raise SystemExit(f'assemble: {key} has no real heat maps (heat_kind {e.get("heat_kind")})')
             dom = e['domain']
@@ -1853,7 +2143,7 @@ def step_assemble():
     order_new = [k for k in ('mice_d2', 'ants_v2p_d2', 'ants_v3p_d2', 'ants_v4p_d2', 'ants_v2_d2', 'ants_v3_d2',
                              'ants_v4_d2', 'frogs_d2', 'frogs_tad_d2', 'mice_d0', 'ants_v2p_d0', 'ants_v3p_d0', 'ants_v4p_d0',
                              'ants_v2_d0', 'ants_v3_d0', 'ants_v4_d0', 'frogs_d0') if k in new_entries] + \
-        [f'{k}_{v}' for v in ('smooth', 'thr') for k in ('v2_mice', 'v2_ants_v2p', 'v2_ants_v3p', 'v2_ants_v4p', 'v2_frogs',
+        [f'{k}_{v}' for v in ('smooth', 'thr', 'prob') for k in ('v2_mice', 'v2_ants_v2p', 'v2_ants_v3p', 'v2_ants_v4p', 'v2_frogs',
                                                          'v2_frogs_tad') if f'{k}_{v}' in new_entries]
     for k in order_new:
         for e in new_entries[k]:
@@ -2020,6 +2310,8 @@ def step_assemble():
     tadpole_strips(site, saes)
     data['axes'][0]['values'] = data['axes'][0]['values'] + (['v0'] if v0e else [])
     readout_axis(saes, data)
+    share_v2_clips(site, saes)
+    v2_sensitivity(site, saes)
     clip_times(site, saes, data)
     split_v4_pack(site)
     tpl = TEMPLATE.read_text()
@@ -2076,9 +2368,16 @@ if __name__ == '__main__':
     if steps == ['assemble']:
         step_assemble()
         sys.exit(0)
-    if A.model == 'new' and A.dom in ('frogs_tad', 'v2_frogs_tad'):
-        assert steps == ['tad'], 'frogs_tad: --steps tad'
+    if A.model == 'new' and A.dom in ('frogs_tad', 'v2_frogs_tad') and steps == ['tad']:
         step_dump_tadpoles()
+    elif A.model == 'new' and A.dom == 'v2_frogs_tad':  # tadpole clips: the standard steps on the tadpole domain
+        tad_setup(clips=True)
+        step_prep_new() if 'prep' in steps else None
+        c = new_cfg()
+        for s in [x for x in steps if x != 'prep']:
+            {'data': lambda: BE.step_data(c, A.overwrite), 'v2heat': lambda: step_v2heat(c),
+             'arena': lambda: step_arena_new(c), 'render': lambda: step_render_new(c),
+             'dump': lambda: dump(c, lambda core: split_methods(core, new_paths()[-1], V2_MODEL[A.variant]), c.out)}[s]()
     elif A.model == 'new':
         if 'prep' in steps:
             step_prep_new()

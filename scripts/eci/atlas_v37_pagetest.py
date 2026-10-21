@@ -280,7 +280,11 @@ with sync_playwright() as p:
                       f'{pg.eval_on_selector("#apN", "e => e.textContent")}, detail '
                       f'{pg.eval_on_selector("#detail", H2)}, '
                       f'strip tiles {pg.locator("#detail .v0t").count()}')
+        vcheck(pg, 'tadpole first listed')
+        report.append(f'tadpole clip: {pg.evaluate(VJS)}')
         pg.screenshot(path=f'{a.shots}/disc_frogs_tadpoles.png', full_page=True)
+        pg.locator('#modelBar').screenshot(path=f'{a.shots}/ui_representation_bar.png')
+        pg.locator('nav.bar').screenshot(path=f'{a.shots}/ui_tab_row.png')
     else:
         report.append(f'frogs -> tadpoles: option {tad}')
     for d, shot_name in (('mice', 'align_mice'), ('ants', 'align_ants')):
