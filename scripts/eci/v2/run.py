@@ -43,8 +43,12 @@ D = 1024
 log = lambda s: print(time.strftime('%H:%M:%S'), s, flush=True)  # noqa: E731
 
 
+SPEC = os.environ.get('V2_SPEC') or 'configs/eci_v2/representation.json'  # v2.1: configs/eci_v2/representation_v2.1.json
+BEE_V2 = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2')  # pools are representation independent (tokens)
+
+
 def spec():
-    return json.loads((REPO / 'configs/eci_v2/representation.json').read_text())
+    return json.loads((REPO / SPEC).read_text())
 
 
 def dcfg(domain):
@@ -228,7 +232,10 @@ def cmd_pool(args):
 
 
 def pool_dir(c, sc):
-    return Path(sc['pool_reuse']) if sc.get('pool_reuse') else BEE / c['domain'] / 'pool' / sc['name']
+    if sc.get('pool_reuse'):
+        return Path(sc['pool_reuse'])
+    d = BEE / c['domain'] / 'pool' / sc['name']
+    return d if d.exists() else BEE_V2 / c['domain'] / 'pool' / sc['name']
 
 
 def cmd_train(args):
