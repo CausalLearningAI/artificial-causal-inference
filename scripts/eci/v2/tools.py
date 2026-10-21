@@ -97,7 +97,8 @@ def cmd_align(args):
                   'v2_nes': (RUN.codes_dir(c, sc, name) / 'codes_max.npy', None),
                   'v2_smooth': (RUN.codes_dir(c, sc, f'{name}_smooth') / 'codes_max.npy', None),
                   'v2_prob': (RUN.codes_dir(c, sc, f'{name}_prob') / 'codes_max.npy', None),
-                  'v2_map': (RUN.codes_dir(c, sc, f'{name}_map') / 'codes_max.npy', None)}
+                  'v2_map': (RUN.codes_dir(c, sc, f'{name}_map') / 'codes_max.npy', None),
+                  'v2_mapgamma': (RUN.codes_dir(c, sc, f'{name}_mapgamma') / 'codes_max.npy', None)}
         for nm, (path, ref_ann) in al.get('refs', {}).items():
             models[nm] = (REPO / path / 'codes_max.npy', REPO / ref_ann if ref_ann else None)
         res = {'n_frames': int(len(rows)), 'n_units': len(units),

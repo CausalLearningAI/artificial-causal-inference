@@ -664,6 +664,95 @@ def cmd_map(args):
     log(json.dumps({k: v for k, v in info.items() if k != 'series'}))
 
 
+def cmd_mixsel(args):
+    """Mixture-family selection (src/eci/v2/mixture.py, pre-registered): lognormal vs gamma per neuron on held-out
+    calibration videos; if gamma wins the domain, its MAP binary is written as '<name>_mapgamma'. -> OUT/<domain>/mixsel.json"""
+    import shutil
+    from src.eci.v2 import mixture as MX
+    c = dcfg(args.domain)
+    name = best_name(c)
+    vids = []
+    for sc in c['series']:
+        P = json.loads((REPO / sc['plan']).read_text())
+        vids += [(v['obs'], sc, v) for v in P['videos'] if v['role'] == 'calib']
+    vids.sort(key=lambda t: t[0])
+    half = {'A': vids[0::2], 'B': vids[1::2]}
+
+    def load(items):
+        out = []
+        for _, sc, v in items:
+            mx = np.load(codes_dir(c, sc, f'{name}_smooth') / 'codes_max.npy', mmap_mode='r')
+            out.append(np.asarray(mx[v['lay_lo']:v['lay_lo'] + v['n']]).astype(np.float32))
+        return np.concatenate(out)
+    SA, SB = load(half['A']), load(half['B'])
+    W = SA.shape[1]
+    rng = np.random.default_rng(0)
+    llL, llG = np.full(W, np.nan), np.full(W, np.nan)
+    sL, sG, afL, afG = (np.full(W, np.nan) for _ in range(4))
+    gam = {}
+    for j in range(W):
+        a, b = SA[:, j], SB[:, j]
+        a, b = a[a > 0].astype(np.float64), b[b > 0].astype(np.float64)
+        if len(a) < 200 or len(b) < 200:
+            continue
+        if len(a) > 20000:
+            a = a[rng.choice(len(a), 20000, replace=False)]
+        if len(b) > 20000:
+            b = b[rng.choice(len(b), 20000, replace=False)]
+        pL, pG = MX.fit_lognormal(a), MX.fit_gamma(a)
+        llL[j], llG[j] = MX.lognormal_loglik(b, pL).mean(), MX.gamma_loglik(b, pG).mean()
+        _, _, sL[j] = MX.boundary(MX.lognormal_post, pL, a)
+        gG, cG, sG[j] = MX.boundary(MX.gamma_post, pG, a)
+        gam[j] = (gG, cG)
+        colB = SB[:, j]
+        afL[j], afG[j] = float((colB > sL[j]).mean()), float((colB > sG[j]).mean())
+    ok = np.isfinite(llL) & np.isfinite(llG)
+    totL, totG = float(np.nansum(llL[ok])), float(np.nansum(llG[ok]))
+    winner = 'gamma' if totG > totL else 'lognormal'
+    fin = ok & np.isfinite(sL) & np.isfinite(sG)
+    info = {'n_compared': int(ok.sum()), 'heldout_loglik_sum': {'lognormal': totL, 'gamma': totG}, 'winner': winner,
+            'share_neurons_gamma_wins': float((llG[ok] > llL[ok]).mean()),
+            'boundary_median_abs_log_ratio': float(np.median(np.abs(np.log(sG[fin] / sL[fin])))),
+            'active_fraction_heldout_median': {'lognormal': float(np.nanmedian(afL)), 'gamma': float(np.nanmedian(afG))},
+            'active_fraction_median_abs_diff': float(np.nanmedian(np.abs(afG - afL))),
+            'zero_inflated': 'identical decisions to the family without the zero mass on s > 0 (mixture.py docstring)'}
+    np.savez(OUT / args.domain / 'mixsel.npz', ll_lognormal=llL, ll_gamma=llG, s_lognormal=sL, s_gamma=sG,
+             active_lognormal=afL, active_gamma=afG)
+    if winner == 'gamma':
+        for sc in c['series']:
+            src = codes_dir(c, sc, f'{name}_smooth')
+            mx = np.load(src / 'codes_max.npy', mmap_mode='r')
+            cd = codes_dir(c, sc, f'{name}_mapgamma')
+            tmp = cd.with_name(cd.name + '.tmp')
+            tmp.mkdir(parents=True, exist_ok=True)
+            y = np.lib.format.open_memmap(tmp / 'codes_max.npy', 'w+', np.float16, mx.shape)
+            thr = np.where(np.isfinite(sG), sG, np.inf)
+            fbk = ~np.isfinite(llG)
+            for a_ in range(0, mx.shape[0], 200_000):
+                blk = np.asarray(mx[a_:a_ + 200_000]).astype(np.float32)
+                y[a_:a_ + 200_000] = np.where(fbk[None], blk > 0, blk > thr[None]).astype(np.float16)
+            y.flush()
+            del y
+            shutil.copyfile(src / 'n_fg.npy', tmp / 'n_fg.npy')
+            cfg = json.loads((src / 'config.json').read_text())
+            cfg.update({'sae': f'{name}_mapgamma', 'parent_codes': str(src),
+                        'rule': 'MAP of the per-neuron 2-component GAMMA mixture (src/eci/v2/mixture.py); neurons not '
+                                'compared: 1[s > 0]'})
+            (tmp / 'config.json').write_text(json.dumps(cfg, indent=1))
+            (tmp / 'DONE').touch()
+            if cd.exists():
+                shutil.rmtree(cd)
+            tmp.rename(cd)
+            for l_, t_ in ((REPO / sc['layout'] / 'codes' / f'{name}_mapgamma', cd),
+                           (REPO / sc['layout'] / 'sae' / f'{name}_mapgamma',
+                            Path(json.loads((OUT / args.domain / 'best.json').read_text())['dir']))):
+                if not (l_.is_symlink() or l_.exists()):
+                    os.symlink(t_, l_)
+            info.setdefault('codes', {})[sc['name']] = str(cd)
+    (OUT / args.domain / 'mixsel.json').write_text(json.dumps(info, indent=1, default=float))
+    log(json.dumps(info))
+
+
 def cmd_link(args):
     """Symlinks: <layout>/codes/<name>[_raw] -> BeeGFS codes dirs; <layout>/sae/<name> -> the SAE dir (sae.pt =
     sae_theta.pt link, read by the atlas builder)."""
@@ -691,7 +780,7 @@ def cmd_link(args):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('pool', 'train', 'encode', 'merge', 'fire', 'link', 'smooth', 'prob', 'map', 'align', 'selftest',
+    p.add_argument('step', choices=('pool', 'train', 'encode', 'merge', 'fire', 'link', 'smooth', 'prob', 'map', 'mixsel', 'align', 'selftest',
                                     'manifest', 'heat', 'health'))
     p.add_argument('--picks', default='')
     p.add_argument('--nshards', type=int, default=1)
@@ -713,7 +802,8 @@ def main():
         spec_.loader.exec_module(T)
         return getattr(T, f'cmd_{args.step}')(args)
     {'pool': cmd_pool, 'train': cmd_train, 'encode': cmd_encode, 'merge': cmd_merge, 'fire': cmd_fire,
-     'link': cmd_link, 'smooth': cmd_smooth, 'prob': cmd_prob, 'map': cmd_map}[args.step](args)
+     'link': cmd_link, 'smooth': cmd_smooth, 'prob': cmd_prob, 'map': cmd_map,
+     'mixsel': cmd_mixsel}[args.step](args)
 
 
 if __name__ == '__main__':
