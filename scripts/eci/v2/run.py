@@ -537,6 +537,73 @@ def cmd_smooth(args):
         log(f'{args.domain} {sc["name"]}: {cd}')
 
 
+def cmd_prob(args):
+    """Outcome variant 'prob' (src/eci/v2/prob.py, pre-registered): per-neuron P(on) from the smoothed codes, mixture
+    fitted on the calibration videos of the domain -> codes set <name>_prob in every series layout, OUT/<domain>/prob.json."""
+    import shutil
+    from scipy.stats import spearmanr
+    from src.eci.v2 import prob as PR
+    c = dcfg(args.domain)
+    name = best_name(c)
+    cal = []
+    for sc in c['series']:
+        P = json.loads((REPO / sc['plan']).read_text())
+        mx = np.load(codes_dir(c, sc, f'{name}_smooth') / 'codes_max.npy', mmap_mode='r')
+        cal += [np.asarray(mx[v['lay_lo']:v['lay_lo'] + v['n']]).astype(np.float32) for v in P['videos'] if v['role'] == 'calib']
+    S_cal = np.concatenate(cal)
+    del cal
+    grids, curves, fb, info = PR.fit(S_cal)
+    Pc = PR.apply(S_cal, grids, curves, fb)
+    rng = np.random.default_rng(1)
+    rho = []
+    for j in np.flatnonzero(~fb):
+        pos = np.flatnonzero(S_cal[:, j] > 0)
+        if len(pos) > 50:
+            ii = rng.choice(pos, min(2000, len(pos)), replace=False)
+            rho.append(spearmanr(S_cal[ii, j], Pc[ii, j])[0])
+    info.update({'n_calib_frames': int(len(S_cal)), 'silent_frame_max_P': float(Pc[S_cal == 0].max()) if (S_cal == 0).any() else 0.0,
+                 'mean_P_per_frame_calib': float(Pc.sum(1).mean()), 'spearman_P_vs_s_median': float(np.nanmedian(rho)),
+                 'spearman_P_vs_s_min': float(np.nanmin(rho)), 'series': {}})
+    del S_cal, Pc
+    for sc in c['series']:
+        P = json.loads((REPO / sc['plan']).read_text())
+        src = codes_dir(c, sc, f'{name}_smooth')
+        mx = np.load(src / 'codes_max.npy', mmap_mode='r')
+        cd = codes_dir(c, sc, f'{name}_prob')
+        tmp = cd.with_name(cd.name + '.tmp')
+        tmp.mkdir(parents=True, exist_ok=True)
+        y = np.lib.format.open_memmap(tmp / 'codes_max.npy', 'w+', np.float16, mx.shape)
+        tot, n = 0.0, 0
+        for v in P['videos']:
+            r = slice(v['lay_lo'], v['lay_lo'] + v['n'])
+            Pv = PR.apply(np.asarray(mx[r]).astype(np.float32), grids, curves, fb)
+            y[r] = Pv.astype(np.float16)
+            tot += float(Pv.sum())
+            n += len(Pv)
+        y.flush()
+        del y
+        shutil.copyfile(src / 'n_fg.npy', tmp / 'n_fg.npy')
+        np.savez(tmp / 'prob_model.npz', grids=grids, curves=curves, fallback=fb)
+        cfg = json.loads((src / 'config.json').read_text())
+        cfg.update({'sae': f'{name}_prob', 'parent_codes': str(src),
+                    'rule': 'P(on | smoothed code): per-neuron 2-component Gaussian mixture on log s (calibration '
+                            'videos), monotone posterior of the active component, 0 on silent frames (src/eci/v2/prob.py)'})
+        (tmp / 'config.json').write_text(json.dumps(cfg, indent=1))
+        (tmp / 'DONE').touch()
+        if cd.exists():
+            shutil.rmtree(cd)
+        tmp.rename(cd)
+        for l_, t_ in ((REPO / sc['layout'] / 'codes' / f'{name}_prob', cd),
+                       (REPO / sc['layout'] / 'sae' / f'{name}_prob',
+                        Path(json.loads((OUT / args.domain / 'best.json').read_text())['dir']))):
+            if not (l_.is_symlink() or l_.exists()):
+                os.symlink(t_, l_)
+        info['series'][sc['name']] = {'codes': str(cd), 'mean_P_per_frame': tot / max(n, 1)}
+        log(f'{args.domain} {sc["name"]}: {cd}, mean P(on) summed over neurons per frame {tot / max(n, 1):.2f}')
+    (OUT / args.domain / 'prob.json').write_text(json.dumps(info, indent=1, default=float))
+    log(json.dumps({k: v for k, v in info.items() if k != 'series'}))
+
+
 def cmd_link(args):
     """Symlinks: <layout>/codes/<name>[_raw] -> BeeGFS codes dirs; <layout>/sae/<name> -> the SAE dir (sae.pt =
     sae_theta.pt link, read by the atlas builder)."""
@@ -564,7 +631,7 @@ def cmd_link(args):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('pool', 'train', 'encode', 'merge', 'fire', 'link', 'smooth', 'align', 'selftest',
+    p.add_argument('step', choices=('pool', 'train', 'encode', 'merge', 'fire', 'link', 'smooth', 'prob', 'align', 'selftest',
                                     'manifest', 'heat', 'health'))
     p.add_argument('--picks', default='')
     p.add_argument('--nshards', type=int, default=1)
@@ -586,7 +653,7 @@ def main():
         spec_.loader.exec_module(T)
         return getattr(T, f'cmd_{args.step}')(args)
     {'pool': cmd_pool, 'train': cmd_train, 'encode': cmd_encode, 'merge': cmd_merge, 'fire': cmd_fire,
-     'link': cmd_link, 'smooth': cmd_smooth}[args.step](args)
+     'link': cmd_link, 'smooth': cmd_smooth, 'prob': cmd_prob}[args.step](args)
 
 
 if __name__ == '__main__':
