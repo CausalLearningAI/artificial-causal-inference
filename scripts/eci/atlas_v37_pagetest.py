@@ -16,6 +16,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--site', default=str(Path(__file__).resolve().parents[2] / 'results/vision/eci_atlas_v37/site'))
 ap.add_argument('--shots', default=str(Path(__file__).resolve().parents[2] / 'results/vision/eci_atlas_v37/pagetest'))
 ap.add_argument('--port', type=int, default=8737)
+ap.add_argument('--disc-only', action='store_true', help='only the discoverability / alignment shots')
 a = ap.parse_args()
 Path(a.shots).mkdir(parents=True, exist_ok=True)
 for f in Path(a.shots).glob('*.png'):
@@ -43,7 +44,7 @@ with sync_playwright() as p:
           and 'Failed to load resource' not in m.text else None)
     pg.goto(f'http://127.0.0.1:{a.port}/index.html')
     pg.wait_for_timeout(1500)
-    doms = pg.eval_on_selector_all('#domSel option', 'os => os.map(o => o.value)')
+    doms = [] if a.disc_only else pg.eval_on_selector_all('#domSel option', 'os => os.map(o => o.value)')
     shot = 0
     for d in doms:
         pg.select_option('#domSel', d)
@@ -61,6 +62,18 @@ with sync_playwright() as p:
                     if kind[1]:
                         report.append(f'{d} · {model} · {meth[0]} · {kind[0]}: disabled')
                         continue
+                    if pg.eval_on_selector(f'#kindSeg button[data-kind="{kind[0]}"]', 'b => b.disabled'):
+                        # an earlier pick switched to an entry (another series) without this aggregation: back to the
+                        # model / method of this loop on the domain's first entry of it
+                        pg.select_option('#domSel', d)
+                        pg.wait_for_timeout(500)
+                        pg.select_option('#ax_model', model)
+                        pg.wait_for_timeout(400)
+                        pg.select_option('#ax_method', meth[0])
+                        pg.wait_for_timeout(400)
+                        if pg.eval_on_selector(f'#kindSeg button[data-kind="{kind[0]}"]', 'b => b.disabled'):
+                            report.append(f'{d} · {model} · {meth[0]} · {kind[0]}: disabled on this entry')
+                            continue
                     pg.click(f'#kindSeg button[data-kind="{kind[0]}"]')
                     pg.wait_for_timeout(600)
                     if d == 'mice':
@@ -97,6 +110,9 @@ with sync_playwright() as p:
                                         pg.click('#side .nr:visible >> nth=0')
                                         pg.wait_for_timeout(600)
                                         h2 = pg.eval_on_selector('#detail', 'e => (e.querySelector("h2")||{}).textContent || "(no detail)"')
+                                    ann = pg.eval_on_selector_all('#side .warnbox, #side .note', 'es => es.map(e => e.textContent.trim()).filter(t => /annotat/.test(t))')
+                                    if ann:
+                                        report.append(f'      annotation check {model} {meth[0]} {kind[0]} {aid}: {ann}')
                                     report.append(f'{d} · {model} · {meth[0]} · {kind[0]} · {aid}: {n}; listed {nr[:10]} '
                                                   f'{emp}{" (candidates)" if topd else ""}; detail {h2}')
                                     if a.shots and shot < 24 and nr and (model == 'v0' or shot < 8):
@@ -141,6 +157,9 @@ with sync_playwright() as p:
                                 h2 = pg.eval_on_selector('#detail', 'e => (e.querySelector("h2")||{}).textContent || "(no detail)"')
                                 emp = pg.eval_on_selector('#side', 'e => (e.querySelector(".empty")||{}).textContent || ""')
                                 topd = pg.locator('#side details.topd').count()
+                                ann = pg.eval_on_selector_all('#side .warnbox, #side .note', 'es => es.map(e => e.textContent.trim()).filter(t => /annotat/.test(t))')
+                                if ann:
+                                    report.append(f'      annotation check {model} {meth[0]} {kind[0]} {e[0]} {lab}: {ann}')
                                 report.append(f'{d} · {model} · {meth[0]} · {kind[0]} · {e[0]} {lab}: '
                                               f'{n}; listed {nr[:10]} {emp}{" (candidates)" if topd else ""}; detail {h2}')
                                 if not nr:
@@ -160,6 +179,50 @@ with sync_playwright() as p:
                 # spatial aggregation selector (model bar): max pooling on, the others off
                 ag = pg.eval_on_selector_all('#aggSeg button', 'bs => bs.map(b => [b.dataset.agg, b.disabled, b.getAttribute("aria-pressed")])')
                 report.append(f'{d} · {model} · spatial aggregation buttons [agg, disabled, pressed]: {ag}')
+    H2 = 'e => (e.querySelector("h2")||{}).textContent || "(none)"'
+    # a fresh page (no saved state): the views a first-time visitor gets
+    pg = b.new_context(viewport={'width': 1300, 'height': 1000}).new_page()
+    pg.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
+    pg.goto(f'http://127.0.0.1:{a.port}/index.html')
+    pg.wait_for_timeout(1500)
+    # discoverability shots: frogs default view, frogs -> tadpoles phase (from the default model), a tadpole neuron;
+    # the behaviour alignment panel of mice and ants
+    pg.select_option('#domSel', 'frogs')
+    pg.wait_for_timeout(1200)
+    pg.screenshot(path=f'{a.shots}/disc_frogs_default.png', full_page=True)
+    tad = [o for o in pg.eval_on_selector_all('#apE option', 'os => os.map(o => [o.value, o.disabled, o.textContent])')
+           if o[0].startswith('tadpoles')]
+    report.append(f'frogs default: phase options {pg.eval_on_selector_all("#apE option", "os => os.map(o => o.textContent)")}; '
+                  f'model {pg.eval_on_selector("#ax_model", "e => e.value")}')
+    if tad and not tad[0][1]:
+        pg.select_option('#apE', tad[0][0])
+        pg.wait_for_timeout(1500)
+        if pg.locator('#side .nr:visible').count() == 0 and pg.locator('#side summary').count():
+            pg.click('#side summary')
+            pg.wait_for_timeout(300)
+        if pg.locator('#side .nr:visible').count():
+            pg.click('#side .nr:visible >> nth=0')
+            pg.wait_for_timeout(1500)
+        report.append(f'frogs -> tadpoles: model {pg.eval_on_selector("#ax_model", "e => e.value")}, '
+                      f'{pg.eval_on_selector("#apN", "e => e.textContent")}, detail '
+                      f'{pg.eval_on_selector("#detail", H2)}, '
+                      f'strip tiles {pg.locator("#detail .v0t").count()}')
+        pg.screenshot(path=f'{a.shots}/disc_frogs_tadpoles.png', full_page=True)
+    else:
+        report.append(f'frogs -> tadpoles: option {tad}')
+    for d, shot_name in (('mice', 'align_mice'), ('ants', 'align_ants')):
+        pg.select_option('#domSel', d)
+        pg.wait_for_timeout(1200)
+        pg.eval_on_selector('#alDet', 'e => e.open = true')
+        pg.wait_for_timeout(500)
+        report.append(f'{d} alignment panel: {pg.eval_on_selector("#alBox", "e => e.innerText.slice(0, 600)")!r}')
+        pg.screenshot(path=f'{a.shots}/{shot_name}.png', full_page=True)
+        links = pg.locator('#alBox .alj')
+        if links.count():
+            links.nth(0).click()
+            pg.wait_for_timeout(1500)
+            report.append(f'{d} alignment link -> detail '
+                          f'{pg.eval_on_selector("#detail", H2)}')
     ban = pg.query_selector('#v0Ban')
     report.append(f'v0 banner (last state): {ban.text_content() if ban else None}')
     b.close()

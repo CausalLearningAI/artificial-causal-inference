@@ -80,7 +80,22 @@ NEW = {'mice': ('mice', None, 'results/vision/mice/eci/nes', 'mice'),
        'ants_v4p': ('ants', 'eci_r4v4p', 'results/vision/ants/eci_r4v4p/nes', 'ants_pooled'),
        # frog tadpoles (stage 44-48) on the new model (scripts/eci/tadpole_r4.py, its own SAE, crops of the raw video):
        # step 'tad' only (step_dump_tadpoles: NES + NESS entries without clips)
-       'frogs_tad': ('tadpoles', None, 'results/vision/frogs/eci_tadpole_r4/nes', 'frogs_tadpole')}
+       'frogs_tad': ('tadpoles', None, 'results/vision/frogs/eci_tadpole_r4/nes', 'frogs_tadpole'),
+       # the FROZEN v2 (scripts/eci/v2/, results/vision/eci_v2/: DINOv3-L/16 block 20, native-capped resolution,
+       # canonical rotation, tight mask, Matryoshka 2048 k16, 0.6 s readout smoothing), one SAE per domain; variants
+       # 'smooth' (<sae>_smooth, no firing threshold: the page's primary v2) and 'thr' (<sae>, fnorm-thresholded)
+       'v2_mice': ('mice', None, 'results/vision/mice/eci/nes', 'mice'),
+       'v2_ants_v2p': ('ants', 'eci_r4v2p', 'results/vision/ants/eci_r4v2p/nes', 'ants'),
+       'v2_ants_v3p': ('ants', 'eci_r4v3p', 'results/vision/ants/eci_r4v3p/nes', 'ants'),
+       'v2_ants_v4p': ('ants', 'eci_r4v4p', 'results/vision/ants/eci_r4v4p/nes', 'ants'),
+       'v2_frogs': ('frogs', None, 'results/vision/frogs/eci/nes', 'frogs'),
+       'v2_frogs_tad': ('tadpoles', None, 'results/vision/frogs/eci_tadpole_r4/nes', 'frogs')}
+V2 = ROOT / 'results/vision/eci_v2'
+V2_SERIES = {'v2_mice': 'v1', 'v2_ants_v2p': 'v2', 'v2_ants_v3p': 'v3', 'v2_ants_v4p': 'v4', 'v2_frogs': 'juv',
+             'v2_frogs_tad': 'tad'}
+V2_NESS = {'v2_mice': 'mice', 'v2_ants_v2p': 'ants_eci_r4v2p', 'v2_ants_v3p': 'ants_eci_r4v3p',
+           'v2_ants_v4p': 'ants_eci_r4v4p', 'v2_frogs': 'frogs', 'v2_frogs_tad': 'frogs_tadpole'}
+V2_MODEL = {'smooth': 'new', 'thr': 'new (thr)'}  # page model values of the two v2 input sets
 # online builds: (domain, ANTS_ECI, v36 result set, v36 tag)
 ONLINE = {'mice': ('mice', None, 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0', 'fg448al'),
           'ants': ('ants', 'eci30', 'results/vision/ants/eci30/nes/matryoshka_btk_1024_k16_antsfg_s0', 'antsfg'),
@@ -103,7 +118,7 @@ TRANS = {'1to2': (1, 2), '2to3': (2, 3), '4to5': (4, 5), '5to6': (5, 6)}
 ap = argparse.ArgumentParser()
 ap.add_argument('--dom', default=None, help='build key: ' + ', '.join(NEW) + ' (new) / mice, ants, frogs (online)')
 ap.add_argument('--model', default='new', choices=('new', 'online'))
-ap.add_argument('--variant', default='d2', choices=('d2', 'd0'))
+ap.add_argument('--variant', default='d2', choices=('d2', 'd0', 'smooth', 'thr'), help='r4: d2 / d0; v2: smooth / thr')
 ap.add_argument('--steps', default='prep,data,patch,arena,render,dump', help='frogs_tad: tad')
 ap.add_argument('--max-pages', type=int, default=0, help='clip pages per build (build_explorer --max-pages)')
 ap.add_argument('--kr', type=int, default=None, help='clips rendered per row (default: build_explorer VIEW kr; mice 8)')
@@ -376,13 +391,24 @@ def add_outcomes(c, base, prefix, cache, kinds=('rate', 'time', 'latency'), dine
 # searches added to a build's virtual result set: key -> (NES subdir of the R4 result set, methods out-root, analyses).
 # v3 t=2 vs t=8 shares no recording day, so the --day runs skip it; it is searched without --day (n_fg only,
 # scripts/eci/r4_v3_2v8.sh), its NES rows from <R4 result set>/v3_2_vs_8_noday, its DINES rows from methods_v3_2v8
-EXTRA_SEARCHES = {'ants_v3p_d2': ('v3_2_vs_8_noday', OUT / 'methods_v3_2v8', ('v3_2_vs_8',))}
+EXTRA_SEARCHES = {'ants_v3p_d2': ('v3_2_vs_8_noday', OUT / 'methods_v3_2v8', ('v3_2_vs_8',)),
+                  'v2_ants_v3p_thr': ('v3_2_vs_8_noday', V2 / 'ness_v3_2v8', ('v3_2_vs_8',)),
+                  'v2_ants_v3p_smooth': ('v3_2_vs_8_noday', V2 / 'ness_v3_2v8', ('v3_2_vs_8',))}
+
+
+def v2_name(rdom):
+    return json.loads((V2 / rdom / 'best.json').read_text())['name']
 
 
 def new_paths():
     dom_name, lay, nes_root, rdom = NEW[A.dom]
-    sae = best_sae(rdom, A.variant) + '_fnorm'
     key = f'{A.dom}_{A.variant}'
+    if A.dom.startswith('v2_'):
+        assert A.variant in V2_MODEL, A.variant
+        sae = v2_name(rdom) + ('_smooth' if A.variant == 'smooth' else '')
+        return dom_name, sae, ROOT / nes_root / sae, OUT / 'res' / key / sae, OUT / 'build' / key, \
+            V2 / 'ness' / V2_NESS[A.dom] / sae, key
+    sae = best_sae(rdom, A.variant) + '_fnorm'
     return dom_name, sae, ROOT / nes_root / sae, OUT / 'res' / key / sae, OUT / 'build' / key, \
         METHODS / METHOD_KEY[A.dom] / sae, key
 
@@ -400,7 +426,10 @@ def step_prep_new():
     have = {}
     xs = EXTRA_SEARCHES.get(key)
     xn = [(src / xs[0], xs[2])] if xs else []
-    xd = [(xs[1] / METHOD_KEY[A.dom] / sae / 'dines', xs[2])] if xs else []
+    xk = V2_NESS[A.dom] if A.dom.startswith('v2_') else METHOD_KEY.get(A.dom)
+    xd = [(xs[1] / xk / sae / 'dines', xs[2])] if xs else []
+    xn = [x for x in xn if x[0].is_dir()]
+    xd = [x for x in xd if x[0].is_dir()]
     for meth, srcs in (('nes', [src, M / 'familyC_nes'] + xn), ('dines', [M / 'dines', M / 'familyC_dines'] + xd)):
         have[meth] = []
         for kind, sub, *_ in OUTS:
@@ -443,8 +472,10 @@ def step_checks_new():
 def new_cfg():
     dom_name, sae, src, V, bout, M, key = new_paths()
     dom = DOMOBJ[dom_name]
-    tag = 'r4' + {'mice': 'mice', 'ants_v2': 'v2', 'ants_v3': 'v3', 'ants_v4': 'v4', 'frogs': 'frogs', 'ants_v2p': 'v2p',
-                  'ants_v3p': 'v3p', 'ants_v4p': 'v4p'}[A.dom] + A.variant
+    tag = ('v2' + {'v2_mice': 'mice', 'v2_ants_v2p': 'v2p', 'v2_ants_v3p': 'v3p', 'v2_ants_v4p': 'v4p',
+                   'v2_frogs': 'frogs'}[A.dom] + {'smooth': 's', 'thr': 't'}[A.variant]) if A.dom.startswith('v2_') else \
+        'r4' + {'mice': 'mice', 'ants_v2': 'v2', 'ants_v3': 'v3', 'ants_v4': 'v4', 'frogs': 'frogs', 'ants_v2p': 'v2p',
+                'ants_v3p': 'v3p', 'ants_v4p': 'v4p'}[A.dom] + A.variant
     c = make_cfg(V, sae, dom, tag, bout)
     if A.kr:
         c.kr = A.kr
@@ -506,31 +537,134 @@ def step_arena_new(c):
     out = c.work / 'arena.npz'
     cc, codes, arg, G = codes_cfg(c)
     P, m = G * G, codes.shape[1]
-    if not out.exists() or A.overwrite:
+    turned = c.dom is BE.MICE  # mice: every frame's cell turned with v1's frame turns (see V1_MICE_SAE)
+    if turned:
+        rot = mice_turns()
+        assert len(rot) == len(codes), (len(rot), len(codes))
+        I = np.arange(P).reshape(G, G)
+        cellmap = np.empty((4, P), np.int64)  # cellmap[k, g] = index of cell g after k counter-clockwise turns
+        for k in range(4):
+            cellmap[k, np.rot90(I, k).ravel()] = np.arange(P)
+        if out.exists() and not (c.work / 'arena_unturned.npz').exists():
+            shutil.copy(out, c.work / 'arena_unturned.npz')
+    if not out.exists() or A.overwrite or (turned and 'turned' not in np.load(out).files):
         S = np.zeros(P * m, np.float64)
         cols = np.arange(m, dtype=np.int64)[None]
         for a in range(0, len(codes), 100_000):
             z = np.asarray(codes[a:a + 100_000], np.float32)
             g = np.asarray(arg[a:a + 100_000], np.int64)
             k = (z > 0) & (g >= 0)
+            if turned and not A.dom.startswith('v2_'):  # the frozen v2's argmax is already in turned coordinates
+                g = np.where(g >= 0, cellmap[np.asarray(rot[a:a + 100_000], np.int64)[:, None], np.maximum(g, 0)], g)
             S += np.bincount((g * m + cols)[k], weights=z[k], minlength=P * m)
         n = len(codes)
         np.savez(out, act=(S / n).reshape(P, m).astype(np.float32), grid=G, n_frames=n, occ=np.zeros(0),
+                 **({'turned': np.array(1)} if turned else {}),
                  note=f'every frame ({n:,}): per patch, the neuron\'s code summed over the frames where that patch is '
-                      f'its strongest token, divided by the number of frames (peak-patch map; R4 stores no per-patch '
-                      f'codes)')
+                      f'its strongest token, divided by the number of frames (peak-patch map from the stored argmax '
+                      f'token)' + ('; mice: each frame turned so the odour corner is at the top right, as v1' if turned
+                                   else ''))
         log(f'{c.tag} arena: {n} frames, grid {G}')
     bg_out = c.assets / BE.bg_name(c)
-    if not bg_out.exists() or A.overwrite:
+    if not bg_out.exists() or A.overwrite or turned:
         c.assets.mkdir(parents=True, exist_ok=True)
-        bgd = Path(cc['backgrounds'])
+        if 'backgrounds' in cc:
+            bgd = Path(cc['backgrounds'])
+        else:  # frozen v2: the mask background of its domain config (configs/eci_v2/<domain>.json)
+            vc = json.loads((ROOT / f'configs/eci_v2/{ {"mice": "mice", "ants": "ants", "frogs": "frogs"}[c.dom.name] }.json')
+                            .read_text())
+            sc = next(x for x in vc['series'] if x['name'] == V2_SERIES[A.dom])
+            bgd = ROOT / sc['mask']['bg']
         zs = [np.load(f) for f in sorted(bgd.glob('*.npz'))]
         vids = set(pd.read_csv(c.dom.ann_path, usecols=['observation_id'])['observation_id'].astype(str))
         ims = [z['pix_bg'] for f, z in zip(sorted(bgd.glob('*.npz')), zs) if f.stem.split('__')[0] in vids] or \
               [z['pix_bg'] for z in zs]
+        al = [str(z['align']) if 'align' in z.files else 'none' for z in zs[:1]]
+        if turned and al == ['none']:  # each video's background turned like its frames (unless already aligned)
+            ao = pd.read_csv(c.dom.ann_path, usecols=['observation_id'])['observation_id'].astype(str).to_numpy()
+            first = {o: i for i, o in reversed(list(enumerate(ao)))}
+            ims = [np.rot90(z['pix_bg'], int(rot[first[f.stem.split('__')[0]]]))
+                   for f, z in zip(sorted(bgd.glob('*.npz')), zs) if f.stem.split('__')[0] in first]
         im = np.median(np.stack(ims), 0).astype(np.uint8)
         Image.fromarray(im).resize((384, 384), Image.BILINEAR).save(bg_out, 'WEBP', quality=80)
         log(f'{c.tag} arena: background = median of {len(ims)} per-video backgrounds -> {bg_out}')
+
+
+# mice: v1 (fg448al) draws every clip on the frame turned so the odour corner is at the top right (its codes are of
+# that turned frame); the R4 codes are of the unturned frame. So the two models are drawn identically, the new
+# model's clips are turned the same way (v1's per-row turns, src/eci/viz.py frame_rot90 of the v1 SAE) and its real
+# per-token maps are turned with them (np.rot90, the same counter-clockwise quarter turns as PIL ROTATE_90):
+# step 'rotheat' writes <work>/patch_rot/ from the real files in <work>/patch/, and render / dump read patch_rot.
+V1_MICE_SAE = 'matryoshka_btk_1024_k16_fg448al_s0'
+
+
+_TURNS = {}
+
+
+def mice_turns():
+    if 'm' in _TURNS:
+        return _TURNS['m']
+    rot = _TURNS['m'] = VZ.frame_rot90(V1_MICE_SAE, ROOT / 'dataset')
+    assert rot is not None, 'v1 mice SAE has no frame alignment'
+    return rot
+
+
+def step_rotheat(c):
+    """Real per-token heat files of a mice build turned with v1's frame turns -> <work>/patch_rot/ (sig kept)."""
+    from PIL import Image
+    from src.eci.foreground import rotate_image
+    rot = mice_turns()
+    picks = json.loads((c.work / 'picks.json').read_text())
+    # the frame rows of the picks are annotations.csv rows (the v1 turns index): check a few paths against it
+    ann = pd.read_csv(ROOT / 'dataset/mice/v1/annotations.csv', usecols=['frame_path'])
+    fp = picks['frame_path']
+    for r in list(fp)[:: max(1, len(fp) // 200)]:
+        assert ann['frame_path'].iloc[int(r)] == fp[r], (r, fp[r], ann['frame_path'].iloc[int(r)])
+    assert len(rot) == len(ann), (len(rot), len(ann))
+    t = np.arange(12, dtype=np.float32).reshape(3, 4)  # np.rot90 == PIL ROTATE_90 (counter-clockwise)
+    for k in range(4):
+        im = np.asarray(rotate_image(Image.fromarray(t), k))
+        assert np.array_equal(im, np.rot90(t, k)), k
+    out = c.work / 'patch_rot'
+    out.mkdir(exist_ok=True)
+    n, turns = 0, {}
+    for j in picks['by_key'].get('max', {}):
+        f = c.work / 'patch' / f'{BE.pre("max")}{int(j):04d}.npz'
+        z = np.load(f)
+        sig = str(z['sig'])
+        if not (sig.startswith('r4heat-') or sig.startswith('v2heat-')):
+            raise SystemExit(f'{f}: not a real per-token heat file ({sig[:10]}): run scripts/eci/atlas_v37_r4heat.py')
+        rr = json.loads(sig[len('r4heat-'):])
+        arrs = {}
+        for k, rows in rr.items():
+            a = z[k]
+            assert len(a) == len(rows), (f, k)
+            arrs[k] = np.stack([np.rot90(a[i], int(rot[int(r)])) for i, r in enumerate(rows)]) if len(rows) else a
+            for r in rows:
+                turns[int(rot[int(r)])] = turns.get(int(rot[int(r)]), 0) + 1
+        np.savez(out / f.name, sig=sig, vmax=z['vmax'], rot=np.array(1), **arrs)
+        n += 1
+    log(f'{c.tag} rotheat: {n} real heat files turned with the v1 frame turns -> {out}; turns of the clip frames {turns}')
+
+
+def use_rotated(c):
+    """mice render / dump: the v1 frame turns; r4: the turned heat files (patch_rot). The frozen v2 encodes the
+    canonical (turned) frame itself, so its heat files are already in turned coordinates (patch/)."""
+    c.rot, c.align = mice_turns(), 'odor'
+    if not A.dom.startswith('v2_'):
+        BE.patch_file = lambda cfg, key, j: cfg.work / 'patch_rot' / f'{BE.pre(key)}{int(j):04d}.npz'
+
+
+def step_v2heat(c):
+    """Real per-token heat files of the build's clips from the frozen v2's stored token codes (scripts/eci/v2/run.py
+    heat --picks: exact, its max over tokens equals the raw frame code) -> <work>/patch/ (sig 'v2heat-'). CPU."""
+    dom_name, *_ = new_paths()
+    dom = {'mice': 'mice', 'ants': 'ants', 'frogs': 'frogs'}[dom_name]
+    (c.work / 'patch').mkdir(parents=True, exist_ok=True)
+    cmd = [sys.executable, '-u', str(ROOT / 'scripts/eci/v2/run.py'), 'heat', '--domain', dom, '--series',
+           V2_SERIES[A.dom], '--picks', str(c.work / 'picks.json'), '--out-dir', str(c.work / 'patch')]
+    log('v2heat:', ' '.join(cmd))
+    subprocess.run(cmd, check=True, cwd=ROOT)
 
 
 def step_render_new(c):
@@ -566,9 +700,16 @@ def dump(c, entries, out):
         (out / 'data' / f).write_text(BE.jdump(x))
     picks = json.loads((c.work / 'picks.json').read_text())
     sigs = [str(np.load(BE.patch_file(c, 'max', j))['sig']) for j in picks['by_key'].get('max', {})]
-    heat = 'real' if sigs and all(x.startswith('r4heat-') for x in sigs) else 'peak'
-    log(f'dump {c.tag}: heat maps {heat} ({sum(x.startswith("r4heat-") for x in sigs)}/{len(sigs)} real)')
+    real = lambda x: x.startswith('r4heat-') or x.startswith('v2heat-')  # noqa: E731
+    heat = 'real' if sigs and all(real(x) for x in sigs) else 'peak'
+    log(f'dump {c.tag}: heat maps {heat} ({sum(real(x) for x in sigs)}/{len(sigs)} real)')
+    if heat != 'real' and A.variant != 'd0':  # the page never shows the blurred peak-patch stand-in
+        raise SystemExit(f'dump {c.tag}: {sum(not x.startswith("r4heat-") for x in sigs)} neurons without real heat '
+                         f'maps: run scripts/eci/atlas_v37_r4heat_key.sh {A.dom} (MOVE=1) first')
     core['heat_kind'] = heat
+    if A.dom.startswith('v2_'):
+        cc = json.loads((c.dom.eci_dir / 'codes' / c.sae / 'config.json').read_text())
+        core['v2spec'] = [cc['S'], cc['G']]
     cores = entries(core)
     (out / 'core.json').write_text(json.dumps({'entries': cores, 'videos_mice': BE._vt()[1] if c.dom is BE.MICE else None},
                                               separators=(',', ':')))
@@ -780,14 +921,21 @@ def step_dump_tadpoles():
     assert TAD.analysis_ids() == ['FoxP1_vs_WT', 'En1_vs_WT'], TAD.analysis_ids()
     BE.VIEW['tadpoles'] = dict(BE.VIEW['frogs'], title='Frogs', exp=TAD_EXP, subject='tadpole', subjects='tadpoles')
     BE.FROGS = TAD  # build_explorer's frogs code paths (video table, arms, labels) on the tadpole domain
-    sae = best_sae('frogs_tadpole', A.variant) + '_fnorm'
-    src = ROOT / NEW['frogs_tad'][2] / sae
-    key = f'frogs_tad_{A.variant}'
+    v2m = A.dom == 'v2_frogs_tad'  # the frozen v2 (its frogs SAE) on the tadpoles
+    if v2m:
+        sae = v2_name('frogs') + ('_smooth' if A.variant == 'smooth' else '')
+        ness = V2 / 'ness' / 'frogs_tadpole' / sae
+    else:
+        sae = best_sae('frogs_tadpole', A.variant) + '_fnorm'
+        ness = TAD_NESS / sae
+    src = ROOT / NEW[A.dom][2] / sae
+    key = f'{A.dom}_{A.variant}'
+    tg = ('v2tad' + {'smooth': 's', 'thr': 't'}[A.variant]) if v2m else 'r4tad' + A.variant
     V, bout = OUT / 'res' / key / sae, OUT / 'build' / key
     (V / '_cache').mkdir(parents=True, exist_ok=True)
     for f in (src / '_cache').glob('*.npz'):
         link(f.resolve(), V / '_cache' / f.name)
-    for meth, base in (('nes', src), ('dines', TAD_NESS / sae / 'dines')):
+    for meth, base in (('nes', src), ('dines', ness / 'dines')):
         for kind, sub, *_ in OUTS:
             if (base / sub / 'summary.csv').exists():
                 mirror_outcome(V / meth / sub if sub != '.' else V / meth, [base / sub if sub != '.' else base])
@@ -797,7 +945,7 @@ def step_dump_tadpoles():
     (bout / 'data').mkdir(parents=True, exist_ok=True)
     for f in (bout / 'data').glob('*.json'):
         f.unlink()
-    c = make_cfg(V, sae, TAD, 'r4tad' + A.variant, bout)
+    c = make_cfg(V, sae, TAD, tg, bout)
     ren = lambda a: f'tad_{a}'  # noqa: E731
     entries = []
     for meth, base in (('NES', V / 'nes'), ('DINES', V / 'dines')):
@@ -809,7 +957,7 @@ def step_dump_tadpoles():
         analyses = {}
         R = annotate_status(BE.search_results(c, outs, analyses, top=True), outs)
         R = {'|'.join([k.split('|')[0], ren(k.split('|')[1])] + k.split('|')[2:]): v for k, v in R.items()}
-        x = f'r4tad{A.variant}{meth.lower()}'
+        x = f'{tg}{meth.lower()}'
         rfiles, nb, lw = {}, {}, {}
         for o in outs:
             ids, Y = BE.video_outcome(c, o)
@@ -845,12 +993,14 @@ def step_dump_tadpoles():
                                                                if int(p) in (128, 256)),
                      setting=str(BE.primary_rows(o)['setting'].iloc[0]))
             po.append(q)
-        e = {'sae': f'{sae}@{meth.lower()}', 'tag': x, 'model': {'model': 'new', 'method': meth}, 'domain': 'frogs',
+        e = {'sae': f'{sae}@{meth.lower()}', 'tag': x, 'model': {'model': V2_MODEL[A.variant] if v2m else 'new', 'method': meth},
+             'domain': 'frogs',
              'outcomes': po, 'analyses': ans, 'subsets': {}, 'rfiles': rfiles, 'pre': {}, 'lwin': lw,
              'nfile': {'max': {'files': [f'assets/data/{nf}'], 'of': {j: 0 for j in nb}}},
              'artefact': [], 'artefact_text': {}, 'sub_ui': False, 'videos': videos, 'obs': obs,
              'arms': ['WT', 'FoxP1', 'En1'], 'subject': 'tadpole', 'subjects': 'tadpoles', 'top': 3,
              'vnote': 'tadpoles WT, FoxP1, En1 (hour 1)', 'tadpole': True, 'heat_kind': 'none',
+             **({'v2spec': [384, 24]} if v2m else {}),
              'n_frames': int(len(np.load(TAD.eci_dir / 'codes' / sae / 'n_fg.npy', mmap_mode='r'))),
              'noclip_note': 'Tadpoles: no clips and no arena map: the model sees a crop that follows the tadpole in '
                             'the raw video (no dataset frames, no fixed arena)'}
@@ -873,7 +1023,13 @@ def v36_all():
 KEEP_IDS = ('boutratemaxpool', 'meanactivationma', 'xlatencymax')  # the v36 max-pooling outcomes
 MODEL_TIPS = {'online': 'v1 (deployed): DINOv2-base at 448 px, the animal mask, token only, Matryoshka BatchTopK SAE '
                         'with 1024 neurons (k 16), max pooling',
-              'new': 'v2 (in progress): DINOv3-L/16 at an input sized to the animal, the same lab masks, token + its '
+              'new': 'v2 (frozen 2026-10-20): DINOv3-L/16 block 20 at native-capped resolution, canonical rotation '
+                     '(mice odour corner top right, frogs mutant side right), tight animal mask, no context, one '
+                     'Matryoshka BatchTopK SAE per domain (2048 neurons, k 16), max over kept tokens, 0.6 s smoothing, '
+                     'no firing threshold (the primary v2 input)',
+              'new (thr)': 'v2 with the firing threshold: the same frozen v2 SAE, its 0.6 s smoothed codes kept only '
+                           'above each neuron\'s fnorm firing threshold (the pre-specified NES input)',
+              'new_r4': 'v2 (in progress): DINOv3-L/16 at an input sized to the animal, the same lab masks, token + its '
                      'change over 2 s, Matryoshka BatchTopK SAE with 512 neurons (k 16), max pooling',
               'new (no Δ)': 'v2 without the 2 s change half (variant d0)'}
 METHOD_TIPS = {'NES': 'Neural Effect Search (Mencattini, Cadei, Locatello 2025): add the most significant neuron, '
@@ -916,6 +1072,20 @@ def spec_of(e):
     """The compact Details cells of an entry (page table v0 | v1 | v2; v0 = the ECI paper recipe, not filled yet)."""
     dom, online, meth = e['domain'], e['model']['model'] == 'online', e['model']['method']
     key = e['sae'].split('#')[1].rsplit('_', 1)[0] if '#' in e['sae'] else None
+    if e['model']['model'] in ('new', 'new (thr)') and (e.get('v2spec') or (key or '').startswith('v2_')):
+        S, G = e.get('v2spec', (None, None))
+        cells = {'fm': f'DINOv3-L/16 block 20 · {S} px native-capped ({G}×{G} patches)' if S else 'DINOv3-L/16 block 20 · native-capped',
+                 'input': 'token', 'mask': {'mice': 'tight mouse mask · odour corner rotated to top right',
+                                            'ants': 'tight ant mask', 'frogs': 'tight frog mask · mutant side right'}[dom]
+                 + (' · tadpole crop (96 px → 384)' if e.get('tadpole') else ''),
+                 'sae': 'Matryoshka BatchTopK · 2048 · k=16 · one SAE per domain',
+                 'pool': 'max over the mask · 0.6 s smoothing' + (' · no firing threshold' if e['model']['model'] == 'new'
+                                                                   else ' · fnorm firing threshold'),
+                 'cov': 'foreground size (n_fg)' + (' + recording day (not for t=8 vs t=2, infested vs healthy)'
+                                                    if dom == 'ants' else '')}
+        if dom == 'mice':
+            cells['hab'] = 'last 15 min'
+        return {'cells': cells}
     if online:
         fm = 'DINOv2-base · 448 px (32×32 patches)'
         sae = 'Matryoshka BatchTopK · 1024 · k=16'
@@ -1053,7 +1223,9 @@ def v0_entries(site, saes, data):
         R0 = json.loads((res / 'results.json').read_text())
         ref = next(e for e in saes if e['model'] == {'model': 'new' if ref_key.startswith('#') else 'online',
                                                        'method': 'NES'}
-                   and (e['sae'].endswith(ref_key) if ref_key.startswith('#') else e['tag'] == ref_key))
+                   and ((e['sae'].endswith(ref_key) or e['sae'].endswith(ref_key.replace('#ants_', '#v2_ants_')
+                                                                          .replace('_d2', '_smooth')))
+                        if ref_key.startswith('#') else e['tag'] == ref_key))
         vids = pd.read_csv(res / 'videos.csv', dtype={'observation_id': str})
         X = np.load(res / 'video_codes.npy').astype(np.float64)
         obs = ref.get('obs') or data['obs']
@@ -1224,13 +1396,171 @@ def source_table():
             assert row[1] >= 0, (rd, v['obs'])
             assert T.get(v['obs'], row) == row, (rd, v['obs'], T[v['obs']], row)
             T[v['obs']] = row
+    P = json.loads((R4 / 'frogs_tadpole' / 'plan.json').read_text())  # tadpoles: 60 fps raw, source frame 12 k + 5
+    for v in P['videos']:
+        out['frogs'].setdefault(v['obs'], [Path(v['path']).name, int(v['offset']), 12, 60.0])
     log('source table: ' + ', '.join(f'{d} {len(t)} videos' for d, t in out.items()))
     return out
 
 
+# ---- behaviour alignment panel + annotation check (scripts/eci/atlas_align.py -> OUT/align/<series>.json)
+ALIGN = OUT / 'align'
+ALIGN_CUT = 0.2  # a neuron counts as aligned with a behaviour when its cross-fitted R~ >= this (pre-stated)
+BEH_LAB = {'Y2F': 'grooming by yellow (Y2F)', 'B2F': 'grooming by blue (B2F)', 'groom_any': 'grooming, either (Y2F or B2F)',
+           'YOL': 'yellow on the lid (YOL)', 'BOL': 'blue on the lid (BOL)', 'onlid_any': 'on the lid, either (YOL or BOL)',
+           'nn': 'nose-nose (nn)', 'np': 'nose-body (np)', 'nn_or_np': 'nn or np', 'nt': 'nose-tail (nt)'}
+
+
+def align_table():
+    """{series: {behaviours, models: {v0|v1|v2: {beh: {base, n, top: [[neuron, R~cf, AUROCcf, directions]]} | None}}}}"""
+    out = {}
+    for f in sorted(ALIGN.glob('*.json')):
+        d = json.loads(f.read_text())
+        out[d['series']] = {
+            'n_frames': d['n_frames'], 'n_units': d['n_units'], 'units': d['units'], 'frames': d['frames'],
+            'beh': [[b, BEH_LAB[b]] for b in d['behaviours']], 'cut': ALIGN_CUT, 'top_k': d['top_k'],
+            'models': {m: {'source': x['source'], 'n_alive': x['n_alive'], 'n_neurons': x['n_neurons'],
+                           'beh': {b: (None if v is None else {'base': round(v['base_rate'], 4), 'n': v['n_frames'],
+                                                               'cf1': round(v['cf_top1_rprec'], 4), 'top': v['top']})
+                                   for b, v in x['beh'].items()}}
+                       for m, x in d['models'].items()}}
+    log('alignment: ' + ', '.join(out))
+    return out
+
+
+def ann_check(saes, data):
+    """{series: {analysis id: {beh: [tau, p, n_control, n_treated, test]}}} of the annotated behaviours (per-video time
+    fraction over the labelled frames, scripts/eci/atlas_align.py per_video_time), with the page's contrast: ants
+    within-series = treated vs control videos with recording-day fixed effects (OLS, only days holding both arms), ants
+    infested vs healthy = Welch (no common day); mice B = Welch het vs wt, A = paired over pools, C = Welch on the
+    per-pool changes (annotated pools only)."""
+    import statsmodels.formula.api as smf
+    from scipy.stats import ttest_1samp, ttest_ind
+    out = {}
+    for f in sorted(ALIGN.glob('*.json')):
+        d = json.loads(f.read_text())
+        ser, PV = d['series'], d['per_video_time']
+        res = out.setdefault(ser, {})
+        if ser == 'mice':
+            ent = next(e for e in saes if e['domain'] == 'mice' and e['model'] == {'model': 'online', 'method': 'NES'})
+            V, O = data['videos'], data['obs']
+        else:
+            ent = next(e for e in saes if e['domain'] == 'ants' and e['model'] == {'model': 'new', 'method': 'NES'}
+                       and (e['sae'].endswith(f'#ants_{ser[5:]}p_d2') or e['sae'].endswith(f'#v2_ants_{ser[5:]}p_smooth')))
+            V, O = ent['videos'], ent['obs']
+        obs = [o[0] for o in O]
+        for a in ent['analyses']:
+            r = res.setdefault(a['id'], {})
+            for b in d['behaviours']:
+                y = np.array([PV[b].get(o, [np.nan])[0] for o in obs], float)
+                if np.isfinite(y).sum() < 6:
+                    continue
+                with np.errstate(invalid='ignore', divide='ignore'):
+                    if ser != 'mice':
+                        c = np.array([any(v[0] == e and v[1] == t for e, t in a['arms'][0][1]) for v in V]) & np.isfinite(y)
+                        t = np.array([any(v[0] == e and v[1] == t for e, t in a['arms'][1][1]) for v in V]) & np.isfinite(y)
+                        if c.sum() < 3 or t.sum() < 3:
+                            continue
+                        day = np.array([v[2] for v in V])
+                        both = set(day[c]) & set(day[t])
+                        if a.get('cross') or not both:
+                            tt, p = ttest_ind(y[t], y[c], equal_var=False)
+                            r[b] = [BE.sig4(float(y[t].mean() - y[c].mean())), float(p), int(c.sum()), int(t.sum()), 'Welch']
+                        else:
+                            m = (c | t) & np.isin(day, list(both))
+                            df = pd.DataFrame({'y': y[m], 'T': t[m].astype(int), 'day': day[m]})
+                            fit = smf.ols('y ~ T + C(day)' if len(both) > 1 else 'y ~ T', df).fit()
+                            r[b] = [BE.sig4(float(fit.params['T'])), float(fit.pvalues['T']), int((c & m).sum()),
+                                    int((t & m).sum()), 'OLS with recording-day fixed effects' if len(both) > 1 else 'OLS']
+                    else:
+                        pool = np.array([v[0] for v in V])
+                        st, gt = np.array([v[1] for v in V]), np.array([v[2] for v in V])
+                        if a['family'] == 'B':
+                            c = (st == a['stage']) & (gt == 'wt') & np.isfinite(y)
+                            t = (st == a['stage']) & (gt == 'het') & np.isfinite(y)
+                            if c.sum() < 3 or t.sum() < 3:
+                                continue
+                            tt, p = ttest_ind(y[t], y[c], equal_var=False)
+                            r[b] = [BE.sig4(float(y[t].mean() - y[c].mean())), float(p), int(c.sum()), int(t.sum()), 'Welch']
+                        else:
+                            s0, s1 = a['stages']
+                            ps = sorted({pool[i] for i in range(len(V)) if np.isfinite(y[i]) and
+                                         (a['family'] == 'C' or gt[i] == a['genotype'])})
+                            D, G_ = [], []
+                            for q in ps:
+                                i0 = np.flatnonzero((pool == q) & (st == s0))
+                                i1 = np.flatnonzero((pool == q) & (st == s1))
+                                if len(i0) and len(i1) and np.isfinite(y[i0[0]]) and np.isfinite(y[i1[0]]):
+                                    D.append(y[i1[0]] - y[i0[0]])
+                                    G_.append(gt[i0[0]])
+                            D, G_ = np.array(D), np.array(G_)
+                            if a['family'] == 'A':
+                                if len(D) < 3:
+                                    continue
+                                tt, p = ttest_1samp(D, 0.0)
+                                r[b] = [BE.sig4(float(D.mean())), float(p), int(len(D)), int(len(D)), 'paired t-test']
+                            else:
+                                h = G_ == 'het'
+                                if h.sum() < 3 or (~h).sum() < 3:
+                                    continue
+                                tt, p = ttest_ind(D[h], D[~h], equal_var=False)
+                                r[b] = [BE.sig4(float(D[h].mean() - D[~h].mean())), float(p), int((~h).sum()), int(h.sum()),
+                                        'Welch on the per-pool changes']
+            if not r:
+                res.pop(a['id'])
+    log('annotation check: ' + ', '.join(f'{k} {len(v)} comparisons' for k, v in out.items()))
+    return out
+
+
+TAD_STRIPS = OUT / 'tadpole_strips'
+
+
+def tadpole_strips(site, saes):
+    """Frame strips with real heat maps of the tadpole neurons (scripts/eci/tadpole_atlas_strips.py) into the
+    tadpole entries' neuron files."""
+    ents = [e for e in saes if e.get('tadpole')]
+    done = set()
+    for e in ents:
+        sd = TAD_STRIPS.with_name('tadpole_strips_v2smooth' if e['tag'].startswith('v2tads') else
+                                  'tadpole_strips_v2thr' if e['tag'].startswith('v2tadt') else 'tadpole_strips')
+        if not (sd / 'strips.json').exists():
+            log(f'tadpole strips: none for {e["sae"]} ({sd})')
+            continue
+        S = json.loads((sd / 'strips.json').read_text())
+        ix = {o[0]: i for i, o in enumerate(e['obs'])}
+        for nf in e['nfile']['max']['files']:
+            if nf in done:
+                continue
+            done.add(nf)
+            D = json.loads((site / nf).read_text())
+            for j, n in D['by']['max'].items():
+                x = S['neurons'].get(str(j))
+                if not x:
+                    continue
+                shutil.copy(sd / x['sprite'], site / 'assets' / x['sprite'])
+                it = lambda L: [[ix[o], v, k] for o, v, k in L]  # noqa: E731
+                n['frames'] = {'sprite': f'assets/{x["sprite"]}', 'tile': S['tile'], 'nrow': 3, 'heat_vmax': x['heat_vmax'],
+                               'rows': [['Most activated frames', 'highest frame, 1 per video', 0, it(x['top'])],
+                                        ['Where it fires (real per-token heat map)', f'full colour = {x["heat_vmax"]}', 1,
+                                         it(x['top'])],
+                                        ['Least activated frames', '0, random, 1 per video', 2, it(x['least'])]]}
+            (site / nf).write_text(json.dumps(D, separators=(',', ':')))
+        e['noclip_note'] = ('Tadpoles: frame strips instead of clips, cut from the raw video with the crop boxes used '
+                            'for encoding; real per-token heat maps (' + (
+                                'the stored token codes of the full pass' if S['check'].get('exact') else
+                                f're-encoded, argmax agreement with the stored codes '
+                                f'{100 * S["check"]["arg_agree_frac"]:.1f}%') +
+                            '); no arena map (the crop follows the tadpole)')
+        e['heat_kind'] = 'real'
+        log(f'tadpole strips {e["sae"]}: {len(S["neurons"])} neurons, check {json.dumps(S["check"])}')
+
+
 PICKS = {'r4miced2': OUT / 'res/mice_d2', 'r4v2pd2': OUT / 'res/ants_v2p_d2', 'r4v3pd2': OUT / 'res/ants_v3p_d2',
          'r4v4pd2': OUT / 'res/ants_v4p_d2', 'r4frogsd2': OUT / 'res/frogs_d2',
-         'fg448al': ROOT / ONLINE['mice'][2], 'antsfg': ROOT / ONLINE['ants'][2], 'frogsfg': ROOT / ONLINE['frogs'][2]}
+         'fg448al': ROOT / ONLINE['mice'][2], 'antsfg': ROOT / ONLINE['ants'][2], 'frogsfg': ROOT / ONLINE['frogs'][2],
+         **{f'v2{t}{v[0]}': OUT / f'res/{k}_{v}' for k, t in (('v2_mice', 'mice'), ('v2_ants_v2p', 'v2p'),
+                                                               ('v2_ants_v3p', 'v3p'), ('v2_ants_v4p', 'v4p'),
+                                                               ('v2_frogs', 'frogs')) for v in ('smooth', 'thr')}}
 
 
 def clip_times(site, saes, data):
@@ -1350,9 +1680,14 @@ def step_assemble():
 
     # ---- new model entries (one build per R4 domain; NES + DINES entries share the build's data files)
     new_entries, builds = {}, {}
-    for key in [f'{k}_{v}' for k in NEW for v in ('d2', 'd0')]:
+    keys_all = [f'{k}_{v}' for k in NEW for v in ('d2', 'd0', 'smooth', 'thr')]
+    v2_built = any(k.startswith('v2_') and (OUT / 'build' / k / 'core.json').exists() for k in keys_all)
+    for key in keys_all:
         b = OUT / 'build' / key
         if not (b / 'core.json').exists():
+            continue
+        if v2_built and not key.startswith('v2_'):  # the frozen v2 replaces the R4 builds
+            log(f'assemble: {key} left out (the frozen v2 replaces the R4 builds)')
             continue
         cj = json.loads((b / 'core.json').read_text())
         for f in sorted((b / 'data').glob('*.json')):
@@ -1364,15 +1699,14 @@ def step_assemble():
         for e in cj['entries']:
             if amap:
                 e = json.loads(rw_text(json.dumps(e), amap))
-            if e.get('heat_kind') != 'real':
-                e['heat_note'] = ('v2 stores, per frame and neuron, only the position of its strongest '
-                                  'patch, so the heat shows that peak patch (blurred), not a full map of every patch.')
+            if e.get('heat_kind') not in ('real', 'none'):
+                raise SystemExit(f'assemble: {key} has no real heat maps (heat_kind {e.get("heat_kind")})')
             dom = e['domain']
             k0 = key.rsplit('_', 1)[0]
             series = {'ants_v2': 'v2', 'ants_v3': 'v3', 'ants_v4': 'v4'}.get(k0)
             e['pooled'] = k0.endswith('p') and k0.startswith('ants')
             e['sae'] = f'{e["sae"]}#{key}'  # unique per build (the pooled ants series share one SAE name)
-            e['note'] = ('New model (R4, ' + ('2 s change, d2' if key.endswith('d2') else 'no change half, d0') +
+            e['note'] = ('v2. ' if key.startswith('v2_') else 'New model (R4, ' + ('2 s change, d2' if key.endswith('d2') else 'no change half, d0') +
                          '). ' + (f'Ants: one SAE per series; this is the {series} SAE, so its neuron numbers are '
                                   f'its own. ' if series else '') +
                          ('Ants: one SAE for all series (v2, v3, v4), so a neuron number means the same neuron in '
@@ -1387,14 +1721,20 @@ def step_assemble():
         new_entries[key] = ents
     # the new model on the page (coordinator, 2026-10-16 07:55): ants = the pooled SAE only (the per-series SAEs never
     # appear), variant d2 only (d0 was built for frogs and the per-series ants only: left out rather than partial)
+    v2_on = any(k.startswith('v2_') for k in new_entries)
     for k in list(new_entries):
-        if k.endswith('_d0') or (k.startswith('ants_') and not k.endswith('p_d2')):
+        if v2_on and not k.startswith('v2_'):  # the frozen v2 replaces the R4 builds (coordinator, 2026-10-21)
+            log(f'assemble: {k} left out (the frozen v2 replaces the R4 builds)')
+            new_entries.pop(k)
+        elif k.endswith('_d0') or (k.startswith('ants_') and not k.endswith('p_d2')):
             log(f'assemble: {k} left out (new model on the page = d2, pooled ants SAE)')
             new_entries.pop(k)
     have_v4 = any(k.startswith('ants_v4') for k in new_entries)
     order_new = [k for k in ('mice_d2', 'ants_v2p_d2', 'ants_v3p_d2', 'ants_v4p_d2', 'ants_v2_d2', 'ants_v3_d2',
                              'ants_v4_d2', 'frogs_d2', 'frogs_tad_d2', 'mice_d0', 'ants_v2p_d0', 'ants_v3p_d0', 'ants_v4p_d0',
-                             'ants_v2_d0', 'ants_v3_d0', 'ants_v4_d0', 'frogs_d0') if k in new_entries]
+                             'ants_v2_d0', 'ants_v3_d0', 'ants_v4_d0', 'frogs_d0') if k in new_entries] + \
+        [f'{k}_{v}' for v in ('smooth', 'thr') for k in ('v2_mice', 'v2_ants_v2p', 'v2_ants_v3p', 'v2_ants_v4p', 'v2_frogs',
+                                                         'v2_frogs_tad') if f'{k}_{v}' in new_entries]
     for k in order_new:
         for e in new_entries[k]:
             if e['domain'] == 'ants' and not have_v4:
@@ -1554,6 +1894,9 @@ def step_assemble():
     data['v0'] = v0_table()
     v0e = v0_entries(site, saes, data)  # v0 = the baseline (original ECI paper recipe), a selectable model
     saes += v0e
+    data['align'] = align_table()
+    data['anncheck'] = ann_check(saes, data)
+    tadpole_strips(site, saes)
     data['axes'][0]['values'] = data['axes'][0]['values'] + (['v0'] if v0e else [])
     clip_times(site, saes, data)
     split_v4_pack(site)
@@ -1611,7 +1954,7 @@ if __name__ == '__main__':
     if steps == ['assemble']:
         step_assemble()
         sys.exit(0)
-    if A.model == 'new' and A.dom == 'frogs_tad':
+    if A.model == 'new' and A.dom in ('frogs_tad', 'v2_frogs_tad'):
         assert steps == ['tad'], 'frogs_tad: --steps tad'
         step_dump_tadpoles()
     elif A.model == 'new':
@@ -1623,8 +1966,14 @@ if __name__ == '__main__':
         if rest:
             c = new_cfg()
             for s in rest:
+                if s in ('render', 'dump') and c.dom is BE.MICE:
+                    use_rotated(c)
                 if s == 'data':
                     BE.step_data(c, A.overwrite)
+                elif s == 'rotheat':
+                    step_rotheat(c)
+                elif s == 'v2heat':
+                    step_v2heat(c)
                 elif s == 'patch':
                     step_patch_new(c)
                 elif s == 'arena':
@@ -1633,8 +1982,9 @@ if __name__ == '__main__':
                     step_render_new(c)
                 elif s == 'dump':
                     key = new_paths()[-1]
-                    dump(c, lambda core: split_methods(core, key, 'new' if A.variant == 'd2' else 'new (no Δ)'),
-                         c.out)
+                    mv = V2_MODEL[A.variant] if A.dom.startswith('v2_') else \
+                        'new' if A.variant == 'd2' else 'new (no Δ)'
+                    dump(c, lambda core: split_methods(core, key, mv), c.out)
                 else:
                     raise SystemExit(f'unknown step {s}')
     else:
