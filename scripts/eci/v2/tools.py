@@ -212,6 +212,38 @@ def mice_token_check(Se, dev, n=24):
             'token_cos_min': float(np.min(cos))}
 
 
+def strata_index(name_of):
+    """Which extra contrasts / strata exist (status RUN / NOT RUN YET) per outcome variant, with their result dirs."""
+    V = REPO / 'results/vision'
+    out = {}
+    nm = name_of['mice']
+    rows = [('mice', 'family_S_sex', 'family_S', 'eci_v2/ness_S/mice')]
+    for st in ('ash1l_all', 'kdm6b_all', 'kmt5b_all', 'all_f', 'all_m'):
+        rows.append(('mice', f'families_AB_{st}', f'subsets/{st}', f'eci_v2/ness_strata/{st}/mice'))
+    for dom, sid, sub, nroot in rows:
+        for var, suf in (('continuous', '_smooth'), ('binary', ''), ('prob', '_prob')):
+            s_ = nm + suf
+            nd, sd = V / 'mice/eci/nes' / s_ / sub, V / nroot / s_
+            ok = (nd / 'summary.csv').exists() and (nd / 'maxpool_latency' / 'summary.csv').exists()
+            okn = (sd / 'dines' / 'summary.csv').exists()
+            out.setdefault(dom, {}).setdefault(sid, {})[var] = {'NES': 'RUN' if ok else 'NOT RUN YET', 'NES_dir': str(nd),
+                                                                'NESS': 'RUN' if okn else 'NOT RUN YET', 'NESS_dir': str(sd)}
+    for st in ('ash1l_all', 'kdm6b_all', 'kmt5b_all', 'all_f', 'all_m'):
+        out['mice'][f'family_C_{st}'] = {v: {'NES': 'NOT RUN YET', 'NESS': 'NOT RUN YET',
+                                             'note': 'family C is computed inside atlas_v37_methods.py on the full cohort'}
+                                         for v in ('continuous', 'binary', 'prob')}
+    na = name_of['ants']
+    for aid in ('infested_vs_healthy_t2', 'infested_vs_healthy_t6', 'infested_vs_healthy_t2_6'):
+        for var, suf in (('continuous', '_smooth'), ('binary', ''), ('prob', '_prob')):
+            nd = V / 'ants/eci_r4v4p/nes' / (na + suf)
+            ok = (nd / aid).exists()
+            out.setdefault('ants', {}).setdefault(f'v4_colony_{aid}', {})[var] = {
+                'NES': 'RUN' if ok else 'NOT RUN YET', 'NES_dir': str(nd / aid),
+                'NESS': 'RUN' if (V / 'eci_v2/ness/ants_eci_r4v4p' / (na + suf) / 'dines' / aid).exists() else 'NOT RUN YET',
+                'NESS_dir': str(V / 'eci_v2/ness/ants_eci_r4v4p' / (na + suf) / 'dines' / aid)}
+    return out
+
+
 def cmd_manifest(args):
     """results/vision/eci_v2/manifest.json: every output path of the v2 rollout, per domain and series."""
     import glob
@@ -235,7 +267,9 @@ def cmd_manifest(args):
                                    'the behaviour alignment; align.json v2_smooth)',
                'secondary': '<sae>: the same smoothed codes zeroed below the fnorm firing threshold (pre-specified, but it '
                             'destroys alignment: mice nose_nose R~ 0.174 raw -> 0.093, ants v2 groom_any 0.629 -> 0.075)',
-               'raw': '<sae>_raw: frame max codes, no smoothing (alignment reference)'},
+               'prob': '<sae>_prob: per-neuron P(on | smoothed code), label-free 2-component mixture (src/eci/v2/prob.py)',
+               'raw': '<sae>_raw: frame max codes, no smoothing (alignment reference)',
+               'outcome_variants': {'continuous': '<sae>_smooth', 'binary': '<sae>', 'prob': '<sae>_prob'}},
            'domains': {}}
     roots = {'mice': {'v1': ('mice/eci/nes', 'mice')},
              'ants': {s_: (f'ants/{e}/nes', f'ants_{e}') for s_, e in (('v2', 'eci_r4v2p'), ('v3', 'eci_r4v3p'),
@@ -256,7 +290,8 @@ def cmd_manifest(args):
                   'summaries': str(OUT / dom / f'summaries_{sc["name"]}.npz'),
                   'heat_dir': str(OUT / dom / 'heat' / sc['name']), 'heat_index': str(OUT / dom / 'heat' / sc['name'] / 'index.json'),
                   'heat_files': len(g(OUT / dom / 'heat' / sc['name'] / 'n*.npz')), 'sets': {}}
-            for tag, nm in (('primary', f'{name}_smooth'), ('secondary', name), ('raw', f'{name}_raw')):
+            for tag, nm in (('primary', f'{name}_smooth'), ('secondary', name), ('prob', f'{name}_prob'),
+                            ('raw', f'{name}_raw')):
                 e = {'name': nm, 'codes': str(RUN.codes_dir(c, sc, nm)), 'codes_link': str(REPO / sc['layout'] / 'codes' / nm)}
                 if tag != 'raw':
                     e['nes_dir'] = str(V / nr / nm)
@@ -269,7 +304,9 @@ def cmd_manifest(args):
                         g(OUT / 'ness_v3_2v8' / key / nm / '**' / '*summary.csv')
                 s_['sets'][tag] = e
             d['series'][sc['name']] = s_
+        d['prob'] = str(OUT / dom / 'prob.json')
         man['domains'][dom] = d
+    man['strata'] = strata_index(name_of={dm: RUN.best_name(RUN.dcfg(dm)) for dm in man['domains']})
     (OUT / 'manifest.json').write_text(json.dumps(man, indent=1))
     log(f'manifest: {OUT / "manifest.json"}')
 

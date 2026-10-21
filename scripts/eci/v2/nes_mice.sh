@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# ECI v2 mice extra families: NES (3 runners: mean / bout rate / latency, max pooling) + NESS on one codes set with the
+# ECI v2 mice extra families (strata: the runners' label-shuffle sanity nulls are skipped, --n-shuffles 0): NES (3 runners: mean / bout rate / latency, max pooling) + NESS on one codes set with the
 # in-memory MiceDomain patch of scripts/eci/v2/nes_mice_dispatch.py, from a git archive of CODE_COMMIT. CPU only.
 #   MODE=S SAE=v2_mice_c0_w2048_s7_smooth sbatch --export=ALL scripts/eci/v2/nes_mice.sh
 #   MODE=strata:ash1l:all SAE=... sbatch --export=ALL scripts/eci/v2/nes_mice.sh
@@ -30,19 +30,19 @@ export NES_CODE_ROOT=$L V2_MICE_MODE=$MODE OMP_NUM_THREADS=4 OPENBLAS_NUM_THREAD
 W="python -u $L/scripts/eci/v2/nes_mice_dispatch.py"
 RES=results/vision/mice/eci/nes/$SAE
 if [ "$MODE" = "S" ]; then
-  SUB=family_S; EXT=""; OUTN=$REPO/results/vision/eci_v2/ness_S
+  SUB=family_S; EXT=""; NSH=""; OUTN=$REPO/results/vision/eci_v2/ness_S
   AIDS=$(python -c "print(','.join([f'S_stage{s}' for s in range(1,7)]+[f'S_{g}_stage{s}' for g in ('het','wt') for s in range(1,7)]))")
 else
-  IFS=: read _ LN SX <<< "$MODE"; SUB=subsets/${LN}_${SX}; EXT="--line $LN --sex $SX"; OUTN=$REPO/results/vision/eci_v2/ness_strata/${LN}_${SX}
+  IFS=: read _ LN SX <<< "$MODE"; SUB=subsets/${LN}_${SX}; EXT="--line $LN --sex $SX"; NSH="--n-shuffles 0"; OUTN=$REPO/results/vision/eci_v2/ness_strata/${LN}_${SX}
   AIDS=$(python -c "print(','.join([f'A_{g}_{t}' for g in ('het','wt') for t in ('1to2','2to3','4to5','5to6')]+[f'B_stage{s}' for s in range(1,7)]))")
 fi
 mkdir -p results/vision/eci_v2/nes_code
 printf '{"commit": "%s", "sae": "%s", "mode": "%s", "subdir": "%s", "time": "%s"}\n' "$CODE_COMMIT" "$SAE" "$MODE" "$SUB" "$(date -Is)" \
   > results/vision/eci_v2/nes_code/mice_${MODE//:/_}_${SAE}.json
 COMMON="--domain mice --sae $SAE --prefixes $PREFIXES --nuisance nfg --select p --subdir $SUB"
-echo "=== $MODE $SAE: mean";    $W run_nes.py $COMMON $EXT --primary-pooling max --poolings max --skip-frame
-echo "=== $MODE $SAE: bouts";   $W run_nes_bouts.py $COMMON $EXT --compare-pooling max
-echo "=== $MODE $SAE: latency"; $W run_nes_latency.py $COMMON --frame-pooling max
+echo "=== $MODE $SAE: mean";    $W run_nes.py $COMMON $EXT $NSH --primary-pooling max --poolings max --skip-frame
+echo "=== $MODE $SAE: bouts";   $W run_nes_bouts.py $COMMON $EXT $NSH --compare-pooling max
+echo "=== $MODE $SAE: latency"; $W run_nes_latency.py $COMMON $NSH --frame-pooling max
 echo "=== $MODE $SAE: NESS"
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 ATLAS_V37_HEAD=$CODE_COMMIT
 $W atlas_v37_methods.py --res $L/$RES --nes-subdir $SUB --analyses $AIDS --no-family-c --workers ${SLURM_CPUS_PER_TASK:-1} --out-root $OUTN
