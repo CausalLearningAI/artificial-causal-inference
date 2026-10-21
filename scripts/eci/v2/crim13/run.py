@@ -256,6 +256,8 @@ def cmd_train(a):
     X = {}
     for role, col in (('train', 'is_train'), ('calib', 'is_calib'), ('eval', 'is_fve')):
         X[role] = torch.cat([s.inputs(0, s.F[col].values, dev) for s in St])
+    if a.selftest and len(X['eval']) == 0:  # 3-video selftest has no test-half videos: reuse calib tokens just to exercise the code path
+        X['eval'] = X['calib']
     info = {r: int(len(x)) for r, x in X.items()}
     info['frames'] = {r: int(sum(s.F[c].sum() for s in St)) for r, c in (('train', 'is_train'), ('calib', 'is_calib'),
                                                                          ('eval', 'is_fve'))}
