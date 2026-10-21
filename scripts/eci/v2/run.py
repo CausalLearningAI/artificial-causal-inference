@@ -560,6 +560,7 @@ def main():
     p.add_argument('step', choices=('pool', 'train', 'encode', 'merge', 'fire', 'link', 'smooth', 'align', 'selftest',
                                     'manifest', 'heat', 'health'))
     p.add_argument('--picks', default='')
+    p.add_argument('--nshards', type=int, default=1)
     p.add_argument('--out-dir', default='')
     p.add_argument('--domain', default='mice')
     p.add_argument('--series', default=None)

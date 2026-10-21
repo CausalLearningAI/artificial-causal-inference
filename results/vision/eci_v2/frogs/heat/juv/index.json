@@ -1,0 +1,367 @@
+{
+ "sae": "v2_frogs_c0_w2048_s6",
+ "series": "juv",
+ "neurons": {
+  "25": [
+   "candidate",
+   "selected"
+  ],
+  "34": [
+   "candidate",
+   "selected"
+  ],
+  "51": [
+   "selected"
+  ],
+  "52": [
+   "candidate",
+   "selected"
+  ],
+  "57": [
+   "candidate",
+   "selected"
+  ],
+  "58": [
+   "selected"
+  ],
+  "61": [
+   "candidate",
+   "selected"
+  ],
+  "63": [
+   "selected"
+  ],
+  "66": [
+   "candidate",
+   "selected"
+  ],
+  "74": [
+   "candidate",
+   "selected"
+  ],
+  "86": [
+   "selected"
+  ],
+  "87": [
+   "candidate",
+   "selected"
+  ],
+  "100": [
+   "candidate"
+  ],
+  "113": [
+   "candidate",
+   "selected"
+  ],
+  "121": [
+   "candidate",
+   "selected"
+  ],
+  "124": [
+   "candidate",
+   "selected"
+  ],
+  "140": [
+   "candidate"
+  ],
+  "155": [
+   "candidate",
+   "selected"
+  ],
+  "199": [
+   "candidate",
+   "selected"
+  ],
+  "250": [
+   "candidate",
+   "selected"
+  ],
+  "265": [
+   "selected"
+  ],
+  "278": [
+   "candidate",
+   "selected"
+  ],
+  "287": [
+   "candidate"
+  ],
+  "333": [
+   "selected"
+  ],
+  "337": [
+   "candidate",
+   "selected"
+  ],
+  "352": [
+   "candidate",
+   "selected"
+  ],
+  "365": [
+   "candidate",
+   "selected"
+  ],
+  "368": [
+   "candidate",
+   "selected"
+  ],
+  "370": [
+   "candidate"
+  ],
+  "383": [
+   "candidate",
+   "selected"
+  ],
+  "388": [
+   "selected"
+  ],
+  "391": [
+   "candidate"
+  ],
+  "424": [
+   "candidate"
+  ],
+  "441": [
+   "candidate"
+  ],
+  "450": [
+   "candidate"
+  ],
+  "455": [
+   "candidate"
+  ],
+  "505": [
+   "candidate"
+  ],
+  "513": [
+   "candidate"
+  ],
+  "521": [
+   "candidate"
+  ],
+  "526": [
+   "candidate"
+  ],
+  "570": [
+   "candidate"
+  ],
+  "594": [
+   "candidate"
+  ],
+  "607": [
+   "candidate"
+  ],
+  "610": [
+   "candidate",
+   "selected"
+  ],
+  "627": [
+   "candidate"
+  ],
+  "642": [
+   "candidate"
+  ],
+  "644": [
+   "candidate",
+   "selected"
+  ],
+  "646": [
+   "candidate"
+  ],
+  "650": [
+   "candidate"
+  ],
+  "709": [
+   "candidate"
+  ],
+  "715": [
+   "candidate"
+  ],
+  "721": [
+   "candidate"
+  ],
+  "748": [
+   "candidate"
+  ],
+  "755": [
+   "candidate"
+  ],
+  "764": [
+   "candidate"
+  ],
+  "794": [
+   "candidate"
+  ],
+  "828": [
+   "candidate"
+  ],
+  "829": [
+   "candidate",
+   "selected"
+  ],
+  "843": [
+   "candidate"
+  ],
+  "868": [
+   "candidate"
+  ],
+  "876": [
+   "candidate"
+  ],
+  "908": [
+   "candidate"
+  ],
+  "990": [
+   "candidate"
+  ],
+  "996": [
+   "candidate"
+  ],
+  "998": [
+   "candidate"
+  ],
+  "1009": [
+   "candidate"
+  ],
+  "1017": [
+   "candidate"
+  ],
+  "1024": [
+   "candidate"
+  ],
+  "1030": [
+   "candidate"
+  ],
+  "1051": [
+   "candidate"
+  ],
+  "1058": [
+   "candidate"
+  ],
+  "1070": [
+   "candidate"
+  ],
+  "1075": [
+   "candidate"
+  ],
+  "1145": [
+   "candidate"
+  ],
+  "1196": [
+   "candidate"
+  ],
+  "1222": [
+   "candidate"
+  ],
+  "1231": [
+   "candidate"
+  ],
+  "1235": [
+   "candidate"
+  ],
+  "1250": [
+   "candidate"
+  ],
+  "1314": [
+   "candidate"
+  ],
+  "1321": [
+   "candidate"
+  ],
+  "1336": [
+   "candidate"
+  ],
+  "1353": [
+   "candidate"
+  ],
+  "1371": [
+   "candidate"
+  ],
+  "1394": [
+   "candidate"
+  ],
+  "1434": [
+   "candidate"
+  ],
+  "1470": [
+   "candidate"
+  ],
+  "1477": [
+   "candidate"
+  ],
+  "1496": [
+   "candidate"
+  ],
+  "1505": [
+   "candidate"
+  ],
+  "1518": [
+   "candidate"
+  ],
+  "1575": [
+   "candidate",
+   "selected"
+  ],
+  "1593": [
+   "candidate"
+  ],
+  "1611": [
+   "candidate",
+   "selected"
+  ],
+  "1627": [
+   "candidate"
+  ],
+  "1664": [
+   "candidate"
+  ],
+  "1694": [
+   "candidate",
+   "selected"
+  ],
+  "1770": [
+   "candidate"
+  ],
+  "1794": [
+   "candidate"
+  ],
+  "1806": [
+   "candidate"
+  ],
+  "1822": [
+   "candidate"
+  ],
+  "1835": [
+   "candidate"
+  ],
+  "1841": [
+   "candidate",
+   "selected"
+  ],
+  "1849": [
+   "candidate",
+   "selected"
+  ],
+  "1926": [
+   "candidate"
+  ],
+  "1968": [
+   "candidate",
+   "selected"
+  ],
+  "1978": [
+   "candidate",
+   "selected"
+  ],
+  "2013": [
+   "candidate",
+   "selected"
+  ],
+  "2015": [
+   "candidate"
+  ],
+  "2016": [
+   "candidate"
+  ]
+ }
+}

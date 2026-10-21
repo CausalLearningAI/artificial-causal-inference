@@ -1,0 +1,405 @@
+{
+ "sae": "v2_ants_c0_w2048_s6",
+ "series": "v3",
+ "neurons": {
+  "0": [
+   "aligned:on_lid_focal"
+  ],
+  "33": [
+   "selected"
+  ],
+  "39": [
+   "candidate"
+  ],
+  "45": [
+   "selected"
+  ],
+  "50": [
+   "candidate",
+   "selected"
+  ],
+  "70": [
+   "selected"
+  ],
+  "78": [
+   "selected"
+  ],
+  "98": [
+   "selected"
+  ],
+  "99": [
+   "aligned:groom_yellow"
+  ],
+  "108": [
+   "candidate"
+  ],
+  "115": [
+   "selected"
+  ],
+  "125": [
+   "aligned:groom_any",
+   "aligned:groom_blue",
+   "aligned:groom_yellow"
+  ],
+  "142": [
+   "selected"
+  ],
+  "158": [
+   "aligned:on_lid_any",
+   "aligned:on_lid_blue",
+   "aligned:on_lid_yellow"
+  ],
+  "162": [
+   "candidate"
+  ],
+  "172": [
+   "selected"
+  ],
+  "194": [
+   "candidate",
+   "selected"
+  ],
+  "224": [
+   "candidate",
+   "selected"
+  ],
+  "236": [
+   "selected"
+  ],
+  "239": [
+   "selected"
+  ],
+  "252": [
+   "candidate"
+  ],
+  "307": [
+   "candidate"
+  ],
+  "309": [
+   "candidate"
+  ],
+  "321": [
+   "candidate",
+   "selected"
+  ],
+  "327": [
+   "selected"
+  ],
+  "353": [
+   "candidate",
+   "selected"
+  ],
+  "372": [
+   "candidate",
+   "selected"
+  ],
+  "377": [
+   "candidate"
+  ],
+  "380": [
+   "aligned:groom_blue"
+  ],
+  "383": [
+   "candidate",
+   "selected"
+  ],
+  "416": [
+   "candidate"
+  ],
+  "422": [
+   "candidate",
+   "selected"
+  ],
+  "425": [
+   "selected"
+  ],
+  "442": [
+   "selected"
+  ],
+  "448": [
+   "candidate"
+  ],
+  "489": [
+   "candidate",
+   "selected"
+  ],
+  "490": [
+   "candidate"
+  ],
+  "495": [
+   "candidate",
+   "selected"
+  ],
+  "536": [
+   "candidate"
+  ],
+  "558": [
+   "selected"
+  ],
+  "561": [
+   "selected"
+  ],
+  "580": [
+   "selected"
+  ],
+  "623": [
+   "candidate"
+  ],
+  "644": [
+   "candidate"
+  ],
+  "646": [
+   "selected"
+  ],
+  "670": [
+   "candidate"
+  ],
+  "676": [
+   "selected"
+  ],
+  "705": [
+   "candidate"
+  ],
+  "711": [
+   "selected"
+  ],
+  "712": [
+   "candidate"
+  ],
+  "723": [
+   "candidate"
+  ],
+  "737": [
+   "aligned:on_lid_focal"
+  ],
+  "740": [
+   "candidate"
+  ],
+  "763": [
+   "candidate"
+  ],
+  "778": [
+   "candidate"
+  ],
+  "811": [
+   "candidate"
+  ],
+  "820": [
+   "candidate"
+  ],
+  "827": [
+   "candidate"
+  ],
+  "843": [
+   "selected"
+  ],
+  "862": [
+   "candidate"
+  ],
+  "905": [
+   "candidate"
+  ],
+  "912": [
+   "candidate"
+  ],
+  "914": [
+   "candidate"
+  ],
+  "993": [
+   "candidate"
+  ],
+  "1005": [
+   "selected"
+  ],
+  "1006": [
+   "selected"
+  ],
+  "1039": [
+   "candidate"
+  ],
+  "1040": [
+   "candidate"
+  ],
+  "1094": [
+   "selected"
+  ],
+  "1104": [
+   "aligned:on_lid_yellow"
+  ],
+  "1132": [
+   "candidate"
+  ],
+  "1174": [
+   "candidate"
+  ],
+  "1179": [
+   "candidate"
+  ],
+  "1182": [
+   "candidate"
+  ],
+  "1189": [
+   "candidate"
+  ],
+  "1194": [
+   "candidate"
+  ],
+  "1203": [
+   "selected"
+  ],
+  "1219": [
+   "candidate"
+  ],
+  "1222": [
+   "candidate"
+  ],
+  "1242": [
+   "candidate"
+  ],
+  "1258": [
+   "candidate",
+   "selected"
+  ],
+  "1290": [
+   "selected"
+  ],
+  "1298": [
+   "candidate"
+  ],
+  "1312": [
+   "candidate"
+  ],
+  "1368": [
+   "candidate"
+  ],
+  "1378": [
+   "candidate"
+  ],
+  "1388": [
+   "candidate"
+  ],
+  "1409": [
+   "candidate"
+  ],
+  "1433": [
+   "candidate"
+  ],
+  "1434": [
+   "candidate"
+  ],
+  "1457": [
+   "candidate",
+   "selected"
+  ],
+  "1467": [
+   "candidate"
+  ],
+  "1484": [
+   "candidate"
+  ],
+  "1498": [
+   "selected"
+  ],
+  "1508": [
+   "candidate"
+  ],
+  "1528": [
+   "selected"
+  ],
+  "1542": [
+   "candidate"
+  ],
+  "1552": [
+   "candidate"
+  ],
+  "1555": [
+   "candidate"
+  ],
+  "1556": [
+   "selected"
+  ],
+  "1560": [
+   "candidate"
+  ],
+  "1561": [
+   "candidate"
+  ],
+  "1572": [
+   "candidate",
+   "selected"
+  ],
+  "1591": [
+   "candidate"
+  ],
+  "1599": [
+   "aligned:on_lid_blue"
+  ],
+  "1647": [
+   "candidate"
+  ],
+  "1649": [
+   "candidate"
+  ],
+  "1664": [
+   "selected"
+  ],
+  "1665": [
+   "selected"
+  ],
+  "1706": [
+   "candidate"
+  ],
+  "1731": [
+   "candidate"
+  ],
+  "1749": [
+   "selected"
+  ],
+  "1757": [
+   "candidate"
+  ],
+  "1824": [
+   "selected"
+  ],
+  "1851": [
+   "candidate"
+  ],
+  "1852": [
+   "candidate"
+  ],
+  "1862": [
+   "candidate"
+  ],
+  "1877": [
+   "candidate"
+  ],
+  "1894": [
+   "candidate"
+  ],
+  "1908": [
+   "candidate"
+  ],
+  "1910": [
+   "candidate"
+  ],
+  "1928": [
+   "candidate"
+  ],
+  "1938": [
+   "selected"
+  ],
+  "1970": [
+   "candidate"
+  ],
+  "1999": [
+   "candidate"
+  ],
+  "2030": [
+   "selected"
+  ],
+  "2031": [
+   "candidate",
+   "selected"
+  ]
+ }
+}

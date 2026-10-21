@@ -1,0 +1,168 @@
+{
+ "sae": "v2_ants_c0_w2048_s6",
+ "series": "v2",
+ "neurons": {
+  "43": [
+   "candidate"
+  ],
+  "66": [
+   "candidate"
+  ],
+  "99": [
+   "aligned:groom_any",
+   "aligned:groom_yellow"
+  ],
+  "125": [
+   "aligned:groom_any",
+   "aligned:groom_blue"
+  ],
+  "259": [
+   "candidate"
+  ],
+  "275": [
+   "candidate"
+  ],
+  "289": [
+   "candidate"
+  ],
+  "367": [
+   "candidate"
+  ],
+  "376": [
+   "candidate"
+  ],
+  "380": [
+   "aligned:groom_blue"
+  ],
+  "407": [
+   "candidate"
+  ],
+  "526": [
+   "candidate"
+  ],
+  "577": [
+   "candidate"
+  ],
+  "585": [
+   "candidate"
+  ],
+  "675": [
+   "candidate"
+  ],
+  "731": [
+   "candidate"
+  ],
+  "797": [
+   "candidate"
+  ],
+  "810": [
+   "candidate"
+  ],
+  "834": [
+   "candidate"
+  ],
+  "871": [
+   "candidate"
+  ],
+  "891": [
+   "candidate"
+  ],
+  "892": [
+   "candidate"
+  ],
+  "943": [
+   "candidate"
+  ],
+  "962": [
+   "candidate"
+  ],
+  "983": [
+   "candidate"
+  ],
+  "1020": [
+   "candidate"
+  ],
+  "1050": [
+   "candidate"
+  ],
+  "1059": [
+   "candidate"
+  ],
+  "1080": [
+   "candidate"
+  ],
+  "1083": [
+   "candidate"
+  ],
+  "1099": [
+   "candidate"
+  ],
+  "1148": [
+   "candidate"
+  ],
+  "1226": [
+   "candidate"
+  ],
+  "1237": [
+   "candidate"
+  ],
+  "1268": [
+   "candidate"
+  ],
+  "1271": [
+   "candidate"
+  ],
+  "1295": [
+   "candidate",
+   "selected"
+  ],
+  "1336": [
+   "candidate"
+  ],
+  "1427": [
+   "candidate"
+  ],
+  "1435": [
+   "candidate"
+  ],
+  "1496": [
+   "candidate"
+  ],
+  "1497": [
+   "candidate"
+  ],
+  "1533": [
+   "candidate"
+  ],
+  "1572": [
+   "candidate"
+  ],
+  "1636": [
+   "candidate"
+  ],
+  "1663": [
+   "candidate"
+  ],
+  "1749": [
+   "candidate"
+  ],
+  "1812": [
+   "candidate"
+  ],
+  "1853": [
+   "candidate"
+  ],
+  "1932": [
+   "candidate"
+  ],
+  "1964": [
+   "candidate"
+  ],
+  "1978": [
+   "candidate"
+  ],
+  "2021": [
+   "candidate"
+  ]
+ }
+}

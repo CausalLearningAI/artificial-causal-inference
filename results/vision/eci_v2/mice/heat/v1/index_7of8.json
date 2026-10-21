@@ -1,0 +1,2289 @@
+{
+ "sae": "v2_mice_c0_w2048_s7",
+ "series": "v1",
+ "neurons": {
+  "514": [
+   "candidate",
+   "selected"
+  ],
+  "550": [
+   "candidate"
+  ],
+  "574": [
+   "candidate"
+  ],
+  "619": [
+   "candidate"
+  ],
+  "638": [
+   "candidate"
+  ],
+  "668": [
+   "candidate",
+   "selected"
+  ],
+  "694": [
+   "candidate"
+  ],
+  "726": [
+   "candidate"
+  ],
+  "743": [
+   "candidate"
+  ],
+  "776": [
+   "candidate",
+   "selected"
+  ],
+  "823": [
+   "candidate",
+   "selected"
+  ],
+  "848": [
+   "candidate"
+  ],
+  "874": [
+   "candidate"
+  ],
+  "902": [
+   "selected"
+  ],
+  "918": [
+   "candidate"
+  ],
+  "950": [
+   "candidate",
+   "selected"
+  ],
+  "994": [
+   "candidate",
+   "selected"
+  ],
+  "1029": [
+   "candidate"
+  ],
+  "1059": [
+   "candidate",
+   "selected"
+  ],
+  "1102": [
+   "candidate",
+   "selected"
+  ],
+  "1131": [
+   "candidate"
+  ],
+  "1171": [
+   "candidate",
+   "selected"
+  ],
+  "1218": [
+   "candidate"
+  ],
+  "1242": [
+   "candidate"
+  ],
+  "1263": [
+   "candidate",
+   "selected"
+  ],
+  "1288": [
+   "candidate"
+  ],
+  "1315": [
+   "candidate"
+  ],
+  "1334": [
+   "candidate"
+  ],
+  "1362": [
+   "candidate",
+   "selected"
+  ],
+  "1384": [
+   "candidate"
+  ],
+  "1408": [
+   "candidate"
+  ],
+  "1431": [
+   "candidate",
+   "selected"
+  ],
+  "1460": [
+   "candidate"
+  ],
+  "1509": [
+   "candidate"
+  ],
+  "1541": [
+   "candidate"
+  ],
+  "1571": [
+   "candidate"
+  ],
+  "1601": [
+   "candidate"
+  ],
+  "1625": [
+   "candidate"
+  ],
+  "1653": [
+   "candidate"
+  ],
+  "1674": [
+   "candidate"
+  ],
+  "1698": [
+   "candidate"
+  ],
+  "1741": [
+   "candidate"
+  ],
+  "1761": [
+   "candidate"
+  ],
+  "1783": [
+   "candidate"
+  ],
+  "1814": [
+   "candidate"
+  ],
+  "1845": [
+   "candidate"
+  ],
+  "1872": [
+   "candidate",
+   "selected"
+  ],
+  "1895": [
+   "candidate"
+  ],
+  "1914": [
+   "candidate"
+  ],
+  "1941": [
+   "candidate"
+  ],
+  "1972": [
+   "candidate"
+  ],
+  "2014": [
+   "candidate",
+   "selected"
+  ],
+  "2041": [
+   "candidate"
+  ]
+ },
+ "why_all": {
+  "1698": [
+   "candidate"
+  ],
+  "1880": [
+   "candidate"
+  ],
+  "1975": [
+   "candidate"
+  ],
+  "170": [
+   "candidate",
+   "selected"
+  ],
+  "1383": [
+   "candidate",
+   "selected"
+  ],
+  "109": [
+   "candidate",
+   "selected"
+  ],
+  "283": [
+   "candidate",
+   "selected"
+  ],
+  "890": [
+   "candidate",
+   "selected"
+  ],
+  "601": [
+   "candidate",
+   "selected"
+  ],
+  "2016": [
+   "candidate",
+   "selected"
+  ],
+  "739": [
+   "candidate"
+  ],
+  "292": [
+   "candidate",
+   "selected"
+  ],
+  "1805": [
+   "candidate",
+   "selected"
+  ],
+  "1778": [
+   "candidate",
+   "selected"
+  ],
+  "197": [
+   "candidate",
+   "selected"
+  ],
+  "178": [
+   "candidate",
+   "selected"
+  ],
+  "703": [
+   "candidate",
+   "selected"
+  ],
+  "880": [
+   "candidate",
+   "selected"
+  ],
+  "847": [
+   "candidate",
+   "selected"
+  ],
+  "715": [
+   "candidate"
+  ],
+  "1916": [
+   "candidate"
+  ],
+  "1915": [
+   "candidate"
+  ],
+  "853": [
+   "candidate",
+   "selected"
+  ],
+  "83": [
+   "selected"
+  ],
+  "1904": [
+   "candidate",
+   "selected"
+  ],
+  "776": [
+   "candidate",
+   "selected"
+  ],
+  "387": [
+   "candidate",
+   "selected"
+  ],
+  "173": [
+   "candidate",
+   "selected"
+  ],
+  "669": [
+   "candidate"
+  ],
+  "1899": [
+   "candidate",
+   "selected"
+  ],
+  "1753": [
+   "candidate",
+   "selected"
+  ],
+  "121": [
+   "selected"
+  ],
+  "375": [
+   "candidate",
+   "selected"
+  ],
+  "1864": [
+   "candidate",
+   "selected"
+  ],
+  "461": [
+   "selected"
+  ],
+  "108": [
+   "candidate",
+   "selected"
+  ],
+  "72": [
+   "selected"
+  ],
+  "501": [
+   "candidate",
+   "selected"
+  ],
+  "1776": [
+   "candidate",
+   "selected"
+  ],
+  "1897": [
+   "candidate"
+  ],
+  "1362": [
+   "candidate",
+   "selected"
+  ],
+  "1970": [
+   "candidate"
+  ],
+  "1458": [
+   "candidate",
+   "selected"
+  ],
+  "888": [
+   "candidate",
+   "selected"
+  ],
+  "1345": [
+   "candidate"
+  ],
+  "1246": [
+   "candidate",
+   "selected"
+  ],
+  "1322": [
+   "candidate",
+   "selected"
+  ],
+  "1337": [
+   "candidate"
+  ],
+  "113": [
+   "selected"
+  ],
+  "50": [
+   "selected"
+  ],
+  "412": [
+   "candidate",
+   "selected"
+  ],
+  "354": [
+   "candidate",
+   "selected"
+  ],
+  "1845": [
+   "candidate"
+  ],
+  "1276": [
+   "candidate"
+  ],
+  "1417": [
+   "candidate"
+  ],
+  "1102": [
+   "candidate",
+   "selected"
+  ],
+  "1863": [
+   "candidate",
+   "selected"
+  ],
+  "32": [
+   "candidate",
+   "selected"
+  ],
+  "106": [
+   "selected"
+  ],
+  "11": [
+   "selected"
+  ],
+  "638": [
+   "candidate"
+  ],
+  "1669": [
+   "candidate"
+  ],
+  "1587": [
+   "candidate"
+  ],
+  "1351": [
+   "candidate"
+  ],
+  "728": [
+   "candidate",
+   "selected"
+  ],
+  "1080": [
+   "candidate"
+  ],
+  "281": [
+   "candidate",
+   "selected"
+  ],
+  "1135": [
+   "candidate"
+  ],
+  "318": [
+   "candidate"
+  ],
+  "991": [
+   "candidate",
+   "selected"
+  ],
+  "653": [
+   "candidate"
+  ],
+  "1260": [
+   "candidate"
+  ],
+  "927": [
+   "candidate",
+   "selected"
+  ],
+  "330": [
+   "candidate",
+   "selected"
+  ],
+  "947": [
+   "candidate",
+   "selected"
+  ],
+  "514": [
+   "candidate",
+   "selected"
+  ],
+  "964": [
+   "candidate"
+  ],
+  "1886": [
+   "candidate"
+  ],
+  "517": [
+   "candidate",
+   "selected"
+  ],
+  "1667": [
+   "candidate"
+  ],
+  "284": [
+   "candidate"
+  ],
+  "1680": [
+   "candidate"
+  ],
+  "1307": [
+   "candidate",
+   "selected"
+  ],
+  "747": [
+   "candidate",
+   "selected"
+  ],
+  "654": [
+   "candidate"
+  ],
+  "1121": [
+   "candidate",
+   "selected"
+  ],
+  "1291": [
+   "candidate",
+   "selected"
+  ],
+  "1648": [
+   "candidate"
+  ],
+  "1338": [
+   "candidate"
+  ],
+  "1571": [
+   "candidate"
+  ],
+  "1067": [
+   "candidate"
+  ],
+  "1775": [
+   "candidate"
+  ],
+  "257": [
+   "candidate"
+  ],
+  "134": [
+   "candidate",
+   "selected"
+  ],
+  "1146": [
+   "candidate"
+  ],
+  "672": [
+   "candidate"
+  ],
+  "1361": [
+   "candidate",
+   "selected"
+  ],
+  "842": [
+   "candidate"
+  ],
+  "382": [
+   "candidate"
+  ],
+  "670": [
+   "candidate"
+  ],
+  "464": [
+   "candidate"
+  ],
+  "118": [
+   "candidate",
+   "selected"
+  ],
+  "93": [
+   "selected"
+  ],
+  "504": [
+   "selected"
+  ],
+  "915": [
+   "candidate"
+  ],
+  "46": [
+   "selected"
+  ],
+  "399": [
+   "selected"
+  ],
+  "298": [
+   "candidate",
+   "selected"
+  ],
+  "1460": [
+   "candidate"
+  ],
+  "1972": [
+   "candidate"
+  ],
+  "1895": [
+   "candidate"
+  ],
+  "874": [
+   "candidate"
+  ],
+  "1202": [
+   "candidate"
+  ],
+  "444": [
+   "candidate",
+   "selected"
+  ],
+  "549": [
+   "candidate",
+   "selected"
+  ],
+  "1674": [
+   "candidate"
+  ],
+  "1914": [
+   "candidate"
+  ],
+  "1942": [
+   "candidate"
+  ],
+  "1788": [
+   "candidate",
+   "selected"
+  ],
+  "1424": [
+   "candidate"
+  ],
+  "962": [
+   "candidate",
+   "selected"
+  ],
+  "1941": [
+   "candidate"
+  ],
+  "659": [
+   "candidate"
+  ],
+  "1541": [
+   "candidate"
+  ],
+  "291": [
+   "candidate"
+  ],
+  "241": [
+   "candidate"
+  ],
+  "1326": [
+   "candidate",
+   "selected"
+  ],
+  "564": [
+   "candidate"
+  ],
+  "1007": [
+   "candidate"
+  ],
+  "1658": [
+   "candidate"
+  ],
+  "551": [
+   "candidate"
+  ],
+  "1534": [
+   "candidate"
+  ],
+  "1542": [
+   "candidate"
+  ],
+  "1802": [
+   "candidate"
+  ],
+  "733": [
+   "candidate"
+  ],
+  "1255": [
+   "candidate",
+   "selected"
+  ],
+  "133": [
+   "candidate"
+  ],
+  "950": [
+   "candidate",
+   "selected"
+  ],
+  "252": [
+   "selected"
+  ],
+  "1400": [
+   "candidate"
+  ],
+  "377": [
+   "candidate",
+   "selected"
+  ],
+  "899": [
+   "candidate"
+  ],
+  "1082": [
+   "candidate"
+  ],
+  "1433": [
+   "candidate"
+  ],
+  "1551": [
+   "candidate",
+   "selected"
+  ],
+  "1531": [
+   "candidate"
+  ],
+  "1334": [
+   "candidate"
+  ],
+  "209": [
+   "candidate",
+   "selected"
+  ],
+  "2002": [
+   "candidate",
+   "selected"
+  ],
+  "1750": [
+   "candidate"
+  ],
+  "2019": [
+   "candidate"
+  ],
+  "1513": [
+   "candidate"
+  ],
+  "230": [
+   "candidate",
+   "selected"
+  ],
+  "1734": [
+   "candidate",
+   "selected"
+  ],
+  "307": [
+   "candidate"
+  ],
+  "162": [
+   "candidate",
+   "selected"
+  ],
+  "1288": [
+   "candidate"
+  ],
+  "674": [
+   "candidate",
+   "selected"
+  ],
+  "161": [
+   "aligned:nn_mutual",
+   "aligned:nose_nose",
+   "aligned:np_directional",
+   "candidate",
+   "selected"
+  ],
+  "690": [
+   "candidate"
+  ],
+  "732": [
+   "candidate",
+   "selected"
+  ],
+  "246": [
+   "candidate",
+   "selected"
+  ],
+  "1793": [
+   "candidate",
+   "selected"
+  ],
+  "1189": [
+   "candidate"
+  ],
+  "77": [
+   "candidate",
+   "selected"
+  ],
+  "468": [
+   "selected"
+  ],
+  "215": [
+   "selected"
+  ],
+  "174": [
+   "selected"
+  ],
+  "1042": [
+   "candidate"
+  ],
+  "1215": [
+   "candidate"
+  ],
+  "1398": [
+   "candidate"
+  ],
+  "533": [
+   "candidate",
+   "selected"
+  ],
+  "1227": [
+   "candidate"
+  ],
+  "1078": [
+   "candidate"
+  ],
+  "907": [
+   "candidate"
+  ],
+  "128": [
+   "candidate",
+   "selected"
+  ],
+  "688": [
+   "candidate",
+   "selected"
+  ],
+  "1683": [
+   "candidate",
+   "selected"
+  ],
+  "550": [
+   "candidate"
+  ],
+  "668": [
+   "candidate",
+   "selected"
+  ],
+  "1572": [
+   "candidate",
+   "selected"
+  ],
+  "1509": [
+   "candidate"
+  ],
+  "1148": [
+   "candidate"
+  ],
+  "1318": [
+   "candidate",
+   "selected"
+  ],
+  "1431": [
+   "candidate",
+   "selected"
+  ],
+  "1952": [
+   "candidate",
+   "selected"
+  ],
+  "1269": [
+   "candidate",
+   "selected"
+  ],
+  "1841": [
+   "candidate",
+   "selected"
+  ],
+  "1316": [
+   "candidate"
+  ],
+  "344": [
+   "candidate",
+   "selected"
+  ],
+  "343": [
+   "candidate"
+  ],
+  "1867": [
+   "candidate"
+  ],
+  "1601": [
+   "candidate"
+  ],
+  "240": [
+   "candidate",
+   "selected"
+  ],
+  "1515": [
+   "candidate"
+  ],
+  "1511": [
+   "candidate"
+  ],
+  "1763": [
+   "candidate"
+  ],
+  "416": [
+   "candidate"
+  ],
+  "1066": [
+   "candidate"
+  ],
+  "624": [
+   "candidate",
+   "selected"
+  ],
+  "743": [
+   "candidate"
+  ],
+  "859": [
+   "candidate"
+  ],
+  "1825": [
+   "candidate"
+  ],
+  "826": [
+   "candidate"
+  ],
+  "1494": [
+   "candidate",
+   "selected"
+  ],
+  "627": [
+   "candidate",
+   "selected"
+  ],
+  "1105": [
+   "candidate",
+   "selected"
+  ],
+  "2047": [
+   "candidate"
+  ],
+  "279": [
+   "candidate",
+   "selected"
+  ],
+  "1426": [
+   "candidate"
+  ],
+  "223": [
+   "candidate",
+   "selected"
+  ],
+  "1421": [
+   "candidate"
+  ],
+  "434": [
+   "candidate"
+  ],
+  "1391": [
+   "candidate",
+   "selected"
+  ],
+  "242": [
+   "candidate",
+   "selected"
+  ],
+  "1813": [
+   "candidate"
+  ],
+  "928": [
+   "candidate",
+   "selected"
+  ],
+  "1621": [
+   "candidate"
+  ],
+  "1230": [
+   "candidate"
+  ],
+  "1747": [
+   "candidate"
+  ],
+  "1579": [
+   "candidate"
+  ],
+  "914": [
+   "candidate"
+  ],
+  "1691": [
+   "candidate",
+   "selected"
+  ],
+  "395": [
+   "candidate",
+   "selected"
+  ],
+  "823": [
+   "candidate",
+   "selected"
+  ],
+  "1150": [
+   "candidate"
+  ],
+  "1722": [
+   "candidate"
+  ],
+  "619": [
+   "candidate"
+  ],
+  "628": [
+   "candidate"
+  ],
+  "1622": [
+   "candidate"
+  ],
+  "797": [
+   "candidate"
+  ],
+  "1878": [
+   "candidate"
+  ],
+  "363": [
+   "candidate"
+  ],
+  "234": [
+   "candidate"
+  ],
+  "1193": [
+   "candidate"
+  ],
+  "151": [
+   "candidate",
+   "selected"
+  ],
+  "1423": [
+   "candidate"
+  ],
+  "1167": [
+   "candidate"
+  ],
+  "1649": [
+   "candidate"
+  ],
+  "477": [
+   "candidate"
+  ],
+  "259": [
+   "candidate",
+   "selected"
+  ],
+  "576": [
+   "candidate"
+  ],
+  "413": [
+   "candidate"
+  ],
+  "909": [
+   "candidate"
+  ],
+  "746": [
+   "candidate",
+   "selected"
+  ],
+  "1420": [
+   "candidate"
+  ],
+  "1963": [
+   "candidate"
+  ],
+  "452": [
+   "candidate"
+  ],
+  "1848": [
+   "candidate"
+  ],
+  "1310": [
+   "candidate"
+  ],
+  "2006": [
+   "candidate"
+  ],
+  "566": [
+   "candidate",
+   "selected"
+  ],
+  "372": [
+   "candidate"
+  ],
+  "727": [
+   "candidate"
+  ],
+  "1344": [
+   "candidate"
+  ],
+  "767": [
+   "candidate"
+  ],
+  "903": [
+   "candidate"
+  ],
+  "848": [
+   "candidate"
+  ],
+  "1543": [
+   "candidate"
+  ],
+  "1374": [
+   "candidate"
+  ],
+  "1982": [
+   "candidate",
+   "selected"
+  ],
+  "424": [
+   "candidate"
+  ],
+  "637": [
+   "candidate"
+  ],
+  "2021": [
+   "candidate"
+  ],
+  "499": [
+   "candidate"
+  ],
+  "492": [
+   "candidate"
+  ],
+  "1289": [
+   "candidate"
+  ],
+  "711": [
+   "candidate"
+  ],
+  "1050": [
+   "candidate"
+  ],
+  "1761": [
+   "candidate"
+  ],
+  "1196": [
+   "candidate"
+  ],
+  "1386": [
+   "candidate"
+  ],
+  "82": [
+   "candidate",
+   "selected"
+  ],
+  "48": [
+   "candidate",
+   "selected"
+  ],
+  "1628": [
+   "candidate",
+   "selected"
+  ],
+  "2014": [
+   "candidate",
+   "selected"
+  ],
+  "1884": [
+   "candidate",
+   "selected"
+  ],
+  "831": [
+   "candidate",
+   "selected"
+  ],
+  "902": [
+   "selected"
+  ],
+  "1268": [
+   "candidate",
+   "selected"
+  ],
+  "1368": [
+   "candidate",
+   "selected"
+  ],
+  "1873": [
+   "candidate",
+   "selected"
+  ],
+  "1384": [
+   "candidate"
+  ],
+  "641": [
+   "candidate"
+  ],
+  "1676": [
+   "candidate",
+   "selected"
+  ],
+  "1416": [
+   "candidate",
+   "selected"
+  ],
+  "984": [
+   "selected"
+  ],
+  "760": [
+   "candidate",
+   "selected"
+  ],
+  "1487": [
+   "candidate",
+   "selected"
+  ],
+  "1943": [
+   "candidate",
+   "selected"
+  ],
+  "1794": [
+   "candidate"
+  ],
+  "1493": [
+   "candidate"
+  ],
+  "1438": [
+   "candidate"
+  ],
+  "1257": [
+   "candidate"
+  ],
+  "577": [
+   "candidate",
+   "selected"
+  ],
+  "459": [
+   "candidate",
+   "selected"
+  ],
+  "1647": [
+   "candidate"
+  ],
+  "1109": [
+   "candidate"
+  ],
+  "1271": [
+   "candidate"
+  ],
+  "1518": [
+   "selected"
+  ],
+  "406": [
+   "candidate",
+   "selected"
+  ],
+  "741": [
+   "selected"
+  ],
+  "631": [
+   "selected"
+  ],
+  "1865": [
+   "candidate"
+  ],
+  "1034": [
+   "candidate"
+  ],
+  "844": [
+   "candidate"
+  ],
+  "540": [
+   "candidate"
+  ],
+  "422": [
+   "candidate"
+  ],
+  "1141": [
+   "candidate"
+  ],
+  "182": [
+   "candidate",
+   "selected"
+  ],
+  "1373": [
+   "candidate"
+  ],
+  "491": [
+   "candidate"
+  ],
+  "1588": [
+   "candidate"
+  ],
+  "714": [
+   "candidate"
+  ],
+  "726": [
+   "candidate"
+  ],
+  "1742": [
+   "candidate"
+  ],
+  "1663": [
+   "candidate"
+  ],
+  "383": [
+   "candidate"
+  ],
+  "19": [
+   "selected"
+  ],
+  "858": [
+   "candidate",
+   "selected"
+  ],
+  "1883": [
+   "candidate",
+   "selected"
+  ],
+  "60": [
+   "selected"
+  ],
+  "31": [
+   "candidate",
+   "selected"
+  ],
+  "315": [
+   "candidate",
+   "selected"
+  ],
+  "0": [
+   "candidate",
+   "selected"
+  ],
+  "493": [
+   "candidate"
+  ],
+  "494": [
+   "candidate",
+   "selected"
+  ],
+  "336": [
+   "candidate",
+   "selected"
+  ],
+  "346": [
+   "candidate",
+   "selected"
+  ],
+  "1871": [
+   "candidate"
+  ],
+  "9": [
+   "candidate",
+   "selected"
+  ],
+  "851": [
+   "candidate"
+  ],
+  "1444": [
+   "candidate",
+   "selected"
+  ],
+  "1171": [
+   "candidate",
+   "selected"
+  ],
+  "90": [
+   "candidate",
+   "selected"
+  ],
+  "28": [
+   "selected"
+  ],
+  "852": [
+   "candidate",
+   "selected"
+  ],
+  "1195": [
+   "candidate"
+  ],
+  "1321": [
+   "candidate"
+  ],
+  "42": [
+   "candidate",
+   "selected"
+  ],
+  "2041": [
+   "candidate"
+  ],
+  "123": [
+   "candidate",
+   "selected"
+  ],
+  "45": [
+   "selected"
+  ],
+  "539": [
+   "candidate"
+  ],
+  "1554": [
+   "candidate"
+  ],
+  "261": [
+   "candidate"
+  ],
+  "1075": [
+   "candidate",
+   "selected"
+  ],
+  "630": [
+   "candidate",
+   "selected"
+  ],
+  "1783": [
+   "candidate"
+  ],
+  "195": [
+   "candidate"
+  ],
+  "1618": [
+   "candidate"
+  ],
+  "965": [
+   "candidate"
+  ],
+  "1311": [
+   "candidate"
+  ],
+  "1526": [
+   "candidate"
+  ],
+  "1439": [
+   "candidate"
+  ],
+  "337": [
+   "candidate"
+  ],
+  "1054": [
+   "candidate"
+  ],
+  "114": [
+   "selected"
+  ],
+  "156": [
+   "candidate",
+   "selected"
+  ],
+  "211": [
+   "candidate",
+   "selected"
+  ],
+  "1836": [
+   "candidate",
+   "selected"
+  ],
+  "70": [
+   "candidate",
+   "selected"
+  ],
+  "1317": [
+   "candidate",
+   "selected"
+  ],
+  "23": [
+   "selected"
+  ],
+  "325": [
+   "candidate"
+  ],
+  "154": [
+   "candidate"
+  ],
+  "943": [
+   "candidate"
+  ],
+  "272": [
+   "candidate"
+  ],
+  "1712": [
+   "candidate"
+  ],
+  "812": [
+   "candidate"
+  ],
+  "679": [
+   "candidate"
+  ],
+  "26": [
+   "candidate",
+   "selected"
+  ],
+  "660": [
+   "candidate",
+   "selected"
+  ],
+  "67": [
+   "candidate",
+   "selected"
+  ],
+  "390": [
+   "selected"
+  ],
+  "21": [
+   "selected"
+  ],
+  "290": [
+   "candidate",
+   "selected"
+  ],
+  "1047": [
+   "candidate"
+  ],
+  "1375": [
+   "candidate"
+  ],
+  "1263": [
+   "candidate",
+   "selected"
+  ],
+  "189": [
+   "candidate"
+  ],
+  "2023": [
+   "candidate",
+   "selected"
+  ],
+  "376": [
+   "candidate"
+  ],
+  "995": [
+   "candidate"
+  ],
+  "1640": [
+   "candidate",
+   "selected"
+  ],
+  "14": [
+   "selected"
+  ],
+  "132": [
+   "candidate",
+   "selected"
+  ],
+  "353": [
+   "candidate",
+   "selected"
+  ],
+  "994": [
+   "candidate",
+   "selected"
+  ],
+  "1927": [
+   "candidate",
+   "selected"
+  ],
+  "1988": [
+   "candidate"
+  ],
+  "250": [
+   "candidate",
+   "selected"
+  ],
+  "311": [
+   "candidate"
+  ],
+  "1013": [
+   "candidate"
+  ],
+  "1162": [
+   "candidate"
+  ],
+  "1700": [
+   "candidate"
+  ],
+  "1131": [
+   "candidate"
+  ],
+  "1714": [
+   "candidate"
+  ],
+  "1900": [
+   "candidate"
+  ],
+  "1872": [
+   "candidate",
+   "selected"
+  ],
+  "1560": [
+   "candidate"
+  ],
+  "1610": [
+   "candidate"
+  ],
+  "2028": [
+   "candidate",
+   "selected"
+  ],
+  "1315": [
+   "candidate"
+  ],
+  "405": [
+   "candidate",
+   "selected"
+  ],
+  "1771": [
+   "candidate"
+  ],
+  "1484": [
+   "candidate"
+  ],
+  "350": [
+   "candidate"
+  ],
+  "266": [
+   "candidate",
+   "selected"
+  ],
+  "125": [
+   "candidate",
+   "selected"
+  ],
+  "1018": [
+   "candidate",
+   "selected"
+  ],
+  "98": [
+   "selected"
+  ],
+  "369": [
+   "candidate",
+   "selected"
+  ],
+  "306": [
+   "aligned:nose_tail",
+   "candidate"
+  ],
+  "153": [
+   "candidate"
+  ],
+  "555": [
+   "candidate"
+  ],
+  "427": [
+   "candidate"
+  ],
+  "331": [
+   "candidate"
+  ],
+  "1011": [
+   "candidate"
+  ],
+  "709": [
+   "candidate"
+  ],
+  "380": [
+   "candidate"
+  ],
+  "442": [
+   "candidate"
+  ],
+  "117": [
+   "candidate",
+   "selected"
+  ],
+  "1870": [
+   "candidate",
+   "selected"
+  ],
+  "388": [
+   "selected"
+  ],
+  "1278": [
+   "candidate",
+   "selected"
+  ],
+  "1224": [
+   "candidate",
+   "selected"
+  ],
+  "1440": [
+   "candidate"
+  ],
+  "1834": [
+   "candidate"
+  ],
+  "1754": [
+   "candidate"
+  ],
+  "1408": [
+   "candidate"
+  ],
+  "40": [
+   "selected"
+  ],
+  "78": [
+   "candidate",
+   "selected"
+  ],
+  "1319": [
+   "candidate",
+   "selected"
+  ],
+  "57": [
+   "selected"
+  ],
+  "1767": [
+   "candidate"
+  ],
+  "184": [
+   "candidate"
+  ],
+  "1715": [
+   "candidate",
+   "selected"
+  ],
+  "1339": [
+   "candidate"
+  ],
+  "1876": [
+   "candidate"
+  ],
+  "1254": [
+   "candidate"
+  ],
+  "34": [
+   "candidate",
+   "selected"
+  ],
+  "1595": [
+   "candidate"
+  ],
+  "603": [
+   "candidate"
+  ],
+  "1616": [
+   "candidate"
+  ],
+  "1909": [
+   "candidate"
+  ],
+  "10": [
+   "candidate"
+  ],
+  "918": [
+   "candidate"
+  ],
+  "112": [
+   "candidate"
+  ],
+  "1282": [
+   "candidate"
+  ],
+  "361": [
+   "candidate"
+  ],
+  "1074": [
+   "candidate"
+  ],
+  "102": [
+   "candidate",
+   "selected"
+  ],
+  "1923": [
+   "candidate",
+   "selected"
+  ],
+  "1617": [
+   "selected"
+  ],
+  "451": [
+   "candidate",
+   "selected"
+  ],
+  "1752": [
+   "candidate"
+  ],
+  "1369": [
+   "candidate"
+  ],
+  "1401": [
+   "candidate"
+  ],
+  "233": [
+   "candidate"
+  ],
+  "198": [
+   "candidate"
+  ],
+  "61": [
+   "candidate",
+   "selected"
+  ],
+  "1675": [
+   "selected"
+  ],
+  "25": [
+   "candidate",
+   "selected"
+  ],
+  "37": [
+   "candidate",
+   "selected"
+  ],
+  "270": [
+   "selected"
+  ],
+  "366": [
+   "candidate",
+   "selected"
+  ],
+  "1241": [
+   "candidate"
+  ],
+  "1248": [
+   "candidate"
+  ],
+  "1226": [
+   "candidate"
+  ],
+  "20": [
+   "selected"
+  ],
+  "1298": [
+   "candidate",
+   "selected"
+  ],
+  "171": [
+   "candidate"
+  ],
+  "629": [
+   "candidate"
+  ],
+  "780": [
+   "candidate"
+  ],
+  "192": [
+   "candidate"
+  ],
+  "920": [
+   "candidate"
+  ],
+  "338": [
+   "candidate"
+  ],
+  "1029": [
+   "candidate"
+  ],
+  "51": [
+   "candidate"
+  ],
+  "554": [
+   "candidate"
+  ],
+  "1912": [
+   "candidate"
+  ],
+  "585": [
+   "candidate"
+  ],
+  "135": [
+   "candidate"
+  ],
+  "702": [
+   "candidate"
+  ],
+  "1651": [
+   "selected"
+  ],
+  "1558": [
+   "candidate"
+  ],
+  "302": [
+   "candidate"
+  ],
+  "1666": [
+   "candidate"
+  ],
+  "1244": [
+   "candidate"
+  ],
+  "2013": [
+   "candidate"
+  ],
+  "1664": [
+   "candidate"
+  ],
+  "2012": [
+   "candidate"
+  ],
+  "520": [
+   "candidate"
+  ],
+  "436": [
+   "candidate",
+   "selected"
+  ],
+  "185": [
+   "candidate",
+   "selected"
+  ],
+  "310": [
+   "candidate"
+  ],
+  "498": [
+   "candidate"
+  ],
+  "55": [
+   "candidate",
+   "selected"
+  ],
+  "867": [
+   "candidate",
+   "selected"
+  ],
+  "430": [
+   "candidate",
+   "selected"
+  ],
+  "213": [
+   "selected"
+  ],
+  "917": [
+   "candidate"
+  ],
+  "1741": [
+   "candidate"
+  ],
+  "1376": [
+   "candidate"
+  ],
+  "1625": [
+   "candidate"
+  ],
+  "1218": [
+   "candidate"
+  ],
+  "644": [
+   "candidate"
+  ],
+  "49": [
+   "candidate",
+   "selected"
+  ],
+  "1115": [
+   "candidate"
+  ],
+  "391": [
+   "candidate"
+  ],
+  "942": [
+   "candidate"
+  ],
+  "47": [
+   "candidate",
+   "selected"
+  ],
+  "13": [
+   "candidate",
+   "selected"
+  ],
+  "145": [
+   "selected"
+  ],
+  "2046": [
+   "candidate",
+   "selected"
+  ],
+  "614": [
+   "candidate"
+  ],
+  "754": [
+   "candidate"
+  ],
+  "857": [
+   "candidate"
+  ],
+  "1116": [
+   "candidate"
+  ],
+  "397": [
+   "candidate"
+  ],
+  "1796": [
+   "candidate"
+  ],
+  "237": [
+   "candidate",
+   "selected"
+  ],
+  "1929": [
+   "candidate"
+  ],
+  "822": [
+   "candidate"
+  ],
+  "843": [
+   "candidate"
+  ],
+  "407": [
+   "candidate",
+   "selected"
+  ],
+  "1242": [
+   "candidate"
+  ],
+  "828": [
+   "candidate"
+  ],
+  "446": [
+   "candidate",
+   "selected"
+  ],
+  "115": [
+   "candidate",
+   "selected"
+  ],
+  "1108": [
+   "candidate"
+  ],
+  "1508": [
+   "candidate"
+  ],
+  "1686": [
+   "candidate",
+   "selected"
+  ],
+  "368": [
+   "candidate"
+  ],
+  "248": [
+   "candidate",
+   "selected"
+  ],
+  "749": [
+   "candidate"
+  ],
+  "1490": [
+   "candidate"
+  ],
+  "951": [
+   "candidate"
+  ],
+  "1059": [
+   "candidate",
+   "selected"
+  ],
+  "236": [
+   "candidate",
+   "selected"
+  ],
+  "385": [
+   "candidate"
+  ],
+  "1597": [
+   "candidate"
+  ],
+  "107": [
+   "selected"
+  ],
+  "271": [
+   "candidate",
+   "selected"
+  ],
+  "1838": [
+   "candidate"
+  ],
+  "277": [
+   "candidate"
+  ],
+  "883": [
+   "candidate"
+  ],
+  "1308": [
+   "candidate"
+  ],
+  "136": [
+   "selected"
+  ],
+  "401": [
+   "selected"
+  ],
+  "421": [
+   "selected"
+  ],
+  "658": [
+   "selected"
+  ],
+  "961": [
+   "candidate"
+  ],
+  "1911": [
+   "candidate"
+  ],
+  "68": [
+   "candidate",
+   "selected"
+  ],
+  "1837": [
+   "candidate"
+  ],
+  "878": [
+   "candidate"
+  ],
+  "2037": [
+   "candidate"
+  ],
+  "428": [
+   "candidate"
+  ],
+  "1939": [
+   "candidate"
+  ],
+  "357": [
+   "candidate",
+   "selected"
+  ],
+  "562": [
+   "selected"
+  ],
+  "895": [
+   "selected"
+  ],
+  "745": [
+   "candidate"
+  ],
+  "89": [
+   "selected"
+  ],
+  "244": [
+   "candidate",
+   "selected"
+  ],
+  "1614": [
+   "candidate"
+  ],
+  "38": [
+   "candidate",
+   "selected"
+  ],
+  "1221": [
+   "candidate"
+  ],
+  "6": [
+   "selected"
+  ],
+  "59": [
+   "candidate",
+   "selected"
+  ],
+  "285": [
+   "candidate"
+  ],
+  "92": [
+   "selected"
+  ],
+  "58": [
+   "selected"
+  ],
+  "214": [
+   "selected"
+  ],
+  "69": [
+   "selected"
+  ],
+  "253": [
+   "selected"
+  ],
+  "216": [
+   "selected"
+  ],
+  "1450": [
+   "selected"
+  ],
+  "239": [
+   "selected"
+  ],
+  "138": [
+   "selected"
+  ],
+  "116": [
+   "selected"
+  ],
+  "150": [
+   "selected"
+  ],
+  "542": [
+   "selected"
+  ],
+  "205": [
+   "selected"
+  ],
+  "1126": [
+   "candidate"
+  ],
+  "1962": [
+   "candidate"
+  ],
+  "574": [
+   "candidate"
+  ],
+  "316": [
+   "candidate"
+  ],
+  "474": [
+   "candidate"
+  ],
+  "1639": [
+   "candidate"
+  ],
+  "1950": [
+   "candidate"
+  ],
+  "1653": [
+   "candidate"
+  ],
+  "1044": [
+   "candidate"
+  ],
+  "742": [
+   "candidate"
+  ],
+  "1659": [
+   "candidate"
+  ],
+  "783": [
+   "candidate"
+  ],
+  "694": [
+   "candidate"
+  ],
+  "1745": [
+   "candidate"
+  ],
+  "1762": [
+   "candidate"
+  ],
+  "1843": [
+   "candidate"
+  ],
+  "1214": [
+   "candidate"
+  ],
+  "348": [
+   "candidate"
+  ],
+  "794": [
+   "candidate"
+  ],
+  "1544": [
+   "candidate"
+  ],
+  "62": [
+   "selected"
+  ],
+  "360": [
+   "candidate",
+   "selected"
+  ],
+  "39": [
+   "candidate"
+  ],
+  "1390": [
+   "candidate"
+  ],
+  "313": [
+   "candidate"
+  ],
+  "1264": [
+   "candidate"
+  ],
+  "124": [
+   "candidate"
+  ],
+  "127": [
+   "candidate"
+  ],
+  "243": [
+   "candidate"
+  ],
+  "912": [
+   "candidate"
+  ],
+  "1582": [
+   "candidate"
+  ],
+  "1924": [
+   "candidate"
+  ],
+  "1392": [
+   "candidate"
+  ],
+  "1713": [
+   "candidate"
+  ],
+  "1036": [
+   "candidate"
+  ],
+  "2034": [
+   "candidate"
+  ],
+  "1814": [
+   "candidate"
+  ],
+  "175": [
+   "candidate"
+  ],
+  "814": [
+   "candidate"
+  ],
+  "1690": [
+   "candidate"
+  ],
+  "1228": [
+   "candidate"
+  ],
+  "1021": [
+   "candidate"
+  ],
+  "997": [
+   "candidate"
+  ],
+  "723": [
+   "candidate"
+  ],
+  "606": [
+   "candidate"
+  ],
+  "1468": [
+   "candidate"
+  ],
+  "563": [
+   "candidate"
+  ],
+  "935": [
+   "aligned:nose_tail"
+  ]
+ }
+}

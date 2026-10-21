@@ -401,8 +401,13 @@ def cmd_heat(args):
     for i, v in enumerate(P['videos']):
         m = np.asarray(mx[v['lay_lo']:v['lay_lo'] + v['n']][:, js]).astype(np.float32)
         peaks[i], arg[i] = m.max(0), m.argmax(0)
+    col = {j: q for q, j in enumerate(js)}
+    if args.nshards > 1:
+        js = [j for i, j in enumerate(js) if i % args.nshards == args.shard]
+    js = [j for j in js if args.force or not (outd / f'n{j:04d}.npz').exists()]
     need, meta = {}, {}
-    for q, j in enumerate(js):
+    for j in js:
+        q = col[j]
         top = [i for i in np.argsort(-peaks[:, q])[:8] if peaks[i, q] > 0]
         rows = []
         for i in top:
@@ -456,7 +461,9 @@ def cmd_heat(args):
                       '(5 frames) centred on the peak of the smoothed codes; thumbs = 256 px JPEG of the canonical '
                       'frame at each clip peak (concatenated, lengths thumb_len)')
         index[j] = sorted(why.get(j, []))
-    (outd / 'index.json').write_text(json.dumps({'sae': name, 'series': sc['name'], 'neurons': index}, indent=1))
+    tag = f'_{args.shard}of{args.nshards}' if args.nshards > 1 else ''
+    (outd / f'index{tag}.json').write_text(json.dumps({'sae': name, 'series': sc['name'], 'neurons': index,
+                                                       'why_all': {int(k): sorted(v) for k, v in why.items()}}, indent=1))
     log(f'{len(meta)} neurons -> {outd}')
 
 
