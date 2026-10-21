@@ -386,8 +386,11 @@ with sync_playwright() as p:
         q.locator('header').screenshot(path=f'{a.shots}/rep_header_{tag}.png')
         q.locator('nav.bar').screenshot(path=f'{a.shots}/tab_row_{tag}.png')
         q.screenshot(path=f'{a.shots}/fresh_{tag}.png', full_page=False)
-        q.click('#alBtn')
-        q.wait_for_timeout(700)
+        if q.eval_on_selector('#alBtn', 'e => e.disabled'):  # no behaviour annotations (frogs): the button says so
+            report.append(f'fresh {tag}: Alignment disabled ({q.eval_on_selector("#alBtn", "e => e.title")})')
+        else:
+            q.click('#alBtn')
+            q.wait_for_timeout(700)
         q.locator('header').screenshot(path=f'{a.shots}/alignment_{tag}.png')
         report.append(f'fresh {tag}: model {q.eval_on_selector("#ax_model", "e => e.value")}, readout '
                       f'{q.eval_on_selector_all("#ax_readout option", "os => os.map(o => o.textContent)")}, prefix '
