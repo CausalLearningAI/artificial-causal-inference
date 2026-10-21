@@ -28,6 +28,7 @@ SAE=${SAE:?}; CODE_COMMIT=${CODE_COMMIT:-$(git rev-parse HEAD)}
 SUB=v3_2_vs_8_noday
 NES=results/vision/ants/eci_r4v3p/nes
 L=/localhome/$USER/${SLURM_JOB_ID:-local}_v3_2v8
+mkdir -p $L 2>/dev/null || L=/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/tmp/$(basename $L)  # nodes without /localhome
 mkdir -p $L/code $L/codes/$SAE $L/nes/$SAE $L/methods
 trap 'rm -rf $L' EXIT
 HEAD=$CODE_COMMIT
