@@ -1,0 +1,50 @@
+{
+ "F0_w8192_s32": {
+  "cfg": {
+   "W": 8192,
+   "prefixes": [
+    128,
+    512,
+    2048,
+    8192
+   ],
+   "k": 16,
+   "steps": 30000,
+   "prep": "id",
+   "sel": "all",
+   "sampler": "uniform",
+   "arm_v2": "F0"
+  },
+  "train_time_s": 559.0188970565796,
+  "steps_per_s": 53.665448803179956,
+  "n_train_tokens": 7567779,
+  "theta_star": 2.092162847518921,
+  "eval_fve": 0.8704438730360196,
+  "eval_l0": 16.19456487244249,
+  "dead_at_end_train": 0
+ },
+ "F0_w8192_s33": {
+  "cfg": {
+   "W": 8192,
+   "prefixes": [
+    128,
+    512,
+    2048,
+    8192
+   ],
+   "k": 16,
+   "steps": 30000,
+   "prep": "id",
+   "sel": "all",
+   "sampler": "uniform",
+   "arm_v2": "F0"
+  },
+  "train_time_s": 557.5627899169922,
+  "steps_per_s": 53.80559919442667,
+  "n_train_tokens": 7567779,
+  "theta_star": 2.07794451713562,
+  "eval_fve": 0.8714504882288764,
+  "eval_l0": 16.16344592804744,
+  "dead_at_end_train": 0
+ }
+}

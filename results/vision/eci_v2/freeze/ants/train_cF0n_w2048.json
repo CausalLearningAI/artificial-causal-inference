@@ -1,0 +1,134 @@
+{
+ "F0_w2048_s30": {
+  "cfg": {
+   "W": 2048,
+   "prefixes": [
+    128,
+    512,
+    2048
+   ],
+   "k": 16,
+   "steps": 30000,
+   "prep": "id",
+   "sel": "all",
+   "sampler": "uniform",
+   "arm_v2": "F0"
+  },
+  "train_time_s": 108.9886314868927,
+  "n_train_tokens": 2691339,
+  "theta_star": 2.0895562171936035,
+  "eval_fve": 0.8639975501369189,
+  "eval_l0": 16.07961879613178,
+  "dead_at_end_train": 0
+ },
+ "F0_w2048_s31": {
+  "cfg": {
+   "W": 2048,
+   "prefixes": [
+    128,
+    512,
+    2048
+   ],
+   "k": 16,
+   "steps": 30000,
+   "prep": "id",
+   "sel": "all",
+   "sampler": "uniform",
+   "arm_v2": "F0"
+  },
+  "train_time_s": 109.01241040229797,
+  "n_train_tokens": 2691339,
+  "theta_star": 2.0907845497131348,
+  "eval_fve": 0.863833487731641,
+  "eval_l0": 16.078151006734977,
+  "dead_at_end_train": 0
+ },
+ "F0_w2048_s32": {
+  "cfg": {
+   "W": 2048,
+   "prefixes": [
+    128,
+    512,
+    2048
+   ],
+   "k": 16,
+   "steps": 30000,
+   "prep": "id",
+   "sel": "all",
+   "sampler": "uniform",
+   "arm_v2": "F0"
+  },
+  "train_time_s": 109.53136157989502,
+  "n_train_tokens": 2691339,
+  "theta_star": 2.0647435188293457,
+  "eval_fve": 0.8646285400467847,
+  "eval_l0": 16.061053718282757,
+  "dead_at_end_train": 0
+ },
+ "F0_w2048_s33": {
+  "cfg": {
+   "W": 2048,
+   "prefixes": [
+    128,
+    512,
+    2048
+   ],
+   "k": 16,
+   "steps": 30000,
+   "prep": "id",
+   "sel": "all",
+   "sampler": "uniform",
+   "arm_v2": "F0"
+  },
+  "train_time_s": 109.42185997962952,
+  "n_train_tokens": 2691339,
+  "theta_star": 2.0886929035186768,
+  "eval_fve": 0.8636480731755994,
+  "eval_l0": 16.04496772970202,
+  "dead_at_end_train": 0
+ },
+ "F0_w2048_s34": {
+  "cfg": {
+   "W": 2048,
+   "prefixes": [
+    128,
+    512,
+    2048
+   ],
+   "k": 16,
+   "steps": 30000,
+   "prep": "id",
+   "sel": "all",
+   "sampler": "uniform",
+   "arm_v2": "F0"
+  },
+  "train_time_s": 109.51201176643372,
+  "n_train_tokens": 2691339,
+  "theta_star": 2.0642263889312744,
+  "eval_fve": 0.8647231385923769,
+  "eval_l0": 16.088443089802023,
+  "dead_at_end_train": 0
+ },
+ "F0_w2048_s35": {
+  "cfg": {
+   "W": 2048,
+   "prefixes": [
+    128,
+    512,
+    2048
+   ],
+   "k": 16,
+   "steps": 30000,
+   "prep": "id",
+   "sel": "all",
+   "sampler": "uniform",
+   "arm_v2": "F0"
+  },
+  "train_time_s": 109.07969498634338,
+  "n_train_tokens": 2691339,
+  "theta_star": 2.0884976387023926,
+  "eval_fve": 0.8642151979095654,
+  "eval_l0": 16.04720803983398,
+  "dead_at_end_train": 0
+ }
+}
