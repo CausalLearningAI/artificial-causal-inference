@@ -129,7 +129,7 @@ def cfg_of(arm, W):
 
 
 def sae_dir(dom, arm, W, s):
-    if dom == 'mice' and arm in MICE_REUSE and W == 2048:
+    if dom == 'mice' and arm in MICE_REUSE and W == 2048 and s in SEEDS_M:
         return R3.BEE3 / 'sae' / f'{MICE_REUSE[arm]}_s{s}'
     return BEE / dom / 'sae' / f'{arm}_w{W}_s{s}'
 
@@ -286,7 +286,7 @@ def mice_labels(F):
 
 def fve_of(dom, arm, W, s):
     """Held-out FVE of a trained SAE (train json of this round, or of r3 for the reused checkpoints)."""
-    if dom == 'mice' and arm in MICE_REUSE and W == 2048:
+    if dom == 'mice' and arm in MICE_REUSE and W == 2048 and s in SEEDS_M:
         for f in ('train_r4_R0.json', 'train_r4_R7.json'):
             d = json.loads((R3.OUT3 / f).read_text())
             if f'{MICE_REUSE[arm]}_s{s}' in d:
