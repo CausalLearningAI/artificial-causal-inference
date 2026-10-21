@@ -1,0 +1,47 @@
+{
+ "domain": "crim13",
+ "role": "VALIDATION CHECK of the FROZEN v2 representation (configs/eci_v2/representation.json) on a public benchmark; no knob is tuned here",
+ "data": {
+  "root": "/mnt/beegfs/locatgrp/shared/rcadei/benchmark/crim13",
+  "note": "CRIM13 top view, 236 videos (103 released train / 133 released test), Norpix .seq of 8-bit grey JPEGs, 640 x 480 (151) or 656 x 490 (85), 25 fps; dense S1 frame labels (scripts/benchmark/crim13/align_common.py)"
+ },
+ "plan": "results/vision/benchmark_crim13/align/plan/frames.parquet",
+ "plan_note": "the frame plan of the CRIM13 alignment test (scripts/benchmark/crim13/align_plan.py, rng 0), reused unchanged: 5 fps grid v % 5 == 0, v >= 50; per released half 10,000 'train' + 2,000 'calib' label-free pool frames and 15,000 'eval' frames stratified by label with inverse-probability weights w",
+ "fps": 25,
+ "step": 5,
+ "geometry": {
+  "canvas": "align_common.canvas_gpu: the grey frame (3 channels) PADDED to a W x W square in the ImageNet mean colour; 656-wide canvases resized to 640 (bicubic, antialias, x 0.976 = a downscale); 640-wide videos at native size",
+  "S": 640,
+  "G": 40,
+  "rule": "native side (640 = a multiple of 16), never upsampled; the 85 videos of width 656 are downscaled to 640 so every frame shares the 40 x 40 grid of the previous CRIM13 arms (identical encoder input frames to arms B0-B7 / C1-C4)"
+ },
+ "canonical": "none (no layout prior on CRIM13: the cage has no fixed odour corner / side; spec 'others none')",
+ "mask": {
+  "cue": "dark",
+  "rule": "TIGHT (spec): token kept iff >= 25% (src/eci/v2/mask.THR) of its 16 x 16 canvas patch are animal pixels; animal pixel = grey < 60 AND bg - grey > 40, bg = per-pixel median grey of 32 evenly spaced frames of the video (the pixel cue of the CRIM13 'dark' mask of scripts/benchmark/crim13/align_encode.py); NO DINOv2 token cue, NO dilation; padding cells never kept",
+  "dark_abs": 60,
+  "dark_rel": 40,
+  "n_bg_frames": 32,
+  "check": "released track points (resident / intruder by strain): own cell kept; never used to build the mask"
+ },
+ "sae_pool": {
+  "train": "train half, role 'train' (10,000 frames, label-free)",
+  "calib": "train half, role 'calib' (2,000 frames; theta*)",
+  "eval_fve": "test half, role 'calib' (2,000 frames of held-out videos, label-free; held-out FVE for the deployment seed)",
+  "note": "ONE dictionary trained on train-split videos only (spec: one SAE per domain); it is used for both scoring directions"
+ },
+ "readout": {
+  "frame": "max over kept tokens of the theta* token codes (src/eci/v2/sae.frame_codes)",
+  "smooth": "centred mean over the 5 fps grid frames v - 5, v, v + 5 (25 fps source; 0.6 s window, truncated at the video end) = src/eci/v2/readout.smooth h 1",
+  "fire": "not used: R~ / AUROC rank the smoothed codes directly"
+ },
+ "score": {
+  "labels": ["approach", "attack", "copulation", "chase", "circle", "drink", "eat", "clean", "sniff", "up", "walk_away"],
+  "pair": ["sniff", "approach", "attack", "chase", "circle", "walk_away", "copulation"],
+  "halves": "the released train / test halves; direction A = pick on the train half's eval frames, score on the test half's; B = swapped",
+  "metric": "weighted (inverse-probability w) statistics of scripts/benchmark/crim13/align_train.align_w2 / pick_and_test; R~ = (R-precision - pi) / (1 - pi) of the R-precision-picked neuron, pi = the scoring half's weighted base rate; AUROC of the AUROC-picked neuron"
+ },
+ "encode": {"n_shards": 4, "bs": 32, "workers": 6, "threads": 3},
+ "out": "results/vision/eci_v2/crim13",
+ "bee": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/crim13"
+}
