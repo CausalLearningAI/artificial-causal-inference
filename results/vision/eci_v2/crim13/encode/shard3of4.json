@@ -1,0 +1,18 @@
+{
+ "shard": 3,
+ "nshard": 4,
+ "videos": 59,
+ "frames": 22401,
+ "n_tokens": 929610,
+ "tokens_per_frame": 41.498593812776214,
+ "frames_0_kept": 185,
+ "wall_s": 345.7801389694214,
+ "frames_per_wall_s": 64.78394064727067,
+ "encoder_gpu_s": 332.92735052108765,
+ "frames_per_encoder_gpu_s": 67.28494959918025,
+ "read_decode_s_summed": 117.68955945968628,
+ "decode_wait_s": 4.742964744567871,
+ "gb_read": 3.1571007100865245,
+ "gpu": "NVIDIA L40S",
+ "peak_mem_gb": 2.6052122116088867
+}

@@ -1,0 +1,749 @@
+{
+ "sniff": {
+  "path": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/crim13/sheets/sniff_neuron118_v2_crim13_c0_w2048_s6.jpg",
+  "neuron": 118,
+  "n_positive_of_top": 11,
+  "n_tiles": 24,
+  "frames": [
+   {
+    "video": "022009_A29_Block12_anaC57ma1",
+    "v": 7425,
+    "smoothed": 13.5234375,
+    "frame_max_activation": 13.387738227844238,
+    "label": "sniff",
+    "positive": true,
+    "kept_tokens": 42,
+    "tokens_firing": 14
+   },
+   {
+    "video": "012909_A29_Block11_anaC57ma1",
+    "v": 3350,
+    "smoothed": 13.2734375,
+    "frame_max_activation": 14.602887153625488,
+    "label": "attack",
+    "positive": false,
+    "kept_tokens": 40,
+    "tokens_firing": 16
+   },
+   {
+    "video": "032909_A29_Block3_anaC57ma1",
+    "v": 11240,
+    "smoothed": 13.1484375,
+    "frame_max_activation": 12.319242477416992,
+    "label": "attack",
+    "positive": false,
+    "kept_tokens": 87,
+    "tokens_firing": 40
+   },
+   {
+    "video": "103108_A22_Block5_anaC57ma1",
+    "v": 3150,
+    "smoothed": 13.1484375,
+    "frame_max_activation": 14.83458137512207,
+    "label": "attack",
+    "positive": false,
+    "kept_tokens": 31,
+    "tokens_firing": 13
+   },
+   {
+    "video": "031909_A29_Block12_anaovtC57fe1",
+    "v": 1745,
+    "smoothed": 13.0625,
+    "frame_max_activation": 13.80207347869873,
+    "label": "sniff",
+    "positive": true,
+    "kept_tokens": 72,
+    "tokens_firing": 29
+   },
+   {
+    "video": "022009_A29_Block26_C57ma1",
+    "v": 12990,
+    "smoothed": 13.0078125,
+    "frame_max_activation": 13.683744430541992,
+    "label": "attack",
+    "positive": false,
+    "kept_tokens": 193,
+    "tokens_firing": 46
+   },
+   {
+    "video": "013009_A29_Block1_C57fe1",
+    "v": 8435,
+    "smoothed": 12.90625,
+    "frame_max_activation": 13.15535831451416,
+    "label": "sniff",
+    "positive": true,
+    "kept_tokens": 58,
+    "tokens_firing": 21
+   },
+   {
+    "video": "022009_A29_Block20_ovtC57fe1",
+    "v": 3100,
+    "smoothed": 12.8984375,
+    "frame_max_activation": 14.944131851196289,
+    "label": "chase",
+    "positive": false,
+    "kept_tokens": 74,
+    "tokens_firing": 21
+   },
+   {
+    "video": "031309_A29_Block13_anaC57ma1",
+    "v": 8855,
+    "smoothed": 12.859375,
+    "frame_max_activation": 11.4644136428833,
+    "label": "attack",
+    "positive": false,
+    "kept_tokens": 92,
+    "tokens_firing": 40
+   },
+   {
+    "video": "110508_A24_Block17_anaC57ma1",
+    "v": 2270,
+    "smoothed": 12.78125,
+    "frame_max_activation": 13.181008338928223,
+    "label": "other",
+    "positive": false,
+    "kept_tokens": 36,
+    "tokens_firing": 2
+   },
+   {
+    "video": "012809_A25_Block1_C57fe1",
+    "v": 5475,
+    "smoothed": 12.7109375,
+    "frame_max_activation": 12.374359130859375,
+    "label": "sniff",
+    "positive": true,
+    "kept_tokens": 67,
+    "tokens_firing": 26
+   },
+   {
+    "video": "021709_A25_Block2_C57fe1",
+    "v": 20380,
+    "smoothed": 12.59375,
+    "frame_max_activation": 14.348246574401855,
+    "label": "copulation",
+    "positive": false,
+    "kept_tokens": 54,
+    "tokens_firing": 15
+   },
+   {
+    "video": "030209_A25_Block17_C57fe2",
+    "v": 9920,
+    "smoothed": 12.5625,
+    "frame_max_activation": 12.104338645935059,
+    "label": "sniff",
+    "positive": true,
+    "kept_tokens": 82,
+    "tokens_firing": 19
+   },
+   {
+    "video": "110508_A22_Block11_anaC57ma1",
+    "v": 1260,
+    "smoothed": 12.5546875,
+    "frame_max_activation": 13.485804557800293,
+    "label": "attack",
+    "positive": false,
+    "kept_tokens": 44,
+    "tokens_firing": 24
+   },
+   {
+    "video": "032909_A29_Block10_anaC57fe1",
+    "v": 1495,
+    "smoothed": 12.4765625,
+    "frame_max_activation": 12.952434539794922,
+    "label": "sniff",
+    "positive": true,
+    "kept_tokens": 48,
+    "tokens_firing": 13
+   },
+   {
+    "video": "110708_A22_Block9_anaC57ma1",
+    "v": 4815,
+    "smoothed": 12.3125,
+    "frame_max_activation": 12.236543655395508,
+    "label": "sniff",
+    "positive": true,
+    "kept_tokens": 50,
+    "tokens_firing": 23
+   },
+   {
+    "video": "032509_A29_Block15_castC57ma1",
+    "v": 900,
+    "smoothed": 12.28125,
+    "frame_max_activation": 11.015560150146484,
+    "label": "sniff",
+    "positive": true,
+    "kept_tokens": 103,
+    "tokens_firing": 46
+   },
+   {
+    "video": "031909_A29_Block10_anaC57fe1",
+    "v": 1670,
+    "smoothed": 12.1875,
+    "frame_max_activation": 13.339339256286621,
+    "label": "sniff",
+    "positive": true,
+    "kept_tokens": 54,
+    "tokens_firing": 17
+   },
+   {
+    "video": "110308_A22_Block18_C57ma1",
+    "v": 9520,
+    "smoothed": 12.1328125,
+    "frame_max_activation": 17.217756271362305,
+    "label": "attack",
+    "positive": false,
+    "kept_tokens": 53,
+    "tokens_firing": 27
+   },
+   {
+    "video": "032909_A29_Block6_castC57ma1",
+    "v": 2005,
+    "smoothed": 12.1171875,
+    "frame_max_activation": 10.277481079101562,
+    "label": "sniff",
+    "positive": true,
+    "kept_tokens": 102,
+    "tokens_firing": 40
+   },
+   {
+    "video": "021309_A29_Block19_C57ma1",
+    "v": 2405,
+    "smoothed": 12.015625,
+    "frame_max_activation": 12.754093170166016,
+    "label": "attack",
+    "positive": false,
+    "kept_tokens": 38,
+    "tokens_firing": 12
+   },
+   {
+    "video": "110508_A24_Block13_C57fe3",
+    "v": 10500,
+    "smoothed": 12.0078125,
+    "frame_max_activation": 11.107927322387695,
+    "label": "eat",
+    "positive": false,
+    "kept_tokens": 42,
+    "tokens_firing": 21
+   },
+   {
+    "video": "031909_A29_Block3_anaC57ma1",
+    "v": 1165,
+    "smoothed": 11.9765625,
+    "frame_max_activation": 11.683332443237305,
+    "label": "attack",
+    "positive": false,
+    "kept_tokens": 63,
+    "tokens_firing": 27
+   },
+   {
+    "video": "031909_A29_Block1_C57fe1",
+    "v": 5580,
+    "smoothed": 11.9296875,
+    "frame_max_activation": 12.662313461303711,
+    "label": "sniff",
+    "positive": true,
+    "kept_tokens": 330,
+    "tokens_firing": 55
+   }
+  ],
+  "note": "eval frames are stratified by label (enriched for rare behaviours), so the share of positives in the sheet is not a precision at the natural base rate"
+ },
+ "attack": {
+  "path": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/crim13/sheets/attack_neuron1467_v2_crim13_c0_w2048_s6.jpg",
+  "neuron": 1467,
+  "n_positive_of_top": 7,
+  "n_tiles": 24,
+  "frames": [
+   {
+    "video": "103108_A22_Block5_anaC57ma1",
+    "v": 3035,
+    "smoothed": 4.35546875,
+    "frame_max_activation": 4.6156697273254395,
+    "label": "attack",
+    "positive": true,
+    "kept_tokens": 30,
+    "tokens_firing": 5
+   },
+   {
+    "video": "102908_A22_Block8_ana57fe1",
+    "v": 5695,
+    "smoothed": 4.03125,
+    "frame_max_activation": 4.147682189941406,
+    "label": "eat",
+    "positive": false,
+    "kept_tokens": 42,
+    "tokens_firing": 2
+   },
+   {
+    "video": "111708_A22_Block3_BCfe1",
+    "v": 1590,
+    "smoothed": 3.92578125,
+    "frame_max_activation": 3.73848295211792,
+    "label": "copulation",
+    "positive": false,
+    "kept_tokens": 25,
+    "tokens_firing": 4
+   },
+   {
+    "video": "112008_A22_Block13_C57ma1",
+    "v": 5305,
+    "smoothed": 3.81640625,
+    "frame_max_activation": 5.1450066566467285,
+    "label": "attack",
+    "positive": true,
+    "kept_tokens": 41,
+    "tokens_firing": 8
+   },
+   {
+    "video": "110508_A22_Block4_anaBCfe1",
+    "v": 9040,
+    "smoothed": 3.69140625,
+    "frame_max_activation": 4.015702724456787,
+    "label": "sniff",
+    "positive": false,
+    "kept_tokens": 25,
+    "tokens_firing": 8
+   },
+   {
+    "video": "110308_A22_Block14_castBCma2",
+    "v": 915,
+    "smoothed": 3.6875,
+    "frame_max_activation": 3.9853620529174805,
+    "label": "copulation",
+    "positive": false,
+    "kept_tokens": 28,
+    "tokens_firing": 4
+   },
+   {
+    "video": "021709_A25_Block13_anaBCma2",
+    "v": 1510,
+    "smoothed": 3.66796875,
+    "frame_max_activation": 2.822751522064209,
+    "label": "attack",
+    "positive": true,
+    "kept_tokens": 29,
+    "tokens_firing": 2
+   },
+   {
+    "video": "031309_A29_Block13_anaC57ma1",
+    "v": 5110,
+    "smoothed": 3.66796875,
+    "frame_max_activation": 3.0539233684539795,
+    "label": "attack",
+    "positive": true,
+    "kept_tokens": 49,
+    "tokens_firing": 6
+   },
+   {
+    "video": "110308_A22_Block8_castBCma1",
+    "v": 9565,
+    "smoothed": 3.607421875,
+    "frame_max_activation": 4.443112373352051,
+    "label": "copulation",
+    "positive": false,
+    "kept_tokens": 29,
+    "tokens_firing": 4
+   },
+   {
+    "video": "020409_A29_Block4_anaBCma1",
+    "v": 6670,
+    "smoothed": 3.173828125,
+    "frame_max_activation": 3.2138469219207764,
+    "label": "attack",
+    "positive": true,
+    "kept_tokens": 35,
+    "tokens_firing": 8
+   },
+   {
+    "video": "022009_A29_Block11_BCfe1",
+    "v": 2430,
+    "smoothed": 3.171875,
+    "frame_max_activation": 4.039694786071777,
+    "label": "copulation",
+    "positive": false,
+    "kept_tokens": 27,
+    "tokens_firing": 1
+   },
+   {
+    "video": "030209_A25_Block12_BCfe1",
+    "v": 7250,
+    "smoothed": 3.119140625,
+    "frame_max_activation": 2.6299848556518555,
+    "label": "clean",
+    "positive": false,
+    "kept_tokens": 35,
+    "tokens_firing": 4
+   },
+   {
+    "video": "022009_A29_Block26_C57ma1",
+    "v": 7695,
+    "smoothed": 3.078125,
+    "frame_max_activation": 2.593217372894287,
+    "label": "drink",
+    "positive": false,
+    "kept_tokens": 60,
+    "tokens_firing": 1
+   },
+   {
+    "video": "030209_A25_Block5_BCma1",
+    "v": 3055,
+    "smoothed": 3.0625,
+    "frame_max_activation": 4.4268269538879395,
+    "label": "attack",
+    "positive": true,
+    "kept_tokens": 28,
+    "tokens_firing": 2
+   },
+   {
+    "video": "033109_A25_Block5_BCfe1",
+    "v": 4075,
+    "smoothed": 3.046875,
+    "frame_max_activation": 2.9370899200439453,
+    "label": "copulation",
+    "positive": false,
+    "kept_tokens": 33,
+    "tokens_firing": 2
+   },
+   {
+    "video": "012909_A29_Block3_BCfe1",
+    "v": 9105,
+    "smoothed": 2.91015625,
+    "frame_max_activation": 2.8848414421081543,
+    "label": "eat",
+    "positive": false,
+    "kept_tokens": 28,
+    "tokens_firing": 1
+   },
+   {
+    "video": "110708_A22_Block9_anaC57ma1",
+    "v": 3635,
+    "smoothed": 2.857421875,
+    "frame_max_activation": 3.0758237838745117,
+    "label": "sniff",
+    "positive": false,
+    "kept_tokens": 51,
+    "tokens_firing": 7
+   },
+   {
+    "video": "030209_A25_Block20_castC57ma1",
+    "v": 705,
+    "smoothed": 2.849609375,
+    "frame_max_activation": 2.218709707260132,
+    "label": "other",
+    "positive": false,
+    "kept_tokens": 39,
+    "tokens_firing": 1
+   },
+   {
+    "video": "112408_A22_Block2_anaBCma1",
+    "v": 1655,
+    "smoothed": 2.82421875,
+    "frame_max_activation": 3.090956449508667,
+    "label": "attack",
+    "positive": true,
+    "kept_tokens": 26,
+    "tokens_firing": 3
+   },
+   {
+    "video": "013009_A25_Block5_BCfe1",
+    "v": 15475,
+    "smoothed": 2.759765625,
+    "frame_max_activation": 2.8416619300842285,
+    "label": "copulation",
+    "positive": false,
+    "kept_tokens": 26,
+    "tokens_firing": 3
+   },
+   {
+    "video": "021709_A25_Block23_BCma1",
+    "v": 6915,
+    "smoothed": 2.751953125,
+    "frame_max_activation": 3.4441561698913574,
+    "label": "circle",
+    "positive": false,
+    "kept_tokens": 23,
+    "tokens_firing": 3
+   },
+   {
+    "video": "030609_A25_Block11_BCfe1",
+    "v": 14025,
+    "smoothed": 2.75,
+    "frame_max_activation": 3.489643096923828,
+    "label": "copulation",
+    "positive": false,
+    "kept_tokens": 38,
+    "tokens_firing": 2
+   },
+   {
+    "video": "112408_A22_Block14_C57fe2",
+    "v": 9270,
+    "smoothed": 2.693359375,
+    "frame_max_activation": 2.192486524581909,
+    "label": "copulation",
+    "positive": false,
+    "kept_tokens": 34,
+    "tokens_firing": 1
+   },
+   {
+    "video": "103108_A22_Block2_BCma1",
+    "v": 1020,
+    "smoothed": 2.654296875,
+    "frame_max_activation": 2.2396652698516846,
+    "label": "sniff",
+    "positive": false,
+    "kept_tokens": 46,
+    "tokens_firing": 1
+   }
+  ],
+  "note": "eval frames are stratified by label (enriched for rare behaviours), so the share of positives in the sheet is not a precision at the natural base rate"
+ },
+ "approach": {
+  "path": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/crim13/sheets/approach_neuron372_v2_crim13_c0_w2048_s6.jpg",
+  "neuron": 372,
+  "n_positive_of_top": 10,
+  "n_tiles": 24,
+  "frames": [
+   {
+    "video": "012809_A25_Block4_BCma1",
+    "v": 4095,
+    "smoothed": 7.92578125,
+    "frame_max_activation": 9.292534828186035,
+    "label": "circle",
+    "positive": false,
+    "kept_tokens": 35,
+    "tokens_firing": 5
+   },
+   {
+    "video": "111708_A24_Block17_C57fe2",
+    "v": 10630,
+    "smoothed": 7.76171875,
+    "frame_max_activation": 7.173848628997803,
+    "label": "approach",
+    "positive": true,
+    "kept_tokens": 59,
+    "tokens_firing": 6
+   },
+   {
+    "video": "110508_A24_Block4_castBCma1",
+    "v": 3475,
+    "smoothed": 7.54296875,
+    "frame_max_activation": 5.501513481140137,
+    "label": "approach",
+    "positive": true,
+    "kept_tokens": 29,
+    "tokens_firing": 3
+   },
+   {
+    "video": "021709_A25_Block2_C57fe1",
+    "v": 4365,
+    "smoothed": 7.52734375,
+    "frame_max_activation": 7.4033684730529785,
+    "label": "chase",
+    "positive": false,
+    "kept_tokens": 61,
+    "tokens_firing": 6
+   },
+   {
+    "video": "032909_A29_Block14_ovtBCfe1",
+    "v": 5585,
+    "smoothed": 7.484375,
+    "frame_max_activation": 7.223133563995361,
+    "label": "approach",
+    "positive": true,
+    "kept_tokens": 72,
+    "tokens_firing": 5
+   },
+   {
+    "video": "021709_A25_Block10_castBCma1",
+    "v": 10015,
+    "smoothed": 7.29296875,
+    "frame_max_activation": 7.775716781616211,
+    "label": "approach",
+    "positive": true,
+    "kept_tokens": 38,
+    "tokens_firing": 3
+   },
+   {
+    "video": "020609_A25_Block1_C57fe1",
+    "v": 11335,
+    "smoothed": 7.11328125,
+    "frame_max_activation": 7.379336357116699,
+    "label": "chase",
+    "positive": false,
+    "kept_tokens": 59,
+    "tokens_firing": 7
+   },
+   {
+    "video": "033109_A25_Block5_BCfe1",
+    "v": 8355,
+    "smoothed": 7.09765625,
+    "frame_max_activation": 6.239137649536133,
+    "label": "other",
+    "positive": false,
+    "kept_tokens": 76,
+    "tokens_firing": 5
+   },
+   {
+    "video": "030609_A25_Block1_C57fe1",
+    "v": 8800,
+    "smoothed": 7.08984375,
+    "frame_max_activation": 6.92529821395874,
+    "label": "other",
+    "positive": false,
+    "kept_tokens": 98,
+    "tokens_firing": 7
+   },
+   {
+    "video": "013009_A25_Block5_BCfe1",
+    "v": 4645,
+    "smoothed": 7.06640625,
+    "frame_max_activation": 6.499732494354248,
+    "label": "walk_away",
+    "positive": false,
+    "kept_tokens": 35,
+    "tokens_firing": 4
+   },
+   {
+    "video": "012609_A29_Block7_BCfe1",
+    "v": 4595,
+    "smoothed": 7.03125,
+    "frame_max_activation": 7.968729019165039,
+    "label": "approach",
+    "positive": true,
+    "kept_tokens": 63,
+    "tokens_firing": 5
+   },
+   {
+    "video": "021309_A29_Block5_BCfe1",
+    "v": 3875,
+    "smoothed": 6.953125,
+    "frame_max_activation": 8.80751895904541,
+    "label": "approach",
+    "positive": true,
+    "kept_tokens": 47,
+    "tokens_firing": 4
+   },
+   {
+    "video": "021309_A29_Block14_BCfe2",
+    "v": 9050,
+    "smoothed": 6.921875,
+    "frame_max_activation": 6.474390029907227,
+    "label": "approach",
+    "positive": true,
+    "kept_tokens": 32,
+    "tokens_firing": 5
+   },
+   {
+    "video": "112408_A22_Block2_anaBCma1",
+    "v": 11210,
+    "smoothed": 6.9140625,
+    "frame_max_activation": 6.0460686683654785,
+    "label": "human",
+    "positive": false,
+    "kept_tokens": 25,
+    "tokens_firing": 3
+   },
+   {
+    "video": "030209_A25_Block2_C57fe1",
+    "v": 2290,
+    "smoothed": 6.80078125,
+    "frame_max_activation": 5.484283924102783,
+    "label": "chase",
+    "positive": false,
+    "kept_tokens": 108,
+    "tokens_firing": 4
+   },
+   {
+    "video": "111708_A22_Block3_BCfe1",
+    "v": 3710,
+    "smoothed": 6.7734375,
+    "frame_max_activation": 7.798344612121582,
+    "label": "walk_away",
+    "positive": false,
+    "kept_tokens": 27,
+    "tokens_firing": 3
+   },
+   {
+    "video": "032909_A29_Block1_C57fe1",
+    "v": 12675,
+    "smoothed": 6.76953125,
+    "frame_max_activation": 7.56148624420166,
+    "label": "chase",
+    "positive": false,
+    "kept_tokens": 134,
+    "tokens_firing": 7
+   },
+   {
+    "video": "110308_A22_Block18_C57ma1",
+    "v": 4610,
+    "smoothed": 6.7421875,
+    "frame_max_activation": 8.206829071044922,
+    "label": "approach",
+    "positive": true,
+    "kept_tokens": 107,
+    "tokens_firing": 3
+   },
+   {
+    "video": "112408_A22_Block14_C57fe2",
+    "v": 1465,
+    "smoothed": 6.72265625,
+    "frame_max_activation": 6.535043716430664,
+    "label": "other",
+    "positive": false,
+    "kept_tokens": 30,
+    "tokens_firing": 4
+   },
+   {
+    "video": "112408_A22_Block5_C57ma1",
+    "v": 5680,
+    "smoothed": 6.66015625,
+    "frame_max_activation": 7.369987487792969,
+    "label": "other",
+    "positive": false,
+    "kept_tokens": 44,
+    "tokens_firing": 3
+   },
+   {
+    "video": "120208_A22_Block1_C57fe1",
+    "v": 7975,
+    "smoothed": 6.57421875,
+    "frame_max_activation": 7.848322868347168,
+    "label": "approach",
+    "positive": true,
+    "kept_tokens": 53,
+    "tokens_firing": 4
+   },
+   {
+    "video": "110708_A22_Block1_C57fe1",
+    "v": 10335,
+    "smoothed": 6.5625,
+    "frame_max_activation": 7.903132438659668,
+    "label": "approach",
+    "positive": true,
+    "kept_tokens": 104,
+    "tokens_firing": 4
+   },
+   {
+    "video": "111708_A22_Block13_BCma1",
+    "v": 2560,
+    "smoothed": 6.48046875,
+    "frame_max_activation": 6.415693759918213,
+    "label": "circle",
+    "positive": false,
+    "kept_tokens": 43,
+    "tokens_firing": 3
+   },
+   {
+    "video": "103108_A22_Block2_BCma1",
+    "v": 3620,
+    "smoothed": 6.45703125,
+    "frame_max_activation": 4.932000637054443,
+    "label": "other",
+    "positive": false,
+    "kept_tokens": 50,
+    "tokens_firing": 5
+   }
+  ],
+  "note": "eval frames are stratified by label (enriched for rare behaviours), so the share of positives in the sheet is not a precision at the natural base rate"
+ }
+}

@@ -1,0 +1,18 @@
+{
+ "shard": 2,
+ "nshard": 4,
+ "videos": 59,
+ "frames": 22621,
+ "n_tokens": 985274,
+ "tokens_per_frame": 43.55572255868441,
+ "frames_0_kept": 104,
+ "wall_s": 502.29007172584534,
+ "frames_per_wall_s": 45.03572989662188,
+ "encoder_gpu_s": 480.5755994319916,
+ "frames_per_encoder_gpu_s": 47.070637849146976,
+ "read_decode_s_summed": 127.71846199035645,
+ "decode_wait_s": 5.478780508041382,
+ "gb_read": 3.158390536904335,
+ "gpu": "NVIDIA A40",
+ "peak_mem_gb": 2.6055197715759277
+}
