@@ -1,0 +1,46 @@
+{
+ "mice/v1": {
+  "S": 1024,
+  "native_w": 2064.0,
+  "n_frames": 240,
+  "n_components": 1013,
+  "body_halfwidth_px": 32.0,
+  "body_width_px": 64.0,
+  "r_open": 16,
+  "r_dil": 2,
+  "animal_px_per_frame_median": 32649.0
+ },
+ "ants/v2": {
+  "S": 768,
+  "native_w": 770.0,
+  "n_frames": 240,
+  "n_components": 634,
+  "body_halfwidth_px": 13.92838827718412,
+  "body_width_px": 27.85677655436824,
+  "r_open": 7,
+  "r_dil": 4,
+  "animal_px_per_frame_median": 5702.0
+ },
+ "ants/v3": {
+  "S": 832,
+  "native_w": 824.0,
+  "n_frames": 240,
+  "n_components": 555,
+  "body_halfwidth_px": 16.15549442140351,
+  "body_width_px": 32.31098884280702,
+  "r_open": 8,
+  "r_dil": 4,
+  "animal_px_per_frame_median": 7401.5
+ },
+ "frogs/juv": {
+  "S": 800,
+  "native_w": 800.0,
+  "n_frames": 240,
+  "n_components": 257,
+  "body_halfwidth_px": 15.811388300841896,
+  "body_width_px": 31.622776601683793,
+  "r_open": 8,
+  "r_dil": 4,
+  "animal_px_per_frame_median": 3806.0
+ }
+}
