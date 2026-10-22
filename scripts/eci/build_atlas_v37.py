@@ -1295,7 +1295,7 @@ def spec_of(e):
 V0_RUNS = (('ants', 'ants_v3', 'results/vision/ants/eci_v0_ants_v3'), ('ants', 'ants_v4', 'results/vision/ants/eci_v0_ants_v4'),
            ('mice', 'mice_v1', 'results/vision/mice/eci_v0_mice_v1'), ('frogs', 'frogs_v1', 'results/vision/frogs/eci_v0_frogs_v1'))
 V0_WIN = {'ants_v3': '30 min', 'ants_v4': '30 min', 'mice_v1': '15 min per stage, habituation its last 15', 'frogs_v1': 'hour 1'}
-V0_LAB = {'ants': 'grooming', 'mice': 'nose contact (nn / np / nt, union)'}
+V0_LAB = {'ants': 'grooming', 'mice': 'nose contact (nose-nose mutual, nose-nose directional or nose-tail; union)'}
 
 
 def v0_table():
@@ -1589,7 +1589,7 @@ ALIGN = OUT / 'align'
 ALIGN_CUT = 0.2  # a neuron counts as aligned with a behaviour when its cross-fitted R~ >= this (pre-stated)
 BEH_LAB = {'Y2F': 'grooming by yellow (Y2F)', 'B2F': 'grooming by blue (B2F)', 'groom_any': 'grooming, either (Y2F or B2F)',
            'YOL': 'yellow on the lid (YOL)', 'BOL': 'blue on the lid (BOL)', 'onlid_any': 'on the lid, either (YOL or BOL)',
-           'nn': 'nose-nose (nn)', 'np': 'nose-body (np)', 'nn_or_np': 'nn or np', 'nt': 'nose-tail (nt)'}
+           'nn': 'nose-nose (mutual)', 'np': 'nose-nose (directional)', 'nn_or_np': 'nose-nose (either)', 'nt': 'nose-tail'}
 
 
 def aligned_neurons(ser, model):
@@ -2127,9 +2127,14 @@ def active_share(site, saes):
                     caches[k] = (obs, z[f'{win}__{ACTIVE_Q}__0__frames'], z[f'{win}__n_frames'], win)
         return caches[k]
 
-    done, n_set = set(), 0
+    TS = json.loads((OUT / 'token_share.json').read_text()) if (OUT / 'token_share.json').exists() else {}
+    TS_SER = {'v2_mice': ('mice', 'v1'), 'v2_ants_v2p': ('ants', 'v2'), 'v2_ants_v3p': ('ants', 'v3'),
+              'v2_ants_v4p': ('ants', 'v4'), 'v2_frogs': ('frogs', 'juv'), 'v2_frogs_tad': ('frogs', 'tad')}
+    done, n_set, n_tpf = set(), 0, 0
     for e in saes:
         rs = runs_of(e)
+        ds = TS_SER.get((e.get('build') or '').rsplit('_', 1)[0]) if e['model']['model'] == 'new' else None
+        tpf = (TS.get(ds[0], {}).get(ds[1]) or {}).get('tokens_per_frame') if ds else None
         if not rs:
             continue
         prob = e['model'].get('readout') == 'prob'
@@ -2159,11 +2164,14 @@ def active_share(site, saes):
                 if den > 0:
                     n['pon' if prob else 'active'] = round(num / den, 5)
                     n_set += 1
+                if tpf is not None and j < len(tpf):  # scripts/eci/atlas_token_share.py: active tokens per frame
+                    n['tpf'] = tpf[j]
+                    n_tpf += 1
             (site / f).write_text(json.dumps(D, separators=(',', ':')))
         e['active_def'] = ('mean P(on) over the analysed frames (the tested expected fraction of time active)' if prob else
                            f'share of the analysed frames above the neuron\'s event threshold (its pooled q{ACTIVE_Q} code, '
                            'the frames the event rate and latency outcomes count)')
-    log(f'active share: {n_set} neuron entries')
+    log(f'active share: {n_set} neuron entries; tokens per frame: {n_tpf}')
 
 
 def readout_axis(saes, data):
