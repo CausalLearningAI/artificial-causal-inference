@@ -7,14 +7,17 @@ PRE-REGISTRATION (written 2026-10-22 before any held-out benchmark score (step 1
 encoded. Development of the cue used ONLY CalMS21 TRAIN videos, MABe22 userTrain clips and lab TRAINING videos,
 scripts/eci/v2_mask2/explore.py; parameter changes after this point are listed as dated amendments.)
 
-CUE (src/eci/v2/mask2.py, module docstring = the exact definition): frozen dark cue = CORE; plus pixels that differ
-    from the per-video median background (blur sigma 1 px, max over RGB, threshold max(20, 4 x per-frame robust noise))
-    and are connected to a core pixel through such pixels within 6 body half-widths (geodesic growth), plus body-wide
-    strong-change blobs (opening of d > 40 by a square of side 2 round(h/2) + 1) as extra core (pale animals).
+CUE (src/eci/v2/mask2.py, module docstring = the exact definition, function cue()): frozen dark cue = CORE; plus
+    pixels that differ from the per-video median background (blur sigma 1.5 px, max over RGB, threshold max(35,
+    4 x per-frame robust noise, 6 x per-pixel background change level)) and are connected to a core pixel through such
+    pixels within 6 body half-widths (geodesic growth), plus body-wide strong-change blobs (opening of d > 40 by a
+    square of side 2 round(h/2) + 1) as extra core (pale animals); no candidate / strong pixel where the frozen rule
+    fires on the median background itself (an animal rested there; 'ghost').
 ARMS (identical DINOv3-L/16 block-20 tokens of the frozen v2 encoder; only token SELECTION differs)
     M0  frozen v2 tight mask: frozen cue pixel fraction >= 0.25 per 16 x 16 patch.
     N1  new cue, same >= 0.25 rule.
-    N2  new cue, >= 0.25 OR >= 16 GROWN (non-core) pixels in the patch (a thin attached part crossing it).
+    N2  new cue, >= 0.25 OR >= 16 APPENDAGE pixels in the patch (src/eci/v2/mask2.appendage: new-cue pixels outside
+        the opened body and within 6 h of a body = a thin attached part crossing the patch).
 
 STEP 1  pixel-cue validation on held-out public benchmarks (scripts/eci/v2_mask2/validate.py docstring = metrics):
     MABe22 submission (black mice; tail_base / tail_mid / tail_tip keypoints), CalMS21 test (black resident + WHITE
@@ -36,8 +39,8 @@ STEP 2  representation check (same frames / splits / labels / SAE recipe as the 
     <= the 0.01 margin from n = 20 seeds per arm (mice, 0.0099) and n = 33 (ants, 0.0099); n = 3 would give 0.035 /
     0.045 and n = 6 0.020 / 0.026, i.e. the rule could not pass even for an arm identical to M0. Seeds 70-89 (mice),
     70-102 (ants); deployment seed for sheets = highest held-out FVE among seeds 70-72.
-    LAB COVERAGE (per domain, frame-averaged ratios): appendage pixels = new-cue pixels outside the body (body = opening
-    of the new-cue pixels by a disk of radius round(h/2), dilated by a disk of radius max(1, round(h/4))); appendage
+    LAB COVERAGE (per domain, frame-averaged ratios): appendage pixels = src/eci/v2/mask2.appendage (new-cue pixels
+    outside the body = opening by a disk of radius round(h/2), dilated by max(1, round(h/4)), within 6 h of it); appendage
     coverage = appendage px in kept tokens / all appendage px; new-cue animal px recall; tokens / frame; leak = share of
     kept tokens with < 5% of their pixels in (frozen cue | raw change d > T_LO) (an independent off-animal test that
     does not use the growth / connectivity step).
@@ -217,8 +220,6 @@ def cmd_prep(args):
     enc = Encoder(dev)
     se = Series(series_cfg(dom, K['series']), dev, encoder=enc)
     G, S = se.G, se.S
-    Ko = MT.disk(max(1, int(round(h / 2))), dev)
-    Kt = MT.disk(max(1, int(round(h / 4))), dev)
     Fr = MT.frame_list(dom, kind)
     obs_all = list(dict.fromkeys(Fr.obs.values))
     mine = set(obs_all[args.shard::args.nshard])
@@ -236,7 +237,7 @@ def cmd_prep(args):
     loc = N.local_dir() / f'{dom}_{kind}_s{args.shard}'
     loc.mkdir(parents=True, exist_ok=True)
     ftok = open(loc / 'tok.f16', 'wb')
-    meta = {k: [] for k in ('tok_frame', 'tok_pos', 'fr_raw', 'fr_new', 'n_grown', 'fr_app', 'fr_any')}
+    meta = {k: [] for k in ('tok_frame', 'tok_pos', 'fr_raw', 'fr_new', 'n_app', 'fr_app', 'fr_any')}
     recs, panels, t0 = [], [], time.time()
     bs = 16 if S >= 1000 else 32
     bgc = {}
@@ -258,12 +259,11 @@ def cmd_prep(args):
                 core0 = se.mask.pixels(x, v['src_lo'] + kb)
                 r = M2.cue(x, pack, core0, h)
                 pix, grown = r['pix'], r['grown']
-                body = MT.dilate(MT.dilate(MT.erode(pix, Ko), Ko), Kt)
-                app = pix & ~body
+                _, app = M2.appendage(pix, h)
                 anyp = core0 | (r['d'] > M2.T_LO)
                 pool = lambda m: F.avg_pool2d(m.float()[:, None], 16).flatten(1)  # noqa: E731
                 raw, frn, fapp, fany = pool(core0), pool(pix), pool(app), pool(anyp)
-                ng = pool(grown) * 256
+                ng = pool(app) * 256
                 z = enc(x)
             arm = {'M0': raw >= 0.25, 'N1': M2.keep(frn, ng, 'r25'), 'N2': M2.keep(frn, ng, 'r25t')}
             store = arm['N2'] | arm['M0']
@@ -284,7 +284,7 @@ def cmd_prep(args):
                 meta['tok_pos'].append(pos.cpu().numpy().astype(np.int16))
                 for nm, t_ in (('fr_raw', raw), ('fr_new', frn), ('fr_app', fapp), ('fr_any', fany)):
                     meta[nm].append(t_[ii, pos].cpu().numpy().astype(np.float16))
-                meta['n_grown'].append(ng[ii, pos].round().cpu().numpy().astype(np.int16))
+                meta['n_app'].append(ng[ii, pos].round().cpu().numpy().astype(np.int16))
                 r0 = Fr.iloc[fidx[b + ii]]
                 rec = {'obs': o, 'k': int(kb[ii]), 'ref_f': int(r0.ref_f), 'n_store': int(len(pos))}
                 for c_ in ('row', 'role', 'series'):
@@ -367,7 +367,7 @@ class Union:
         cat = lambda nm, dt: np.concatenate([np.load(p['root'] / f'{nm}.npy').astype(dt) for p in self.parts])  # noqa
         self.pos = cat('tok_pos', np.int64)
         self.raw, self.new, self.app, self.any = (cat(k, np.float32) for k in ('fr_raw', 'fr_new', 'fr_app', 'fr_any'))
-        self.ng = cat('n_grown', np.float32)
+        self.ng = cat('n_app', np.float32)
         self.G = series_cfg(dom, KINDS[dom][kind]['series'])['S'] // 16
 
     def arm(self, a):

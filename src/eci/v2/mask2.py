@@ -22,14 +22,20 @@ Per frame (hyst_pixels), all sizes in pixels at the encoder input side S, h = th
     pixels = core | grow
 Token rules (thin_fraction / keep):
     'r25'   token kept iff >= 25% of its 16 x 16 patch are animal pixels (the frozen rule).
-    'r25t'  r25 OR >= MIN_THIN_PX (16 = a 1-px line across the patch) animal pixels that are GROWN (not core): a thin
-            attached part crossing the patch; isolated core specks below 25% stay out as in the frozen rule.
+    'r25t'  r25 OR >= MIN_THIN_PX (16 = a 1-px line across the patch) APPENDAGE pixels (appendage(): animal pixels
+            outside the opened body, within REACH of a body): a thin attached part crossing the patch (ant legs and
+            antennae are often frozen-cue pixels already, so the rule counts appendage pixels, not only grown ones);
+            isolated specks far from a body stay out.
+Parameters (development 2026-10-22 on dev data only, explore.py configs C / Cg / Cgh / Eg / G1 / G2; G2 chosen by
+eye: tails kept, no bedding speckle on mice v1, white CalMS21 intruder kept): SIGMA 1.5, T_LO 35, K_MAD 6 (cand also
+needs d > 6 x the per-pixel temporal median |d| of the background frames, background_mad), T_HI 40, ghost guard =
+the frozen dark rule true on the median background (resting animal) -> no candidate / strong pixels there.
 """
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-SIGMA, T_LO, T_HI, K_NOISE, REACH_H, MIN_THIN_PX = 1.0, 20.0, 40.0, 4.0, 6.0, 16
+SIGMA, T_LO, T_HI, K_NOISE, K_MAD, REACH_H, MIN_THIN_PX = 1.5, 35.0, 40.0, 4.0, 6.0, 6.0, 16
 
 
 def grey_f(x):
@@ -171,16 +177,41 @@ def cue(x, pack, core0, h):
                        strong=True, mad=pack['mad'], k_mad=K_MAD, bad=pack['ghost'])
 
 
-def token_fractions(pix, grown, patch=16):
-    """-> (frac (B, G*G) animal-pixel fraction, n_grown (B, G*G) grown pixel count) per patch."""
+def _disk(r, dev):
+    y, x = np.mgrid[-r:r + 1, -r:r + 1]
+    return torch.from_numpy((x * x + y * y <= r * r).astype(np.float32))[None, None].to(dev)
+
+
+def _dil(m, K):
+    return F.conv2d(m.float()[:, None], K, padding=K.shape[-1] // 2)[:, 0] > 0.5
+
+
+def _ero(m, K):
+    return F.conv2d(m.float()[:, None], K, padding=K.shape[-1] // 2)[:, 0] > float(K.sum()) - 0.5
+
+
+@torch.no_grad()
+def appendage(pix, h):
+    """pix (B, S, S) bool -> (body, app): body = opening of pix by a disk of radius round(h/2) (parts at least about
+    a body width wide), app = pix outside body dilated by a disk of radius max(1, round(h/4)) AND within REACH_H * h of
+    the body (thin parts attached near a body: tails, antennae, legs; isolated specks far from any body excluded)."""
+    Ko = _disk(max(1, int(round(h / 2))), pix.device)
+    Kt = _disk(max(1, int(round(h / 4))), pix.device)
+    body = _dil(_ero(pix, Ko), Ko)
+    near = _maxpool(body.float()[:, None], int(round(REACH_H * h)))[:, 0] > 0.5
+    return body, pix & ~_dil(body, Kt) & near
+
+
+def token_fractions(pix, app, patch=16):
+    """-> (frac (B, G*G) animal-pixel fraction, n_app (B, G*G) appendage pixel count) per patch."""
     fr = F.avg_pool2d(pix.float()[:, None], patch).flatten(1)
-    ng = F.avg_pool2d(grown.float()[:, None], patch).flatten(1) * patch * patch
-    return fr, ng
+    na = F.avg_pool2d(app.float()[:, None], patch).flatten(1) * patch * patch
+    return fr, na
 
 
-def keep(frac, n_grown, rule):
+def keep(frac, n_app, rule):
     if rule == 'r25':
         return frac >= 0.25
     if rule == 'r25t':
-        return (frac >= 0.25) | (n_grown >= MIN_THIN_PX)
+        return (frac >= 0.25) | (n_app >= MIN_THIN_PX)
     raise ValueError(rule)

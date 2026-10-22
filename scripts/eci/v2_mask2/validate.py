@@ -13,7 +13,8 @@ Held-out sets (never looked at during development; development used CalMS21 TRAI
 Per video background: per-pixel median of 48 frames evenly spread (new cue), per-pixel 0.98 grey quantile of the same
 48 frames (frozen dark cue). h (body half-width) = the calib rule of the previous test (median over frozen-cue
 components >= 30 px of the max distance transform) on the background frames of the set.
-Arms: M0 = frozen dark cue + r25 rule; N1 = new cue + r25; N2 = new cue + r25t (src/eci/v2/mask2.py).
+Arms: M0 = frozen dark cue + r25 rule; N1 = new cue + r25; N2 = new cue + r25t (src/eci/v2/mask2.py; appendage
+pixels with the set's h).
 Metrics (frame-averaged over all scored frames of the set):
     tail_seg_tok    MABe22: share of 10 tail sample points (tail_mid, tail_tip and 8 points evenly spaced on the
                     polyline tail_base -> tail_mid -> tail_tip, base excluded) whose token is kept.
@@ -206,7 +207,8 @@ def masks_all(x, pack, h):
     core0 = dark_cue(x, pack['q98'])
     r = M2.cue(x, pack, core0, h)
     fr0 = F.avg_pool2d(core0.float()[:, None], 16).flatten(1)
-    fr, ng = M2.token_fractions(r['pix'], r['grown'])
+    _, app = M2.appendage(r['pix'], h)
+    fr, ng = M2.token_fractions(r['pix'], app)
     return {'M0': (fr0 >= 0.25, core0), 'N1': (M2.keep(fr, ng, 'r25'), r['pix']),
             'N2': (M2.keep(fr, ng, 'r25t'), r['pix'])}, r
 
@@ -384,7 +386,7 @@ def main():
     args = ap.parse_args()
     if args.set == 'step1':
         return step1(args.tag)
-    run(args.set, args, torch.device('cuda'))
+    run(args.set, args, torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
 
 
 if __name__ == '__main__':
