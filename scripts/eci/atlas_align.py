@@ -51,6 +51,7 @@ BEH = {'ants': {'Y2F': ['Y_Y2F'], 'B2F': ['Y_B2F'], 'groom_any': ['Y_Y2F', 'Y_B2
                 'BOL': ['Y_BOL'], 'onlid_any': ['Y_YOL', 'Y_BOL']},
        'mice': {'nn': ['Y_nn'], 'np': ['Y_np'], 'nn_or_np': ['Y_nn', 'Y_np'], 'nt': ['Y_nt']}}
 TOP_K = 5
+MIN_LAB, MIN_POS = 100, 10  # inclusion rule of a behaviour (shared 1 fps frames)
 PREFIXES = (128, 256)  # the two smallest page prefixes of v1 and v2 (the others are not shown, page size)
 # v2 outcome inputs (page Outcome selector value -> code set suffix of the frozen v2 SAE)
 V2_READOUT = {'continuous': '_smooth', 'binary': '', 'prob': '_prob', 'binary_map': '_map'}
@@ -209,6 +210,18 @@ def main():
         pos = A.index.get_indexer(S.index)
         LS = {b: (y[pos], V[pos]) for b, (y, V) in L.items()}
         obs = S.observation_id.to_numpy()
+        # label counts behind the inclusion rule (>= MIN_LAB labelled and >= MIN_POS positive shared 1 fps frames):
+        # 5 fps labelled / positive frames, bouts (runs of positive 5 fps frames per video), videos with a positive
+        cnt = {}
+        for b, (y, V) in L.items():
+            d = pd.DataFrame({'o': A.observation_id.to_numpy()[V], 'k': A.frame_idx.to_numpy()[V], 'y': y[V]}).sort_values(['o', 'k'])
+            yy = d['y'].to_numpy().astype(np.int8)
+            new = (yy == 1) & ((d['o'].to_numpy() != np.r_[None, d['o'].to_numpy()[:-1]]) | (np.r_[0, yy[:-1]] == 0))
+            ys, Vs = y[A.index.get_indexer(S.index)], V[A.index.get_indexer(S.index)]
+            cnt[b] = {'labelled_5fps': int(V.sum()), 'pos_5fps': int(y[V].sum()), 'bouts': int(new.sum()),
+                      'videos_labelled': int(d['o'].nunique()), 'videos_pos': int(d.loc[d['y'], 'o'].nunique()),
+                      'labelled_1fps': int(Vs.sum()), 'pos_1fps': int((ys & Vs).sum()),
+                      'rule': f'>= {MIN_LAB} labelled and >= {MIN_POS} positive frames on the shared 1 fps grid'}
         unit = pd.Series(obs).str.rsplit('_', n=2).str[0].to_numpy() if dom == 'mice' else obs
         units = sorted(set(unit))
         half = pd.Series(unit).map({u: i % 2 for i, u in enumerate(units)}).to_numpy()
@@ -233,7 +246,7 @@ def main():
             alive = np.flatnonzero((X > 0).any(0))
             Xa = X[:, alive]
             ids = (alive + 1).tolist() if nm.startswith('v0') else alive.tolist()  # page neuron ids (v0: N_<j+1>)
-            res = {b: (half_metrics(Xa, y, V, half) if V.sum() >= 100 and y[V].sum() >= 10 else None)
+            res = {b: (half_metrics(Xa, y, V, half) if V.sum() >= MIN_LAB and y[V].sum() >= MIN_POS else None)
                    for b, (y, V) in LS.items()}
             for p in (pxs or [width]):
                 cols = np.flatnonzero(alive < p)
@@ -247,7 +260,7 @@ def main():
             del X, Xa
         out = {'series': ser, 'domain': dom, 'n_frames': int(len(S)), 'n_units': len(units),
                'units': 'pools' if dom == 'mice' else 'videos', 'top_k': TOP_K,
-               'behaviours': {b: BEH[dom][b] for b in BEH[dom]}, 'models': models, 'per_video_time': pv,
+               'behaviours': {b: BEH[dom][b] for b in BEH[dom]}, 'models': models, 'per_video_time': pv, 'label_counts': cnt,
                'prefixes': list(PREFIXES), 'version': 2,
                'frames': 'labelled frames on the 1 fps grid shared by v0, v1 and v2' +
                          (' (habituation: last 15 min)' if dom == 'mice' else '')}
