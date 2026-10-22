@@ -13,15 +13,23 @@ fonts, grey rules, labels under the panels, dims labels); the v1 script is left 
                           with theta* -> sparse code, the shown neuron in pink
     c  neural activation  the neuron on every kept token -> max over kept tokens = frame value c_j(t) -> 10 s of real
                           frame values: raw c_j (grey) and the smoothed s_j(t) = mean(c_j(t-1), c_j(t), c_j(t+1))
-                          (pink, 0.6 s at 5 fps), the three frames of s_j(t) highlighted; fnorm firing threshold
-                          theta_n sigma_j dashed; below: firing frames (s_j / sigma_j > theta_n) over the whole video
-    d  video repr.        time spent / bout rate / latency of ALL 2048 neurons in that video (summaries_<series>.npz,
-                          src/eci/v2/readout.py), the shown neuron in pink
+                          (pink, 0.6 s centred at 5 fps), the three frames of s_j(t) highlighted; below: s_j over the
+                          whole video as a continuous intensity strip. NO threshold: the frozen v2 primary input is the
+                          continuous smoothed code (<sae>_smooth, user decision 2026-10-21; the fnorm firing threshold
+                          of the first draft was dropped)
+    d  video repr.        per neuron, from the continuous smoothed values of this video (the NES inputs of the primary
+                          set): mean of s_j; bout rate = runs of s_j > thr_j per minute; latency = first frame with
+                          s_j > thr_j (s), thr_j = the neuron's pooled 95th percentile (the runners' cached
+                          bout_thresholds, src/eci/contrasts.py pooled_thresholds); ALL 2048 neurons, the shown one pink.
+                          Recomputed from the stored codes and VERIFIED against the runners' per-video caches.
 
-Example per domain = the peak frame (heat asset peak_rows[0]: the top video's peak of the smoothed code) of
-    mice  #161 of v2_mice_c0_w2048_s7   (aligned to nose-nose, nn_mutual, np_directional; results/vision/eci_v2/mice/align.json)
-    ants  #99  of v2_ants_c0_w2048_s6   (aligned to groom_any / groom_yellow, ants v2)
-    frogs #52  of v2_frogs_c0_w2048_s6  (NES primary FoxP1 > WT, all prefixes; juveniles)
+Neuron per domain (fixed rule, stated on the figure page):
+    ants, mice  the modal neuron of the domain's primary behaviour label in the v2_smooth alignment
+                (align.json series[*].models.v2_smooth.sets.all.mean.<label>.modal_neuron, modal_share 1.0):
+                ants v2 groom_any -> #99 (R~ 0.673), mice v1 nose_nose -> #161 (R~ 0.202)
+    frogs       no behaviour labels: the NES discovery with the smallest p on the primary (smooth) set, juveniles
+                (selected_neurons.json): #52, FoxP1 > WT, all prefixes, p 7e-17
+Example frame = the neuron's peak frame (heat asset peak_rows[0]: the top video's peak of the smoothed code).
 
 Stages
     compute  (GPU, scripts/eci/fig_pipeline_v2.sh) per domain: decode + canonical + tight mask with the v2 library
@@ -29,6 +37,10 @@ Stages
              frame t, SAE on the kept tokens of t VERIFIED against the stored sparse token codes; the stored
              token codes give the activation map (exact); whole-video raw frame codes -> smooth -> fnorm firing ->
              summaries VERIFIED against summaries_<series>.npz and the stored smoothed codes -> OUT/cache/<d>.npz/.json
+    readout  (CPU, light) per domain: the example video's stored primary smoothed codes (all 2048 neurons) + the pooled
+             q 0.95 thresholds -> mean / bout rate / latency, VERIFIED against the NES runners' _cache
+             (video_summaries_max full__mean, bout_summaries_max full__0.95__0__count, latency full__0.95)
+             -> OUT/cache/<d>_readout.npz/.json
     plot     (light, reads only the cache) -> OUT/fig_pipeline_v2.png (full res) + fig_pipeline_v2_preview.png (1600 px)
 """
 import argparse
@@ -52,12 +64,12 @@ WIN = 50  # frames of the smoothing panel (10 s at 5 fps)
 
 DOM = {
     'ants': dict(series='v2', key=99, name='Ants', species=r'$\it{Lasius\ neglectus}$', short='grooming',
-                 why='aligned to grooming (groom_any / groom_yellow, ants v2 align.json)', canon=''),
+                 why='modal v2_smooth-aligned neuron of groom_any (ants v2 align.json, R~ 0.673)', canon=''),
     'mice': dict(series='v1', key=161, name='Mice', species=r'$\it{Mus\ musculus}$', short='nose-nose contact',
-                 why='aligned to nose_nose / nn_mutual / np_directional (mice v1 align.json)',
+                 why='modal v2_smooth-aligned neuron of nose_nose (mice v1 align.json, R~ 0.202)',
                  canon='odour corner top right'),
     'frogs': dict(series='juv', key=52, name='Frogs', species=r'$\it{Xenopus}$ froglets', short='FoxP1 > WT (NES)',
-                  why='NES primary discovery FoxP1 > WT (prefixes 128 / 512 / 2048, juveniles)',
+                  why='smallest-p NES discovery on the primary smooth set: FoxP1 > WT (all prefixes, juveniles)',
                   canon='mutant side right'),
 }
 
@@ -221,6 +233,59 @@ def compute_domain(name, dev):
     return meta
 
 
+def readout_domain(name):
+    """Continuous v2 video representation of the example video (all neurons), verified against the NES runners."""
+    from src.eci.contrasts import bout_stats
+    m = json.loads((OUT / 'cache' / f'{name}.json').read_text())
+    man = json.loads((V2 / 'manifest.json').read_text())['domains'][name]
+    prim = man['series'][DOM[name]['series']]['sets']['primary']
+    k, row, n, obs = m['frame'], m['row'], m['video_frames'], m['obs']
+    Z = np.load(Path(prim['codes']) / 'codes_max.npy', mmap_mode='r')
+    S = np.asarray(Z[row - k:row - k + n], dtype=np.float32)  # (n, 2048) stored smoothed codes of the video
+    cache = Path(prim['nes_dir']) / '_cache'
+    tz = np.load(cache / 'bout_thresholds_n2000000.npz')
+    qi = int(np.flatnonzero(np.isclose(tz['qs'], 0.95))[0])
+    thr = tz['thr'][qi].astype(np.float32)
+    above = S > thr  # strict, as the runners
+    bs = bout_stats(above, gap=0)
+    any_ = above.any(0)
+    first = np.where(any_, above.argmax(0), n)
+    mean = S.mean(0)
+    rate = bs['count'] / (n / FPS / 60)
+    lat = first / FPS
+    # ---- verify against the runners' per-video caches (window 'full' = the whole video)
+    vs = np.load(cache / 'video_summaries_max.npz', allow_pickle=True)
+    bz = np.load(cache / 'bout_summaries_max.npz', allow_pickle=True)
+    lz = np.load(cache / 'latency.npz', allow_pickle=True)
+    iv, ib, il = (list(z['observation_id']).index(obs) for z in (vs, bz, lz))
+    nf_full = int(bz['full__n_frames'][ib])
+    chk = dict(n_frames=n, runner_full_frames=nf_full, runner_latency_window=int(lz['nf__full'][il]),
+               mean_max_abs_diff=float(np.abs(mean - vs['full__mean'][iv]).max()),
+               count_max_abs_diff=float(np.abs(bs['count'] - bz['full__0.95__0__count'][ib]).max()),
+               thr_vs_latency_cache=float(np.abs(thr - lz['thr'][qi]).max()))
+    L = lz['full__0.95'][il].astype(np.int64)
+    unc = (L < lz['nf__full'][il]) | any_
+    chk['latency_frames_max_abs_diff_uncensored'] = int(np.abs(np.where(unc, L - first, 0)).max())
+    chk['censored_agree'] = bool(np.array_equal(~any_, L >= lz['nf__full'][il]))
+    log(f'[{name}] readout verify vs NES runner caches: {chk}')
+    if nf_full == n and (chk['mean_max_abs_diff'] > 1e-2 or chk['count_max_abs_diff'] > 0
+                         or chk['latency_frames_max_abs_diff_uncensored'] > 0 or not chk['censored_agree']):
+        raise RuntimeError(f'[{name}] readout does not match the NES runner caches: {chk}')
+    j = m['key']
+    out = dict(key=j, thr95=float(thr[j]), mean=float(mean[j]), n_bouts=int(bs['count'][j]), bout_rate_per_min=float(rate[j]),
+               latency_s=float(lat[j]), censored=bool(not any_[j]), smooth_vs_cache_max_abs_diff=float(np.abs(S[:, j] - m_smooth(name)).max()),
+               verify=chk)
+    np.savez_compressed(OUT / 'cache' / f'{name}_readout.npz', smooth=S[:, j], above=above[:, j],
+                        V=np.stack([mean, rate, lat, (~any_).astype(np.float32)]).astype(np.float32), thr=thr)
+    (OUT / 'cache' / f'{name}_readout.json').write_text(json.dumps(out, indent=1))
+    log(f'[{name}] readout neuron {j}: {out}')
+    return out
+
+
+def m_smooth(name):
+    return np.load(OUT / 'cache' / f'{name}.npz')['smooth'].astype(np.float32)
+
+
 # ------------------------------------------------------------------------------------------------ plotting
 MM = 1 / 25.4
 C_KEPT = '#E69F00'   # kept tokens / example frame (Okabe-Ito orange)
@@ -284,6 +349,8 @@ def plot(args):
     doms = args.domains.split(',')
     data = {d: (dict(np.load(OUT / 'cache' / f'{d}.npz')), json.loads((OUT / 'cache' / f'{d}.json').read_text()))
             for d in doms}
+    rd = {d: (dict(np.load(OUT / 'cache' / f'{d}_readout.npz')), json.loads((OUT / 'cache' / f'{d}_readout.json').read_text()))
+          for d in doms}
     sp = REPO / 'results/vision/eci_pipeline_fig/source_sizes.json'  # ffprobe of every source video (v1 figure)
     sizes = json.loads(sp.read_text()) if sp.exists() else {}
     spec = json.loads((REPO / 'configs/eci_v2/representation.json').read_text())
@@ -476,7 +543,9 @@ def plot(args):
                                        connectionstyle='arc3,rad=-0.15'))
         arrow(xs['spatial'] + sz + 0.5, xs['trace'] - 3.4, yc, 'max\npooling', color=C_TOK, label_color=C_TOK)
         # ---- c: 10 s of frame values, raw vs smoothed (0.6 s centred mean), three frames of s(t) highlighted
-        raw, smo, fire = A['raw'], A['smooth'], A['fire'].astype(bool)
+        R, mr = rd[d]
+        assert mr['key'] == key
+        raw, smo = A['raw'], R['smooth'].astype(np.float32)  # stored primary (continuous) smoothed codes
         lo, hi = m['win']
         t = m['frame']
         tt = (np.arange(lo, hi) - lo) / FPS
@@ -484,13 +553,12 @@ def plot(args):
         bb = t1.get_window_extent(renderer=fig.canvas.get_renderer())
         txt(xs['trace'] + bb.width / fig.dpi / MM, y0 - 0.2, m['short'], color=C_N, style='italic')
         a = ax_mm(xs['trace'], y0 + 2.3, wt, sz - 6.4)
-        ymax = float(max(raw[lo:hi].max(), smo[lo:hi].max(), m['fire_thr'])) * 1.3  # headroom for the band label
+        ymax = float(max(raw[lo:hi].max(), smo[lo:hi].max())) * 1.3  # headroom for the band label
         a.axvspan((t - 1.5 - lo) / FPS, (t + 1.5 - lo) / FPS, color=C_KEPT, alpha=0.18, lw=0)
         a.plot(tt, raw[lo:hi], color='#9e9e9e', lw=0.4)
         a.plot(tt, smo[lo:hi], color=C_N, lw=0.7)
         a.plot((np.arange(t - 1, t + 2) - lo) / FPS, raw[t - 1:t + 2], 'o', ms=1.4, color=C_DARK, mec='none')
         a.plot([(t - lo) / FPS], [smo[t]], 'o', ms=2.0, mfc='none', mec=C_N, mew=0.6)
-        a.axhline(m['fire_thr'], color='k', lw=0.35, ls=(0, (2, 1.5)))
         a.set_xlim(0, WIN / FPS); a.set_ylim(0, ymax)
         a.set_xticks([0, WIN / FPS]); a.set_xticklabels(['0', f'{WIN / FPS:.0f} s'])
         a.tick_params(axis='x', length=1.0, labelsize=FS_S - 0.6)
@@ -498,37 +566,44 @@ def plot(args):
         a.text((t - lo) / FPS, ymax * 0.985, 't−1, t, t+1', ha='center', va='top', fontsize=FS_S - 1.2, color='#b07800')
         for s in ('top', 'right'):
             a.spines[s].set_visible(False)
-        # whole-video firing raster under the trace (s / sigma > theta_n), the 10 s window marked
+        # whole-video smoothed value s_j(t) under the trace: continuous intensity strip (no threshold), 10 s window marked
         n = len(smo)
         vmin_ = n / FPS / 60
         r = ax_mm(xs['trace'], y0 + sz - 1.1, wt, 1.1)
-        r.vlines(np.flatnonzero(fire) / FPS / 60, 0, 1, color='#6b6b6b', lw=0.1)
-        r.axvspan(lo / FPS / 60, hi / FPS / 60, color=C_KEPT, alpha=0.5, lw=0)
+        nb = 600  # bins over the video (max of s_j in each bin, so short peaks stay visible)
+        e = np.linspace(0, n, nb + 1).astype(int)
+        sb = np.array([smo[e[i]:max(e[i + 1], e[i] + 1)].max() for i in range(nb)])
+        cmap = matplotlib.colors.LinearSegmentedColormap.from_list('s', ['#ffffff', C_N])
+        r.imshow(sb[None], aspect='auto', cmap=cmap, vmin=0, vmax=float(np.percentile(smo, 99.5)) or 1.0,
+                 extent=(0, vmin_, 0, 1), interpolation='nearest')
+        r.axvspan(lo / FPS / 60, hi / FPS / 60, ymin=-0.35, ymax=0, color=C_KEPT, lw=0, clip_on=False)
         r.set_xlim(0, vmin_); r.set_ylim(0, 1); r.set_yticks([])
         for s in ('top', 'right', 'left'):
             r.spines[s].set_visible(False)
         r.set_xticks([0, vmin_]); r.set_xticklabels(['0', f'{vmin_:.0f} min'])
         r.tick_params(length=1.0, labelsize=FS_S - 0.6)
         arrow(xs['trace'] + wt + 0.6, xs['vid'] - 0.7, yc, color=C_KEPT)
-        # ---- d: the three summaries of ALL neurons in this video
-        V = A['V']
-        s_ = m['summary']
-        assert abs(V[0, key] - s_['time_spent']) < 1e-6 and abs(V[1, key] - s_['bout_rate_per_min']) < 1e-4 \
+        # ---- d: the three continuous-readout summaries of ALL neurons in this video
+        V = R['V']
+        s_ = mr
+        assert abs(V[0, key] - s_['mean']) < 1e-5 and abs(V[1, key] - s_['bout_rate_per_min']) < 1e-4 \
             and abs(V[2, key] - s_['latency_s']) < 1e-4, (d, V[:3, key], s_)
         lat = f'{s_["latency_s"]:.1f} s' if not s_['censored'] else f'> {s_["latency_s"]:.0f} s'
-        vals = (f'{100 * V[0, key]:.0f}%', f'{V[1, key]:.1f}/min', lat)
+        vals = (f'{V[0, key]:.1f}', f'{V[1, key]:.1f}/min', lat)
         for i in range(3):
             va_ = ax_mm(xs['vid'] + i * (vw + vg), vy, vw, vh)
             v_ = V[i].copy()
-            if i == 2:  # latency of neurons that never fire in the video (censored) left blank
+            if i == 2:  # latency of neurons never above their q95 in the video (censored) left blank
                 v_[V[3] > 0] = np.nan
             bars(va_, v_, V.shape[1], hi=key)
             va_.annotate(vals[i], (0, key), xytext=(0.6, 0.7), textcoords='offset points', ha='left', va='bottom',
                          fontsize=4.2, color=C_N, annotation_clip=False,
                          bbox=dict(fc='white', ec='none', pad=0.25, alpha=0.85))
-            txt(xs['vid'] + i * (vw + vg), vy + vh + 0.3, ('time', 'bouts', 'latency')[i], fontsize=FS_S - 0.6,
+            txt(xs['vid'] + i * (vw + vg), vy + vh + 0.3, ('mean', 'bouts', 'latency')[i], fontsize=FS_S - 0.6,
                 color=C_DARK)
         txt(xs['vid'], vy + vh + 2.2, f'd = 3 × {V.shape[1]}', fontsize=5.0, color='#a0a0a0')
+        if ri == len(doms) - 1:
+            txt(xs['vid'], vy + vh + 4.2, 'bouts, latency: s > pooled 95th pct', fontsize=4.4, color='#a0a0a0')
         assert V.shape[1] == WL
     out = OUT / 'fig_pipeline_v2.png'
     fig.savefig(out, dpi=args.dpi)
@@ -537,11 +612,17 @@ def plot(args):
     im.convert('RGB').resize((1600, round(im.height * 1600 / im.width)), Image.LANCZOS).save(
         OUT / 'fig_pipeline_v2_preview.png')
     log(f'saved {out} ({im.width} x {im.height} px, {W:.0f} x {H:.0f} mm) + preview')
+    # block-column crops for the page's step rows (a..d), cut at the gaps between the blocks
+    px = im.width / W
+    cuts = [0.0, xb - 2.0, xs['spatial'] - 0.25, xs['vid'] - 2.6, W]  # b|c just right of the 'SAE (Matryoshka)' label
+    for i, lab in enumerate('abcd'):
+        im.crop((int(cuts[i] * px) if i else 0, 0, int(cuts[i + 1] * px), im.height)).save(OUT / f'crop_{lab}.png')
+    log(f'saved crop_a..crop_d.png (x cuts mm {[round(c, 1) for c in cuts]})')
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('stage', choices=('compute', 'plot', 'all'))
+    ap.add_argument('stage', choices=('compute', 'readout', 'plot', 'all'))
     ap.add_argument('--domains', default='ants,mice,frogs')
     ap.add_argument('--dpi', type=int, default=600)
     args = ap.parse_args()
@@ -553,6 +634,11 @@ def main():
         dev = torch.device('cuda')
         facts = {d: compute_domain(d, dev) for d in args.domains.split(',')}
         (OUT / 'facts.json').write_text(json.dumps(facts, indent=1, default=lambda o: o.item() if hasattr(o, 'item') else str(o)))
+    if args.stage in ('readout', 'all'):
+        if not os.environ.get('SLURM_JOB_ID'):
+            raise SystemExit('readout runs through Slurm (reads the stored codes of each example video)')
+        ro = {d: readout_domain(d) for d in args.domains.split(',')}
+        (OUT / 'readout.json').write_text(json.dumps(ro, indent=1))
     if args.stage in ('plot', 'all'):
         plot(args)
 
