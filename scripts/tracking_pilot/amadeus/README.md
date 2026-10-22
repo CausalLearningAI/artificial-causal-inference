@@ -48,7 +48,7 @@ SESSION_NAME=session_dbg ANALYSIS=<...>/work/3_1_1_dbg120.mp4 EPOCHS=5 NUM_IMAGE
 | `pilot.py` | the 6 videos, source windows, per-setup animal count and scale |
 | `prepare_video.py` / `prepare.sbatch` | step 1: analysis copy `work/<id>.mp4` + `prep.json` (ffprobe facts, frame-alignment check) |
 | `segment.py` | step 2: headless replacement for the segmentation GUI (writes the 3 files AMADEUS reads) |
-| `make_config.py` | step 3: the `config.yaml` the Easy Tracking GUI would write ("Very heavy" overlap, backward movement = yes) |
+| `make_config.py` | step 3: the `config.yaml` the Easy Tracking GUI would write ("Very heavy" overlap, backward movement = no) |
 | `run_video.sh` | steps 2-6 for one video, incl. the second refinement pass without identity correction |
 | `normalize.py` | step 6a: `tracks.parquet`, `detections.parquet`, `meta.json`, `raw/` |
 | `quality.py` | step 6b: `quality.json`, `quality_grid.png` |
@@ -63,6 +63,7 @@ every column of `tracks.parquet`.
   100 frames with dark animal pixels masked out. Single-animal area bounds = [0.5, 1.5] x median blob area
   in frames where the blob count equals N. Same rule for all videos of a species (ROI found per video).
 * Easy Tracking answers: N animals, overlap "Very heavy" (turns on contrastive identity correction),
-  backward movement "yes". Detector trained per video (AMADEUS default), 10k synthetic images, 50 epochs.
+  backward movement "no" (GUI default; "yes" runs a filter that deleted 75-99.5% of the training pool
+  and crashed detector training on 3_6_6). Detector trained per video (AMADEUS default), 10k synthetic images, 50 epochs.
 * Mice tracked at 1032x1032 (x0.5) and native 30 fps; ants at native 824x824, 30 fps. Output coordinates
   are converted back to source pixels and source frame indices.

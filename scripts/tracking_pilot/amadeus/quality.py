@@ -113,9 +113,20 @@ def main() -> None:
             "frac_rows_heading_nan": float(tv["heading"].isna().mean()),
         }
 
+    variant_agreement = None
+    if {"idcorr", "noidcorr"} <= set(per_variant):
+        a = tracks[tracks["variant"] == "idcorr"][["frame_src", "track_id", "cx", "cy"]]
+        b = tracks[tracks["variant"] == "noidcorr"][["frame_src", "track_id", "cx", "cy"]]
+        m = a.merge(b, on=["frame_src", "track_id"], how="outer", suffixes=("_i", "_n"))
+        same = np.hypot(m["cx_i"] - m["cx_n"], m["cy_i"] - m["cy_n"]) < 1.0
+        diff_frames = m.loc[~same, "frame_src"].unique()
+        variant_agreement = {"frac_rows_same_box_same_id": float(same.mean()),
+                             "n_frames_where_variants_differ": int(len(diff_frames))}
+
     rt = meta["runtimes_sec"]
     quality = {"video_id": vid, "N": n, "n_frames": int(n_frames), "fps": fps, "detector": detector,
-               "merge_events": merges, "tracks": per_variant,
+               "merge_events": merges, "tracks": per_variant, "idcorr_vs_noidcorr": variant_agreement,
+               "segmentation_sec": meta["settings"]["segmentation"].get("elapsed_sec"),
                "runtime_sec": {k: rt.get(k) for k in ("train", "detect", "track", "refinement_with_idcorr",
                                                        "refinement_without_idcorr")} | {"wall": rt.get("wall")},
                "gpu": meta.get("gpu")}

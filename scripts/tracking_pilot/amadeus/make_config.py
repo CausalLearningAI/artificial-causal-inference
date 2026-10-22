@@ -7,8 +7,11 @@ Mirrors gui/gui_easy_tracking.py::_build_config for a fresh session with these a
   number of animals  = SETUPS[species]['num_objects']
   overlap severity   = "super_heavy" (GUI label "Very heavy"): MIN/MAX_OVERLAP 0.01/0.5 and
                        EMBEDDING.ENABLE = True -> contrastive identity correction in refinement
-  backward movement  = yes  (ants walk backwards when dragging, mice back up) -> the
-                       "refine blobs through tracking" stage runs
+  backward movement  = no   (the GUI default) -> the "refine blobs through tracking" stage is
+                       skipped. A first attempt with "yes" was abandoned: that stage deleted
+                       75-99.5% of the single-animal training pool (3_6_6: 1249 of 1255 objects
+                       deleted, 6 kept), after which the dataset could not be split into
+                       train/validation and detector training crashed.
   variable count / without-direction = no
 Training/analysis video are the same analysis copy (work/<video_id>.mp4).
 
@@ -110,7 +113,7 @@ def build(video_id: str, analysis: str, session: str, variant: str, workers: int
     }
     flags = {k: False for k in SKIPS}
     flags["skip_cropping"] = skip_crop              # GUI sets this from the video geometry
-    flags["skip_refine_blobs_through_tracking"] = False   # backward movement = yes
+    flags["skip_refine_blobs_through_tracking"] = True    # backward movement = no (GUI default)
     flags["skip_creating_video"] = True             # we render our own sanity PNGs instead
     cfg.update(flags)
     return cfg

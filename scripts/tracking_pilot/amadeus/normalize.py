@@ -247,7 +247,7 @@ def main() -> None:
         amadeus=dict(repo="https://github.com/jpmyrmecol/AMADEUS", tag="v1.1.6", commit=git_commit,
                      install=str(AMADEUS_DIR)),
         settings=dict(num_objects=n, overlap="super_heavy (GUI: Very heavy) -> EMBEDDING.ENABLE",
-                      backward_movement="yes", detector="trained per video (YOLO11n-OBB, fine-tuned from yolo11n-obb.pt)",
+                      backward_movement="no (GUI default; 'yes' wiped the training pool, see make_config.py)", detector="trained per video (YOLO11n-OBB, fine-tuned from yolo11n-obb.pt)",
                       train_img_size=cfg["TRAIN_IMG_SIZE"], num_images=cfg["NUM_IMAGES"],
                       epochs=cfg["training"]["EPOCHS"], analysis=cfg["analysis"], embedding=cfg["EMBEDDING"],
                       auto_params={k: cfg.get(k) for k in ("MIN_OVERLAP", "MAX_OVERLAP", "DIR_MIN_SEC", "FREE_SCALE",
