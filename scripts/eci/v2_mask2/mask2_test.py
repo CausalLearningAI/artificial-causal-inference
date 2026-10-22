@@ -70,6 +70,10 @@ AMENDMENT 2026-10-22 (user decision, after step 1, before any step-2 SAE / score
     decision'. Added release criteria (ii-user): Welch 95% CI lower bound of mean(N2) - mean(M0) >= -0.01 also for mice
     nose_nose R~, mice nose_tail R~ and ants v2 groom_any R~ separately; ants v3 on_lid_any reported. (ii), (iii), (iv)
     unchanged. Release iff (ii) AND (ii-user) AND (iii) AND (iv).
+AMENDMENT 2026-10-22 ~21:00 (user decision, before any step-2 score): two more release criteria, (A) distinct best
+    nose-nose / nose-tail neurons and (B) R~ >= v1 - 0.01 on every label; definitions, frames and deviations from the
+    atlas page in scripts/eci/v2_mask2/release_ab.py (scores written by cmd_score to OUT/<dom>/ab/). Release iff the
+    above AND (A) AND (B).
 ==================================================================================================================
 
 Steps (scripts/eci/v2_mask2/job.sh runs each in Slurm; staging in $LOCAL_DIR):
@@ -460,6 +464,7 @@ def fve_of(dom, a, s):
 
 def cmd_score(args):
     import torch
+    import release_ab as RA
     dev = torch.device('cuda')
     dom, a = args.dom, args.arm
     seeds = FZ.parse_seeds(args.seeds, SEEDS[dom])
@@ -484,6 +489,7 @@ def cmd_score(args):
         out = {'eval_fve': fve_of(dom, a, s)}
         if dom == 'mice':
             X = St.codes(sae, norm, 0, 'all')
+            ab = RA.ab_mice(X, Yg['all'], half['all'], St, FZ.MLAB)  # release_ab.py (A) / (B)
             for k in sets:
                 o = crossfit(X if k == 'all' else X.index_select(0, ixg[k]), Yg[k], half[k], FZ.MLAB)
                 o['primary'] = float(np.mean([o['mean']['nose_nose']['R'], o['mean']['nose_tail']['R']]))
@@ -493,14 +499,20 @@ def cmd_score(args):
                 f'{m["nose_tail"]["R"]:.4f} | consistent primary R~ {out["consistent"]["primary"]:.4f}; {MT.gpu_line()}')
             del X
         else:
+            ab = {}
             for ser, St_ in sts.items():
                 Yg_, hh, labs = lab[ser]
-                out[ser] = FZ.compact(crossfit(St_.codes(sae, norm, 0, 'all'), Yg_, hh, labs))
+                X_ = St_.codes(sae, norm, 0, 'all')
+                out[ser] = FZ.compact(crossfit(X_, Yg_, hh, labs))
+                ab[ser] = RA.ab_ants(X_, Yg_, hh, labs)
+                del X_
             out['primary'] = float(np.mean([out[x]['mean']['groom_any']['R'] for x in ('v2', 'v3')]))
             out['lid_any'] = out['v3']['mean']['on_lid_any']['R']
             log(f'ants {a}_s{s}: primary R~ {out["primary"]:.4f} | v2 groom_any R~ {out["v2"]["mean"]["groom_any"]["R"]:.4f}'
                 f' | v3 groom_any R~ {out["v3"]["mean"]["groom_any"]["R"]:.4f} | v3 on_lid_any R~ {out["lid_any"]:.4f}')
         (od / f'{a}_s{s}.json').write_text(json.dumps(out, indent=1, default=float))
+        (OUT / dom / 'ab').mkdir(parents=True, exist_ok=True)
+        (OUT / dom / 'ab' / f'{a}_s{s}.json').write_text(json.dumps(ab, indent=1, default=float))
         torch.cuda.empty_cache()
 
 

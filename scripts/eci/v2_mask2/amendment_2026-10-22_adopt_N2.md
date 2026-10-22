@@ -50,3 +50,17 @@ of step 2 existed when this file was committed.
 
 The discovery comparison (v1 vs M0-v2 vs N2-v2: tail and odour-box neurons) is pre-registered on its own, in
 `scripts/eci/v2_mask2/discovery.py`, committed before any of its scores.
+
+## Second amendment, 2026-10-22 ~21:00 (user decision, before any step-2 score)
+
+Two more release criteria, for N2 (also reported for M0):
+- **(A) Distinct best neurons.** In mice, the cross-fitted best neuron for nose-nose (nn | np) must differ from the
+  best neuron for nose-tail, at the full 2048 dictionary and at prefix 256. Prefix 256 is the one the atlas
+  Alignment panel shows; there the frozen v2 picks #161 for both. Prefix 128 is reported. Best neurons for the
+  mutual / directional labels are reported.
+- **(B) Beat or roughly match v1 on every label.** v2 R~ >= v1 R~ - 0.01 (lower bound of the 95% t-CI over seeds),
+  for mice nose-nose and nose-tail, ants v2 grooming, and ants v3 grooming and on-lid; at the full dictionaries
+  (v1 1024 vs v2 2048) and at prefix 256.
+Exact definitions, the frame sets, the atlas-split scorer and the stated deviations from the page are in the
+docstring of `scripts/eci/v2_mask2/release_ab.py`. The deviations: step-2 frame subsets, unsmoothed v2, and ants v4
+not measured. Release iff the criteria above AND (A) AND (B).
