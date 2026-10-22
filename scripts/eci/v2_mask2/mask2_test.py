@@ -63,6 +63,13 @@ DECISION RULE (adopt the step-1 arm N over M0 iff ALL):
           measured peak-token appendage fraction).
     Otherwise keep M0. If adopted: prepare the rollout config (configs/eci_v2/*.json mask cue 'thin') so the full
     rollout is one command.
+AMENDMENT 2026-10-22 (user decision, after step 1, before any step-2 SAE / score; full text and reasons:
+    scripts/eci/v2_mask2/amendment_2026-10-22_adopt_N2.md): step 1 failed (1b CRIM13 pale, 1d keypoint-hull leak), but N2
+    is carried to step 2 by the user's decision: (i) the CRIM13 albino on light bedding is pixel-undetectable; (ii) the
+    keypoint-hull leak cap was invalid (M0 itself 0.15-0.18; lab leak 0.000). Criterion (i) := 'N2 carried by user
+    decision'. Added release criteria (ii-user): Welch 95% CI lower bound of mean(N2) - mean(M0) >= -0.01 also for mice
+    nose_nose R~, mice nose_tail R~ and ants v2 groom_any R~ separately; ants v3 on_lid_any reported. (ii), (iii), (iv)
+    unchanged. Release iff (ii) AND (ii-user) AND (iii) AND (iv).
 ==================================================================================================================
 
 Steps (scripts/eci/v2_mask2/job.sh runs each in Slurm; staging in $LOCAL_DIR):
@@ -117,8 +124,16 @@ def h_of(dom, series):
 
 
 def arm_of_step1():
-    f = OUT / 'validate' / 'step1.json'
-    return json.loads(f.read_text())['carried_arm'] if f.exists() else 'N2'
+    """Amendment 2026-10-22: N2 is carried by the user's decision (step 1 failed; step1_final.json)."""
+    return 'N2'
+
+
+def step1_record():
+    f = OUT / 'validate' / 'step1_final.json'
+    st1 = json.loads(f.read_text())
+    st1['carried_arm'] = 'N2'
+    st1['carried_by'] = 'user decision 2026-10-22 (scripts/eci/v2_mask2/amendment_2026-10-22_adopt_N2.md)'
+    return st1
 
 
 def window_of(dom, k):
@@ -672,7 +687,7 @@ def load_dir(d, a, seeds):
 
 
 def cmd_decide(args):
-    st1 = json.loads((OUT / 'validate' / 'step1.json').read_text())
+    st1 = step1_record()
     A_ = st1['carried_arm']
     arms = ('M0', A_)
     dec = {'rule': 'scripts/eci/v2_mask2/mask2_test.py docstring (pre-registered 2026-10-22)', 'step1': st1,
@@ -709,16 +724,25 @@ def cmd_decide(args):
     cov = dec['coverage']
     mw, aw = welch(mq(A_, 'primary'), mq('M0', 'primary')), welch(aq(A_, 'primary'), aq('M0', 'primary'))
     leak = {f'{d}/{k}': cov[d][k][A_]['leak_share'] for d in cov for k in cov[d] if 'pool' not in k}
-    crit = {'i_step1': bool(st1['pass'][A_]), 'mice_primary_minus_M0': mw, 'ants_primary_minus_M0': aw,
-            'ii': bool(mw[1] >= -0.01 and aw[1] >= -0.01), 'leak': leak,
+    per = {'mice_nose_nose_minus_M0': welch(mq(A_, ('nose_nose', 'R')), mq('M0', ('nose_nose', 'R'))),
+           'mice_nose_tail_minus_M0': welch(mq(A_, ('nose_tail', 'R')), mq('M0', ('nose_tail', 'R'))),
+           'ants_v2_groom_any_minus_M0': welch(aq(A_, ('v2', 'groom_any', 'R')), aq('M0', ('v2', 'groom_any', 'R'))),
+           'ants_v3_on_lid_any_minus_M0 (reported)': welch(aq(A_, ('v3', 'on_lid_any', 'R')),
+                                                            aq('M0', ('v3', 'on_lid_any', 'R')))}
+    crit = {'i_step1': bool(st1['pass'][A_]), 'i_amended': 'N2 carried by user decision 2026-10-22',
+            'mice_primary_minus_M0': mw, 'ants_primary_minus_M0': aw,
+            'ii': bool(mw[1] >= -0.01 and aw[1] >= -0.01), **per,
+            'ii_user': bool(all(v[1] >= -0.01 for k, v in per.items() if 'reported' not in k)), 'leak': leak,
+            'bg_count': {d: FZ.mean_sd([r['n_background'] for r in nr[d][A_].values()]) for d in ('mice', 'ants')},
+            'bg_count_M0': {d: FZ.mean_sd([r['n_background'] for r in nr[d]['M0'].values()]) for d in ('mice', 'ants')},
             'bg_share': {d: tab[A_][f'{d} background-neuron share'][0] for d in ('mice', 'ants')},
             'app_neurons': {d: tab[A_][f'{d} appendage (tail / antenna / leg) neurons'][0] for d in ('mice', 'ants')}}
     crit['iii'] = bool(max(leak.values()) <= 0.05 and max(crit['bg_share'].values()) <= 0.01)
     crit['iv_count'] = bool(min(crit['app_neurons'].values()) >= 5)
     crit['iv_visual'] = 'see report: per-sheet visual judgement'
     dec['criteria'] = crit
-    dec['DECISION_numeric'] = f'adopt {A_}' if (crit['i_step1'] and crit['ii'] and crit['iii'] and crit['iv_count']) \
-        else 'keep M0'
+    dec['DECISION_numeric'] = f'adopt {A_}' if (crit['ii'] and crit['ii_user'] and crit['iii'] and crit['iv_count']) \
+        else 'keep M0'  # amendment 2026-10-22: (i) = user decision
     (OUT / 'decision.json').write_text(json.dumps(dec, indent=1, default=float))
     L = ['| metric | ' + ' | '.join(arms) + ' |', '|---|' + '---|' * len(arms)]
     for k in tab['M0']:
