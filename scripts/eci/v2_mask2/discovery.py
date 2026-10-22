@@ -359,7 +359,7 @@ def cmd_v1lab(args):
     log(f'v1 SAE hparams: {json.dumps({k: str(v) for k, v in torch.load(V1_DIR / "sae" / V1 / "sae.pt", map_location="cpu", weights_only=False)["hparams"].items()})}')
     rows = U.F.row.values.astype(np.int64)
     _, se = decoder()
-    rp = np.array([se.V[o]['rot'] for o in U.F.obs.values])
+    rp = np.array([se.rot.get(o, 0) for o in U.F.obs.values])
     assert (enc.rot[rows] % 4 == rp % 4).all(), 'v1 / v2 rotations differ'
     fp = pd.read_csv(REPO / N.C['ann'], usecols=['frame_path'])['frame_path'].values[rows]
     loc = N.local_dir() / 'v1frames'
@@ -480,7 +480,8 @@ def cmd_mab(args):
     import torch.nn.functional as F
     from PIL import Image
     import validate as VA
-    from common import N_BG as NB_, mab_clips, mab_decode
+    from common import N_BG as NB_, mab_decode
+    mab_clips = VA.mab_clips
     dev = torch.device('cuda')
     od_ = OUT / 'mab'
     od_.mkdir(parents=True, exist_ok=True)
