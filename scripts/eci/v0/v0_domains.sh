@@ -34,8 +34,11 @@ RES=results/vision/$SUBJ/eci_v0_${DOMAIN}${OUT_TAG}
 mkdir -p logs "$RES"
 
 STAGE=/localhome/$USER/$SLURM_JOB_ID
-mkdir -p "$STAGE/videos" "$STAGE/out" "$STAGE/tok"
-trap 'rm -rf "$STAGE"; kill $SMI_PID 2>/dev/null || true' EXIT
+# token store (float16): local disk by default; TOKDIR=<dir> (e.g. on BeeGFS) when the node's local disk is too small
+# (mice v1: 153 GB). The dir is removed at exit either way.
+TOKDIR=${TOKDIR:-$STAGE/tok}
+mkdir -p "$STAGE/videos" "$STAGE/out" "$TOKDIR"
+trap 'rm -rf "$STAGE" "$TOKDIR"; kill $SMI_PID 2>/dev/null || true' EXIT
 echo "node $(hostname), local disk free: $(df -h /localhome | tail -1)"
 
 nvidia-smi --query-gpu=timestamp,name,utilization.gpu,memory.used,memory.total --format=csv -l 60 \
@@ -58,7 +61,7 @@ else
     echo "staged $(ls "$STAGE/videos" | wc -l) of $(wc -l < "$STAGE/videos.txt") videos ($(du -sh "$STAGE/videos" | cut -f1))"
 fi
 
-python -u scripts/eci/v0/v0_domains.py --domain "$DOMAIN" --video-dir "$VDIR" --stage-dir "$STAGE/tok" \
+python -u scripts/eci/v0/v0_domains.py --domain "$DOMAIN" --video-dir "$VDIR" --stage-dir "$TOKDIR" \
     --out-dir "$STAGE/out" --big-dir "/mnt/beegfs/locatgrp/shared/rcadei/eci_v0/${DOMAIN}${OUT_TAG}" \
     --num-workers 14 ${EXTRA_ARGS:-}
 
