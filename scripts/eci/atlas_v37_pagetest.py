@@ -318,6 +318,8 @@ with sync_playwright() as p:
     for m_ in ('v0', 'online', 'new'):
         pg.select_option('#ax_model', m_)
         pg.wait_for_timeout(700)
+        if a.shots:
+            pg.locator('#prefixOpt').screenshot(path=f'{a.shots}/neurons_bar_{m_}.png')
         report.append(f'prefix buttons mice {m_}: {pg.evaluate(PX_JS)}; v0 note shown '
                       f'{not pg.eval_on_selector("#pxNote", "e => e.hidden")}')
     for d in ('mice', 'ants'):
@@ -370,6 +372,11 @@ with sync_playwright() as p:
                 pg.select_option('#apE', se)
                 pg.wait_for_timeout(900)
             open_al(pg)
+            if d == 'ants':
+                lid = pg.eval_on_selector_all('#alBox table.alg tbody tr', 'rs => rs.filter(r => /lid/.test(r.textContent)).map(r => [...r.querySelectorAll("td")].map(td => [td.textContent.trim().slice(0, 60), td.title]))')
+                report.append(f'lid rows ants {se}: {lid}')
+                if a.shots:
+                    pg.locator('#alBox table.alg').screenshot(path=f'{a.shots}/align_table_ants_{se}.png')
             n_btn = pg.locator('#alBox table.alg .alj').count()
             n_cell = pg.locator('#alBox table.alg td .pn').count()
             report.append(f'interp {d} {se}: {n_btn} of {n_cell} best-neuron cells clickable')
@@ -419,7 +426,8 @@ with sync_playwright() as p:
     facts = pg.eval_on_selector('#detail', 'e => (e.querySelector(".facts")||{}).textContent || null')
     ftip = pg.eval_on_selector('#detail', 'e => ((e.querySelector(".facts .tip")||{}).title) || null')
     side = pg.eval_on_selector('#side', 'e => [(e.querySelector("h2")||{}).textContent, (e.querySelector(".nmeta")||{}).textContent]')
-    report.append(f'#73 discovery panel head: {side}')
+    il = pg.eval_on_selector('#detail', 'e => (e.querySelector(".interp")||{}).textContent || null')
+    report.append(f'#73 discovery panel head: {side}; interpretation line {il!r}')
     report.append(f'#73 check: listed {ids}; detail {pg.eval_on_selector("#detail", H2)}; facts {facts!r}; '
                   f'activity tooltip {ftip!r}')
     if a.shots:
