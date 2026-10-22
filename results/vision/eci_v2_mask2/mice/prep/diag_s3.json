@@ -1,0 +1,18 @@
+{
+ "dom": "mice",
+ "kind": "diag",
+ "shard": 3,
+ "nshard": 8,
+ "S": 1024,
+ "G": 64,
+ "h": 32.0,
+ "n_frames": 5400,
+ "n_stored_tokens": 1365995,
+ "wall_s": 1384.6968846321106,
+ "gpu_s": 729.9132163524628,
+ "fps_wall": 3.899770455130824,
+ "gpu": "NVIDIA L40S",
+ "tokens_per_frame_M0": 148.1638888888889,
+ "tokens_per_frame_N1": 226.62555555555556,
+ "tokens_per_frame_N2": 252.96203703703705
+}

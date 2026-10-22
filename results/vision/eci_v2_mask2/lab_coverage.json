@@ -1,0 +1,144 @@
+{
+ "mice": {
+  "diag": {
+   "n_frames": 43200,
+   "app_px_share_of_animal_px": 0.12006648561523636,
+   "grown_px_share_of_animal_px": 0.17385793510980366,
+   "M0": {
+    "app_coverage": 0.2683769990687385,
+    "animal_px_recall": 0.6702427865874029,
+    "tokens_per_frame": 151.33421296296297,
+    "leak_share": 0.0
+   },
+   "N1": {
+    "app_coverage": 0.8414099547517468,
+    "animal_px_recall": 0.955331194892039,
+    "tokens_per_frame": 240.7167824074074,
+    "leak_share": 0.0
+   },
+   "N2": {
+    "app_coverage": 0.9781231214911866,
+    "animal_px_recall": 0.9726045189179243,
+    "tokens_per_frame": 270.4605324074074,
+    "leak_share": 0.0
+   }
+  },
+  "pool": {
+   "n_frames": 31414,
+   "app_px_share_of_animal_px": 0.10736827934763749,
+   "grown_px_share_of_animal_px": 0.16454685068734065,
+   "M0": {
+    "app_coverage": 0.26886968602286737,
+    "animal_px_recall": 0.7035251189245626,
+    "tokens_per_frame": 146.7315846437894,
+    "leak_share": 0.0
+   },
+   "N1": {
+    "app_coverage": 0.84713770393693,
+    "animal_px_recall": 0.9638396661488887,
+    "tokens_per_frame": 224.0848029540969,
+    "leak_share": 0.0
+   },
+   "N2": {
+    "app_coverage": 0.9772596799991898,
+    "animal_px_recall": 0.9786746448834439,
+    "tokens_per_frame": 245.26952950913605,
+    "leak_share": 0.0
+   }
+  }
+ },
+ "ants": {
+  "scored_v2": {
+   "n_frames": 13200,
+   "app_px_share_of_animal_px": 0.0680644477191275,
+   "grown_px_share_of_animal_px": 0.09480317897773399,
+   "M0": {
+    "app_coverage": 0.3424047206149958,
+    "animal_px_recall": 0.8776314163814205,
+    "tokens_per_frame": 28.75219696969697,
+    "leak_share": 0.0
+   },
+   "N1": {
+    "app_coverage": 0.46541674505264236,
+    "animal_px_recall": 0.9186128374728936,
+    "tokens_per_frame": 32.13651515151515,
+    "leak_share": 0.0
+   },
+   "N2": {
+    "app_coverage": 0.8576309573196621,
+    "animal_px_recall": 0.950702519712398,
+    "tokens_per_frame": 38.23401515151515,
+    "leak_share": 0.0
+   }
+  },
+  "pool_v2": {
+   "n_frames": 20568,
+   "app_px_share_of_animal_px": 0.06797607009521961,
+   "grown_px_share_of_animal_px": 0.09482885318909026,
+   "M0": {
+    "app_coverage": 0.3396370398964341,
+    "animal_px_recall": 0.8776396560289421,
+    "tokens_per_frame": 28.793757292882148,
+    "leak_share": 0.0
+   },
+   "N1": {
+    "app_coverage": 0.46385595449597916,
+    "animal_px_recall": 0.9188480241035242,
+    "tokens_per_frame": 32.205805134189035,
+    "leak_share": 0.0
+   },
+   "N2": {
+    "app_coverage": 0.8568843535760927,
+    "animal_px_recall": 0.9508855516651253,
+    "tokens_per_frame": 38.3072734344613,
+    "leak_share": 0.0
+   }
+  },
+  "scored_v3": {
+   "n_frames": 32100,
+   "app_px_share_of_animal_px": 0.06697956152721332,
+   "grown_px_share_of_animal_px": 0.07241684401586022,
+   "M0": {
+    "app_coverage": 0.38748184104801836,
+    "animal_px_recall": 0.8982414970306706,
+    "tokens_per_frame": 37.20056074766355,
+    "leak_share": 0.0
+   },
+   "N1": {
+    "app_coverage": 0.493793896149454,
+    "animal_px_recall": 0.9284121569631238,
+    "tokens_per_frame": 40.42626168224299,
+    "leak_share": 0.0
+   },
+   "N2": {
+    "app_coverage": 0.8956803124278363,
+    "animal_px_recall": 0.9591722357887357,
+    "tokens_per_frame": 47.56517133956386,
+    "leak_share": 0.0
+   }
+  },
+  "pool_v3": {
+   "n_frames": 24682,
+   "app_px_share_of_animal_px": 0.06953028431549502,
+   "grown_px_share_of_animal_px": 0.06900325601342804,
+   "M0": {
+    "app_coverage": 0.3860902048284248,
+    "animal_px_recall": 0.8976177039403958,
+    "tokens_per_frame": 36.932541933392756,
+    "leak_share": 0.0
+   },
+   "N1": {
+    "app_coverage": 0.4861873461474267,
+    "animal_px_recall": 0.9263496898349407,
+    "tokens_per_frame": 39.97119358236772,
+    "leak_share": 0.0
+   },
+   "N2": {
+    "app_coverage": 0.8969111272558461,
+    "animal_px_recall": 0.9589793591733932,
+    "tokens_per_frame": 47.43671501499068,
+    "leak_share": 0.0
+   }
+  }
+ }
+}

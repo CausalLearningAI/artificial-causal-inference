@@ -1,0 +1,2 @@
+{"G1": {"sigma": 1.5, "t_lo": 30, "use_mad": true, "k_mad": 5, "use_q": "dark"},
+ "G2": {"sigma": 1.5, "t_lo": 35, "use_mad": true, "k_mad": 6, "use_q": "dark"}}

@@ -1,0 +1,18 @@
+{
+ "dom": "mice",
+ "kind": "pool",
+ "shard": 4,
+ "nshard": 6,
+ "S": 1024,
+ "G": 64,
+ "h": 32.0,
+ "n_frames": 5231,
+ "n_stored_tokens": 1255625,
+ "wall_s": 1092.468659877777,
+ "gpu_s": 705.6815674304962,
+ "fps_wall": 4.788238044819732,
+ "gpu": "NVIDIA L40S",
+ "tokens_per_frame_M0": 147.37908621678454,
+ "tokens_per_frame_N1": 218.72548269929268,
+ "tokens_per_frame_N2": 240.03536608679028
+}

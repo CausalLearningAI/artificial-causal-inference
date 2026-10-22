@@ -1,0 +1,18 @@
+{
+ "dom": "ants",
+ "kind": "scored_v3",
+ "shard": 1,
+ "nshard": 3,
+ "S": 832,
+ "G": 52,
+ "h": 16.15549442140351,
+ "n_frames": 10800,
+ "n_stored_tokens": 512505,
+ "wall_s": 823.8553831577301,
+ "gpu_s": 681.2112696170807,
+ "fps_wall": 13.109096840036427,
+ "gpu": "NVIDIA A40",
+ "tokens_per_frame_M0": 37.00277777777778,
+ "tokens_per_frame_N1": 40.3525,
+ "tokens_per_frame_N2": 47.454166666666666
+}

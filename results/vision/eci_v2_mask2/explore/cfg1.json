@@ -1,0 +1,1 @@
+{"A": {"sigma": 1.0, "t_lo": 20, "use_mad": true, "k_mad": 4}, "B": {"sigma": 1.5, "t_lo": 25, "use_mad": true, "k_mad": 4}, "C": {"sigma": 1.5, "t_lo": 30, "use_mad": true, "k_mad": 5}, "D": {"sigma": 2.0, "t_lo": 25, "use_mad": true, "k_mad": 4}}

@@ -1,0 +1,4 @@
+{"C": {"sigma": 1.5, "t_lo": 30, "use_mad": true, "k_mad": 5},
+ "Cg": {"sigma": 1.5, "t_lo": 30, "use_mad": true, "k_mad": 5, "use_q": "both", "ghost": 40},
+ "Cgh": {"sigma": 1.5, "t_lo": 30, "use_mad": true, "k_mad": 5, "use_q": "hi", "ghost": 40},
+ "Eg": {"sigma": 1.5, "t_lo": 35, "use_mad": true, "k_mad": 6, "use_q": "both", "ghost": 40}}
