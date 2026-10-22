@@ -1,0 +1,37 @@
+{
+ "dom": "mice",
+ "kind": "diag",
+ "shard": 0,
+ "nshard": 6,
+ "S": 1024,
+ "G": 64,
+ "calib": {
+  "S": 1024,
+  "native_w": 2064.0,
+  "n_frames": 240,
+  "n_components": 1013,
+  "body_halfwidth_px": 32.0,
+  "body_width_px": 64.0,
+  "r_open": 16,
+  "r_dil": 2,
+  "animal_px_per_frame_median": 32649.0
+ },
+ "n_frames": 10800,
+ "n_stored_tokens": 2741552,
+ "wall_s": 1540.8379192352295,
+ "gpu_s": 673.0578618049622,
+ "fps_wall": 7.009173297967906,
+ "gpu": "NVIDIA A40",
+ "tokens_per_frame_M0": 155.61675925925925,
+ "tokens_per_frame_M1": 253.84740740740742,
+ "tokens_per_frame_M2": 173.00101851851852,
+ "tokens_per_frame_M3": 481.27407407407406,
+ "check_vs_v2_store": {
+  "frames": 48,
+  "frames_same_M0_positions": 48,
+  "M0_tokens_new": 8557,
+  "tokens_ref": 8557,
+  "max_abs_diff": 0.0,
+  "mean_abs_diff": 0.0
+ }
+}

@@ -1,0 +1,29 @@
+{
+ "dom": "ants",
+ "kind": "scored_v3",
+ "shard": 1,
+ "nshard": 2,
+ "S": 832,
+ "G": 52,
+ "calib": {
+  "S": 832,
+  "native_w": 824.0,
+  "n_frames": 240,
+  "n_components": 555,
+  "body_halfwidth_px": 16.15549442140351,
+  "body_width_px": 32.31098884280702,
+  "r_open": 8,
+  "r_dil": 4,
+  "animal_px_per_frame_median": 7401.5
+ },
+ "n_frames": 15900,
+ "n_stored_tokens": 1036370,
+ "wall_s": 533.3545897006989,
+ "gpu_s": 431.25687408447266,
+ "fps_wall": 29.811311849631892,
+ "gpu": "NVIDIA L40S",
+ "tokens_per_frame_M0": 37.04377358490566,
+ "tokens_per_frame_M1": 65.12842767295598,
+ "tokens_per_frame_M2": 56.34157232704403,
+ "tokens_per_frame_M3": 182.7932075471698
+}

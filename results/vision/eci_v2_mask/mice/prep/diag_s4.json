@@ -1,0 +1,29 @@
+{
+ "dom": "mice",
+ "kind": "diag",
+ "shard": 4,
+ "nshard": 6,
+ "S": 1024,
+ "G": 64,
+ "calib": {
+  "S": 1024,
+  "native_w": 2064.0,
+  "n_frames": 240,
+  "n_components": 1013,
+  "body_halfwidth_px": 32.0,
+  "body_width_px": 64.0,
+  "r_open": 16,
+  "r_dil": 2,
+  "animal_px_per_frame_median": 32649.0
+ },
+ "n_frames": 5400,
+ "n_stored_tokens": 1354641,
+ "wall_s": 821.2780916690826,
+ "gpu_s": 404.5732867717743,
+ "fps_wall": 6.57511755734965,
+ "gpu": "NVIDIA L40S",
+ "tokens_per_frame_M0": 154.91222222222223,
+ "tokens_per_frame_M1": 250.85944444444445,
+ "tokens_per_frame_M2": 171.54407407407408,
+ "tokens_per_frame_M3": 471.66370370370373
+}

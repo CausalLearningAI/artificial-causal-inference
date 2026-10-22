@@ -1,0 +1,29 @@
+{
+ "dom": "ants",
+ "kind": "pool_v2",
+ "shard": 1,
+ "nshard": 2,
+ "S": 768,
+ "G": 48,
+ "calib": {
+  "S": 768,
+  "native_w": 770.0,
+  "n_frames": 240,
+  "n_components": 634,
+  "body_halfwidth_px": 13.92838827718412,
+  "body_width_px": 27.85677655436824,
+  "r_open": 7,
+  "r_dil": 4,
+  "animal_px_per_frame_median": 5702.0
+ },
+ "n_frames": 10366,
+ "n_stored_tokens": 563621,
+ "wall_s": 371.4086048603058,
+ "gpu_s": 333.4888632297516,
+ "fps_wall": 27.909961870428017,
+ "gpu": "NVIDIA A40",
+ "tokens_per_frame_M0": 28.914045919351725,
+ "tokens_per_frame_M1": 54.314779085471734,
+ "tokens_per_frame_M2": 46.435172679915105,
+ "tokens_per_frame_M3": 168.12425236349605
+}

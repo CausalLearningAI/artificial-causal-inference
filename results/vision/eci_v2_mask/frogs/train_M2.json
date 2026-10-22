@@ -1,0 +1,26 @@
+{
+ "M2_s60": {
+  "train_time_s": 108.58860921859741,
+  "n_train_tokens": 548126,
+  "theta_star": 1.7868456840515137,
+  "eval_fve": 0.8838709962976024,
+  "eval_l0": 15.90749175435841,
+  "dead_at_end_train": 0
+ },
+ "M2_s61": {
+  "train_time_s": 106.94746780395508,
+  "n_train_tokens": 548126,
+  "theta_star": 1.8260283470153809,
+  "eval_fve": 0.8832377710962244,
+  "eval_l0": 15.897980908503918,
+  "dead_at_end_train": 0
+ },
+ "M2_s62": {
+  "train_time_s": 106.96284675598145,
+  "n_train_tokens": 548126,
+  "theta_star": 1.7784199714660645,
+  "eval_fve": 0.8849860623208099,
+  "eval_l0": 15.996003699631782,
+  "dead_at_end_train": 0
+ }
+}

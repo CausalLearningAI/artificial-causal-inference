@@ -1,0 +1,37 @@
+{
+ "dom": "frogs",
+ "kind": "pool_fj",
+ "shard": 0,
+ "nshard": 1,
+ "S": 800,
+ "G": 50,
+ "calib": {
+  "S": 800,
+  "native_w": 800.0,
+  "n_frames": 240,
+  "n_components": 257,
+  "body_halfwidth_px": 15.811388300841896,
+  "body_width_px": 31.622776601683793,
+  "r_open": 8,
+  "r_dil": 4,
+  "animal_px_per_frame_median": 3806.0
+ },
+ "n_frames": 19487,
+ "n_stored_tokens": 840569,
+ "wall_s": 498.40795612335205,
+ "gpu_s": 457.4078347682953,
+ "fps_wall": 39.098493032838185,
+ "gpu": "NVIDIA L40S",
+ "tokens_per_frame_M0": 21.75973726073793,
+ "tokens_per_frame_M1": 43.08390208857187,
+ "tokens_per_frame_M2": 34.27161697541951,
+ "tokens_per_frame_M3": 103.64407040591163,
+ "check_vs_v2_store": {
+  "frames": 48,
+  "frames_same_M0_positions": 48,
+  "M0_tokens_new": 1340,
+  "tokens_ref": 1340,
+  "max_abs_diff": 0.0,
+  "mean_abs_diff": 0.0
+ }
+}

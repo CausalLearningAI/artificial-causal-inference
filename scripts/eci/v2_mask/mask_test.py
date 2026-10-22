@@ -25,6 +25,7 @@ FRAMES (fixed subsets of the freeze-round frame lists; the stored v2 tokens cont
     ants      pools v2 / v3 (freeze), every second burst per video; scored = the freeze scored frames, all
               (v2 13,200, v3 32,100).
     frogs juv pool_fj (freeze), every second burst per video (no labels; calib videos select, eval videos show).
+    (Amendment 2026-10-21 ~23:55, before any SAE: pool frames repeated by overlapping random bursts are kept once.)
 THIN PARTS (label-free, from the animal pixel mask at the encoder input side S): body half-width h = median over
     connected components (>= 100 px) of the maximum Euclidean distance transform inside the component, on ~240 frames
     of training videos per domain ('calib' step, written to results/vision/eci_v2_mask/calib.json before encoding).
@@ -44,7 +45,10 @@ METRICS (per domain and arm)
     thin-part neurons: thin share = sum_t a_t * thin_px_t / sum_t a_t * animal_px_t over all firing tokens of the
                selection-half frames; thin-part neuron = thin share > 0.5 with >= 20 firing frames. Contact sheets
                (24 top frames of the OTHER half, <= 1 per video, real per-token activation maps) of the top 3 thin
-               neurons per domain (deployment seed of M1 and M2; of M0 too when it has any) -> results/vision/
+               neurons per domain [amendment 2026-10-22 ~00:25, after the frogs neuron selftest, before any mice / ants
+               SAE existed: 'top 3' = the 3 thin-part neurons with the most selection-half firing frames (ranking by
+               share alone picked neurons with 20-40 firing frames and empty sheets); per-video cap = ceil(24 / number
+               of videos in the half), i.e. 1 for mice / ants, more for the few frogs eval videos] (deployment seed of M1 and M2; of M0 too when it has any) -> results/vision/
                eci_v2_mask/sheets/. Halves: mice pools / ants videos of split rnd0; frogs calib (select) / eval (show).
 DECISION RULE: adopt M1 or M2 over M0 only if ALL of
     (a) mice primary R~: Welch 95% CI lower bound of mean(arm) - mean(M0) >= -0.01;
@@ -126,6 +130,7 @@ def frame_list(dom, kind):
     Fr['ref_f'] = np.arange(len(Fr))
     if K['sub'] == 'all':
         return Fr
+    Fr = Fr.drop_duplicates(['obs', 'k']).reset_index(drop=True)  # overlapping random bursts repeat frames (kept once)
     keep = np.zeros(len(Fr), bool)
     for o, g in Fr.groupby('obs', sort=False):
         g = g.sort_values('k')
@@ -652,7 +657,10 @@ def cmd_neurons(args):
              'argmax_off_share_median': float(np.nanmedian(off)), 'argmax_body_share_median': float(np.nanmedian(body)),
              'n_thin': int(np.nansum(thin > THIN_NEURON)), 'n_thin_gt_0.3': int(np.nansum(thin > 0.3)),
              'thin_share_median': float(np.nanmedian(thin)), 'thin_share_p99': float(np.nanquantile(thin, 0.99)),
-             'top_thin': [[int(j), float(thin[j]), float(acc['fire'][j])] for j in np.argsort(-np.nan_to_num(thin, nan=-1))[:10]]}
+             'top_thin_by_share': [[int(j), float(thin[j]), float(acc['fire'][j])]
+                                   for j in np.argsort(-np.nan_to_num(thin, nan=-1))[:10]]}
+        tn = np.flatnonzero(np.nan_to_num(thin, nan=-1) > THIN_NEURON)
+        r['top_thin'] = [[int(j), float(thin[j]), float(acc['fire'][j])] for j in tn[np.argsort(-acc['fire'][tn])][:10]]
         log(f'{dom} {name}: background neurons {r["n_background"]}/{r["n_scored"]}, thin neurons (share > 0.5) '
             f'{r["n_thin"]}, thin share p99 {r["thin_share_p99"]:.3f}, top {r["top_thin"][:3]}; {gpu_line()}')
         if s == dep:
@@ -689,7 +697,8 @@ def sheets(dom, a, s, sae, norm, sts, Xs, hB, top):
         for ser, St in sts.items():
             v = Xs[ser][:, j].float().cpu().numpy()
             c = pd.DataFrame({'f': np.arange(St.nf), 'v': v, 'obs': St.F.obs.values})[hB[ser]]
-            c = c[c.v > 0].sort_values('v', ascending=False).drop_duplicates('obs').head(24)
+            cap = max(1, int(np.ceil(24 / max(c.obs.nunique(), 1))))
+            c = c[c.v > 0].sort_values('v', ascending=False).groupby('obs', sort=False).head(cap).head(24)
             cand += [(r.v, ser, int(r.f)) for r in c.itertuples()]
         cand = sorted(cand, reverse=True)[:24]
         recs_all, summ_all = [], []

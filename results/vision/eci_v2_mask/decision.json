@@ -1,0 +1,800 @@
+{
+ "rule": "scripts/eci/v2_mask/mask_test.py docstring (pre-registered 2026-10-21)",
+ "calib": {
+  "mice/v1": {
+   "S": 1024,
+   "native_w": 2064.0,
+   "n_frames": 240,
+   "n_components": 1013,
+   "body_halfwidth_px": 32.0,
+   "body_width_px": 64.0,
+   "r_open": 16,
+   "r_dil": 2,
+   "animal_px_per_frame_median": 32649.0
+  },
+  "ants/v2": {
+   "S": 768,
+   "native_w": 770.0,
+   "n_frames": 240,
+   "n_components": 634,
+   "body_halfwidth_px": 13.92838827718412,
+   "body_width_px": 27.85677655436824,
+   "r_open": 7,
+   "r_dil": 4,
+   "animal_px_per_frame_median": 5702.0
+  },
+  "ants/v3": {
+   "S": 832,
+   "native_w": 824.0,
+   "n_frames": 240,
+   "n_components": 555,
+   "body_halfwidth_px": 16.15549442140351,
+   "body_width_px": 32.31098884280702,
+   "r_open": 8,
+   "r_dil": 4,
+   "animal_px_per_frame_median": 7401.5
+  },
+  "frogs/juv": {
+   "S": 800,
+   "native_w": 800.0,
+   "n_frames": 240,
+   "n_components": 257,
+   "body_halfwidth_px": 15.811388300841896,
+   "body_width_px": 31.622776601683793,
+   "r_open": 8,
+   "r_dil": 4,
+   "animal_px_per_frame_median": 3806.0
+  }
+ },
+ "coverage": {
+  "mice": {
+   "mice": {
+    "n_frames": 43200,
+    "thin_px_share_of_animal_px": 0.23169615215044734,
+    "M0": {
+     "thin_coverage": 0.8106223419908861,
+     "animal_px_recall": 0.9431842457493615,
+     "tokens_per_frame": 151.33421296296297,
+     "leak_share": 0.0
+    },
+    "M1": {
+     "thin_coverage": 1.0,
+     "animal_px_recall": 1.0,
+     "tokens_per_frame": 245.45534722222223,
+     "leak_share": 0.08130816205067094
+    },
+    "M2": {
+     "thin_coverage": 0.8709439107609102,
+     "animal_px_recall": 0.9656110207252826,
+     "tokens_per_frame": 167.40238425925926,
+     "leak_share": 0.0002494543876662228
+    },
+    "M3": {
+     "thin_coverage": 0.9017574918339476,
+     "animal_px_recall": 0.9772375888803168,
+     "tokens_per_frame": 453.19666666666666,
+     "leak_share": 0.6013838628638862
+    }
+   },
+   "mice_pool": {
+    "n_frames": 31414,
+    "thin_px_share_of_animal_px": 0.2072968633396004,
+    "M0": {
+     "thin_coverage": 0.8605021100081816,
+     "animal_px_recall": 0.9577353073307161,
+     "tokens_per_frame": 146.7315846437894,
+     "leak_share": 0.0
+    },
+    "M1": {
+     "thin_coverage": 1.0,
+     "animal_px_recall": 1.0,
+     "tokens_per_frame": 207.64897816260267,
+     "leak_share": 0.08526855008021511
+    },
+    "M2": {
+     "thin_coverage": 0.9248776365957478,
+     "animal_px_recall": 0.9798115963779086,
+     "tokens_per_frame": 161.80339975806965,
+     "leak_share": 0.00024611972868988756
+    },
+    "M3": {
+     "thin_coverage": 0.9605251500050601,
+     "animal_px_recall": 0.9918169874152477,
+     "tokens_per_frame": 446.2894250970905,
+     "leak_share": 0.6083952650748916
+    }
+   }
+  },
+  "ants": {
+   "scored_v2": {
+    "n_frames": 13200,
+    "thin_px_share_of_animal_px": 0.1722981876859947,
+    "M0": {
+     "thin_coverage": 0.5988627231963171,
+     "animal_px_recall": 0.9001554021433764,
+     "tokens_per_frame": 28.75219696969697,
+     "leak_share": 0.0
+    },
+    "M1": {
+     "thin_coverage": 1.0,
+     "animal_px_recall": 1.0,
+     "tokens_per_frame": 53.898257575757576,
+     "leak_share": 0.1788456646009527
+    },
+    "M2": {
+     "thin_coverage": 0.9649320374023671,
+     "animal_px_recall": 0.9922688093500478,
+     "tokens_per_frame": 46.07007575757576,
+     "leak_share": 0.053365673175745115
+    },
+    "M3": {
+     "thin_coverage": 0.9969928393045915,
+     "animal_px_recall": 0.9994707353433792,
+     "tokens_per_frame": 166.29484848484847,
+     "leak_share": 0.7342890411882509
+    }
+   },
+   "pool_v2": {
+    "n_frames": 20568,
+    "thin_px_share_of_animal_px": 0.17241722998215406,
+    "M0": {
+     "thin_coverage": 0.598420571818375,
+     "animal_px_recall": 0.9000948982546452,
+     "tokens_per_frame": 28.793757292882148,
+     "leak_share": 0.0
+    },
+    "M1": {
+     "thin_coverage": 1.0,
+     "animal_px_recall": 1.0,
+     "tokens_per_frame": 53.954006223259434,
+     "leak_share": 0.17819353606205496
+    },
+    "M2": {
+     "thin_coverage": 0.9648396732374925,
+     "animal_px_recall": 0.9922677896049009,
+     "tokens_per_frame": 46.13491831971995,
+     "leak_share": 0.05329311847470184
+    },
+    "M3": {
+     "thin_coverage": 0.9971771476816491,
+     "animal_px_recall": 0.9995002203565254,
+     "tokens_per_frame": 166.79988331388566,
+     "leak_share": 0.734572424608102
+    }
+   },
+   "scored_v3": {
+    "n_frames": 32100,
+    "thin_px_share_of_animal_px": 0.15748564668503928,
+    "M0": {
+     "thin_coverage": 0.6238290297091332,
+     "animal_px_recall": 0.9157621465064572,
+     "tokens_per_frame": 37.20056074766355,
+     "leak_share": 0.0
+    },
+    "M1": {
+     "thin_coverage": 1.0,
+     "animal_px_recall": 1.0,
+     "tokens_per_frame": 64.02828660436137,
+     "leak_share": 0.15318871916033996
+    },
+    "M2": {
+     "thin_coverage": 0.9679606309403103,
+     "animal_px_recall": 0.9935380535244601,
+     "tokens_per_frame": 55.63158878504673,
+     "leak_share": 0.039793389309061504
+    },
+    "M3": {
+     "thin_coverage": 0.9941169758617897,
+     "animal_px_recall": 0.9990735081391302,
+     "tokens_per_frame": 177.56996884735202,
+     "leak_share": 0.6956901373264122
+    }
+   },
+   "pool_v3": {
+    "n_frames": 24682,
+    "thin_px_share_of_animal_px": 0.1594413612526436,
+    "M0": {
+     "thin_coverage": 0.6182564836762948,
+     "animal_px_recall": 0.9142174616856557,
+     "tokens_per_frame": 36.932541933392756,
+     "leak_share": 0.0
+    },
+    "M1": {
+     "thin_coverage": 1.0,
+     "animal_px_recall": 1.0,
+     "tokens_per_frame": 63.95360991815898,
+     "leak_share": 0.15328003811205934
+    },
+    "M2": {
+     "thin_coverage": 0.9681043454564626,
+     "animal_px_recall": 0.9935038775510817,
+     "tokens_per_frame": 55.53277692245361,
+     "leak_share": 0.039189149752673895
+    },
+    "M3": {
+     "thin_coverage": 0.9939981746152382,
+     "animal_px_recall": 0.9990423621155892,
+     "tokens_per_frame": 177.21351592253464,
+     "leak_share": 0.6954666500837681
+    }
+   }
+  },
+  "frogs": {
+   "frogs": {
+    "n_frames": 19487,
+    "thin_px_share_of_animal_px": 0.3819550236566698,
+    "M0": {
+     "thin_coverage": 0.7945801298471471,
+     "animal_px_recall": 0.9012964766344218,
+     "tokens_per_frame": 21.75973726073793,
+     "leak_share": 0.0
+    },
+    "M1": {
+     "thin_coverage": 1.0,
+     "animal_px_recall": 1.0,
+     "tokens_per_frame": 43.08390208857187,
+     "leak_share": 0.2589819146807436
+    },
+    "M2": {
+     "thin_coverage": 0.9757617081233148,
+     "animal_px_recall": 0.9892936353007432,
+     "tokens_per_frame": 34.27161697541951,
+     "leak_share": 0.08774112788630997
+    },
+    "M3": {
+     "thin_coverage": 0.9596005030812118,
+     "animal_px_recall": 0.9845692091986668,
+     "tokens_per_frame": 103.64407040591163,
+     "leak_share": 0.7061328545852081
+    }
+   }
+  }
+ },
+ "table": {
+  "M0": {
+   "mice primary R~": [
+    0.10502310212315408,
+    0.017637305698250814,
+    6
+   ],
+   "mice consistent primary R~": [
+    0.10302790748447406,
+    0.014913765827379197,
+    6
+   ],
+   "mice nose_nose R~": [
+    0.1315059647316897,
+    0.030690693809311526,
+    6
+   ],
+   "mice nose_nose AUROC": [
+    0.734269665577859,
+    0.03837191475194939,
+    6
+   ],
+   "mice consistent nose_nose R~": [
+    0.13752456679737488,
+    0.03309823498753819,
+    6
+   ],
+   "mice nose_tail R~": [
+    0.07854023951461843,
+    0.01602717193726091,
+    6
+   ],
+   "mice nose_tail AUROC": [
+    0.7160727839017742,
+    0.056941132893125676,
+    6
+   ],
+   "mice consistent nose_tail R~": [
+    0.06853124817157329,
+    0.009220016537134373,
+    6
+   ],
+   "ants primary R~": [
+    0.6059258808926619,
+    0.01854998513473606,
+    6
+   ],
+   "ants v2 groom_any R~": [
+    0.6458519639134261,
+    0.04185890263011597,
+    6
+   ],
+   "ants v2 groom_any AUROC": [
+    0.9026313116872751,
+    0.01668797138269047,
+    6
+   ],
+   "ants v2 groom_yellow R~": [
+    0.5040124347270458,
+    0.028375839379931822,
+    6
+   ],
+   "ants v2 groom_yellow AUROC": [
+    0.8879538167608595,
+    0.014324800090872216,
+    6
+   ],
+   "ants v2 groom_blue R~": [
+    0.38951879689691254,
+    0.015494785049947325,
+    6
+   ],
+   "ants v2 groom_blue AUROC": [
+    0.8486266937631003,
+    0.020686251422999433,
+    6
+   ],
+   "ants v3 groom_any R~": [
+    0.5659997978718977,
+    0.009732869558952415,
+    6
+   ],
+   "ants v3 groom_any AUROC": [
+    0.8685497673567913,
+    0.008851773092721336,
+    6
+   ],
+   "ants v3 groom_yellow R~": [
+    0.38935109054654776,
+    0.018851747800636077,
+    6
+   ],
+   "ants v3 groom_yellow AUROC": [
+    0.823915383271018,
+    0.010857258607614023,
+    6
+   ],
+   "ants v3 groom_blue R~": [
+    0.3894266605470942,
+    0.010733675196752305,
+    6
+   ],
+   "ants v3 groom_blue AUROC": [
+    0.8334172206968362,
+    0.007785345875121551,
+    6
+   ],
+   "ants v3 on_lid_any R~": [
+    0.8533276158611248,
+    0.008136657223730331,
+    6
+   ],
+   "ants v3 on_lid_any AUROC": [
+    0.9513618110215387,
+    0.001583191023311615,
+    6
+   ],
+   "mice background-neuron share": [
+    0.0,
+    0.0,
+    6
+   ],
+   "mice thin-part neurons (share > 0.5)": [
+    304.8333333333333,
+    4.875106836436169,
+    6
+   ],
+   "mice thin-part neurons (share > 0.3)": [
+    821.3333333333334,
+    11.111555546667022,
+    6
+   ],
+   "ants background-neuron share": [
+    0.0,
+    0.0,
+    6
+   ],
+   "ants thin-part neurons (share > 0.5)": [
+    108.16666666666667,
+    6.554896388705672,
+    6
+   ],
+   "ants thin-part neurons (share > 0.3)": [
+    318.1666666666667,
+    14.232591705893439,
+    6
+   ],
+   "frogs background-neuron share": [
+    0.0,
+    0.0,
+    3
+   ],
+   "frogs thin-part neurons (share > 0.5)": [
+    595.6666666666666,
+    20.404247923737188,
+    3
+   ],
+   "frogs thin-part neurons (share > 0.3)": [
+    704.3333333333334,
+    20.792626898334255,
+    3
+   ]
+  },
+  "M1": {
+   "mice primary R~": [
+    0.11079443522865777,
+    0.011426005931413862,
+    6
+   ],
+   "mice consistent primary R~": [
+    0.10793022524226437,
+    0.013470032437356156,
+    6
+   ],
+   "mice nose_nose R~": [
+    0.13497140732429025,
+    0.025511493543572072,
+    6
+   ],
+   "mice nose_nose AUROC": [
+    0.7472514459670295,
+    0.0363180322324861,
+    6
+   ],
+   "mice consistent nose_nose R~": [
+    0.14078481732001064,
+    0.03069758611765685,
+    6
+   ],
+   "mice nose_tail R~": [
+    0.08661746313302526,
+    0.01829282909653092,
+    6
+   ],
+   "mice nose_tail AUROC": [
+    0.7242592219333462,
+    0.059548662760977505,
+    6
+   ],
+   "mice consistent nose_tail R~": [
+    0.0750756331645181,
+    0.017871351954198793,
+    6
+   ],
+   "ants primary R~": [
+    0.5929924742081133,
+    0.025164431773525116,
+    6
+   ],
+   "ants v2 groom_any R~": [
+    0.6118619050185102,
+    0.03836157146003311,
+    6
+   ],
+   "ants v2 groom_any AUROC": [
+    0.9040392029789123,
+    0.021306752769471294,
+    6
+   ],
+   "ants v2 groom_yellow R~": [
+    0.40241331353669074,
+    0.06852306545108341,
+    6
+   ],
+   "ants v2 groom_yellow AUROC": [
+    0.8723483201859686,
+    0.023817696007723734,
+    6
+   ],
+   "ants v2 groom_blue R~": [
+    0.3976726235537438,
+    0.02342456604083254,
+    6
+   ],
+   "ants v2 groom_blue AUROC": [
+    0.8674430687118284,
+    0.026933348172618086,
+    6
+   ],
+   "ants v3 groom_any R~": [
+    0.5741230433977164,
+    0.024202562273131722,
+    6
+   ],
+   "ants v3 groom_any AUROC": [
+    0.8738019867162197,
+    0.02242773863534361,
+    6
+   ],
+   "ants v3 groom_yellow R~": [
+    0.3702745621959891,
+    0.01484347672641319,
+    6
+   ],
+   "ants v3 groom_yellow AUROC": [
+    0.8243488906674229,
+    0.017498780565766692,
+    6
+   ],
+   "ants v3 groom_blue R~": [
+    0.3953837571088498,
+    0.018393590630197004,
+    6
+   ],
+   "ants v3 groom_blue AUROC": [
+    0.8378352564923809,
+    0.018049875009146253,
+    6
+   ],
+   "ants v3 on_lid_any R~": [
+    0.8581666442862915,
+    0.002212093584226892,
+    6
+   ],
+   "ants v3 on_lid_any AUROC": [
+    0.9555707059085554,
+    0.0031532486127749753,
+    6
+   ],
+   "mice background-neuron share": [
+    0.07449051973883779,
+    0.003381311948077824,
+    6
+   ],
+   "mice thin-part neurons (share > 0.5)": [
+    590.3333333333334,
+    10.893423092245461,
+    6
+   ],
+   "mice thin-part neurons (share > 0.3)": [
+    1108.8333333333333,
+    8.495096624916439,
+    6
+   ],
+   "ants background-neuron share": [
+    0.1133488924730623,
+    0.005013066059180426,
+    6
+   ],
+   "ants thin-part neurons (share > 0.5)": [
+    519.6666666666666,
+    8.16496580927726,
+    6
+   ],
+   "ants thin-part neurons (share > 0.3)": [
+    815.3333333333334,
+    5.278888771954442,
+    6
+   ],
+   "frogs background-neuron share": [
+    0.22587730711703435,
+    0.005500654694128757,
+    3
+   ],
+   "frogs thin-part neurons (share > 0.5)": [
+    857.6666666666666,
+    9.29157324317757,
+    3
+   ],
+   "frogs thin-part neurons (share > 0.3)": [
+    978.3333333333334,
+    12.342339054382412,
+    3
+   ]
+  },
+  "M2": {
+   "mice primary R~": [
+    0.11872853734357192,
+    0.016780052186182882,
+    6
+   ],
+   "mice consistent primary R~": [
+    0.11948253910643954,
+    0.019262136349830837,
+    6
+   ],
+   "mice nose_nose R~": [
+    0.14762670065750785,
+    0.018991987067915318,
+    6
+   ],
+   "mice nose_nose AUROC": [
+    0.7557394019661299,
+    0.04599781297969354,
+    6
+   ],
+   "mice consistent nose_nose R~": [
+    0.1559199572445888,
+    0.020793620632608846,
+    6
+   ],
+   "mice nose_tail R~": [
+    0.08983037402963594,
+    0.022371074766528217,
+    6
+   ],
+   "mice nose_tail AUROC": [
+    0.7184871082383796,
+    0.05384745924535058,
+    6
+   ],
+   "mice consistent nose_tail R~": [
+    0.08304512096829025,
+    0.02159668706946484,
+    6
+   ],
+   "ants primary R~": [
+    0.5920400616320612,
+    0.01460956074491034,
+    6
+   ],
+   "ants v2 groom_any R~": [
+    0.6042846718593152,
+    0.02457594907764221,
+    6
+   ],
+   "ants v2 groom_any AUROC": [
+    0.8959648860071338,
+    0.015057206680804083,
+    6
+   ],
+   "ants v2 groom_yellow R~": [
+    0.35385152956793536,
+    0.06507819979871608,
+    6
+   ],
+   "ants v2 groom_yellow AUROC": [
+    0.8603913840906511,
+    0.015235285769017235,
+    6
+   ],
+   "ants v2 groom_blue R~": [
+    0.4081442893144112,
+    0.015941664645315153,
+    6
+   ],
+   "ants v2 groom_blue AUROC": [
+    0.8720062183781608,
+    0.013168210725092175,
+    6
+   ],
+   "ants v3 groom_any R~": [
+    0.5797954514048076,
+    0.008581716524063629,
+    6
+   ],
+   "ants v3 groom_any AUROC": [
+    0.8806582163667588,
+    0.0071543777284343735,
+    6
+   ],
+   "ants v3 groom_yellow R~": [
+    0.36924145294889893,
+    0.012661731332213336,
+    6
+   ],
+   "ants v3 groom_yellow AUROC": [
+    0.8289044243147359,
+    0.008937574109674442,
+    6
+   ],
+   "ants v3 groom_blue R~": [
+    0.3913675187877316,
+    0.01066453179345795,
+    6
+   ],
+   "ants v3 groom_blue AUROC": [
+    0.8429977536180652,
+    0.005360183529900757,
+    6
+   ],
+   "ants v3 on_lid_any R~": [
+    0.8592269559264744,
+    0.001468378308201876,
+    6
+   ],
+   "ants v3 on_lid_any AUROC": [
+    0.9557166406464285,
+    0.0012609996036233124,
+    6
+   ],
+   "mice background-neuron share": [
+    0.0,
+    0.0,
+    6
+   ],
+   "mice thin-part neurons (share > 0.5)": [
+    398.1666666666667,
+    8.841191473249895,
+    6
+   ],
+   "mice thin-part neurons (share > 0.3)": [
+    914.6666666666666,
+    15.370968306084904,
+    6
+   ],
+   "ants background-neuron share": [
+    0.003994596855707651,
+    0.0005731086176843915,
+    6
+   ],
+   "ants thin-part neurons (share > 0.5)": [
+    429.5,
+    9.049861877399014,
+    6
+   ],
+   "ants thin-part neurons (share > 0.3)": [
+    700.1666666666666,
+    18.104327291193858,
+    6
+   ],
+   "frogs background-neuron share": [
+    0.06554457199773434,
+    0.00421672725503327,
+    3
+   ],
+   "frogs thin-part neurons (share > 0.5)": [
+    780.6666666666666,
+    25.716402029314544,
+    3
+   ],
+   "frogs thin-part neurons (share > 0.3)": [
+    899.3333333333334,
+    31.754264805429415,
+    3
+   ]
+  }
+ },
+ "criteria": {
+  "M1": {
+   "mice_primary_minus_M0": [
+    0.005771333105503693,
+    -0.013786499444382063,
+    0.02532916565538945
+   ],
+   "ants_primary_minus_M0": [
+    -0.012933406684548565,
+    -0.041711953841095814,
+    0.015845140471998684
+   ],
+   "leak": {
+    "mice/mice": 0.08130816205067094,
+    "ants/scored_v2": 0.1788456646009527,
+    "ants/scored_v3": 0.15318871916033996,
+    "frogs/frogs": 0.2589819146807436
+   },
+   "thin_coverage_gain": {
+    "mice/mice": 0.18937765800911388,
+    "ants/scored_v2": 0.40113727680368294,
+    "ants/scored_v3": 0.37617097029086677
+   },
+   "a": false,
+   "b": false,
+   "c": false,
+   "d": true,
+   "pass": false
+  },
+  "M2": {
+   "mice_primary_minus_M0": [
+    0.013705435220417839,
+    -0.008446402062296444,
+    0.03585727250313212
+   ],
+   "ants_primary_minus_M0": [
+    -0.013885819260600618,
+    -0.035525356187226756,
+    0.007753717666025523
+   ],
+   "leak": {
+    "mice/mice": 0.0002494543876662228,
+    "ants/scored_v2": 0.053365673175745115,
+    "ants/scored_v3": 0.039793389309061504,
+    "frogs/frogs": 0.08774112788630997
+   },
+   "thin_coverage_gain": {
+    "mice/mice": 0.06032156877002404,
+    "ants/scored_v2": 0.36606931420605004,
+    "ants/scored_v3": 0.34413160123117703
+   },
+   "a": true,
+   "b": false,
+   "c": true,
+   "d": false,
+   "pass": false
+  }
+ },
+ "DECISION": "keep M0"
+}

@@ -1,0 +1,12 @@
+frogs M0 train 982442 neurons 982443
+frogs M1 train 982444 neurons 982445
+frogs M2 train 982446 neurons 982447
+mice M0 train 982818 score 982819 neurons 982820
+ants M0 train 982821 score 982822 neurons 982823
+mice M1 train 982824 score 982825 neurons 982826
+ants M1 train 982827 score 982828 neurons 982829
+mice M2 train 982830 score 982831 neurons 982832
+ants M2 train 982833 score 982834 neurons 982835
+frogs M0 neurons2 983070
+frogs M1 neurons2 983071
+frogs M2 neurons2 983072
