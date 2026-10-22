@@ -1,64 +1,247 @@
 {
- "totals": {
-  "primary_selected": 673,
-  "stable_all": 9,
-  "stable_ge_half": 224
- },
- "by_set": {
-  "mice": {
-   "primary_neuron_settings": 99,
-   "stable_all_checks": 1,
-   "stable_ge_half": 45
+ "grid": "\nECI v2 NES sensitivity index: 'stable in k of n checks' for every neuron NES selects in the PRIMARY setting.\n\nGRID (REDEFINED 2026-10-21 by the user, before this index was recomputed). One test throughout: Welch t on the\nper-video outcome (paired t for mice family A); rank tests and the sign-flip test are NOT checks; outcome variants\nare NOT checks (the index is computed separately for each variant).\n  primary   Bonferroni, window 'full' (mice: habituation = its LAST 15 min, the default; odor / post their whole 15 min),\n            mean = per-video mean; bouts = bout rate, threshold q 0.95, merge gap 0; latency = first frame above q 0.95.\n  checks    mean     window hwhole (mice only: habituation on its whole 30 min), window trim30 (the first n_trim = 150\n                     frames = 30 s of every video's window dropped: the start-of-video handling)\n            bouts    threshold q 0.90, q 0.99, merge gap 2 frames, window hwhole, window trim30\n            latency  threshold q 0.90, q 0.99, window hwhole, window trim30\n            binary outcomes (the fnorm set and the MAP set): NO threshold checks (the outcome is already binary).\n  A check whose setting does not exist for an analysis (hwhole outside mice habituation analyses) is not counted in n.\n  variants  continuous (<sae>_smooth, primary input), prob (<sae>_prob), binary_fnorm (<sae>), binary_map (<sae>_map).\nOutput: results/vision/eci_v2/sensitivity.json {variant: {result set: {analysis: {aggregation|prefix: {neuron: {k, n,\nchecks}}}}}, files: per-setting result.json paths} + sensitivity_summary.json.\n",
+ "by_variant": {
+  "continuous": {
+   "mice": {
+    "primary_neuron_settings": 99,
+    "stable_all_checks": 28,
+    "stable_ge_half": 61,
+    "no_checks": 0
+   },
+   "mice/family_S": {
+    "primary_neuron_settings": 193,
+    "stable_all_checks": 48,
+    "stable_ge_half": 123,
+    "no_checks": 0
+   },
+   "mice/subsets/ash1l_all": {
+    "primary_neuron_settings": 58,
+    "stable_all_checks": 14,
+    "stable_ge_half": 27,
+    "no_checks": 0
+   },
+   "mice/subsets/kdm6b_all": {
+    "primary_neuron_settings": 67,
+    "stable_all_checks": 10,
+    "stable_ge_half": 31,
+    "no_checks": 0
+   },
+   "mice/subsets/kmt5b_all": {
+    "primary_neuron_settings": 51,
+    "stable_all_checks": 6,
+    "stable_ge_half": 20,
+    "no_checks": 0
+   },
+   "mice/subsets/all_f": {
+    "primary_neuron_settings": 67,
+    "stable_all_checks": 16,
+    "stable_ge_half": 31,
+    "no_checks": 0
+   },
+   "mice/subsets/all_m": {
+    "primary_neuron_settings": 59,
+    "stable_all_checks": 11,
+    "stable_ge_half": 23,
+    "no_checks": 0
+   },
+   "ants_v3/v3_2_vs_8_noday": {
+    "primary_neuron_settings": 14,
+    "stable_all_checks": 5,
+    "stable_ge_half": 11,
+    "no_checks": 0
+   },
+   "ants_v4": {
+    "primary_neuron_settings": 25,
+    "stable_all_checks": 9,
+    "stable_ge_half": 19,
+    "no_checks": 0
+   },
+   "frogs_juv": {
+    "primary_neuron_settings": 14,
+    "stable_all_checks": 5,
+    "stable_ge_half": 8,
+    "no_checks": 0
+   },
+   "frogs_tad": {
+    "primary_neuron_settings": 26,
+    "stable_all_checks": 9,
+    "stable_ge_half": 19,
+    "no_checks": 0
+   }
   },
-  "mice/family_S": {
-   "primary_neuron_settings": 193,
-   "stable_all_checks": 1,
-   "stable_ge_half": 83
+  "prob": {
+   "mice": {
+    "primary_neuron_settings": 92,
+    "stable_all_checks": 28,
+    "stable_ge_half": 73,
+    "no_checks": 0
+   },
+   "mice/family_S": {
+    "primary_neuron_settings": 184,
+    "stable_all_checks": 51,
+    "stable_ge_half": 123,
+    "no_checks": 0
+   },
+   "mice/subsets/ash1l_all": {
+    "primary_neuron_settings": 48,
+    "stable_all_checks": 9,
+    "stable_ge_half": 30,
+    "no_checks": 0
+   },
+   "mice/subsets/kdm6b_all": {
+    "primary_neuron_settings": 66,
+    "stable_all_checks": 12,
+    "stable_ge_half": 45,
+    "no_checks": 0
+   },
+   "mice/subsets/kmt5b_all": {
+    "primary_neuron_settings": 49,
+    "stable_all_checks": 5,
+    "stable_ge_half": 31,
+    "no_checks": 0
+   },
+   "mice/subsets/all_f": {
+    "primary_neuron_settings": 65,
+    "stable_all_checks": 13,
+    "stable_ge_half": 46,
+    "no_checks": 0
+   },
+   "mice/subsets/all_m": {
+    "primary_neuron_settings": 51,
+    "stable_all_checks": 7,
+    "stable_ge_half": 36,
+    "no_checks": 0
+   },
+   "ants_v3/v3_2_vs_8_noday": {
+    "primary_neuron_settings": 13,
+    "stable_all_checks": 5,
+    "stable_ge_half": 7,
+    "no_checks": 0
+   },
+   "ants_v4": {
+    "primary_neuron_settings": 27,
+    "stable_all_checks": 11,
+    "stable_ge_half": 24,
+    "no_checks": 0
+   },
+   "frogs_juv": {
+    "primary_neuron_settings": 10,
+    "stable_all_checks": 3,
+    "stable_ge_half": 6,
+    "no_checks": 0
+   },
+   "frogs_tad": {
+    "primary_neuron_settings": 17,
+    "stable_all_checks": 5,
+    "stable_ge_half": 10,
+    "no_checks": 0
+   }
   },
-  "mice/subsets/ash1l_all": {
-   "primary_neuron_settings": 58,
-   "stable_all_checks": 0,
-   "stable_ge_half": 11
+  "binary_fnorm": {
+   "mice": {
+    "primary_neuron_settings": 85,
+    "stable_all_checks": 50,
+    "stable_ge_half": 71,
+    "no_checks": 0
+   },
+   "mice/family_S": {
+    "primary_neuron_settings": 217,
+    "stable_all_checks": 100,
+    "stable_ge_half": 182,
+    "no_checks": 0
+   },
+   "mice/subsets/ash1l_all": {
+    "primary_neuron_settings": 48,
+    "stable_all_checks": 20,
+    "stable_ge_half": 34,
+    "no_checks": 0
+   },
+   "mice/subsets/kdm6b_all": {
+    "primary_neuron_settings": 60,
+    "stable_all_checks": 20,
+    "stable_ge_half": 42,
+    "no_checks": 0
+   },
+   "mice/subsets/kmt5b_all": {
+    "primary_neuron_settings": 52,
+    "stable_all_checks": 18,
+    "stable_ge_half": 39,
+    "no_checks": 0
+   },
+   "mice/subsets/all_f": {
+    "primary_neuron_settings": 62,
+    "stable_all_checks": 34,
+    "stable_ge_half": 51,
+    "no_checks": 0
+   },
+   "mice/subsets/all_m": {
+    "primary_neuron_settings": 53,
+    "stable_all_checks": 25,
+    "stable_ge_half": 40,
+    "no_checks": 0
+   },
+   "ants_v3": {
+    "primary_neuron_settings": 1,
+    "stable_all_checks": 0,
+    "stable_ge_half": 0,
+    "no_checks": 0
+   },
+   "ants_v3/v3_2_vs_8_noday": {
+    "primary_neuron_settings": 20,
+    "stable_all_checks": 13,
+    "stable_ge_half": 17,
+    "no_checks": 0
+   },
+   "ants_v4": {
+    "primary_neuron_settings": 35,
+    "stable_all_checks": 24,
+    "stable_ge_half": 26,
+    "no_checks": 0
+   },
+   "frogs_juv": {
+    "primary_neuron_settings": 12,
+    "stable_all_checks": 12,
+    "stable_ge_half": 12,
+    "no_checks": 0
+   },
+   "frogs_tad": {
+    "primary_neuron_settings": 27,
+    "stable_all_checks": 20,
+    "stable_ge_half": 24,
+    "no_checks": 0
+   }
   },
-  "mice/subsets/kdm6b_all": {
-   "primary_neuron_settings": 67,
-   "stable_all_checks": 0,
-   "stable_ge_half": 12
-  },
-  "mice/subsets/kmt5b_all": {
-   "primary_neuron_settings": 51,
-   "stable_all_checks": 0,
-   "stable_ge_half": 5
-  },
-  "mice/subsets/all_f": {
-   "primary_neuron_settings": 67,
-   "stable_all_checks": 0,
-   "stable_ge_half": 21
-  },
-  "mice/subsets/all_m": {
-   "primary_neuron_settings": 59,
-   "stable_all_checks": 0,
-   "stable_ge_half": 10
-  },
-  "ants_v3/v3_2_vs_8_noday": {
-   "primary_neuron_settings": 14,
-   "stable_all_checks": 1,
-   "stable_ge_half": 7
-  },
-  "ants_v4": {
-   "primary_neuron_settings": 25,
-   "stable_all_checks": 3,
-   "stable_ge_half": 12
-  },
-  "frogs_juv": {
-   "primary_neuron_settings": 14,
-   "stable_all_checks": 0,
-   "stable_ge_half": 6
-  },
-  "frogs_tad": {
-   "primary_neuron_settings": 26,
-   "stable_all_checks": 3,
-   "stable_ge_half": 12
+  "binary_map": {
+   "mice": {
+    "primary_neuron_settings": 93,
+    "stable_all_checks": 49,
+    "stable_ge_half": 68,
+    "no_checks": 0
+   },
+   "ants_v3/v3_2_vs_8_noday": {
+    "primary_neuron_settings": 19,
+    "stable_all_checks": 8,
+    "stable_ge_half": 11,
+    "no_checks": 0
+   },
+   "ants_v4": {
+    "primary_neuron_settings": 22,
+    "stable_all_checks": 16,
+    "stable_ge_half": 20,
+    "no_checks": 0
+   },
+   "frogs_juv": {
+    "primary_neuron_settings": 12,
+    "stable_all_checks": 10,
+    "stable_ge_half": 12,
+    "no_checks": 0
+   },
+   "frogs_tad": {
+    "primary_neuron_settings": 21,
+    "stable_all_checks": 15,
+    "stable_ge_half": 21,
+    "no_checks": 0
+   }
   }
  }
 }

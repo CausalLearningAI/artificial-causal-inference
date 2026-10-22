@@ -1,0 +1,26 @@
+{
+ "W": 2048,
+ "fallback_share": 0.00244140625,
+ "n_lt200_positive": 2,
+ "bic_gain_median": 9968.168519497638,
+ "share_bic_gain_gt10": 0.9995112414467253,
+ "share_bic_gain_le10": 0.0004887585532746823,
+ "separation_median": 3.52470357055594,
+ "separation_p10_p90": [
+  2.630789848349875,
+  4.480954121630742
+ ],
+ "series": {
+  "v1": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/mice/codes/v1/v2_mice_c0_w2048_s7_map",
+   "active_fraction_median": 0.13215779320987653,
+   "active_fraction_p10_p90": [
+    0.008930246913580247,
+    0.4948834104938271
+   ],
+   "never_active": 0,
+   "active_gt_50pct": 200,
+   "mean_active_neurons_per_frame": 397.3057110339506
+  }
+ }
+}

@@ -1,17 +1,21 @@
 {
- "created": "2026-10-21 17:34",
- "code_head": "2b5ee2b43ac55f09c145b9b129fc702e31ba7f1e",
+ "created": "2026-10-22 01:18",
+ "code_head": "bf8872c0f9427714d5bae43713e125b7c2de5141",
  "nes_code_records": [
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v2p_v2_ants_c0_w2048_s6.json",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v2p_v2_ants_c0_w2048_s6_map.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v2p_v2_ants_c0_w2048_s6_prob.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v2p_v2_ants_c0_w2048_s6_smooth.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v3p_v2_ants_c0_w2048_s6.json",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v3p_v2_ants_c0_w2048_s6_map.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v3p_v2_ants_c0_w2048_s6_prob.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v3p_v2_ants_c0_w2048_s6_smooth.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v4p_v2_ants_c0_w2048_s6.json",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v4p_v2_ants_c0_w2048_s6_map.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v4p_v2_ants_c0_w2048_s6_prob.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/ants_eci_r4v4p_v2_ants_c0_w2048_s6_smooth.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/frogs_v2_frogs_c0_w2048_s6.json",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/frogs_v2_frogs_c0_w2048_s6_map.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/frogs_v2_frogs_c0_w2048_s6_prob.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/frogs_v2_frogs_c0_w2048_s6_smooth.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/mice_S_v2_mice_c0_w2048_s7.json",
@@ -33,9 +37,11 @@
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/mice_strata_kmt5b_all_v2_mice_c0_w2048_s7_prob.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/mice_strata_kmt5b_all_v2_mice_c0_w2048_s7_smooth.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/mice_v2_mice_c0_w2048_s7.json",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/mice_v2_mice_c0_w2048_s7_map.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/mice_v2_mice_c0_w2048_s7_prob.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/mice_v2_mice_c0_w2048_s7_smooth.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/tadpoles_v2_frogs_c0_w2048_s6.json",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/tadpoles_v2_frogs_c0_w2048_s6_map.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/tadpoles_v2_frogs_c0_w2048_s6_prob.json",
   "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/nes_code/tadpoles_v2_frogs_c0_w2048_s6_smooth.json"
  ],
@@ -61,10 +67,12 @@
   "secondary": "<sae>: the same smoothed codes zeroed below the fnorm firing threshold (pre-specified, but it destroys alignment: mice nose_nose R~ 0.174 raw -> 0.093, ants v2 groom_any 0.629 -> 0.075)",
   "prob": "<sae>_prob: per-neuron P(on | smoothed code), label-free (src/eci/v2/prob.py): a 2-component Gaussian mixture on log of the positive smoothed codes of the calibration videos; P(on) = posterior of the higher component (a probability under the mixture model), monotone, 0 on silent frames. NES mean on it = expected fraction of time active per video; the runners' bout rate and latency threshold P(on) at its pooled q 0.95 (not an expected bout count). Single-neuron rank alignment (R~ / AUROC) is invariant to this monotone per-neuron map, so align.json v2_prob is a sanity check only.",
   "raw": "<sae>_raw: frame max codes, no smoothing (alignment reference)",
+  "binary_map": "<sae>_map: 1[P(on) > 0.5], per-neuron MAP of the lognormal mixture (won the held-out family selection vs gamma); bouts / latency on it use threshold 0 (above = active)",
   "outcome_variants": {
    "continuous": "<sae>_smooth",
    "binary": "<sae>",
-   "prob": "<sae>_prob"
+   "prob": "<sae>_prob",
+   "binary_map": "<sae>_map"
   }
  },
  "domains": {
@@ -1368,6 +1376,148 @@
         "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_prob/familyC_nes/maxpool_latency/C_summary.csv"
        ]
       },
+      "binary_map": {
+       "name": "v2_mice_c0_w2048_s7_map",
+       "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/mice/codes/v1/v2_mice_c0_w2048_s7_map",
+       "codes_link": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/mice/v1/eci/codes/v2_mice_c0_w2048_s7_map",
+       "nes_dir": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map",
+       "nes_result_json": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/A_het_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/A_het_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/A_het_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/A_het_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/A_wt_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/A_wt_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/A_wt_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/A_wt_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/B_stage1/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/B_stage2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/B_stage3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/B_stage4/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/B_stage5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/B_stage6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/A_het_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/A_het_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/A_het_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/A_het_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/A_wt_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/A_wt_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/A_wt_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/A_wt_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/B_stage1/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/B_stage2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/B_stage3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/B_stage4/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/B_stage5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/B_stage6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/A_het_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/A_het_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/A_het_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/A_het_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/A_wt_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/A_wt_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/A_wt_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/A_wt_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/B_stage1/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/B_stage2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/B_stage3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/B_stage4/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/B_stage5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/B_stage6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/period_adjust/B_stage1/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/period_adjust/B_stage2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/period_adjust/B_stage3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/period_adjust/B_stage4/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/period_adjust/B_stage5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/period_adjust/B_stage6/result.json"
+       ],
+       "nes_summary_csv": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/period_adjust/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/mice/eci/nes/v2_mice_c0_w2048_s7_map/summary.csv"
+       ],
+       "ness_dir": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map",
+       "ness_result_json": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/A_het_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/A_het_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/A_het_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/A_het_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/A_wt_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/A_wt_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/A_wt_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/A_wt_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/B_stage1/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/B_stage2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/B_stage3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/B_stage4/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/B_stage5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/B_stage6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/A_het_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/A_het_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/A_het_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/A_het_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/A_wt_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/A_wt_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/A_wt_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/A_wt_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/B_stage1/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/B_stage2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/B_stage3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/B_stage4/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/B_stage5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/B_stage6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/A_het_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/A_het_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/A_het_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/A_het_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/A_wt_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/A_wt_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/A_wt_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/A_wt_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/B_stage1/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/B_stage2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/B_stage3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/B_stage4/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/B_stage5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/B_stage6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/C_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/C_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/C_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/C_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/maxpool_bouts/C_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/maxpool_bouts/C_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/maxpool_bouts/C_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/maxpool_bouts/C_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/maxpool_latency/C_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/maxpool_latency/C_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/maxpool_latency/C_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/maxpool_latency/C_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/C_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/C_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/C_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/C_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/maxpool_bouts/C_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/maxpool_bouts/C_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/maxpool_bouts/C_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/maxpool_bouts/C_5to6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/maxpool_latency/C_1to2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/maxpool_latency/C_2to3/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/maxpool_latency/C_4to5/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/maxpool_latency/C_5to6/result.json"
+       ],
+       "ness_summary_csv": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/dines/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/C_summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/maxpool_bouts/C_summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_dines/maxpool_latency/C_summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/C_summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/maxpool_bouts/C_summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/mice/v2_mice_c0_w2048_s7_map/familyC_nes/maxpool_latency/C_summary.csv"
+       ]
+      },
       "raw": {
        "name": "v2_mice_c0_w2048_s7_raw",
        "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/mice/codes/v1/v2_mice_c0_w2048_s7_raw",
@@ -1376,7 +1526,14 @@
      }
     }
    },
-   "prob": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/mice/prob.json"
+   "prob": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/mice/prob.json",
+   "binarisation": {
+    "map": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/mice/map.json",
+    "bimodality_smoothed": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/mice/bimodality.npz",
+    "bimodality_raw": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/mice/bimodality_raw.json",
+    "mixture_family": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/mice/mixsel.json",
+    "decision": "MAP binary NOT proposed as default (pre-registered tolerance failed on every label; prob.py docstring); continuous stays primary"
+   }
   },
   "ants": {
    "config": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/configs/eci_v2/ants.json",
@@ -1515,6 +1672,43 @@
         "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v2p/v2_ants_c0_w2048_s6_prob/dines/maxpool_bouts/summary.csv",
         "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v2p/v2_ants_c0_w2048_s6_prob/dines/maxpool_latency/summary.csv",
         "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v2p/v2_ants_c0_w2048_s6_prob/dines/summary.csv"
+       ]
+      },
+      "binary_map": {
+       "name": "v2_ants_c0_w2048_s6_map",
+       "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v2/v2_ants_c0_w2048_s6_map",
+       "codes_link": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci_r4v2p/codes/v2_ants_c0_w2048_s6_map",
+       "nes_dir": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map",
+       "nes_result_json": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/maxpool_bouts/v2_1_vs_2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/maxpool_latency/v2_1_vs_2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_bouts/v2_1_vs_2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_latency/v2_1_vs_2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/pairs/v2_1_vs_2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/maxpool_bouts/v2_1_vs_2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/v2_1_vs_2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/v2_1_vs_2/result.json"
+       ],
+       "nes_summary_csv": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/pairs/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v2p/nes/v2_ants_c0_w2048_s6_map/summary.csv"
+       ],
+       "ness_dir": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v2p/v2_ants_c0_w2048_s6_map",
+       "ness_result_json": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v2p/v2_ants_c0_w2048_s6_map/dines/maxpool_bouts/v2_1_vs_2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v2p/v2_ants_c0_w2048_s6_map/dines/maxpool_latency/v2_1_vs_2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v2p/v2_ants_c0_w2048_s6_map/dines/v2_1_vs_2/result.json"
+       ],
+       "ness_summary_csv": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v2p/v2_ants_c0_w2048_s6_map/dines/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v2p/v2_ants_c0_w2048_s6_map/dines/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v2p/v2_ants_c0_w2048_s6_map/dines/summary.csv"
        ]
       },
       "raw": {
@@ -1700,6 +1894,62 @@
         "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness_v3_2v8/ants_eci_r4v3p/v2_ants_c0_w2048_s6_prob/dines/maxpool_bouts/summary.csv",
         "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness_v3_2v8/ants_eci_r4v3p/v2_ants_c0_w2048_s6_prob/dines/maxpool_latency/summary.csv",
         "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness_v3_2v8/ants_eci_r4v3p/v2_ants_c0_w2048_s6_prob/dines/summary.csv"
+       ]
+      },
+      "binary_map": {
+       "name": "v2_ants_c0_w2048_s6_map",
+       "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v3/v2_ants_c0_w2048_s6_map",
+       "codes_link": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci_r4v3p/codes/v2_ants_c0_w2048_s6_map",
+       "nes_dir": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map",
+       "nes_result_json": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/maxpool_bouts/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/maxpool_latency/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_bouts/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_latency/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/maxpool_bouts/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/maxpool_bouts/v3_2_vs_8/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/maxpool_bouts/v3_6_vs_8/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/v3_2_vs_8/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/v3_6_vs_8/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/v3_2_vs_8_noday/maxpool_bouts/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/v3_2_vs_8_noday/maxpool_bouts/v3_2_vs_8/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/v3_2_vs_8_noday/maxpool_latency/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/v3_2_vs_8_noday/maxpool_latency/v3_2_vs_8/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/v3_2_vs_8_noday/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/v3_2_vs_8_noday/v3_2_vs_8/result.json"
+       ],
+       "nes_summary_csv": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/v3_2_vs_8_noday/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/v3_2_vs_8_noday/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v3p/nes/v2_ants_c0_w2048_s6_map/v3_2_vs_8_noday/summary.csv"
+       ],
+       "ness_dir": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v3p/v2_ants_c0_w2048_s6_map",
+       "ness_result_json": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v3p/v2_ants_c0_w2048_s6_map/dines/maxpool_bouts/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v3p/v2_ants_c0_w2048_s6_map/dines/maxpool_latency/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v3p/v2_ants_c0_w2048_s6_map/dines/v3_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness_v3_2v8/ants_eci_r4v3p/v2_ants_c0_w2048_s6_map/dines/maxpool_bouts/v3_2_vs_8/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness_v3_2v8/ants_eci_r4v3p/v2_ants_c0_w2048_s6_map/dines/maxpool_latency/v3_2_vs_8/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness_v3_2v8/ants_eci_r4v3p/v2_ants_c0_w2048_s6_map/dines/v3_2_vs_8/result.json"
+       ],
+       "ness_summary_csv": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v3p/v2_ants_c0_w2048_s6_map/dines/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v3p/v2_ants_c0_w2048_s6_map/dines/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v3p/v2_ants_c0_w2048_s6_map/dines/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness_v3_2v8/ants_eci_r4v3p/v2_ants_c0_w2048_s6_map/dines/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness_v3_2v8/ants_eci_r4v3p/v2_ants_c0_w2048_s6_map/dines/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness_v3_2v8/ants_eci_r4v3p/v2_ants_c0_w2048_s6_map/dines/summary.csv"
        ]
       },
       "raw": {
@@ -1962,6 +2212,87 @@
         "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_prob/dines/summary.csv"
        ]
       },
+      "binary_map": {
+       "name": "v2_ants_c0_w2048_s6_map",
+       "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v4/v2_ants_c0_w2048_s6_map",
+       "codes_link": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci_r4v4p/codes/v2_ants_c0_w2048_s6_map",
+       "nes_dir": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map",
+       "nes_result_json": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/infested_vs_healthy_t2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/infested_vs_healthy_t2_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/infested_vs_healthy_t6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/maxpool_bouts/infested_vs_healthy_t2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/maxpool_bouts/infested_vs_healthy_t2_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/maxpool_bouts/infested_vs_healthy_t6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/maxpool_bouts/v4_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/maxpool_bouts/v4_infested_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/maxpool_latency/infested_vs_healthy_t2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/maxpool_latency/infested_vs_healthy_t2_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/maxpool_latency/infested_vs_healthy_t6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/maxpool_latency/v4_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/maxpool_latency/v4_infested_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/infested_vs_healthy_t2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/infested_vs_healthy_t2_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/infested_vs_healthy_t6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_bouts/infested_vs_healthy_t2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_bouts/infested_vs_healthy_t2_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_bouts/infested_vs_healthy_t6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_bouts/v4_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_bouts/v4_infested_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_latency/infested_vs_healthy_t2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_latency/infested_vs_healthy_t2_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_latency/infested_vs_healthy_t6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_latency/v4_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_latency/v4_infested_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/v4_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/v4_infested_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/infested_vs_healthy_t2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/infested_vs_healthy_t2_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/infested_vs_healthy_t6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/maxpool_bouts/infested_vs_healthy_t2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/maxpool_bouts/infested_vs_healthy_t2_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/maxpool_bouts/infested_vs_healthy_t6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/maxpool_bouts/v4_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/maxpool_bouts/v4_infested_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/v4_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/v4_infested_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/v4_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/v4_infested_2_vs_6/result.json"
+       ],
+       "nes_summary_csv": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/pairs_noday/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/ants/eci_r4v4p/nes/v2_ants_c0_w2048_s6_map/summary.csv"
+       ],
+       "ness_dir": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map",
+       "ness_result_json": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/infested_vs_healthy_t2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/infested_vs_healthy_t2_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/infested_vs_healthy_t6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/maxpool_bouts/infested_vs_healthy_t2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/maxpool_bouts/infested_vs_healthy_t2_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/maxpool_bouts/infested_vs_healthy_t6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/maxpool_bouts/v4_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/maxpool_bouts/v4_infested_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/maxpool_latency/infested_vs_healthy_t2/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/maxpool_latency/infested_vs_healthy_t2_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/maxpool_latency/infested_vs_healthy_t6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/maxpool_latency/v4_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/maxpool_latency/v4_infested_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/v4_2_vs_6/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/v4_infested_2_vs_6/result.json"
+       ],
+       "ness_summary_csv": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/ants_eci_r4v4p/v2_ants_c0_w2048_s6_map/dines/summary.csv"
+       ]
+      },
       "raw": {
        "name": "v2_ants_c0_w2048_s6_raw",
        "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v4/v2_ants_c0_w2048_s6_raw",
@@ -1970,7 +2301,14 @@
      }
     }
    },
-   "prob": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ants/prob.json"
+   "prob": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ants/prob.json",
+   "binarisation": {
+    "map": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ants/map.json",
+    "bimodality_smoothed": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ants/bimodality.npz",
+    "bimodality_raw": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ants/bimodality_raw.json",
+    "mixture_family": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ants/mixsel.json",
+    "decision": "MAP binary NOT proposed as default (pre-registered tolerance failed on every label; prob.py docstring); continuous stays primary"
+   }
   },
   "frogs": {
    "config": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/configs/eci_v2/frogs.json",
@@ -2099,6 +2437,39 @@
         "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs/v2_frogs_c0_w2048_s6_prob/dines/summary.csv"
        ]
       },
+      "binary_map": {
+       "name": "v2_frogs_c0_w2048_s6_map",
+       "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/frogs/codes/juv/v2_frogs_c0_w2048_s6_map",
+       "codes_link": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/frogs/eci/codes/v2_frogs_c0_w2048_s6_map",
+       "nes_dir": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci/nes/v2_frogs_c0_w2048_s6_map",
+       "nes_result_json": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci/nes/v2_frogs_c0_w2048_s6_map/En1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci/nes/v2_frogs_c0_w2048_s6_map/FoxP1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci/nes/v2_frogs_c0_w2048_s6_map/maxpool_bouts/En1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci/nes/v2_frogs_c0_w2048_s6_map/maxpool_bouts/FoxP1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci/nes/v2_frogs_c0_w2048_s6_map/maxpool_latency/En1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci/nes/v2_frogs_c0_w2048_s6_map/maxpool_latency/FoxP1_vs_WT/result.json"
+       ],
+       "nes_summary_csv": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci/nes/v2_frogs_c0_w2048_s6_map/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci/nes/v2_frogs_c0_w2048_s6_map/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci/nes/v2_frogs_c0_w2048_s6_map/summary.csv"
+       ],
+       "ness_dir": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs/v2_frogs_c0_w2048_s6_map",
+       "ness_result_json": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs/v2_frogs_c0_w2048_s6_map/dines/En1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs/v2_frogs_c0_w2048_s6_map/dines/FoxP1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs/v2_frogs_c0_w2048_s6_map/dines/maxpool_bouts/En1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs/v2_frogs_c0_w2048_s6_map/dines/maxpool_bouts/FoxP1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs/v2_frogs_c0_w2048_s6_map/dines/maxpool_latency/En1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs/v2_frogs_c0_w2048_s6_map/dines/maxpool_latency/FoxP1_vs_WT/result.json"
+       ],
+       "ness_summary_csv": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs/v2_frogs_c0_w2048_s6_map/dines/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs/v2_frogs_c0_w2048_s6_map/dines/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs/v2_frogs_c0_w2048_s6_map/dines/summary.csv"
+       ]
+      },
       "raw": {
        "name": "v2_frogs_c0_w2048_s6_raw",
        "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/frogs/codes/juv/v2_frogs_c0_w2048_s6_raw",
@@ -2215,6 +2586,39 @@
         "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs_tadpole/v2_frogs_c0_w2048_s6_prob/dines/summary.csv"
        ]
       },
+      "binary_map": {
+       "name": "v2_frogs_c0_w2048_s6_map",
+       "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/frogs/codes/tad/v2_frogs_c0_w2048_s6_map",
+       "codes_link": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/frogs/eci_tadpole_r4/codes/v2_frogs_c0_w2048_s6_map",
+       "nes_dir": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci_tadpole_r4/nes/v2_frogs_c0_w2048_s6_map",
+       "nes_result_json": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci_tadpole_r4/nes/v2_frogs_c0_w2048_s6_map/En1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci_tadpole_r4/nes/v2_frogs_c0_w2048_s6_map/FoxP1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci_tadpole_r4/nes/v2_frogs_c0_w2048_s6_map/maxpool_bouts/En1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci_tadpole_r4/nes/v2_frogs_c0_w2048_s6_map/maxpool_bouts/FoxP1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci_tadpole_r4/nes/v2_frogs_c0_w2048_s6_map/maxpool_latency/En1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci_tadpole_r4/nes/v2_frogs_c0_w2048_s6_map/maxpool_latency/FoxP1_vs_WT/result.json"
+       ],
+       "nes_summary_csv": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci_tadpole_r4/nes/v2_frogs_c0_w2048_s6_map/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci_tadpole_r4/nes/v2_frogs_c0_w2048_s6_map/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/frogs/eci_tadpole_r4/nes/v2_frogs_c0_w2048_s6_map/summary.csv"
+       ],
+       "ness_dir": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs_tadpole/v2_frogs_c0_w2048_s6_map",
+       "ness_result_json": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs_tadpole/v2_frogs_c0_w2048_s6_map/dines/En1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs_tadpole/v2_frogs_c0_w2048_s6_map/dines/FoxP1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs_tadpole/v2_frogs_c0_w2048_s6_map/dines/maxpool_bouts/En1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs_tadpole/v2_frogs_c0_w2048_s6_map/dines/maxpool_bouts/FoxP1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs_tadpole/v2_frogs_c0_w2048_s6_map/dines/maxpool_latency/En1_vs_WT/result.json",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs_tadpole/v2_frogs_c0_w2048_s6_map/dines/maxpool_latency/FoxP1_vs_WT/result.json"
+       ],
+       "ness_summary_csv": [
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs_tadpole/v2_frogs_c0_w2048_s6_map/dines/maxpool_bouts/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs_tadpole/v2_frogs_c0_w2048_s6_map/dines/maxpool_latency/summary.csv",
+        "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/ness/frogs_tadpole/v2_frogs_c0_w2048_s6_map/dines/summary.csv"
+       ]
+      },
       "raw": {
        "name": "v2_frogs_c0_w2048_s6_raw",
        "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/frogs/codes/tad/v2_frogs_c0_w2048_s6_raw",
@@ -2223,7 +2627,14 @@
      }
     }
    },
-   "prob": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/frogs/prob.json"
+   "prob": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/frogs/prob.json",
+   "binarisation": {
+    "map": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/frogs/map.json",
+    "bimodality_smoothed": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/frogs/bimodality.npz",
+    "bimodality_raw": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/frogs/bimodality_raw.json",
+    "mixture_family": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2/frogs/mixsel.json",
+    "decision": "MAP binary NOT proposed as default (pre-registered tolerance failed on every label; prob.py docstring); continuous stays primary"
+   }
   }
  },
  "sensitivity": {

@@ -1,0 +1,48 @@
+{
+ "W": 2048,
+ "fallback_share": 0.00146484375,
+ "n_lt200_positive": 3,
+ "bic_gain_median": 8244.819367820157,
+ "share_bic_gain_gt10": 1.0,
+ "share_bic_gain_le10": 0.0,
+ "separation_median": 3.1386500826812602,
+ "separation_p10_p90": [
+  2.4447966435196693,
+  4.162114456103748
+ ],
+ "series": {
+  "v2": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v2/v2_ants_c0_w2048_s6_map",
+   "active_fraction_median": 0.03093939393939394,
+   "active_fraction_p10_p90": [
+    0.0016416666666666667,
+    0.2123234848484848
+   ],
+   "never_active": 0,
+   "active_gt_50pct": 101,
+   "mean_active_neurons_per_frame": 178.98912878787883
+  },
+  "v3": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v3/v2_ants_c0_w2048_s6_map",
+   "active_fraction_median": 0.04745846313603323,
+   "active_fraction_p10_p90": [
+    0.003365939771547249,
+    0.2660770508826582
+   ],
+   "never_active": 0,
+   "active_gt_50pct": 114,
+   "mean_active_neurons_per_frame": 222.57766251298028
+  },
+  "v4": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/ants/codes/v4/v2_ants_c0_w2048_s6_map",
+   "active_fraction_median": 0.042211248285322356,
+   "active_fraction_p10_p90": [
+    0.004873936899862826,
+    0.23176803840877913
+   ],
+   "never_active": 0,
+   "active_gt_50pct": 111,
+   "mean_active_neurons_per_frame": 203.09527572016464
+  }
+ }
+}

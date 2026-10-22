@@ -288,7 +288,10 @@ def cmd_manifest(args):
                        'alignment (R~ / AUROC) is invariant to this monotone per-neuron map, so align.json v2_prob is a '
                        'sanity check only.',
                'raw': '<sae>_raw: frame max codes, no smoothing (alignment reference)',
-               'outcome_variants': {'continuous': '<sae>_smooth', 'binary': '<sae>', 'prob': '<sae>_prob'}},
+               'binary_map': '<sae>_map: 1[P(on) > 0.5], per-neuron MAP of the lognormal mixture (won the held-out '
+                             'family selection vs gamma); bouts / latency on it use threshold 0 (above = active)',
+               'outcome_variants': {'continuous': '<sae>_smooth', 'binary': '<sae>', 'prob': '<sae>_prob',
+                                    'binary_map': '<sae>_map'}},
            'domains': {}}
     roots = {'mice': {'v1': ('mice/eci/nes', 'mice')},
              'ants': {s_: (f'ants/{e}/nes', f'ants_{e}') for s_, e in (('v2', 'eci_r4v2p'), ('v3', 'eci_r4v3p'),
@@ -310,7 +313,7 @@ def cmd_manifest(args):
                   'heat_dir': str(OUT / dom / 'heat' / sc['name']), 'heat_index': str(OUT / dom / 'heat' / sc['name'] / 'index.json'),
                   'heat_files': len(g(OUT / dom / 'heat' / sc['name'] / 'n*.npz')), 'sets': {}}
             for tag, nm in (('primary', f'{name}_smooth'), ('secondary', name), ('prob', f'{name}_prob'),
-                            ('raw', f'{name}_raw')):
+                            ('binary_map', f'{name}_map'), ('raw', f'{name}_raw')):
                 e = {'name': nm, 'codes': str(RUN.codes_dir(c, sc, nm)), 'codes_link': str(REPO / sc['layout'] / 'codes' / nm)}
                 if tag != 'raw':
                     e['nes_dir'] = str(V / nr / nm)
@@ -324,6 +327,11 @@ def cmd_manifest(args):
                 s_['sets'][tag] = e
             d['series'][sc['name']] = s_
         d['prob'] = str(OUT / dom / 'prob.json')
+        d['binarisation'] = {'map': str(OUT / dom / 'map.json'), 'bimodality_smoothed': str(OUT / dom / 'bimodality.npz'),
+                             'bimodality_raw': str(OUT / dom / 'bimodality_raw.json'),
+                             'mixture_family': str(OUT / dom / 'mixsel.json'),
+                             'decision': 'MAP binary NOT proposed as default (pre-registered tolerance failed on every '
+                                         'label; prob.py docstring); continuous stays primary'}
         man['domains'][dom] = d
     man['sensitivity'] = {'index': str(OUT / 'sensitivity.json'), 'summary': str(OUT / 'sensitivity_summary.json'),
                           'code': str(REPO / 'scripts/eci/v2/sensitivity.py'),

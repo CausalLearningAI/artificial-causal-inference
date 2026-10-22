@@ -1,0 +1,16 @@
+{
+ "n_compared": 1942,
+ "heldout_loglik_sum": {
+  "lognormal": -1981.283255166947,
+  "gamma": -2022.3666837462076
+ },
+ "winner": "lognormal",
+ "share_neurons_gamma_wins": 0.22914521112255407,
+ "boundary_median_abs_log_ratio": 0.016924494068965266,
+ "active_fraction_heldout_median": {
+  "lognormal": 0.025729202343815087,
+  "gamma": 0.026145757157800223
+ },
+ "active_fraction_median_abs_diff": 0.00029621675661165026,
+ "zero_inflated": "identical decisions to the family without the zero mass on s > 0 (mixture.py docstring)"
+}

@@ -1,0 +1,11 @@
+{
+ "raw_bic_gain_median": 3693.8584011597495,
+ "raw_share_bic_gain_gt10": 1.0,
+ "raw_separation_median": 1.9649088696442234,
+ "raw_separation_p10_p90": [
+  1.7669228990120063,
+  2.3274939613750294
+ ],
+ "smoothed_separation_median": 3.52470357055594,
+ "share_neurons_raw_separation_ge_2": 0.4289911851126347
+}

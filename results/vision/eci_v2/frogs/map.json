@@ -1,0 +1,37 @@
+{
+ "W": 2048,
+ "fallback_share": 0.00732421875,
+ "n_lt200_positive": 15,
+ "bic_gain_median": 5290.319722854617,
+ "share_bic_gain_gt10": 1.0,
+ "share_bic_gain_le10": 0.0,
+ "separation_median": 2.9890971601339116,
+ "separation_p10_p90": [
+  2.265317160026374,
+  4.008676712856456
+ ],
+ "series": {
+  "juv": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/frogs/codes/juv/v2_frogs_c0_w2048_s6_map",
+   "active_fraction_median": 0.001313171066120345,
+   "active_fraction_p10_p90": [
+    0.00014234615665377037,
+    0.13310032150871057
+   ],
+   "never_active": 13,
+   "active_gt_50pct": 46,
+   "mean_active_neurons_per_frame": 111.96946460706431
+  },
+  "tad": {
+   "codes": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2/frogs/codes/tad/v2_frogs_c0_w2048_s6_map",
+   "active_fraction_median": 0.014546113102462063,
+   "active_fraction_p10_p90": [
+    0.0004676225151232913,
+    0.13471202242857008
+   ],
+   "never_active": 10,
+   "active_gt_50pct": 29,
+   "mean_active_neurons_per_frame": 104.71016341621743
+  }
+ }
+}
