@@ -140,6 +140,7 @@ table.spec3 td.diff{background:var(--accent-soft);font-weight:500}
 .side{display:grid;gap:8px;min-width:0}
 .side-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
 .side-head .meta{font-size:12px;color:var(--muted)}
+.nmeta{font-size:12px;color:var(--muted);margin:2px 0 8px}
 .rows{display:grid;gap:2px}
 .nr{border:0;border-radius:6px;background:none;padding:7px 8px;cursor:pointer;display:grid;grid-template-columns:52px 1fr;gap:2px 8px;text-align:left;width:100%}
 .nr:hover{background:var(--soft)}
@@ -341,7 +342,7 @@ const DETAILS = {
     ['Recording', 'top-down camera, one arena per pool · 5 fps analysed'],
     ['Contrasts', 'phase transition (paired, per genotype) · mutation (het vs wt, per phase) · mutation in transition (het − wt change) · sex (female vs male pools, per phase)'],
     ['Strata', 'gene line · sex (default: all)'],
-    ['Labels', 'nose-nose (nn), nose-body (np), nose-tail (nt) on 24 pools (144 videos)'],
+    ['Labels', 'nose-nose mutual (nn: both noses meet), nose-nose directional (np: one mouse\'s nose to the other\'s nose / head, not reciprocated), nose-tail (nt) on 24 pools (144 videos)'],
     ['Confound', 'camera period unbalanced by genotype (affects het vs wt; the transition contrasts cancel constant period effects)'],
   ],
   ants: [
@@ -951,12 +952,26 @@ function stopText(raw, R){
 }
 /* a small neutral label on the result header: why the search ended (raw stored reason on hover) */
 function endLabel(R){
-  if(isV0() || R.loading || R.blocked || R.notrun) return '';
+  if(R.loading || R.blocked || R.notrun) return '';
+  if(isV0()) return `<span class="chip na" title="v0 (the original ECI recipe): one t-test per neuron, no conditioning, no stopping rule">single pass: every neuron at raw p &lt; 0.05</span>`;
   if(!R.stopped) return METH()==='NESS'
-    ? ` · <span class="chip na" title="NESS ran its forward phase until no remaining neuron was significant, then its backward check of every found neuron.">ended: search complete</span>`
-    : ` · <span class="chip na" title="${esc(`${METH()} ran until no remaining neuron was significant at its round threshold.`)}">ended: no further significant neuron</span>`;
-  const why = /no overlap/.test(R.stopped) ? 'too few comparable units per arm (overlap rule)' : /no residual df/.test(R.stopped) ? 'no residual degrees of freedom' : /no stratum has/.test(R.stopped) ? 'strata cap' : 'stopped';
-  return ` · <span class="chip na" title="${esc(`${stopText(R.stopped, R)}\nStored reason (src/eci/nes.py): ${R.stopped}`)}">ended early: ${esc(why)}</span>`;
+    ? `<span class="chip na" title="NESS ran its forward phase until no remaining neuron was significant at alpha / m, then its backward check of every found neuron.">stopped: no further significant neuron (backward check done)</span>`
+    : `<span class="chip na" title="${esc(`${METH()} adds the most significant neuron each round, conditioning on the ones already selected; it stops when no remaining neuron is below the round's Bonferroni threshold (0.05 / neurons tested).`)}">stopped: no further neuron below the Bonferroni threshold</span>`;
+  const why = /no overlap/.test(R.stopped) ? 'too few comparable units per arm (overlap rule)' : /no residual df/.test(R.stopped) ? 'no residual degrees of freedom' : /no stratum has/.test(R.stopped) ? 'strata cap' : 'search error';
+  return `<span class="chip na" title="${esc(`${stopText(R.stopped, R)}\nStored reason (src/eci/nes.py): ${R.stopped}`)}">stopped early: ${esc(why)}</span>`;
+}
+/* observations per arm of a comparison: [[label, n], ...] (paired designs: one entry, the pools) */
+function armCounts(a){
+  if(GEN()){ const V = VIDS(); return [0, 1].map(i => [`${armName(a, i)} (${i ? 'treatment' : 'control'})`, V.filter(v => inArm(a, i, v)).length]); }
+  const V = ALL.videos.filter(inSub);
+  const pools = f => new Set(V.filter(f).map(v => v[0]));
+  if(a.family==='A'){ const [s0, s1] = a.stages, A0 = pools(v => v[2]===a.genotype && v[1]===s0), A1 = pools(v => v[2]===a.genotype && v[1]===s1);
+    return [[`paired ${a.genotype} pools`, [...A0].filter(q => A1.has(q)).length]]; }
+  if(a.family==='C'){ const [s0, s1] = a.stages, both = g => { const A0 = pools(v => v[2]===g && v[1]===s0), A1 = pools(v => v[2]===g && v[1]===s1); return [...A0].filter(q => A1.has(q)).length; };
+    return [['wt pools (control)', both('wt')], ['het pools (treatment)', both('het')]]; }
+  if(a.family==='S'){ const g = a.genotype && a.genotype!=='all' ? a.genotype : null, at = v => v[1]===a.stage && (!g || v[2]===g);
+    return [['male pools (control)', pools(v => at(v) && v[4]==='m').size], ['female pools (treatment)', pools(v => at(v) && v[4]==='f').size]]; }
+  return [['wt (control)', V.filter(v => v[1]===a.stage && v[2]==='wt').length], ['het (treatment)', V.filter(v => v[1]===a.stage && v[2]==='het').length]];
 }
 function chipsHTML(r){
   // the stability chip was removed (user, 2026-10-22: ambiguous); only warning chips remain
@@ -1069,8 +1084,8 @@ const shownTop = R => R.rows.length ? [] : (R.top||[]).slice().sort((x,y)=>x[2]-
 function renderCmpList(){
   const a=analysis(state.aid), R=res(), S=$('#side');
   if(state.miss){ S.innerHTML = NOTRUN(state.miss); state.neuron = null; return; }
-  const nu = nUnits(a), unit = a.family==='A' ? `${nu} paired pools` : a.family==='C' ? `${nu} pools (het vs wt change)` : a.family==='S' ? `${nu} pools (female vs male)` : `${nu} videos`;
-  let h=`<div class="side-head">${GEN() ? '' : `<h2 title="${esc(longLabel(a))}">${esc(label(a))}</h2>`}<span class="meta">${SUB()?`${esc(subLabel())} · `:''}${unit} · ${R.n_tested_total||0} tested · <span class="tip" title="${tauTip()}">τ${FROGS()?` = ${esc(a.treatment)} − ${esc(a.control)}`:!ANTS()&&a.family==='B'?' = het − wt':!ANTS()&&a.family==='C'?' = het − wt change':!ANTS()&&a.family==='S'?' = female − male':''}</span> in ${esc(outcome().unit)}${endLabel(R)}</span></div>`;
+  const AC = armCounts(a);
+  let h=`<div class="side-head"><h2 title="${esc(longLabel(a))}">Neural Effects</h2></div><p class="meta nmeta">${AC.map(([l, n]) => `${esc(l)} n = ${n}`).join(' · ')}${endLabel(R) ? ` · ${endLabel(R)}` : ''}</p>`;
   if(isV0() && R.v0){
     const k = R.v0.hits, E = R.v0.expected, m = R.v0.bonf, N = R.n_tested_total;
     const cls = m > 0 ? 'Y' : k > E ? 'warn2' : 'na', what = m > 0 ? `${m} pass Bonferroni` : k > E ? 'more than chance, none pass Bonferroni' : 'no more than chance';
@@ -1294,11 +1309,15 @@ function chartGroups(T, hl){
    analysed frames above its event threshold (pooled q0.95: the frames the event rate and latency count); pon = mean
    P(on) (the tested expected fraction of time active); else (v0) the share of frames with code > 0 */
 function actHTML(n){
-  const pc = x => `${(x*100).toFixed(1)}%`, gz = n.firing_rate!=null ? ` Code > 0 in ${pc(n.firing_rate)} of these frames.` : '';
-  if(n.active!=null) return `<span class="tip" title="${esc(`Share of the analysed frames (${winTxt()}) where this neuron's code is above its event threshold (its pooled 0.95 quantile): the frames the event-rate and latency outcomes count.${gz}`)}">above event threshold ${pc(n.active)} of frames</span>`;
-  if(n.pon!=null) return `<span class="tip" title="${esc(`Mean P(on) over the analysed frames (${winTxt()}): the expected fraction of time the neuron is active, the quantity this outcome tests.${gz}`)}">active ${pc(n.pon)} of the time (mean P(on))</span>`;
-  if(n.firing_rate!=null) return `<span class="tip" title="Share of the analysed frames where this neuron's code is above 0">code &gt; 0 in ${pc(n.firing_rate)} of frames</span>`;
-  return '';
+  const pc = x => `${(x*100).toFixed(1)}%`, kind = (outcome()||{}).kind, ro = (DATA.model||{}).readout;
+  const tok = n.tpf!=null ? `; ${fmt3(n.tpf)} token/frame` : isV0() ? '; 1 token/frame (mean-pooled)' : '';
+  const tokTip = n.tpf!=null ? ` Token/frame: the mean number of image tokens per analysed frame on which the neuron is active (its per-token SAE code > 0, above the SAE threshold; raw frame tokens before the 0.6 s smoothing), counted exactly from the stored per-token codes.` : isV0() ? ' v0 codes one mean-pooled token per frame.' : ' Token/frame: not available for this model (no per-token codes stored).';
+  let x = null, def = '';
+  if(n.pon!=null){ x = n.pon; def = `mean P(on) over the analysed frames (${winTxt()}): the expected fraction of time the neuron is active, the quantity this outcome tests.`; }
+  else if(n.active!=null && kind!=='time'){ x = n.active; def = `share of the analysed frames (${winTxt()}) where the neuron's frame code is above its event threshold (its pooled 0.95 quantile): the frames the event-rate and latency outcomes count.`; }
+  else if(n.firing_rate!=null){ x = n.firing_rate; def = `share of the analysed frames where the neuron's frame code is > 0${kind==='time' ? ' (the average-time outcome averages the code itself; for the unthresholded continuous code this share is near 100%)' : ''}.`; }
+  if(x==null) return '';
+  return `<span class="tip" title="${esc(`Activation: ${def}${tok ? tokTip : ''}`)}">activation: ${pc(x)} frames${tok}</span>`;
 }
 /* BOX: the neuron is shown in the interpretation box of the Alignment panel (#alIBox; opened by clicking a neuron
    there): its clips, arena map and interpretation, no comparison charts */
@@ -1322,10 +1341,10 @@ function renderDetail(){
   const hits = allFound().find(x=>x.neuron===j);
   let h=`<div class="dh"><div class="l"><h2>Neuron ${j}</h2>
     <span class="facts">${actHTML(n)}`;
-  if(r) h+=`${actHTML(n)?' · ':''}<span class="tip ${r.tau>0?'up':'down'}" title="${tauTip()}">τ${FROGS()&&a?` (${esc(a.treatment)} − ${esc(a.control)})`:!ANTS()&&a&&a.family==='B'?' (het − wt)':!ANTS()&&a&&a.family==='S'?' (female − male)':''} ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${pTip()}">p ${fmtP(r.p)}</span>`;
+  if(r) h+=`${actHTML(n)?' · ':''}<span class="tip ${r.tau>0?'up':'down'}" title="${esc(tauTip() + (FROGS()&&a ? ` (${a.treatment} − ${a.control})` : !ANTS()&&a&&a.family==='B' ? ' (het − wt)' : !ANTS()&&a&&a.family==='S' ? ' (female − male)' : ''))}">τ = ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${pTip()}">p = ${fmtP(r.p)}</span>`;
   const pc = r ? chipsHTML(r) + v0Chips(r) : '';
   if(pc) h+=` · <span class="chips" style="display:inline-flex">${pc}</span>`;
-  if(rt) h+=`${actHTML(n)?' · ':''}<span class="tip ${rt[1]>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(rt[1])} ${esc(outcome().unit)}</span> · <span class="tip" title="First-round p-value: not selected by ${METH()}">p ${fmtP(rt[2])} · not selected</span>`;
+  if(rt) h+=`${actHTML(n)?' · ':''}<span class="tip ${rt[1]>0?'up':'down'}" title="${tauTip()}">τ = ${fmtTau(rt[1])} ${esc(outcome().unit)}</span> · <span class="tip" title="First-round p-value: not selected by ${METH()}">p = ${fmtP(rt[2])} · not selected</span>`;
   const cens = r ? r.cens : rt ? rt[3] : null;
   if(cens) h+=` · <span class="tip" title="Videos of this comparison without a bout of this neuron in the first ${latW()} s${habNote()}: their latency is set to ${latW()} s (right-censored). ${esc(censTip(cens))}">censored ${esc(censTip(cens))}</span>`;
   if(csOf(j)!=null) h+=` · <span class="tip" title="${CS_TIP}">change share ${Math.round(csOf(j)*100)}%</span>`;
