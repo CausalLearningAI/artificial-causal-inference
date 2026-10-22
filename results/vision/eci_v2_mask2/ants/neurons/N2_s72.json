@@ -1,0 +1,235 @@
+{
+ "deploy_seed": 72,
+ "n_scored": 2043,
+ "n_background": 0,
+ "share_background": 0.0,
+ "n_app": 175,
+ "n_app_gt_0.3": 330,
+ "app_share_median": 0.025174305980531497,
+ "app_share_p99": 0.8944232656862289,
+ "top_app": [
+  [
+   90,
+   0.6004505644604018,
+   0.0,
+   22552.0
+  ],
+  [
+   117,
+   0.6264464212430949,
+   0.0,
+   22275.0
+  ],
+  [
+   75,
+   0.5926043915794211,
+   0.0,
+   21728.0
+  ],
+  [
+   47,
+   0.7252385246023066,
+   0.0,
+   19679.0
+  ],
+  [
+   11,
+   0.5018540040088718,
+   0.0,
+   10368.0
+  ],
+  [
+   177,
+   0.5434244294505716,
+   0.0,
+   8999.0
+  ],
+  [
+   186,
+   0.5996082023458177,
+   0.0,
+   8499.0
+  ],
+  [
+   208,
+   0.8740375978807057,
+   0.0,
+   7747.0
+  ],
+  [
+   413,
+   0.5838411757847466,
+   0.0,
+   7503.0
+  ],
+  [
+   267,
+   0.7024752213326538,
+   0.0,
+   7382.0
+  ]
+ ],
+ "n_odor": 0,
+ "top_odor": [],
+ "sheets": {
+  "app": {
+   "90": {
+    "app_share": 0.6004505644604018,
+    "odor_share": 0.0,
+    "fire_frames_A": 22552.0,
+    "per_series": [
+     {
+      "series": "v2",
+      "n_frames": 7,
+      "share_label_pos": 0.14285714285714285,
+      "label_counts": {
+       "-": 6,
+       "GgB": 1
+      },
+      "act_n_half_max": 5.0,
+      "contrib_n_half_max": 5.0,
+      "act_peak_fdark": 0.09765625,
+      "contrib_peak_fdark": 0.09765625,
+      "act_mass_animal_px": 0.1315436331289155,
+      "contrib_mass_animal_px": 0.1315436331289155,
+      "n_kept": 41.714285714285715,
+      "contrib_single_token_frames": 0,
+      "peak_token_app_frac_mean": 0.08761160714285714,
+      "peak_token_animal_frac_mean": 0.09765625,
+      "peak_token_frozen_cue_frac_mean": 0.09040178571428571,
+      "peak_token_outside_M0_share": 1.0,
+      "sheet": "results/vision/eci_v2_mask2/sheets/ants_N2_s72_app_n90_v2"
+     },
+     {
+      "series": "v3",
+      "n_frames": 17,
+      "share_label_pos": 0.11764705882352941,
+      "label_counts": {
+       "-": 15,
+       "GgY": 2
+      },
+      "act_n_half_max": 5.529411764705882,
+      "contrib_n_half_max": 5.529411764705882,
+      "act_peak_fdark": 0.11626838235294118,
+      "contrib_peak_fdark": 0.11626838235294118,
+      "act_mass_animal_px": 0.17254511354600682,
+      "contrib_mass_animal_px": 0.17254511354600682,
+      "n_kept": 52.11764705882353,
+      "contrib_single_token_frames": 0,
+      "peak_token_app_frac_mean": 0.11534926470588236,
+      "peak_token_animal_frac_mean": 0.11626838235294118,
+      "peak_token_frozen_cue_frac_mean": 0.11190257352941177,
+      "peak_token_outside_M0_share": 1.0,
+      "sheet": "results/vision/eci_v2_mask2/sheets/ants_N2_s72_app_n90_v3"
+     }
+    ]
+   },
+   "117": {
+    "app_share": 0.6264464212430949,
+    "odor_share": 0.0,
+    "fire_frames_A": 22275.0,
+    "per_series": [
+     {
+      "series": "v2",
+      "n_frames": 2,
+      "share_label_pos": 0.0,
+      "label_counts": {
+       "-": 2
+      },
+      "act_n_half_max": 4.5,
+      "contrib_n_half_max": 4.5,
+      "act_peak_fdark": 0.087890625,
+      "contrib_peak_fdark": 0.087890625,
+      "act_mass_animal_px": 0.15497078001499176,
+      "contrib_mass_animal_px": 0.15497078001499176,
+      "n_kept": 45.5,
+      "contrib_single_token_frames": 0,
+      "peak_token_app_frac_mean": 0.087890625,
+      "peak_token_animal_frac_mean": 0.087890625,
+      "peak_token_frozen_cue_frac_mean": 0.087890625,
+      "peak_token_outside_M0_share": 1.0,
+      "sheet": "results/vision/eci_v2_mask2/sheets/ants_N2_s72_app_n117_v2"
+     },
+     {
+      "series": "v3",
+      "n_frames": 22,
+      "share_label_pos": 0.36363636363636365,
+      "label_counts": {
+       "-": 14,
+       "GgB": 4,
+       "GgY": 2,
+       "GgYgB": 1,
+       "L": 1
+      },
+      "act_n_half_max": 2.5454545454545454,
+      "contrib_n_half_max": 2.5454545454545454,
+      "act_peak_fdark": 0.11115056818181818,
+      "contrib_peak_fdark": 0.11115056818181818,
+      "act_mass_animal_px": 0.1774414936927232,
+      "contrib_mass_animal_px": 0.1774414936927232,
+      "n_kept": 48.77272727272727,
+      "contrib_single_token_frames": 0,
+      "peak_token_app_frac_mean": 0.11115056818181818,
+      "peak_token_animal_frac_mean": 0.11115056818181818,
+      "peak_token_frozen_cue_frac_mean": 0.10440340909090909,
+      "peak_token_outside_M0_share": 1.0,
+      "sheet": "results/vision/eci_v2_mask2/sheets/ants_N2_s72_app_n117_v3"
+     }
+    ]
+   },
+   "75": {
+    "app_share": 0.5926043915794211,
+    "odor_share": 0.0,
+    "fire_frames_A": 21728.0,
+    "per_series": [
+     {
+      "series": "v2",
+      "n_frames": 3,
+      "share_label_pos": 0.3333333333333333,
+      "label_counts": {
+       "-": 2,
+       "GgY": 1
+      },
+      "act_n_half_max": 1.6666666666666667,
+      "contrib_n_half_max": 1.6666666666666667,
+      "act_peak_fdark": 0.07291666666666667,
+      "contrib_peak_fdark": 0.07291666666666667,
+      "act_mass_animal_px": 0.11735165119171143,
+      "contrib_mass_animal_px": 0.11735165119171143,
+      "n_kept": 43.333333333333336,
+      "contrib_single_token_frames": 1,
+      "peak_token_app_frac_mean": 0.07291666666666667,
+      "peak_token_animal_frac_mean": 0.07291666666666667,
+      "peak_token_frozen_cue_frac_mean": 0.07291666666666667,
+      "peak_token_outside_M0_share": 1.0,
+      "sheet": "results/vision/eci_v2_mask2/sheets/ants_N2_s72_app_n75_v2"
+     },
+     {
+      "series": "v3",
+      "n_frames": 21,
+      "share_label_pos": 0.19047619047619047,
+      "label_counts": {
+       "-": 17,
+       "GgY": 2,
+       "L": 2
+      },
+      "act_n_half_max": 2.619047619047619,
+      "contrib_n_half_max": 2.619047619047619,
+      "act_peak_fdark": 0.10770089285714286,
+      "contrib_peak_fdark": 0.10770089285714286,
+      "act_mass_animal_px": 0.16130333713122777,
+      "contrib_mass_animal_px": 0.16130333713122777,
+      "n_kept": 52.04761904761905,
+      "contrib_single_token_frames": 2,
+      "peak_token_app_frac_mean": 0.10770089285714286,
+      "peak_token_animal_frac_mean": 0.10770089285714286,
+      "peak_token_frozen_cue_frac_mean": 0.10267857142857142,
+      "peak_token_outside_M0_share": 1.0,
+      "sheet": "results/vision/eci_v2_mask2/sheets/ants_N2_s72_app_n75_v3"
+     }
+    ]
+   }
+  },
+  "odor": {}
+ }
+}

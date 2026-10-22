@@ -1,0 +1,129 @@
+{
+ "n_frames": 32400,
+ "full": {
+  "nose_nose": {
+   "R_rnd": 0.1541624564189992,
+   "R_atlas": 0.15409960567669828,
+   "modal_neuron": 866,
+   "modal_share": 1.0,
+   "atlas_neurons": [
+    866,
+    866
+   ]
+  },
+  "nose_tail": {
+   "R_rnd": 0.084392037760503,
+   "R_atlas": 0.08580671612606425,
+   "modal_neuron": 164,
+   "modal_share": 0.9,
+   "atlas_neurons": [
+    164,
+    164
+   ]
+  },
+  "nn_mutual": {
+   "R_rnd": 0.08734717773887339,
+   "R_atlas": 0.09928999856371552,
+   "modal_neuron": 866,
+   "modal_share": 0.9,
+   "atlas_neurons": [
+    866,
+    866
+   ]
+  },
+  "np_directional": {
+   "R_rnd": 0.11959954218498062,
+   "R_atlas": 0.11696032524334316,
+   "modal_neuron": 866,
+   "modal_share": 1.0,
+   "atlas_neurons": [
+    866,
+    866
+   ]
+  }
+ },
+ "256": {
+  "nose_nose": {
+   "R_rnd": 0.008379574494452565,
+   "R_atlas": 0.008558574726416072,
+   "modal_neuron": 224,
+   "modal_share": 0.4,
+   "atlas_neurons": [
+    224,
+    213
+   ]
+  },
+  "nose_tail": {
+   "R_rnd": 0.08279192928737603,
+   "R_atlas": 0.08580671612606425,
+   "modal_neuron": 164,
+   "modal_share": 0.9,
+   "atlas_neurons": [
+    164,
+    164
+   ]
+  },
+  "nn_mutual": {
+   "R_rnd": 0.011717783129244156,
+   "R_atlas": 0.020623914133358148,
+   "modal_neuron": 118,
+   "modal_share": 0.3,
+   "atlas_neurons": [
+    214,
+    12
+   ]
+  },
+  "np_directional": {
+   "R_rnd": 0.005222954524064817,
+   "R_atlas": 0.006009648257399603,
+   "modal_neuron": 114,
+   "modal_share": 0.3,
+   "atlas_neurons": [
+    114,
+    2
+   ]
+  }
+ },
+ "128": {
+  "nose_nose": {
+   "R_rnd": 0.004862133848948307,
+   "R_atlas": 0.008243216125462891,
+   "modal_neuron": 32,
+   "modal_share": 0.2,
+   "atlas_neurons": [
+    116,
+    56
+   ]
+  },
+  "nose_tail": {
+   "R_rnd": 0.019804081530447024,
+   "R_atlas": 0.003864678477033215,
+   "modal_neuron": 6,
+   "modal_share": 0.4,
+   "atlas_neurons": [
+    75,
+    122
+   ]
+  },
+  "nn_mutual": {
+   "R_rnd": 0.00482506879952071,
+   "R_atlas": 0.015438224843214988,
+   "modal_neuron": 118,
+   "modal_share": 0.35,
+   "atlas_neurons": [
+    0,
+    12
+   ]
+  },
+  "np_directional": {
+   "R_rnd": 0.007553649989692395,
+   "R_atlas": 0.006009648257399603,
+   "modal_neuron": 8,
+   "modal_share": 0.35,
+   "atlas_neurons": [
+    114,
+    2
+   ]
+  }
+ }
+}

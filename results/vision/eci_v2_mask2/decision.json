@@ -1,0 +1,566 @@
+{
+ "rule": "scripts/eci/v2_mask2/mask2_test.py docstring (pre-registered 2026-10-22)",
+ "step1": {
+  "pass": {
+   "N1": false,
+   "N2": false,
+   "M0": false
+  },
+  "criteria": {
+   "N1": {
+    "1a_tail_seg_gain": 0.13465277777777782,
+    "1b_pale_gain_calms21": 0.13157894736842107,
+    "1b_pale_gain_crim13": 0.03645833333333333,
+    "1c_body_delta_mabe22": 0.04533179012345667,
+    "1c_body_delta_calms21": 0.20577485380116978,
+    "1d_leak": {
+     "mab": 0.020149926727539173,
+     "cal": 0.16357763484540735,
+     "crim": 0.14990947495473747
+    }
+   },
+   "N2": {
+    "1a_tail_seg_gain": 0.20350694444444442,
+    "1b_pale_gain_calms21": 0.19736842105263153,
+    "1b_pale_gain_crim13": 0.05729166666666667,
+    "1c_body_delta_mabe22": 0.07357253086419746,
+    "1c_body_delta_calms21": 0.23464912280701777,
+    "1d_leak": {
+     "mab": 0.027577514494580287,
+     "cal": 0.2211063439432017,
+     "crim": 0.17778022704728313
+    }
+   }
+  },
+  "carried_arm": "N2",
+  "carried_by": "user decision 2026-10-22 (scripts/eci/v2_mask2/amendment_2026-10-22_adopt_N2.md)"
+ },
+ "arm": "N2",
+ "coverage": {
+  "mice": {
+   "diag": {
+    "n_frames": 43200,
+    "app_px_share_of_animal_px": 0.12006648561523636,
+    "grown_px_share_of_animal_px": 0.17385793510980366,
+    "M0": {
+     "app_coverage": 0.2683769990687385,
+     "animal_px_recall": 0.6702427865874029,
+     "tokens_per_frame": 151.33421296296297,
+     "leak_share": 0.0
+    },
+    "N1": {
+     "app_coverage": 0.8414099547517468,
+     "animal_px_recall": 0.955331194892039,
+     "tokens_per_frame": 240.7167824074074,
+     "leak_share": 0.0
+    },
+    "N2": {
+     "app_coverage": 0.9781231214911866,
+     "animal_px_recall": 0.9726045189179243,
+     "tokens_per_frame": 270.4605324074074,
+     "leak_share": 0.0
+    }
+   },
+   "pool": {
+    "n_frames": 31414,
+    "app_px_share_of_animal_px": 0.10736827934763749,
+    "grown_px_share_of_animal_px": 0.16454685068734065,
+    "M0": {
+     "app_coverage": 0.26886968602286737,
+     "animal_px_recall": 0.7035251189245626,
+     "tokens_per_frame": 146.7315846437894,
+     "leak_share": 0.0
+    },
+    "N1": {
+     "app_coverage": 0.84713770393693,
+     "animal_px_recall": 0.9638396661488887,
+     "tokens_per_frame": 224.0848029540969,
+     "leak_share": 0.0
+    },
+    "N2": {
+     "app_coverage": 0.9772596799991898,
+     "animal_px_recall": 0.9786746448834439,
+     "tokens_per_frame": 245.26952950913605,
+     "leak_share": 0.0
+    }
+   }
+  },
+  "ants": {
+   "scored_v2": {
+    "n_frames": 13200,
+    "app_px_share_of_animal_px": 0.0680644477191275,
+    "grown_px_share_of_animal_px": 0.09480317897773399,
+    "M0": {
+     "app_coverage": 0.3424047206149958,
+     "animal_px_recall": 0.8776314163814205,
+     "tokens_per_frame": 28.75219696969697,
+     "leak_share": 0.0
+    },
+    "N1": {
+     "app_coverage": 0.46541674505264236,
+     "animal_px_recall": 0.9186128374728936,
+     "tokens_per_frame": 32.13651515151515,
+     "leak_share": 0.0
+    },
+    "N2": {
+     "app_coverage": 0.8576309573196621,
+     "animal_px_recall": 0.950702519712398,
+     "tokens_per_frame": 38.23401515151515,
+     "leak_share": 0.0
+    }
+   },
+   "pool_v2": {
+    "n_frames": 20568,
+    "app_px_share_of_animal_px": 0.06797607009521961,
+    "grown_px_share_of_animal_px": 0.09482885318909026,
+    "M0": {
+     "app_coverage": 0.3396370398964341,
+     "animal_px_recall": 0.8776396560289421,
+     "tokens_per_frame": 28.793757292882148,
+     "leak_share": 0.0
+    },
+    "N1": {
+     "app_coverage": 0.46385595449597916,
+     "animal_px_recall": 0.9188480241035242,
+     "tokens_per_frame": 32.205805134189035,
+     "leak_share": 0.0
+    },
+    "N2": {
+     "app_coverage": 0.8568843535760927,
+     "animal_px_recall": 0.9508855516651253,
+     "tokens_per_frame": 38.3072734344613,
+     "leak_share": 0.0
+    }
+   },
+   "scored_v3": {
+    "n_frames": 32100,
+    "app_px_share_of_animal_px": 0.06697956152721332,
+    "grown_px_share_of_animal_px": 0.07241684401586022,
+    "M0": {
+     "app_coverage": 0.38748184104801836,
+     "animal_px_recall": 0.8982414970306706,
+     "tokens_per_frame": 37.20056074766355,
+     "leak_share": 0.0
+    },
+    "N1": {
+     "app_coverage": 0.493793896149454,
+     "animal_px_recall": 0.9284121569631238,
+     "tokens_per_frame": 40.42626168224299,
+     "leak_share": 0.0
+    },
+    "N2": {
+     "app_coverage": 0.8956803124278363,
+     "animal_px_recall": 0.9591722357887357,
+     "tokens_per_frame": 47.56517133956386,
+     "leak_share": 0.0
+    }
+   },
+   "pool_v3": {
+    "n_frames": 24682,
+    "app_px_share_of_animal_px": 0.06953028431549502,
+    "grown_px_share_of_animal_px": 0.06900325601342804,
+    "M0": {
+     "app_coverage": 0.3860902048284248,
+     "animal_px_recall": 0.8976177039403958,
+     "tokens_per_frame": 36.932541933392756,
+     "leak_share": 0.0
+    },
+    "N1": {
+     "app_coverage": 0.4861873461474267,
+     "animal_px_recall": 0.9263496898349407,
+     "tokens_per_frame": 39.97119358236772,
+     "leak_share": 0.0
+    },
+    "N2": {
+     "app_coverage": 0.8969111272558461,
+     "animal_px_recall": 0.9589793591733932,
+     "tokens_per_frame": 47.43671501499068,
+     "leak_share": 0.0
+    }
+   }
+  }
+ },
+ "table": {
+  "M0": {
+   "mice primary R~": [
+    0.10936319783232029,
+    0.013095141084876293,
+    20
+   ],
+   "mice consistent primary R~": [
+    0.10957068357539115,
+    0.014641127748299895,
+    20
+   ],
+   "mice nose_nose R~": [
+    0.14262571733373164,
+    0.015445518824260259,
+    20
+   ],
+   "mice nose_nose AUROC": [
+    0.7507850880415181,
+    0.03208161909046868,
+    20
+   ],
+   "mice consistent nose_nose R~": [
+    0.15243566562955752,
+    0.019043803090263354,
+    20
+   ],
+   "mice nose_tail R~": [
+    0.07610067833090894,
+    0.02256223042615436,
+    20
+   ],
+   "mice nose_tail AUROC": [
+    0.7328779304498612,
+    0.03703547548789796,
+    20
+   ],
+   "mice consistent nose_tail R~": [
+    0.06670570152122476,
+    0.02033442561176114,
+    20
+   ],
+   "ants primary R~": [
+    0.5918043701336364,
+    0.01921271666389801,
+    33
+   ],
+   "ants v2 groom_any R~": [
+    0.616203081774704,
+    0.037922829290121196,
+    33
+   ],
+   "ants v2 groom_any AUROC": [
+    0.8932417608776286,
+    0.018006522149179697,
+    33
+   ],
+   "ants v2 groom_yellow R~": [
+    0.4517815922691469,
+    0.07966385512734817,
+    33
+   ],
+   "ants v2 groom_yellow AUROC": [
+    0.8746278158752481,
+    0.02779487437951116,
+    33
+   ],
+   "ants v2 groom_blue R~": [
+    0.3937343593503348,
+    0.020991922727492233,
+    33
+   ],
+   "ants v2 groom_blue AUROC": [
+    0.8524485010218592,
+    0.01893028597252481,
+    33
+   ],
+   "ants v3 groom_any R~": [
+    0.5674056584925689,
+    0.016222944217029647,
+    33
+   ],
+   "ants v3 groom_any AUROC": [
+    0.8677342175488348,
+    0.008354923794219362,
+    33
+   ],
+   "ants v3 groom_yellow R~": [
+    0.3762438589863009,
+    0.01786731007220386,
+    33
+   ],
+   "ants v3 groom_yellow AUROC": [
+    0.8197617649804793,
+    0.008816583589187677,
+    33
+   ],
+   "ants v3 groom_blue R~": [
+    0.38348671972423515,
+    0.019454211514397197,
+    33
+   ],
+   "ants v3 groom_blue AUROC": [
+    0.8322465608774913,
+    0.008203692799138188,
+    33
+   ],
+   "ants v3 on_lid_any R~": [
+    0.8490802759093636,
+    0.03985562240513304,
+    33
+   ],
+   "ants v3 on_lid_any AUROC": [
+    0.9483842755686773,
+    0.01729608062997047,
+    33
+   ],
+   "mice background-neuron share": [
+    0.0,
+    0.0,
+    20
+   ],
+   "mice appendage (tail / antenna / leg) neurons": [
+    18.75,
+    2.4468024246479643,
+    20
+   ],
+   "mice appendage share p99": [
+    0.4851009021794789,
+    0.01726044008592765,
+    20
+   ],
+   "mice odour-zone neurons": [
+    13.3,
+    2.0026298499197184,
+    20
+   ],
+   "ants background-neuron share": [
+    0.0,
+    0.0,
+    33
+   ],
+   "ants appendage (tail / antenna / leg) neurons": [
+    21.636363636363637,
+    3.4714746670019596,
+    33
+   ],
+   "ants appendage share p99": [
+    0.5038534996447042,
+    0.02554930775680732,
+    33
+   ]
+  },
+  "N2": {
+   "mice primary R~": [
+    0.08416824825728991,
+    0.021657065087594084,
+    20
+   ],
+   "mice consistent primary R~": [
+    0.08205804145948911,
+    0.02327656762563243,
+    20
+   ],
+   "mice nose_nose R~": [
+    0.11884350331935598,
+    0.044316515188576246,
+    20
+   ],
+   "mice nose_nose AUROC": [
+    0.7174367678455182,
+    0.043081123138124705,
+    20
+   ],
+   "mice consistent nose_nose R~": [
+    0.12366933398929258,
+    0.04634295650004094,
+    20
+   ],
+   "mice nose_tail R~": [
+    0.04949299319522384,
+    0.020632420508091512,
+    20
+   ],
+   "mice nose_tail AUROC": [
+    0.7150700080866466,
+    0.025150656618386377,
+    20
+   ],
+   "mice consistent nose_tail R~": [
+    0.0404467489296856,
+    0.02078324885508386,
+    20
+   ],
+   "ants primary R~": [
+    0.58151878392989,
+    0.02026203346127578,
+    33
+   ],
+   "ants v2 groom_any R~": [
+    0.5971472851678082,
+    0.037619752203220794,
+    33
+   ],
+   "ants v2 groom_any AUROC": [
+    0.8898183576638562,
+    0.01776023746239192,
+    33
+   ],
+   "ants v2 groom_yellow R~": [
+    0.4103725303776157,
+    0.07510672946241108,
+    33
+   ],
+   "ants v2 groom_yellow AUROC": [
+    0.8572655953689404,
+    0.030322062964801492,
+    33
+   ],
+   "ants v2 groom_blue R~": [
+    0.39689209419948307,
+    0.018251434826038995,
+    33
+   ],
+   "ants v2 groom_blue AUROC": [
+    0.8547612316304567,
+    0.019328287944310102,
+    33
+   ],
+   "ants v3 groom_any R~": [
+    0.5658902826919718,
+    0.013517122286716208,
+    33
+   ],
+   "ants v3 groom_any AUROC": [
+    0.8691540125326916,
+    0.00909889695567928,
+    33
+   ],
+   "ants v3 groom_yellow R~": [
+    0.36707259811971077,
+    0.01894081213727099,
+    33
+   ],
+   "ants v3 groom_yellow AUROC": [
+    0.8205084369738908,
+    0.008702638330636588,
+    33
+   ],
+   "ants v3 groom_blue R~": [
+    0.38343815952008714,
+    0.01429365582459984,
+    33
+   ],
+   "ants v3 groom_blue AUROC": [
+    0.833670239211324,
+    0.00840320834742383,
+    33
+   ],
+   "ants v3 on_lid_any R~": [
+    0.8525034345634939,
+    0.013614671078284134,
+    33
+   ],
+   "ants v3 on_lid_any AUROC": [
+    0.9528070718961184,
+    0.0031270898641502427,
+    33
+   ],
+   "mice background-neuron share": [
+    0.0,
+    0.0,
+    20
+   ],
+   "mice appendage (tail / antenna / leg) neurons": [
+    229.7,
+    6.974389239435801,
+    20
+   ],
+   "mice appendage share p99": [
+    0.9425034495950773,
+    0.0072941060917079605,
+    20
+   ],
+   "mice odour-zone neurons": [
+    14.05,
+    2.41650029675366,
+    20
+   ],
+   "ants background-neuron share": [
+    0.0,
+    0.0,
+    33
+   ],
+   "ants appendage (tail / antenna / leg) neurons": [
+    175.57575757575756,
+    6.600332865802598,
+    33
+   ],
+   "ants appendage share p99": [
+    0.8860579933033642,
+    0.009190041913627834,
+    33
+   ]
+  }
+ },
+ "criteria": {
+  "i_step1": false,
+  "i_amended": "N2 carried by user decision 2026-10-22",
+  "mice_primary_minus_M0": [
+   -0.02519494957503038,
+   -0.03673296950526899,
+   -0.013656929644791765
+  ],
+  "ants_primary_minus_M0": [
+   -0.010285586203746422,
+   -0.019996523014975145,
+   -0.0005746493925176989
+  ],
+  "ii": false,
+  "mice_nose_nose_minus_M0": [
+   -0.023782214014375663,
+   -0.04546292885661554,
+   -0.002101499172135781
+  ],
+  "mice_nose_tail_minus_M0": [
+   -0.0266076851356851,
+   -0.040451044183869175,
+   -0.01276432608750103
+  ],
+  "ants_v2_groom_any_minus_M0": [
+   -0.019055796606895714,
+   -0.03763215597215125,
+   -0.0004794372416401793
+  ],
+  "ants_v3_on_lid_any_minus_M0 (reported)": [
+   0.0034231586541302317,
+   -0.011401981579564615,
+   0.01824829888782508
+  ],
+  "ii_user": false,
+  "leak": {
+   "mice/diag": 0.0,
+   "ants/scored_v2": 0.0,
+   "ants/scored_v3": 0.0
+  },
+  "bg_count": {
+   "mice": [
+    0.0,
+    0.0,
+    20
+   ],
+   "ants": [
+    0.0,
+    0.0,
+    33
+   ]
+  },
+  "bg_count_M0": {
+   "mice": [
+    0.0,
+    0.0,
+    20
+   ],
+   "ants": [
+    0.0,
+    0.0,
+    33
+   ]
+  },
+  "bg_share": {
+   "mice": 0.0,
+   "ants": 0.0
+  },
+  "app_neurons": {
+   "mice": 229.7,
+   "ants": 175.57575757575756
+  },
+  "iii": true,
+  "iv_count": true,
+  "iv_visual": "see report: per-sheet visual judgement"
+ },
+ "DECISION_numeric": "keep M0"
+}

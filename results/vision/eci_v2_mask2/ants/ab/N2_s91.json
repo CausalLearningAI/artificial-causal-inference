@@ -1,0 +1,320 @@
+{
+ "v2": {
+  "n_frames": 13200,
+  "full": {
+   "groom_any": {
+    "R_rnd": 0.5603929690069345,
+    "R_atlas": 0.5664696495660098,
+    "modal_neuron": 9,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   },
+   "groom_yellow": {
+    "R_rnd": 0.2922960121262242,
+    "R_atlas": 0.31786272063275933,
+    "modal_neuron": 9,
+    "modal_share": 0.5,
+    "atlas_neurons": [
+     9,
+     344
+    ]
+   },
+   "groom_blue": {
+    "R_rnd": 0.41091689943322435,
+    "R_atlas": 0.411586204530235,
+    "modal_neuron": 9,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   }
+  },
+  "256": {
+   "groom_any": {
+    "R_rnd": 0.5603929690069345,
+    "R_atlas": 0.5664696495660098,
+    "modal_neuron": 9,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   },
+   "groom_yellow": {
+    "R_rnd": 0.3088532231319534,
+    "R_atlas": 0.33432565128924907,
+    "modal_neuron": 9,
+    "modal_share": 0.5,
+    "atlas_neurons": [
+     9,
+     89
+    ]
+   },
+   "groom_blue": {
+    "R_rnd": 0.41091689943322435,
+    "R_atlas": 0.411586204530235,
+    "modal_neuron": 9,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   }
+  },
+  "128": {
+   "groom_any": {
+    "R_rnd": 0.5603929690069345,
+    "R_atlas": 0.5664696495660098,
+    "modal_neuron": 9,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   },
+   "groom_yellow": {
+    "R_rnd": 0.3267015787347035,
+    "R_atlas": 0.33432565128924907,
+    "modal_neuron": 9,
+    "modal_share": 0.6,
+    "atlas_neurons": [
+     9,
+     89
+    ]
+   },
+   "groom_blue": {
+    "R_rnd": 0.41091689943322435,
+    "R_atlas": 0.411586204530235,
+    "modal_neuron": 9,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   }
+  }
+ },
+ "v3": {
+  "n_frames": 32100,
+  "full": {
+   "groom_any": {
+    "R_rnd": 0.5613229254178422,
+    "R_atlas": 0.5631166541025796,
+    "modal_neuron": 9,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   },
+   "groom_yellow": {
+    "R_rnd": 0.3422425582136789,
+    "R_atlas": 0.3143087532299221,
+    "modal_neuron": 9,
+    "modal_share": 0.75,
+    "atlas_neurons": [
+     309,
+     9
+    ]
+   },
+   "groom_blue": {
+    "R_rnd": 0.37603399421923533,
+    "R_atlas": 0.38992253790703435,
+    "modal_neuron": 9,
+    "modal_share": 0.9,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   },
+   "on_lid_any": {
+    "R_rnd": 0.8539412485912804,
+    "R_atlas": 0.8160033401198845,
+    "modal_neuron": 276,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     276,
+     276
+    ]
+   },
+   "on_lid_yellow": {
+    "R_rnd": 0.6038541110390818,
+    "R_atlas": 0.5855089971164467,
+    "modal_neuron": 730,
+    "modal_share": 0.6,
+    "atlas_neurons": [
+     276,
+     730
+    ]
+   },
+   "on_lid_blue": {
+    "R_rnd": -0.004686831224396591,
+    "R_atlas": -0.004139122586920288,
+    "modal_neuron": 1870,
+    "modal_share": 0.3,
+    "atlas_neurons": [
+     403,
+     323
+    ]
+   },
+   "on_lid_focal": {
+    "R_rnd": NaN,
+    "R_atlas": -0.0032999643888735014,
+    "modal_neuron": 276,
+    "modal_share": 0.3,
+    "atlas_neurons": [
+     94,
+     1459
+    ]
+   }
+  },
+  "256": {
+   "groom_any": {
+    "R_rnd": 0.5613229254178422,
+    "R_atlas": 0.5631166541025796,
+    "modal_neuron": 9,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   },
+   "groom_yellow": {
+    "R_rnd": 0.3708431262517755,
+    "R_atlas": 0.37145083990573835,
+    "modal_neuron": 9,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   },
+   "groom_blue": {
+    "R_rnd": 0.3880123159752885,
+    "R_atlas": 0.38992253790703435,
+    "modal_neuron": 9,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   },
+   "on_lid_any": {
+    "R_rnd": 0.0614014699466552,
+    "R_atlas": 0.0344009572419991,
+    "modal_neuron": 84,
+    "modal_share": 0.55,
+    "atlas_neurons": [
+     84,
+     143
+    ]
+   },
+   "on_lid_yellow": {
+    "R_rnd": 0.03963947771627411,
+    "R_atlas": -0.00318895874067366,
+    "modal_neuron": 84,
+    "modal_share": 0.45,
+    "atlas_neurons": [
+     48,
+     176
+    ]
+   },
+   "on_lid_blue": {
+    "R_rnd": -0.0012125928567488127,
+    "R_atlas": -0.0016562869450182673,
+    "modal_neuron": 0,
+    "modal_share": 0.2,
+    "atlas_neurons": [
+     0,
+     104
+    ]
+   },
+   "on_lid_focal": {
+    "R_rnd": NaN,
+    "R_atlas": -0.0032999643888735014,
+    "modal_neuron": 94,
+    "modal_share": 0.5,
+    "atlas_neurons": [
+     94,
+     145
+    ]
+   }
+  },
+  "128": {
+   "groom_any": {
+    "R_rnd": 0.5613229254178422,
+    "R_atlas": 0.5631166541025796,
+    "modal_neuron": 9,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   },
+   "groom_yellow": {
+    "R_rnd": 0.3708431262517755,
+    "R_atlas": 0.37145083990573835,
+    "modal_neuron": 9,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   },
+   "groom_blue": {
+    "R_rnd": 0.3880123159752885,
+    "R_atlas": 0.38992253790703435,
+    "modal_neuron": 9,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     9,
+     9
+    ]
+   },
+   "on_lid_any": {
+    "R_rnd": 0.0861787047837053,
+    "R_atlas": 0.0289869819671563,
+    "modal_neuron": 84,
+    "modal_share": 0.75,
+    "atlas_neurons": [
+     84,
+     104
+    ]
+   },
+   "on_lid_yellow": {
+    "R_rnd": 0.058472198712672695,
+    "R_atlas": 0.02386969605843043,
+    "modal_neuron": 84,
+    "modal_share": 0.65,
+    "atlas_neurons": [
+     48,
+     94
+    ]
+   },
+   "on_lid_blue": {
+    "R_rnd": 0.0011191879402371219,
+    "R_atlas": -0.0016562869450182673,
+    "modal_neuron": 104,
+    "modal_share": 0.3,
+    "atlas_neurons": [
+     0,
+     104
+    ]
+   },
+   "on_lid_focal": {
+    "R_rnd": NaN,
+    "R_atlas": -0.0032999643888735014,
+    "modal_neuron": 94,
+    "modal_share": 0.5,
+    "atlas_neurons": [
+     94,
+     0
+    ]
+   }
+  }
+ }
+}

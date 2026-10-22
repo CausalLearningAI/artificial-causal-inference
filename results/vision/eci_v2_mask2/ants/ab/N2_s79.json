@@ -1,0 +1,320 @@
+{
+ "v2": {
+  "n_frames": 13200,
+  "full": {
+   "groom_any": {
+    "R_rnd": 0.5594025645987806,
+    "R_atlas": 0.500600779669452,
+    "modal_neuron": 48,
+    "modal_share": 0.9,
+    "atlas_neurons": [
+     48,
+     424
+    ]
+   },
+   "groom_yellow": {
+    "R_rnd": 0.3707633143713099,
+    "R_atlas": 0.4226854259732088,
+    "modal_neuron": 424,
+    "modal_share": 0.6,
+    "atlas_neurons": [
+     424,
+     424
+    ]
+   },
+   "groom_blue": {
+    "R_rnd": 0.4074429325145335,
+    "R_atlas": 0.429651117037783,
+    "modal_neuron": 48,
+    "modal_share": 0.5,
+    "atlas_neurons": [
+     424,
+     424
+    ]
+   }
+  },
+  "256": {
+   "groom_any": {
+    "R_rnd": 0.5678462135212758,
+    "R_atlas": 0.5758927188449284,
+    "modal_neuron": 48,
+    "modal_share": 0.95,
+    "atlas_neurons": [
+     48,
+     48
+    ]
+   },
+   "groom_yellow": {
+    "R_rnd": 0.3539629056079152,
+    "R_atlas": 0.3768288654963733,
+    "modal_neuron": 110,
+    "modal_share": 0.5,
+    "atlas_neurons": [
+     48,
+     110
+    ]
+   },
+   "groom_blue": {
+    "R_rnd": 0.4174008549199703,
+    "R_atlas": 0.4197532043029334,
+    "modal_neuron": 48,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     48,
+     48
+    ]
+   }
+  },
+  "128": {
+   "groom_any": {
+    "R_rnd": 0.5678462135212758,
+    "R_atlas": 0.5758927188449284,
+    "modal_neuron": 48,
+    "modal_share": 0.95,
+    "atlas_neurons": [
+     48,
+     48
+    ]
+   },
+   "groom_yellow": {
+    "R_rnd": 0.3539629056079152,
+    "R_atlas": 0.3768288654963733,
+    "modal_neuron": 110,
+    "modal_share": 0.5,
+    "atlas_neurons": [
+     48,
+     110
+    ]
+   },
+   "groom_blue": {
+    "R_rnd": 0.4174008549199703,
+    "R_atlas": 0.4197532043029334,
+    "modal_neuron": 48,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     48,
+     48
+    ]
+   }
+  }
+ },
+ "v3": {
+  "n_frames": 32100,
+  "full": {
+   "groom_any": {
+    "R_rnd": 0.5721595428000226,
+    "R_atlas": 0.5733800612428996,
+    "modal_neuron": 48,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     48,
+     48
+    ]
+   },
+   "groom_yellow": {
+    "R_rnd": 0.37437542793139716,
+    "R_atlas": 0.3744536614453758,
+    "modal_neuron": 48,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     48,
+     48
+    ]
+   },
+   "groom_blue": {
+    "R_rnd": 0.38319273726740727,
+    "R_atlas": 0.3790048356002911,
+    "modal_neuron": 424,
+    "modal_share": 0.55,
+    "atlas_neurons": [
+     48,
+     424
+    ]
+   },
+   "on_lid_any": {
+    "R_rnd": 0.8569256047763961,
+    "R_atlas": 0.8184231410567213,
+    "modal_neuron": 435,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     435,
+     435
+    ]
+   },
+   "on_lid_yellow": {
+    "R_rnd": 0.5165870072081649,
+    "R_atlas": 0.175382860933233,
+    "modal_neuron": 461,
+    "modal_share": 0.5,
+    "atlas_neurons": [
+     461,
+     971
+    ]
+   },
+   "on_lid_blue": {
+    "R_rnd": 0.001508955339778172,
+    "R_atlas": -0.006621958228822309,
+    "modal_neuron": 877,
+    "modal_share": 0.3,
+    "atlas_neurons": [
+     486,
+     435
+    ]
+   },
+   "on_lid_focal": {
+    "R_rnd": NaN,
+    "R_atlas": -0.0032999643888735014,
+    "modal_neuron": 1508,
+    "modal_share": 0.45,
+    "atlas_neurons": [
+     1125,
+     1508
+    ]
+   }
+  },
+  "256": {
+   "groom_any": {
+    "R_rnd": 0.5721595428000226,
+    "R_atlas": 0.5733800612428996,
+    "modal_neuron": 48,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     48,
+     48
+    ]
+   },
+   "groom_yellow": {
+    "R_rnd": 0.37437542793139716,
+    "R_atlas": 0.3744536614453758,
+    "modal_neuron": 48,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     48,
+     48
+    ]
+   },
+   "groom_blue": {
+    "R_rnd": 0.3931738369502476,
+    "R_atlas": 0.39417379164424715,
+    "modal_neuron": 48,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     48,
+     48
+    ]
+   },
+   "on_lid_any": {
+    "R_rnd": 0.03747310272775286,
+    "R_atlas": 0.04417692866690873,
+    "modal_neuron": 223,
+    "modal_share": 0.4,
+    "atlas_neurons": [
+     223,
+     184
+    ]
+   },
+   "on_lid_yellow": {
+    "R_rnd": 0.029556412168899593,
+    "R_atlas": -0.01036932803093871,
+    "modal_neuron": 223,
+    "modal_share": 0.45,
+    "atlas_neurons": [
+     124,
+     201
+    ]
+   },
+   "on_lid_blue": {
+    "R_rnd": -0.005155149638630992,
+    "R_atlas": -0.004139122586920288,
+    "modal_neuron": 184,
+    "modal_share": 0.4,
+    "atlas_neurons": [
+     0,
+     184
+    ]
+   },
+   "on_lid_focal": {
+    "R_rnd": NaN,
+    "R_atlas": 0.009107753211473914,
+    "modal_neuron": 27,
+    "modal_share": 0.3,
+    "atlas_neurons": [
+     107,
+     27
+    ]
+   }
+  },
+  "128": {
+   "groom_any": {
+    "R_rnd": 0.5721595428000226,
+    "R_atlas": 0.5733800612428996,
+    "modal_neuron": 48,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     48,
+     48
+    ]
+   },
+   "groom_yellow": {
+    "R_rnd": 0.37437542793139716,
+    "R_atlas": 0.3744536614453758,
+    "modal_neuron": 48,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     48,
+     48
+    ]
+   },
+   "groom_blue": {
+    "R_rnd": 0.3931738369502476,
+    "R_atlas": 0.39417379164424715,
+    "modal_neuron": 48,
+    "modal_share": 1.0,
+    "atlas_neurons": [
+     48,
+     48
+    ]
+   },
+   "on_lid_any": {
+    "R_rnd": 0.03227038626316313,
+    "R_atlas": -0.024399190018327254,
+    "modal_neuron": 5,
+    "modal_share": 0.35,
+    "atlas_neurons": [
+     124,
+     76
+    ]
+   },
+   "on_lid_yellow": {
+    "R_rnd": 0.022189008459608608,
+    "R_atlas": -0.02132883905292221,
+    "modal_neuron": 5,
+    "modal_share": 0.3,
+    "atlas_neurons": [
+     124,
+     76
+    ]
+   },
+   "on_lid_blue": {
+    "R_rnd": -0.005539999806052917,
+    "R_atlas": -0.004139122586920288,
+    "modal_neuron": 1,
+    "modal_share": 0.25,
+    "atlas_neurons": [
+     0,
+     2
+    ]
+   },
+   "on_lid_focal": {
+    "R_rnd": NaN,
+    "R_atlas": 0.009107753211473914,
+    "modal_neuron": 107,
+    "modal_share": 0.4,
+    "atlas_neurons": [
+     107,
+     27
+    ]
+   }
+  }
+ }
+}
