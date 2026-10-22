@@ -1035,7 +1035,7 @@ function renderAlign(){
   for(const b of B.querySelectorAll('.alj')) b.onclick = () => {
     const j = +b.dataset.n;
     PIN = {j, sae:b.dataset.sae, m:b.dataset.m, beh:LAB[b.dataset.b] || b.dataset.b, r:+b.dataset.r, au:+b.dataset.au,
-           ctx:`first ${alPrefix()} neurons${b.dataset.m==='new' ? `, ${RLAB[alReadout()] || alReadout()}` : ''}`};
+           ctx:b.dataset.m==='v0' ? 'its full 4608 codes' : `first ${alPrefix()} neurons${b.dataset.m==='new' ? `, ${RLAB[alReadout()] || alReadout()}` : ''}`};
     if(!b.dataset.sae){ PIN.none = true; render(); return; }   // no page entry holds it: the box says so
     if(b.dataset.sae!==DATA.sae) setSae(b.dataset.sae);
     state.view = 'all'; state.neuron = j; render();

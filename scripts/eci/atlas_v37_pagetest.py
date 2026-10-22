@@ -409,6 +409,7 @@ with sync_playwright() as p:
     pg.select_option('#mC', 'S')
     pg.wait_for_timeout(700)
     set_chips(pg, '#mStrata', 'Phase', ['2'])
+    set_chips(pg, '#mStrata', 'Genotype', ['het', 'wt'])
     pg.wait_for_timeout(900)
     ids = pg.eval_on_selector_all('#side .nr .id', 'es => es.map(e => e.textContent)')
     k73 = [i for i, x in enumerate(ids) if x.strip().lstrip('#') == '73']
@@ -426,6 +427,8 @@ with sync_playwright() as p:
     pg.click('#specBtn')
     pg.wait_for_timeout(400)
     st = pg.eval_on_selector('#specBox', 'e => e.innerText')
+    if a.shots:
+        pg.locator('header').screenshot(path=f'{a.shots}/details_panel_mice.png')
     report.append(f'Details panel prose left (must be all False): Priors {"Priors:" in st}, Assumptions {"Assumptions:" in st}, '
                   f'v2 final decisions {"v2 final decisions" in st}, v0 on this comparison {"v0 on this comparison" in st}, '
                   f'v0 SAE {"v0 SAE:" in st}')
