@@ -418,10 +418,22 @@ with sync_playwright() as p:
         pg.wait_for_timeout(1200)
     facts = pg.eval_on_selector('#detail', 'e => (e.querySelector(".facts")||{}).textContent || null')
     ftip = pg.eval_on_selector('#detail', 'e => ((e.querySelector(".facts .tip")||{}).title) || null')
+    side = pg.eval_on_selector('#side', 'e => [(e.querySelector("h2")||{}).textContent, (e.querySelector(".nmeta")||{}).textContent]')
+    report.append(f'#73 discovery panel head: {side}')
     report.append(f'#73 check: listed {ids}; detail {pg.eval_on_selector("#detail", H2)}; facts {facts!r}; '
                   f'activity tooltip {ftip!r}')
     if a.shots:
         pg.screenshot(path=f'{a.shots}/n73_mice_v2_continuous_rate_S2.png', full_page=False)
+    for d_, m_ in (('ants', 'new'), ('ants', 'v0'), ('frogs', 'new'), ('mice', 'online')):
+        pg.select_option('#domSel', d_)
+        pg.wait_for_timeout(900)
+        pg.select_option('#ax_model', m_)
+        pg.wait_for_timeout(900)
+        pg.click('#tabCmp')
+        pg.wait_for_timeout(500)
+        hd = pg.eval_on_selector('#side', 'e => [(e.querySelector("h2")||{}).textContent, (e.querySelector(".nmeta")||{}).textContent]')
+        fc = pg.eval_on_selector('#detail', 'e => (e.querySelector(".facts")||{}).textContent || null')
+        report.append(f'discovery head {d_} {m_}: {hd}; first detail facts {fc!r}')
     if not pg.eval_on_selector('#alBox', 'e => e.hidden'):
         pg.click('#alBtn')
     pg.click('#specBtn')
