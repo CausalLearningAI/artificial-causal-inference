@@ -261,6 +261,8 @@ with sync_playwright() as p:
     # a fresh page (no saved state): the views a first-time visitor gets
     pg = b.new_context(viewport={'width': 1300, 'height': 1000}).new_page()
     pg.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
+    pg.on('console', lambda m: errors.append(f'console {m.type}: {m.text}') if m.type == 'error' and '_blob' not in m.text
+          and 'Failed to load resource' not in m.text else None)
     pg.goto(f'http://127.0.0.1:{a.port}/index.html')
     pg.wait_for_timeout(1500)
     # discoverability shots: frogs default view, frogs -> tadpoles phase (from the default model), a tadpole neuron;
@@ -292,22 +294,142 @@ with sync_playwright() as p:
         pg.locator('nav.bar').screenshot(path=f'{a.shots}/ui_tab_row.png')
     else:
         report.append(f'frogs -> tadpoles: option {tad}')
-    for d, shot_name in (('mice', 'align_mice'), ('ants', 'align_ants')):
+    # Alignment panel x Neurons prefix x Outcome (user, 2026-10-22): the listed neurons lie inside the selected prefix,
+    # the panel follows the Outcome input, every model's best neuron opens an interpretation box with its clips / frames
+    IDS_JS = '''() => [...document.querySelectorAll('#alBox table.alg td .pn, #alBox table.al td button, #alBox table.al td span')]
+      .map(e => +(e.textContent.match(/#(\\d+)/)||[0,-1])[1]).filter(x => x >= 0)'''
+    PX_JS = '''() => [...document.querySelectorAll('#prefixSeg button')].map(b => [b.textContent, b.disabled, b.getAttribute('aria-pressed'), b.title])'''
+    BOX_JS = '''() => { const B = document.querySelector('#alIBox'); if(!B) return null;
+      return {h2: (B.querySelector('h2')||{}).textContent || null, canvases: B.querySelectorAll('canvas').length,
+              tiles: B.querySelectorAll('.v0t').length, video: !!B.querySelector('#vM'), charts: B.querySelectorAll('.chart').length,
+              best: (B.querySelector('.pa')||{}).textContent || null, note: (B.querySelector('.note')||{}).textContent || null}; }'''
+
+    def open_al(q):
+        if q.eval_on_selector('#alBox', 'e => e.hidden'):
+            q.click('#alBtn')
+            q.wait_for_timeout(700)
+
+    def set_px(q, p_):
+        q.click(f'#prefixSeg button[data-p="{p_}"]')
+        q.wait_for_timeout(800)
+
+    pg.select_option('#domSel', 'mice')
+    pg.wait_for_timeout(1000)
+    for m_ in ('v0', 'online', 'new'):
+        pg.select_option('#ax_model', m_)
+        pg.wait_for_timeout(700)
+        report.append(f'prefix buttons mice {m_}: {pg.evaluate(PX_JS)}; v0 note shown '
+                      f'{not pg.eval_on_selector("#pxNote", "e => e.hidden")}')
+    for d in ('mice', 'ants'):
         pg.select_option('#domSel', d)
-        pg.wait_for_timeout(1200)
-        if pg.eval_on_selector('#alBox', 'e => e.hidden'):
-            pg.click('#alBtn')
+        pg.wait_for_timeout(1000)
+        pg.select_option('#ax_model', 'new')
+        pg.wait_for_timeout(700)
+        ros = [r[0] for r in pg.eval_on_selector_all('#ax_readout option', 'os => os.map(o => [o.value, o.disabled])') if not r[1]]
+        open_al(pg)
+        for ro in ros:
+            pg.select_option('#ax_readout', ro)
+            pg.wait_for_timeout(900)
+            open_al(pg)
+            for p_ in (128, 256):
+                if pg.eval_on_selector(f'#prefixSeg button[data-p="{p_}"]', 'b => b.disabled'):
+                    report.append(f'align {d} v2 {ro} {p_}: prefix button disabled')
+                    continue
+                set_px(pg, p_)
+                ids = pg.evaluate(IDS_JS)
+                v12 = [x for x in ids if x < 4608]  # v0 ids are its own (1..4608)
+                ctx_ = pg.eval_on_selector('#alBox', 'e => (e.querySelector(".pa")||{}).textContent')
+                cols = pg.eval_on_selector_all('#alBox table.alg tbody tr', 'rs => rs.map(r => [...r.querySelectorAll("td")].slice(1).map(td => (td.querySelector(".pn")||{}).textContent || td.textContent))')
+                report.append(f'align {d} v2 {ro} prefix {p_}: {ctx_!r}; best per behaviour [v0, v1, v2] {cols}; '
+                              f'v1/v2 top-5 ids {sorted(set(ids))[:40]}')
+                over = [x for x in pg.evaluate('''() => [...document.querySelectorAll('#alBox table.alg tr')].slice(1).flatMap(r => [...r.querySelectorAll('td')].slice(2).map(td => +((td.textContent.match(/#(\\d+)/)||[0,-1])[1])))''') if x >= p_]
+                report.append(f'   v1 / v2 best neurons outside the first {p_}: {over} (must be [])')
+                if d == 'mice' and ro == 'continuous':
+                    pg.locator('#alBox').screenshot(path=f'{a.shots}/align_panel_mice_v2_continuous_{p_}.png')
+    # the interpretation box: click every best neuron of every model (mice, ants v2/v3/v4 via the series of the shown
+    # comparison), record what the box shows
+    for d in ('mice', 'ants'):
+        pg.select_option('#domSel', d)
+        pg.wait_for_timeout(1000)
+        pg.select_option('#ax_model', 'new')
+        pg.wait_for_timeout(700)
+        if pg.eval_on_selector('#ax_readout', 'e => e.value') != 'continuous':
+            pg.select_option('#ax_readout', 'continuous')
+            pg.wait_for_timeout(700)
+        sers = ['-']
+        if d == 'ants':
+            sers = [o[0] for o in pg.eval_on_selector_all('#apE option', 'os => os.map(o => [o.value, o.disabled])') if not o[1]]
+        for se in sers:
+            if se != '-':
+                pg.click('#tabCmp')
+                pg.wait_for_timeout(400)
+                pg.select_option('#domSel', d)
+                pg.wait_for_timeout(700)
+                pg.select_option('#ax_model', 'new')
+                pg.wait_for_timeout(600)
+                pg.select_option('#apE', se)
+                pg.wait_for_timeout(900)
+            open_al(pg)
+            n_btn = pg.locator('#alBox table.alg .alj').count()
+            n_cell = pg.locator('#alBox table.alg td .pn').count()
+            report.append(f'interp {d} {se}: {n_btn} of {n_cell} best-neuron cells clickable')
+            for i in range(n_btn):
+                btn = pg.locator('#alBox table.alg .alj').nth(i)
+                lab = f'{btn.get_attribute("data-m")} #{btn.get_attribute("data-n")} ({btn.get_attribute("data-b")})'
+                btn.click()
+                pg.wait_for_timeout(1800)
+                bx = pg.evaluate(BOX_JS)
+                report.append(f'   box {d} {se} {lab}: {bx}')
+                if d == 'mice' and i == 2 and a.shots:   # a v2 box
+                    pg.wait_for_timeout(1500)
+                    pg.locator('#alBox').screenshot(path=f'{a.shots}/interp_box_mice_{btn.get_attribute("data-m")}_{btn.get_attribute("data-n")}.png')
+                if bx and bx['video']:
+                    vcheck(pg, f'interp box {d} {se} {lab}')
+                pg.select_option('#domSel', d) if False else None
+                if d == 'ants' and se != '-' and pg.eval_on_selector('#apE', 'e => e.value') != se:
+                    pg.select_option('#apE', se)
+                    pg.wait_for_timeout(700)
+                open_al(pg)
+            if pg.locator('#ibClose').count():
+                pg.click('#ibClose')
+                pg.wait_for_timeout(500)
+    # #73 (mice, v2 continuous, event rate, sex contrast at stage 2): its activity label
+    pg.select_option('#domSel', 'mice')
+    pg.wait_for_timeout(900)
+    pg.select_option('#ax_model', 'new')
+    pg.wait_for_timeout(600)
+    if pg.eval_on_selector('#ax_readout', 'e => e.value') != 'continuous':
+        pg.select_option('#ax_readout', 'continuous')
         pg.wait_for_timeout(600)
-        report.append(f'{d} alignment panel: {pg.eval_on_selector("#alBox", "e => e.innerText.slice(0, 600)")!r}')
-        pg.screenshot(path=f'{a.shots}/{shot_name}.png', full_page=False)
-        links = pg.locator('#alBox .alj')
-        if links.count():
-            links.nth(0).click()
-            pg.wait_for_timeout(1500)
-            report.append(f'{d} alignment link -> detail '
-                          f'{pg.eval_on_selector("#detail", H2)}')
+    set_px(pg, 128)
+    pg.click('#tabCmp')
+    pg.wait_for_timeout(400)
+    pg.click('#kindSeg button[data-kind="rate"]')
+    pg.wait_for_timeout(700)
+    pg.select_option('#mC', 'S')
+    pg.wait_for_timeout(700)
+    set_chips(pg, '#mStrata', 'Phase', ['2'])
+    pg.wait_for_timeout(900)
+    ids = pg.eval_on_selector_all('#side .nr .id', 'es => es.map(e => e.textContent)')
+    k73 = [i for i, x in enumerate(ids) if x.strip().lstrip('#') == '73']
+    if k73:
+        pg.click(f'#side .nr >> nth={k73[0]}')
+        pg.wait_for_timeout(1200)
+    facts = pg.eval_on_selector('#detail', 'e => (e.querySelector(".facts")||{}).textContent || null')
+    ftip = pg.eval_on_selector('#detail', 'e => ((e.querySelector(".facts .tip")||{}).title) || null')
+    report.append(f'#73 check: listed {ids}; detail {pg.eval_on_selector("#detail", H2)}; facts {facts!r}; '
+                  f'activity tooltip {ftip!r}')
+    if a.shots:
+        pg.screenshot(path=f'{a.shots}/n73_mice_v2_continuous_rate_S2.png', full_page=False)
     if not pg.eval_on_selector('#alBox', 'e => e.hidden'):
         pg.click('#alBtn')
+    pg.click('#specBtn')
+    pg.wait_for_timeout(400)
+    st = pg.eval_on_selector('#specBox', 'e => e.innerText')
+    report.append(f'Details panel prose left (must be all False): Priors {"Priors:" in st}, Assumptions {"Assumptions:" in st}, '
+                  f'v2 final decisions {"v2 final decisions" in st}, v0 on this comparison {"v0 on this comparison" in st}, '
+                  f'v0 SAE {"v0 SAE:" in st}')
+    pg.click('#specBtn')
     NOTRUN_JS = 'e => (e.querySelector(".notrun")||{}).textContent || ""'
     # strata chips: ants v4 colony contrast (Pathogen exposure), mice (Line / Sex / Genotype); annotation badges
     pg.select_option('#domSel', 'ants')
