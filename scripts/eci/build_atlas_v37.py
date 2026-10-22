@@ -1978,6 +1978,31 @@ def share_v2_clips(site, saes):
     log(f'v2 clips shared: {n_sh} neurons of the binary / prob outcomes show the continuous clips, {n_no} without clips')
 
 
+def strip_rob(site):
+    """Every search row of the page's data files without its robustness / sensitivity checks ('rob'); counts of the
+    stored NES stop reasons (logged)."""
+    import collections
+    n_rows, stops = 0, collections.Counter()
+
+    def walk(R):
+        nonlocal n_rows
+        for v in R.values():
+            if isinstance(v, dict):
+                if v.get('stopped'):
+                    stops[re.sub(r'^round \d+: ', '', str(v['stopped'])).split(' (')[0]] += 1
+                for r in v.get('rows', []):
+                    if 'rob' in r:
+                        r.pop('rob')
+                        n_rows += 1
+    for f in sorted((site / 'assets' / 'data').glob('*.json')):
+        D = json.loads(f.read_text())
+        walk(D.get('results', {}))
+        for S in (D.get('subsets') or {}).values():
+            walk(S)
+        f.write_text(json.dumps(D, separators=(',', ':')))
+    log(f'robustness checks stripped from {n_rows} rows; NES stop reasons on the page: {dict(stops)}')
+
+
 def v2_sensitivity(site, saes):
     """'stable in k of n checks' of the frozen v2 from its fixed sensitivity grid (results/vision/eci_v2/
     sensitivity.json; continuous input, NES only): every v2 row gets exactly the checks run for it (the grid's
@@ -2327,7 +2352,7 @@ def step_assemble():
     data['axes'][0]['values'] = data['axes'][0]['values'] + (['v0'] if v0e else [])
     readout_axis(saes, data)
     share_v2_clips(site, saes)
-    v2_sensitivity(site, saes)
+    strip_rob(site)  # the stability chip was removed (user, 2026-10-22): its data stays out of the page
     clip_times(site, saes, data)
     split_v4_pack(site)
     tpl = TEMPLATE.read_text()

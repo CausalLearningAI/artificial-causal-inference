@@ -925,17 +925,34 @@ const CHECK_NAME = {thr:'bout threshold quantile', bout:'bout definition', BH:'m
   window_hwhole:'whole habituation window', window_trim30:'first 30 s dropped', test_signflip:'sign-flip test', test_rank:'rank t-test',
   input_prob:'P(on) input', input_binary:'binary input', 'q0.90':'threshold q0.90', 'q0.99':'threshold q0.99', gap2:'merge gap 2'};
 /* the legend names exactly the re-runs present in the shown search's rows (never checks that were not run) */
-function stableLegend(R){
-  const names = [...new Set(R.rows.flatMap(r => (r.rob||[]).filter(c => c[2]!=='-').map(c => CHECK_NAME[c[0]] || c[0])))];
-  const who = `${MLAB[DATA.model.model] || DATA.model.model} ${METH()}`;
-  return names.length ? `<p class="note" title="${esc(`Re-runs that exist for ${who} in this search: ${names.join(', ')}`)}">“stable in k of n checks”: the neuron is still selected in k of the n re-runs that change one analysis choice each (hover a chip for the list).</p>` : '';
+/* the stored NES stop reason (src/eci/nes.py _search: 'round r: <ValueError of the round>') in plain words */
+function stopText(raw, R){
+  const m = /^round (\d+): (.*)$/.exec(String(raw)) || [null, null, String(raw)], r = m[1] ? +m[1] : null, why = m[2];
+  const sel = R && R.rows ? R.rows.length : 0;
+  const head = r===1 || !sel ? `${METH()} stopped before selecting any neuron` : `${METH()} stopped after round ${r - 1} (${sel} neuron${sel===1 ? '' : 's'} selected)`;
+  let x;
+  if((x = /no overlap on conditioning column (\d+) \(common range \[([^,]+), ([^\]]+)\] holds (\d+) treated \/ (\d+) control units/.exec(why)))
+    x = `${r===1 ? 'the two groups do not overlap on the animal-size covariate' : 'the variables already conditioned on (the selected neurons and, where used, the size covariate) almost separate the two groups'}: on conditioning variable ${x[1]} their common range holds only ${x[4]} treated and ${x[5]} control units (at least 3 per group are needed), so there are too few comparable units left to test further neurons (overlap rule)`;
+  else if((x = /no overlap on conditioning column (\d+) \((\d+) pools with change <= 0, (\d+) with change >= 0/.exec(why)))
+    x = `${r===1 ? 'the per-pool change of the animal-size covariate' : 'the per-pool change of a variable already conditioned on'} (conditioning variable ${x[1]}) falls almost always on one side of 0 (${x[2]} pools ≤ 0, ${x[3]} pools ≥ 0; at least 3 per side are needed), so the paired comparison cannot be adjusted for it (overlap rule)`;
+  else if(/^no residual df/.test(why)) x = 'the conditioning set used up the units (no residual degrees of freedom left)';
+  else if(/^no stratum has/.test(why)) x = 'no stratum of the selected neurons holds enough units of both groups (strata cap)';
+  else x = why;
+  return `${head}: ${x}.`;
+}
+/* a small neutral label on the result header: why the search ended (raw stored reason on hover) */
+function endLabel(R){
+  if(isV0() || R.loading || R.blocked || R.notrun) return '';
+  if(!R.stopped) return METH()==='NESS'
+    ? ` · <span class="chip na" title="NESS ran its forward phase until no remaining neuron was significant, then its backward check of every found neuron.">ended: search complete</span>`
+    : ` · <span class="chip na" title="${esc(`${METH()} ran until no remaining neuron was significant at its round threshold.`)}">ended: no further significant neuron</span>`;
+  const why = /no overlap/.test(R.stopped) ? 'too few comparable units per arm (overlap rule)' : /no residual df/.test(R.stopped) ? 'no residual degrees of freedom' : /no stratum has/.test(R.stopped) ? 'strata cap' : 'stopped';
+  return ` · <span class="chip na" title="${esc(`${stopText(R.stopped, R)}\nStored reason (src/eci/nes.py): ${R.stopped}`)}">ended early: ${esc(why)}</span>`;
 }
 function chipsHTML(r){
-  const pi = FROGS() ? sessionInfo(r.neuron) : periodInfo(r.neuron), C = r.rob.concat(pi.day ? [pi.day] : []);
-  const run = C.filter(c => c[2]!=='-'), k = run.filter(c => c[2]==='Y').length, n = run.length;   // only re-runs that exist
-  const lines = run.map(([key, text, v, note]) => `${v==='Y'?'✓ still found':'✗ no longer found'} — ${CHECK_NAME[key] || key}: ${text}${note?` (${note})`:''}`);
-  const cls = !n ? 'na' : k/n >= 0.75 ? 'Y' : k/n >= 0.4 ? 'warn2' : 'na';
-  let h = n ? `<span class="chip ${cls}" title="${esc(`Stability: the search re-run ${n} times, each time changing ONE choice of the analysis; the neuron is still selected in ${k} of them.\n${lines.join('\n')}`)}">stable in ${k} of ${n} checks</span>` : '';
+  // the stability chip was removed (user, 2026-10-22: ambiguous); only warning chips remain
+  const pi = FROGS() ? sessionInfo(r.neuron) : periodInfo(r.neuron);
+  let h = '';
   if(isArt(r.neuron)) h+=`<span class="chip warn" title="${esc(DATA.artefact_text[r.neuron]||'likely artefact')}">⚠ artefact</span>`;
   return h + pi.warn;
 }
@@ -1022,7 +1039,7 @@ function renderCmpList(){
   const a=analysis(state.aid), R=res(), S=$('#side');
   if(state.miss){ S.innerHTML = NOTRUN(state.miss); state.neuron = null; return; }
   const nu = nUnits(a), unit = a.family==='A' ? `${nu} paired pools` : a.family==='C' ? `${nu} pools (het vs wt change)` : a.family==='S' ? `${nu} pools (female vs male)` : `${nu} videos`;
-  let h=`<div class="side-head">${GEN() ? '' : `<h2 title="${esc(longLabel(a))}">${esc(label(a))}</h2>`}<span class="meta">${SUB()?`${esc(subLabel())} · `:''}${unit} · ${R.n_tested_total||0} tested · <span class="tip" title="${tauTip()}">τ${FROGS()?` = ${esc(a.treatment)} − ${esc(a.control)}`:!ANTS()&&a.family==='B'?' = het − wt':!ANTS()&&a.family==='C'?' = het − wt change':!ANTS()&&a.family==='S'?' = female − male':''}</span> in ${esc(outcome().unit)}</span></div>`;
+  let h=`<div class="side-head">${GEN() ? '' : `<h2 title="${esc(longLabel(a))}">${esc(label(a))}</h2>`}<span class="meta">${SUB()?`${esc(subLabel())} · `:''}${unit} · ${R.n_tested_total||0} tested · <span class="tip" title="${tauTip()}">τ${FROGS()?` = ${esc(a.treatment)} − ${esc(a.control)}`:!ANTS()&&a.family==='B'?' = het − wt':!ANTS()&&a.family==='C'?' = het − wt change':!ANTS()&&a.family==='S'?' = female − male':''}</span> in ${esc(outcome().unit)}${endLabel(R)}</span></div>`;
   if(isV0() && R.v0){
     const k = R.v0.hits, E = R.v0.expected, m = R.v0.bonf, N = R.n_tested_total;
     const cls = m > 0 ? 'Y' : k > E ? 'warn2' : 'na', what = m > 0 ? `${m} pass Bonferroni` : k > E ? 'more than chance, none pass Bonferroni' : 'no more than chance';
@@ -1030,7 +1047,6 @@ function renderCmpList(){
   }
   h+=annCheck(a, R);
   if(METH()==='NESS' && !GEN() && a.family==='A' && /1to2$/.test(a.id)) h+=`<p class="note">NESS on this contrast can be capped at 30 atoms (its search limit), so its count may be a lower bound.</p>`;
-  if(R.stopped) h+=`<p class="warnbox one" title="${esc(R.stopped)}">${METH()} stopped early: the search ran out of degrees of freedom after the neurons listed here (${esc(R.stopped.split(':')[0])}).</p>`;
   // top-by-p list (domains with DATA.top): only when the method selected nothing, its 3 smallest first-round p
   const top = shownTop(R);
   if(!R.rows.length){
@@ -1049,7 +1065,7 @@ function renderCmpList(){
       <span class="l1"><span class="${up?'up':'down'}">${up?'▲':'▼'} ${fmtTau(r.tau)}</span><span class="pv">p ${fmtP(r.p)}</span>${csHTML(r.neuron)}</span>
       <span class="chips">${chipsHTML(r)}${censChip(r.cens)}${stChip(r)}${v0Chips(r)}</span></button>`;
   }
-  h+='</div>' + stableLegend(R);
+  h+='</div>';
   if(top.length){ renderTop(S, h, top); return; }
   S.innerHTML = h;
   for(const b of S.querySelectorAll('.nr')) b.onclick=()=>{ state.neuron=+b.dataset.n; render(); };
