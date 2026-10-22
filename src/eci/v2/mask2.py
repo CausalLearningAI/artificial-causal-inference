@@ -30,6 +30,9 @@ Parameters (development 2026-10-22 on dev data only, explore.py configs C / Cg /
 eye: tails kept, no bedding speckle on mice v1, white CalMS21 intruder kept): SIGMA 1.5, T_LO 35, K_MAD 6 (cand also
 needs d > 6 x the per-pixel temporal median |d| of the background frames, background_mad), T_HI 40, ghost guard =
 the frozen dark rule true on the median background (resting animal) -> no candidate / strong pixels there.
+AMENDMENT 2026-10-22 ~14:50 (after the GPU selftest panel of mice diag showed a ring-shaped leak around a resting
+spot, before any held-out benchmark score existed; the running validation jobs were cancelled unread): the ghost
+mask is dilated by (2 round(h) + 1) square before use.
 """
 import numpy as np
 import torch
@@ -140,7 +143,10 @@ def hyst_pixels(x, bg, core0, h, t_lo=T_LO, t_hi=T_HI, k_noise=K_NOISE, reach_h=
             bad |= (gb - q_lo[None].float()) > ghost
         cand &= ~bad
         core = core0 | (core & ~bad)
-    if bad is not None:  # ghost pixels: the frozen dark cue fires on the median background itself (resting animal)
+    if bad is not None:  # ghost pixels: the frozen dark cue fires on the median background itself (resting animal),
+        # dilated by a disk of radius round(h) so the blurred rim of the resting animal in the median is covered too
+        bad = _maxpool(bad.float()[None, None], max(1, int(round(h))))[0, 0] > 0.5 if bad.dim() == 2 else \
+            _maxpool(bad.float()[:, None], max(1, int(round(h))))[:, 0] > 0.5
         cand &= ~bad
         core = core0 | (core & ~bad)
     if roi is not None:
