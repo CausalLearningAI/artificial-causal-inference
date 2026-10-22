@@ -6,8 +6,12 @@ Frames: one shared frame set per series, so the three models are scored on exact
 frames of the series on the 1 fps grid (frame_idx % 5 == 0 of the 5 fps grid; mice habituation: its last 15 min, the
 window of v0 and v2), restricted to frames every model has codes for (v0's 2 fps grid holds every 5th 5 fps frame;
 ants v2's v0 frames are 30 fps source frames s = 15 i, 5 fps frame k = round((s - 2) / 6)).
-Neuron value per frame: v1: codes_max of the v1 SAE; v2 = the FROZEN v2 (scripts/eci/v2/): its <sae>_smooth set,
-the page's primary v2 input (0.6 s smoothed frame codes, no firing threshold); v0: the code of the mean-pooled token.
+Neuron value per frame: v1: codes_max of the v1 SAE; v2 = the FROZEN v2 (scripts/eci/v2/), one run per page Outcome
+input (V2_READOUT): continuous = <sae>_smooth (0.6 s smoothed frame codes, no firing threshold), binary = <sae> (the
+same codes zeroed below the fnorm threshold), prob = <sae>_prob (P(on)), binary_map = <sae>_map; v0: the code of the
+mean-pooled token. Neurons searched: v1 and v2 at each page prefix p in PREFIXES (the first p neurons of the Matryoshka
+dictionary, the page's Neurons selector), v0 its full 4608 codes (no nested blocks). Output key per model run:
+'<model>|<outcome input>|<prefix>'.
 Behaviours: ants Y2F (grooming by yellow), B2F (by blue), groom_any = Y2F or B2F, YOL / BOL (yellow / blue on the
 lid), onlid_any = YOL or BOL (frames where the label exists); mice nn, np, nn_or_np, nt.
 Metrics per neuron and half: R~ = normalised R-precision (share of positives among the top N frames, N = positives,
@@ -47,6 +51,9 @@ BEH = {'ants': {'Y2F': ['Y_Y2F'], 'B2F': ['Y_B2F'], 'groom_any': ['Y_Y2F', 'Y_B2
                 'BOL': ['Y_BOL'], 'onlid_any': ['Y_YOL', 'Y_BOL']},
        'mice': {'nn': ['Y_nn'], 'np': ['Y_np'], 'nn_or_np': ['Y_nn', 'Y_np'], 'nt': ['Y_nt']}}
 TOP_K = 5
+PREFIXES = (128, 256)  # the two smallest page prefixes of v1 and v2 (the others are not shown, page size)
+# v2 outcome inputs (page Outcome selector value -> code set suffix of the frozen v2 SAE)
+V2_READOUT = {'continuous': '_smooth', 'binary': '', 'prob': '_prob', 'binary_map': '_map'}
 
 
 def log(*x):
@@ -130,16 +137,23 @@ def auroc(X, y):
     return (R[y].sum(0) - n1 * (n1 + 1) / 2) / (n1 * n0)
 
 
-def score(X, y, valid, half, ids):
-    """Cross-fitted top list of one model x behaviour."""
-    res = {}
+def half_metrics(X, y, valid, half):
+    """{half: (R~ per column, base rate, AUROC per column)} of one model x behaviour."""
+    out = {}
     for h in (0, 1):
         m = valid & (half == h)
-        res[h] = rprec(X[m], y[m]) + (auroc(X[m], y[m]),)
+        out[h] = rprec(X[m], y[m]) + (auroc(X[m], y[m]),)
+    return out
+
+
+def score(res, y, valid, ids, cols=None):
+    """Cross-fitted top list of one model x behaviour from half_metrics res, restricted to the columns cols (the
+    neurons of a Matryoshka prefix; None = all)."""
+    cols = np.arange(len(ids)) if cols is None else np.asarray(cols)
     dirs, pick = [], {}
     for s, t in ((0, 1), (1, 0)):
-        sc = np.where(np.isfinite(res[s][0]), res[s][0], -np.inf)
-        top = np.argsort(-sc, kind='stable')[:TOP_K]
+        sc = np.where(np.isfinite(res[s][0][cols]), res[s][0][cols], -np.inf)
+        top = cols[np.argsort(-sc, kind='stable')[:TOP_K]]
         dirs.append({'select_half': s, 'best': ids[int(top[0])], 'test_rprec': float(res[t][0][top[0]])})
         for j in top:
             pick.setdefault(int(j), []).append((float(res[t][0][j]), float(res[t][2][j])))
@@ -198,32 +212,43 @@ def main():
         unit = pd.Series(obs).str.rsplit('_', n=2).str[0].to_numpy() if dom == 'mice' else obs
         units = sorted(set(unit))
         half = pd.Series(unit).map({u: i % 2 for i, u in enumerate(units)}).to_numpy()
+        def load_codes(c, rr):
+            return lambda: np.asarray(np.load(c / 'codes_max.npy', mmap_mode='r')[np.sort(rr)],
+                                      np.float32)[np.argsort(np.argsort(rr))]
+        # (model key, loader, source, prefixes): v1 / v2 at their two smallest page prefixes (the Matryoshka prefix =
+        # the first p neurons), every v2 outcome input; v0 = its full 4608-code representation (no nested blocks)
+        runs = [('v1|continuous', load_codes(c1, rr1), f'{c1}/codes_max.npy', PREFIXES)]
+        for ro, suf in V2_READOUT.items():
+            cv = c2.with_name(c2.name[:-len('_smooth')] + suf)
+            runs.append((f'v2|{ro}', load_codes(cv, rr2), f'{cv}/codes_max.npy', PREFIXES))
+        runs.append(('v0|continuous', lambda: get0(np.sort(r0))[np.argsort(np.argsort(r0))],
+                     f'{BIG / bd} frame codes (mean-pooled token)', None))
         models = {}
-        for nm, load in (('v1', lambda: np.asarray(np.load(c1 / 'codes_max.npy', mmap_mode='r')[np.sort(rr1)],
-                                                   np.float32)[np.argsort(np.argsort(rr1))]),
-                         ('v2', lambda: np.asarray(np.load(c2 / 'codes_max.npy', mmap_mode='r')[np.sort(rr2)],
-                                                   np.float32)[np.argsort(np.argsort(rr2))]),
-                         ('v0', lambda: get0(np.sort(r0))[np.argsort(np.argsort(r0))])):
+        for nm, load, source, pxs in runs:
             t1 = time.time()
             X = load()
+            width = X.shape[1]
+            if pxs:
+                X = X[:, :max(pxs)]
             alive = np.flatnonzero((X > 0).any(0))
             Xa = X[:, alive]
-            ids = (alive + 1).tolist() if nm == 'v0' else alive.tolist()  # page neuron ids (v0: N_<j+1>)
-            models[nm] = {'n_neurons': int(X.shape[1]), 'n_alive': int(len(alive)),
-                          'source': {'v1': f'{c1}/codes_max.npy', 'v2': f'{c2}/codes_max.npy',
-                                     'v0': f'{BIG / bd} frame codes (mean-pooled token)'}[nm],
-                          'beh': {}}
-            for b, (y, V) in LS.items():
-                if V.sum() < 100 or y[V].sum() < 10:
-                    models[nm]['beh'][b] = None
-                    continue
-                models[nm]['beh'][b] = score(Xa, y, V, half, ids)
-            log(f'{ser} {nm}: {X.shape[1]} neurons ({len(alive)} alive), {time.time() - t1:.0f} s: ' + ', '.join(
-                f'{b} R~cf top {v["top"][0][0]} {v["top"][0][1]:.3f} AUROC {v["top"][0][2]:.3f}' if v else f'{b} -'
-                for b, v in models[nm]['beh'].items()))
+            ids = (alive + 1).tolist() if nm.startswith('v0') else alive.tolist()  # page neuron ids (v0: N_<j+1>)
+            res = {b: (half_metrics(Xa, y, V, half) if V.sum() >= 100 and y[V].sum() >= 10 else None)
+                   for b, (y, V) in LS.items()}
+            for p in (pxs or [width]):
+                cols = np.flatnonzero(alive < p)
+                key = f'{nm}|{p}'
+                models[key] = {'n_neurons': int(width), 'prefix': int(p), 'n_alive': int(len(cols)), 'source': source,
+                               'beh': {b: (score(r, LS[b][0], LS[b][1], ids, cols) if r is not None and len(cols) else None)
+                                       for b, r in res.items()}}
+                log(f'{ser} {key}: {len(cols)} alive of the first {p}, {time.time() - t1:.0f} s: ' + ', '.join(
+                    f'{b} top {v["top"][0][0]} R~cf {v["top"][0][1]:.3f} AUROC {v["top"][0][2]:.3f}' if v else f'{b} -'
+                    for b, v in models[key]['beh'].items()))
+            del X, Xa
         out = {'series': ser, 'domain': dom, 'n_frames': int(len(S)), 'n_units': len(units),
                'units': 'pools' if dom == 'mice' else 'videos', 'top_k': TOP_K,
                'behaviours': {b: BEH[dom][b] for b in BEH[dom]}, 'models': models, 'per_video_time': pv,
+               'prefixes': list(PREFIXES), 'version': 2,
                'frames': 'labelled frames on the 1 fps grid shared by v0, v1 and v2' +
                          (' (habituation: last 15 min)' if dom == 'mice' else '')}
         (OUT / f'{ser}.json').write_text(json.dumps(out, separators=(',', ':')))

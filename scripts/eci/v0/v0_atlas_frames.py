@@ -46,8 +46,23 @@ def log(*x):
     print(time.strftime('[%H:%M:%S]'), *x, flush=True)
 
 
-def neuron_set(res):
-    """0-based codes shown on the page: every raw-p < 0.05 hit + the N_CAND smallest p of every comparison."""
+ALIGN = REPO / 'results/vision/eci_atlas_v37/align'  # scripts/eci/atlas_align.py
+ALIGN_SER = {'mice_v1': 'mice', 'ants_v2': 'ants_v2', 'ants_v3': 'ants_v3', 'ants_v4': 'ants_v4'}
+
+
+def aligned_set(key):
+    """0-based codes that are a behaviour's best-aligned v0 neuron (the atlas Alignment panel opens them)."""
+    f = ALIGN / f'{ALIGN_SER.get(key, "-")}.json'
+    if not f.exists():
+        return set()
+    d = json.loads(f.read_text())
+    return {int(v['top'][0][0]) - 1 for k, x in d['models'].items() if k.split('|')[0] == 'v0'
+            for v in x['beh'].values() if v and v.get('top')}
+
+
+def neuron_set(res, key=None):
+    """0-based codes shown on the page: every raw-p < 0.05 hit + the N_CAND smallest p of every comparison + the
+    best-aligned v0 neurons of the Alignment panel."""
     P = pd.read_csv(res / 'pvalues_all_codes.csv')
     pc = [c for c in P.columns if c == 'p' or c.startswith('p_')]
     out = set()
@@ -57,7 +72,7 @@ def neuron_set(res):
         out |= set(np.where(ok & (p < 0.05))[0].tolist())
         idx = np.where(ok)[0]
         out |= set(idx[np.argsort(p[idx], kind='stable')[:N_CAND]].tolist())
-    return sorted(out)
+    return sorted(out | (aligned_set(key) if key else set()))
 
 
 def jpg_dir(key, vids):
@@ -97,7 +112,7 @@ def main():
             col = lambda j: S[:, j].toarray().ravel()  # noqa: E731
         obs = fr['observation_id'].to_numpy()
         assert set(obs) == set(vids.observation_id), key
-        codes = neuron_set(res)
+        codes = neuron_set(res, key)
         vcodes = np.load(res / 'video_codes.npy')
         rng = np.random.default_rng(0)
         picks = {}
