@@ -530,8 +530,11 @@ def new_cfg():
     if A.dom == 'v2_mice':
         v2_subsets(c, src, sae)
     BE.plan_clips([c], A.max_pages)
-    al = aligned_neurons(V2_ALIGN_SER[A.dom], 'v2') if A.dom in V2_ALIGN_SER else set()
-    if al:  # the best-aligned neurons of the Alignment panel: clips for its interpretation box (user, 2026-10-22)
+    # the best-aligned neurons of the Alignment panel get clips for its interpretation box (user, 2026-10-22): in the
+    # continuous build only (the clips the page shows for every v2 outcome input; a thresholded input can hold a neuron
+    # that never fires in a series, which has no clips to render)
+    al = aligned_neurons(V2_ALIGN_SER[A.dom], 'v2') if A.dom in V2_ALIGN_SER and A.variant == 'smooth' else set()
+    if al:
         for k in c.keys:
             new = sorted(j for j in al if j not in c.clipplan.setdefault(k, {}))
             for j in new:
