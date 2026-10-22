@@ -207,7 +207,8 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
 .xdl{display:grid;grid-template-columns:max-content 1fr;gap:2px 12px;margin:0;font-size:12.5px}
 .xdl dt{font-weight:600;color:var(--muted)}
 .xdl dd{margin:0}
-#ax_readout,#ax_model{max-width:170px}
+#ax_model{max-width:170px}
+#ax_readout{max-width:290px}
 .dbtns{display:inline-flex;gap:4px;margin-left:auto}
 .tchips{display:inline-flex;flex-wrap:wrap;gap:4px}
 .tchip{border:0;background:none;padding:1px 4px 1px 0;font:500 12px var(--sans);color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:4px}
@@ -267,6 +268,7 @@ table.al td{vertical-align:top;font-size:12px}
   <p class="warnbox one" id="subNote" hidden></p>
   <p class="warnbox one" id="cfNote" hidden></p>
   <p class="warnbox one" id="v0Ban" hidden></p>
+  <p class="note" id="roNote" hidden>Binary outcomes lose most of the behaviour alignment of the continuous code (e.g. ants v2 grooming R̃ 0.63 on the raw code vs 0.08 thresholded); they are shown as a secondary view.</p>
 
   <section class="picker" id="picker" aria-label="Choose a comparison">
     <div class="fam" id="micePick">
@@ -596,6 +598,7 @@ function setSae(sae){
 /* model names on the page: v0 = the baseline, the original ECI paper recipe (SAEnce, arXiv 2510.14073; internal key
    'v0', entries from build_atlas_v37.py v0_entries), v1 = the deployed model (internal key 'online'), v2 = the model in
    progress (internal key 'new') */
+const RLAB = {continuous:'continuous', prob:'expected fraction of time active (mean only)', binary_map:'binary · MAP per neuron', binary:'binary · fnorm threshold'};
 const MLAB = {v0:'v0 (baseline)', online:'v1', new:'v2'}, MSHORT = {v0:'v0', online:'v1', new:'v2'}, MORD = ['v0', 'online', 'new'];
 const V0TIP = 'the baseline: the original ECI paper recipe, run on these data (single-pass t-test per neuron, raw p < 0.05, no correction)';
 const isV0 = () => (DATA.model||{}).model==='v0';
@@ -626,7 +629,7 @@ function modelBar(){
     const ok = new Set(domSaes().filter(others).map(d => d.model[ax.key])), indom = new Set(domSaes().map(d => d.model[ax.key]));
     const vals = [...new Set([...domSaes().map(d => d.model[ax.key]), ...(ax.values||[])])], el = $(`#ax_${ax.key}`);
     const why = v => !indom.has(v) ? ((ax.missing||{})[v] || 'not computed') : `not computed with this ${ALL.axes.filter(x=>x.key!==ax.key).map(x=>x.label.toLowerCase()).join(' / ')}`;
-    const lab = v => ax.key==='model' ? MLAB[v] || v : v;
+    const lab = v => ax.key==='model' ? MLAB[v] || v : ax.key==='readout' ? RLAB[v] || v : v;
     if(ax.key==='readout') vals.sort((p,q)=>(ax.values||[]).indexOf(p)-(ax.values||[]).indexOf(q));
     el.disabled = vals.length<2;
     if(ax.key==='model') vals.sort((p,q)=>MORD.indexOf(p)-MORD.indexOf(q));
@@ -646,7 +649,8 @@ function modelBar(){
         return `<tr><td class="rl">${esc(lab)}</td><td>${esc(V0_CELLS[k] ?? '—')}</td><td class="${dif}">${esc(a ?? '—')}</td><td class="${dif}">${esc(b ?? '—')}</td></tr>`; }).join('')}</tbody></table>
       ${v0Note(cur)}
       <p class="pa"><b>Priors:</b> effect on the animals (mask) · fixed camera (patch = arena spot) · anywhere on the animal (max over tokens) · v2: native resolution (never upsampled, except the tadpole crop)</p>
-      <p class="pa"><b>Assumptions:</b> effect = shift of a per-video neuron outcome · independent units (video, or pool when paired) · only the listed confounds</p>`;
+      <p class="pa"><b>Assumptions:</b> effect = shift of a per-video neuron outcome · independent units (video, or pool when paired) · only the listed confounds</p>
+      <p class="pa"><b>v2 final decisions:</b> tight animal mask kept (the dilated / looser mask tests M1, M2 not adopted) · continuous outcome (binary thresholds lose the behaviour alignment) · no temporal channel · spatial context rejected on fresh seeds</p>`;
   }
   const d = (ALL.domains||[]).find(x=>x.id===(DATA.domain||'mice'));
   if(d){ $('#domSel').value = d.id; document.title = `do-pilot \u00d7 ${d.title}`; }
@@ -889,6 +893,7 @@ function buildControls(){
   if(!CN.hidden) CN.textContent = DATA.tadpole ? '⚠ Tadpoles: genotype is fully confounded with recording session in tadpoles (no session holds two groups), so a session-driven neuron can look like a genotype effect.' : FROGS() ? `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip names its video (group_session_slot) and the clip rows count their sessions: a neuron found in one session only is suspect; a one-sided (left/right) change in FoxP1 only cannot come from a session.`
                                            : ca.cross ? `⚠ Exp4 infested vs healthy colonies · ${ca.stratum} · not day-matched: ${(String(ca.confound).match(/not day-matched: ([^)]*)/)||[,'the colonies were recorded on different days'])[1].replace('healthy colonies on days', 'healthy colonies were recorded on days')}, so colony is confounded with recording day. Each clip shows its recording day: check whether a neuron follows the lighting or the behaviour.`
                                            : `⚠ ${label(ca)} is confounded with the ${ca.confound}. Each clip shows its recording day: check whether a neuron follows the lighting or the behaviour.`;
+  $('#roNote').hidden = !String((DATA.model||{}).readout||'').startsWith('binary');
   const VB = $('#v0Ban'), V0 = DATA.v0;
   VB.hidden = !isV0();
   if(isV0()) VB.innerHTML = `<b>v0 = baseline</b> (the original ECI paper recipe, not a candidate model): its rule lists every neuron at raw p &lt; 0.05 with no correction, so about 5% of the tested neurons are listed by chance. Known limitation: its SAE was trained on single patch tokens but is applied to the mean token, where it is out of distribution (fraction of variance explained ${fmt3(V0.fve_pool)}, below 0 = worse than predicting the mean).`;

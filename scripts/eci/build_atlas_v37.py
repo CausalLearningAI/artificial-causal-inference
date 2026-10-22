@@ -95,8 +95,8 @@ V2_SERIES = {'v2_mice': 'v1', 'v2_ants_v2p': 'v2', 'v2_ants_v3p': 'v3', 'v2_ants
              'v2_frogs_tad': 'tad'}
 V2_NESS = {'v2_mice': 'mice', 'v2_ants_v2p': 'ants_eci_r4v2p', 'v2_ants_v3p': 'ants_eci_r4v3p',
            'v2_ants_v4p': 'ants_eci_r4v4p', 'v2_frogs': 'frogs', 'v2_frogs_tad': 'frogs_tadpole'}
-V2_MODEL = {'smooth': 'new', 'thr': 'new (thr)', 'prob': 'new'}  # page model values of the v2 input sets (readout_axis)
-V2_SUF = {'smooth': '_smooth', 'thr': '', 'prob': '_prob'}
+V2_MODEL = {'smooth': 'new', 'thr': 'new (thr)', 'prob': 'new', 'map': 'new'}  # page model values of the v2 input sets (readout_axis)
+V2_SUF = {'smooth': '_smooth', 'thr': '', 'prob': '_prob', 'map': '_map'}
 # online builds: (domain, ANTS_ECI, v36 result set, v36 tag)
 ONLINE = {'mice': ('mice', None, 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0', 'fg448al'),
           'ants': ('ants', 'eci30', 'results/vision/ants/eci30/nes/matryoshka_btk_1024_k16_antsfg_s0', 'antsfg'),
@@ -119,7 +119,7 @@ TRANS = {'1to2': (1, 2), '2to3': (2, 3), '4to5': (4, 5), '5to6': (5, 6)}
 ap = argparse.ArgumentParser()
 ap.add_argument('--dom', default=None, help='build key: ' + ', '.join(NEW) + ' (new) / mice, ants, frogs (online)')
 ap.add_argument('--model', default='new', choices=('new', 'online'))
-ap.add_argument('--variant', default='d2', choices=('d2', 'd0', 'smooth', 'thr', 'prob'), help='r4: d2 / d0; v2: smooth / thr / prob')
+ap.add_argument('--variant', default='d2', choices=('d2', 'd0', 'smooth', 'thr', 'prob', 'map'), help='r4: d2 / d0; v2: smooth / thr / prob / map')
 ap.add_argument('--steps', default='prep,data,patch,arena,render,dump', help='frogs_tad: tad')
 ap.add_argument('--max-pages', type=int, default=0, help='clip pages per build (build_explorer --max-pages)')
 ap.add_argument('--kr', type=int, default=None, help='clips rendered per row (default: build_explorer VIEW kr; mice 8)')
@@ -516,7 +516,7 @@ def new_cfg():
     dom_name, sae, src, V, bout, M, key = new_paths()
     dom = DOMOBJ[dom_name]
     tag = ('v2' + {'v2_mice': 'mice', 'v2_ants_v2p': 'v2p', 'v2_ants_v3p': 'v3p', 'v2_ants_v4p': 'v4p',
-                   'v2_frogs': 'frogs', 'v2_frogs_tad': 'tad'}[A.dom] + {'smooth': 's', 'thr': 't', 'prob': 'p'}[A.variant]) if A.dom.startswith('v2_') else \
+                   'v2_frogs': 'frogs', 'v2_frogs_tad': 'tad'}[A.dom] + {'smooth': 's', 'thr': 't', 'prob': 'p', 'map': 'm'}[A.variant]) if A.dom.startswith('v2_') else \
         'r4' + {'mice': 'mice', 'ants_v2': 'v2', 'ants_v3': 'v3', 'ants_v4': 'v4', 'frogs': 'frogs', 'ants_v2p': 'v2p',
                 'ants_v3p': 'v3p', 'ants_v4p': 'v4p'}[A.dom] + A.variant
     c = make_cfg(V, sae, dom, tag, bout)
@@ -1096,7 +1096,7 @@ def step_dump_tadpoles():
         ness = TAD_NESS / sae
     src = ROOT / NEW[A.dom][2] / sae
     key = f'{A.dom}_{A.variant}'
-    tg = ('v2tad' + {'smooth': 's', 'thr': 't', 'prob': 'p'}[A.variant]) if v2m else 'r4tad' + A.variant
+    tg = ('v2tad' + {'smooth': 's', 'thr': 't', 'prob': 'p', 'map': 'm'}[A.variant]) if v2m else 'r4tad' + A.variant
     V, bout = OUT / 'res' / key / sae, OUT / 'build' / key
     (V / '_cache').mkdir(parents=True, exist_ok=True)
     for f in (src / '_cache').glob('*.npz'):
@@ -1731,7 +1731,7 @@ PICKS = {'r4miced2': OUT / 'res/mice_d2', 'r4v2pd2': OUT / 'res/ants_v2p_d2', 'r
          'fg448al': ROOT / ONLINE['mice'][2], 'antsfg': ROOT / ONLINE['ants'][2], 'frogsfg': ROOT / ONLINE['frogs'][2],
          **{f'v2{t}{v[0]}': OUT / f'res/{k}_{v}' for k, t in (('v2_mice', 'mice'), ('v2_ants_v2p', 'v2p'),
                                                                ('v2_ants_v3p', 'v3p'), ('v2_ants_v4p', 'v4p'),
-                                                               ('v2_frogs', 'frogs'), ('v2_frogs_tad', 'tad')) for v in ('smooth', 'thr', 'prob')}}
+                                                               ('v2_frogs', 'frogs'), ('v2_frogs_tad', 'tad')) for v in ('smooth', 'thr', 'prob', 'map')}}
 
 
 def clip_times(site, saes, data):
@@ -1902,10 +1902,13 @@ def webm_check(pairs):
 # manifest lists it). v0 and v1 have continuous codes only.
 READOUT_TIPS = {'continuous': 'Continuous: the neuron\'s smoothed code (0.6 s mean of the frame max over the animal mask), '
                               'no firing threshold. The default (user decision 2026-10-21)',
-                'binary': 'Binary: the same smoothed code kept only above the neuron\'s firing threshold (fnorm), else 0 '
-                          '(v2 only)',
-                'prob': 'Probability: per-neuron P(on) per frame (v2 only). Average time = the expected fraction of time '
-                        'active; event rate and latency threshold P(on) at its pooled 0.95 quantile'}
+                'prob': 'Expected fraction of time active (mean only): per-neuron P(on) per frame from a label-free '
+                        'two-component mixture on the smoothed codes; its per-video mean = the expected fraction of '
+                        'time the neuron is active (v2 only)',
+                'binary_map': 'Binary, MAP per neuron: active when P(on) > 0.5 (lognormal mixture). Loses most of the '
+                              'behaviour alignment of the continuous code (v2 only)',
+                'binary': 'Binary, fnorm threshold: the smoothed code kept only above the neuron\'s pre-specified firing '
+                          'threshold. Loses most of the behaviour alignment of the continuous code (v2 only)'}
 
 
 V2_CHECKS = {'window_hwhole': 'with habituation taken whole (30 min) instead of its last 15 min',
@@ -1917,6 +1920,8 @@ V2_CHECKS = {'window_hwhole': 'with habituation taken whole (30 min) instead of 
              'q0.90': 'with the bout threshold at quantile 0.90 instead of 0.95',
              'q0.99': 'with the bout threshold at quantile 0.99 instead of 0.95',
              'gap2': 'with bouts merged across gaps of 2 frames'}
+# (redefined grid, 2026-10-21: Welch / paired t only; mean: window checks; bouts / latency: q0.90, q0.99, merge gap
+# (bouts), windows; binary outcomes: no threshold checks)
 
 
 def _nfiles(e):
@@ -1982,14 +1987,18 @@ def v2_sensitivity(site, saes):
     if not f.exists():
         log('v2 sensitivity: none')
         return
-    IX = json.loads(f.read_text())['index']
+    IX0 = json.loads(f.read_text())['index']
+    VAR = {'continuous': 'continuous', 'prob': 'prob', 'binary': 'binary_fnorm', 'binary_map': 'binary_map'}
+    if not set(VAR.values()) & set(IX0):  # the first grid (continuous only, no variant level)
+        IX0 = {'continuous': IX0}
     agg = {'rate': 'bouts', 'time': 'mean', 'latency': 'latency'}
     n_set = n_rows = 0
     for e in saes:
         if e['model']['model'] != 'new':
             continue
         key = e['sae'].split('#')[1] if '#' in e['sae'] else ''
-        prim = e['model'].get('readout') == 'continuous' and e['model']['method'] == 'NES'
+        prim = e['model']['method'] == 'NES'
+        IX = IX0.get(VAR.get(e['model'].get('readout'), ''), {})  # the grid of this outcome variant (NES only)
         rs = ('mice' if key.startswith('v2_mice') else 'frogs_tad' if key.startswith('v2_frogs_tad') else
               'frogs_juv' if key.startswith('v2_frogs') else f'ants_{key.split("_")[2][:2]}' if key.startswith('v2_ants') else None)
         kinds = {o['id']: o['kind'] for o in e['outcomes']}
@@ -2032,17 +2041,21 @@ def readout_axis(saes, data):
         m = e['model']
         binary = m['model'] == 'new (thr)' or e['sae'].endswith('_thr')
         prob = '_prob@' in e['sae'] or e['sae'].endswith('_prob')
-        m['readout'] = 'binary' if binary else 'prob' if prob else 'continuous'
+        bmap = '_map@' in e['sae'] or e['sae'].endswith('_map')
+        m['readout'] = 'binary' if binary else 'prob' if prob else 'binary_map' if bmap else 'continuous'
+        if m['readout'] == 'prob':  # expected fraction of time active: the per-video mean only
+            e['outcomes'] = [o for o in e['outcomes'] if o['kind'] == 'time']
+            e['rfiles'] = {k: v for k, v in e['rfiles'].items() if any(o['id'] == k for o in e['outcomes'])}
         if m['model'] == 'new (thr)':
             m['model'] = 'new'
     ax0 = data['axes'][0]
     ax0['values'] = [v for v in ax0['values'] if v != 'new (thr)']
     data['axes'].insert(1, {'key': 'readout', 'label': 'Outcome', 'tips': READOUT_TIPS,
-                            'values': ['continuous', 'binary', 'prob'],
+                            'values': ['continuous', 'prob', 'binary_map', 'binary'],
                             'missing': {'prob': 'listed in the v2 manifest, page build pending' if has_prob else
                                         'coming'}})
     log(f'readout axis: prob in manifest {has_prob}; ' + ', '.join(
-        f'{r} {sum(e["model"]["readout"] == r for e in saes)}' for r in ('continuous', 'binary', 'prob')))
+        f'{r} {sum(e["model"]["readout"] == r for e in saes)}' for r in ('continuous', 'prob', 'binary_map', 'binary')))
 
 
 def step_assemble():
@@ -2075,7 +2088,7 @@ def step_assemble():
 
     # ---- new model entries (one build per R4 domain; NES + DINES entries share the build's data files)
     new_entries, builds = {}, {}
-    keys_all = [f'{k}_{v}' for k in NEW for v in ('d2', 'd0', 'smooth', 'thr', 'prob')]
+    keys_all = [f'{k}_{v}' for k in NEW for v in ('d2', 'd0', 'smooth', 'thr', 'prob', 'map')]
     WEBM.mkdir(parents=True, exist_ok=True)
     webm_pairs = []
     v2_built = any(k.startswith('v2_') and (OUT / 'build' / k / 'core.json').exists() for k in keys_all)
@@ -2146,7 +2159,7 @@ def step_assemble():
     order_new = [k for k in ('mice_d2', 'ants_v2p_d2', 'ants_v3p_d2', 'ants_v4p_d2', 'ants_v2_d2', 'ants_v3_d2',
                              'ants_v4_d2', 'frogs_d2', 'frogs_tad_d2', 'mice_d0', 'ants_v2p_d0', 'ants_v3p_d0', 'ants_v4p_d0',
                              'ants_v2_d0', 'ants_v3_d0', 'ants_v4_d0', 'frogs_d0') if k in new_entries] + \
-        [f'{k}_{v}' for v in ('smooth', 'thr', 'prob') for k in ('v2_mice', 'v2_ants_v2p', 'v2_ants_v3p', 'v2_ants_v4p', 'v2_frogs',
+        [f'{k}_{v}' for v in ('smooth', 'thr', 'prob', 'map') for k in ('v2_mice', 'v2_ants_v2p', 'v2_ants_v3p', 'v2_ants_v4p', 'v2_frogs',
                                                          'v2_frogs_tad') if f'{k}_{v}' in new_entries]
     for k in order_new:
         for e in new_entries[k]:
