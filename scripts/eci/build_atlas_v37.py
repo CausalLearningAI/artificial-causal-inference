@@ -1618,7 +1618,7 @@ def align_table():
         out[d['series']] = {
             'n_frames': d['n_frames'], 'n_units': d['n_units'], 'units': d['units'], 'frames': d['frames'],
             'beh': [[b, BEH_LAB[b]] for b in d['behaviours']], 'cut': ALIGN_CUT, 'top_k': d['top_k'],
-            'prefixes': d.get('prefixes'),
+            'prefixes': d.get('prefixes'), 'counts': d.get('label_counts', {}),
             'models': {m: {'source': x['source'], 'n_alive': x['n_alive'], 'n_neurons': x['n_neurons'],
                            'beh': {b: (None if v is None else {'base': round(v['base_rate'], 4), 'n': v['n_frames'],
                                                                'cf1': round(v['cf_top1_rprec'], 4), 'top': v['top']})
@@ -2092,6 +2092,26 @@ def v2_sensitivity(site, saes):
 ACTIVE_Q = 0.95  # the primary bout threshold quantile of the NES runners (scripts/eci/run_nes_bouts.py)
 
 
+def strip_interp(site):
+    """Neuron interpretation texts off the page (user, 2026-10-22): the only ones that exist are Claude-written
+    hypotheses of the v36 build (<res>/interp/interpretations.json of the v1 result sets, model Opus 5.5, never human
+    reviewed); nothing in this builder writes new ones (new builds set c.interp = {}). The page shows 'interpretation:
+    tbd' for every neuron without a human-reviewed text (interp.reviewed); the texts stay in the v36 data on disk."""
+    n_rm = 0
+    for f in sorted((site / 'assets' / 'data').glob('*.json')):
+        D = json.loads(f.read_text())
+        hit = False
+        for N in [D.get('neurons') or {}] + list((D.get('by') or {}).values()):
+            for n in N.values():
+                if isinstance(n, dict) and n.get('interp') and not n['interp'].get('reviewed'):
+                    n.pop('interp')
+                    n_rm += 1
+                    hit = True
+        if hit:
+            f.write_text(json.dumps(D, separators=(',', ':')))
+    log(f'interpretations: {n_rm} unreviewed (Claude-written) texts removed from the page')
+
+
 def active_share(site, saes):
     """The page's per-neuron activity share, on the definition the event outcomes test (user, 2026-10-22: '#73 fires
     100.0%' was the share of frames with code > 0, meaningless for the unthresholded continuous code): n['active'] =
@@ -2469,6 +2489,7 @@ def step_assemble():
     readout_axis(saes, data)
     active_share(site, saes)
     share_v2_clips(site, saes)
+    strip_interp(site)
     strip_rob(site)  # the stability chip was removed (user, 2026-10-22): its data stays out of the page
     clip_times(site, saes, data)
     split_v4_pack(site)

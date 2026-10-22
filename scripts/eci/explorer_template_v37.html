@@ -54,6 +54,9 @@ abbr[title],.tip{text-decoration:underline dotted var(--faint);cursor:help}
 @media (max-width:700px){.model{grid-template-columns:1fr auto}.model .mlab{grid-column:1/-1}.model .mcell{grid-column:1/-1}.model .dbtns{grid-column:2;grid-row:2}}
 .model .seg button{background:var(--bg)}
 .model .seg button[aria-pressed="true"]{background:var(--accent)}
+#prefixSeg button{color:var(--ink)}
+#prefixSeg button[aria-pressed="true"]{color:var(--accent-ink)}
+#prefixSeg button:disabled{color:var(--faint);opacity:.5;cursor:not-allowed}
 #kindSeg button:disabled{color:var(--faint);background:var(--soft);cursor:not-allowed}
 .warnbox.one{padding:5px 10px;font-size:12.5px}
 .toprow{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify-content:space-between}
@@ -870,10 +873,10 @@ const PFX_SHOWN = [128, 256];
 const PFX_TIP = {256:'The first 256 neurons: the primary search (default)', 128:'The first 128 neurons: descriptive, not the primary search'};
 function prefixSeg(PX){
   const m = (DATA.model||{}).model, opts = PFX[m] || PX;
-  const lab = p => m==='v0' ? `${p} · full` : p===256 ? '256 · primary' : p===128 ? '128 · descriptive' : String(p);
+  const lab = p => String(p);
   const tip = p => m==='v0' ? 'v0: its full 4608-code representation (TopK SAE, no nested blocks)'
     : PX.includes(p) ? `${PFX_TIP[p]}${m==='new' ? ' (v2 Matryoshka blocks: 128 / 512 / 2048)' : m==='online' ? ' (v1 Matryoshka blocks: 128 / 256 / 512 / 1024)' : ''}`
-    : !PFX_SHOWN.includes(p) ? 'not shown to keep the page small' : 'not computed for this outcome and method';
+    : !PFX_SHOWN.includes(p) ? `first ${p} neurons: not reported (not shown to keep the page small)` : `first ${p} neurons: not computed for this outcome and method`;
   const S = $('#prefixSeg');
   S.innerHTML = opts.map(p => `<button type="button" data-p="${p}" aria-pressed="${p===state.prefix}"${PX.includes(p) ? '' : ' disabled'} title="${esc(tip(p))}">${esc(lab(p))}</button>`).join('');
   for(const b of S.querySelectorAll('button')) b.onclick = () => { state.prefix = +b.dataset.p; render(); };
@@ -1017,6 +1020,14 @@ function alTop(model, ser, beh){
   const A = (ALL.align||{})[ser]; if(!A) return null;
   const M = A.models[alKey(A, model)]; return M ? M.beh[beh] : undefined;
 }
+/* why a behaviour has no alignment run on this series: [short cell text, tooltip] from the label counts */
+function notMeasured(A, b){
+  const c = (A.counts||{})[b];
+  if(!c) return ['not measured', 'too few labelled frames or positives'];
+  if(!c.labelled_5fps) return ['not annotated', 'This behaviour is not annotated in this series (no labelled frames).'];
+  if(!c.pos_5fps) return ['no positives', `No positive frame: 0 of ${c.labelled_5fps.toLocaleString('en-US')} labelled frames (5 fps) in ${c.videos_labelled} videos.`];
+  return ['too few positives', `Too few positives: ${c.bouts} bouts in ${c.videos_pos} of ${c.videos_labelled} videos (${c.pos_1fps} positive of ${c.labelled_1fps.toLocaleString('en-US')} frames on the shared 1 fps grid); rule: ${c.rule}.`];
+}
 function renderAlign(){
   const B = $('#alBox'), ser = alSeries(), A = ser && (ALL.align||{})[ser];
   $('#alBtn').disabled = FROGS();
@@ -1032,7 +1043,8 @@ function renderAlign(){
   };
   const cell = (m, b) => {
     const M = A.models[alKey(A, m)], x = M ? M.beh[b] : undefined;
-    if(!x) return `<td class="na" title="${x===null ? 'too few labelled frames or positives' : 'no alignment run for this model'}">not measured</td>`;
+    if(!x){ const [s, l] = x===null ? notMeasured(A, b) : ['not measured', 'no alignment run for this model'];
+      return `<td class="na" title="${esc(l)}">${esc(s)}</td>`; }
     const [j, r, au] = x.top[0];
     return `<td title="${esc(`source: ${M.source}`)}">${nid(m, b, j, r, au, 'pn')}<br><span class="pm">R̃ ${fmt3(r)} · AUROC ${fmt3(au)}</span></td>`;
   };
@@ -1328,7 +1340,7 @@ function renderDetail(){
   if(IB && !BOX){
     const NO = PIN && PIN.none && !$('#alBox').hidden;
     IB.innerHTML = NO ? `<div class="dh"><div class="l"><h2>Neuron ${PIN.j}</h2></div></div><p class="pa"><b>Best aligned with ${esc(PIN.beh)}</b> (${esc(MLAB[PIN.m]||PIN.m)}, ${esc(PIN.ctx)}): R̃ ${fmt3(PIN.r)} · AUROC ${fmt3(PIN.au)} on held-out halves. <button type="button" class="dbtn" id="ibClose" title="Close the interpretation box">close</button></p>
-      <p class="note">No clips for this neuron: ${PIN.m==='online' ? 'v1 clips exist only for the neurons its published searches list (data reused from the v36 page), and this neuron is not among them' : 'it is not among the neurons this page holds'}.</p>` : '';
+      <p class="note">No clips for this neuron: ${PIN.m==='online' ? 'v1 reuses the data of its published page (v36, 2026-10-04), whose clips and heat maps were rendered only for the neurons its searches list; this neuron is not among them, and rendering new v1 heat-map clips needs the DINOv2 patch re-encoding of that build (not run for this page)' : 'it is not among the neurons this page holds'}. Interpretation: tbd.</p>` : '';
   }
   if(BOX){ D.innerHTML = `<p class="note">Neuron ${j} is open in the interpretation box of the Alignment panel above.</p>`; D = IB; }
   if(j===null){ stopClips(); D.innerHTML=''; return; }
@@ -1352,7 +1364,8 @@ function renderDetail(){
   if(hits) h+=`<div class="tags" aria-label="Found in">${hits.hits.map(({a:b,r:x})=>`<button type="button" class="tag ${cmp&&b.id===state.aid?'cur':x.tau>0?'up':'down'}" data-aid="${b.id}" title="${esc(longLabel(b))}: tau ${fmtTau(x.tau)} ${esc(outcome().unit)}, p ${fmtP(x.p)}. Open this comparison">${shortLabel(b)}${x.tau>0?'▲':'▼'}</button>`).join('')}</div>`;
   h+='</div>';
   if(BOX) h+=`<p class="pa"><b>Best aligned with ${esc(PIN.beh)}</b> (${esc(MLAB[PIN.m]||PIN.m)}, ${esc(PIN.ctx)}): R̃ ${fmt3(PIN.r)} · AUROC ${fmt3(PIN.au)} on held-out halves. <button type="button" class="dbtn" id="ibClose" title="Close the interpretation box">close</button></p>`;
-  if(n.interp) h+=`<p class="interp"><span class="tip" title="Hypothesis written by Claude (${esc(interpModel(n.interp))}) from this neuron's top/least clips, heat maps and arena map; not verified."><i>Claude ${esc(interpModel(n.interp))} Interpretation</i></span>: ${boldMd(n.interp.text)}${n.interp.conf?` <span class="chip ${n.interp.conf==='clear'?'Y':'na'}" title="Claude's confidence in this reading (clear / plausible / unclear)">${esc(n.interp.conf)}</span>`:''}</p>`;
+  h+= n.interp && n.interp.reviewed ? `<p class="interp"><i>Interpretation</i> (reviewed): ${boldMd(n.interp.text)}</p>`
+                                     : `<p class="interp tip" title="No human-reviewed interpretation of this neuron yet (machine-written hypotheses are not shown)."><i>interpretation:</i> tbd</p>`;
   if(n.artefact) h+=`<div class="warnbox one">⚠ Likely artefact: ${esc(DATA.artefact_text[j]||'')}</div>`;
   if(n.noclip) return renderNoClip(D, h, j, n, cmp, a);
   const cd = outcome().codes, L = state.len, w = M.lengths[L], KR = M.kr || M.K, N = Math.min(state.nper, KR);
