@@ -1,0 +1,114 @@
+{
+ "arm": "v1",
+ "sae": "matryoshka_btk_1024_k16_fg448al_s0",
+ "n_frames": 43200,
+ "tokens_per_frame": 148.8796064814815,
+ "check_vs_deployed_codes_max": {
+  "max_abs_diff": 1.64453125,
+  "mean_abs_diff_per_frame_max": 0.00043418601853773,
+  "share_frames_diff_gt_0.01": 0.0033564814814814816
+ },
+ "mask_jaccard_vs_M0_32grid": 0.3821724875261957,
+ "mask_jaccard_vs_N2_32grid": 0.5300839567708153,
+ "zone_patch_share_of_frame_approx": 0.07923950742713004,
+ "first256": {
+  "frame": {
+   "box": {
+    "R": 0.33682912600340653,
+    "R_sd_splits": 0.052040919385500886,
+    "A_at_R": 0.763592963704679,
+    "rate_at_R": 0.7444583333333334,
+    "modal_neuron": 192,
+    "modal_share": 0.65
+   },
+   "tail_vis": {
+    "R": 0.10267716828748041,
+    "R_sd_splits": 0.0087603389729975,
+    "A_at_R": 0.6133465945842898,
+    "rate_at_R": 0.9188101851851853,
+    "modal_neuron": 43,
+    "modal_share": 0.5
+   },
+   "tail2": {
+    "R": 0.004726636684257259,
+    "R_sd_splits": 0.0022047735024767843,
+    "A_at_R": 0.8540975006309928,
+    "rate_at_R": 0.9870740740740741,
+    "modal_neuron": 81,
+    "modal_share": 0.4
+   }
+  },
+  "tail_token": {
+   "share": 0.9150171172201287,
+   "share_sd_splits": 0.00019346076563416792,
+   "modal_neuron": 75,
+   "modal_share": 1.0,
+   "n_eligible_mean": 256.0
+  },
+  "box_token": {
+   "share": 0.6085526230278748,
+   "share_sd_splits": 0.002866071262885256,
+   "modal_neuron": 143,
+   "modal_share": 1.0,
+   "n_eligible_mean": 256.0
+  }
+ },
+ "all": {
+  "frame": {
+   "box": {
+    "R": 0.5388052272066379,
+    "R_sd_splits": 0.003046196032019186,
+    "A_at_R": 0.7982332368503801,
+    "rate_at_R": 0.3205092592592593,
+    "modal_neuron": 683,
+    "modal_share": 1.0
+   },
+   "tail_vis": {
+    "R": 0.13262005212211417,
+    "R_sd_splits": 0.012476598936466793,
+    "A_at_R": 0.5989823870667201,
+    "rate_at_R": 0.37890509259259264,
+    "modal_neuron": 325,
+    "modal_share": 0.95
+   },
+   "tail2": {
+    "R": 0.004726636684257259,
+    "R_sd_splits": 0.0022047735024767843,
+    "A_at_R": 0.8540975006309928,
+    "rate_at_R": 0.9870740740740741,
+    "modal_neuron": 81,
+    "modal_share": 0.4
+   }
+  },
+  "tail_token": {
+   "share": 0.8340057566731816,
+   "share_sd_splits": 0.22646828784639297,
+   "modal_neuron": 263,
+   "modal_share": 0.65,
+   "n_eligible_mean": 1023.05
+  },
+  "box_token": {
+   "share": 0.8684122870742426,
+   "share_sd_splits": 0.017906316348767652,
+   "modal_neuron": 956,
+   "modal_share": 0.45,
+   "n_eligible_mean": 1023.25
+  }
+ },
+ "check_nose_nose_R": 0.05279733906000321,
+ "check_nose_tail_R": 0.09001276564908495,
+ "sheets": {
+  "tail": {
+   "neuron": 75,
+   "sheet": "results/vision/eci_v2_mask2/discovery/sheets/v1_tail_n75.jpg",
+   "n_frames": 24,
+   "frames_box_target_share": 0.5
+  },
+  "box": {
+   "neuron": 192,
+   "sheet": "results/vision/eci_v2_mask2/discovery/sheets/v1_box_n192.jpg",
+   "n_frames": 24,
+   "frames_box_target_share": 0.7916666666666666
+  }
+ }
+}

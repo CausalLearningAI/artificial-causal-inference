@@ -1,0 +1,27 @@
+{
+ "arm": "M0",
+ "seed": 70,
+ "n_clips": 120,
+ "n_frames": 960,
+ "h": 18.110770276274835,
+ "tokens_per_frame": 26.669791666666665,
+ "tail_px_share_of_region_px_in_tokens": 0.18311497410017316,
+ "first256": {
+  "tail_mab": {
+   "share": 0.670374499189929,
+   "share_sd_splits": 0.04528523755939217,
+   "modal_neuron": 210,
+   "modal_share": 0.6,
+   "n_eligible_mean": 196.1
+  }
+ },
+ "all": {
+  "tail_mab": {
+   "share": 0.6670444772405725,
+   "share_sd_splits": 0.1531430101906481,
+   "modal_neuron": 1597,
+   "modal_share": 0.45,
+   "n_eligible_mean": 821.4
+  }
+ }
+}

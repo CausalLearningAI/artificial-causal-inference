@@ -1,0 +1,93 @@
+{
+ "arm": "N2",
+ "seed": 88,
+ "deploy_seed": 71,
+ "eval_fve": 0.8853097145100137,
+ "zone_token_share": 0.06889774343230574,
+ "first256": {
+  "frame": {
+   "box": {
+    "R": 0.2909669093605332,
+    "R_sd_splits": 0.029632647807929315,
+    "A_at_R": 0.6898273536828066,
+    "rate_at_R": 0.42602314814814823,
+    "modal_neuron": 110,
+    "modal_share": 0.4
+   },
+   "tail_vis": {
+    "R": 0.24599171081930615,
+    "R_sd_splits": 0.0008987721891914797,
+    "A_at_R": 0.7033001612941889,
+    "rate_at_R": 0.8311574074074075,
+    "modal_neuron": 124,
+    "modal_share": 1.0
+   },
+   "tail2": {
+    "R": 0.0025195394333402577,
+    "R_sd_splits": 0.004620939977496843,
+    "A_at_R": 0.5429106135457729,
+    "rate_at_R": 0.9943680555555554,
+    "modal_neuron": 22,
+    "modal_share": 0.4
+   }
+  },
+  "tail_token": {
+   "share": 0.9358112442018083,
+   "share_sd_splits": 0.047491788828591334,
+   "modal_neuron": 138,
+   "modal_share": 0.8,
+   "n_eligible_mean": 256.0
+  },
+  "box_token": {
+   "share": 0.35626333684503,
+   "share_sd_splits": 0.003435974620931152,
+   "modal_neuron": 85,
+   "modal_share": 1.0,
+   "n_eligible_mean": 256.0
+  }
+ },
+ "all": {
+  "frame": {
+   "box": {
+    "R": 0.5284322599175384,
+    "R_sd_splits": 0.004311736446040573,
+    "A_at_R": 0.7924416367450184,
+    "rate_at_R": 0.3140277777777778,
+    "modal_neuron": 1675,
+    "modal_share": 1.0
+   },
+   "tail_vis": {
+    "R": 0.24599171081930615,
+    "R_sd_splits": 0.0008987721891914797,
+    "A_at_R": 0.7033001612941889,
+    "rate_at_R": 0.8311574074074075,
+    "modal_neuron": 124,
+    "modal_share": 1.0
+   },
+   "tail2": {
+    "R": 0.0025195394333402577,
+    "R_sd_splits": 0.004620939977496843,
+    "A_at_R": 0.5429106135457729,
+    "rate_at_R": 0.9943680555555554,
+    "modal_neuron": 22,
+    "modal_share": 0.4
+   }
+  },
+  "tail_token": {
+   "share": 0.937953194687682,
+   "share_sd_splits": 0.1433617725519073,
+   "modal_neuron": 1319,
+   "modal_share": 0.9,
+   "n_eligible_mean": 2037.85
+  },
+  "box_token": {
+   "share": 0.9434400300599733,
+   "share_sd_splits": 0.0017793877450651104,
+   "modal_neuron": 1208,
+   "modal_share": 1.0,
+   "n_eligible_mean": 2037.85
+  }
+ },
+ "check_nose_nose_R": 0.18120962551299685,
+ "check_vs_step2_score": 0.0
+}
