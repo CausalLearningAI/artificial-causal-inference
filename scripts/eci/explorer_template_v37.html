@@ -226,6 +226,8 @@ video{width:100%;max-width:100%;aspect-ratio:3/2;background:#111;border-radius:4
 .alg .pn{font:600 14px var(--mono)}
 .alg .pm{font:400 11px var(--mono);color:var(--muted)}
 .alg .th{display:inline-block;width:40px;height:40px;border-radius:4px;background-repeat:no-repeat;background-size:800% 200%;vertical-align:middle;margin-right:6px}
+#alIBox:not(:empty){border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:10px;background:var(--bg)}
+#alIBox .dh h2{font-size:18px}
 .alj{border:0;background:none;padding:0;color:var(--accent);cursor:pointer;font:inherit;text-align:left}
 .alj:hover{text-decoration:underline}
 table.al td{vertical-align:top;font-size:12px}
@@ -246,7 +248,7 @@ table.al td{vertical-align:top;font-size:12px}
       <span class="dbtns"><button type="button" class="dbtn" id="specBtn" aria-expanded="false" aria-controls="specBox" title="The design choices of v0, v1 and v2">Details</button><button type="button" class="dbtn" id="alBtn" aria-expanded="false" aria-controls="alBox" title="The neuron of each model most aligned with each annotated behaviour">Alignment</button></span>
       </div>
       <div class="mcell">
-      <span class="opt" id="prefixOpt"><span class="tip" title="The neurons searched: the first 128 (the primary search, pre-registered) or the first 256 (descriptive only) of the Matryoshka dictionary">Neurons</span><span class="seg" id="prefixSeg"><button type="button" data-p="128" title="The first 128 neurons: the primary search (default)">128 · primary</button><button type="button" data-p="256" title="The first 256 neurons: descriptive, not the primary search">256 · descriptive</button></span></span>
+      <span class="opt" id="prefixOpt"><span class="tip" id="prefixLab" title="The neurons searched: the first p neurons of the Matryoshka dictionary (256 = the primary search, user decision 2026-10-22; 128 = descriptive only)">Neurons</span><span class="seg" id="prefixSeg"></span><span class="chip warn2" id="pxNote" hidden title="v0 has no nested blocks; it always uses its full 4608-code representation">v0 has no nested blocks; it always uses its full 4608-code representation</span></span>
       <span class="opt" id="readoutOpt"></span>
       </div>
       <div class="mcell">
@@ -365,8 +367,9 @@ const TAU_TIP = 'tau: effect size in the outcome unit. Phase transition: mean pa
 const METH = () => (DATA.model||{}).method || 'NES';
 const stChip = r => r.st==='undetermined' ? '<span class="chip warn2" title="NESS: significant given every tested set of the other found neurons except sets that nearly reveal the treatment (overlap failure); it may be changed directly or only through such a neuron">undetermined</span>' : r.st==='kept' ? '<span class="chip Y" title="NESS: significant given every tested subset of the other found neurons">kept</span>' : '';
 const pTip = () => isV0() ? 'p: single-pass t-test p-value of the neuron alone (no conditioning on other neurons). v0 lists every neuron with p < 0.05, without correction for the number of neurons tested.' : METH()==='NESS' ? 'p: NESS p-value (generalized covariance measure test of the neuron given the other found neurons). For a reported neuron: the largest p over every tested conditioning set (or, flagged undetermined, its p given all the others). Reported = below alpha / m (m = neurons tested) at every tested set.' : 'p: t-test p-value. Found = p below the Bonferroni threshold of that search round.';
-const state = {sae:DATA0.sae, from:'all', len:'1s', view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:128, window:'full', neuron:null, heat:true, sort:'count', line:'all', sex:'all', nper:8};
+const state = {sae:DATA0.sae, from:'all', len:'1s', view:'cmp', outcome:DATA.outcomes[0].id, aid:'A_het_1to2', prefix:256, window:'full', neuron:null, heat:true, sort:'count', line:'all', sex:'all', nper:8};
 try{ Object.assign(state, JSON.parse(localStorage.getItem('nes-atlas')||'{}')); }catch(e){}
+if(state.pxv!==2){ state.prefix = 256; state.pxv = 2; }   // the primary search became the first 256 neurons (2026-10-22)
 DATA = SAES[state.sae] || DATA0; state.sae = DATA.sae; state.window = 'full'; M = DATA.montage || ALL.montage;
 if(!(state.len in M.lengths)) state.len = '1s';
 if(!['all','cmp'].includes(state.from)) state.from = 'all';
@@ -593,7 +596,9 @@ function setSae(sae){
   const toggle = (btn, box, other, obtn) => { const B = $(box); B.hidden = !B.hidden; btn.setAttribute('aria-expanded', String(!B.hidden));
     if(!B.hidden){ $(other).hidden = true; obtn.setAttribute('aria-expanded', 'false'); } };
   SB.onclick = () => toggle(SB, '#specBox', '#alBox', AB);
-  AB.onclick = () => toggle(AB, '#alBox', '#specBox', SB);
+  AB.onclick = () => { toggle(AB, '#alBox', '#specBox', SB); if($('#alBox').hidden && PIN){ PIN = null; render(); } };
+  SB.addEventListener('click', () => { if(PIN){ PIN = null; render(); } });
+  $('#alBox').addEventListener('click', e => { if(e.target.id==='ibClose'){ PIN = null; render(); } });
 }
 /* model names on the page: v0 = the baseline, the original ECI paper recipe (SAEnce, arXiv 2510.14073; internal key
    'v0', entries from build_atlas_v37.py v0_entries), v1 = the deployed model (internal key 'online'), v2 = the model in
@@ -614,14 +619,6 @@ function v0Chips(r){
 /* v0 = the original ECI paper recipe (arXiv 2510.14073, App. D.2 and Table 2), the same for every domain; run 2026-10-16
    (scripts/eci/v0/), its search results per comparison are ALL.v0[domain][analysis id] (build_atlas_v37.py v0_table) */
 const V0_CELLS = {fm:'DINOv2-S/14 · 224 px (whole frame resized)', mask:'none', canon:'none (as recorded)', input:'token (no temporal channel)', pool:'mean over tokens · no smoothing', sae:'TopK 4608 · k 20 · one per domain', cov:'none', hab:'—'};
-/* v0 results of the shown comparison (all units of the domain: no line / sex subgroups, no day matching) */
-function v0Note(cur){
-  const V = ((ALL.v0||{})[DATA.domain||'mice']||{})[cur && cur.id];
-  if(!V) return '<p class="pa">v0 = recipe of the original ECI paper; not run on this comparison.</p>';
-  const f = (x, k=2) => x==null ? '—' : (Math.abs(x)>=10 ? x.toFixed(0) : x.toFixed(k));
-  return `<p class="pa"><b>v0 on this comparison</b> (${esc(V.n)}; all units, single-pass t-test per code, no covariates): <b>${V.hits}</b> neurons at raw p &lt; 0.05 vs <b>${f(V.expected, 1)}</b> expected by chance (${V.tested} testable codes); <b>${V.bonf}</b> survive Bonferroni${V.fdr==null ? '' : `, ${V.fdr} survive FDR (BH 0.05)`}.${V.names.length ? ` Found: ${esc(V.names.join(', '))}${V.hits>V.names.length ? ', …' : ''}.` : ''}</p>
-      <p class="pa">v0 SAE: trained on single patch tokens (FVE ${f(V.fve_tok)}) but applied to the mean-pooled token, where its FVE is <b>${f(V.fve_pool)}</b> (fraction of variance explained; below 0 = worse than predicting the mean); ${V.alive_pool} of 4608 codes ever fire there.${V.align ? ` Behaviour check — ${esc(V.align)}.` : ''}${V.nuis ? ` Nuisance check — ${esc(V.nuis)}.` : ''}${V.confound ? ` Design: ${esc(V.confound)}.` : ''}</p>`;
-}
 const SPEC_ROWS = [['fm', 'Encoder'], ['mask', 'Mask'], ['canon', 'Canonical frame'], ['input', 'Input'], ['pool', 'Frame value'], ['sae', 'Dictionary'], ['cov', 'Search covariates'], ['hab', 'Habituation window']];
 function modelBar(){
   for(const ax of ALL.axes){
@@ -646,11 +643,7 @@ function modelBar(){
     const rows = SPEC_ROWS.filter(([k]) => cell(c1, k)!=null || cell(c2, k)!=null);
     SB.innerHTML = `<table class="spec3"><thead><tr><th></th><th title="${esc(V0TIP)}">v0 (original recipe)</th><th>v1 (deployed)</th><th>v2 (frozen)</th></tr></thead><tbody>${rows.map(([k, lab]) => {
         const a = cell(c1, k), b = cell(c2, k), dif = a!=null && b!=null && a!==b ? ' diff' : '';
-        return `<tr><td class="rl">${esc(lab)}</td><td>${esc(V0_CELLS[k] ?? '—')}</td><td class="${dif}">${esc(a ?? '—')}</td><td class="${dif}">${esc(b ?? '—')}</td></tr>`; }).join('')}</tbody></table>
-      ${v0Note(cur)}
-      <p class="pa"><b>Priors:</b> effect on the animals (mask) · fixed camera (patch = arena spot) · anywhere on the animal (max over tokens) · v2: native resolution (never upsampled, except the tadpole crop)</p>
-      <p class="pa"><b>Assumptions:</b> effect = shift of a per-video neuron outcome · independent units (video, or pool when paired) · only the listed confounds</p>
-      <p class="pa"><b>v2 final decisions:</b> tight animal mask kept (the dilated / looser mask tests M1, M2 not adopted) · continuous outcome (binary thresholds lose the behaviour alignment) · no temporal channel · spatial context rejected on fresh seeds</p>`;
+        return `<tr><td class="rl">${esc(lab)}</td><td>${esc(V0_CELLS[k] ?? '—')}</td><td class="${dif}">${esc(a ?? '—')}</td><td class="${dif}">${esc(b ?? '—')}</td></tr>`; }).join('')}</tbody></table>`;
   }
   const d = (ALL.domains||[]).find(x=>x.id===(DATA.domain||'mice'));
   if(d){ $('#domSel').value = d.id; document.title = `do-pilot \u00d7 ${d.title}`; }
@@ -868,10 +861,27 @@ function micePicker(){
   K.onchange = () => { state.mctrl = +K.value; state.neuron = null; render(); };
 }
 
+/* Neurons options of each model (the first p neurons of its dictionary): v2 = Matryoshka 2048 (blocks 128 / 512 / 2048;
+   256 = a search cut inside the 512 block), v1 = Matryoshka 1024 (blocks 128 / 256 / 512 / 1024), v0 = TopK 4608 (no
+   nested blocks: its full representation only). Only the two smallest prefixes of v1 and v2 are built (page size). */
+const PFX = {new:[128, 256, 512, 2048], online:[128, 256, 512, 1024], v0:[4608]};
+const PFX_SHOWN = [128, 256];
+const PFX_TIP = {256:'The first 256 neurons: the primary search (default)', 128:'The first 128 neurons: descriptive, not the primary search'};
+function prefixSeg(PX){
+  const m = (DATA.model||{}).model, opts = PFX[m] || PX;
+  const lab = p => m==='v0' ? `${p} · full` : p===256 ? '256 · primary' : p===128 ? '128 · descriptive' : String(p);
+  const tip = p => m==='v0' ? 'v0: its full 4608-code representation (TopK SAE, no nested blocks)'
+    : PX.includes(p) ? `${PFX_TIP[p]}${m==='new' ? ' (v2 Matryoshka blocks: 128 / 512 / 2048)' : m==='online' ? ' (v1 Matryoshka blocks: 128 / 256 / 512 / 1024)' : ''}`
+    : !PFX_SHOWN.includes(p) ? 'not shown to keep the page small' : 'not computed for this outcome and method';
+  const S = $('#prefixSeg');
+  S.innerHTML = opts.map(p => `<button type="button" data-p="${p}" aria-pressed="${p===state.prefix}"${PX.includes(p) ? '' : ' disabled'} title="${esc(tip(p))}">${esc(lab(p))}</button>`).join('');
+  for(const b of S.querySelectorAll('button')) b.onclick = () => { state.prefix = +b.dataset.p; render(); };
+  $('#pxNote').hidden = m!=='v0';
+}
 /* prefixes searched for the current outcome (outcome().prefixes); a prefix without results falls back to the first */
 function fixPrefix(){
   const PX = (outcome()||{}).prefixes || [128];
-  if(!PX.includes(state.prefix)) state.prefix = PX.includes(128) ? 128 : PX[0];
+  if(!PX.includes(state.prefix)) state.prefix = PX.includes(256) ? 256 : PX.includes(128) ? 128 : PX[0];
   return PX;
 }
 function buildControls(){
@@ -885,7 +895,7 @@ function buildControls(){
   for(const b of KS.querySelectorAll('button')) b.onclick=()=>{ state.outcome=pickOutcome(b.dataset.kind, outcome().agg); render(); };
   modelBar();
   for(const ax of ALL.axes){ const el = $(`#ax_${ax.key}`); el.value = DATA.model[ax.key]; el.title = `${ax.key==='model' ? (MLAB[DATA.model.model]||'') + ': ' : ''}${ax.tips[DATA.model[ax.key]]||''} (${DATA.sae})`; }
-  for(const b of document.querySelectorAll('#prefixSeg button')){ b.setAttribute('aria-pressed', String(+b.dataset.p===state.prefix)); b.disabled = !PX.includes(+b.dataset.p); }
+  prefixSeg(PX);
   for(const t of document.querySelectorAll('.tab')) t.setAttribute('aria-selected', String(t.dataset.view===state.view));
   $('#allN').textContent = GOT[rfile()] ? allFound().length : '·';
   const ca = analysis(state.aid), CN = $('#cfNote');
@@ -908,7 +918,6 @@ function buildControls(){
   for(const x of document.querySelectorAll('#micePick .cmpOnly')) x.hidden = state.view!=='cmp';
   $('#main').classList.toggle('wide', state.view==='all');
 }
-for(const b of document.querySelectorAll('#prefixSeg button')) b.onclick=()=>{ state.prefix=+b.dataset.p; render(); };
 function setSub(line, sex){
   const name = `${line}_${sex}`;
   if(subWhy(line, sex)) return;
@@ -963,7 +972,8 @@ function otherWith(e){
   return L.find(d => d.model.method===METH()) || L[0] || null;
 }
 /* ---- behaviour alignment (ALL.align, scripts/eci/atlas_align.py) and annotation check (ALL.anncheck) ---- */
-let PIN = null;   // a neuron opened from the alignment panel stays selected
+let PIN = null;   // {j, sae, ...}: a neuron opened from the alignment panel (its interpretation box) stays selected
+const PINJ = () => PIN ? PIN.j : null;
 const MKEY = {v0:'v0', online:'v1', new:'v2'};
 function alSeries(){
   if(DATA.domain==='mice' || !DATA.domain) return 'mice';
@@ -971,45 +981,66 @@ function alSeries(){
   const a = analysis(state.aid) || DATA.analyses[0], e = a ? expOf(a) : null;
   return e==='v4' ? 'ants_v4' : e ? `ants_${e}` : null;
 }
-function alEntry(model, ser){   // the page entry of a model for an alignment series (method NES)
-  return domSaes().find(d => d.model.model===model && d.model.method==='NES' && (!ANTS() || d.analyses.some(a => `ants_${expOf(a)}`===ser)));
+/* the alignment run shown for model m: v1 / v2 at the selected Neurons prefix (128 when the selected one has no run,
+   e.g. v0's 4608: then 256, the primary), v2 on the selected Outcome input (continuous when another model is selected), v0 its full codes */
+const alPrefix = () => PFX_SHOWN.includes(state.prefix) ? state.prefix : 256;
+const alReadout = () => DATA.model.model==='new' ? (DATA.model.readout || 'continuous') : 'continuous';
+function alKey(A, m){
+  const mk = MKEY[m];
+  if(mk==='v0') return Object.keys(A.models).find(k => k.startsWith('v0|'));
+  return `${mk}|${mk==='v2' ? alReadout() : 'continuous'}|${alPrefix()}`;
+}
+/* the page entry of model m (this series) that holds neuron j: same Outcome input first (v2), then the continuous
+   one, NES before NESS; null if no entry lists it */
+function alEntry(m, ser, j){
+  const L = domSaes().filter(d => d.model.model===m && (!ANTS() || d.analyses.some(a => `ants_${expOf(a)}`===ser)));
+  const has = d => { const nf = d.nfile[(d.outcomes[0]||{}).codes]; return nf && (j in nf.of); };
+  const rank = d => (m==='new' && d.model.readout===alReadout() ? 0 : d.model.readout==='continuous' ? 1 : 2) * 2 + (d.model.method==='NES' ? 0 : 1);
+  return L.filter(has).sort((p, q) => rank(p) - rank(q))[0] || null;
 }
 function alTop(model, ser, beh){
   const A = (ALL.align||{})[ser]; if(!A) return null;
-  const M = A.models[MKEY[model]]; return M ? M.beh[beh] : undefined;
+  const M = A.models[alKey(A, model)]; return M ? M.beh[beh] : undefined;
 }
 function renderAlign(){
   const B = $('#alBox'), ser = alSeries(), A = ser && (ALL.align||{})[ser];
   $('#alBtn').disabled = FROGS();
   $('#alBtn').title = FROGS() ? 'No behaviour annotations for frogs' : 'The neuron of each model most aligned with each annotated behaviour';
-  const key = `${ser}|${DATA.sae}`;
+  const key = `${ser}|${DATA.sae}|${alPrefix()}|${alReadout()}`;
   if(B.dataset.key===key) return; B.dataset.key = key;
   if(!A){ B.innerHTML = `<p class="pa">${FROGS() ? 'No behaviour annotations for frogs.' : 'Not measured for this series.'}</p>`; return; }
   const MODELS = [['v0','v0 (baseline)'], ['online','v1'], ['new','v2']];
-  const thumb = (E, j) => {   // v0: the first tile of the neuron's frame strip, when its data file is loaded
-    if(!E || E.model.model!=='v0') return '';
-    const nf = E.nfile[(E.outcomes[0]||{}).codes]; if(!nf || !(j in nf.of)) return '';
-    const F = GOT[nf.files[nf.of[j]]]; const n = F && F.by ? F.by[E.outcomes[0].codes][j] : null;
-    return n && n.frames ? `<span class="th" style="background-image:url('${n.frames.sprite}');background-position:0% 0%"></span>` : '';
+  const nid = (m, b, j, r, au, cls) => {   // a neuron id: a button opening its interpretation box when an entry holds it
+    const E = alEntry(m, ser, j);
+    return E ? `<button type="button" class="alj ${cls}" data-sae="${esc(E.sae)}" data-n="${j}" data-b="${esc(b)}" data-m="${m}" data-r="${r}" data-au="${au}" title="open the interpretation box of neuron ${j} (${esc(MLAB[m]||m)}): its clips">#${j}</button>`
+             : `<button type="button" class="alj ${cls}" data-sae="" data-n="${j}" data-b="${esc(b)}" data-m="${m}" data-r="${r}" data-au="${au}" title="neuron ${j} (${esc(MLAB[m]||m)}): no clips or frames on this page">#${j}</button>`;
   };
   const cell = (m, b) => {
-    const M = A.models[MKEY[m]], x = M ? M.beh[b] : undefined;
+    const M = A.models[alKey(A, m)], x = M ? M.beh[b] : undefined;
     if(!x) return `<td class="na" title="${x===null ? 'too few labelled frames or positives' : 'no alignment run for this model'}">not measured</td>`;
-    const E = alEntry(m, ser), [j, r, au] = x.top[0];
-    const has = E && E.nfile[(E.outcomes[0]||{}).codes] && (j in E.nfile[E.outcomes[0].codes].of);
-    const id = has ? `<button type="button" class="alj pn" data-sae="${esc(E.sae)}" data-n="${j}" title="open neuron ${j} (${esc(MLAB[m]||m)})">#${j}</button>` : `<span class="pn" title="no neuron page: not listed by any search of this model">#${j}</span>`;
-    return `<td title="${esc(`source: ${M.source}`)}">${thumb(E, j)}${id}<br><span class="pm">R̃ ${fmt3(r)} · AUROC ${fmt3(au)}</span></td>`;
+    const [j, r, au] = x.top[0];
+    return `<td title="${esc(`source: ${M.source}`)}">${nid(m, b, j, r, au, 'pn')}<br><span class="pm">R̃ ${fmt3(r)} · AUROC ${fmt3(au)}</span></td>`;
   };
-  const more = (m, b) => { const M = A.models[MKEY[m]], x = M ? M.beh[b] : null; return x ? x.top.map(([j, r, au]) => `#${j} R̃ ${fmt3(r)} · AUROC ${fmt3(au)}`).join('; ') : 'not measured'; };
-  B.innerHTML = `<div class="tw"><table class="spec3 alg"><thead><tr><th>behaviour · base rate</th>${MODELS.map(([, l]) => `<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${A.beh.map(([b, lab]) => {
-      const br = ['v2','v1','v0'].map(k => (A.models[k]||{beh:{}}).beh[b]).find(x => x);
+  const more = (m, b) => { const M = A.models[alKey(A, m)], x = M ? M.beh[b] : null;
+    return x ? x.top.map(([j, r, au]) => `${nid(m, b, j, r, au, '')} R̃ ${fmt3(r)} · AUROC ${fmt3(au)}`).join('<br>') : 'not measured'; };
+  const ctx = `Neurons: first ${alPrefix()} (v1, v2) · v2 outcome: ${esc(RLAB[alReadout()] || alReadout())} · v0: its full 4608 codes`;
+  B.innerHTML = `<p class="pa">${ctx}</p><div class="tw"><table class="spec3 alg"><thead><tr><th>behaviour · base rate</th>${MODELS.map(([, l]) => `<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${A.beh.map(([b, lab]) => {
+      const br = MODELS.map(([m]) => (A.models[alKey(A, m)]||{beh:{}}).beh[b]).find(x => x);
       return `<tr><td class="rl">${esc(lab)}<br><span class="pm">${br ? `base rate ${fmt3(br.base)}` : ''}</span></td>${MODELS.map(([m]) => cell(m, b)).join('')}</tr>`; }).join('')}</tbody></table></div>
-    <p class="pa">Principal aligned neuron per model: picked on one half of the ${esc(A.units)}, scored on the other (cross-fitted). R̃ = normalised R-precision (0 = chance, 1 = perfect), AUROC 0.5 = chance.</p>
-    <details class="xdet"><summary>more: top ${A.top_k} per model, frames, sources</summary>
-      <p class="pa">${esc(A.frames)}, ${A.n_frames} frames, ${A.n_units} ${esc(A.units)}. A listed neuron's R̃ and AUROC are the means of its held-out scores over the halves that picked it. The annotation check counts a neuron as aligned when R̃ ≥ ${A.cut}. v2 = its continuous outcome.</p>
-      <div class="tw"><table class="spec3 al"><thead><tr><th>behaviour</th>${MODELS.map(([, l]) => `<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${A.beh.map(([b, lab]) => `<tr><td class="rl">${esc(lab)}</td>${MODELS.map(([m]) => `<td>${esc(more(m, b))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
-      <p class="pa">Sources: ${MODELS.map(([m, l]) => `${esc(l)} = ${esc((A.models[MKEY[m]]||{}).source || 'none')}`).join('; ')}.</p></details>`;
-  for(const b of B.querySelectorAll('.alj')) b.onclick = () => { const j = +b.dataset.n; PIN = j; if(b.dataset.sae!==DATA.sae) setSae(b.dataset.sae); state.view = 'all'; state.neuron = j; render(); };
+    <p class="pa">Labelled frames at 1 fps (${A.n_frames.toLocaleString('en-US')} frames, ${A.n_units} ${esc(A.units)}${ser==='mice' ? '; habituation: last 15 min' : ''}). R̃ and AUROC on held-out halves. Click a neuron for its clips.</p>
+    <details class="xdet"><summary>top ${A.top_k} per model</summary>
+      <div class="tw"><table class="spec3 al"><thead><tr><th>behaviour</th>${MODELS.map(([, l]) => `<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${A.beh.map(([b, lab]) => `<tr><td class="rl">${esc(lab)}</td>${MODELS.map(([m]) => `<td>${more(m, b)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>
+    <div id="alIBox"></div>`;
+  const LAB = Object.fromEntries(A.beh);
+  for(const b of B.querySelectorAll('.alj')) b.onclick = () => {
+    const j = +b.dataset.n;
+    PIN = {j, sae:b.dataset.sae, m:b.dataset.m, beh:LAB[b.dataset.b] || b.dataset.b, r:+b.dataset.r, au:+b.dataset.au,
+           ctx:`first ${alPrefix()} neurons${b.dataset.m==='new' ? `, ${RLAB[alReadout()] || alReadout()}` : ''}`};
+    if(!b.dataset.sae){ PIN.none = true; render(); return; }   // no page entry holds it: the box says so
+    if(b.dataset.sae!==DATA.sae) setSae(b.dataset.sae);
+    state.view = 'all'; state.neuron = j; render();
+    const X = $('#alIBox'); if(X && X.scrollIntoView) X.scrollIntoView({block:'nearest', behavior:'smooth'});
+  };
 }
 /* annotation check of the shown comparison: the annotated behaviours' effect (ALL.anncheck[series][analysis]); a
    significant one (p < 0.05 / behaviours, Bonferroni) is recovered when a neuron of this model's discoveries is among
@@ -1051,12 +1082,12 @@ function renderCmpList(){
   const top = shownTop(R);
   if(!R.rows.length){
     if(R.loading){ S.innerHTML = h+loadMsg(rfile()); return; }
-    if(!top.some(t=>t[0]===state.neuron) && state.neuron!==PIN) state.neuron = null;   // nothing is selected for the user
+    if(!top.some(t=>t[0]===state.neuron) && state.neuron!==PINJ()) state.neuron = null;   // nothing is selected for the user
     const msg = R.blocked ? R.blocked : R.notrun ? 'Not run for this subgroup (full cohort only)' : R.skipped ? 'Not run: too few pools' : 'No neuron discovered';
     if(!top.length){ S.innerHTML = h+`<div class="empty">${msg}</div>`; return; }
     renderTop(S, h+`<div class="empty">${msg}</div>`, top, true); return;
   }
-  if(state.neuron===null || !(R.rows.some(r=>r.neuron===state.neuron) || top.some(t=>t[0]===state.neuron) || state.neuron===PIN)) state.neuron=R.rows[0].neuron;
+  if(state.neuron===null || !(R.rows.some(r=>r.neuron===state.neuron) || top.some(t=>t[0]===state.neuron) || state.neuron===PINJ())) state.neuron=R.rows[0].neuron;
   h+='<div class="rows">';
   for(const r of R.rows){
     const up=r.tau>0;
@@ -1098,7 +1129,7 @@ function renderAllList(){
   let h=`<div class="side-head"><h2>All discovered neurons</h2><span class="meta">${L.length} neurons · ${DATA.analyses.length} analyses</span></div>`;
   if(!GOT[rfile()]){ S.innerHTML=h+loadMsg(rfile()); return; }
   if(!L.length){ S.innerHTML=h+`<div class="empty">None found</div>`; return; }
-  if(state.neuron===null || !(L.some(x=>x.neuron===state.neuron) || state.neuron===PIN)) state.neuron=L[0].neuron;
+  if(state.neuron===null || !(L.some(x=>x.neuron===state.neuron) || state.neuron===PINJ())) state.neuron=L[0].neuron;
   const sb=(k,t,tip)=>`<button type="button" data-s="${k}" aria-pressed="${state.sort===k}" title="${tip}">${t}${state.sort===k?' ↓':''}</button>`;
   h+=`<div class="tw"><table class="all"><thead><tr><th>${sb('neuron','Neuron','Sort by neuron id')}</th><th>${sb('count','#','Number of analyses where it is found; sort')}</th><th>Found in</th><th>${sb('p','Best p','Smallest p over those analyses; sort')}</th><th></th></tr></thead><tbody>`;
   for(const x of L){
@@ -1259,8 +1290,28 @@ function chartGroups(T, hl){
   return s+'</svg>';
 }
 
+/* activity of a neuron on the definition its outcomes use (build_atlas_v37.py active_share): active = share of the
+   analysed frames above its event threshold (pooled q0.95: the frames the event rate and latency count); pon = mean
+   P(on) (the tested expected fraction of time active); else (v0) the share of frames with code > 0 */
+function actHTML(n){
+  const pc = x => `${(x*100).toFixed(1)}%`, gz = n.firing_rate!=null ? ` Code > 0 in ${pc(n.firing_rate)} of these frames.` : '';
+  if(n.active!=null) return `<span class="tip" title="${esc(`Share of the analysed frames (${winTxt()}) where this neuron's code is above its event threshold (its pooled 0.95 quantile): the frames the event-rate and latency outcomes count.${gz}`)}">above event threshold ${pc(n.active)} of frames</span>`;
+  if(n.pon!=null) return `<span class="tip" title="${esc(`Mean P(on) over the analysed frames (${winTxt()}): the expected fraction of time the neuron is active, the quantity this outcome tests.${gz}`)}">active ${pc(n.pon)} of the time (mean P(on))</span>`;
+  if(n.firing_rate!=null) return `<span class="tip" title="Share of the analysed frames where this neuron's code is above 0">code &gt; 0 in ${pc(n.firing_rate)} of frames</span>`;
+  return '';
+}
+/* BOX: the neuron is shown in the interpretation box of the Alignment panel (#alIBox; opened by clicking a neuron
+   there): its clips, arena map and interpretation, no comparison charts */
+let BOX = false;
 function renderDetail(){
-  const D=$('#detail'), j=state.neuron;
+  let D=$('#detail'); const j=state.neuron, IB=$('#alIBox');
+  BOX = !!(PIN && PIN.j===j && PIN.sae===DATA.sae && IB && !$('#alBox').hidden);
+  if(IB && !BOX){
+    const NO = PIN && PIN.none && !$('#alBox').hidden;
+    IB.innerHTML = NO ? `<div class="dh"><div class="l"><h2>Neuron ${PIN.j}</h2></div></div><p class="pa"><b>Best aligned with ${esc(PIN.beh)}</b> (${esc(MLAB[PIN.m]||PIN.m)}, ${esc(PIN.ctx)}): R̃ ${fmt3(PIN.r)} · AUROC ${fmt3(PIN.au)} on held-out halves. <button type="button" class="dbtn" id="ibClose" title="Close the interpretation box">close</button></p>
+      <p class="note">No clips for this neuron: ${PIN.m==='online' ? 'v1 clips exist only for the neurons its published searches list (data reused from the v36 page), and this neuron is not among them' : 'it is not among the neurons this page holds'}.</p>` : '';
+  }
+  if(BOX){ D.innerHTML = `<p class="note">Neuron ${j} is open in the interpretation box of the Alignment panel above.</p>`; D = IB; }
   if(j===null){ stopClips(); D.innerHTML=''; return; }
   const n = neuron(j);
   if(n===undefined){ stopClips(); D.innerHTML=''; return; }
@@ -1270,17 +1321,18 @@ function renderDetail(){
   const rt = cmp && !r ? shownTop(res()).find(t=>t[0]===j) || null : null;   // a listed top-by-p neuron (not selected)
   const hits = allFound().find(x=>x.neuron===j);
   let h=`<div class="dh"><div class="l"><h2>Neuron ${j}</h2>
-    <span class="facts">${n.firing_rate!=null?`<span class="tip" title="Fraction of all ${(DATA.n_frames/1e6).toFixed(2)} M frames where the neuron is active">fires ${(n.firing_rate*100).toFixed(1)}%</span>`:''}`;
-  if(r) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${r.tau>0?'up':'down'}" title="${tauTip()}">τ${FROGS()&&a?` (${esc(a.treatment)} − ${esc(a.control)})`:!ANTS()&&a&&a.family==='B'?' (het − wt)':!ANTS()&&a&&a.family==='S'?' (female − male)':''} ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${pTip()}">p ${fmtP(r.p)}</span>`;
+    <span class="facts">${actHTML(n)}`;
+  if(r) h+=`${actHTML(n)?' · ':''}<span class="tip ${r.tau>0?'up':'down'}" title="${tauTip()}">τ${FROGS()&&a?` (${esc(a.treatment)} − ${esc(a.control)})`:!ANTS()&&a&&a.family==='B'?' (het − wt)':!ANTS()&&a&&a.family==='S'?' (female − male)':''} ${fmtTau(r.tau)} ${esc(outcome().unit)}</span> · <span class="tip" title="${pTip()}">p ${fmtP(r.p)}</span>`;
   const pc = r ? chipsHTML(r) + v0Chips(r) : '';
   if(pc) h+=` · <span class="chips" style="display:inline-flex">${pc}</span>`;
-  if(rt) h+=`${n.firing_rate!=null?' · ':''}<span class="tip ${rt[1]>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(rt[1])} ${esc(outcome().unit)}</span> · <span class="tip" title="First-round p-value: not selected by ${METH()}">p ${fmtP(rt[2])} · not selected</span>`;
+  if(rt) h+=`${actHTML(n)?' · ':''}<span class="tip ${rt[1]>0?'up':'down'}" title="${tauTip()}">τ ${fmtTau(rt[1])} ${esc(outcome().unit)}</span> · <span class="tip" title="First-round p-value: not selected by ${METH()}">p ${fmtP(rt[2])} · not selected</span>`;
   const cens = r ? r.cens : rt ? rt[3] : null;
   if(cens) h+=` · <span class="tip" title="Videos of this comparison without a bout of this neuron in the first ${latW()} s${habNote()}: their latency is set to ${latW()} s (right-censored). ${esc(censTip(cens))}">censored ${esc(censTip(cens))}</span>`;
   if(csOf(j)!=null) h+=` · <span class="tip" title="${CS_TIP}">change share ${Math.round(csOf(j)*100)}%</span>`;
   h+=`</span></div>`;
   if(hits) h+=`<div class="tags" aria-label="Found in">${hits.hits.map(({a:b,r:x})=>`<button type="button" class="tag ${cmp&&b.id===state.aid?'cur':x.tau>0?'up':'down'}" data-aid="${b.id}" title="${esc(longLabel(b))}: tau ${fmtTau(x.tau)} ${esc(outcome().unit)}, p ${fmtP(x.p)}. Open this comparison">${shortLabel(b)}${x.tau>0?'▲':'▼'}</button>`).join('')}</div>`;
   h+='</div>';
+  if(BOX) h+=`<p class="pa"><b>Best aligned with ${esc(PIN.beh)}</b> (${esc(MLAB[PIN.m]||PIN.m)}, ${esc(PIN.ctx)}): R̃ ${fmt3(PIN.r)} · AUROC ${fmt3(PIN.au)} on held-out halves. <button type="button" class="dbtn" id="ibClose" title="Close the interpretation box">close</button></p>`;
   if(n.interp) h+=`<p class="interp"><span class="tip" title="Hypothesis written by Claude (${esc(interpModel(n.interp))}) from this neuron's top/least clips, heat maps and arena map; not verified."><i>Claude ${esc(interpModel(n.interp))} Interpretation</i></span>: ${boldMd(n.interp.text)}${n.interp.conf?` <span class="chip ${n.interp.conf==='clear'?'Y':'na'}" title="Claude's confidence in this reading (clear / plausible / unclear)">${esc(n.interp.conf)}</span>`:''}</p>`;
   if(n.artefact) h+=`<div class="warnbox one">⚠ Likely artefact: ${esc(DATA.artefact_text[j]||'')}</div>`;
   if(n.noclip) return renderNoClip(D, h, j, n, cmp, a);
@@ -1337,8 +1389,8 @@ function renderDetail(){
   const AT = `Mean activation of this neuron on each image patch over ${DATA.arena_note || 'all frames'}. The camera is fixed, so each patch is a fixed spot in the arena. Mean: high where the concept often happens (mixes "mice are often here" and "the concept fires here"). Per occupancy: divided by how often ${aSubj()} is at that spot.`;
   const hasOcc = !!DATA.arena.occ;
   h+=`<div class="two">
-    <div class="hd"><div class="row"><h3 class="tip" title="${esc(HT)}">Activation histogram</h3>${SUB()?'<span class="meta">all pools</span>':''}</div>
-      ${n.hist ? histSVG(n, cmp ? a : null) : '<div class="pend">no data</div>'}</div>
+    ${BOX ? '' : `<div class="hd"><div class="row"><h3 class="tip" title="${esc(HT)}">Activation histogram</h3>${SUB()?'<span class="meta">all pools</span>':''}</div>
+      ${n.hist ? histSVG(n, cmp ? a : null) : '<div class="pend">no data</div>'}</div>`}
     <div class="hd"><div class="row"><h3 class="tip" title="${esc(AT)}">${DATA.tadpole ? 'Body map (crop)' : 'Arena map'}</h3>${hasOcc ? `<span class="seg" id="arSeg"><button type="button" data-ar="raw" aria-pressed="${state.arena!=='occ'}">mean</button><button type="button" data-ar="occ" aria-pressed="${state.arena==='occ'}" title="Mean activation divided by how often ${aSubj()} is on that spot">per occupancy</button></span>` : ''}</div>
       ${arenaHTML()}</div>
   </div>`;
@@ -1357,6 +1409,7 @@ function renderDetail(){
 const arenaHTML = () => `<div class="arena">${DATA.arena.bg ? `<img class="bg" src="${DATA.arena.bg}" alt="">` : ''}<canvas id="arenaC"></canvas></div><div class="scale">low <i></i> high</div>`;
 
 function chartsHTML(j, n, cmp, a, hl, ct){
+  if(BOX) return '';   // the interpretation box: no comparison charts
   const FR = FROGS();
   if(GEN()) return `<div class="two"><div class="chart"><h3 class="tip" title="${esc(ct.what)}: mean ± 95% CI over the videos of each ${FR ? 'group (one video per frog)' : 'experiment and treatment'}; shaded = current comparison">By ${FR ? 'group' : 'treatment'} · ${esc(ct.what.split(' (')[0])}</h3>
       <div class="lg"><span><span class="dot" style="background:var(--wt)"></span>control${FR ? ' (WT)' : ''}</span><span><span class="dot" style="background:var(--het)"></span>${FR ? 'mutant' : 'treated'}</span></div>

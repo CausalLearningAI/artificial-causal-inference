@@ -530,6 +530,14 @@ def new_cfg():
     if A.dom == 'v2_mice':
         v2_subsets(c, src, sae)
     BE.plan_clips([c], A.max_pages)
+    al = aligned_neurons(V2_ALIGN_SER[A.dom], 'v2') if A.dom in V2_ALIGN_SER else set()
+    if al:  # the best-aligned neurons of the Alignment panel: clips for its interpretation box (user, 2026-10-22)
+        for k in c.keys:
+            new = sorted(j for j in al if j not in c.clipplan.setdefault(k, {}))
+            for j in new:
+                c.clipplan[k][j] = set()
+            c.noclip = {x for x in c.noclip if not (x[0] == k and x[1] in al)}
+            log(f'{c.tag}: {len(al)} best-aligned neurons, {len(new)} added to the clips of codes_{k}: {new}')
     return c
 
 
@@ -1502,6 +1510,7 @@ def v0_entries(site, saes, data):
             shown |= {int(j) for j in sig} | {int(j) for j in top}
             m['n_units'] = n_u
             an_out.append(m)
+        shown |= {j - 1 for j in aligned_neurons(V0_ALIGN_SER[key], 'v0')} if key in V0_ALIGN_SER else set()
         vals = {str(j + 1): [BE.sig4(float(v)) for v in Y[:, j]] for j in sorted(shown)}
         nb = {}
         for j in sorted(shown):
@@ -1580,14 +1589,33 @@ BEH_LAB = {'Y2F': 'grooming by yellow (Y2F)', 'B2F': 'grooming by blue (B2F)', '
            'nn': 'nose-nose (nn)', 'np': 'nose-body (np)', 'nn_or_np': 'nn or np', 'nt': 'nose-tail (nt)'}
 
 
+def aligned_neurons(ser, model):
+    """Neuron ids (page numbering) that are the best-aligned neuron (top 1) of some behaviour in some alignment run of
+    model ('v0' / 'v1' / 'v2', every outcome input and prefix) on series ser: the neurons the Alignment panel opens in
+    its interpretation box, so every build gives them clips (v2) or frame strips (v0)."""
+    f = ALIGN / f'{ser}.json'
+    if not f.exists():
+        return set()
+    d = json.loads(f.read_text())
+    return {int(v['top'][0][0]) for k, x in d['models'].items() if k.split('|')[0] == model
+            for v in x['beh'].values() if v and v.get('top')}
+
+
+V2_ALIGN_SER = {'v2_mice': 'mice', 'v2_ants_v2p': 'ants_v2', 'v2_ants_v3p': 'ants_v3', 'v2_ants_v4p': 'ants_v4'}
+V0_ALIGN_SER = {'mice_v1': 'mice', 'ants_v2': 'ants_v2', 'ants_v3': 'ants_v3', 'ants_v4': 'ants_v4'}
+
+
 def align_table():
-    """{series: {behaviours, models: {v0|v1|v2: {beh: {base, n, top: [[neuron, R~cf, AUROCcf, directions]]} | None}}}}"""
+    """{series: {behaviours, models: {'<v0|v1|v2>|<outcome input>|<prefix>': {beh: {base, n, top: [[neuron, R~cf,
+    AUROCcf, directions]]} | None}}}} (scripts/eci/atlas_align.py version 2: v1 / v2 at the page prefixes 128 and 256,
+    every v2 outcome input; v0 its full 4608 codes)"""
     out = {}
     for f in sorted(ALIGN.glob('*.json')):
         d = json.loads(f.read_text())
         out[d['series']] = {
             'n_frames': d['n_frames'], 'n_units': d['n_units'], 'units': d['units'], 'frames': d['frames'],
             'beh': [[b, BEH_LAB[b]] for b in d['behaviours']], 'cut': ALIGN_CUT, 'top_k': d['top_k'],
+            'prefixes': d.get('prefixes'),
             'models': {m: {'source': x['source'], 'n_alive': x['n_alive'], 'n_neurons': x['n_neurons'],
                            'beh': {b: (None if v is None else {'base': round(v['base_rate'], 4), 'n': v['n_frames'],
                                                                'cf1': round(v['cf_top1_rprec'], 4), 'top': v['top']})
@@ -2058,6 +2086,83 @@ def v2_sensitivity(site, saes):
     log(f'v2 sensitivity: {n_set} of {n_rows} v2 rows carry grid checks (the others: no chip)')
 
 
+ACTIVE_Q = 0.95  # the primary bout threshold quantile of the NES runners (scripts/eci/run_nes_bouts.py)
+
+
+def active_share(site, saes):
+    """The page's per-neuron activity share, on the definition the event outcomes test (user, 2026-10-22: '#73 fires
+    100.0%' was the share of frames with code > 0, meaningless for the unthresholded continuous code): n['active'] =
+    share of the primary-window frames of the entry's videos whose code is above the neuron's bout threshold (pooled
+    q0.95 of the run, strict >, as src/eci/contrasts.py bout_summaries), from the run's own cache (sum of the per-video
+    above-threshold frame counts / sum of window frames); prob entries: n['pon'] = mean P(on) over the same frames
+    (= the pooled tested 'expected fraction of time active'). Primary window per video: mice v2 habituation its last
+    15 min (cache window 'last'; the other stages are 15 min long, so last = full), mice v1 (v36 page) the whole
+    habituation (window 'full'), ants / frogs the whole video. n['firing_rate'] (code > 0) is kept for the tooltip."""
+    caches = {}
+
+    def runs_of(e):
+        if e['model']['model'] == 'new' and e.get('build'):
+            return [OUT / 'res' / e['build'] / e['sae'].split('@')[0].split('#')[0] / '_cache']
+        if e['model']['model'] == 'online':
+            dk = {'fg448al': ['mice'], 'antsfg': ['ants', 'ants_v4'], 'frogsfg': ['frogs']}.get(e['tag'], [])
+            return [ROOT / ONLINE[k][2] / '_cache' for k in dk]
+        return []
+
+    def load(d, prob):
+        k = (d, prob)
+        if k not in caches:
+            f = d / ('video_summaries_max.npz' if prob else 'bout_summaries_max.npz')
+            if not f.exists():
+                caches[k] = None
+            else:
+                z = np.load(f)
+                win = 'last' if 'v2_mice' in str(d) else 'full'
+                obs = z['observation_id'].astype(str)
+                if prob:
+                    caches[k] = (obs, z[f'{win}__mean'], None, win)
+                else:
+                    caches[k] = (obs, z[f'{win}__{ACTIVE_Q}__0__frames'], z[f'{win}__n_frames'], win)
+        return caches[k]
+
+    done, n_set = set(), 0
+    for e in saes:
+        rs = runs_of(e)
+        if not rs:
+            continue
+        prob = e['model'].get('readout') == 'prob'
+        keep = {o[0] for o in e['obs']} if e.get('obs') else None
+        got = [c for c in (load(d, prob) for d in rs) if c is not None]
+        if not got:
+            log(f'active share: no cache for {e["sae"]} ({rs})')
+            continue
+        for f in _nfiles(e):
+            if f in done or f.startswith('pre:') or not (site / f).exists():
+                continue
+            done.add(f)
+            D = json.loads((site / f).read_text())
+            for j, n in _neurons(D).items():
+                j = int(j)
+                num = den = 0.0
+                for obs, A_, NF, win in got:
+                    m = np.ones(len(obs), bool) if keep is None else np.isin(obs, list(keep))
+                    if j >= A_.shape[1] or not m.any():
+                        continue
+                    if prob:  # per-video mean P(on) weighted by window frames (all equal within a run)
+                        num += float(A_[m, j].sum())
+                        den += float(m.sum())
+                    else:
+                        num += float(A_[m, j].sum())
+                        den += float(NF[m].sum())
+                if den > 0:
+                    n['pon' if prob else 'active'] = round(num / den, 5)
+                    n_set += 1
+            (site / f).write_text(json.dumps(D, separators=(',', ':')))
+        e['active_def'] = ('mean P(on) over the analysed frames (the tested expected fraction of time active)' if prob else
+                           f'share of the analysed frames above the neuron\'s event threshold (its pooled q{ACTIVE_Q} code, '
+                           'the frames the event rate and latency outcomes count)')
+    log(f'active share: {n_set} neuron entries')
+
+
 def readout_axis(saes, data):
     man = V2 / 'manifest.json'
     has_prob = man.exists() and any('prob' in S.get('sets', {}) for D in json.loads(man.read_text())['domains'].values()
@@ -2351,6 +2456,7 @@ def step_assemble():
     tadpole_strips(site, saes)
     data['axes'][0]['values'] = data['axes'][0]['values'] + (['v0'] if v0e else [])
     readout_axis(saes, data)
+    active_share(site, saes)
     share_v2_clips(site, saes)
     strip_rob(site)  # the stability chip was removed (user, 2026-10-22): its data stays out of the page
     clip_times(site, saes, data)
@@ -2392,7 +2498,7 @@ def check_site(site, amap, saes):
            'build_command': 'ARGS="--steps assemble [--asset-map <map.json>]" sbatch scripts/eci/build_atlas_v37.sh',
            'build_dir': str(site.relative_to(ROOT)),
            'models': [f'{e["domain"]}: {e["model"]["model"]} · {e["model"]["method"]} ({e["sae"]})' for e in saes],
-           'options': {'prefixes': [128, 256], 'default_prefix': 128, 'spatial_aggregation': ['max'],
+           'options': {'prefixes': [128, 256], 'default_prefix': 256, 'spatial_aggregation': ['max'],
                        'clip_lengths': ['frame', '1s'], 'methods': ['NES', 'NESS'], 'models': ['new', 'online', 'v0']},
            'version_files': {str(p.relative_to(site)): p.stat().st_size for p in sorted(files) if p.suffix not in ('.mp4', '.webm')},
            'packs_to_upload': {p.name: p.stat().st_size for p in sorted(packs) if p.name.startswith(('r4', 'v2'))},
