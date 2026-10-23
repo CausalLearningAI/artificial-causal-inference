@@ -207,6 +207,32 @@ MATCHED = TRAIN/TEST-MATCHED v1 vs v2, PRE-REGISTERED 2026-10-23 ~19:00 (coordin
         Seen-frame effects reported: V1R_full - V1R_ex, M0_plus - M0; deployed v1 vs the V1R_full seed distribution.
     READING: if v2 passes (B) in the neither_seen pair but not against the deployed v1, the earlier gaps were (partly)
         a train/test artefact of v1.
+V2-FULL (TRANSDUCTIVE v2), PRE-REGISTERED 2026-10-23 ~19:30 (user direction: "train v2 the best way possible"; labels
+    never enter training, as for v1; written before any V2-full encode or grid SAE).
+    OVERLAP (context only): see MATCHED above (v1 trained on 87.5% of the mice scored frames). The MATCHED arms are NOT run
+    (superseded by this direction).
+    DATA: all frames we analyse, label-free: 1 fps of EVERY video ((k - off) % 5 == 2) of mice v1 (432 videos) and ants
+        v2 + v3 + v4 (232 videos, all windows) + every scored frame (step-2 stores), frozen v2 encoder; token keep p:
+        mice 0.2, ants 1.0 (16M-token GPU cap; scored-frame tokens thinned with the same p). Store 'full1' holds M0 | N2
+        tokens with the mask2 fractions (v4 needs new mask2 backgrounds: step 'bgsall', CPU).
+    GRID (label-free choice; on the already-encoded P1 pool + scored frames, M0 mask, v4 absent; 2 seeds 800-801):
+        data {half of the training frames, full} x steps {30k, 90k} x width {2048 (128/256/512/2048),
+        4096 (128/256/512/2048/4096)} - prefix 256 is a Matryoshka level in every cell (the discovery set; CHANGE vs
+        M0's 128/512/2048, stated).
+        RULE: on FULL data, the (steps, width) cell with the highest held-out FVE at prefix 256 (eval videos, theta*
+        codes), averaged over seeds and over the two domains, among cells with never-firing latents on eval <= 1% in
+        both domains; cells within 0.002 of the best are tied -> the SIMPLER (fewer steps, then smaller width).
+        Loss / FVE histories are checked for convergence (reported). MORE DATA: if FVE@256(full) - FVE@256(half) >
+        0.003 at the chosen cell in either domain, a denser token set (keep p = 1 at 1 fps) is judged plausibly
+        useful and proposed (not run without a cost estimate). Lab labels are NOT used for any grid choice.
+    CANDIDATES (the chosen cell, trained on 'full1'): V2F_M0 (tight mask) and V2F_N2 (thin-part mask); seeds 900-919
+        (mice) / 900-932 (ants), fresh; deployment seed = highest held-out FVE among 900-902.
+    CONFIRMATION per candidate vs v1 (deployed): (A) and (B) as above (full and @256, 5 decision cells), - M0 reported;
+        background-neuron share <= 0.01 (both domains, seeds 900-904); discovery: lab tail-token share and odour-box R~
+        (seeds 900-904) and MABe22 tail share. Release candidate iff (A), (B), background pass. If both pass: V2F_M0
+        (simpler cue) unless V2F_N2 is better on >= 1 decision cell (Welch CI excluding 0) and worse on none, or the
+        tail criterion (user release blocker 2026-10-22) is decisive - reported, decided with the user.
+    An interim report follows the grid pick, before the confirmation.
 ==================================================================================================================
 
 Steps (scripts/eci/v2_diag/job.sh; staging in $LOCAL_DIR):
@@ -277,6 +303,16 @@ ARMS = {
     'P1_30k': dict(src='P1'), 'P1_90k': dict(src='P1', steps=90000),
     'V1M_d3': dict(src='V1M_d3'), 'V1M_d2': dict(src='V1M_d2'),
     'M0_plus': dict(src='E0', plus=True),
+    'V2F_M0': dict(src='F1', mask='M0', steps=90000, W=2048, prefixes=(128, 256, 512, 2048)),  # cell fixed by the grid
+    'V2F_N2': dict(src='F1', mask='N2', steps=90000, W=2048, prefixes=(128, 256, 512, 2048)),  # (amended after it)
+    'G_half_30k_w2048': dict(src='G', half=True, steps=30000, W=2048, prefixes=(128, 256, 512, 2048)),
+    'G_half_30k_w4096': dict(src='G', half=True, steps=30000, W=4096, prefixes=(128, 256, 512, 2048, 4096)),
+    'G_half_90k_w2048': dict(src='G', half=True, steps=90000, W=2048, prefixes=(128, 256, 512, 2048)),
+    'G_half_90k_w4096': dict(src='G', half=True, steps=90000, W=4096, prefixes=(128, 256, 512, 2048, 4096)),
+    'G_full_30k_w2048': dict(src='G', half=False, steps=30000, W=2048, prefixes=(128, 256, 512, 2048)),
+    'G_full_30k_w4096': dict(src='G', half=False, steps=30000, W=4096, prefixes=(128, 256, 512, 2048, 4096)),
+    'G_full_90k_w2048': dict(src='G', half=False, steps=90000, W=2048, prefixes=(128, 256, 512, 2048)),
+    'G_full_90k_w4096': dict(src='G', half=False, steps=90000, W=4096, prefixes=(128, 256, 512, 2048, 4096)),
     'B_v1sae': dict(src='d2b12', mask='dil', readout='own',
                     sae_path={'mice': 'dataset/mice/v1/eci/sae/matryoshka_btk_1024_k16_fg448al_s0/sae.pt',
                               'ants': 'dataset/ants/eci/sae/matryoshka_btk_1024_k16_antsfg_s0/sae.pt'}),
@@ -518,6 +554,12 @@ class Store:
     chunks = FZ.TokStore.chunks
 
 
+def _armstore(dom, kind, mask, dev, on_gpu):
+    St = T2.arm_store(T2.Union(dom, kind), mask, dev, on_gpu=on_gpu)
+    St.d = 1024
+    return St
+
+
 def e0_store(dom, kind, dev, on_gpu=True):
     St = T2.arm_store(T2.Union(dom, kind), 'M0', dev, on_gpu=on_gpu)
     St.d = 1024
@@ -529,6 +571,8 @@ def store_of(dom, kind, cfg, dev, on_gpu=True):
         St = FZ.TokStore(MT.KINDS[dom][kind]['ref'], 0, dev, on_gpu=on_gpu)
         St.d = 1024
         return St
+    if cfg['src'] in ('G', 'F1'):  # V2-full arms are scored on the step-2 stores of their mask
+        return _armstore(dom, kind, cfg.get('mask', 'M0'), dev, on_gpu)
     if cfg['src'].startswith('V1M'):  # v1's animal mask on the v2 tokens (scripts/eci/v2_diag/v1mask.py)
         import v1mask
         return v1mask.store(dom, kind, cfg['src'], dev, on_gpu)
@@ -539,11 +583,11 @@ def store_of(dom, kind, cfg, dev, on_gpu=True):
     return Store(dom, (kind,), cfg['src'], cfg.get('mask', 'tight'), dev, on_gpu)
 
 
-def inputs(St, sel):
-    """fp16 cuda rows of the tokens where sel (numpy bool per token) holds."""
+def inputs(St, sel, device=None):
+    """fp16 rows (on St.dev, or `device`) of the tokens where sel (numpy bool per token) holds."""
     import torch
     ix = np.flatnonzero(sel)
-    out = torch.empty((len(ix), St.d), dtype=torch.float16, device=St.dev)
+    out = torch.empty((len(ix), St.d), dtype=torch.float16, device=device or St.dev)
     for a in range(0, len(ix), 1_000_000):
         out[a:a + 1_000_000] = torch.from_numpy(np.ascontiguousarray(St.tok[ix[a:a + 1_000_000]])).to(St.dev)
     return out
@@ -612,11 +656,27 @@ def train_one(torch, cfg, seed, Xtr, Xca, Xev, od, dev):
     th, _ = calibrate_threshold(sae, Xca, norm=full)
     set_threshold(sae, th)
     stt = sparsity_stats(sae, Xev, th, norm=full)
+    pre_fve, fired = {}, torch.zeros(cfg['W'], dtype=torch.bool, device=dev)
+    with torch.no_grad():  # held-out FVE of each Matryoshka prefix (theta* codes) and never-firing latents on eval
+        s1 = s2 = 0
+        sse = {q: 0 for q in cfg['prefixes']}
+        n_ev = 0
+        for a in range(0, len(Xev), 32768):
+            x = full(Xev[a:a + 32768].to(dev))
+            zc = sae.encode(x, mode='threshold')
+            fired |= (zc > 0).any(0)
+            s1 = s1 + x.double().sum(0)
+            s2 = s2 + x.double().pow(2).sum(0)
+            n_ev += len(x)
+            for q in cfg['prefixes']:
+                sse[q] = sse[q] + (x - sae.decode(zc, q)).double().pow(2).sum()
+        tss = float((s2 - s1.pow(2) / n_ev).sum())
+        pre_fve = {str(q): float(1 - float(sse[q]) / tss) for q in cfg['prefixes']}
     save_checkpoint(od / 'sae_theta.pt', sae, norm, extra={'config': 'v2_diag', 'cfg': cfg, 'seed': seed,
                                                             'theta_ema': th_ema})
     return {'train_time_s': tt, 'steps_per_s': steps / tt, 'n_train_tokens': Nn, 'theta_star': th, 'theta_ema': th_ema,
-            'eval_fve': stt['fve'], 'eval_l0': stt['l0'],
-            'dead_at_end_train': int((sae.tokens_since_fired >= sae.dead_tokens).sum()), 'history': hist}
+            'eval_fve': stt['fve'], 'eval_l0': stt['l0'], 'eval_fve_prefix': pre_fve,
+            'eval_dead_frac': float(1 - fired.float().mean()), 'dead_at_end_train': int((sae.tokens_since_fired >= sae.dead_tokens).sum()), 'history': hist}
 
 
 def pool_kinds(dom, cfg=None):
@@ -636,7 +696,8 @@ def cmd_train(args):
     todo = [s for s in seeds if not (sae_dir(dom, arm, s) / 'sae_theta.pt').exists()]
     if not todo:
         return
-    sts = [store_of(dom, k, cfg, dev, on_gpu=False) for k in pool_kinds(dom, cfg)]
+    sts = f1_train_stores(dom, cfg, dev) if cfg['src'] in ('G', 'F1') else \
+        [store_of(dom, k, cfg, dev, on_gpu=False) for k in pool_kinds(dom, cfg)]
     if cfg.get('plus'):  # MATCHED: + the scored frames of TRAIN-role videos (training side only; calib / eval unchanged)
         for kind in ({'mice': ('diag',), 'ants': ('scored_v2', 'scored_v3')}[dom]):
             St = e0_store(dom, kind, dev, on_gpu=False)
@@ -648,7 +709,7 @@ def cmd_train(args):
             sts.append(St)
     X = {}
     for r in ('calib', 'eval'):
-        X[r] = torch.cat([inputs(St, St.F.role.values[St.tf] == r) for St in sts]).cpu()
+        X[r] = torch.cat([inputs(St, St.F.role.values[St.tf] == r, 'cpu') for St in sts])
     tr_sel = []
     for St in sts:
         m = St.F.role.values[St.tf] == 'train'
@@ -663,12 +724,13 @@ def cmd_train(args):
                 fk = np.random.default_rng(s).random(St.nf) < cfg['frac']
                 m = m & fk[St.tf]
             sel.append(m)
-        parts = [inputs(St, m) for St, m in zip(sts, sel)]
-        Xtr = parts[0] if len(parts) == 1 else torch.cat(parts)  # no 2x copy for a single store (P1 mice: 24 GiB)
-        del parts
+        if len(sts) == 1:
+            Xtr = inputs(sts[0], sel[0])  # no 2x copy for a single store (P1 mice: 24 GiB)
+        else:  # several stores: concatenate on the host, one copy to the GPU
+            Xtr = torch.cat([inputs(St, m, 'cpu') for St, m in zip(sts, sel)]).to(dev)
         ti = train_one(torch, cfg, s, Xtr, X['calib'], X['eval'], sae_dir(dom, arm, s), dev)
         rec = {k: ti[k] for k in ('train_time_s', 'n_train_tokens', 'theta_star', 'theta_ema', 'eval_fve', 'eval_l0',
-                                  'dead_at_end_train')}
+                                  'dead_at_end_train', 'eval_fve_prefix', 'eval_dead_frac', 'history')}
         log(f'{dom} {arm}_s{s}: {ti["train_time_s"]:.0f}s, {ti["n_train_tokens"]:,} train tokens, eval FVE '
             f'{ti["eval_fve"]:.4f}, L0 {ti["eval_l0"]:.2f}, dead {ti["dead_at_end_train"]}, theta* '
             f'{ti["theta_star"]:.3f} / ema {ti["theta_ema"]:.3f}; {gpu_line()}')
@@ -1162,6 +1224,181 @@ def confirm_arm(arm, seeds, deploy_from, name):
     print('\n'.join(L))
 
 
+# ---------------------------------------------------------------------------------------------- V2-full (transductive)
+F1_SERIES = {'mice': ('v1',), 'ants': ('v2', 'v3', 'v4')}
+F1_NSHARD = {'mice': 24, 'ants': 12}
+F1_SEEDS = {'mice': tuple(range(900, 920)), 'ants': tuple(range(900, 933))}
+GRID_SEEDS = (800, 801)
+
+
+def f1_frames(dom):
+    """{series: DataFrame obs, k} of the 1 fps grid of every video ((k - off) % 5 == 2, as P1)."""
+    from src.eci.v2.pipeline import Series
+    import torch
+    off = {v['obs']: v['fps1_off'] for v in N.load_plan()['videos']} if dom == 'mice' else {}
+    out = {}
+    for ser in F1_SERIES[dom]:
+        se = Series(T2.series_cfg(dom, ser), torch.device('cpu'), load_encoder=False)
+        rows = [(v['obs'], int(k)) for v in se.videos for k in p1_frames(dom, ser, v, off.get(v['obs'], 0))]
+        out[ser] = pd.DataFrame(rows, columns=['obs', 'k'])
+    return out
+
+
+def h_ser(dom, ser):
+    try:
+        return T2.h_of(dom, ser)
+    except KeyError:  # ants v4: no calibration entry; same species / rig as v3
+        return T2.h_of(dom, 'v3')
+
+
+def cmd_bgsall(args):
+    """mask2 per-(video, window) median backgrounds (mask2_test.cmd_bgs, unchanged) for every window of every video of
+    the V2-full series (v4 and any window the step-2 frame sets did not cover). CPU."""
+    fr = f1_frames(args.dom)
+    kinds = {f'f1_{ser}': {'series': ser} for ser in fr}
+    old_k, old_f = T2.KINDS, MT.frame_list
+    T2.KINDS = {args.dom: kinds}
+    MT.frame_list = lambda dom, kind: fr[kinds[kind]['series']]
+    try:
+        T2.cmd_bgs(args)
+    finally:
+        T2.KINDS, MT.frame_list = old_k, old_f
+
+
+def cmd_full1(args):
+    """V2-full token store: 1 fps of every video of F1_SERIES, frozen v2 encoder, tokens of M0 | N2 (mask2_test.Union
+    layout: fr_raw / fr_new / fr_app / fr_any / n_app), per-token keep p = P1_P[dom] (seeded per frame and position)."""
+    import torch
+    import torch.nn.functional as F
+    from src.eci.v2 import mask2 as M2
+    from src.eci.v2.encode import Encoder
+    from src.eci.v2.pipeline import Series
+    from src.eci.v2.video import Prefetch
+    dev = torch.device('cuda')
+    dom = args.dom
+    fr = f1_frames(dom)
+    enc = Encoder(dev)
+    SE = {ser: Series(T2.series_cfg(dom, ser), dev, encoder=enc) for ser in fr}
+    vids = [(ser, o) for ser in fr for o in dict.fromkeys(fr[ser].obs.values)]
+    vids = vids[args.shard::args.nshard]
+    if args.selftest:
+        vids = vids[:2]
+    jobs, meta_j = [], []
+    for ser, o in vids:
+        ks = np.sort(fr[ser][fr[ser].obs == o].k.values)
+        if args.selftest:
+            ks = ks[:120]
+        for w in sorted({T2.window_of(dom, k) for k in ks}):
+            kw = ks[np.array([T2.window_of(dom, k) == w for k in ks])]
+            for c0 in range(0, len(kw), 240):
+                kk = kw[c0:c0 + 240]
+                jobs.append(((len(meta_j),), SE[ser].job(SE[ser].V[o], int(kk[0]), len(kk), 5)))
+                meta_j.append((ser, o, w, kk))
+    p = P1_P[dom]
+    loc = N.local_dir() / f'f1_{dom}_s{args.shard}'
+    loc.mkdir(parents=True, exist_ok=True)
+    ftok = open(loc / 'tok.f16', 'wb')
+    meta = {k: [] for k in ('tok_frame', 'tok_pos', 'fr_raw', 'fr_new', 'n_app', 'fr_app', 'fr_any')}
+    recs, t0, bgc = [], time.time(), {}
+    pf = Prefetch(jobs, max(4, int(os.environ.get('SLURM_CPUS_PER_TASK', 16)) - 4), fn=Series.run_job)
+    for (j,), frm in pf:
+        ser, o, w, kk = meta_j[j]
+        se = SE[ser]
+        v = se.V[o]
+        h = h_ser(dom, ser)
+        bs = 16 if se.S >= 1000 else 32
+        if (ser, o, w) not in bgc:
+            bgc.clear()
+            bgc[(ser, o, w)] = T2.load_pack(dom, ser, o, w, dev)
+        pack = bgc[(ser, o, w)]
+        assert len(frm) == len(kk)
+        for b in range(0, len(kk), bs):
+            kb = kk[b:b + bs]
+            with torch.no_grad():
+                x, _ = se.frames(v, frm[b:b + bs], kb)
+                core0 = se.mask.pixels(x, v['src_lo'] + kb)
+                r = M2.cue(x, pack, core0, h)
+                _, app = M2.appendage(r['pix'], h)
+                anyp = core0 | (r['d'] > M2.T_LO)
+                pool = lambda m: F.avg_pool2d(m.float()[:, None], 16).flatten(1)  # noqa: E731
+                raw, frn, fapp, fany = pool(core0), pool(r['pix']), pool(app), pool(anyp)
+                ng = fapp * 256
+                keep = (raw >= 0.25) | M2.keep(frn, ng, 'r25t')
+                z = enc(x)
+            for ii in range(len(kb)):
+                pos = torch.nonzero(keep[ii]).flatten().cpu().numpy()
+                if p < 1:
+                    g = np.random.default_rng([zlib.crc32(o.encode()), int(kb[ii])])
+                    pos = pos[g.random(len(pos)) < p]
+                pt = torch.from_numpy(pos).to(dev)
+                fid = len(recs)
+                ftok.write(z[ii, pt].cpu().numpy().tobytes())
+                meta['tok_frame'].append(np.full(len(pos), fid, np.int32))
+                meta['tok_pos'].append(pos.astype(np.int16))
+                for nm, t_ in (('fr_raw', raw), ('fr_new', frn), ('fr_app', fapp), ('fr_any', fany)):
+                    meta[nm].append(t_[ii, pt].cpu().numpy().astype(np.float16))
+                meta['n_app'].append(ng[ii, pt].round().cpu().numpy().astype(np.int16))
+                recs.append({'obs': o, 'k': int(kb[ii]), 'row': int(v['src_lo'] + kb[ii]), 'role': v['role'],
+                             'series': ser, 'n_M0': int((raw[ii] >= 0.25).sum()), 'n_store': int(len(pos))})
+        if j % 50 == 0:
+            el = time.time() - t0
+            log(f'full1 {dom} s{args.shard}: run {j}/{len(jobs)}, {len(recs):,} frames, {el:.0f}s ({len(recs) / max(el, 1):.1f} fps;'
+                f' GPU busy {enc.gpu_s:.0f}s; decode thread-s {pf.dec_s:.0f}); {gpu_line()}')
+    ftok.close()
+    for k_, x_ in meta.items():
+        np.save(loc / f'{k_}.npy', np.concatenate(x_) if x_ else np.zeros(0))
+    Fm = pd.DataFrame(recs)
+    Fm.to_parquet(loc / 'frames.parquet')
+    el = time.time() - t0
+    info = {'dom': dom, 'shard': args.shard, 'nshard': args.nshard, 'n_videos': len(vids), 'n_frames': len(Fm),
+            'n_stored_tokens': int(Fm.n_store.sum()), 'p': p, 'wall_s': el, 'gpu_s': enc.gpu_s,
+            'fps_wall': len(Fm) / max(el, 1), 'gpu': torch.cuda.get_device_name(0)}
+    log(json.dumps(info, default=float))
+    od = OUT / dom / 'full1'
+    od.mkdir(parents=True, exist_ok=True)
+    (od / f's{args.shard}{"_selftest" if args.selftest else ""}.json').write_text(json.dumps(info, indent=1, default=float))
+    if not args.selftest:
+        R4.atomic_copy(loc, BEE / dom / 'full1' / f's{args.shard}')
+
+
+def f1_train_stores(dom, cfg, dev):
+    """Training stores of a V2-full arm: the 1 fps pool (P1 for the grid, full1 for the candidates) + the scored frames
+    (step-2 stores), mask M0 / N2, scored-frame tokens thinned with the same keep p as the pool."""
+    mask = cfg.get('mask', 'M0')
+    sts = []
+    if cfg['src'] == 'G':  # grid: the P1 pool (M0 only, v4 absent)
+        St = P1Store(dom, dev)
+        if cfg.get('half'):
+            fk = np.random.default_rng(0).random(St.nf) < 0.5
+            St.F = St.F.copy()
+            St.F.loc[(~fk) & (St.F.role.values == 'train'), 'role'] = 'none'  # half the TRAINING frames; calib / eval kept
+        sts.append(St)
+    else:  # full1 store (M0 | N2)
+        old = T2.BEE
+        T2.BEE = BEE
+        try:
+            U = T2.Union(dom, 'full1')
+        finally:
+            T2.BEE = old
+        St = T2.arm_store(U, mask, dev, on_gpu=False)
+        St.d = 1024
+        sts.append(St)
+    p = P1_P[dom]
+    for kind in ({'mice': ('diag',), 'ants': ('scored_v2', 'scored_v3')}[dom]):
+        St = T2.arm_store(T2.Union(dom, kind), mask, dev, on_gpu=False)
+        St.d = 1024
+        plan = json.loads((REPO / T2.series_cfg(dom, MT.KINDS[dom][kind]['series'])['plan']).read_text())
+        role = {v['obs']: v['role'] for v in plan['videos']}
+        St.F = St.F.copy()
+        St.F['role'] = [role[o] for o in St.F.obs.values]
+        if p < 1:  # thin the scored frames' tokens with the pool's keep p (seeded)
+            keep = np.random.default_rng(1).random(len(St.tf)) < p
+            St.tf, St.pos, St.tok = St.tf[keep], St.pos[keep], St.tok[keep]
+            St.starts = np.r_[0, np.cumsum(np.bincount(St.tf, minlength=St.nf))]
+        sts.append(St)
+    return sts
+
+
 def cmd_confirm(args):
     confirm_arm('R_comb', CONF_SEEDS, (400, 401, 402), 'confirm')
 
@@ -1189,7 +1426,7 @@ def cmd_arm(args):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('prep', 'train', 'score', 'arm', 'probe', 'neurons', 'decide', 'confirm', 'pool1', 'p1decide', 'v1mdecide'))
+    p.add_argument('step', choices=('prep', 'train', 'score', 'arm', 'probe', 'neurons', 'decide', 'confirm', 'pool1', 'p1decide', 'v1mdecide', 'bgsall', 'full1'))
     p.add_argument('--dom', choices=('mice', 'ants'))
     p.add_argument('--kind')
     p.add_argument('--shard', type=int, default=0)
@@ -1201,7 +1438,8 @@ def main():
     p.add_argument('--selftest', action='store_true')
     a = p.parse_args()
     {'prep': cmd_prep, 'train': cmd_train, 'score': cmd_score, 'arm': cmd_arm, 'probe': cmd_probes, 'neurons': cmd_neurons, 'decide': cmd_decide, 'confirm': cmd_confirm, 'pool1': cmd_pool1,
-     'p1decide': cmd_p1decide, 'v1mdecide': cmd_v1mdecide}[a.step](a)
+     'p1decide': cmd_p1decide, 'v1mdecide': cmd_v1mdecide, 'bgsall': cmd_bgsall,
+     'full1': cmd_full1}[a.step](a)
 
 
 if __name__ == '__main__':
