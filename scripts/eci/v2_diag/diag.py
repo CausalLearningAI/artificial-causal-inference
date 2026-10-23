@@ -107,6 +107,29 @@ AMENDMENT 2026-10-23 ~04:30 (after the stage A/B scores of A_ref, A_w1024, A_w40
                  study's d2b12 'dil' tokens: a scoring identity check (does this token set reproduce v1's numbers?),
                  one SAE, reported next to v1 and B_v1like (B_v1like - B_v1sae = v1's training data / training mask /
                  steps, at identical scoring tokens).
+COMBINED RECIPE, PRE-REGISTERED 2026-10-23 ~05:00 (after all stage A/B scores, BEFORE any confirmation SAE). The
+    rule above applied factor by factor (results/vision/eci_v2_diag/ablation.json; 5 seeds per arm):
+      encoder   DINOv3-L/16 block 20 KEPT: every alternative is worse on >= 1 decision cell with the CI excluding 0
+                (d2b12 mice nn -0.036, lid -0.167; d3b12 nn -0.076, lid -0.076; d2l24 nn -0.047, v3 groom -0.059,
+                lid -0.435; d3l24 v2 / v3 groom -0.107 / -0.081, lid -0.027; d3l16 nn -0.051, v3 groom -0.092).
+      grid      32 x 32 (512 px input) BY THE TIE-BREAK: d3l20@32 vs native not separated on any of the 10 cells
+                (largest: nn -0.019 [-0.044, +0.007], v2 groom -0.018 [-0.051, +0.014]); fewer tokens = simpler.
+                NOTE: this departs from the 'native resolution' prior; the token ceiling IS higher at native (T-max
+                nn 0.349 vs 0.291, nt 0.326 vs 0.209), the dictionaries just do not use it.
+      mask      tight (>= 25% animal pixels per cell) KEPT: one-cell dilation is not better (nt @256 -0.059 sig.).
+      norm      global centring + scale KEPT (z-score not separated; simpler).
+      threshold theta* KEPT (EMA identical on every cell to 3 decimals).
+      width     Matryoshka 1024, prefixes 128/256/512/1024, BY THE TIE-BREAK (1024 vs 2048 not separated; 4096 loses
+                nn @256 -0.038 sig.).
+      steps     30,000 KEPT (90k not separated).
+      data      HALF of the pool's training frames (frac 0.5, seeded per SAE) BY THE TIE-BREAK (half vs pool and half
+                vs 2x pool not separated on any cell) - read literally from 'fewer frames to encode'.
+    => R_comb: DINOv3-L/16 block 20 at 512 px (32 x 32), tight mask, Matryoshka BatchTopK 1024 (128/256/512/1024) k 16,
+       30k steps on half the pool frames, theta*, frame max. Interactions between the tie-break choices were NOT
+       measured; the confirmation is the test of the combination.
+    CONFIRMATION: seeds 400-419 (mice) / 400-432 (ants), criteria (A) and (B) exactly as stated above, vs v1 (release
+    refs). Background-neuron share measured on seeds 400-404 per domain only (budget). Tail / odour-box discovery
+    scores NOT measured (budget; needs re-encodes of MABe22 at the new grid).
 ==================================================================================================================
 
 Steps (scripts/eci/v2_diag/job.sh; staging in $LOCAL_DIR):
@@ -168,6 +191,7 @@ ARMS = {
     'B_d3l20dil': dict(src='d3l20', mask='dil'),
     'B_v1like': dict(src='d2b12', mask='dil', W=1024, prefixes=(128, 256, 512, 1024), readout='ema'),
     'A_x2': dict(src='E0full'),
+    'R_comb': dict(src='d3l20', mask='tight', W=1024, prefixes=(128, 256, 512, 1024), frac=0.5),
     'B_v1sae': dict(src='d2b12', mask='dil', readout='own',
                     sae_path={'mice': 'dataset/mice/v1/eci/sae/matryoshka_btk_1024_k16_fg448al_s0/sae.pt',
                               'ants': 'dataset/ants/eci/sae/matryoshka_btk_1024_k16_antsfg_s0/sae.pt'}),
@@ -843,6 +867,59 @@ def cmd_probes(args):
         torch.cuda.empty_cache()
 
 
+def cmd_confirm(args):
+    """R_comb on the confirmation seeds vs v1: criteria (A) and (B) (release_ab definitions)."""
+    res, L = {'rule': 'diag.py docstring, COMBINED RECIPE block'}, []
+    seeds = {d: CONF_SEEDS[d] for d in CONF_SEEDS}
+    R = {d: {s: json.loads((OUT / d / 'ab' / f'R_comb_s{s}.json').read_text()) for s in seeds[d]
+             if (OUT / d / 'ab' / f'R_comb_s{s}.json').exists()} for d in seeds}
+    fv = {s: fve_of('mice', 'R_comb', s) for s in (400, 401, 402)}
+    dep = max(fv, key=lambda s: fv[s] if np.isfinite(fv[s]) else -1)
+    A = {}
+    for p in ('full', '256', '128'):
+        ds = {s: RA.distinct(r[p]) for s, r in R['mice'].items()}
+        A[p] = {'share_seeds_distinct': float(np.mean(list(ds.values()))), 'deploy_seed': dep,
+                'deploy_distinct': ds.get(dep), 'deploy_best': {lb: R['mice'][dep][p][lb]['modal_neuron']
+                                                                for lb in ('nose_nose', 'nose_tail')}}
+    A['PASS'] = bool(all(A[p]['deploy_distinct'] and A[p]['share_seeds_distinct'] >= 0.8 for p in ('full', '256')))
+    res['A'] = A
+    L += ['| criterion | cell | prefix | v1 | R_comb mean ± sd (n) | R_comb - v1 (95% t-CI) | pass |', '|---|---|---|---|---|---|---|']
+    for p in ('full', '256', '128'):
+        L.append(f'| A distinct | nn vs nt best neuron | {p} | - | {A[p]["share_seeds_distinct"]:.2f} of seeds | '
+                 f'deploy s{dep}: {A[p]["deploy_best"]} distinct={A[p]["deploy_distinct"]} | '
+                 f'{A["PASS"] if p != "128" else "(reported)"} |')
+    ok, B = True, {}
+    for dom, ser, lb in DCELLS + RCELLS:
+        for p in ('full', '256'):
+            xs = np.array([(r[p] if ser is None else r[ser][p])[lb]['R_atlas'] for r in R[dom].values()])
+            v1 = v1_val(dom, ser, lb, p)
+            m, lo, hi = RA.tci(xs - v1)
+            decides = (dom, ser, lb) in DCELLS
+            ps = bool(lo >= -0.01)
+            ok &= ps or not decides
+            nm = f'{dom}{" " + ser if ser else ""} {lb}'
+            B[f'{nm} | {p}'] = {'v1': v1, 'mean': float(xs.mean()), 'sd': float(xs.std(ddof=1)), 'n': len(xs),
+                                'minus_v1': [m, lo, hi], 'pass': ps, 'decides': decides}
+            L.append(f'| B R_atlas | {nm} | {p} | {v1:.4f} | {xs.mean():.4f} ± {xs.std(ddof=1):.4f} ({len(xs)}) | '
+                     f'{m:+.4f} [{lo:+.4f}, {hi:+.4f}] | {ps if decides else "(reported: " + str(ps) + ")"} |')
+    B['PASS'] = bool(ok)
+    res['B'] = B
+    bg = {}
+    for d in ('mice', 'ants'):
+        fs = [json.loads(f.read_text()) for f in sorted((OUT / d / 'neurons').glob('R_comb_s*.json'))]
+        if fs:
+            bg[d] = {'n_seeds': len(fs), 'share_background_mean': float(np.mean([f['share_background'] for f in fs])),
+                     'n_background': [f['n_background'] for f in fs], 'n_app_mean': float(np.mean([f['n_app'] for f in fs])),
+                     'n_odor_mean': float(np.mean([f['n_odor'] for f in fs]))}
+    res['background'] = bg
+    res['background_PASS'] = bool(bg and all(v['share_background_mean'] <= 0.01 for v in bg.values()))
+    L += ['', f'A PASS: {A["PASS"]}', f'B PASS (5 decision cells x full/256): {B["PASS"]}',
+          f'background share <= 0.01 (seeds 400-404): {res["background_PASS"]} {json.dumps(bg)}']
+    (OUT / 'confirm.json').write_text(json.dumps(res, indent=1, default=float))
+    (OUT / 'confirm_table.md').write_text('\n'.join(L))
+    print('\n'.join(L))
+
+
 def cmd_arm(args):
     """train then score (one job); --arms a,b,c runs several arms in sequence."""
     import torch
@@ -856,7 +933,7 @@ def cmd_arm(args):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('prep', 'train', 'score', 'arm', 'probe', 'neurons', 'decide'))
+    p.add_argument('step', choices=('prep', 'train', 'score', 'arm', 'probe', 'neurons', 'decide', 'confirm'))
     p.add_argument('--dom', choices=('mice', 'ants'))
     p.add_argument('--kind')
     p.add_argument('--shard', type=int, default=0)
@@ -867,7 +944,7 @@ def main():
     p.add_argument('--seeds')
     p.add_argument('--selftest', action='store_true')
     a = p.parse_args()
-    {'prep': cmd_prep, 'train': cmd_train, 'score': cmd_score, 'arm': cmd_arm, 'probe': cmd_probes, 'neurons': cmd_neurons, 'decide': cmd_decide}[a.step](a)
+    {'prep': cmd_prep, 'train': cmd_train, 'score': cmd_score, 'arm': cmd_arm, 'probe': cmd_probes, 'neurons': cmd_neurons, 'decide': cmd_decide, 'confirm': cmd_confirm}[a.step](a)
 
 
 if __name__ == '__main__':
