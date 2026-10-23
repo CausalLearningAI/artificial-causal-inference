@@ -1,0 +1,54 @@
+{
+ "dom": "mice",
+ "shard": 0,
+ "nshard": 24,
+ "n_videos": 2,
+ "n_frames": 240,
+ "n_tight_tokens": 40033,
+ "n_stored_tokens": 8076,
+ "p": 0.2,
+ "wall_s": 77.29740047454834,
+ "gpu_s": 20.30859351158142,
+ "fps_wall": 3.1048909604537687,
+ "decode_thread_s": 104.00049614906311,
+ "gpu": "NVIDIA A40",
+ "identity_vs_ref_pool": [
+  {
+   "obs": "wt_ash1l_m_1_S_H",
+   "k": 48,
+   "n_mine": 29,
+   "n_ref": 148,
+   "n_common": 29,
+   "subset_of_ref": true,
+   "max_abs_diff": 0.0
+  },
+  {
+   "obs": "wt_ash1l_m_1_S_H",
+   "k": 53,
+   "n_mine": 26,
+   "n_ref": 144,
+   "n_common": 26,
+   "subset_of_ref": true,
+   "max_abs_diff": 0.0
+  },
+  {
+   "obs": "wt_ash1l_m_1_S_H",
+   "k": 498,
+   "n_mine": 38,
+   "n_ref": 182,
+   "n_common": 38,
+   "subset_of_ref": true,
+   "max_abs_diff": 0.0
+  },
+  {
+   "obs": "wt_ash1l_m_1_S_H",
+   "k": 503,
+   "n_mine": 38,
+   "n_ref": 184,
+   "n_common": 38,
+   "subset_of_ref": true,
+   "max_abs_diff": 0.0
+  }
+ ],
+ "identity_n_overlap": 4
+}
