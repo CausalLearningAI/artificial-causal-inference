@@ -130,6 +130,32 @@ COMBINED RECIPE, PRE-REGISTERED 2026-10-23 ~05:00 (after all stage A/B scores, B
     CONFIRMATION: seeds 400-419 (mice) / 400-432 (ants), criteria (A) and (B) exactly as stated above, vs v1 (release
     refs). Background-neuron share measured on seeds 400-404 per domain only (budget). Tail / odour-box discovery
     scores NOT measured (budget; needs re-encodes of MABe22 at the new grid).
+P1 = v1-STYLE TRAINING POOL, PRE-REGISTERED 2026-10-23 ~06:30 (user approval: "yes, estimate cost then run"; written
+    BEFORE any pool1 token was encoded and before any P1 score).
+    WHY: v1's recipe re-trained on the v2 burst pool lost mice nose_tail (0.047 vs 0.115 for the deployed v1 SAE on the
+    same tokens), while 2x more burst-pool frames did not help v2. The v2 pools (since rollout r4, 2026-10-15) are
+    bursts of consecutive frames at random starts (r4: z_t / z_t-10 pairs for the since-dropped change channel and a
+    12k-frame prepass budget; r2 / freeze: 10 consecutive frames, 16 bursts per mice video, 124 / 52 per ants v2 / v3
+    video); v1 trained on 1 fps of every video.
+    POOL (step 'pool1'): every video of the series the current v2 SAE trains on (mice v1: 432 videos, full length;
+    ants v2 44 + v3 107 videos, full length; v4 not used, as M0), 1 fps = every 5th 5 fps frame with
+    (k - off) % 5 == 2 (mice off = the video's fps1 offset, ants off = 0), so NO pool frame is a scored frame (mice
+    diagnosis frames sit on (k - off) % 10 == 0, ants scored frames on k % 10 == 0). Mice 518,400 frames, ants 219,000.
+    Tokens = the frozen v2 encoder (src/eci/v2/encode.py) and tight mask (fd >= 0.25 = M0), unchanged. Per-token keep
+    probability p (seeded per frame, crc32(obs), k): mice 0.2, ants 1.0, from the cap of <= 16M training tokens (GPU
+    memory; the step-2 rates give ~78M tight mice tokens and ~7.9M ants tokens); a uniform token subset keeps every
+    frame (the diversity under test), as v1's ff448al pf25 store did. Roles = the plan's video roles (as M0).
+    ARMS (everything else = the current v2 / M0 recipe: Matryoshka BatchTopK 2048, 128/512/2048, k 16, global norm,
+    theta*, frame max; scored on the M0 tokens of the release-check frames):
+        P1_30k   30,000 steps (matched to M0)          P1_90k   90,000 steps (the pool is 4-6x larger than M0's)
+    SEEDS 500-519 (mice) / 500-532 (ants), fresh; deployment seed = highest held-out FVE among 500-502.
+    CRITERIA per arm vs v1 (release refs): (A) and (B) exactly as above (full and @256, 5 decision cells);
+    background-neuron share <= 0.01 (seeds 500-504); each arm - M0 (Welch 95% CI, M0 = step-2 seeds 70-89 / 70-102)
+    reported. Tail / odour-box discovery scores (scripts/eci/v2_mask2/discovery.py definitions) for the deployment seed
+    of the adopted arm if the budget allows (60 GPU-h for this step). DECISION: an arm is a v2 release candidate iff
+    (A) and (B) and the background criterion pass. If both pass, the SIMPLER one (30k steps) is chosen unless P1_90k
+    is better than P1_30k on >= 1 decision cell with the Welch CI excluding 0 and worse on none. No DINO-feature mask
+    cue is added (the ants grooming gap is attributed to v1's readout mask, not tested here).
 ==================================================================================================================
 
 Steps (scripts/eci/v2_diag/job.sh; staging in $LOCAL_DIR):
@@ -140,12 +166,15 @@ Steps (scripts/eci/v2_diag/job.sh; staging in $LOCAL_DIR):
     probe --dom D --set S                                     (GPU) -> OUT/<D>/probe/<S>.json
     neurons --dom D --arm A [--seeds]                         (GPU) background / appendage / odour neuron counts
     decide                                                    (CPU) -> OUT/ablation.json, OUT/ablation_table.md
+    pool1 --dom D --shard i --nshard n [--selftest]          (GPU) 1 fps v1-style pool -> BEE/<D>/pool1/s<i>/
+    confirm / p1decide                                        (CPU) -> OUT/confirm*.json, OUT/p1_<arm>*.json
 """
 import argparse
 import json
 import os
 import sys
 import time
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -167,6 +196,7 @@ BEE = Path(os.environ.get('V2D_BEE') or '/mnt/beegfs/locatgrp/shared/rcadei/eci_
 G32 = 32
 SEEDS = tuple(range(300, 305))
 CONF_SEEDS = {'mice': tuple(range(400, 420)), 'ants': tuple(range(400, 433))}
+P1_SEEDS = {'mice': tuple(range(500, 520)), 'ants': tuple(range(500, 533))}
 KINDS = {'mice': ('pool', 'diag'), 'ants': ('pool_v2', 'pool_v3', 'scored_v2', 'scored_v3')}
 
 # ---------------------------------------------------------------------------------------------- encoders (32 grid)
@@ -192,6 +222,7 @@ ARMS = {
     'B_v1like': dict(src='d2b12', mask='dil', W=1024, prefixes=(128, 256, 512, 1024), readout='ema'),
     'A_x2': dict(src='E0full'),
     'R_comb': dict(src='d3l20', mask='tight', W=1024, prefixes=(128, 256, 512, 1024), frac=0.5),
+    'P1_30k': dict(src='P1'), 'P1_90k': dict(src='P1', steps=90000),
     'B_v1sae': dict(src='d2b12', mask='dil', readout='own',
                     sae_path={'mice': 'dataset/mice/v1/eci/sae/matryoshka_btk_1024_k16_fg448al_s0/sae.pt',
                               'ants': 'dataset/ants/eci/sae/matryoshka_btk_1024_k16_antsfg_s0/sae.pt'}),
@@ -444,7 +475,9 @@ def store_of(dom, kind, cfg, dev, on_gpu=True):
         St = FZ.TokStore(MT.KINDS[dom][kind]['ref'], 0, dev, on_gpu=on_gpu)
         St.d = 1024
         return St
-    if cfg['src'] in ('E0', 'E0full'):
+    if cfg['src'] == 'P1' and kind.startswith('pool'):  # the v1-style 1 fps pool (one store per domain)
+        return P1Store(dom, dev)
+    if cfg['src'] in ('E0', 'E0full', 'P1'):
         return e0_store(dom, kind, dev, on_gpu)
     return Store(dom, (kind,), cfg['src'], cfg.get('mask', 'tight'), dev, on_gpu)
 
@@ -529,7 +562,9 @@ def train_one(torch, cfg, seed, Xtr, Xca, Xev, od, dev):
             'dead_at_end_train': int((sae.tokens_since_fired >= sae.dead_tokens).sum()), 'history': hist}
 
 
-def pool_kinds(dom):
+def pool_kinds(dom, cfg=None):
+    if cfg is not None and cfg['src'] == 'P1':
+        return ('pool',)
     return ('pool',) if dom == 'mice' else ('pool_v2', 'pool_v3')
 
 
@@ -544,7 +579,7 @@ def cmd_train(args):
     todo = [s for s in seeds if not (sae_dir(dom, arm, s) / 'sae_theta.pt').exists()]
     if not todo:
         return
-    sts = [store_of(dom, k, cfg, dev, on_gpu=False) for k in pool_kinds(dom)]
+    sts = [store_of(dom, k, cfg, dev, on_gpu=False) for k in pool_kinds(dom, cfg)]
     X = {}
     for r in ('calib', 'eval'):
         X[r] = torch.cat([inputs(St, St.F.role.values[St.tf] == r) for St in sts]).cpu()
@@ -867,13 +902,149 @@ def cmd_probes(args):
         torch.cuda.empty_cache()
 
 
-def cmd_confirm(args):
-    """R_comb on the confirmation seeds vs v1: criteria (A) and (B) (release_ab definitions)."""
-    res, L = {'rule': 'diag.py docstring, COMBINED RECIPE block'}, []
-    seeds = {d: CONF_SEEDS[d] for d in CONF_SEEDS}
-    R = {d: {s: json.loads((OUT / d / 'ab' / f'R_comb_s{s}.json').read_text()) for s in seeds[d]
-             if (OUT / d / 'ab' / f'R_comb_s{s}.json').exists()} for d in seeds}
-    fv = {s: fve_of('mice', 'R_comb', s) for s in (400, 401, 402)}
+# ---------------------------------------------------------------------------------------------- 1 fps pool (v1-style)
+P1_CAP = 16_000_000  # training-token cap: per-token keep probability p = min(1, P1_CAP / N_tight) (GPU memory)
+P1_P = {'mice': 0.2, 'ants': 1.0}  # fixed before encoding from the step-2 token rates (see the P1 block above)
+P1_SERIES = {'mice': ('v1',), 'ants': ('v2', 'v3')}
+P1_NSHARD = {'mice': 24, 'ants': 8}
+
+
+def p1_frames(dom, ser, v, fps1_off):
+    """1 fps from the whole video, disjoint from every scored frame: 5 fps index k with (k - off) % 5 == 2
+    (mice off = the video's fps1 offset, whose grid holds the diagnosis frames; ants off = 0, scored k = 0 mod 10)."""
+    off = fps1_off if dom == 'mice' else 0
+    return np.arange((off + 2) % 5, v['n'], 5)
+
+
+def cmd_pool1(args):
+    """v1-style training pool for the frozen v2 token stream: 1 fps of every video (all phases, full length), the frozen
+    v2 encoder (src/eci/v2/encode.py) and tight mask (fd >= 0.25 = the M0 rule), a seeded per-token keep p (P1_P).
+    -> BEE/<dom>/pool1/s<i>/ (FZ.TokStore layout: frames.parquet obs / k / row / role / series, tok_frame, tok_pos,
+    tok.f16, info.json)."""
+    import torch
+    from src.eci.v2.pipeline import Series
+    from src.eci.v2.video import Prefetch
+    dev = torch.device('cuda')
+    dom = args.dom
+    off = {v['obs']: v['fps1_off'] for v in N.load_plan()['videos']} if dom == 'mice' else {}
+    items, SE = [], {}
+    for ser in P1_SERIES[dom]:
+        se = SE.setdefault(ser, Series(T2.series_cfg(dom, ser), dev, load_encoder=False))
+        for v in se.videos:
+            items.append((ser, v))
+    items = items[args.shard::args.nshard]
+    if args.selftest:
+        items = items[:2]
+    from src.eci.v2.encode import Encoder
+    enc = Encoder(dev)
+    for se in SE.values():
+        se.enc = enc
+    jobs, meta_j = [], []
+    for ser, v in items:
+        ks = p1_frames(dom, ser, v, off.get(v['obs'], 0))
+        if args.selftest:
+            ks = ks[:120]
+        for c0 in range(0, len(ks), 240):  # decode runs of <= 240 kept frames (every 5th 5 fps frame)
+            kk = ks[c0:c0 + 240]
+            jobs.append(((len(meta_j),), SE[ser].job(v, int(kk[0]), len(kk), 5)))
+            meta_j.append((ser, v, kk))
+    loc = N.local_dir() / f'v2d_p1_{dom}_s{args.shard}'
+    loc.mkdir(parents=True, exist_ok=True)
+    ftok = open(loc / 'tok.f16', 'wb')
+    tfs, poss, recs = [], [], []
+    p = P1_P[dom]
+    n_tight, t0 = 0, time.time()
+    bs = 16 if max(se.S for se in SE.values()) >= 1000 else 32
+    pf = Prefetch(jobs, max(4, int(os.environ.get('SLURM_CPUS_PER_TASK', 16)) - 4), fn=Series.run_job)
+    for (j,), fr in pf:
+        ser, v, kk = meta_j[j]
+        se = SE[ser]
+        assert len(fr) == len(kk), (v['obs'], len(fr), len(kk))
+        for b in range(0, len(kk), bs):
+            kb = kk[b:b + bs]
+            with torch.no_grad():
+                x, fd = se.frames(v, fr[b:b + bs], kb)
+                z, keep = se.tokens(x, fd)
+            for ii in range(len(kb)):
+                pos = torch.nonzero(keep[ii]).flatten().cpu().numpy()
+                n_tight += len(pos)
+                if p < 1:
+                    g = np.random.default_rng([zlib.crc32(v['obs'].encode()), int(kb[ii])])
+                    pos = pos[g.random(len(pos)) < p]
+                fid = len(recs)
+                ftok.write(z[ii, torch.from_numpy(pos).to(dev)].cpu().numpy().tobytes())
+                tfs.append(np.full(len(pos), fid, np.int32))
+                poss.append(pos.astype(np.int16))
+                recs.append({'obs': v['obs'], 'k': int(kb[ii]), 'row': int(v['src_lo'] + kb[ii]), 'role': v['role'],
+                             'series': ser, 'n_tight': int(keep[ii].sum()), 'n_kept': int(len(pos))})
+        if j % 50 == 0:
+            el = time.time() - t0
+            log(f'pool1 {dom} s{args.shard}: run {j}/{len(jobs)}, {len(recs):,} frames, {el:.0f}s ({len(recs) / max(el, 1):.1f}'
+                f' fps; GPU busy {enc.gpu_s:.0f}s; decode thread-s {pf.dec_s:.0f}); {gpu_line()}')
+    ftok.close()
+    np.save(loc / 'tok_frame.npy', np.concatenate(tfs) if tfs else np.zeros(0, np.int32))
+    np.save(loc / 'tok_pos.npy', np.concatenate(poss) if poss else np.zeros(0, np.int16))
+    Fm = pd.DataFrame(recs)
+    Fm.to_parquet(loc / 'frames.parquet')
+    el = time.time() - t0
+    info = {'dom': dom, 'shard': args.shard, 'nshard': args.nshard, 'n_videos': len(items), 'n_frames': len(Fm),
+            'n_tight_tokens': int(n_tight), 'n_stored_tokens': int(Fm.n_kept.sum()), 'p': p, 'wall_s': el,
+            'gpu_s': enc.gpu_s, 'fps_wall': len(Fm) / max(el, 1), 'decode_thread_s': pf.dec_s,
+            'gpu': torch.cuda.get_device_name(0)}
+    if args.selftest:  # identity: overlapping frames of the step-2 / reference pools -> same tokens at the same positions
+        ref = {'mice': [MT.KINDS['mice']['pool']['ref']], 'ants': [MT.KINDS['ants'][k]['ref'] for k in ('pool_v2', 'pool_v3')]}[dom]
+        chk = []
+        tf_all, pos_all = np.concatenate(tfs), np.concatenate(poss)
+        mine = np.memmap(loc / 'tok.f16', np.float16, 'r', shape=(len(tf_all), FZ.D))
+        key = {(o, k): i for i, (o, k) in enumerate(zip(Fm.obs.values, Fm.k.values))}
+        for r_ in ref:
+            St = FZ.TokStore(r_, 0, dev, on_gpu=False)
+            for f_, (o, k) in enumerate(zip(St.F.obs.values, St.F.k.values)):
+                if (o, int(k)) in key:
+                    i = key[(o, int(k))]
+                    a_ = np.flatnonzero(tf_all == i)
+                    b_ = np.arange(St.starts[f_], St.starts[f_ + 1])
+                    pa, pb = pos_all[a_], St.pos[b_]
+                    com, ia, ib = np.intersect1d(pa, pb, return_indices=True)
+                    d_ = float(np.abs(mine[a_[ia]].astype(np.float32) - St.tok[b_[ib]].astype(np.float32)).max()) if len(com) else None
+                    chk.append({'obs': o, 'k': int(k), 'n_mine': len(pa), 'n_ref': len(pb), 'n_common': len(com),
+                                'subset_of_ref': bool(np.isin(pa, pb).all()), 'max_abs_diff': d_})
+        info['identity_vs_ref_pool'] = chk[:20]
+        info['identity_n_overlap'] = len(chk)
+    log(json.dumps(info, default=float)[:3000])
+    od = OUT / dom / 'pool1'
+    od.mkdir(parents=True, exist_ok=True)
+    (od / f's{args.shard}{"_selftest" if args.selftest else ""}.json').write_text(json.dumps(info, indent=1, default=float))
+    if not args.selftest:
+        R4.atomic_copy(loc, BEE / dom / 'pool1' / f's{args.shard}')
+
+
+class P1Store:
+    """All pool1 shards of a domain as one FZ.TokStore-like object (training only)."""
+
+    def __init__(self, dom, dev):
+        Fs, tfs, poss, toks, o = [], [], [], [], 0
+        root = BEE / dom / 'pool1'
+        for sp in sorted([q for q in root.glob('s*') if not q.name.endswith('.tmp')], key=lambda q: int(q.name[1:])):
+            F_ = pd.read_parquet(sp / 'frames.parquet')
+            tf = np.load(sp / 'tok_frame.npy')
+            toks.append(np.asarray(np.memmap(sp / 'tok.f16', np.float16, 'r', shape=(len(tf), FZ.D))))
+            tfs.append(tf + o)
+            poss.append(np.load(sp / 'tok_pos.npy'))
+            Fs.append(F_)
+            o += len(F_)
+        assert len(Fs) == P1_NSHARD[dom], (dom, len(Fs))
+        self.F = pd.concat(Fs, ignore_index=True)
+        self.tf, self.pos, self.tok = np.concatenate(tfs), np.concatenate(poss).astype(np.int64), np.concatenate(toks)
+        self.d, self.nf, self.dev, self.T = FZ.D, len(self.F), dev, None
+
+
+def confirm_arm(arm, seeds, deploy_from, name):
+    """arm on fresh seeds vs v1: criteria (A) and (B) (release_ab definitions); + vs M0 (Welch)."""
+    res, L = {'arm': arm, 'rule': 'diag.py docstring'}, []
+    R = {d: {s: json.loads((OUT / d / 'ab' / f'{arm}_s{s}.json').read_text()) for s in seeds[d]
+             if (OUT / d / 'ab' / f'{arm}_s{s}.json').exists()} for d in seeds}
+    fv = {s: fve_of('mice', arm, s) for s in deploy_from}
     dep = max(fv, key=lambda s: fv[s] if np.isfinite(fv[s]) else -1)
     A = {}
     for p in ('full', '256', '128'):
@@ -883,11 +1054,11 @@ def cmd_confirm(args):
                                                                 for lb in ('nose_nose', 'nose_tail')}}
     A['PASS'] = bool(all(A[p]['deploy_distinct'] and A[p]['share_seeds_distinct'] >= 0.8 for p in ('full', '256')))
     res['A'] = A
-    L += ['| criterion | cell | prefix | v1 | R_comb mean ± sd (n) | R_comb - v1 (95% t-CI) | pass |', '|---|---|---|---|---|---|---|']
+    L += [f'| criterion | cell | prefix | v1 | {arm} mean ± sd (n) | {arm} - v1 (95% t-CI) | pass | {arm} - M0 (Welch) |', '|---|---|---|---|---|---|---|---|']
     for p in ('full', '256', '128'):
         L.append(f'| A distinct | nn vs nt best neuron | {p} | - | {A[p]["share_seeds_distinct"]:.2f} of seeds | '
                  f'deploy s{dep}: {A[p]["deploy_best"]} distinct={A[p]["deploy_distinct"]} | '
-                 f'{A["PASS"] if p != "128" else "(reported)"} |')
+                 f'{A["PASS"] if p != "128" else "(reported)"} | |')
     ok, B = True, {}
     for dom, ser, lb in DCELLS + RCELLS:
         for p in ('full', '256'):
@@ -898,15 +1069,18 @@ def cmd_confirm(args):
             ps = bool(lo >= -0.01)
             ok &= ps or not decides
             nm = f'{dom}{" " + ser if ser else ""} {lb}'
+            m0 = np.array(list(cell_vals(dom, 'M0', ser, lb, p).values()))
+            vm = list(welch_ci(xs, m0)) if len(m0) > 1 else None
             B[f'{nm} | {p}'] = {'v1': v1, 'mean': float(xs.mean()), 'sd': float(xs.std(ddof=1)), 'n': len(xs),
-                                'minus_v1': [m, lo, hi], 'pass': ps, 'decides': decides}
+                                'minus_v1': [m, lo, hi], 'pass': ps, 'decides': decides, 'minus_M0': vm}
             L.append(f'| B R_atlas | {nm} | {p} | {v1:.4f} | {xs.mean():.4f} ± {xs.std(ddof=1):.4f} ({len(xs)}) | '
-                     f'{m:+.4f} [{lo:+.4f}, {hi:+.4f}] | {ps if decides else "(reported: " + str(ps) + ")"} |')
+                     f'{m:+.4f} [{lo:+.4f}, {hi:+.4f}] | {ps if decides else "(reported: " + str(ps) + ")"} | '
+                     + (f'{vm[0]:+.4f} [{vm[1]:+.4f}, {vm[2]:+.4f}]' if vm else '-') + ' |')
     B['PASS'] = bool(ok)
     res['B'] = B
     bg = {}
     for d in ('mice', 'ants'):
-        fs = [json.loads(f.read_text()) for f in sorted((OUT / d / 'neurons').glob('R_comb_s*.json'))]
+        fs = [json.loads(f.read_text()) for f in sorted((OUT / d / 'neurons').glob(f'{arm}_s*.json'))]
         if fs:
             bg[d] = {'n_seeds': len(fs), 'share_background_mean': float(np.mean([f['share_background'] for f in fs])),
                      'n_background': [f['n_background'] for f in fs], 'n_app_mean': float(np.mean([f['n_app'] for f in fs])),
@@ -914,10 +1088,19 @@ def cmd_confirm(args):
     res['background'] = bg
     res['background_PASS'] = bool(bg and all(v['share_background_mean'] <= 0.01 for v in bg.values()))
     L += ['', f'A PASS: {A["PASS"]}', f'B PASS (5 decision cells x full/256): {B["PASS"]}',
-          f'background share <= 0.01 (seeds 400-404): {res["background_PASS"]} {json.dumps(bg)}']
-    (OUT / 'confirm.json').write_text(json.dumps(res, indent=1, default=float))
-    (OUT / 'confirm_table.md').write_text('\n'.join(L))
+          f'background share <= 0.01: {res["background_PASS"]} {json.dumps(bg)}']
+    (OUT / f'{name}.json').write_text(json.dumps(res, indent=1, default=float))
+    (OUT / f'{name}_table.md').write_text('\n'.join(L))
     print('\n'.join(L))
+
+
+def cmd_confirm(args):
+    confirm_arm('R_comb', CONF_SEEDS, (400, 401, 402), 'confirm')
+
+
+def cmd_p1decide(args):
+    for arm in ('P1_30k', 'P1_90k'):
+        confirm_arm(arm, P1_SEEDS, (500, 501, 502), f'p1_{arm}')
 
 
 def cmd_arm(args):
@@ -933,7 +1116,7 @@ def cmd_arm(args):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('prep', 'train', 'score', 'arm', 'probe', 'neurons', 'decide', 'confirm'))
+    p.add_argument('step', choices=('prep', 'train', 'score', 'arm', 'probe', 'neurons', 'decide', 'confirm', 'pool1', 'p1decide'))
     p.add_argument('--dom', choices=('mice', 'ants'))
     p.add_argument('--kind')
     p.add_argument('--shard', type=int, default=0)
@@ -944,7 +1127,8 @@ def main():
     p.add_argument('--seeds')
     p.add_argument('--selftest', action='store_true')
     a = p.parse_args()
-    {'prep': cmd_prep, 'train': cmd_train, 'score': cmd_score, 'arm': cmd_arm, 'probe': cmd_probes, 'neurons': cmd_neurons, 'decide': cmd_decide, 'confirm': cmd_confirm}[a.step](a)
+    {'prep': cmd_prep, 'train': cmd_train, 'score': cmd_score, 'arm': cmd_arm, 'probe': cmd_probes, 'neurons': cmd_neurons, 'decide': cmd_decide, 'confirm': cmd_confirm, 'pool1': cmd_pool1,
+     'p1decide': cmd_p1decide}[a.step](a)
 
 
 if __name__ == '__main__':
