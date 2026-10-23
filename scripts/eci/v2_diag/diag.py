@@ -97,6 +97,7 @@ DEVIATION FROM THE DEV / TEST POLICY (stated before scoring): factors are attrib
 Steps (scripts/eci/v2_diag/job.sh; staging in $LOCAL_DIR):
     prep  --dom D --kind K --shard i --nshard n [--selftest]  (GPU) 32-grid multi-encoder store -> BEE/<D>/<K>/s<i>/
     train --dom D --arm A [--seeds a-b]                       (GPU) SAEs -> BEE/<D>/sae/<A>_s<seed>
+    arm   --dom D --arms A,B [--seeds a-b]                    (GPU) train + score each arm
     score --dom D --arm A [--seeds]                           (GPU) -> OUT/<D>/ab/<A>_s<seed>.json
     probe --dom D --set S                                     (GPU) -> OUT/<D>/probe/<S>.json
     neurons --dom D --arm A [--seeds]                         (GPU) background / appendage / odour neuron counts
@@ -790,19 +791,42 @@ def cmd_decide(args):
     print('\n'.join(L + P))
 
 
+def cmd_probes(args):
+    """--set a,b,c: one probe per token set in sequence."""
+    import torch
+    for tset in args.set.split(','):
+        a = argparse.Namespace(**{**vars(args), 'set': tset})
+        if (OUT / args.dom / 'probe' / f'{tset}.json').exists():
+            continue
+        cmd_probe(a)
+        torch.cuda.empty_cache()
+
+
+def cmd_arm(args):
+    """train then score (one job); --arms a,b,c runs several arms in sequence."""
+    import torch
+    for arm in (args.arms or args.arm).split(','):
+        args.arm = arm
+        cmd_train(args)
+        torch.cuda.empty_cache()
+        cmd_score(args)
+        torch.cuda.empty_cache()
+
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('prep', 'train', 'score', 'probe', 'neurons', 'decide'))
+    p.add_argument('step', choices=('prep', 'train', 'score', 'arm', 'probe', 'neurons', 'decide'))
     p.add_argument('--dom', choices=('mice', 'ants'))
     p.add_argument('--kind')
     p.add_argument('--shard', type=int, default=0)
     p.add_argument('--nshard', type=int, default=1)
     p.add_argument('--arm')
+    p.add_argument('--arms')
     p.add_argument('--set')
     p.add_argument('--seeds')
     p.add_argument('--selftest', action='store_true')
     a = p.parse_args()
-    {'prep': cmd_prep, 'train': cmd_train, 'score': cmd_score, 'probe': cmd_probe, 'neurons': cmd_neurons, 'decide': cmd_decide}[a.step](a)
+    {'prep': cmd_prep, 'train': cmd_train, 'score': cmd_score, 'arm': cmd_arm, 'probe': cmd_probes, 'neurons': cmd_neurons, 'decide': cmd_decide}[a.step](a)
 
 
 if __name__ == '__main__':
