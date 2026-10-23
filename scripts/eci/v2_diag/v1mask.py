@@ -223,7 +223,7 @@ def cmd_prep(args):
     se = series_of(dom, K['series'], dev, enc)
     G, S = se.G, se.S
     fb = v1_backgrounds(dom, se, dev)
-    d3 = D3Bg(dom, fb, dev)
+    d3 = D3Bg(dom, fb, dev) if args.d3 else None
     m2 = AutoModel.from_pretrained('facebook/dinov2-base', attn_implementation='sdpa').to(dev).eval().requires_grad_(False)
     mean = torch.tensor((0.485, 0.456, 0.406), device=dev)[None, :, None, None]
     std = torch.tensor((0.229, 0.224, 0.225), device=dev)[None, :, None, None]
@@ -273,8 +273,11 @@ def cmd_prep(args):
                 ng = fapp * 256
                 z = enc(x)
                 # V1M_d3 (DINOv3 feature cue)
-                dk, dany = dark_native(x, fb.get(fb.wids[fb.window_index(rows[:1])[0]])['pix_bg'], S)
-                m_d3 = d3.mask(z, dk, dany, rows, G)
+                if d3 is not None:
+                    dk, dany = dark_native(x, fb.get(fb.wids[fb.window_index(rows[:1])[0]])['pix_bg'], S)
+                    m_d3 = d3.mask(z, dk, dany, rows, G)
+                else:  # amendment 2026-10-23: V1M_d3 not run (cost gate); no d3 tokens
+                    m_d3 = torch.zeros_like(raw, dtype=torch.bool)
                 # V1M_d2 (exact v1 mask, DINOv2-B at 448 of the 512 px frame)
                 t1 = time.time()
                 x512 = F.interpolate(x.float(), size=(512, 512), mode='bicubic', antialias=True,
@@ -396,6 +399,7 @@ def main():
     p.add_argument('--shard', type=int, default=0)
     p.add_argument('--nshard', type=int, default=1)
     p.add_argument('--selftest', action='store_true')
+    p.add_argument('--d3', type=int, default=0, help='1: also compute V1M_d3 (needs the DINOv3 backgrounds)')
     a = p.parse_args()
     {'bg': cmd_bg, 'prep': cmd_prep}[a.step](a)
 

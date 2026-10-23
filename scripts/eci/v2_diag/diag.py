@@ -176,6 +176,11 @@ V1M = v1's ANIMAL MASK ON v2, PRE-REGISTERED 2026-10-23 ~15:30 (user decision; w
         backgrounds for MABe22 clips). Release candidate iff (A), (B) and background pass. Tie-break: if V1M_d3 and
         V1M_d2 both pass, V1M_d3 (no second encoder) unless V1M_d2 is better on >= 1 decision cell with the Welch CI
         excluding 0 and worse on none.
+    AMENDMENT 2026-10-23 ~16:30 (user decision after the cost gate; before any V1M token store or score): V1M_d3 is NOT
+        run (its DINOv3 backgrounds measured ~205 s per mice video, full plan ~47 GPU-h > budget). V1M_d2 (the exact v1
+        mask) becomes the TESTED arm and a release candidate on its own, with the criteria above unchanged (A, B at full
+        and @256 vs v1, vs M0 reported, background share in both domains on seeds 600-604, lab discovery). The tie-break
+        between d3 and d2 no longer applies. Budget 20 GPU-h.
     COST ESTIMATE (written before running; from this study's measured rates): DINOv3 backgrounds (mice 432 x 200 frames,
         ants 365 windows x 200, seek decode) ~3 GPU-h; re-encode of pool + scored frames (as the step-2 prep, + DINOv2-B
         at 448) ~9 GPU-h; 106 SAEs + scoring ~5 GPU-h; neurons / discovery ~1.5 GPU-h; selftests ~0.5 -> ~19 GPU-h (<= 25).
@@ -1129,7 +1134,7 @@ def cmd_confirm(args):
 
 
 def cmd_v1mdecide(args):
-    for arm in ('V1M_d3', 'V1M_d2'):
+    for arm in ('V1M_d2',):  # amendment 2026-10-23: V1M_d3 not run
         confirm_arm(arm, V1M_SEEDS, (600, 601, 602), f'v1m_{arm}')
 
 
