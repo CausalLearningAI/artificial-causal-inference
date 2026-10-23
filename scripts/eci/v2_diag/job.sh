@@ -29,5 +29,5 @@ trap 'rm -rf $LOCAL_DIR; [ -n "$SMI" ] && kill $SMI 2>/dev/null || true' EXIT
 df -h $BASE | tail -1
 echo "host $(hostname) job ${SLURM_JOB_ID:-} extra ${EXTRA:-} git $(git rev-parse --short HEAD)"
 EXTRA=${EXTRA:-}; EXTRA=${EXTRA//:/,}
-python -u scripts/eci/v2_diag/diag.py ${EXTRA:-}
+python -u scripts/eci/v2_diag/${SCRIPT:-diag.py} ${EXTRA:-}
 echo "done"
