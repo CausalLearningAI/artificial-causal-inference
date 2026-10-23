@@ -1,0 +1,28 @@
+{
+ "dom": "mice",
+ "kind": "pool",
+ "shard": 0,
+ "nshard": 6,
+ "S": 1024,
+ "G": 64,
+ "n_frames": 27,
+ "n_stored_tokens": 12468,
+ "wall_s": 16.858687162399292,
+ "gpu_s_v3": 4.292563438415527,
+ "gpu_s_v2mask": 1.9697675704956055,
+ "gpu": "NVIDIA A40",
+ "tokens_per_frame_M0": 146.7037037037037,
+ "tokens_per_frame_d2": 461.48148148148147,
+ "tokens_per_frame_d3": 0.0,
+ "leak_share_M0": 0.0,
+ "leak_share_d2": 0.3657303370786517,
+ "leak_share_d3": 0.0,
+ "check_M0_vs_step2": {
+  "frames": 27,
+  "frames_same_M0_positions": 27,
+  "M0_tokens_new": 3961,
+  "tokens_ref": 3961,
+  "max_abs_diff": 0.0,
+  "mean_abs_diff": 0.0
+ }
+}
