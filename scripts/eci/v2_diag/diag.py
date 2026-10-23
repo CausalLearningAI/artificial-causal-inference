@@ -92,6 +92,21 @@ DEVIATION FROM THE DEV / TEST POLICY (stated before scoring): factors are attrib
     uses fresh seeds but the same frames, so it is NOT an independent test of the recipe choice; this is said in the
     report. Rotation is identical in v1 and v2 (mice odour corner top right, ants none) and was measured neutral on
     2026-10-20, so it is not an arm here.
+AMENDMENT 2026-10-23 ~04:30 (after the stage A/B scores of A_ref, A_w1024, A_w4096, A_s90k, A_ema (mice), B_d3l20,
+    B_d3l24, B_d3l16, B_d2b12, B_d3b12, B_d2l24, B_v1like (mice) were seen; BEFORE any score of the arms below):
+    (1) DROPPED for the GPU budget (25 GPU-h; ~15 used by the encode and the first arms): A_k8, A_k32 (k is not a
+        v1 / v2 difference), B_d2b10. Not run.
+    (2) BUG, no rule change: the first stage A/B jobs passed the arm list with commas, which sbatch --export splits,
+        so only the first arm of each list ran; the rest were resubmitted with ':' separators.
+    (3) ADDED, because B_v1like (v1's recipe on the v2 pool) does NOT reach v1 on mice nose_tail (0.047 vs v1 0.103)
+        while width, steps and threshold do not explain it, leaving the training data / training mask:
+        A_x2     the v2 recipe trained on the FULL reference pools (both burst halves: mice nnnt/r2/pool 62,208 frames,
+                 ants v2/freeze pool_v2 + pool_v3 99,180 frames; tokens identical to M0, max |diff| 0 in the step-2
+                 identity checks) = 2x the frames of the step-2 pools; same 30k steps, same roles. vs M0.
+        B_v1sae  the DEPLOYED v1 SAE (mice fg448al_s0, ants antsfg_s0, its own stored threshold) read out on this
+                 study's d2b12 'dil' tokens: a scoring identity check (does this token set reproduce v1's numbers?),
+                 one SAE, reported next to v1 and B_v1like (B_v1like - B_v1sae = v1's training data / training mask /
+                 steps, at identical scoring tokens).
 ==================================================================================================================
 
 Steps (scripts/eci/v2_diag/job.sh; staging in $LOCAL_DIR):
@@ -152,11 +167,16 @@ ARMS = {
     **{f'B_{s}': dict(src=s, mask='tight') for s in SETS},
     'B_d3l20dil': dict(src='d3l20', mask='dil'),
     'B_v1like': dict(src='d2b12', mask='dil', W=1024, prefixes=(128, 256, 512, 1024), readout='ema'),
+    'A_x2': dict(src='E0full'),
+    'B_v1sae': dict(src='d2b12', mask='dil', readout='own',
+                    sae_path={'mice': 'dataset/mice/v1/eci/sae/matryoshka_btk_1024_k16_fg448al_s0/sae.pt',
+                              'ants': 'dataset/ants/eci/sae/matryoshka_btk_1024_k16_antsfg_s0/sae.pt'}),
 }
 REFS = {  # arm -> reference arm for the one-factor effect ('M0' = existing step-2 M0 seeds)
     **{a: 'M0' for a in ARMS if a.startswith('A_') and a != 'A_ema'}, 'A_ema': 'A_ref',
     'B_d3l20': 'M0', 'B_d3l24': 'B_d3l20', 'B_d3l16': 'B_d3l20', 'B_d2b12': 'B_d3l20', 'B_d2b10': 'B_d2b12',
-    'B_d3b12': 'B_d2b12', 'B_d2l24': 'B_d3l24', 'B_d3l20dil': 'B_d3l20', 'B_v1like': 'v1',
+    'B_d3b12': 'B_d2b12', 'B_d2l24': 'B_d3l24', 'B_d3l20dil': 'B_d3l20', 'B_v1like': 'v1', 'A_x2': 'M0',
+    'B_v1sae': 'v1',
 }
 
 
@@ -396,7 +416,11 @@ def e0_store(dom, kind, dev, on_gpu=True):
 
 
 def store_of(dom, kind, cfg, dev, on_gpu=True):
-    if cfg['src'] == 'E0':
+    if cfg['src'] == 'E0full' and kind.startswith('pool'):  # the full reference pool (both burst halves)
+        St = FZ.TokStore(MT.KINDS[dom][kind]['ref'], 0, dev, on_gpu=on_gpu)
+        St.d = 1024
+        return St
+    if cfg['src'] in ('E0', 'E0full'):
         return e0_store(dom, kind, dev, on_gpu)
     return Store(dom, (kind,), cfg['src'], cfg.get('mask', 'tight'), dev, on_gpu)
 
@@ -490,7 +514,7 @@ def cmd_train(args):
     dev = torch.device('cuda')
     dom, arm = args.dom, args.arm
     cfg = cfg_of(arm)
-    if 'reuse' in cfg:
+    if 'reuse' in cfg or 'sae_path' in cfg:
         return
     seeds = FZ.parse_seeds(args.seeds, SEEDS)
     todo = [s for s in seeds if not (sae_dir(dom, arm, s) / 'sae_theta.pt').exists()]
@@ -531,6 +555,9 @@ def load_arm_sae(dom, arm, s, dev):
     from src.eci.sae_calibrate import set_threshold
     cfg = cfg_of(arm)
     src_arm = cfg.get('reuse', arm)
+    if 'sae_path' in cfg:  # a fixed deployed SAE (its own stored threshold)
+        sae, norm, _ = load_sae(REPO / cfg['sae_path'][dom], dev)
+        return sae, norm
     sae, norm, _ = load_sae(sae_dir(dom, src_arm, s) / 'sae_theta.pt', dev)
     if cfg['readout'] == 'ema':
         set_threshold(sae, float(json.loads((OUT / dom / 'train' / f'{src_arm}_s{s}.json').read_text())['theta_ema']))
@@ -558,8 +585,11 @@ def cmd_score(args):
     od = OUT / dom / 'ab'
     od.mkdir(parents=True, exist_ok=True)
     src_arm = cfg.get('reuse', arm)
-    seeds = [s for s in seeds if not (od / f'{arm}_s{s}.json').exists()
-             and (sae_dir(dom, src_arm, s) / 'sae_theta.pt').exists()]
+    if 'sae_path' in cfg:
+        seeds = [] if (od / f'{arm}_s{SEEDS[0]}.json').exists() else [SEEDS[0]]
+    else:
+        seeds = [s for s in seeds if not (od / f'{arm}_s{s}.json').exists()
+                 and (sae_dir(dom, src_arm, s) / 'sae_theta.pt').exists()]
     if not seeds:
         return
     sts = scored_stores(dom, cfg, dev)
