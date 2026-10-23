@@ -1,0 +1,38 @@
+{
+ "set": "d3b12",
+ "note": "T-max: one linear direction on standardised tokens, frame max (r2 fit_probe max); chan: best single standardised dimension (either sign), frame max; atlas split",
+ "v2": {
+  "groom_any": {
+   "tmax_R": 0.7747088975571726,
+   "tmax_A": 0.9677018447544679,
+   "chan_R": 0.4531627011770497,
+   "chan_A": 0.8022026318973761,
+   "base": 0.2224242424242424,
+   "n": 13200,
+   "tmax_R_rnd5": 0.7487152968712809,
+   "tmax_R_rnd5_sd": 0.05250878790192106
+  }
+ },
+ "v3": {
+  "groom_any": {
+   "tmax_R": 0.7188937126753221,
+   "tmax_A": 0.9425860967983026,
+   "chan_R": 0.39813467974797434,
+   "chan_A": 0.777647154318206,
+   "base": 0.32903426791277257,
+   "n": 32100,
+   "tmax_R_rnd5": 0.7146315231605695,
+   "tmax_R_rnd5_sd": 0.008784863316390645
+  },
+  "on_lid_any": {
+   "tmax_R": 0.6489652206215999,
+   "tmax_A": 0.9513910092674769,
+   "chan_R": 0.16511562157036253,
+   "chan_A": 0.6947064661019613,
+   "base": 0.03688473520249221,
+   "n": 32100,
+   "tmax_R_rnd5": 0.7210896596918159,
+   "tmax_R_rnd5_sd": 0.11560349865181209
+  }
+ }
+}
