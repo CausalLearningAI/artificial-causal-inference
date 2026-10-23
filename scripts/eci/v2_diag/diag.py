@@ -597,7 +597,9 @@ def cmd_train(args):
                 fk = np.random.default_rng(s).random(St.nf) < cfg['frac']
                 m = m & fk[St.tf]
             sel.append(m)
-        Xtr = torch.cat([inputs(St, m) for St, m in zip(sts, sel)])
+        parts = [inputs(St, m) for St, m in zip(sts, sel)]
+        Xtr = parts[0] if len(parts) == 1 else torch.cat(parts)  # no 2x copy for a single store (P1 mice: 24 GiB)
+        del parts
         ti = train_one(torch, cfg, s, Xtr, X['calib'], X['eval'], sae_dir(dom, arm, s), dev)
         rec = {k: ti[k] for k in ('train_time_s', 'n_train_tokens', 'theta_star', 'theta_ema', 'eval_fve', 'eval_l0',
                                   'dead_at_end_train')}
