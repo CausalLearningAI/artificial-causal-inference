@@ -156,6 +156,29 @@ P1 = v1-STYLE TRAINING POOL, PRE-REGISTERED 2026-10-23 ~06:30 (user approval: "y
     (A) and (B) and the background criterion pass. If both pass, the SIMPLER one (30k steps) is chosen unless P1_90k
     is better than P1_30k on >= 1 decision cell with the Welch CI excluding 0 and worse on none. No DINO-feature mask
     cue is added (the ants grooming gap is attributed to v1's readout mask, not tested here).
+V1M = v1's ANIMAL MASK ON v2, PRE-REGISTERED 2026-10-23 ~15:30 (user decision; written BEFORE any token of this test was
+    encoded and before any V1M score; mask definitions and the DINOv3 adaptation: scripts/eci/v2_diag/v1mask.py docstring).
+    ARMS (the current v2 recipe: DINOv3-L/16 block 20 at native resolution, Matryoshka BatchTopK 2048 128/512/2048, k 16,
+    30k steps, global norm, theta*, frame max; ONLY the animal mask changes, for training tokens AND readout):
+        V1M_d3 (primary, the simplest: no second encoder) v1's rule with the feature cue on the DINOv3 tokens.
+        V1M_d2 (attribution only; a release candidate only if it alone passes) the exact v1 mask (DINOv2-B feature cue,
+               v1 backgrounds, 32 grid mapped to the native grid by the cell holding each token centre).
+    TRAINING POOL = the step-2 burst pools (mice 'pool', ants 'pool_v2' + 'pool_v3'), NOT the 1 fps pool. Reason: P1 was
+        not better overall for the current mask (vs M0: mice nose_nose +0.012 / +0.021 but ants v2 groom -0.023 / -0.011,
+        other cells within noise, and (A) @256 weaker), so by the simplicity tie-break (fewer frames to encode) the bursts
+        stay; re-encoding the 1 fps pool with the new masks (~17 GPU-h) would also exceed the 25 GPU-h budget.
+    RE-ENCODE: needed, because the stored tokens cover only M0 / N2 patches, not v1's dilation ring / feature patches. One
+        pass per frame set (pool + scored frames) stores M0 | d2 | d3 tokens with per-token flags and the mask2 fractions.
+    SEEDS 600-619 (mice) / 600-632 (ants), fresh; deployment seed = highest held-out FVE among 600-602.
+    CRITERIA per arm vs v1: (A) and (B) as above (full and @256); background-neuron share <= 0.01 in BOTH domains (seeds
+        600-604; the dilated mask makes background neurons a real risk); arm - M0 (Welch) reported; lab tail-token and
+        odour-box discovery scores (discovery.py 'lab', seeds 600-604; MABe22 tail NOT measured: neither v1 mask has
+        backgrounds for MABe22 clips). Release candidate iff (A), (B) and background pass. Tie-break: if V1M_d3 and
+        V1M_d2 both pass, V1M_d3 (no second encoder) unless V1M_d2 is better on >= 1 decision cell with the Welch CI
+        excluding 0 and worse on none.
+    COST ESTIMATE (written before running; from this study's measured rates): DINOv3 backgrounds (mice 432 x 200 frames,
+        ants 365 windows x 200, seek decode) ~3 GPU-h; re-encode of pool + scored frames (as the step-2 prep, + DINOv2-B
+        at 448) ~9 GPU-h; 106 SAEs + scoring ~5 GPU-h; neurons / discovery ~1.5 GPU-h; selftests ~0.5 -> ~19 GPU-h (<= 25).
 ==================================================================================================================
 
 Steps (scripts/eci/v2_diag/job.sh; staging in $LOCAL_DIR):
@@ -197,6 +220,7 @@ G32 = 32
 SEEDS = tuple(range(300, 305))
 CONF_SEEDS = {'mice': tuple(range(400, 420)), 'ants': tuple(range(400, 433))}
 P1_SEEDS = {'mice': tuple(range(500, 520)), 'ants': tuple(range(500, 533))}
+V1M_SEEDS = {'mice': tuple(range(600, 620)), 'ants': tuple(range(600, 633))}
 KINDS = {'mice': ('pool', 'diag'), 'ants': ('pool_v2', 'pool_v3', 'scored_v2', 'scored_v3')}
 
 # ---------------------------------------------------------------------------------------------- encoders (32 grid)
@@ -223,6 +247,7 @@ ARMS = {
     'A_x2': dict(src='E0full'),
     'R_comb': dict(src='d3l20', mask='tight', W=1024, prefixes=(128, 256, 512, 1024), frac=0.5),
     'P1_30k': dict(src='P1'), 'P1_90k': dict(src='P1', steps=90000),
+    'V1M_d3': dict(src='V1M_d3'), 'V1M_d2': dict(src='V1M_d2'),
     'B_v1sae': dict(src='d2b12', mask='dil', readout='own',
                     sae_path={'mice': 'dataset/mice/v1/eci/sae/matryoshka_btk_1024_k16_fg448al_s0/sae.pt',
                               'ants': 'dataset/ants/eci/sae/matryoshka_btk_1024_k16_antsfg_s0/sae.pt'}),
@@ -475,6 +500,9 @@ def store_of(dom, kind, cfg, dev, on_gpu=True):
         St = FZ.TokStore(MT.KINDS[dom][kind]['ref'], 0, dev, on_gpu=on_gpu)
         St.d = 1024
         return St
+    if cfg['src'].startswith('V1M'):  # v1's animal mask on the v2 tokens (scripts/eci/v2_diag/v1mask.py)
+        import v1mask
+        return v1mask.store(dom, kind, cfg['src'], dev, on_gpu)
     if cfg['src'] == 'P1' and kind.startswith('pool'):  # the v1-style 1 fps pool (one store per domain)
         return P1Store(dom, dev)
     if cfg['src'] in ('E0', 'E0full', 'P1'):
@@ -1100,6 +1128,11 @@ def cmd_confirm(args):
     confirm_arm('R_comb', CONF_SEEDS, (400, 401, 402), 'confirm')
 
 
+def cmd_v1mdecide(args):
+    for arm in ('V1M_d3', 'V1M_d2'):
+        confirm_arm(arm, V1M_SEEDS, (600, 601, 602), f'v1m_{arm}')
+
+
 def cmd_p1decide(args):
     for arm in ('P1_30k', 'P1_90k'):
         confirm_arm(arm, P1_SEEDS, (500, 501, 502), f'p1_{arm}')
@@ -1118,7 +1151,7 @@ def cmd_arm(args):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('prep', 'train', 'score', 'arm', 'probe', 'neurons', 'decide', 'confirm', 'pool1', 'p1decide'))
+    p.add_argument('step', choices=('prep', 'train', 'score', 'arm', 'probe', 'neurons', 'decide', 'confirm', 'pool1', 'p1decide', 'v1mdecide'))
     p.add_argument('--dom', choices=('mice', 'ants'))
     p.add_argument('--kind')
     p.add_argument('--shard', type=int, default=0)
@@ -1130,7 +1163,7 @@ def main():
     p.add_argument('--selftest', action='store_true')
     a = p.parse_args()
     {'prep': cmd_prep, 'train': cmd_train, 'score': cmd_score, 'arm': cmd_arm, 'probe': cmd_probes, 'neurons': cmd_neurons, 'decide': cmd_decide, 'confirm': cmd_confirm, 'pool1': cmd_pool1,
-     'p1decide': cmd_p1decide}[a.step](a)
+     'p1decide': cmd_p1decide, 'v1mdecide': cmd_v1mdecide}[a.step](a)
 
 
 if __name__ == '__main__':

@@ -4,6 +4,7 @@ scripts/eci/v2_diag/diag.py. The P1 SAEs read the M0 tokens (only their training
 with arm 'M0' token selection and the SAE loaders redirected to the P1 SAEs; outputs go to
 results/vision/eci_v2_diag/discovery/<arm>/{lab,mab}/M0_s<seed>.json (file names keep discovery.py's token-arm name).
     python scripts/eci/v2_diag/p1_discovery.py --arm P1_30k --seeds 500-504 [--steps lab,mab]
+    python scripts/eci/v2_diag/p1_discovery.py --arm V1M_d3 --seeds 600-604 --steps lab   (v1-mask arms: lab only)
 """
 import argparse
 import sys
@@ -18,7 +19,7 @@ import discovery as DI  # noqa: E402
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--arm', required=True, choices=('P1_30k', 'P1_90k'))
+    p.add_argument('--arm', required=True, choices=('P1_30k', 'P1_90k', 'V1M_d3', 'V1M_d2'))
     p.add_argument('--seeds', default='500-504')
     p.add_argument('--steps', default='lab,mab')
     a = p.parse_args()
@@ -29,7 +30,22 @@ def main():
     T.load_sae = lambda dom, _a, s, dev: D.load_arm_sae(dom, arm, s, dev)
     T.fve_of = lambda dom, _a, s: D.fve_of(dom, arm, s)
     T.DEPLOY_FROM = (500, 501, 502)
-    ns = argparse.Namespace(arm='M0', seeds=a.seeds)
+    tok_arm = 'M0'
+    if arm.startswith('V1M'):  # v1-mask arms: their own token store (scripts/eci/v2_diag/v1mask.py), selected by flags
+        import numpy as np
+        import v1mask
+        T.BEE = v1mask.BEE
+        T.DEPLOY_FROM = (600, 601, 602)
+        base_arm = T.Union.arm
+
+        def arm_fn(self, a_):
+            if a_.startswith('V1M'):
+                fl = np.concatenate([np.load(q['root'] / 'flags.npy') for q in self.parts])
+                return (fl & v1mask.FLAG[a_]) > 0
+            return base_arm(self, a_)
+        T.Union.arm = arm_fn
+        tok_arm = arm
+    ns = argparse.Namespace(arm=tok_arm, seeds=a.seeds)
     for st in a.steps.split(','):
         {'lab': DI.cmd_lab, 'mab': DI.cmd_mab}[st](ns)
 
