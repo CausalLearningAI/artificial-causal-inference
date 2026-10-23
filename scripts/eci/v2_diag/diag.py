@@ -1420,8 +1420,9 @@ def cmd_arm(args):
         args.arm = arm
         cmd_train(args)
         torch.cuda.empty_cache()
-        cmd_score(args)
-        torch.cuda.empty_cache()
+        if not args.train_only:  # grid arms: no lab score (label-free choice)
+            cmd_score(args)
+            torch.cuda.empty_cache()
 
 
 def main():
@@ -1436,6 +1437,7 @@ def main():
     p.add_argument('--set')
     p.add_argument('--seeds')
     p.add_argument('--selftest', action='store_true')
+    p.add_argument('--train-only', action='store_true')
     a = p.parse_args()
     {'prep': cmd_prep, 'train': cmd_train, 'score': cmd_score, 'arm': cmd_arm, 'probe': cmd_probes, 'neurons': cmd_neurons, 'decide': cmd_decide, 'confirm': cmd_confirm, 'pool1': cmd_pool1,
      'p1decide': cmd_p1decide, 'v1mdecide': cmd_v1mdecide, 'bgsall': cmd_bgsall,
