@@ -1,0 +1,20 @@
+{
+ "dom": "ants",
+ "kind": "scored_v3",
+ "shard": 2,
+ "nshard": 3,
+ "S": 832,
+ "G": 52,
+ "n_frames": 10500,
+ "n_stored_tokens": 1596428,
+ "wall_s": 1018.9814605712891,
+ "gpu_s_v3": 670.1709265708923,
+ "gpu_s_v2mask": 176.96938037872314,
+ "gpu": "NVIDIA A40",
+ "tokens_per_frame_M0": 37.36295238095238,
+ "tokens_per_frame_d2": 151.272,
+ "tokens_per_frame_d3": 0.0,
+ "leak_share_M0": 0.0,
+ "leak_share_d2": 0.6397929683269997,
+ "leak_share_d3": 0.0
+}

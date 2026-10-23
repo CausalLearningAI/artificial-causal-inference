@@ -1,0 +1,20 @@
+{
+ "dom": "ants",
+ "kind": "scored_v2",
+ "shard": 1,
+ "nshard": 2,
+ "S": 768,
+ "G": 48,
+ "n_frames": 6600,
+ "n_stored_tokens": 972563,
+ "wall_s": 344.81809878349304,
+ "gpu_s_v3": 193.33310842514038,
+ "gpu_s_v2mask": 59.39723825454712,
+ "gpu": "NVIDIA L40S",
+ "tokens_per_frame_M0": 28.90030303030303,
+ "tokens_per_frame_d2": 147.17151515151514,
+ "tokens_per_frame_d3": 0.0,
+ "leak_share_M0": 0.0,
+ "leak_share_d2": 0.6877504293073841,
+ "leak_share_d3": 0.0
+}

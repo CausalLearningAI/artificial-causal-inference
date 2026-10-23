@@ -1,0 +1,10 @@
+{
+ "n_frames": 43200,
+ "base_rate": {
+  "box": 0.3083564814814815,
+  "tail_vis": 0.20006944444444444,
+  "tail2": 0.998912037037037
+ },
+ "box_zone_radius_px_1024_median": 163.625,
+ "body_tokens_in_zone_per_frame_mean": 11.002037037037036
+}
