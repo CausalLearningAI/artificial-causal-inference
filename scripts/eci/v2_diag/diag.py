@@ -184,6 +184,29 @@ V1M = v1's ANIMAL MASK ON v2, PRE-REGISTERED 2026-10-23 ~15:30 (user decision; w
     COST ESTIMATE (written before running; from this study's measured rates): DINOv3 backgrounds (mice 432 x 200 frames,
         ants 365 windows x 200, seek decode) ~3 GPU-h; re-encode of pool + scored frames (as the step-2 prep, + DINOv2-B
         at 448) ~9 GPU-h; 106 SAEs + scoring ~5 GPU-h; neurons / discovery ~1.5 GPU-h; selftests ~0.5 -> ~19 GPU-h (<= 25).
+MATCHED = TRAIN/TEST-MATCHED v1 vs v2, PRE-REGISTERED 2026-10-23 ~19:00 (coordinator's fairness check; written after the
+    overlap measurement and BEFORE any matched SAE / score; code scripts/eci/v2_diag/matched.py, overlap.py).
+    OVERLAP (results/vision/eci_v2_diag/overlap.json): the deployed v1 SAEs were TRAINED ON the scored frames:
+        mice: 87.5% of the 32,400 scored atlas-window frames are exact v1 training frames (91.1% of the nose_nose
+              positives, 87.0% of the nose_tail positives); the other 12.5% are in v1's 8 held-out val pools.
+        ants: v2 scored frames 18.2% exact (grooming positives 25.6%), v3 0.9% exact (grooming positives 19.2%); 88-91%
+              of the scored frames are from v1's training videos.
+        v2 pools (M0 bursts, P1 1 fps): 0% exact frames, 100% same videos.
+    ARMS (>= 10 seeds each; same scorer = release_ab R~ atlas split, same frames):
+        V1R_full  v1's exact recipe (scripts/eci/train_sae_fg.py with the deployed args: DINOv2-B 448 fg448al / antsfg
+                  stores, Matryoshka 1024, k 16, 5 epochs, its val split) retrained, seeds 1-10 (deployed = seed 0).
+        V1R_ex    the same with every scored frame removed from training (--exclude-rows; mice: the 43,200 diagnosis
+                  rows; ants: the scored frames matched to v1's row space by frame_path).
+        M0        the current v2 (step-2 seeds 70-89 / 70-102): never saw a scored frame.
+        M0_plus   the current v2 recipe with the scored frames of TRAIN-role videos added to its training tokens,
+                  seeds 700-709 (calib / eval unchanged).
+        v1-recipe SAEs are scored on v1's own tokens of the scored frames (matched.py v1tok: dataset JPG -> DINOv2-B 448
+        -> v1 mask), identity-checked by re-reading the DEPLOYED v1 SAE against its stored codes_max.
+    MATCHED PAIRS: neither_seen = M0 vs V1R_ex; both_seen = M0_plus vs V1R_full. Per pair, (B) on the 5 decision cells x
+        {full, 256}: Welch 95% CI lower bound of (v2 arm - v1 arm) >= -0.01. (A) reported for M0 (known) and M0_plus.
+        Seen-frame effects reported: V1R_full - V1R_ex, M0_plus - M0; deployed v1 vs the V1R_full seed distribution.
+    READING: if v2 passes (B) in the neither_seen pair but not against the deployed v1, the earlier gaps were (partly)
+        a train/test artefact of v1.
 ==================================================================================================================
 
 Steps (scripts/eci/v2_diag/job.sh; staging in $LOCAL_DIR):
@@ -253,6 +276,7 @@ ARMS = {
     'R_comb': dict(src='d3l20', mask='tight', W=1024, prefixes=(128, 256, 512, 1024), frac=0.5),
     'P1_30k': dict(src='P1'), 'P1_90k': dict(src='P1', steps=90000),
     'V1M_d3': dict(src='V1M_d3'), 'V1M_d2': dict(src='V1M_d2'),
+    'M0_plus': dict(src='E0', plus=True),
     'B_v1sae': dict(src='d2b12', mask='dil', readout='own',
                     sae_path={'mice': 'dataset/mice/v1/eci/sae/matryoshka_btk_1024_k16_fg448al_s0/sae.pt',
                               'ants': 'dataset/ants/eci/sae/matryoshka_btk_1024_k16_antsfg_s0/sae.pt'}),
@@ -613,6 +637,15 @@ def cmd_train(args):
     if not todo:
         return
     sts = [store_of(dom, k, cfg, dev, on_gpu=False) for k in pool_kinds(dom, cfg)]
+    if cfg.get('plus'):  # MATCHED: + the scored frames of TRAIN-role videos (training side only; calib / eval unchanged)
+        for kind in ({'mice': ('diag',), 'ants': ('scored_v2', 'scored_v3')}[dom]):
+            St = e0_store(dom, kind, dev, on_gpu=False)
+            plan = json.loads((REPO / T2.series_cfg(dom, MT.KINDS[dom][kind]['series'])['plan']).read_text())
+            role = {v['obs']: v['role'] for v in plan['videos']}
+            St.F = St.F.copy()
+            St.F['role'] = [role[o] if role[o] == 'train' else 'none' for o in St.F.obs.values]
+            log(f'{dom} plus {kind}: {int((St.F.role == "train").sum()):,} scored frames of train videos added')
+            sts.append(St)
     X = {}
     for r in ('calib', 'eval'):
         X[r] = torch.cat([inputs(St, St.F.role.values[St.tf] == r) for St in sts]).cpu()

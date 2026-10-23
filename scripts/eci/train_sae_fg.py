@@ -141,6 +141,9 @@ def main():
     p.add_argument('--warmup', type=int, default=500)
     p.add_argument('--grad-clip', type=float, default=1.0)
     p.add_argument('--max-train-tokens', type=int, default=None, help='testing: random subset')
+    p.add_argument('--exclude-rows', default=None,
+                   help='npy of annotations.csv rows kept OUT of training (moved to the validation side; '
+                        'train/test-matched comparisons, scripts/eci/v2_diag/matched.py)')
     p.add_argument('--overwrite', action='store_true')
     p.add_argument('--motion', action='store_true',
                    help='SAE input = [token_t, token_t - token_{t-D}] (store written with --motion-delta D); '
@@ -165,6 +168,13 @@ def main():
     device = torch.device('cuda')
 
     val_pools, is_val_row = dom.val_split(args.val_from, args.split_seed)
+    n_excluded_rows = 0
+    if args.exclude_rows:
+        ex = np.load(args.exclude_rows)
+        is_val_row = np.asarray(is_val_row).copy()
+        n_excluded_rows = int((~is_val_row[ex]).sum())
+        is_val_row[ex] = True
+        print(f'--exclude-rows: {len(ex):,} rows, {n_excluded_rows:,} of them were training rows', flush=True)
     store = FgTokenStore(args.tokens_dir)
     t0 = time.time()
     shard_info = store.info[0]
@@ -244,7 +254,7 @@ def main():
         print('VAL per-block FVE (m=1024):', ev['blocks'], flush=True)
     metrics = {'args': vars(args), 'val_pools': val_pools, 'fg_rule': extra['fg_rule'], 'motion_delta': motion_delta,
                'val_blocks': ev.get('blocks'), 'n_train_tokens': int(len(train)),
-               'n_val_tokens': int(val_t.shape[0]), 'n_steps': total,
+               'n_val_tokens': int(val_t.shape[0]), 'n_steps': total, 'n_excluded_train_rows': n_excluded_rows,
                'threshold': float(sae.threshold), 'norm_scale_blocks': norm.scale.unique().tolist(), 'train_time_s': round(train_time, 1),
                'val_threshold': ev['threshold'], 'val_topk': ev['topk'], 'history': history}
     if 'encoder' in extra:

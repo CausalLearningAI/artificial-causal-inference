@@ -1,0 +1,135 @@
+{
+ "mice": {
+  "v1_train_frames": 460800,
+  "v1_val_pools": [
+   "rd11_2",
+   "rd24",
+   "rd29",
+   "rd43_1",
+   "rd48_1",
+   "rd56_1",
+   "rd56_3",
+   "rd58_1"
+  ],
+  "scored_window_all": {
+   "n_scored": 32400,
+   "exact_share": 0.875,
+   "same_video_share": 0.875
+  },
+  "scored_nose_nose_pos": {
+   "n_scored": 672,
+   "exact_share": 0.9107142857142857,
+   "same_video_share": 0.9107142857142857
+  },
+  "scored_nose_tail_pos": {
+   "n_scored": 345,
+   "exact_share": 0.8695652173913043,
+   "same_video_share": 0.8695652173913043
+  },
+  "v2_M0_pool": {
+   "n_scored": 32400,
+   "exact_share": 0.0,
+   "same_video_share": 1.0
+  },
+  "v2_P1_pool": {
+   "n_scored": 32400,
+   "exact_share": 0.0,
+   "same_video_share": 1.0
+  }
+ },
+ "ants": {
+  "v1_train_frames": 138600,
+  "v1_val_videos": [
+   "3_10_2",
+   "3_10_7",
+   "3_11_1",
+   "3_13_6",
+   "3_14_2",
+   "3_18_1",
+   "3_19_7",
+   "3_20_3",
+   "3_21_8",
+   "3_23_1",
+   "3_24_3",
+   "3_25_9",
+   "3_28_1",
+   "3_29_3",
+   "3_30_5",
+   "3_30_7",
+   "3_5_9",
+   "3_6_6",
+   "3_6_7",
+   "3_7_8",
+   "3_9_1",
+   "b7",
+   "b8",
+   "d2",
+   "e2"
+  ],
+  "eci_obs_examples": [
+   "3_10_1",
+   "3_10_2",
+   "3_10_3",
+   "e7",
+   "e8",
+   "e9"
+  ],
+  "eci30_obs_examples": [
+   "3_10_6",
+   "3_10_7",
+   "3_10_8",
+   "e7",
+   "e8",
+   "e9"
+  ],
+  "v2": {
+   "by_obs_frame": {
+    "n_scored": 13200,
+    "exact_share": 0.18181818181818182,
+    "same_video_share": 0.9090909090909091
+   },
+   "by_frame_path": {
+    "n_scored": 13200,
+    "exact_share": 0.18181818181818182,
+    "same_video_share": 0.9090909090909091
+   },
+   "groom_pos_by_frame_path": {
+    "n_scored": 2936,
+    "exact_share": 0.2557901907356948,
+    "same_video_share": 0.8852179836512262
+   },
+   "v2_M0_pool_by_obs_frame": {
+    "n_scored": 13200,
+    "exact_share": 0.0,
+    "same_video_share": 1.0
+   }
+  },
+  "v3": {
+   "by_obs_frame": {
+    "n_scored": 32100,
+    "exact_share": 0.009345794392523364,
+    "same_video_share": 0.8785046728971962
+   },
+   "by_frame_path": {
+    "n_scored": 32100,
+    "exact_share": 0.009345794392523364,
+    "same_video_share": 0.8785046728971962
+   },
+   "groom_pos_by_frame_path": {
+    "n_scored": 724,
+    "exact_share": 0.1919889502762431,
+    "same_video_share": 0.7209944751381215
+   },
+   "lid_pos_by_frame_path": {
+    "n_scored": 0,
+    "exact_share": null,
+    "same_video_share": null
+   },
+   "v2_M0_pool_by_obs_frame": {
+    "n_scored": 32100,
+    "exact_share": 0.0,
+    "same_video_share": 1.0
+   }
+  }
+ }
+}
