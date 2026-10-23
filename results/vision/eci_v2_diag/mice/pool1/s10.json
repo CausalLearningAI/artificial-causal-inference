@@ -1,0 +1,15 @@
+{
+ "dom": "mice",
+ "shard": 10,
+ "nshard": 24,
+ "n_videos": 18,
+ "n_frames": 16200,
+ "n_tight_tokens": 2365202,
+ "n_stored_tokens": 472919,
+ "p": 0.2,
+ "wall_s": 892.7232394218445,
+ "gpu_s": 677.4372842311859,
+ "fps_wall": 18.146721497349645,
+ "decode_thread_s": 9984.527067899704,
+ "gpu": "NVIDIA L40S"
+}
