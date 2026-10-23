@@ -44,6 +44,20 @@ def main():
                 return (fl & v1mask.FLAG[a_]) > 0
             return base_arm(self, a_)
         T.Union.arm = arm_fn
+        base_init = T.Union.__init__
+        step2 = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_mask2')
+
+        def init_fn(self, dom, kind):  # frame-level pixel stats (app_px, ...) from the step-2 store of the SAME frames
+            base_init(self, dom, kind)
+            import pandas as pd
+            F2 = pd.concat([pd.read_parquet(q / 'frames.parquet') for q in
+                            sorted((step2 / dom / kind).glob('s*'), key=lambda q: int(q.name[1:]))], ignore_index=True)
+            assert len(F2) == len(self.F) and (F2.obs.values == self.F.obs.values).all() and \
+                (F2.k.values == self.F.k.values).all(), 'frame order differs from the step-2 store'
+            for c in F2.columns:
+                if c not in self.F.columns:
+                    self.F[c] = F2[c].values
+        T.Union.__init__ = init_fn
         tok_arm = arm
     ns = argparse.Namespace(arm=tok_arm, seeds=a.seeds)
     for st in a.steps.split(','):
