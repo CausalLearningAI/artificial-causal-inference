@@ -607,13 +607,13 @@ def cmd_probe(args):
         St = sts['v1']
         Y, sets, half, _, _ = MT.mice_sets(St)
         keep, hh = RA.mice_window(St, half['all'])
-        jobs.append(('mice', St, keep, Y[keep][:, :2], hh['atlas'], ['nose_nose', 'nose_tail']))
+        jobs.append(('mice', St, keep, Y[keep][:, :2], hh['atlas'], ['nose_nose', 'nose_tail'], hh))
     else:
         for ser, St_ in sts.items():
             Y, hh, labs = MT.ants_set(St_, ser)
             want = ['groom_any'] + (['on_lid_any'] if ser == 'v3' else [])
-            jobs.append((ser, St_, np.arange(St_.nf), Y[:, [labs.index(w) for w in want]], hh['r4'], want))
-    for ser, St, keep, Yk, h_at, labs in jobs:
+            jobs.append((ser, St_, np.arange(St_.nf), Y[:, [labs.index(w) for w in want]], hh['r4'], want, hh))
+    for ser, St, keep, Yk, h_at, labs, hall in jobs:
         # frame subset (atlas window for mice) -> local token bags
         fsel = np.zeros(St.nf, bool)
         fsel[keep] = True
@@ -642,7 +642,7 @@ def cmd_probe(args):
         Xc = Xc - torch.nan_to_num(Xc, nan=1e4).min(0).values
         Xc = torch.nan_to_num(Xc, nan=0.0).clamp(0, 6e4).half()
         Ykg = torch.from_numpy(Yk).to(dev)
-        cf = crossfit(Xc, Ykg, {'atlas': h_at}, labs)
+        cf = crossfit(Xc, Ykg, {'atlas': h_at, 'rnd_atlas': h_at}, labs)  # crossfit's mean needs an rnd* key
         out = {}
         for li, lb in enumerate(labs):
             y = Yk[:, li].astype(bool)
@@ -655,12 +655,23 @@ def cmd_probe(args):
             out[lb] = {'tmax_R': float(np.mean([r['R'] for r in recs])), 'tmax_A': float(np.mean([r['A'] for r in recs])),
                        'chan_R': cf['splits']['atlas'][lb]['R'], 'chan_A': cf['splits']['atlas'][lb]['A'],
                        'base': float(y.mean()), 'n': int(len(y))}
+            # robustness (added after the first probe run, reported only): T-max on the random halves rnd0-4 too
+            rr = []
+            for sn in [f'rnd{i}' for i in range(5)]:
+                hs = hall[sn]
+                for a_, b_ in ((0, 1), (1, 0)):
+                    tr = torch.from_numpy(np.flatnonzero(hs == a_)).to(dev)
+                    te = np.flatnonzero(hs == b_)
+                    f = R2.fit_probe(torch, 'max', bags, None, y, tr, dev, steps=1500)
+                    rr.append(R2.metrics(f(torch.from_numpy(te).to(dev)), y[te])['R'])
+            out[lb]['tmax_R_rnd5'] = float(np.mean(rr))
+            out[lb]['tmax_R_rnd5_sd'] = float(np.std(rr))
             log(f'probe {dom} {ser} {tset} {lb}: T-max R~ {out[lb]["tmax_R"]:.4f} AUROC {out[lb]["tmax_A"]:.4f} | '
                 f'best channel R~ {out[lb]["chan_R"]:.4f}; {gpu_line()}')
         res[ser] = out
         del T, bags, Xc, mx, mn
         torch.cuda.empty_cache()
-    od = OUT / dom / 'probe'
+    od = OUT / dom / 'probe5'
     od.mkdir(parents=True, exist_ok=True)
     (od / f'{tset}.json').write_text(json.dumps(res, indent=1, default=float))
 
@@ -775,7 +786,7 @@ def cmd_decide(args):
                 'mean': float(a.mean()), 'sd': float(a.std(ddof=1)), 'n': len(a), 'v1': v1_val(dom, ser, lb, p)}
     probes = {}
     for dom in ('mice', 'ants'):
-        for f in sorted((OUT / dom / 'probe').glob('*.json')) if (OUT / dom / 'probe').exists() else []:
+        for f in sorted((OUT / dom / 'probe5').glob('*.json')) if (OUT / dom / 'probe5').exists() else []:
             probes.setdefault(dom, {})[f.stem] = json.loads(f.read_text())
     res['_probes'] = probes
     (OUT / 'ablation.json').write_text(json.dumps(res, indent=1, default=float))
@@ -796,7 +807,7 @@ def cmd_probes(args):
     import torch
     for tset in args.set.split(','):
         a = argparse.Namespace(**{**vars(args), 'set': tset})
-        if (OUT / args.dom / 'probe' / f'{tset}.json').exists():
+        if (OUT / args.dom / 'probe5' / f'{tset}.json').exists():
             continue
         cmd_probe(a)
         torch.cuda.empty_cache()
