@@ -72,8 +72,12 @@ def cmd_v1tok(args):
     for kind in c['kinds']:
         F = step2_frames(args.dom, kind)
         rows = F.row.values.astype(np.int64)
-        if args.dom == 'ants' and kind.startswith('scored'):
-            pass  # step-2 ants frames: 'row' = eci30 annotations.csv rows (release_ab maps v1 codes by (obs, frame_idx))
+        if args.dom == 'ants':  # step-2 ants 'row' is NOT an eci30 row: map (obs, frame_idx) -> eci30 row (release_ab)
+            a30 = pd.read_csv(ann_path, usecols=['observation_id', 'frame_idx'], dtype={'observation_id': str})
+            idx = pd.Series(np.arange(len(a30)), index=pd.MultiIndex.from_arrays([a30.observation_id, a30.frame_idx]))
+            r_ = idx.reindex(pd.MultiIndex.from_arrays([F.obs.values.astype(str), F.k.values.astype(int)])).values
+            assert not np.isnan(r_).any(), 'ants frames without an eci30 row'
+            rows = r_.astype(np.int64)
         if args.selftest:
             F, rows = F.iloc[:256], rows[:256]
         ds = enc.dataset([str(REPO / 'dataset' / p) for p in fp[rows]], rows,
