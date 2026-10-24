@@ -1383,6 +1383,7 @@ def f1_train_stores(dom, cfg, dev):
     else:  # full1 store (M0 | N2)
         old = T2.BEE
         T2.BEE = BEE
+        T2.KINDS[dom].setdefault('full1', {'series': F1_SERIES[dom][0]})  # G is unused for training (mixed grids)
         try:
             U = T2.Union(dom, 'full1')
         finally:
