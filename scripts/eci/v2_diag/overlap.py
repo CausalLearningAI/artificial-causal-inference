@@ -86,7 +86,11 @@ def main():
                    'eci30_obs_examples': sorted(set(a30.observation_id))[:3] + sorted(set(a30.observation_id))[-3:]}
     for ser in ('v2', 'v3'):
         Fa = frames('ants', f'scored_{ser}')
-        rw = Fa.row.values.astype(np.int64)
+        # the step-2 'row' is not an eci30 row: map (obs, frame_idx) -> eci30 row, as release_ab does
+        i30 = pd.Series(np.arange(len(a30)), index=pd.MultiIndex.from_arrays([a30.observation_id, a30.frame_idx]))
+        rw = i30.reindex(pd.MultiIndex.from_arrays([Fa.obs.values.astype(str), Fa.k.values.astype(int)])).values
+        assert not np.isnan(rw).any()
+        rw = rw.astype(np.int64)
         b = a30.iloc[rw]
         s_obs = (b.observation_id.values + '|' + b.frame_idx.values.astype(str))
         s_path = b.frame_path.values

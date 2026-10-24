@@ -107,23 +107,23 @@
   "v3": {
    "by_obs_frame": {
     "n_scored": 32100,
-    "exact_share": 0.009345794392523364,
-    "same_video_share": 0.8785046728971962
+    "exact_share": 0.17757009345794392,
+    "same_video_share": 0.897196261682243
    },
    "by_frame_path": {
     "n_scored": 32100,
-    "exact_share": 0.009345794392523364,
-    "same_video_share": 0.8785046728971962
+    "exact_share": 0.17757009345794392,
+    "same_video_share": 0.897196261682243
    },
    "groom_pos_by_frame_path": {
-    "n_scored": 724,
-    "exact_share": 0.1919889502762431,
-    "same_video_share": 0.7209944751381215
+    "n_scored": 10562,
+    "exact_share": 0.20526415451619012,
+    "same_video_share": 0.9027646279113805
    },
    "lid_pos_by_frame_path": {
-    "n_scored": 0,
-    "exact_share": null,
-    "same_video_share": null
+    "n_scored": 1184,
+    "exact_share": 0.0472972972972973,
+    "same_video_share": 0.7322635135135135
    },
    "v2_M0_pool_by_obs_frame": {
     "n_scored": 32100,
