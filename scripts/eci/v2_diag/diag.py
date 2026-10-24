@@ -630,8 +630,8 @@ def train_one(torch, cfg, seed, Xtr, Xca, Xev, od, dev):
     torch.backends.cuda.matmul.allow_tf32 = True
     din = Xtr.shape[1]
     g = np.random.default_rng(seed)
-    ii = torch.from_numpy(np.sort(g.choice(len(Xtr), min(250_000, len(Xtr)), replace=False))).to(dev)
-    init = Xtr[ii].float()
+    ii = torch.from_numpy(np.sort(g.choice(len(Xtr), min(250_000, len(Xtr)), replace=False)))
+    init = Xtr[ii.to(Xtr.device)].to(dev).float()
     norm = TokenNorm(din).to(dev).fit_blocks(init, [din], seed=seed)
     if cfg['norm'] == 'z':
         with torch.no_grad():
@@ -645,13 +645,15 @@ def train_one(torch, cfg, seed, Xtr, Xca, Xev, od, dev):
     opt = torch.optim.Adam(sae.parameters(), lr=5e-4, betas=(0.9, 0.999))
     gen = torch.Generator(device=dev).manual_seed(seed)
     Nn, bs, steps = len(Xtr), 4096, cfg['steps']
+    host = Xtr.device.type == 'cpu'  # big stores stay in pinned host RAM; the same permutation stream either way
     perm, p, hist, t0 = torch.randperm(Nn, generator=gen, device=dev), 0, [], time.time()
     for step in range(steps):
         if p + bs > Nn:
             perm, p = torch.randperm(Nn, generator=gen, device=dev), 0
         b = perm[p:p + bs]
         p += bs
-        logs, _ = _train_step(sae, opt, norm(Xtr[b].float()), step, steps, 5e-4, 500, 1.0)
+        xb = Xtr[b.cpu()].to(dev, non_blocking=True) if host else Xtr[b]
+        logs, _ = _train_step(sae, opt, norm(xb.float()), step, steps, 5e-4, 500, 1.0)
         if step % 5000 == 0 or step == steps - 1:
             logs.update(step=step, elapsed_s=round(time.time() - t0, 1))
             hist.append(logs)
@@ -733,8 +735,13 @@ def cmd_train(args):
             sel.append(m)
         if len(sts) == 1:
             Xtr = inputs(sts[0], sel[0])  # no 2x copy for a single store (P1 mice: 24 GiB)
-        else:  # several stores: concatenate on the host, one copy to the GPU
-            Xtr = torch.cat([inputs(St, m, 'cpu') for St, m in zip(sts, sel)]).to(dev)
+        else:  # several stores: concatenate on the host, one copy to the GPU (or kept in pinned host RAM if too big)
+            Xtr = torch.cat([inputs(St, m, 'cpu') for St, m in zip(sts, sel)])
+            if Xtr.numel() * 2 < 0.6 * torch.cuda.get_device_properties(dev).total_memory:
+                Xtr = Xtr.to(dev)
+            else:
+                Xtr = Xtr.pin_memory()
+                log(f'{dom} {arm}: {len(Xtr):,} train tokens kept in pinned host RAM (batches copied per step)')
         ti = train_one(torch, cfg, s, Xtr, X['calib'], X['eval'], sae_dir(dom, arm, s), dev)
         rec = {k: ti[k] for k in ('train_time_s', 'n_train_tokens', 'theta_star', 'theta_ema', 'eval_fve', 'eval_l0',
                                   'dead_at_end_train', 'eval_fve_prefix', 'eval_dead_frac', 'history')}
