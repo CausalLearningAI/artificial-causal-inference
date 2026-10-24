@@ -1,0 +1,18 @@
+{
+ "scored_v2": {
+  "frames": 13200,
+  "tokens_per_frame": 56.902196969696966,
+  "max_abs_diff_codes_max": 29.703125,
+  "mean_abs_diff": 0.001438742270693183,
+  "fire_agree": 0.9997253787878788,
+  "wall_s": 299.83243441581726
+ },
+ "scored_v3": {
+  "frames": 32100,
+  "tokens_per_frame": 48.958878504672896,
+  "max_abs_diff_codes_max": 32.936004638671875,
+  "mean_abs_diff": 0.0017325077205896378,
+  "fire_agree": 0.9996652915693146,
+  "wall_s": 637.5403170585632
+ }
+}

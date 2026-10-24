@@ -1,0 +1,10 @@
+{
+ "diag": {
+  "frames": 43200,
+  "tokens_per_frame": 148.88125,
+  "max_abs_diff_codes_max": 37.684906005859375,
+  "mean_abs_diff": 0.002171374624595046,
+  "fire_agree": 0.9995132559317129,
+  "wall_s": 782.7222630977631
+ }
+}
