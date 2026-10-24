@@ -1410,6 +1410,11 @@ def cmd_confirm(args):
     confirm_arm('R_comb', CONF_SEEDS, (400, 401, 402), 'confirm')
 
 
+def cmd_v2fdecide(args):
+    for arm in ('V2F_M0', 'V2F_N2'):
+        confirm_arm(arm, F1_SEEDS, (900, 901, 902), f'v2f_{arm}')
+
+
 def cmd_v1mdecide(args):
     for arm in ('V1M_d2',):  # amendment 2026-10-23: V1M_d3 not run
         confirm_arm(arm, V1M_SEEDS, (600, 601, 602), f'v1m_{arm}')
@@ -1434,7 +1439,7 @@ def cmd_arm(args):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('prep', 'train', 'score', 'arm', 'probe', 'neurons', 'decide', 'confirm', 'pool1', 'p1decide', 'v1mdecide', 'bgsall', 'full1'))
+    p.add_argument('step', choices=('prep', 'train', 'score', 'arm', 'probe', 'neurons', 'decide', 'confirm', 'pool1', 'p1decide', 'v1mdecide', 'bgsall', 'full1', 'v2fdecide'))
     p.add_argument('--dom', choices=('mice', 'ants'))
     p.add_argument('--kind')
     p.add_argument('--shard', type=int, default=0)
@@ -1448,7 +1453,7 @@ def main():
     a = p.parse_args()
     {'prep': cmd_prep, 'train': cmd_train, 'score': cmd_score, 'arm': cmd_arm, 'probe': cmd_probes, 'neurons': cmd_neurons, 'decide': cmd_decide, 'confirm': cmd_confirm, 'pool1': cmd_pool1,
      'p1decide': cmd_p1decide, 'v1mdecide': cmd_v1mdecide, 'bgsall': cmd_bgsall,
-     'full1': cmd_full1}[a.step](a)
+     'full1': cmd_full1, 'v2fdecide': cmd_v2fdecide}[a.step](a)
 
 
 if __name__ == '__main__':

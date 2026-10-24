@@ -19,7 +19,7 @@ import discovery as DI  # noqa: E402
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--arm', required=True, choices=('P1_30k', 'P1_90k', 'V1M_d3', 'V1M_d2'))
+    p.add_argument('--arm', required=True, choices=('P1_30k', 'P1_90k', 'V1M_d3', 'V1M_d2', 'V2F_M0', 'V2F_N2'))
     p.add_argument('--seeds', default='500-504')
     p.add_argument('--steps', default='lab,mab')
     a = p.parse_args()
@@ -31,6 +31,9 @@ def main():
     T.fve_of = lambda dom, _a, s: D.fve_of(dom, arm, s)
     T.DEPLOY_FROM = (500, 501, 502)
     tok_arm = 'M0'
+    if arm.startswith('V2F'):  # V2-full: the step-2 M0 / N2 tokens of the scored frames, own SAEs
+        T.DEPLOY_FROM = (900, 901, 902)
+        tok_arm = arm.split('_')[1]
     if arm.startswith('V1M'):  # v1-mask arms: their own token store (scripts/eci/v2_diag/v1mask.py), selected by flags
         import numpy as np
         import v1mask
