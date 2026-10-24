@@ -270,11 +270,11 @@ class MABe22(Bench):
 
     def eval_table(self):
         E = pd.read_parquet(self.EC.PLAN / 'eval_frames.parquet').reset_index(drop=True)
-        return E.assign(video=E.clip, v=E.i + self.off)
+        return E.assign(video=E['clip'], v=E['i'] + self.off)
 
     def pool_table(self):
         P = pd.read_parquet(self.EC.PLAN / 'train_frames.parquet').reset_index(drop=True)
-        return P.assign(video=P.clip, v=P.i + self.off)
+        return P.assign(video=P['clip'], v=P['i'] + self.off)
 
     def splits(self, E):
         import importlib.util
@@ -1190,9 +1190,34 @@ def cmd_feasibility(a):
     print(json.dumps(out, indent=1, default=float))
 
 
+def cmd_spec(a):
+    """(CPU) build every scoring spec and record table once; print sizes, base rates, video truth summaries."""
+    rep = {}
+    for b in (a.bench.split(',') if a.bench else list(BENCHES)):
+        B = BENCHES[b]()
+        sp = bench_spec(B)
+        R = B.records('d3')
+        rep[b] = {'n_eval': len(sp.Y), 'n_records': len(R), 'records_by_kind': R.kind.value_counts().to_dict(),
+                  'pool_roles': R[R.kind == 'pool'].role.value_counts().to_dict(), 'n_videos': int(sp.truth.shape[0]),
+                  'weighted_base': dict(zip(sp.labels, ((sp.Y * sp.w[:, None]).sum(0) / sp.w.sum()).round(5).tolist())),
+                  'truth_mean': dict(zip(sp.labels, sp.truth.mean(0).round(5).tolist())),
+                  'videos_with_behaviour': dict(zip(sp.labels, (sp.truth > 0).sum(0).tolist())),
+                  'splits': {k: [int((v == 0).sum()), int((v == 1).sum())] for k, v in list(sp.halves.items())[:2]}}
+        # IPW check: weighted label share among eval frames vs the truth (video-weighted by frames) - same order expected
+        print(b, json.dumps(rep[b], default=float), flush=True)
+    for dom in (['mice', 'ants'] if not a.bench else []):
+        Sc, sers, MT = lab_tables(dom)
+        for cell, (ix, sp) in lab_specs(dom, Sc, MT).items():
+            rep[cell] = {'n': len(ix), 'labels': sp.labels, 'base': sp.Y.mean(0).round(4).tolist(),
+                         'n_videos': int(sp.truth.shape[0]), 'splits': list(sp.halves)[:3]}
+            print(cell, json.dumps(rep[cell], default=float), flush=True)
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / 'spec.json').write_text(json.dumps(rep, indent=1, default=float))
+
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('smoke', 'feasibility', 'encode', 'lab', 'run', 'decide'))
+    p.add_argument('step', choices=('smoke', 'feasibility', 'encode', 'lab', 'run', 'decide', 'spec'))
     p.add_argument('--bench')
     p.add_argument('--dom')
     p.add_argument('--enc', default='d3')
@@ -1208,7 +1233,7 @@ def main():
         import decide
         decide.main()
         return
-    {'smoke': cmd_smoke, 'feasibility': cmd_feasibility, 'encode': cmd_encode, 'lab': cmd_lab, 'run': cmd_run}[a.step](a)
+    {'spec': cmd_spec, 'smoke': cmd_smoke, 'feasibility': cmd_feasibility, 'encode': cmd_encode, 'lab': cmd_lab, 'run': cmd_run}[a.step](a)
 
 
 if __name__ == '__main__':

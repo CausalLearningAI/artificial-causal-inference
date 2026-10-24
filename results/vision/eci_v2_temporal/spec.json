@@ -1,0 +1,216 @@
+{
+ "mabe22": {
+  "n_eval": 18496,
+  "n_records": 68032,
+  "records_by_kind": {
+   "ev0": 18496,
+   "evm": 18496,
+   "evp": 18496,
+   "pool": 12544
+  },
+  "pool_roles": {
+   "train": 10192,
+   "calib": 2352
+  },
+  "n_videos": 1828,
+  "weighted_base": {
+   "oral_oral_contact": 0.0023,
+   "oral_genital_contact": 0.00224,
+   "oral_ear_contact": 0.00084,
+   "approaches": 0.00355,
+   "huddles": 0.08056
+  },
+  "truth_mean": {
+   "oral_oral_contact": 0.00229,
+   "oral_genital_contact": 0.00225,
+   "oral_ear_contact": 0.00082,
+   "approaches": 0.00391,
+   "huddles": 0.08062
+  },
+  "videos_with_behaviour": {
+   "oral_oral_contact": 280,
+   "oral_genital_contact": 269,
+   "oral_ear_contact": 142,
+   "approaches": 370,
+   "huddles": 340
+  },
+  "splits": {
+   "s0": [
+    9260,
+    9236
+   ],
+   "s1": [
+    9311,
+    9185
+   ]
+  }
+ },
+ "calms21": {
+  "n_eval": 10000,
+  "n_records": 42000,
+  "records_by_kind": {
+   "pool": 12000,
+   "ev0": 10000,
+   "evm": 10000,
+   "evp": 10000
+  },
+  "pool_roles": {
+   "train": 10000,
+   "calib": 2000
+  },
+  "n_videos": 19,
+  "weighted_base": {
+   "attack": 0.04818,
+   "investigation": 0.2324,
+   "mount": 0.12142
+  },
+  "truth_mean": {
+   "attack": 0.03483,
+   "investigation": 0.24126,
+   "mount": 0.12221
+  },
+  "videos_with_behaviour": {
+   "attack": 5,
+   "investigation": 19,
+   "mount": 14
+  },
+  "splits": {
+   "s0": [
+    6803,
+    3197
+   ],
+   "s1": [
+    6178,
+    3822
+   ]
+  }
+ },
+ "crim13": {
+  "n_eval": 30000,
+  "n_records": 104000,
+  "records_by_kind": {
+   "ev0": 30000,
+   "evm": 30000,
+   "evp": 30000,
+   "pool": 14000
+  },
+  "pool_roles": {
+   "train": 10000,
+   "calib": 2000,
+   "fve": 2000
+  },
+  "n_videos": 236,
+  "weighted_base": {
+   "approach": 0.03402,
+   "attack": 0.03334,
+   "copulation": 0.04256,
+   "chase": 0.01001,
+   "circle": 0.00321,
+   "drink": 0.00292,
+   "eat": 0.01625,
+   "clean": 0.07379,
+   "sniff": 0.14523,
+   "up": 0.03858,
+   "walk_away": 0.0338
+  },
+  "truth_mean": {
+   "approach": 0.03365,
+   "attack": 0.03399,
+   "copulation": 0.03746,
+   "chase": 0.01025,
+   "circle": 0.00307,
+   "drink": 0.00292,
+   "eat": 0.01603,
+   "clean": 0.06751,
+   "sniff": 0.15484,
+   "up": 0.03864,
+   "walk_away": 0.03318
+  },
+  "videos_with_behaviour": {
+   "approach": 236,
+   "attack": 97,
+   "copulation": 111,
+   "chase": 142,
+   "circle": 30,
+   "drink": 48,
+   "eat": 116,
+   "clean": 235,
+   "sniff": 235,
+   "up": 221,
+   "walk_away": 233
+  },
+  "splits": {
+   "released": [
+    15000,
+    15000
+   ]
+  }
+ },
+ "mice": {
+  "n": 32400,
+  "labels": [
+   "nose_nose",
+   "nose_tail",
+   "nn_mutual",
+   "np_directional"
+  ],
+  "base": [
+   0.0207,
+   0.0106,
+   0.0069,
+   0.0139
+  ],
+  "n_videos": 144,
+  "splits": [
+   "rnd0",
+   "rnd1",
+   "rnd2"
+  ]
+ },
+ "ants_v2": {
+  "n": 13200,
+  "labels": [
+   "groom_any",
+   "groom_yellow",
+   "groom_blue"
+  ],
+  "base": [
+   0.2224,
+   0.1338,
+   0.1123
+  ],
+  "n_videos": 44,
+  "splits": [
+   "r4",
+   "rnd0",
+   "rnd1"
+  ]
+ },
+ "ants_v3": {
+  "n": 32100,
+  "labels": [
+   "groom_any",
+   "groom_yellow",
+   "groom_blue",
+   "on_lid_any",
+   "on_lid_yellow",
+   "on_lid_blue",
+   "on_lid_focal"
+  ],
+  "base": [
+   0.329,
+   0.1963,
+   0.1896,
+   0.0369,
+   0.0273,
+   0.0065,
+   0.0033
+  ],
+  "n_videos": 107,
+  "splits": [
+   "r4",
+   "rnd0",
+   "rnd1"
+  ]
+ }
+}
