@@ -1,0 +1,13 @@
+{
+ "dom": "mice",
+ "shard": 5,
+ "nshard": 24,
+ "n_videos": 18,
+ "n_frames": 18000,
+ "n_stored_tokens": 728239,
+ "p": 0.2,
+ "wall_s": 4585.66828250885,
+ "gpu_s": 3629.1940381526947,
+ "fps_wall": 3.925273022616472,
+ "gpu": "NVIDIA A40"
+}

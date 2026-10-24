@@ -1,0 +1,13 @@
+{
+ "dom": "ants",
+ "shard": 11,
+ "nshard": 12,
+ "n_videos": 19,
+ "n_frames": 30600,
+ "n_stored_tokens": 1372047,
+ "p": 1.0,
+ "wall_s": 1410.285868883133,
+ "gpu_s": 1129.316780090332,
+ "fps_wall": 21.697728577705654,
+ "gpu": "NVIDIA L40S"
+}

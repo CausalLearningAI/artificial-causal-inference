@@ -233,6 +233,13 @@ V2-FULL (TRANSDUCTIVE v2), PRE-REGISTERED 2026-10-23 ~19:30 (user direction: "tr
         (simpler cue) unless V2F_N2 is better on >= 1 decision cell (Welch CI excluding 0) and worse on none, or the
         tail criterion (user release blocker 2026-10-22) is decisive - reported, decided with the user.
     An interim report follows the grid pick, before the confirmation.
+    GRID PICK 2026-10-24 (by the rule above; results/vision/eci_v2_diag/grid_pick.json; no lab label read): full data,
+        held-out FVE@256 averaged over domains and 2 seeds: 30k/2048 0.8354, 90k/2048 0.8354, 30k/4096 0.8318,
+        90k/4096 0.8321; the 2048 cells tie (within 0.002) -> the simpler 30k steps. Dead latents <= 0.34% everywhere.
+        Converged: the training FVE is flat over the last 10k of 30k steps (mice 0.8700 / 0.8700). More data: FVE@256
+        full - half at 30k/2048 = mice +0.0001, ants -0.0003 (< 0.003) -> no denser token set. => V2F arms: Matryoshka
+        2048 (128/256/512/2048), k 16, 30k steps on 'full1' + scored frames. The 'full1' mice store holds 24.9M M0 | N2
+        tokens (> the 16M figure used to set p; the N2 arm trains on an 80 GB GPU instead of lowering p).
 ==================================================================================================================
 
 Steps (scripts/eci/v2_diag/job.sh; staging in $LOCAL_DIR):
@@ -303,8 +310,8 @@ ARMS = {
     'P1_30k': dict(src='P1'), 'P1_90k': dict(src='P1', steps=90000),
     'V1M_d3': dict(src='V1M_d3'), 'V1M_d2': dict(src='V1M_d2'),
     'M0_plus': dict(src='E0', plus=True),
-    'V2F_M0': dict(src='F1', mask='M0', steps=90000, W=2048, prefixes=(128, 256, 512, 2048)),  # cell fixed by the grid
-    'V2F_N2': dict(src='F1', mask='N2', steps=90000, W=2048, prefixes=(128, 256, 512, 2048)),  # (amended after it)
+    'V2F_M0': dict(src='F1', mask='M0', steps=30000, W=2048, prefixes=(128, 256, 512, 2048)),  # grid pick 2026-10-24
+    'V2F_N2': dict(src='F1', mask='N2', steps=30000, W=2048, prefixes=(128, 256, 512, 2048)),
     'G_half_30k_w2048': dict(src='G', half=True, steps=30000, W=2048, prefixes=(128, 256, 512, 2048)),
     'G_half_30k_w4096': dict(src='G', half=True, steps=30000, W=4096, prefixes=(128, 256, 512, 2048, 4096)),
     'G_half_90k_w2048': dict(src='G', half=True, steps=90000, W=2048, prefixes=(128, 256, 512, 2048)),
