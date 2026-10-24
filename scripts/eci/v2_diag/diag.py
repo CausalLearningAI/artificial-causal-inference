@@ -240,6 +240,16 @@ V2-FULL (TRANSDUCTIVE v2), PRE-REGISTERED 2026-10-23 ~19:30 (user direction: "tr
         full - half at 30k/2048 = mice +0.0001, ants -0.0003 (< 0.003) -> no denser token set. => V2F arms: Matryoshka
         2048 (128/256/512/2048), k 16, 30k steps on 'full1' + scored frames. The 'full1' mice store holds 24.9M M0 | N2
         tokens (> the 16M figure used to set p; the N2 arm trains on an 80 GB GPU instead of lowering p).
+V1 SEED DISTRIBUTION, PRE-REGISTERED 2026-10-24 ~23:00 (user approval; written BEFORE any retrained-v1 SAE or score).
+    QUESTION: is the deployed v1 (one SAE, seed 0) a lucky draw? ARMS: V1R_full = v1's EXACT recipe
+    (scripts/eci/train_sae_fg.py with the deployed args: its stored DINOv2-B fg448al / antsfg token stores, Matryoshka
+    1024 128/256/512/1024, k 16, 5 epochs, its val split, its EMA threshold readout), seeds 1-10, ants first, mice too
+    (estimated ~3 GPU-h: 13 min per seed + staging; <= 5). All v1 SAEs (deployed s0 and the 10) are read out on the SAME
+    v1 tokens of the scored frames (matched.py v1tok: dataset JPG -> DINOv2-B 448 -> v1 mask; identity: deployed s0 vs its
+    stored codes_max) and scored with the release scorer (R~ atlas split).
+    REPORTED: per cell the retrained mean / sd / range, the deployed s0 rank among the 11 and its z-score vs the 10.
+    MEAN-VS-MEAN: V2F_M0 and V2F_N2 (seeds 900-919 / 900-932) vs the 11 v1 seeds, Welch 95% CI, (B) pass iff the lower
+    bound >= -0.01 on every decision cell at full and @256; the original arm - deployed-v1 t-CI is shown next to it.
 ==================================================================================================================
 
 Steps (scripts/eci/v2_diag/job.sh; staging in $LOCAL_DIR):

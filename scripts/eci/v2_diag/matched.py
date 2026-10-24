@@ -274,15 +274,63 @@ def cmd_decide(args):
     print('\n'.join(L))
 
 
+def cmd_seeddecide(args):
+    """v1 seed distribution (deployed s0 + V1R_full 1-10, all on the v1 tokens) and V2F arms mean-vs-mean."""
+    res, L = {}, ['## v1 seed distribution (R~ atlas split)', '',
+                  '| cell | prefix | deployed s0 | retrained mean ± sd (n) | min / max | deployed rank (of n+1, 1 = best) | z |',
+                  '|---|---|---|---|---|---|---|']
+    for dom, ser, lb in D.DCELLS:
+        for p in ('full', '256'):
+            nm = f'{dom}{" " + ser if ser else ""} {lb}'
+            dv = vals(dom, 'V1_dep', ser, lb, p)
+            fr = vals(dom, 'V1R_full', ser, lb, p)
+            if not len(dv) or len(fr) < 2:
+                continue
+            d0 = float(dv[0])
+            rank = int((fr > d0).sum()) + 1
+            z = float((d0 - fr.mean()) / fr.std(ddof=1))
+            res.setdefault('v1_seeds', {})[f'{nm} | {p}'] = {'deployed': d0, 'mean': float(fr.mean()),
+                                                           'sd': float(fr.std(ddof=1)), 'n': len(fr), 'rank': rank, 'z': z,
+                                                           'percentile': float((fr < d0).mean())}
+            L.append(f'| {nm} | {p} | {d0:.4f} | {fr.mean():.4f} ± {fr.std(ddof=1):.4f} ({len(fr)}) | {fr.min():.4f} / '
+                     f'{fr.max():.4f} | {rank} / {len(fr) + 1} | {z:+.2f} |')
+    L += ['', '## V2F arms vs the v1 seed distribution (deployed s0 + 10 retrained; Welch 95% CI; pass = lower bound >= -0.01)',
+          '', '| arm | cell | prefix | arm mean (n) | v1 mean (n) | arm - v1 (Welch) | pass | arm - deployed v1 (t-CI, original) |',
+          '|---|---|---|---|---|---|---|---|']
+    for arm in ('V2F_M0', 'V2F_N2'):
+        ok = True
+        for dom, ser, lb in D.DCELLS:
+            for p in ('full', '256'):
+                nm = f'{dom}{" " + ser if ser else ""} {lb}'
+                x = np.array(list(D.cell_vals(dom, arm, ser, lb, p, seeds=D.F1_SEEDS[dom]).values()))
+                y = np.concatenate([vals(dom, 'V1_dep', ser, lb, p), vals(dom, 'V1R_full', ser, lb, p)])
+                if len(x) < 2 or len(y) < 2:
+                    continue
+                d = D.welch_ci(x, y)
+                ps = bool(d[1] >= -0.01)
+                ok &= ps
+                o = RA.tci(x - D.v1_val(dom, ser, lb, p))
+                res.setdefault(arm, {})[f'{nm} | {p}'] = {'arm': float(x.mean()), 'v1': float(y.mean()), 'diff': list(d),
+                                                         'pass': ps, 'vs_deployed_original': list(o)}
+                L.append(f'| {arm} | {nm} | {p} | {x.mean():.4f} ({len(x)}) | {y.mean():.4f} ({len(y)}) | {d[0]:+.4f} '
+                         f'[{d[1]:+.4f}, {d[2]:+.4f}] | {ps} | {o[0]:+.4f} [{o[1]:+.4f}, {o[2]:+.4f}] |')
+        res.setdefault(arm, {})['B_PASS_mean_vs_mean'] = bool(ok)
+    L += ['', 'B (mean vs mean) PASS: ' + json.dumps({a: res.get(a, {}).get('B_PASS_mean_vs_mean') for a in ('V2F_M0', 'V2F_N2')})]
+    (D.OUT / 'v1seeds.json').write_text(json.dumps(res, indent=1, default=float))
+    (D.OUT / 'v1seeds_table.md').write_text('\n'.join(L))
+    print('\n'.join(L))
+
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('v1tok', 'excl', 'v1train', 'score', 'decide'))
+    p.add_argument('step', choices=('v1tok', 'excl', 'v1train', 'score', 'decide', 'seeddecide'))
     p.add_argument('--dom', choices=('mice', 'ants'))
     p.add_argument('--arm')
     p.add_argument('--seeds')
     p.add_argument('--selftest', action='store_true')
     a = p.parse_args()
-    {'v1tok': cmd_v1tok, 'excl': cmd_excl, 'v1train': cmd_v1train, 'score': cmd_score, 'decide': cmd_decide}[a.step](a)
+    {'v1tok': cmd_v1tok, 'excl': cmd_excl, 'v1train': cmd_v1train, 'score': cmd_score, 'decide': cmd_decide,
+     'seeddecide': cmd_seeddecide}[a.step](a)
 
 
 if __name__ == '__main__':
