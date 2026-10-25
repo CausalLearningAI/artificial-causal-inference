@@ -965,8 +965,8 @@ def cmd_sheets(args):
             hv, ov = heat.cpu().numpy(), occ.cpu().numpy()
             roi = np.array(blocks)
             sp = spearmanr(hv[roi], ov[roi]).correlation if len(roi) > 2 else np.nan
-            ph, po = int(np.argmax(hv)), int(np.argmax(ov))
-            pd_ = max(abs(ph // G - po // G), abs(ph % G - po % G))
+            pk_h, pk_o = int(np.argmax(hv)), int(np.argmax(ov))
+            pd_ = max(abs(pk_h // G - pk_o // G), abs(pk_h % G - pk_o % G))
             tail_occ = float(np.clip(ov, 0, None)[(g.napp.cpu().numpy() >= 16)].sum() / max(np.clip(ov, 0, None).sum(), 1e-9))
             agr.append({'obs': o, 'k': k, 'a': a0, 'a_batch_sd': float(np.std(a0s)), 'spearman_heat_occ': float(sp), 'peak_dist_tokens': pd_,
                         'occ_mass_on_tail_tokens': tail_occ, 'n_blocks': len(blocks),
