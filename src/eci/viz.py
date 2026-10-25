@@ -627,19 +627,45 @@ def _thumb(tiles, path, size=150, n=3):
     strip.save(path, quality=85)
 
 
-def _overlay_rgb(img, hm, box, vmax, cmap):
-    """Heatmap blended onto the frame, as an RGB uint8 array (for thumbnails)."""
+def peak_patch(hm):
+    """(iy, ix) of the patch with the largest value of a patch map, None when the max is not > 0 (ties: first)."""
+    if hm is None or not float(np.max(hm)) > 0:
+        return None
+    return tuple(int(i) for i in np.unravel_index(int(np.argmax(hm)), np.shape(hm)))
+
+
+def _overlay_rgb(img, hm, box, vmax, cmap, style='patch', mark=True):
+    """Heatmap blended onto the frame, as an RGB uint8 array. hm holds one value per patch.
+    style='patch' (default): blocky, nearest-neighbour squares, exactly the values the model computed; with
+    mark=True the patch holding the map's max (the max-pooled value) gets a thin white outline with a black edge.
+    style='smooth': the old bilinear upsampling (gradients inside patches the model never computed), no mark."""
+    assert style in ('patch', 'smooth'), style
     out = img.astype(np.float32) / 255
+    pk = None
     if hm is not None and vmax > 0:
         x0, y0, c = box
-        H = np.array(Image.fromarray(hm.astype(np.float32)).resize((int(round(c)), int(round(c))), Image.BILINEAR))
+        n = int(round(c))
+        h32 = hm.astype(np.float32)
+        H = np.array(Image.fromarray(h32).resize((n, n), Image.NEAREST if style == 'patch' else Image.BILINEAR))
         x0, y0 = int(round(x0)), int(round(y0))
         w = np.clip(H / vmax, 0, 1)
         rgba = cmap(w)
         a = (0.65 * w ** 0.7)[..., None]
         sub = out[y0:y0 + H.shape[0], x0:x0 + H.shape[1]]
         out[y0:y0 + H.shape[0], x0:x0 + H.shape[1]] = (1 - a) * sub + a * rgba[..., :3]
-    return (out * 255).astype(np.uint8)
+        pk = peak_patch(h32) if (style == 'patch' and mark) else None
+    res = (out * 255).astype(np.uint8)
+    if pk is not None:
+        gy, gx = hm.shape[:2]
+        px0 = x0 + int(round(pk[1] * c / gx)); px1 = x0 + int(round((pk[1] + 1) * c / gx)) - 1
+        py0 = y0 + int(round(pk[0] * c / gy)); py1 = y0 + int(round((pk[0] + 1) * c / gy)) - 1
+        H_, W_ = res.shape[:2]
+        for d, col in ((1, 0), (0, 255)):  # black edge 1 px outside the white 1-px outline
+            xa, xb, ya, yb = px0 - d, px1 + d, py0 - d, py1 + d
+            xa, xb, ya, yb = max(xa, 0), min(xb, W_ - 1), max(ya, 0), min(yb, H_ - 1)
+            res[ya, xa:xb + 1] = col; res[yb, xa:xb + 1] = col
+            res[ya:yb + 1, xa] = col; res[ya:yb + 1, xb] = col
+    return res
 
 
 def write_index(out_dir, table, sort_by='firing_rate', ascending=False, title='SAE neuron gallery', note=''):

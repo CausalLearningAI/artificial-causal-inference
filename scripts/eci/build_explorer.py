@@ -1514,13 +1514,15 @@ def tile_text(c):
     return f'{c["experiment"]} t={c["T"]} · day {c["day"]} · {c["obs"]}'
 
 
-def crop_origin(maps, rep, W, H, crop):
+def crop_origin(maps, rep, W, H, crop, style='patch'):
     """(x0, y0) of the crop x crop square (source px) centred on the activation peak of one clip: the argmax
-    of its patch codes summed over the clip's frames (Gaussian-smoothed, sigma 1 patch), mapped through the
+    of its patch codes summed over the clip's frames (style='smooth': Gaussian-smoothed, sigma 1 patch; 'patch': unblurred), mapped through the
     patch grid's frame box and clamped inside the frame. None when the clip has no activation."""
     from scipy.ndimage import gaussian_filter
     from src.eci.viz import frame_box
-    acc = gaussian_filter(np.maximum(maps.astype(np.float32), 0).sum(0), 1.0)
+    acc = np.maximum(maps.astype(np.float32), 0).sum(0)
+    if style == 'smooth':
+        acc = gaussian_filter(acc, 1.0)
     if not acc.max() > 0:
         return None
     iy, ix = np.unravel_index(int(np.argmax(acc)), acc.shape)
@@ -1529,7 +1531,7 @@ def crop_origin(maps, rep, W, H, crop):
     return (int(round(min(max(cx - crop / 2, 0), W - crop))), int(round(min(max(cy - crop / 2, 0), H - crop))))
 
 
-def tile_frames(c, frame_path, vmax, color, rep, tile, maps=None, hvmax=None, origin=None, crop=None, rot=None):
+def tile_frames(c, frame_path, vmax, color, rep, tile, maps=None, hvmax=None, origin=None, crop=None, rot=None, style='patch'):
     """len(c['rows']) labelled tile x tile frames of one clip; a bar at the bottom shows the activation
     of the current frame relative to vmax. maps: (w, grid, grid) patch codes -> heatmap overlaid (scale hvmax).
     origin / crop: the clip is cut to the crop x crop square at origin (source px, crop_origin), else the
@@ -1549,7 +1551,7 @@ def tile_frames(c, frame_path, vmax, color, rep, tile, maps=None, hvmax=None, or
         if maps is not None:
             a = np.asarray(im)
             im = Image.fromarray(_overlay_rgb(a, maps[t].astype(np.float32), frame_box(rep, a.shape[1], a.shape[0]),
-                                              hvmax, cmap))
+                                              hvmax, cmap, style=style))
         if origin is not None:
             im = im.crop((origin[0], origin[1], origin[0] + crop, origin[1] + crop))
             if crop != tile:
@@ -1942,9 +1944,9 @@ def media_url(name):
     return AMAP.get(name, f'assets/{name}')
 
 
-def clip_peaks(pz, src, L, n_clips):
+def clip_peaks(pz, src, L, n_clips, style='patch'):
     """[[x, y], ...] activation peak of each of the first n_clips top clips of one source and length, as fractions
-    of the tile (patch codes summed over the clip's frames, Gaussian-smoothed, sigma 1 patch; argmax at the patch
+    of the tile (patch codes summed over the clip's frames, unblurred; style='smooth': Gaussian sigma 1 patch; argmax at the patch
     centre; the patch grid covers the whole tile for fg448 SAEs, turned with the frame for aligned SAEs); None when
     the clip has no activation. The page's zoom centres on it."""
     from scipy.ndimage import gaussian_filter
@@ -1952,7 +1954,9 @@ def clip_peaks(pz, src, L, n_clips):
     m = pz[f'{src}__{L}__top'].astype(np.float32)
     out = []
     for k in range(n_clips):
-        acc = gaussian_filter(np.maximum(m[k * w:(k + 1) * w], 0).sum(0), 1.0)
+        acc = np.maximum(m[k * w:(k + 1) * w], 0).sum(0)
+        if style == 'smooth':
+            acc = gaussian_filter(acc, 1.0)
         if not acc.max() > 0:
             out.append(None)
             continue
