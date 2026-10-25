@@ -634,26 +634,35 @@ def peak_patch(hm):
     return tuple(int(i) for i in np.unravel_index(int(np.argmax(hm)), np.shape(hm)))
 
 
+ALPHA_RGB = (0xE0 / 255, 0x45 / 255, 0x7B / 255)  # pink for style='alpha'
+
+
 def _overlay_rgb(img, hm, box, vmax, cmap, style='patch', mark=True):
     """Heatmap blended onto the frame, as an RGB uint8 array. hm holds one value per patch.
     style='patch' (default): blocky, nearest-neighbour squares, exactly the values the model computed; with
     mark=True the patch holding the map's max (the max-pooled value) gets a thin white outline with a black edge.
-    style='smooth': the old bilinear upsampling (gradients inside patches the model never computed), no mark."""
-    assert style in ('patch', 'smooth'), style
+    style='smooth': the old bilinear upsampling (gradients inside patches the model never computed), no mark.
+    style='alpha': nearest-neighbour squares in ONE colour (pink); only the opacity scales with activation
+    (0 at zero, 0.75 at vmax, gamma 0.7); mark=True outlines the max-pooled patch as in 'patch'."""
+    assert style in ('patch', 'smooth', 'alpha'), style
     out = img.astype(np.float32) / 255
     pk = None
     if hm is not None and vmax > 0:
         x0, y0, c = box
         n = int(round(c))
         h32 = hm.astype(np.float32)
-        H = np.array(Image.fromarray(h32).resize((n, n), Image.NEAREST if style == 'patch' else Image.BILINEAR))
+        H = np.array(Image.fromarray(h32).resize((n, n), Image.BILINEAR if style == 'smooth' else Image.NEAREST))
         x0, y0 = int(round(x0)), int(round(y0))
         w = np.clip(H / vmax, 0, 1)
-        rgba = cmap(w)
-        a = (0.65 * w ** 0.7)[..., None]
+        if style == 'alpha':
+            rgba = np.broadcast_to(np.array(ALPHA_RGB, np.float32), w.shape + (3,))
+            a = (0.75 * w ** 0.7)[..., None]
+        else:
+            rgba = cmap(w)
+            a = (0.65 * w ** 0.7)[..., None]
         sub = out[y0:y0 + H.shape[0], x0:x0 + H.shape[1]]
         out[y0:y0 + H.shape[0], x0:x0 + H.shape[1]] = (1 - a) * sub + a * rgba[..., :3]
-        pk = peak_patch(h32) if (style == 'patch' and mark) else None
+        pk = peak_patch(h32) if (style != 'smooth' and mark) else None
     res = (out * 255).astype(np.uint8)
     if pk is not None:
         gy, gx = hm.shape[:2]
