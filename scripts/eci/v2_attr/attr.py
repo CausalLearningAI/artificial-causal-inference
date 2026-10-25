@@ -99,6 +99,19 @@ tail occlusion changes strict body tokens even >= 7 tokens away (median relative
     AUROC_occC - AUROC_occT with a pool-bootstrap CI. The decision rules are unchanged. Sheet occlusion maps compute
     the unoccluded value inside every batch (element 0), so the map is not shifted by batch-shape numerics.
 
+AMENDMENT 2026-10-25 ~03:00, POST HOC (after reading attr.json / table.md; step 'posthoc' -> OUT/posthoc.json,
+OUT/posthoc_table.md; the pre-registered numbers above are kept unchanged and reported first):
+    (P1) the pre-registered N2 'tail neuron' pick (top 5 by appendage share) returned 5 neurons with share 1.000 that
+         fire at the frame's top row / corners (argmax row 0; e.g. n1779 at token (0, 0) in 121 frames): mask2 border
+         artefacts, not tails, and occlusion leaves them unchanged. Re-pick with the existing mask2_test rule for an
+         appendage neuron (share > 0.5, >= 20 SEL firing frames), top 5 by SEL firing frames (the mask2_test sheet
+         rule), plus a summary over ALL such neurons of N2 (204) and of M0 (13), same attribution metrics.
+    (P2) pair probe: does tail presence leave a linear trace in a body token whose own pixels did not change? Ridge
+         probe (same CV) separating z_orig from z_occT of the SAME strict body tokens, for K1 = 1 tokens; reference
+         pairs orig vs occC (control occlusion) and K1 = 0 tokens; AUROC.
+    (P3) sheets: 3 re-picked N2 appendage neurons + the 3 pre-registered M0 token-AUROC neurons + M0 n88 (the largest
+         D_T / a of the pre-registered M0 picks).
+
 Steps (scripts/eci/v2_attr/job.sh; staging in $LOCAL_DIR):
     extract --shard i --nshard n [--selftest]   (GPU) -> BEE/mice/s<i>/
     analyse                                    (GPU) -> OUT/attr.json, OUT/table.md
@@ -719,6 +732,112 @@ def cmd_analyse(args):
     write_table(res)
 
 
+def cmd_posthoc(args):
+    import torch
+    dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    D = Data()
+    F_, T = D.F, D.T
+    sel_f, test_f = F_.half.values == 0, F_.half.values == 1
+    out = {}
+
+    def attrib(a, j):
+        fc = D.fc[a][:, :, j].astype(np.float32)
+        ti = np.flatnonzero(test_f & (fc[:, 0] > 0))
+        ti = ti[np.argsort(-fc[ti, 0])[:30]]
+        if len(ti) == 0:
+            return None
+        ao = fc[ti, 0]
+        dT, dTo, dB, dC = (np.maximum(0, ao - fc[ti, CONDS.index(c)]) for c in ('occT', 'occTout', 'occB', 'occC'))
+        den = dT + dB
+        ok = den > 0
+        hm = D.hn[a][ti, j] / np.maximum(D.hd[a][ti, j], 1e-9)
+        r_, c_ = np.divmod(D.arg[a][ti, j].astype(int), 64)
+        return {'n_frames': int(len(ti)), 'a_median': float(np.median(ao)),
+                'tail_share_median': float(np.median(dT[ok] / den[ok])) if ok.any() else None,
+                'dT_rel_median': float(np.median(dT / ao)), 'dTout_rel_median': float(np.median(dTo / ao)),
+                'dB_rel_median': float(np.median(dB / ao)), 'dC_rel_median': float(np.median(dC / ao)),
+                'heat_tail_mass_median': float(np.median(hm)),
+                'argmax_border_share': float(np.mean((r_ <= 1) | (r_ >= 62) | (c_ <= 1) | (c_ >= 62))),
+                'frames': [int(x) for x in ti[:3]]}
+    for a in ARMS:
+        fc0 = D.fc[a][:, 0].astype(np.float32)
+        fire = (fc0[sel_f] > 0).sum(0)
+        sh = D.hn[a][sel_f].sum(0) / np.maximum(D.hd[a][sel_f].sum(0), 1e-9)
+        js = np.flatnonzero((fire >= 20) & (sh > 0.5))
+        order = [int(j) for j in js[np.argsort(-fire[js])]]
+        rs = {j: attrib(a, j) for j in order}
+        rs = {j: r for j, r in rs.items() if r}
+        for j, r in rs.items():
+            r['sel_firing_frames'], r['appendage_share_sel'] = int(fire[j]), float(sh[j])
+            if a == 'N2':
+                r['Q3_heat_faithful'] = bool(r['tail_share_median'] is not None and
+                                             abs(r['heat_tail_mass_median'] - r['tail_share_median']) <= 0.2)
+
+        def summary(rr):
+            ts = [r['tail_share_median'] for r in rr if r['tail_share_median'] is not None]
+            d = {'n_neurons': len(rr), 'median_tail_share': float(np.median(ts)) if ts else None,
+                 'share_tail_share_ge_0.5': float(np.mean(np.array(ts) >= 0.5)) if ts else None}
+            for k in ('dT_rel_median', 'dTout_rel_median', 'dB_rel_median', 'dC_rel_median', 'heat_tail_mass_median',
+                      'argmax_border_share'):
+                d[f'median_{k}'] = float(np.median([r[k] for r in rr])) if rr else None
+            if a == 'N2' and rr:
+                d['share_faithful'] = float(np.mean([r['Q3_heat_faithful'] for r in rr]))
+            return d
+        allr = list(rs.values())
+        out[f'{a}_appendage_summary'] = summary(allr)
+        out[f'{a}_appendage_summary_non_border'] = summary([r for r in allr if r['argmax_border_share'] <= 0.5])
+        out[f'{a}_appendage_top5'] = {j: rs[j] for j in order[:5] if j in rs}
+        out[f'{a}_appendage_all'] = rs
+    out['M0_n88'] = attrib('M0', 88)
+    log(json.dumps({k: v for k, v in out.items() if 'summary' in k}, default=float))
+    # (P2) pair probe
+    strict = T['kM0'] & (T['nfillT'] == 0)
+    K1 = T['nb_app'][strict] >= 16
+    gt = F_.pool.values[T['tok_frame'][strict]]
+    Zo = D.z('orig', strict)
+    pair = {}
+    for c in ('occT', 'occC'):
+        Zc = D.z(c, strict)
+        for nm, m in (('K1_pos', K1), ('K1_neg', ~K1)):
+            ii = np.flatnonzero(m)
+            ii = np.sort(np.random.default_rng(0).choice(ii, min(len(ii), 150000), replace=False))
+            X = np.concatenate([Zo[ii], Zc[ii]])
+            y = np.r_[np.ones(len(ii)), np.zeros(len(ii))].astype(np.float32)
+            P, _, _ = cv_probe(X, y, np.r_[gt[ii], gt[ii]], dev)
+            pair[f'orig_vs_{c}_{nm}'] = auroc(y, P[:, 0])
+            log(f'pair orig vs {c} {nm}: AUROC {pair[f"orig_vs_{c}_{nm}"]:.3f} (n {len(ii)} pairs)')
+        del Zc
+    out['pair_probe_AUROC'] = pair
+    (OUT / 'posthoc.json').write_text(json.dumps(out, indent=1, default=float))
+    f = lambda v: '-' if v is None else f'{v:.3f}'  # noqa: E731
+    L = ['# Post-hoc additions (amendment 2026-10-25 ~03:00; see attr.py docstring)', '',
+         '## P1 appendage neurons by the mask2_test rule (share > 0.5, >= 20 SEL frames); attribution on TEST frames', '',
+         '| arm | neuron | SEL firing frames | appendage share | a | tail share | D_T/a | D_Tout/a | D_B/a | D_C/a | '
+         'heat-map tail mass | argmax at border |', '|---|---|---|---|---|---|---|---|---|---|---|---|']
+    rows = [(a, j, r) for a in ARMS for j, r in out[f'{a}_appendage_top5'].items()] + [('M0', '88 (pre-reg. pick)', out['M0_n88'])]
+    for a, j, r in rows:
+        L.append(f'| {a} | {j} | {r.get("sel_firing_frames", "-")} | {f(r.get("appendage_share_sel"))} | '
+                 f'{r["a_median"]:.2f} | {f(r["tail_share_median"])} | {r["dT_rel_median"]:.3f} | '
+                 f'{r["dTout_rel_median"]:.3f} | {r["dB_rel_median"]:.3f} | {r["dC_rel_median"]:.3f} | '
+                 f'{r["heat_tail_mass_median"]:.3f} | {r["argmax_border_share"]:.2f} |')
+    L += ['', '| set | n neurons | median tail share | share with tail share >= 0.5 | median D_T/a | median D_Tout/a | '
+          'median D_B/a | median D_C/a | median heat tail mass | N2: heat faithful share |', '|---|---|---|---|---|---|---|---|---|---|']
+    for a in ARMS:
+        for suf, nm in (('', 'all'), ('_non_border', 'argmax not at border')):
+            s_ = out[f'{a}_appendage_summary{suf}']
+            L.append(f'| {a} appendage neurons, {nm} | {s_["n_neurons"]} | {f(s_["median_tail_share"])} | '
+                     f'{f(s_["share_tail_share_ge_0.5"])} | {f(s_["median_dT_rel_median"])} | '
+                     f'{f(s_["median_dTout_rel_median"])} | {f(s_["median_dB_rel_median"])} | '
+                     f'{f(s_["median_dC_rel_median"])} | {f(s_["median_heat_tail_mass_median"])} | '
+                     f'{f(s_.get("share_faithful"))} |')
+    L += ['', '## P2 pair probe: orig vs occluded version of the same strict body token (AUROC, 5-fold by pool)', '',
+          '| pair | K1 = 1 (tail within 2 tokens) | K1 = 0 |', '|---|---|---|',
+          f'| orig vs tail occluded | {pair["orig_vs_occT_K1_pos"]:.3f} | {pair["orig_vs_occT_K1_neg"]:.3f} |',
+          f'| orig vs control occlusion | {pair["orig_vs_occC_K1_pos"]:.3f} | {pair["orig_vs_occC_K1_neg"]:.3f} |']
+    (OUT / 'posthoc_table.md').write_text('\n'.join(L) + '\n')
+    print('\n'.join(L))
+
+
 def write_table(res):
     t = res['token_probe']
     L = ['# ECI v2 attribution: tight mask (V2F_M0 s901) vs thin-part mask (V2F_N2 s900), mice v1', '',
@@ -799,15 +918,17 @@ def cmd_sheets(args):
     se = Series(T2.series_cfg(DOM, SER), dev, encoder=enc)
     h = T2.h_of(DOM, SER)
     saes = load_saes(dev)
-    picks = [('N2', int(j)) for j in list(res['selection']['N2_appendage_share'])[:3]] + \
-            [('M0', int(j)) for j in list(res['selection']['M0_token_auroc'])[:3]]
+    ph = json.loads((OUT / 'posthoc.json').read_text())
+    picks = [('N2', int(j)) for j in list(ph['N2_appendage_top5'])[:3]] + \
+            [('M0', int(j)) for j in list(res['selection']['M0_token_auroc'])[:3]] + [('M0', 88)]
     if args.selftest:
         picks = picks[:1]
     (OUT / 'sheets').mkdir(parents=True, exist_ok=True)
     out = {}
     for a, j in picks:
-        grp = 'N2_tail' if a == 'N2' else 'M0_token'
-        fr_ids = res['attribution'][grp][str(j)]['frames'][:1 if args.selftest else 3]
+        src = ph['N2_appendage_top5'][str(j)] if a == 'N2' else ph['M0_n88'] if j == 88 else \
+            res['attribution']['M0_token'][str(j)]
+        fr_ids = src['frames'][:1 if args.selftest else 3]
         rows, agr = [], []
         for fi in fr_ids:
             o, k = D.F.obs[fi], int(D.F.k[fi])
@@ -894,13 +1015,13 @@ def F_pool_dilate(g, G):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('extract', 'analyse', 'sheets'))
+    p.add_argument('step', choices=('extract', 'analyse', 'posthoc', 'sheets'))
     p.add_argument('--shard', type=int, default=0)
     p.add_argument('--nshard', type=int, default=1)
     p.add_argument('--selftest', action='store_true')
     a = p.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
-    {'extract': cmd_extract, 'analyse': cmd_analyse, 'sheets': cmd_sheets}[a.step](a)
+    {'extract': cmd_extract, 'analyse': cmd_analyse, 'posthoc': cmd_posthoc, 'sheets': cmd_sheets}[a.step](a)
 
 
 if __name__ == '__main__':
