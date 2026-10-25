@@ -1,0 +1,19 @@
+{
+ "tokens_per_frame_v1": {
+  "v1": 148.94640046296297
+ },
+ "tokens_per_frame_v2": {
+  "N2": 265.6302777777778,
+  "M0": 151.14350694444445
+ },
+ "identity_v1_s0": {
+  "fire_agree": 0.9996305790653935,
+  "max_abs_diff": 42.0,
+  "mean_abs_diff": 0.0016148292925208807
+ },
+ "identity_v2dep": {
+  "fire_agree_mean": 0.9999998926233364,
+  "fire_agree_min": 0.9999983723958333,
+  "max_abs_diff": 2.05859375
+ }
+}

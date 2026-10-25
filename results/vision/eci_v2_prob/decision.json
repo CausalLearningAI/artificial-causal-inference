@@ -1,0 +1,367 @@
+{
+ "readout": {
+  "summary": [
+   {
+    "readout": "FNORM",
+    "dnAP": -0.2480875590173802,
+    "F1": 0.3085421489824126,
+    "BF1": 0.08000576988310913,
+    "VR": 0.5719064301952896,
+    "bss": -0.42145792837833407,
+    "ece": 0.09949272941633988,
+    "n_cells": 30,
+    "pass_i": false
+   },
+   {
+    "readout": "HMM2",
+    "dnAP": -0.00829902071927258,
+    "F1": 0.4503906757935835,
+    "BF1": 0.1640603124173518,
+    "VR": 0.5464230419682502,
+    "bss": -6.608497840955132,
+    "ece": 0.1725145906865711,
+    "n_cells": 30,
+    "pass_i": true
+   },
+   {
+    "readout": "HMM3",
+    "dnAP": 0.0023027319677488395,
+    "F1": 0.46164857216147576,
+    "BF1": 0.2052932342396881,
+    "VR": 0.5782440981177966,
+    "bss": -2.833278418622754,
+    "ece": 0.11209007250144946,
+    "n_cells": 30,
+    "pass_i": true
+   },
+   {
+    "readout": "MIX",
+    "dnAP": -0.15474576174758473,
+    "F1": 0.37957717843471717,
+    "BF1": 0.06733639922839602,
+    "VR": 0.5107735612091132,
+    "bss": -9.712528974799325,
+    "ece": 0.2517622340523055,
+    "n_cells": 30,
+    "pass_i": false
+   },
+   {
+    "readout": "Q95",
+    "dnAP": -0.265050201484834,
+    "F1": 0.3035905324856279,
+    "BF1": 0.06855211698005845,
+    "VR": 0.5328059848563087,
+    "bss": -1.534003419519372,
+    "ece": 0.11830120703571997,
+    "n_cells": 30,
+    "pass_i": false
+   }
+  ],
+  "recommended": "HMM3",
+  "calibrated_cells": [
+   {
+    "tier": "A",
+    "arm": "v1_dep",
+    "cell": "ants v2_groom_any",
+    "bss": 0.39246554266552586,
+    "ece": 0.10256972458288187,
+    "calibrated": false
+   },
+   {
+    "tier": "A",
+    "arm": "v1_dep",
+    "cell": "ants v3_groom_any",
+    "bss": 0.23798607978230188,
+    "ece": 0.16450271082134618,
+    "calibrated": false
+   },
+   {
+    "tier": "A",
+    "arm": "v1_dep",
+    "cell": "ants v3_on_lid_any",
+    "bss": 0.6412336896085066,
+    "ece": 0.010571864249160862,
+    "calibrated": true
+   },
+   {
+    "tier": "A",
+    "arm": "v1_dep",
+    "cell": "mice v1_nose_nose",
+    "bss": -7.055169096540075,
+    "ece": 0.17599950166023684,
+    "calibrated": false
+   },
+   {
+    "tier": "A",
+    "arm": "v1_dep",
+    "cell": "mice v1_nose_tail",
+    "bss": -13.97545316008531,
+    "ece": 0.16096689427079747,
+    "calibrated": false
+   },
+   {
+    "tier": "A",
+    "arm": "v2dep",
+    "cell": "ants v2_groom_any",
+    "bss": 0.3728668987008694,
+    "ece": 0.10690890407670345,
+    "calibrated": false
+   },
+   {
+    "tier": "A",
+    "arm": "v2dep",
+    "cell": "ants v3_groom_any",
+    "bss": 0.197462580055926,
+    "ece": 0.17357007151961798,
+    "calibrated": false
+   },
+   {
+    "tier": "A",
+    "arm": "v2dep",
+    "cell": "ants v3_on_lid_any",
+    "bss": 0.6808008823872658,
+    "ece": 0.009572305052427415,
+    "calibrated": true
+   },
+   {
+    "tier": "A",
+    "arm": "v2dep",
+    "cell": "mice v1_nose_nose",
+    "bss": -7.592551457192109,
+    "ece": 0.18914708970185368,
+    "calibrated": false
+   },
+   {
+    "tier": "A",
+    "arm": "v2dep",
+    "cell": "mice v1_nose_tail",
+    "bss": -2.9742040201942874,
+    "ece": 0.040213513149933273,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "V2F_M0",
+    "cell": "ants v2_groom_any",
+    "bss": 0.19385937828056182,
+    "ece": 0.12017335318961118,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "V2F_M0",
+    "cell": "ants v3_groom_any",
+    "bss": 0.09867675440012078,
+    "ece": 0.1901017080228149,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "V2F_M0",
+    "cell": "ants v3_on_lid_any",
+    "bss": 0.7040303559959884,
+    "ece": 0.014052194731856222,
+    "calibrated": true
+   },
+   {
+    "tier": "B",
+    "arm": "V2F_M0",
+    "cell": "mice v1_nose_nose",
+    "bss": -6.876518940763163,
+    "ece": 0.17799153049915115,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "V2F_M0",
+    "cell": "mice v1_nose_tail",
+    "bss": -6.328106075092758,
+    "ece": 0.06698956059827244,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "V2F_N2",
+    "cell": "ants v2_groom_any",
+    "bss": 0.21043410179305894,
+    "ece": 0.11753835949565085,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "V2F_N2",
+    "cell": "ants v3_groom_any",
+    "bss": 0.11076942603452347,
+    "ece": 0.18754158148186256,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "V2F_N2",
+    "cell": "ants v3_on_lid_any",
+    "bss": 0.7098120386933782,
+    "ece": 0.014253761888949697,
+    "calibrated": true
+   },
+   {
+    "tier": "B",
+    "arm": "V2F_N2",
+    "cell": "mice v1_nose_nose",
+    "bss": -3.9322955028612445,
+    "ece": 0.11109759816628967,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "V2F_N2",
+    "cell": "mice v1_nose_tail",
+    "bss": -6.531023321492473,
+    "ece": 0.0637135216306394,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "v2dep",
+    "cell": "ants v2_groom_any",
+    "bss": 0.2501800125531578,
+    "ece": 0.11078796538067426,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "v2dep",
+    "cell": "ants v3_groom_any",
+    "bss": 0.09353522668460434,
+    "ece": 0.19019732950797794,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "v2dep",
+    "cell": "ants v3_on_lid_any",
+    "bss": 0.7802900049245491,
+    "ece": 0.010289399916067308,
+    "calibrated": true
+   },
+   {
+    "tier": "B",
+    "arm": "v2dep",
+    "cell": "mice v1_nose_nose",
+    "bss": -7.713084893114785,
+    "ece": 0.19952522402508863,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "v2dep",
+    "cell": "mice v1_nose_tail",
+    "bss": -4.264918652268529,
+    "ece": 0.044366451543658626,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "v1_all",
+    "cell": "ants v2_groom_any",
+    "bss": 0.3271922729746011,
+    "ece": 0.10017305530144618,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "v1_all",
+    "cell": "ants v3_groom_any",
+    "bss": 0.18044093903797392,
+    "ece": 0.17134298611790508,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "v1_all",
+    "cell": "ants v3_on_lid_any",
+    "bss": 0.6103689301777228,
+    "ece": 0.017651921372774045,
+    "calibrated": true
+   },
+   {
+    "tier": "B",
+    "arm": "v1_all",
+    "cell": "mice v1_nose_nose",
+    "bss": -5.845388894269723,
+    "ece": 0.15184782828390161,
+    "calibrated": false
+   },
+   {
+    "tier": "B",
+    "arm": "v1_all",
+    "cell": "mice v1_nose_tail",
+    "bss": -18.702043659558807,
+    "ece": 0.16904426480393303,
+    "calibrated": false
+   }
+  ]
+ },
+ "metric": {
+  "V": [
+   {
+    "metric": "Rt",
+    "DS": 0.38554361036559986,
+    "vr": 0.5333978639100618,
+    "f1": 0.4783633568941221,
+    "bf1": 0.14486961029261566,
+    "reliability": 0.2292516345700858,
+    "eta2_arms": 0.2303653353181999
+   },
+   {
+    "metric": "nAP",
+    "DS": 0.38819028063787947,
+    "vr": 0.5387549752945104,
+    "f1": 0.481132960718704,
+    "bf1": 0.14468290590042404,
+    "reliability": 0.44581319320685053,
+    "eta2_arms": 0.2816371130922375
+   },
+   {
+    "metric": "AUROC",
+    "DS": 0.38875325309792724,
+    "vr": 0.543358399444422,
+    "f1": 0.47862730247117014,
+    "bf1": 0.14427405737818969,
+    "reliability": 0.56280649466253,
+    "eta2_arms": 0.3358559486062051
+   },
+   {
+    "metric": "F1max",
+    "DS": 0.3855523972373733,
+    "vr": 0.5349254831745268,
+    "f1": 0.4780712966380317,
+    "bf1": 0.14366041189956144,
+    "reliability": 0.4660279069152851,
+    "eta2_arms": 0.2465933143896047
+   },
+   {
+    "metric": "BF1",
+    "DS": 0.21167608740873334,
+    "vr": 0.11687256575437809,
+    "f1": 0.3183708823317735,
+    "bf1": 0.1997848141400484,
+    "reliability": 0.45697258411017716,
+    "eta2_arms": 0.17397047099478496
+   },
+   {
+    "metric": "VR",
+    "DS": 0.2981135205968233,
+    "vr": 0.4326850383844687,
+    "f1": 0.37301546826071974,
+    "bf1": 0.08864005514528128,
+    "reliability": 0.4368109022179533,
+    "eta2_arms": 0.14407002925752316
+   }
+  ],
+  "primary": "AUROC",
+  "secondary": [
+   "nAP",
+   "F1max"
+  ]
+ }
+}
