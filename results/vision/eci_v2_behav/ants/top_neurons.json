@@ -1,0 +1,162 @@
+{
+ "v2dep_s6": {
+  "capacity_mean": {
+   "v1": 31.4,
+   "v2dep": 109.66666666666667,
+   "V2F_M0": 108.6,
+   "V2F_N2": 101.0
+  },
+  "top": [
+   {
+    "neuron": 8,
+    "rate_D": 0.12902776896953583,
+    "off_share": 0.0,
+    "eta2": 0.19776064157485962,
+    "tau_s": 5.663444657014089,
+    "r2_cond": -0.3355023637374314,
+    "repro": 0.9621859192848206,
+    "inv_min": 0.7686530351638794,
+    "extent_bodies": 0.08333333333333333,
+    "level": 1.0,
+    "group_size": 12,
+    "label_R~ (validation only)": {
+     "v2_groom_any": -0.02788953651945228,
+     "v3_groom_any": -0.03331334569419983,
+     "v3_on_lid_any": -0.012866052914086296
+    },
+    "sheet": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_behav/sheets/ants_v2dep_s6_n8.jpg"
+   },
+   {
+    "neuron": 1149,
+    "rate_D": 0.00812962930649519,
+    "off_share": 0.0,
+    "eta2": 0.31730926036834717,
+    "tau_s": 13.431406151300031,
+    "r2_cond": -0.3809519795550328,
+    "repro": 0.9129732847213745,
+    "inv_min": 0.8664731979370117,
+    "extent_bodies": 0.16666666666666666,
+    "level": 1.0,
+    "group_size": 2,
+    "label_R~ (validation only)": {
+     "v2_groom_any": 0.0035580703218476535,
+     "v3_groom_any": -0.0005524656136918774,
+     "v3_on_lid_any": 0.0038463797610425064
+    },
+    "sheet": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_behav/sheets/ants_v2dep_s6_n1149.jpg"
+   },
+   {
+    "neuron": 1495,
+    "rate_D": 0.03324073925614357,
+    "off_share": 0.0,
+    "eta2": 0.04671299457550049,
+    "tau_s": 0.288163625081716,
+    "r2_cond": 0.16380390620829247,
+    "repro": 0.8901536464691162,
+    "inv_min": 0.6441373825073242,
+    "extent_bodies": 0.08333333333333333,
+    "level": 2.0,
+    "group_size": 1,
+    "label_R~ (validation only)": {
+     "v2_groom_any": -0.00047839923456119665,
+     "v3_groom_any": -0.0023752594590752967,
+     "v3_on_lid_any": -0.010872129804401486
+    },
+    "sheet": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_behav/sheets/ants_v2dep_s6_n1495.jpg"
+   },
+   {
+    "neuron": 211,
+    "rate_D": 0.26879629492759705,
+    "off_share": 0.0,
+    "eta2": 0.13454611599445343,
+    "tau_s": 1.0708421951931888,
+    "r2_cond": -0.21339168256495628,
+    "repro": 0.8811146020889282,
+    "inv_min": 0.7790069580078125,
+    "extent_bodies": 0.08333333333333333,
+    "level": 2.0,
+    "group_size": 1,
+    "label_R~ (validation only)": {
+     "v2_groom_any": 0.00039984510414125,
+     "v3_groom_any": 0.004641613516221126,
+     "v3_on_lid_any": -0.026020157497386117
+    },
+    "sheet": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_behav/sheets/ants_v2dep_s6_n211.jpg"
+   },
+   {
+    "neuron": 397,
+    "rate_D": 0.21718518435955048,
+    "off_share": 0.0,
+    "eta2": 0.2653372585773468,
+    "tau_s": 1.3263926812791862,
+    "r2_cond": 0.0823556474551293,
+    "repro": 0.8743666410446167,
+    "inv_min": 0.6832019686698914,
+    "extent_bodies": 0.08333333333333333,
+    "level": 2.0,
+    "group_size": 1,
+    "label_R~ (validation only)": {
+     "v2_groom_any": -0.00414677066910617,
+     "v3_groom_any": 0.01860379465010852,
+     "v3_on_lid_any": -0.029527918719599405
+    },
+    "sheet": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_behav/sheets/ants_v2dep_s6_n397.jpg"
+   },
+   {
+    "neuron": 1647,
+    "rate_D": 0.005574074108153582,
+    "off_share": 0.0,
+    "eta2": 0.1679728925228119,
+    "tau_s": 25.137472258243818,
+    "r2_cond": -0.5524828608852653,
+    "repro": 0.8741815090179443,
+    "inv_min": 0.623634934425354,
+    "extent_bodies": 0.25,
+    "level": 2.0,
+    "group_size": 1,
+    "label_R~ (validation only)": {
+     "v2_groom_any": 0.022821855422364146,
+     "v3_groom_any": 0.004014831086423716,
+     "v3_on_lid_any": -0.0005550464289692423
+    },
+    "sheet": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_behav/sheets/ants_v2dep_s6_n1647.jpg"
+   },
+   {
+    "neuron": 712,
+    "rate_D": 0.01111111044883728,
+    "off_share": 0.0,
+    "eta2": 0.4268050789833069,
+    "tau_s": 68.45333792193372,
+    "r2_cond": -0.550971149308941,
+    "repro": 0.873304009437561,
+    "inv_min": 0.7290675044059753,
+    "extent_bodies": 0.16666666666666666,
+    "level": 2.0,
+    "group_size": 3,
+    "label_R~ (validation only)": {
+     "v2_groom_any": -0.00828984436336768,
+     "v3_groom_any": 0.000333963944086285,
+     "v3_on_lid_any": -0.0013725979535812345
+    }
+   },
+   {
+    "neuron": 57,
+    "rate_D": 0.36448147892951965,
+    "off_share": 0.0,
+    "eta2": 0.21806320548057556,
+    "tau_s": 7.258489190754005,
+    "r2_cond": -0.082660641214869,
+    "repro": 0.8664039373397827,
+    "inv_min": 0.9013798236846924,
+    "extent_bodies": 0.16666666666666666,
+    "level": 1.0,
+    "group_size": 2,
+    "label_R~ (validation only)": {
+     "v2_groom_any": -0.14631759691288937,
+     "v3_groom_any": -0.1417097182717918,
+     "v3_on_lid_any": 0.01870379808583328
+    }
+   }
+  ]
+ }
+}

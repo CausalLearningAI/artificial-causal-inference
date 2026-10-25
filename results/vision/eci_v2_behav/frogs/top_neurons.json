@@ -1,0 +1,127 @@
+{
+ "v2dep_s6": {
+  "capacity_mean": {
+   "v2dep": 233.33333333333334
+  },
+  "top": [
+   {
+    "neuron": 198,
+    "rate_D": 0.018324073404073715,
+    "off_share": 0.0,
+    "eta2": 0.14654602110385895,
+    "tau_s": 1.1274820376236252,
+    "r2_cond": 0.09972761824297635,
+    "repro": 0.9878931641578674,
+    "inv_min": 0.878046989440918,
+    "extent_bodies": 0.05,
+    "level": 1.0,
+    "group_size": 4,
+    "label_R~ (validation only)": {},
+    "sheet": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_behav/sheets/frogs_v2dep_s6_n198.jpg"
+   },
+   {
+    "neuron": 9,
+    "rate_D": 0.3727407455444336,
+    "off_share": 0.0,
+    "eta2": 0.464619904756546,
+    "tau_s": 4.007243658732625,
+    "r2_cond": 0.20527151817179634,
+    "repro": 0.9779218435287476,
+    "inv_min": 0.9241549968719482,
+    "extent_bodies": 0.1,
+    "level": 1.0,
+    "group_size": 16,
+    "label_R~ (validation only)": {},
+    "sheet": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_behav/sheets/frogs_v2dep_s6_n9.jpg"
+   },
+   {
+    "neuron": 1,
+    "rate_D": 0.09106481075286865,
+    "off_share": 0.0,
+    "eta2": 0.20186640322208405,
+    "tau_s": 3.9492404037131936,
+    "r2_cond": -0.11492452671626632,
+    "repro": 0.973792314529419,
+    "inv_min": 0.913719654083252,
+    "extent_bodies": 0.05,
+    "level": 1.0,
+    "group_size": 18,
+    "label_R~ (validation only)": {},
+    "sheet": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_behav/sheets/frogs_v2dep_s6_n1.jpg"
+   },
+   {
+    "neuron": 8,
+    "rate_D": 0.2736574113368988,
+    "off_share": 0.0,
+    "eta2": 0.453351765871048,
+    "tau_s": 3.282210912444494,
+    "r2_cond": 0.20692918969363996,
+    "repro": 0.9534308910369873,
+    "inv_min": 0.9439014792442322,
+    "extent_bodies": 0.1,
+    "level": 1.0,
+    "group_size": 3,
+    "label_R~ (validation only)": {},
+    "sheet": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_behav/sheets/frogs_v2dep_s6_n8.jpg"
+   },
+   {
+    "neuron": 78,
+    "rate_D": 0.2699536979198456,
+    "off_share": 0.0,
+    "eta2": 0.3993504047393799,
+    "tau_s": 2.5424234353100346,
+    "r2_cond": 0.3474425764371295,
+    "repro": 0.9432954788208008,
+    "inv_min": 0.8750361204147339,
+    "extent_bodies": 0.15,
+    "level": 1.0,
+    "group_size": 1,
+    "label_R~ (validation only)": {},
+    "sheet": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_behav/sheets/frogs_v2dep_s6_n78.jpg"
+   },
+   {
+    "neuron": 800,
+    "rate_D": 0.006787037011235952,
+    "off_share": 0.0,
+    "eta2": 0.1003829687833786,
+    "tau_s": 17.020019308306967,
+    "r2_cond": -0.27388799638840494,
+    "repro": 0.9315459728240967,
+    "inv_min": 0.6934391260147095,
+    "extent_bodies": 0.05,
+    "level": 1.0,
+    "group_size": 1,
+    "label_R~ (validation only)": {},
+    "sheet": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_behav/sheets/frogs_v2dep_s6_n800.jpg"
+   },
+   {
+    "neuron": 225,
+    "rate_D": 0.0776018500328064,
+    "off_share": 0.0,
+    "eta2": 0.3467073142528534,
+    "tau_s": 1.31402102264213,
+    "r2_cond": 0.49250914776589194,
+    "repro": 0.9224005341529846,
+    "inv_min": 0.8395589590072632,
+    "extent_bodies": 0.15,
+    "level": 1.0,
+    "group_size": 6,
+    "label_R~ (validation only)": {}
+   },
+   {
+    "neuron": 186,
+    "rate_D": 0.18232406675815582,
+    "off_share": 0.0,
+    "eta2": 0.211785227060318,
+    "tau_s": 1.0946281817996413,
+    "r2_cond": 0.20299400029898815,
+    "repro": 0.9077695608139038,
+    "inv_min": 0.5829015970230103,
+    "extent_bodies": 0.1,
+    "level": 1.0,
+    "group_size": 1,
+    "label_R~ (validation only)": {}
+   }
+  ]
+ }
+}
