@@ -110,7 +110,7 @@ def main():
             continue
         res['bench'][b] = {'values': V}
         L += [f'## {b}', '', '| variant | seeds | R~ | AP | video r | AUROC | held-out FVE | R~ - T0 | AP - T0 | '
-              'video r - T0 | R~ verdict |', '|---|---|---|---|---|---|---|---|---|---|---|']
+              'video r - T0 | AUROC - T0 | R~ verdict |', '|---|---|---|---|---|---|---|---|---|---|---|---|']
         for vn in ORDER:
             if vn not in V:
                 continue
@@ -120,8 +120,8 @@ def main():
                 contrasts.setdefault(vn, {})[b] = c
             L.append(f'| {vn} | {len(v["seeds"])} | {fmt(v["R"])} | {fmt(v["AP"])} | {fmt(v["vid_r"])} | '
                      f'{fmt(v["A"])} | {fmt(v["fve"])} | ' +
-                     (f'{fci(c["R"])} | {fci(c["AP"])} | {fci(c["vid_r"])} | {verdict(c["R"])} |' if c else
-                      '- | - | - | reference |'))
+                     (f'{fci(c["R"])} | {fci(c["AP"])} | {fci(c["vid_r"])} | {fci(c["A"])} | {verdict(c["R"])} |' if c else
+                      '- | - | - | - | reference |'))
         L += ['', f'Per behaviour ({b}): R~ / AP / video r, mean over seeds', '',
               '| variant | ' + ' | '.join(V['T0']['labels']) + ' |', '|---|' + '---|' * len(V['T0']['labels'])]
         for vn in ORDER:
@@ -173,6 +173,12 @@ def main():
     L += ['', f'Choice: **{choice}**', '', f'Q1: {res["verdicts"]["Q1"]}', '', f'Q2: {res["verdicts"]["Q2"]}', '']
     # lab
     res['lab'] = {}
+    L += ['## Lab check', '', ('DESCRIPTIVE: no variant was adopted on the design benchmarks, so by the pre-registered rule the '
+          'lab check confirms nothing and is reported per variant vs T0 (same Welch rule words). ' if not ad else '') +
+          'T3 / T3s were NOT run on the lab: T3 was a LOSS on 1 of 3 benchmarks (eligible), but the lab V-JEPA encode '
+          '(1 clip per record at 1024 / 768-832 px, mice ~84k and ants ~118k records, 1.47 / ~3 clips per GPU-s, '
+          'decode-bound mice seeks) projects to > 30 GPU-h, above the ~31 GPU-h left of the 80 GPU-h budget; '
+          'the pre-registered budget condition fails.', '']
     for dom in ('mice', 'ants'):
         S = load(dom)
         if not S:
@@ -181,17 +187,17 @@ def main():
         res['lab'][dom] = {'values': V}
         prim = 'mean(nose_nose, nose_tail) R~ (atlas split)' if dom == 'mice' else 'mean(v2, v3 groom_any) R~ (r4 split)'
         L += [f'## Lab {dom} - primary = {prim}', '',
-              '| variant | seeds | R~ | R~ (rnd splits) | AP | video r | R~ - T0 | AP - T0 | video r - T0 | verdict |',
-              '|---|---|---|---|---|---|---|---|---|---|']
+              '| variant | seeds | R~ | R~ (rnd splits) | AP | video r | AUROC | R~ - T0 | AP - T0 | video r - T0 | '
+              'AUROC - T0 | verdict |', '|---|---|---|---|---|---|---|---|---|---|---|---|']
         for vn in ORDER:
             if vn not in V:
                 continue
             v = V[vn]
-            c = {m: welch(v[m], V['T0'][m]) for m in ('R', 'AP', 'vid_r')} if vn != 'T0' and 'T0' in V else None
+            c = {m: welch(v[m], V['T0'][m]) for m in ('R', 'AP', 'vid_r', 'A')} if vn != 'T0' and 'T0' in V else None
             res['lab'][dom].setdefault('contrasts', {})[vn] = c
             L.append(f'| {vn} | {len(v["seeds"])} | {fmt(v["R"])} | {fmt(v["R_rnd"])} | {fmt(v["AP"])} | '
-                     f'{fmt(v["vid_r"])} | ' + (f'{fci(c["R"])} | {fci(c["AP"])} | {fci(c["vid_r"])} | '
-                                               f'{verdict(c["R"])} |' if c else '- | - | - | reference |'))
+                     f'{fmt(v["vid_r"])} | {fmt(v["A"])} | ' + (f'{fci(c["R"])} | {fci(c["AP"])} | {fci(c["vid_r"])} | '
+                                               f'{fci(c["A"])} | {verdict(c["R"])} |' if c else '- | - | - | - | reference |'))
         L += ['', '| variant | cell | label | R~ | AP | video r | AUROC |', '|---|---|---|---|---|---|---|']
         for vn in ORDER:
             if vn in V:
