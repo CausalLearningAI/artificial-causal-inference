@@ -2913,5 +2913,39 @@
     }
    }
   }
+ },
+ "v2_0": {
+  "frozen": "2026-10-25",
+  "spec": "configs/eci_v2/representation.json",
+  "previous_spec": "configs/eci_v2/representation_2026-10-20_F0.json",
+  "out": "results/vision/eci_v2_0",
+  "bee": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_0",
+  "entry_point": "scripts/eci/v2/v20.py",
+  "deploy": {
+   "mice": {
+    "sae": "V2F_N2_s900",
+    "dir": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_diag/mice/sae/V2F_N2_s900",
+    "eval_fve": 0.88455098657664,
+    "candidates_fve": {
+     "900": 0.88455,
+     "901": 0.8845,
+     "902": 0.88422
+    }
+   },
+   "ants": {
+    "sae": "V2F_N2_s900",
+    "dir": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_diag/ants/sae/V2F_N2_s900",
+    "eval_fve": 0.8690670612026377,
+    "candidates_fve": {
+     "900": 0.86907,
+     "901": 0.86835,
+     "902": 0.86828
+    }
+   },
+   "frogs": {
+    "sae": "pending (trained by scripts/eci/v2/v20.py, seeds 900-902)"
+   }
+  },
+  "status": "rollout in progress"
  }
 }
