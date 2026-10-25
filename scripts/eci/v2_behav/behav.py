@@ -118,6 +118,42 @@ TOP NEURONS: per domain, the deployment seed of the arm with the highest mean fu
     listed with every score and descriptor (+ best label R~, validation only); contact sheets of the top 6 (16 D frames
     with the highest code, <= 2 per video, per-token activation overlay) -> results/vision/eci_v2_behav/sheets/.
 BUDGET <= 15 GPU-h (estimate: v2 encode ~4, v1 encode ~1, codes / suite / validation ~1.5, sheets ~0.2).
+RESULT of the original suite (commits 5756726, b57b9e4): capacity v2 > v1 in mice and ants; suite NOT validated (mice
+    enrichment AUROC 0.517 [0.496, 0.538]); the top-ranked neurons included landmark / body-part detectors.
+------------------------------------------------------------------------------------------------------------------
+AMENDMENT 2 (coordinator / user, 2026-10-25; ONE round, no iteration after it; written BEFORE any C7 / C8 / C4b number
+existed; outputs tagged '_am2', the original outputs are kept unchanged). Two checks are added and C4 is strengthened;
+the probe set, C1-C3, C5, C6, eligibility, the capacity definition, the validation rule (V1 >= half of the labelled
+neurons pass all checks AND enrichment AUROC CI > 0.5, in both labelled domains) and the top-neuron / sheet rules are
+unchanged. Thresholds below are fixed now and are not tuned after the validation is seen.
+  C7 POSITION-FREE  cells = the 8 x 8 grid of equal squares of the canonical frame (mice odour corner top right, as all
+        codes). For each D frame where the neuron fires, the cell holding the centre of its argmax token (ties: the
+        highest cell index). P_fire = the distribution of those cells over the neuron's firing frames. Expected
+        P_exp = sum over series s of w_s * P_occ,s, where P_occ,s = the share of animal tokens (native-grid tokens with
+        any-cue fraction >= 0.25) per cell over ALL D frames of series s, and w_s = the share of the neuron's firing
+        frames in series s. Score TV = 1/2 sum_c |P_fire(c) - P_exp(c)| (total-variation distance in [0, 1]: the share
+        of firing mass that sits where animal occupancy does not put it). PASS iff TV <= 0.5 (the same 'at most half'
+        rule). Only frame-geometry series count (frogs tadpoles are animal-following crops: no arena position); a
+        neuron with < 20 firing frames there fails C7. Prior: a behaviour can happen anywhere the animals go; firing
+        concentrated on fixed places beyond occupancy is a place / landmark neuron (target examples, stated before
+        scoring: mice V2F_N2 s900 n1802 at the spout, ants v2dep s6 n8 at the red wall marker).
+  C8 NOT A BODY-PART DETECTOR  on-state of neuron j = frame code >= 1/2 of its 99th percentile of positive D codes (a
+        magnitude-relative cut, so near-constant firing counts as on). on_share = share of animal-present D frames
+        (>= 1 native-grid token with any-cue fraction >= 0.25) in the on-state. PASS iff on_share <= 0.5. Prior: a
+        detector of a visible body part is on whenever that part is in view, i.e. on most frames, whatever the
+        animals do; a behaviour neuron switches off for most of the time. Caveat stated now: a long-lasting state
+        (e.g. resting) can exceed half of the frames and would also fail; and a part detector whose part is in view on
+        < 50% of frames (e.g. heads of one mouse) is NOT caught by this rule.
+  C4b MORE VIDEOS  as C4 (ridge alpha 1, one-hot conditions, 5-fold x 10 repeats, PASS iff R2cv <= 0.5), with per-video
+        means over the union of the D videos and every video of the labelled scored-frame stores S (labels never read):
+        mice D 72 + S 144 videos (S whole atlas window at 0.25 fps preferred where a video is in both), ants D 72 + S
+        151 (v2 44 + v3 107; v4 from D only); frogs: D only (72; no other store holds tokens for every seed). C4b
+        REPLACES C4 in the amended behaviour definition (C4 still reported). The two frame sets estimate the same
+        per-video mean from different frames (stated).
+  AMENDED BEHAVIOUR NEURON = eligible AND C1, C2, C3, C4b, C5, C6, C7, C8. Everything downstream (capacity full / @256,
+        N_eff, share, Welch vs v1, NES prefilter, validation V1-V3, top neurons + sheets) is recomputed with it.
+  BUDGET <= 10 GPU-h (argmax-cell pass ~0.5, S per-video means ~0.5, suite / sheets ~1). The 127 GB v2_behav token
+        stores are deleted at the end of this round (regenerable with enc1 / enc2).
 ==================================================================================================================
 
 Steps (scripts/eci/v2_behav/job.sh, EXTRA = arguments):
@@ -157,6 +193,8 @@ V1 = {'mice': dict(ann='dataset/mice/v1/annotations.csv', bg='dataset/mice/v1/ec
                    align='none', sae='dataset/ants/eci/sae/matryoshka_btk_1024_k16_antsfg_s0',
                    codes='dataset/ants/eci30/codes/matryoshka_btk_1024_k16_antsfg_s0/codes_max.npy')}
 DEPLOYED_V2 = {'mice': 7, 'ants': 6, 'frogs': 6}
+TAG = os.environ.get('BEHAV_TAG', '')  # '' = the original suite; '_am2' = amendment 2 (C4b, C7, C8)
+CHECKS = ('c1', 'c2', 'c3', 'c4b', 'c5', 'c6', 'c7', 'c8') if TAG == '_am2' else ('c1', 'c2', 'c3', 'c4', 'c5', 'c6')
 
 
 def log(s):
@@ -1061,7 +1099,7 @@ def cmd_validate(args):
         res[dom] = {}
         for arm, lst in A.items():
             for (s, p, W, m, fam) in lst:
-                T = pd.read_parquet(OUT / dom / 'suite' / f'{arm}_s{s}.parquet')
+                T = pd.read_parquet(OUT / dom / f'suite{TAG}' / f'{arm}_s{s}.parquet')
                 Rs = []
                 for ser in LABELS[dom]:
                     z = np.load(OUT / dom / 'valid' / f'{arm}_s{s}_{ser}.npz')
@@ -1073,7 +1111,7 @@ def cmd_validate(args):
                             t = T.iloc[j]
                             rows.append(dict(dom=dom, arm=arm, seed=s, series=ser, label=str(lb), prefix=pref, neuron=j,
                                              R=float(r[j]), eligible=bool(t.eligible), behaviour=bool(t.behaviour),
-                                             group=int(t.group), **{c: bool(t[c]) for c in ('c1', 'c2', 'c3', 'c4', 'c5', 'c6')},
+                                             group=int(t.group), **{c: bool(t[c]) for c in CHECKS},
                                              n_checks=int(t.n_checks), off_share=t.off_share, eta2=t.eta2, tau_s=t.tau_s,
                                              r2_cond=t.r2_cond, repro=t.repro, inv_min=t.inv_min,
                                              extent=t.extent_bodies, level=t.level))
@@ -1088,7 +1126,7 @@ def cmd_validate(args):
                                                    'best_alignment_among_behaviour': bestB,
                                                    'best_alignment_all': float(np.nanmax(a))}
     L = pd.DataFrame(rows)
-    L.to_csv(OUT / 'validation_neurons.csv', index=False)
+    L.to_csv(OUT / f'validation_neurons{TAG}.csv', index=False)
     out = {'per_dictionary': res}
     for dom in ('mice', 'ants'):
         f = L[(L.dom == dom) & (L.prefix == 'full')]
@@ -1097,13 +1135,13 @@ def cmd_validate(args):
         ci = stats.t.interval(0.95, len(e) - 1, loc=e.mean(), scale=e.std(ddof=1) / np.sqrt(len(e))) if len(e) > 1 else (np.nan, np.nan)
         out[dom] = {'labelled_pass_all_share_full': float(f.behaviour.mean()),
                     'labelled_pass_all_share_256': float(L[(L.dom == dom) & (L.prefix == '256')].behaviour.mean()),
-                    'labelled_pass_rate_per_check_full': {c: float(f[c].mean()) for c in ('c1', 'c2', 'c3', 'c4', 'c5', 'c6')},
+                    'labelled_pass_rate_per_check_full': {c: float(f[c].mean()) for c in CHECKS},
                     'labelled_eligible_share_full': float(f.eligible.mean()),
                     'enrich_auroc_mean': float(e.mean()) if len(e) else None, 'enrich_auroc_ci95': list(ci),
                     'n_dictionaries': int(len(e))}
         out[dom]['validated'] = bool(out[dom]['labelled_pass_all_share_full'] >= 0.5 and ci[0] > 0.5)
     out['SUITE_VALIDATED'] = bool(out['mice']['validated'] and out['ants']['validated'])
-    (OUT / 'validation.json').write_text(json.dumps(out, indent=1, default=float))
+    (OUT / f'validation{TAG}.json').write_text(json.dumps(out, indent=1, default=float))
     log(json.dumps({k: v for k, v in out.items() if k != 'per_dictionary'}, indent=1, default=float))
 
 
@@ -1120,7 +1158,7 @@ def cmd_sheets(args):
     A = arms_of(dom)
     caps = {}
     for arm, lst in A.items():
-        v = [json.loads((OUT / dom / 'suite' / f'{arm}_s{s}.json').read_text())['capacity_full'] for (s, *_r) in lst]
+        v = [json.loads((OUT / dom / f'suite{TAG}' / f'{arm}_s{s}.json').read_text())['capacity_full'] for (s, *_r) in lst]
         caps[arm] = float(np.mean(v))
     arms = args.arms.split(',') if args.arms else [max(caps, key=caps.get)]
     Pr = pd.read_parquet(OUT / dom / 'probe.parquet')
@@ -1128,7 +1166,7 @@ def cmd_sheets(args):
     for arm in arms:
         s = deploy_seed(dom, arm)
         s_, p, W, m, fam = next(x for x in A[arm] if x[0] == s)
-        T = pd.read_parquet(OUT / dom / 'suite' / f'{arm}_s{s}.parquet')
+        T = pd.read_parquet(OUT / dom / f'suite{TAG}' / f'{arm}_s{s}.parquet')
         vf = {ser: OUT / dom / 'valid' / f'{arm}_s{s}_{ser}.npz' for ser in LABELS.get(dom, {})}
         al = {}
         for ser, f in vf.items():
@@ -1189,14 +1227,14 @@ def cmd_sheets(args):
                     t_ = Image.fromarray(comp.clip(0, 255).astype(np.uint8))
                     ImageDraw.Draw(t_).text((3, 3), title, fill=(255, 255, 0))
                     sh.paste(t_, ((q % 4) * tile, (q // 4) * tile))
-                pth = OUT / 'sheets' / f'{dom}_{arm}_s{s}_n{j}.jpg'
+                pth = OUT / f'sheets{TAG}' / f'{dom}_{arm}_s{s}_n{j}.jpg'
                 pth.parent.mkdir(parents=True, exist_ok=True)
                 sh.save(pth, quality=85)
                 rec['sheet'] = str(pth)
             recs.append(rec)
             log(f'{dom} {arm}_s{s} #{rank + 1}: {json.dumps(rec, default=float)}')
         out[f'{arm}_s{s}'] = {'capacity_mean': caps, 'top': recs}
-    (OUT / dom / 'top_neurons.json').write_text(json.dumps(out, indent=1, default=float))
+    (OUT / dom / f'top_neurons{TAG}.json').write_text(json.dumps(out, indent=1, default=float))
 
 
 def frame_image(dom, fam, r, cache, dev):
@@ -1223,6 +1261,246 @@ def frame_image(dom, fam, r, cache, dev):
     return x[0].permute(1, 2, 0).cpu().numpy()
 
 
+# ---------------------------------------------------------------------------------------------- amendment 2
+NCELL = 8
+
+
+def cells_of(pos, G):
+    """token raster positions on a G x G grid -> 8 x 8 cell index of the token centre."""
+    r, c = pos // G, pos % G
+    return (np.minimum(((r + 0.5) * NCELL / G).astype(np.int64), NCELL - 1) * NCELL +
+            np.minimum(((c + 0.5) * NCELL / G).astype(np.int64), NCELL - 1))
+
+
+def cmd_codes2(args):
+    """Amendment 2 inputs: per (firing D frame, neuron) the 8 x 8 cell of the argmax token; per series the animal-token
+    occupancy of the cells; per D frame animal presence."""
+    import torch
+    from src.eci.sae import load_sae
+    dev = torch.device('cuda')
+    dom = args.dom
+    A = arms_of(dom)
+    od = BEE / dom / 'codes'
+    Pr = pd.read_parquet(OUT / dom / 'probe.parquet')
+    key = lambda F_: pd.MultiIndex.from_arrays([F_.vid.values.astype(int), F_.k.values.astype(int)])  # noqa: E731
+    pidx = pd.Series(np.arange(len(Pr)), index=key(Pr))
+    S2 = Store(dom, 'v2', 'dense', 1024)
+    d_of = pidx.reindex(key(S2.F)).values.astype(int)
+    A_ = S2.extra['anyG'].astype(np.float32) >= 0.25
+    Gs = S2.F.G.values.astype(int)
+    occ = {s: np.zeros(NCELL * NCELL) for s in SERIES[dom]}
+    present = np.zeros(len(Pr), bool)
+    for G in np.unique(Gs):
+        ii = np.flatnonzero(Gs == G)
+        cell = cells_of(np.arange(G * G), G)
+        M = A_[ii][:, :G * G]
+        present[d_of[ii]] = M.any(1)
+        for s in SERIES[dom]:
+            jj = S2.F.series.values[ii] == s
+            if jj.any():
+                occ[s] += np.bincount(cell, weights=M[jj].sum(0), minlength=NCELL * NCELL)
+    meta = {'occupancy': {s: (v / max(v.sum(), 1)).tolist() for s, v in occ.items()},
+            'animal_present_share': float(present.mean())}
+    np.save(od / 'animal_present_D.npy', present)
+    for fam in sorted({x[4] for v in A.values() for x in v}):
+        St = S2 if fam == 'v2' else Store(dom, 'v1', 'dense', 768)
+        fidx = pidx.reindex(key(St.F)).values.astype(np.int64)
+        Gt = St.F.G.values.astype(int)[St.tf] if fam == 'v2' else np.full(len(St.tf), 32)
+        tcell = np.zeros(len(St.tf), np.int64)
+        for G in np.unique(Gt):
+            m = Gt == G
+            tcell[m] = cells_of(St.pos[m], G)
+        for arm, lst in A.items():
+            for (s, p, W, m, f) in lst:
+                if f != fam:
+                    continue
+                sae, norm, _ = load_sae(p, dev)
+                keep = St.keep(m)
+                out = []
+                for f0 in range(0, St.nf, 400):
+                    f1 = min(St.nf, f0 + 400)
+                    a, b = int(St.starts[f0]), int(St.starts[f1])
+                    if a == b:
+                        continue
+                    kk = keep[a:b]
+                    z = torch.from_numpy(St.tok(a, b)[kk]).to(dev)
+                    fl = torch.from_numpy(St.tf[a:b][kk] - f0).to(dev)
+                    ct = torch.from_numpy(tcell[a:b][kk].astype(np.float32)).to(dev)
+                    with torch.no_grad():
+                        c = sae.encode(norm(z.float()), mode='threshold').float()
+                        fm = torch.zeros((f1 - f0, W), device=dev).index_reduce_(0, fl, c, 'amax', include_self=True)
+                        hit = (c > 0) & (c == fm[fl])
+                        cf = torch.zeros((f1 - f0, W), device=dev).index_reduce_(
+                            0, fl, hit.float() * (ct[:, None] + 1), 'amax', include_self=True) - 1
+                        nz = torch.nonzero(fm > 0)
+                        out.append(np.stack([fidx[f0:f1][nz[:, 0].cpu().numpy()], nz[:, 1].cpu().numpy(),
+                                             cf[nz[:, 0], nz[:, 1]].cpu().numpy()]).astype(np.int32))
+                    del c
+                o = np.concatenate(out, axis=1)
+                np.savez(od / f'{arm}_s{s}_cells.npz', frame=o[0], neuron=o[1].astype(np.int16), cell=o[2].astype(np.int16))
+                log(f'codes2 {dom} {arm}_s{s}: {o.shape[1]:,} firing (frame, neuron) records; {gpu_line()}')
+    (OUT / dom / 'codes2_meta.json').write_text(json.dumps(meta, indent=1))
+
+
+def cmd_scodes(args):
+    """Amendment 2 C4b: per-video mean frame codes of every dictionary on the scored-frame stores S (labels not read)."""
+    import torch
+    from src.eci.sae import load_sae
+    sys.path.insert(0, str(REPO / 'scripts/eci/v2_diag'))
+    import diag as D
+    import matched as M
+    dev = torch.device('cuda')
+    dom = args.dom
+    A = arms_of(dom)
+    od = OUT / dom / 'scodes'
+    od.mkdir(parents=True, exist_ok=True)
+    kinds = {'mice': ('diag',), 'ants': ('scored_v2', 'scored_v3')}[dom]
+    res = {}
+    for kind in kinds:
+        for fm in ('v1', 'M0', 'N2'):
+            if fm == 'v1':
+                St = M.V1Store(dom, kind, dev)
+            else:
+                St = D.T2.arm_store(D.T2.Union(dom, kind), fm, dev, on_gpu=True)
+                St.d = 1024
+            obs = St.F.obs.values.astype(str)
+            u, inv = np.unique(obs, return_inverse=True)
+            cnt = np.bincount(inv)
+            for arm, lst in A.items():
+                for (s, p, W, m, fam) in lst:
+                    if ('v1' if fam == 'v1' else m) != fm:
+                        continue
+                    sae, norm, _ = load_sae(p, dev)
+                    X = D.codes(St, sae, norm).float()
+                    mu = torch.zeros((len(u), W), device=dev).index_add_(0, torch.from_numpy(inv).to(dev), X)
+                    mu = (mu / torch.from_numpy(cnt).to(dev)[:, None].float()).cpu().numpy()
+                    res.setdefault((arm, s), []).append((u, mu))
+                    del X
+            del St
+            torch.cuda.empty_cache()
+    for (arm, s), parts in res.items():
+        np.savez(od / f'{arm}_s{s}.npz', obs=np.concatenate([p[0] for p in parts]), mean=np.concatenate([p[1] for p in parts]))
+        log(f'scodes {dom} {arm}_s{s}: {sum(len(p[0]) for p in parts)} videos')
+
+
+def capacity(torch, X, B, dev):
+    """greedy groups (founder per neuron, -1 = not a behaviour neuron) and N_eff over behaviour neurons B."""
+    W = X.shape[1]
+    group = np.full(W, -1)
+    neff = float('nan')
+    if len(B):
+        XB = X[:, torch.from_numpy(B).to(dev)]
+        ZB, _ = zcols(torch, XB)
+        R = (ZB.T @ ZB).cpu().numpy()
+        Fb = (XB > 0).float()
+        inter = (Fb.T @ Fb).cpu().numpy()
+        nb = np.diag(inter)
+        Jac = inter / np.maximum(nb[:, None] + nb[None, :] - inter, 1)
+        founders = []
+        for ii, j in enumerate(B):
+            g = next((f for f in founders if R[ii, f[1]] >= 0.5 or Jac[ii, f[1]] >= 0.5), None)
+            if g is None:
+                founders.append((j, ii))
+                group[j] = j
+            else:
+                group[j] = g[0]
+        ev = np.clip(np.linalg.eigvalsh(np.nan_to_num(R)), 0, None)
+        neff = float(ev.sum() ** 2 / max((ev ** 2).sum(), 1e-30))
+    return group, neff
+
+
+def cmd_suite2(args):
+    """Amendment 2: C4b, C7, C8 added to the original per-neuron tables; behaviour / capacity / prefilter recomputed."""
+    import torch
+    assert TAG == '_am2', 'run with BEHAV_TAG=_am2'
+    dev = torch.device('cuda')
+    dom = args.dom
+    A = arms_of(dom)
+    cd = BEE / dom / 'codes'
+    Pr = pd.read_parquet(OUT / dom / 'probe.parquet')
+    Vd = pd.read_parquet(OUT / dom / 'videos.parquet').set_index('vid')
+    m2 = json.loads((OUT / dom / 'codes2_meta.json').read_text())
+    occ = {s: np.array(v) for s, v in m2['occupancy'].items()}
+    present = np.load(cd / 'animal_present_D.npy')
+    geo = {s: series_cfg(dom, s).get('geometry', 'frame') == 'frame' for s in SERIES[dom]}
+    ser_D = Pr.series.values
+    ser_code = {s: i for i, s in enumerate(SERIES[dom])}
+    sD = np.array([ser_code[x] for x in ser_D])
+    cond_all = conditions(dom).drop_duplicates('obs').set_index('obs')
+    cc = [c for c in cond_all.columns if c.startswith('c_')]
+    od = OUT / dom / 'suite_am2'
+    od.mkdir(parents=True, exist_ok=True)
+    for arm, lst in A.items():
+        for (s, p, W, m, fam) in lst:
+            T = pd.read_parquet(OUT / dom / 'suite' / f'{arm}_s{s}.parquet')
+            X = torch.from_numpy(np.load(cd / f'{arm}_s{s}_D.npy')).to(dev).float()
+            # C7
+            z = np.load(cd / f'{arm}_s{s}_cells.npz')
+            fr, nn, cl = z['frame'].astype(np.int64), z['neuron'].astype(np.int64), z['cell'].astype(np.int64)
+            okg = np.array([geo[SERIES[dom][i]] for i in sD[fr]]) & (cl >= 0)
+            fr, nn, cl = fr[okg], nn[okg], cl[okg]
+            Pf = np.zeros((W, NCELL * NCELL))
+            np.add.at(Pf, (nn, cl), 1)
+            ws = np.zeros((W, len(SERIES[dom])))
+            np.add.at(ws, (nn, sD[fr]), 1)
+            nfire = Pf.sum(1)
+            Pf = Pf / np.maximum(nfire[:, None], 1)
+            ws = ws / np.maximum(ws.sum(1, keepdims=True), 1)
+            Pe = ws @ np.stack([occ[x] for x in SERIES[dom]])
+            tv = 0.5 * np.abs(Pf - Pe).sum(1)
+            tv[nfire < 20] = np.nan
+            # C8
+            Xp = X[torch.from_numpy(present).to(dev)]
+            q = torch.stack([torch.quantile(Xp[:, j][Xp[:, j] > 0], 0.99) if (Xp[:, j] > 0).sum() > 0 else torch.tensor(float('inf'), device=dev)
+                             for j in range(W)])
+            on_share = ((Xp >= 0.5 * q[None]) & (Xp > 0)).float().mean(0).cpu().numpy()
+            # C4b
+            vid = torch.from_numpy(Pr.vid.values).to(dev)
+            cnt = torch.bincount(vid).float()
+            muD = (torch.zeros((len(cnt), W), device=dev).index_add_(0, vid, X) / cnt[:, None]).cpu().numpy()
+            means = {o: muD[v] for v, o in zip(Vd.index.values, Vd.obs.values)}
+            n_S = 0
+            sf = OUT / dom / 'scodes' / f'{arm}_s{s}.npz'
+            if sf.exists():
+                zs = np.load(sf)
+                for o, mu in zip(zs['obs'], zs['mean']):
+                    means[str(o)] = mu
+                    n_S += 1
+            obs_all = sorted(means)
+            Y = np.stack([means[o] for o in obs_all]).astype(np.float64)
+            C = pd.get_dummies(cond_all.loc[obs_all, cc].astype(str)).values.astype(np.float64)
+            r2b = cond_r2(Y, C)
+            T['tv_place'], T['on_share'], T['r2_cond_b'] = tv, on_share, r2b
+            T['c7'] = T.tv_place <= 0.5
+            T['c8'] = T.on_share <= 0.5
+            T['c4b'] = T.r2_cond_b <= 0.5
+            T['n_checks'] = T[list(CHECKS)].sum(1)
+            T['behaviour'] = T.eligible & T[list(CHECKS)].all(1)
+            B = np.flatnonzero(T.behaviour.values)
+            group, neff = capacity(torch, X, B, dev)
+            T['group'] = group
+            T['founder'] = T.group.values == np.arange(W)
+            T.to_parquet(od / f'{arm}_s{s}.parquet')
+            el = T[T.eligible]
+            pre = {str(pp): int(T.behaviour.values[:pp].sum()) for pp in (128, 256, 512, W)}
+            summ = {'arm': arm, 'seed': s, 'W': W, 'deployed': s == deploy_seed(dom, arm), 'n_eligible': int(T.eligible.sum()),
+                    'n_behaviour': int(T.behaviour.sum()), 'capacity_full': int(T.founder.sum()),
+                    'capacity_256': int(T.founder.values[:256].sum()), 'n_behaviour_256': int(T.behaviour.values[:256].sum()),
+                    'n_eff': neff, 'share': float(T.behaviour.sum() / W), 'c4b_videos': len(obs_all), 'c4b_videos_from_S': n_S,
+                    'median': {k: float(np.nanmedian(el[k])) for k in ('off_share', 'eta2', 'tau_s', 'r2_cond', 'repro',
+                                                                      'inv_min', 'r2_cond_b', 'tv_place', 'on_share')},
+                    'pass_rate_eligible': {c: float(el[c].mean()) for c in CHECKS},
+                    'prefilter_candidates': pre,
+                    'bonferroni': {str(pp): {'today': 0.05 / pp, 'filtered': 0.05 / max(pre[str(pp)], 1)}
+                                   for pp in (128, 256, 512, W)}}
+            (od / f'{arm}_s{s}.json').write_text(json.dumps(summ, indent=1, default=float))
+            log(f'am2 {dom} {arm}_s{s}: behaviour {summ["n_behaviour"]}, capacity full {summ["capacity_full"]} / @256 '
+                f'{summ["capacity_256"]}, N_eff {neff:.1f}; C4b videos {len(obs_all)} ({n_S} from S); pass rates '
+                f'{json.dumps({k: round(v, 3) for k, v in summ["pass_rate_eligible"].items()})}')
+            del X, Xp
+            torch.cuda.empty_cache()
+
+
 # ---------------------------------------------------------------------------------------------- table
 def ms(x):
     x = np.asarray(x, float)
@@ -1239,11 +1517,11 @@ def cmd_table(args):
          'capacity full - v1 (Welch) | @256 - v1 (Welch) |', '|---|---|---|---|---|---|---|---|---|---|---|']
     res = {}
     for dom in SERIES:
-        if not (OUT / dom / 'suite').exists():
+        if not (OUT / dom / f'suite{TAG}').exists():
             continue
         A = arms_of(dom)
-        S = {arm: [json.loads((OUT / dom / 'suite' / f'{arm}_s{s}.json').read_text()) for (s, *_r) in lst
-                   if (OUT / dom / 'suite' / f'{arm}_s{s}.json').exists()] for arm, lst in A.items()}
+        S = {arm: [json.loads((OUT / dom / f'suite{TAG}' / f'{arm}_s{s}.json').read_text()) for (s, *_r) in lst
+                   if (OUT / dom / f'suite{TAG}' / f'{arm}_s{s}.json').exists()] for arm, lst in A.items()}
         res[dom] = S
         for arm, ss in S.items():
             if not ss:
@@ -1272,6 +1550,18 @@ def cmd_table(args):
             L.append(f'| {dom} | {arm} | {md["off_share"]:.3f} | {md["eta2"]:.3f} | {md["tau_s"]:.2f} | '
                      f'{md["r2_cond"]:.3f} | {md["repro"]:.3f} | {md["inv_min"]:.3f} | '
                      + ' / '.join(f'{v:.2f}' for v in pr.values()) + ' |')
+    if TAG == '_am2':
+        L += ['', '## Amendment 2 checks: median over eligible neurons (mean over seeds) and pass rate', '',
+              '| domain | arm | place TV (C7, <= 0.5) | on-share (C8, <= 0.5) | conditions R2cv, more videos (C4b, <= 0.5) | '
+              'C4b videos | pass C4b / C7 / C8 |', '|---|---|---|---|---|---|---|']
+        for dom, S in res.items():
+            for arm, ss in S.items():
+                if not ss:
+                    continue
+                md = {k: np.nanmean([x['median'][k] for x in ss]) for k in ('tv_place', 'on_share', 'r2_cond_b')}
+                pr = {k: np.mean([x['pass_rate_eligible'][k] for x in ss]) for k in ('c4b', 'c7', 'c8')}
+                L.append(f'| {dom} | {arm} | {md["tv_place"]:.3f} | {md["on_share"]:.3f} | {md["r2_cond_b"]:.3f} | '
+                         f'{ss[0]["c4b_videos"]} | {pr["c4b"]:.2f} / {pr["c7"]:.2f} / {pr["c8"]:.2f} |')
     L += ['', '## NES prefilter: candidates (behaviour neurons inside the prefix), mean over seeds; deployment seed in '
           'brackets; Bonferroni per-test alpha = 0.05 / m', '',
           '| domain | arm | 128 | 256 | 512 | W | alpha @256 today -> filtered (deployment seed) |', '|---|---|---|---|---|---|---|']
@@ -1284,7 +1574,7 @@ def cmd_table(args):
             c = lambda p: f'{np.mean([x["prefilter_candidates"][p] for x in ss]):.1f} [{dep["prefilter_candidates"][p]}]'  # noqa
             L.append(f'| {dom} | {arm} | {c("128")} | {c("256")} | {c("512")} | {c(W)} | '
                      f'{0.05 / 256:.2e} -> {dep["bonferroni"]["256"]["filtered"]:.2e} |')
-    vf = OUT / 'validation.json'
+    vf = OUT / f'validation{TAG}.json'
     if vf.exists():
         V = json.loads(vf.read_text())
         L += ['', '## Validation (labels used only here)', '']
@@ -1304,7 +1594,7 @@ def cmd_table(args):
                 f = lambda k: np.nanmean([x[k] for x in vals])  # noqa: E731
                 L.append(f'| {dom} | {arm} | {f("enrich_auroc"):.3f} | {f("spearman_checks_vs_alignment"):.3f} | '
                          f'{f("best_alignment_among_behaviour"):.3f} | {f("best_alignment_all"):.3f} |')
-    (OUT / 'table.md').write_text('\n'.join(L) + '\n')
+    (OUT / f'table{TAG}.md').write_text('\n'.join(L) + '\n')
     print('\n'.join(L))
 
 
@@ -1322,7 +1612,8 @@ def main():
 
 
 STEPS = {'plan': cmd_plan, 'enc2': cmd_enc2, 'enc1': cmd_enc1, 'codes': cmd_codes, 'suite': cmd_suite,
-         'vcodes': cmd_vcodes, 'validate': cmd_validate, 'table': cmd_table, 'sheets': cmd_sheets}
+         'vcodes': cmd_vcodes, 'validate': cmd_validate, 'table': cmd_table, 'sheets': cmd_sheets,
+         'codes2': cmd_codes2, 'scodes': cmd_scodes, 'suite2': cmd_suite2}
 
 if __name__ == '__main__':
     main()
