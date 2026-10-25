@@ -964,10 +964,8 @@ def cf_video(X, w, vid, truth, halves, labels):
     return out
 
 
-def eval_codes(St, sae, norm, arm, dev, kinds):
-    """frame codes (theta*, max over kept tokens) of every eval record of the store -> {kind: (n_eval, W) float32 cuda}."""
-    import torch
-    from src.eci.v2.sae import frame_codes
+def eval_inputs(St, arm, kinds):
+    """arm tokens of every eval record, gathered ONCE per arm (the store is read once, not once per seed)."""
     R = St.R
     E = R[R.kind != 'pool']
     neval = int(E.eid.max()) + 1
@@ -975,13 +973,26 @@ def eval_codes(St, sae, norm, arm, dev, kinds):
     for kd in kinds:
         ix = np.flatnonzero((R.kind == kd).values)
         eid = R.eid.values[ix]
-        assert len(np.unique(eid)) == len(eid) == neval, (kd, len(eid), neval)
+        assert len(np.unique(eid)) == len(eid) == neval, (kd, len(np.unique(eid)), len(eid), neval)
+        x, fl = St.gather(ix, arm)
+        out[kd] = (x, fl, eid, len(ix))
+    return out, neval
+
+
+def eval_codes(EV, neval, sae, norm, dev):
+    """frame codes (theta*, max over kept tokens) of every eval record -> {kind: (n_eval, W) float32 cuda}."""
+    import torch
+    from src.eci.v2.sae import frame_codes
+    out = {}
+    for kd, (x, fl, eid, nrec) in EV.items():
         C = torch.zeros((neval, sae.n_latents), dtype=torch.float32, device=dev)
-        for b0 in range(0, len(ix), 4000):
-            bi = ix[b0:b0 + 4000]
-            x, fl = St.gather(bi, arm)
-            cm, _, _ = frame_codes(sae, norm, torch.from_numpy(x).to(dev), torch.from_numpy(fl).to(dev), len(bi))
-            C[torch.from_numpy(eid[b0:b0 + 4000]).to(dev)] = cm
+        bounds = np.searchsorted(fl, np.arange(0, nrec + 4000, 4000))
+        for j, b0 in enumerate(range(0, nrec, 4000)):
+            t0, t1 = bounds[j], bounds[j + 1]
+            nb = min(4000, nrec - b0)
+            cm, _, _ = frame_codes(sae, norm, torch.from_numpy(x[t0:t1]).to(dev),
+                                   torch.from_numpy(fl[t0:t1] - b0).to(dev), nb)
+            C[torch.from_numpy(eid[b0:b0 + nb]).to(dev)] = cm
         out[kd] = C
     return out
 
@@ -1102,6 +1113,10 @@ def cmd_run(a):
         log(f'{a.bench} {arm}: tokens train {len(Xtr):,} calib {len(Xca):,} fve {len(Xev):,} (keep p {keep_p}), '
             f'{len(pool)} pool records, gather {time.time() - t0:.0f}s')
         Xtr_g = torch.from_numpy(Xtr).to(dev)
+        del Xtr
+        t0 = time.time()
+        EV, neval = eval_inputs(St, arm, kinds)
+        log(f'eval inputs gathered once: {sum(len(v[0]) for v in EV.values()):,} tokens, {time.time() - t0:.0f}s')
         for s in seeds:
             f = od / 'scores' / f'{arm}_s{s}.json'
             if f.exists() and not a.force:
@@ -1114,7 +1129,7 @@ def cmd_run(a):
                 rec = SAE.train(SAE_CFG, s, Xtr_g, torch.from_numpy(Xca).to(dev), torch.from_numpy(Xev).to(dev), sd, dev)
             ttrain = time.time() - t1
             sae, norm = SAE.load(sd / 'sae_theta.pt', dev)
-            C = eval_codes(St, sae, norm, arm, dev, kinds)
+            C = eval_codes(EV, neval, sae, norm, dev)
             ro = {'raw': C['ev0']}
             if 'evm' in C and 'evp' in C:
                 ro['sm'] = (C['evm'] + C['ev0'] + C['evp']) / 3
