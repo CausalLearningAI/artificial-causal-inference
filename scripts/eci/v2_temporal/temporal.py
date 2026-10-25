@@ -553,6 +553,8 @@ def cmd_encode(a):
         S = B.S
     G = S // 16
     R = B.records(a.enc)
+    if a.enc == 'vj' and B.name == 'calms21':
+        B.workers = 1  # dense 16-frame clips of 1024 x 570 RGB: ~40 GB of decoded frames per video
     vids = shard_videos(R, a.nshard, a.shard)
     if a.max_videos:
         vids = vids[:a.max_videos]
@@ -564,7 +566,7 @@ def cmd_encode(a):
     enc = D3(dev) if a.enc == 'd3' else VJ(S, dev, bf16=bf16)
     W = Writer(local_dir() / f'{a.bench}_{a.enc}_{tag}', (3, D) if a.enc == 'd3' else (D,))
     st = B.step
-    bs = {512: 64, 640: 32, 768: 24, 1024: 16}[S] if a.enc == 'd3' else {512: 4, 640: 2, 768: 2, 1024: 1}[S]
+    bs = {512: 64, 640: 32, 768: 24, 1024: 16}[S] if a.enc == 'd3' else 1  # smoke: batch 1 has the highest clips / s at every side
     log(f'{a.bench} {a.enc} {tag}: {len(vids)} videos, {int(R.video.isin(vids).sum())} records, S {S}, bs {bs}, '
         f'{torch.cuda.get_device_name(0)}')
 
