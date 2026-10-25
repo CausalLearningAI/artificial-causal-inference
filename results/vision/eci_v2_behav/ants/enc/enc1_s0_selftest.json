@@ -1,0 +1,11 @@
+{
+ "dom": "ants",
+ "shard": 0,
+ "nshard": 1,
+ "n_dense": 64,
+ "n_inv": 28,
+ "wall_s": 35.0028612613678,
+ "gpu_side_s": 24.376678705215454,
+ "fps_wall": 1.8284219544827887,
+ "gpu": "NVIDIA L40S"
+}

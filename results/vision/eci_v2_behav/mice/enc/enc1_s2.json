@@ -1,0 +1,11 @@
+{
+ "dom": "mice",
+ "shard": 2,
+ "nshard": 6,
+ "n_dense": 18000,
+ "n_inv": 7200,
+ "wall_s": 420.6527807712555,
+ "gpu_side_s": 258.8615300655365,
+ "fps_wall": 42.790635942064824,
+ "gpu": "NVIDIA L40S"
+}

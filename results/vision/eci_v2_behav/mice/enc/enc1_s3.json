@@ -1,0 +1,11 @@
+{
+ "dom": "mice",
+ "shard": 3,
+ "nshard": 6,
+ "n_dense": 18000,
+ "n_inv": 7200,
+ "wall_s": 411.1113088130951,
+ "gpu_side_s": 368.92373919487,
+ "fps_wall": 43.78376272831599,
+ "gpu": "NVIDIA A100-SXM4-80GB"
+}

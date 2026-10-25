@@ -1,0 +1,16 @@
+{
+ "A1_tokens": 20.0,
+ "A1_frames": 105198,
+ "n_D": 108000,
+ "n_I": 10800,
+ "tokens_per_frame_v2": {
+  "M0": 20.07937037037037
+ },
+ "identity": {
+  "v2dep_s6": {
+   "videos": 72,
+   "fire_agree": 0.9999999683521411,
+   "max_abs_diff": 1.978515625
+  }
+ }
+}

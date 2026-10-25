@@ -1107,6 +1107,122 @@ def cmd_validate(args):
     log(json.dumps({k: v for k, v in out.items() if k != 'per_dictionary'}, indent=1, default=float))
 
 
+# ---------------------------------------------------------------------------------------------- top neurons / sheets
+def cmd_sheets(args):
+    """Top behaviour neurons of the deployment seed of the arm with the highest mean full capacity (or --arms) and
+    contact sheets: 16 D frames with the highest code (<= 2 per video), per-token activation overlay (red, alpha ~ code /
+    the neuron's max over the sheet), kept-token outline not drawn."""
+    import torch
+    from PIL import Image, ImageDraw
+    from src.eci.sae import load_sae
+    dev = torch.device('cuda')
+    dom = args.dom
+    A = arms_of(dom)
+    caps = {}
+    for arm, lst in A.items():
+        v = [json.loads((OUT / dom / 'suite' / f'{arm}_s{s}.json').read_text())['capacity_full'] for (s, *_r) in lst]
+        caps[arm] = float(np.mean(v))
+    arms = args.arms.split(',') if args.arms else [max(caps, key=caps.get)]
+    Pr = pd.read_parquet(OUT / dom / 'probe.parquet')
+    out = {}
+    for arm in arms:
+        s = deploy_seed(dom, arm)
+        s_, p, W, m, fam = next(x for x in A[arm] if x[0] == s)
+        T = pd.read_parquet(OUT / dom / 'suite' / f'{arm}_s{s}.parquet')
+        vf = {ser: OUT / dom / 'valid' / f'{arm}_s{s}_{ser}.npz' for ser in LABELS.get(dom, {})}
+        al = {}
+        for ser, f in vf.items():
+            if f.exists():
+                z = np.load(f)
+                for i, lb in enumerate(z['labels']):
+                    al[f'{ser}_{lb}'] = z['R'][:, i]
+        top = T[T.founder].sort_values('repro', ascending=False).head(8)
+        X = np.load(BEE / dom / 'codes' / f'{arm}_s{s}_D.npy')
+        St = Store(dom, fam, 'dense', 1024 if fam == 'v2' else 768)
+        key = pd.MultiIndex.from_arrays([St.F.vid.values, St.F.k.values])
+        srow = pd.Series(np.arange(St.nf), index=key)
+        sae, norm, _ = load_sae(p, dev)
+        keep = St.keep(m)
+        recs = []
+        se_cache = {}
+        for rank, t in enumerate(top.itertuples()):
+            j = int(t.neuron)
+            rec = {k: (float(getattr(t, k)) if isinstance(getattr(t, k), (float, np.floating)) else getattr(t, k))
+                   for k in ('neuron', 'rate_D', 'off_share', 'eta2', 'tau_s', 'r2_cond', 'repro', 'inv_min',
+                             'extent_bodies', 'level')}
+            rec['group_size'] = int((T.group == j).sum())
+            rec['label_R~ (validation only)'] = {k: float(v[j]) for k, v in al.items()}
+            if rank < 6:
+                o = np.argsort(-X[:, j].astype(np.float32))
+                pick, per = [], {}
+                for i in o:
+                    v_ = int(Pr.vid.values[i])
+                    if per.get(v_, 0) < 2 and X[i, j] > 0:
+                        pick.append(i)
+                        per[v_] = per.get(v_, 0) + 1
+                    if len(pick) == 16:
+                        break
+                tiles = []
+                for i in pick:
+                    r = Pr.iloc[i]
+                    fi = int(srow[(int(r.vid), int(r.k))])
+                    a, b = int(St.starts[fi]), int(St.starts[fi + 1])
+                    kk = keep[a:b]
+                    z = torch.from_numpy(St.tok(a, b)[kk]).to(dev)
+                    with torch.no_grad():
+                        c = sae.encode(norm(z.float()), mode='threshold')[:, j].float().cpu().numpy()
+                    pos = St.pos[a:b][kk]
+                    G = 32 if fam == 'v1' else int(St.F.G.values[fi])
+                    hm = np.zeros(G * G, np.float32)
+                    hm[pos] = c
+                    img = frame_image(dom, fam, r, se_cache, dev)
+                    tiles.append((img, hm.reshape(G, G), f'{r.obs} k{r.k} {X[i, j]:.2f}'))
+                mx = max(float(h.max()) for _, h, _ in tiles) or 1.0
+                tile = 256
+                sh = Image.new('RGB', (4 * tile, 4 * tile))
+                for q, (img, h, title) in enumerate(tiles):
+                    im = Image.fromarray(img).resize((tile, tile), Image.BILINEAR)
+                    hh = np.asarray(Image.fromarray((h / mx * 255).clip(0, 255).astype(np.uint8)).resize((tile, tile), Image.BILINEAR)) / 255.0
+                    base = np.asarray(im).astype(np.float32)
+                    al_ = (0.65 * hh ** 0.7)[..., None]
+                    comp = base * (1 - al_) + np.array([255, 30, 30]) * al_
+                    t_ = Image.fromarray(comp.clip(0, 255).astype(np.uint8))
+                    ImageDraw.Draw(t_).text((3, 3), title, fill=(255, 255, 0))
+                    sh.paste(t_, ((q % 4) * tile, (q // 4) * tile))
+                pth = OUT / 'sheets' / f'{dom}_{arm}_s{s}_n{j}.jpg'
+                pth.parent.mkdir(parents=True, exist_ok=True)
+                sh.save(pth, quality=85)
+                rec['sheet'] = str(pth)
+            recs.append(rec)
+            log(f'{dom} {arm}_s{s} #{rank + 1}: {json.dumps(rec, default=float)}')
+        out[f'{arm}_s{s}'] = {'capacity_mean': caps, 'top': recs}
+    (OUT / dom / 'top_neurons.json').write_text(json.dumps(out, indent=1, default=float))
+
+
+def frame_image(dom, fam, r, cache, dev):
+    """(S, S, 3) uint8 canonical image of a probe frame as the family's encoder saw it."""
+    if fam == 'v1':
+        from PIL import Image
+        from src.eci.foreground import align_rot90, rotate_image
+        c = V1[dom]
+        if 'ann' not in cache:
+            ann = REPO / c['ann']
+            cache['ann'] = (pd.read_csv(ann, usecols=['frame_path'])['frame_path'].values, align_rot90(c['align'], ann),
+                            row_index(ann))
+        fp, rot, ri = cache['ann']
+        row = int(ri[(str(r.obs), int(r.k))])
+        im = Image.open(REPO / 'dataset' / fp[row]).convert('RGB')
+        if rot is not None:
+            im = rotate_image(im, rot[row])
+        return np.asarray(im)
+    from src.eci.v2.pipeline import Series
+    se = cache.setdefault(r.series, Series(series_cfg(dom, r.series), dev, load_encoder=False))
+    v = se.V[r.obs]
+    fr = se.run_job(**se.job(v, int(r.k), 1, threads=2))
+    x, _ = se.frames(v, fr, [int(r.k)])
+    return x[0].permute(1, 2, 0).cpu().numpy()
+
+
 # ---------------------------------------------------------------------------------------------- table
 def ms(x):
     x = np.asarray(x, float)
@@ -1206,7 +1322,7 @@ def main():
 
 
 STEPS = {'plan': cmd_plan, 'enc2': cmd_enc2, 'enc1': cmd_enc1, 'codes': cmd_codes, 'suite': cmd_suite,
-         'vcodes': cmd_vcodes, 'validate': cmd_validate, 'table': cmd_table}
+         'vcodes': cmd_vcodes, 'validate': cmd_validate, 'table': cmd_table, 'sheets': cmd_sheets}
 
 if __name__ == '__main__':
     main()

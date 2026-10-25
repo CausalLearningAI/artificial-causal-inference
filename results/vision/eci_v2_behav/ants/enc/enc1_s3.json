@@ -1,0 +1,11 @@
+{
+ "dom": "ants",
+ "shard": 3,
+ "nshard": 4,
+ "n_dense": 27000,
+ "n_inv": 10800,
+ "wall_s": 609.1984837055206,
+ "gpu_side_s": 539.0099844932556,
+ "fps_wall": 44.32053053672977,
+ "gpu": "NVIDIA A100-SXM4-80GB"
+}
