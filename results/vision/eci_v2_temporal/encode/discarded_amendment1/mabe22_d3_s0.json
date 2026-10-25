@@ -1,0 +1,20 @@
+{
+ "bench": "mabe22",
+ "enc": "d3",
+ "S": 512,
+ "G": 32,
+ "shard": 0,
+ "nshard": 4,
+ "n_videos": 653,
+ "n_records": 17080,
+ "n_tokens": 178720,
+ "kept_mean": 10.463700234192038,
+ "records_zero_kept": 1769,
+ "wall_s": 299.63428807258606,
+ "gpu_busy_s": 252.37567377090454,
+ "decode_thread_s": 1270.844731092453,
+ "decode_wait_s": 32.07197856903076,
+ "records_per_wall_s": 57.0028220397206,
+ "gpu": "NVIDIA L40S",
+ "bf16": true
+}

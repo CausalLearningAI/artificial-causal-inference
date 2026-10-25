@@ -1,0 +1,21 @@
+{
+ "bench": "crim13",
+ "enc": "d3",
+ "S": 640,
+ "G": 40,
+ "shard": 4,
+ "nshard": 6,
+ "n_videos": 39,
+ "n_records": 16967,
+ "n_tokens": 804870,
+ "kept_mean": 47.43737844050215,
+ "records_zero_kept": 31,
+ "wall_s": 563.184638261795,
+ "gpu_busy_s": 533.4705500602722,
+ "decode_thread_s": 117.32587218284607,
+ "decode_wait_s": 8.758790254592896,
+ "records_per_wall_s": 30.126887076264552,
+ "gpu": "NVIDIA A40",
+ "bf16": true,
+ "arena_quad_ok_share": null
+}

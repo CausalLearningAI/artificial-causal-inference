@@ -1,0 +1,21 @@
+{
+ "bench": "calms21",
+ "enc": "vj",
+ "S": 1024,
+ "G": 64,
+ "shard": 7,
+ "nshard": 8,
+ "n_videos": 11,
+ "n_records": 4072,
+ "n_tokens": 244956,
+ "kept_mean": 60.156188605108056,
+ "records_zero_kept": 0,
+ "wall_s": 2882.9738154411316,
+ "gpu_busy_s": 2823.958044528961,
+ "decode_thread_s": 107.91717076301575,
+ "decode_wait_s": 21.536540746688843,
+ "records_per_wall_s": 1.4124304487923114,
+ "gpu": "NVIDIA L40S",
+ "bf16": true,
+ "arena_quad_ok_share": null
+}

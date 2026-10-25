@@ -150,12 +150,19 @@ def main():
     res['decision'] = {'per_variant': dec, 'adopted': ad, 'choice': choice}
     q1 = [v for v in ('T1', 'T1s', 'T2', 'T2s') if v in ad]
     q2 = [v for v in ('T3', 'T3s') if v in ad]
+    ran = {v: dec.get(v, {}).get('complete', False) for v in ORDER[1:]}
+    q1_ran = [v for v in ('T1', 'T1s', 'T2', 'T2s') if ran[v]]
+    q2_ran = [v for v in ('T3', 'T3s') if ran[v]]
+    part = lambda vs: '; '.join(f"{v}: WIN on {', '.join(dec[v]['wins']) or 'none'}, LOSS on {', '.join(dec[v]['losses']) or 'none'}" for v in vs)  # noqa: E731
     res['verdicts'] = {
-        'Q1': ('local temporal information beats post-hoc smoothing: ' + ', '.join(q1)) if q1 else
-        'post-hoc smoothing (T0) is at least as good as every tested local temporal variant (none adopted)',
-        'Q2': ('V-JEPA adopted: ' + ', '.join(q2)) if q2 else
-        ('V-JEPA worse (LOSS on >= 2 benchmarks)' if any(len(dec.get(v, {}).get('losses', [])) >= 2 for v in ('T3',))
-         else 'V-JEPA not better (not adopted)')}
+        'Q1': ('NOT RUN' if not q1_ran else
+               ('local temporal information beats post-hoc smoothing: ' + ', '.join(q1)) if q1 else
+               'post-hoc smoothing (T0) is not beaten by any tested local temporal variant (none adopted by the rule; '
+               + part(q1_ran) + ')') + ('' if len(q1_ran) == 4 else f" [not run: {', '.join(v for v in ('T1', 'T1s', 'T2', 'T2s') if not ran[v])}]"),
+        'Q2': ('NOT RUN (no T3 scores)' if not q2_ran else
+               ('V-JEPA adopted: ' + ', '.join(q2)) if q2 else
+               'V-JEPA 2-L is not better than T0 by the rule (not adopted; ' + part(q2_ran) + ')')
+        + ('' if len(q2_ran) == 2 or not q2_ran else f" [not run: {', '.join(v for v in ('T3', 'T3s') if not ran[v])}]")}
     L += ['## Decision (pre-registered rule)', '', '| variant | WIN on | LOSS on | video-r LOSS on | adopted |',
           '|---|---|---|---|---|']
     for vn in ORDER:

@@ -1,0 +1,15 @@
+{
+ "dom": "mice",
+ "shard": 6,
+ "nshard": 8,
+ "n_runs": 10530,
+ "n_records": 18630,
+ "n_frames_encoded": 39680,
+ "n_tokens": 2729689,
+ "kept_mean": 146.5211486849168,
+ "wall_s": 9676.934746265411,
+ "gpu_busy_s": 1620.0765948295593,
+ "decode_thread_s": 142720.18339419365,
+ "frames_per_wall_s": 4.10047200280167,
+ "gpu": "NVIDIA L40S"
+}

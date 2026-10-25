@@ -1,0 +1,21 @@
+{
+ "bench": "crim13",
+ "enc": "vj",
+ "S": 640,
+ "G": 40,
+ "shard": 5,
+ "nshard": 6,
+ "n_videos": 39,
+ "n_records": 16809,
+ "n_tokens": 684781,
+ "kept_mean": 40.73894937236005,
+ "records_zero_kept": 174,
+ "wall_s": 2566.9364125728607,
+ "gpu_busy_s": 2526.365938425064,
+ "decode_thread_s": 136.66496992111206,
+ "decode_wait_s": 8.104913711547852,
+ "records_per_wall_s": 6.5482728429381725,
+ "gpu": "NVIDIA L40S",
+ "bf16": true,
+ "arena_quad_ok_share": null
+}

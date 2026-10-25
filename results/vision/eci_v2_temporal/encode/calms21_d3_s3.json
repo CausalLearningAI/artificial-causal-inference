@@ -1,0 +1,20 @@
+{
+ "bench": "calms21",
+ "enc": "d3",
+ "S": 1024,
+ "G": 64,
+ "shard": 3,
+ "nshard": 4,
+ "n_videos": 22,
+ "n_records": 9155,
+ "n_tokens": 576510,
+ "kept_mean": 62.97214636810486,
+ "records_zero_kept": 0,
+ "wall_s": 614.0212042331696,
+ "gpu_busy_s": 559.1651995182037,
+ "decode_thread_s": 263.9038317203522,
+ "decode_wait_s": 35.203216791152954,
+ "records_per_wall_s": 14.909908545313792,
+ "gpu": "NVIDIA L40S",
+ "bf16": true
+}

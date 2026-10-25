@@ -1,0 +1,15 @@
+{
+ "dom": "mice",
+ "shard": 1,
+ "nshard": 8,
+ "n_runs": 10530,
+ "n_records": 18630,
+ "n_frames_encoded": 39678,
+ "n_tokens": 2746639,
+ "kept_mean": 147.4309715512614,
+ "wall_s": 4698.016237735748,
+ "gpu_busy_s": 1218.4234373569489,
+ "decode_thread_s": 65743.57727956772,
+ "frames_per_wall_s": 8.445692392737062,
+ "gpu": "NVIDIA A100-SXM4-80GB"
+}
