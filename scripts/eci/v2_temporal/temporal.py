@@ -741,12 +741,25 @@ def cmd_lab(a):
                 runs.append((s, v, int(k0), int(k1 - k0 + 1), recs))
     # shard by video (whole videos per shard), balanced by run count
     vids = pd.Series([f'{r[0]}|{r[1]["obs"]}' for r in runs])
-    cnt = vids.value_counts().sort_values(ascending=False, kind='stable')
-    mine = set(cnt.index[a.shard::a.nshard])
+    cnt = vids.value_counts()
+    # BUG FIX 2026-10-25: ties in value_counts came out in a hash-dependent order per process, so the 8 mice shards
+    # overlapped (45 videos twice, 45 never). Order is now (count desc, name); --missing encodes the videos absent
+    # from the existing shards (duplicates are dropped by Store, first shard kept).
+    cnt = cnt.reset_index().set_axis(['key', 'n'], axis=1).sort_values(['n', 'key'], ascending=[False, True])
+    keys = list(cnt.key)
+    if a.missing:
+        have = set()
+        for q in (BEE / dom / 'd3').glob('s*'):
+            if (q / 'recs.parquet').exists():
+                R0 = pd.read_parquet(q / 'recs.parquet', columns=['series', 'video'])
+                have |= set(R0.series + '|' + R0.video)
+        keys = [k for k in keys if k not in have]
+        log(f'--missing: {len(keys)} videos not in the existing shards')
+    mine = set(keys[a.shard::a.nshard])
     runs = [r for r, vk in zip(runs, vids) if vk in mine]
     if a.selftest:
         runs = runs[:60]
-    tag = f's{a.shard}' + ('_selftest' if a.selftest else '')
+    tag = ('x' if a.missing else 's') + f'{a.shard}' + ('_selftest' if a.selftest else '')
     dst = BEE / dom / 'd3' / tag
     if (dst / 'recs.parquet').exists() and not a.force:
         log(f'[SKIP] {dst}')
@@ -819,8 +832,8 @@ class Store:
 
     def __init__(self, bench, enc):
         root = BEE / bench / enc
-        sh = sorted([p for p in root.glob('s*') if p.is_dir() and not p.name.endswith('.tmp')
-                     and 'selftest' not in p.name], key=lambda p: int(p.name[1:]))
+        sh = sorted([p for p in root.iterdir() if p.is_dir() and p.name[0] in 'sx' and p.name[1:].isdigit()],
+                    key=lambda p: (p.name[0] == 'x', int(p.name[1:])))
         assert sh, root
         Rs, toks, pos, o = [], [], [], 0
         tail = (3, D) if enc == 'd3' else (D,)
@@ -834,6 +847,11 @@ class Store:
             Rs.append(R)
             o += nt
         self.R = pd.concat(Rs, ignore_index=True)
+        dup = self.R.duplicated(['video', 'kind', 'v', 'eid', 'role'], keep='first')
+        self.n_dup_dropped = int(dup.sum())
+        if dup.any():
+            log(f'Store {bench}/{enc}: dropped {int(dup.sum())} duplicate records (overlapping shards, first kept)')
+            self.R = self.R[~dup].reset_index(drop=True)
         self.toks, self.tail, self.enc = toks, tail, enc
         self.shard_off = np.r_[0, np.cumsum([len(t) for t in toks])]
         self.info = [json.loads((p / 'info.json').read_text()) for p in sh]
@@ -1272,6 +1290,7 @@ def main():
     p.add_argument('--max-videos', type=int, default=0)
     p.add_argument('--selftest', action='store_true')
     p.add_argument('--force', action='store_true')
+    p.add_argument('--missing', action='store_true')
     p.add_argument('--arms', default='T0:T1')
     p.add_argument('--seeds', default='')
     a = p.parse_args()
