@@ -97,6 +97,14 @@ LAB CHECK (pre-registered confirmation; labels only score)
     LOSS on >= 2 design benchmarks and the remaining budget covers it (cost estimate stated before launching).
     CONFIRMED (adopted variant X): no LOSS in either lab domain primary and WIN (same rule) in >= 1. If no variant is
     adopted, the lab check is descriptive: per variant vs T0 with Welch CIs per cell, reported with the same words.
+AMENDMENT 1 (2026-10-25 ~03:10 CET, after the first MABe22 DINOv3 encode and BEFORE any SAE or score): the generic
+    tight dark rule on MABe22 kept only ~10 tokens per frame with ZERO kept tokens in 10.5% of the records (encode JSONs
+    s0-s2: 1,769 / 17,080 etc.); a pixel check on one clip found mice that stay still for the whole 60 s clip are dark in
+    the 0.98-quantile background too (bg - grey > 40 on 0.05% of pixels). MABe22's own established rule solves exactly
+    this (eci_encode.clip_mask 'arena'): inside the fitted arena-floor quadrilateral the drop-below-background
+    condition is waived. MABe22 now uses that pixel cue (native 224 px, grey < 60 AND (bg - grey > 40 OR inside the
+    floor quad)) with the same >= 25% tight rule on its 7 px source cells (= the 16 px patches at 512). The MABe22 store
+    is re-encoded; nothing else changes. Decided on label-free mask statistics only.
 BUDGET <= 80 GPU-h for the whole study (encodes logged with GPU utilisation and throughput).
 ==================================================================================================================
 
@@ -180,9 +188,9 @@ class VJ:
     def __init__(self, S, dev, bf16=True, layer=VJ_LAYER, interp=True, truncate=True):
         import torch
         from transformers import AutoConfig, AutoModel
-        cfg = AutoConfig.from_pretrained(VJ_MODEL, cache_dir=VJ_CACHE)
+        cfg = AutoConfig.from_pretrained(VJ_MODEL)
         cfg.crop_size = S
-        m = AutoModel.from_pretrained(VJ_MODEL, config=cfg, cache_dir=VJ_CACHE, attn_implementation='sdpa').to(dev).eval()
+        m = AutoModel.from_pretrained(VJ_MODEL, config=cfg, attn_implementation='sdpa').to(dev).eval()
         self.G = S // 16
         blocks = m.encoder.layer
         assert len(blocks) == 24
@@ -241,6 +249,17 @@ class Bench:
 
     def cells(self, q):
         return None
+
+    def mask_prep(self, fr, N, dev, S, cells):
+        """per-video mask state: the background on the S canvas (generic dark cue)."""
+        import torch
+        bgi = self.bg_index(N)
+        self._bg = self.bg_reduce(torch.cat([grey_t(canvas_at(self, [fr[i] for i in bgi[b0:b0 + 16]], dev, S))
+                                             for b0 in range(0, len(bgi), 16)]))
+        self._cells = cells
+
+    def fd(self, frames, dev, S):
+        return fraction(canvas_at(self, frames, dev, S), self._bg, self._cells)
 
     def records(self, enc):
         """-> DataFrame video, v, kind, role, eid (eval rows: ev0 / evm / evp centres; pool rows)."""
@@ -314,6 +333,32 @@ class MABe22(Bench):
 
     def bg_reduce(self, g):
         return g.float().kthvalue(29, dim=0).values
+
+    def mask_prep(self, fr, N, dev, S, cells):
+        """AMENDMENT 1: the MABe22 benchmark's own 'arena' pixel rule on the native 224 frame (eci_encode.clip_mask):
+        pix_bg = kthvalue 29 of 30 evenly spaced PIL-grey frames; inside the fitted arena-floor quadrilateral (pix_bg
+        > 100, 2 px inset) the drop-below-background condition is waived (still mice are dark in pix_bg too)."""
+        import torch
+        sys.path.insert(0, str(REPO / 'scripts/benchmark/mabe22'))
+        import eci_encode as ME
+        assert S == 512
+        bgi = self.bg_index(N)
+        g = np.stack([self._grey(fr[i]) for i in bgi])
+        pix = torch.from_numpy(g).to(dev).float().kthvalue(29, dim=0).values
+        quad = ME.arena_quad(pix.cpu().numpy() > 100)
+        self._pix, self._hole = pix, torch.from_numpy(quad['inside']).to(dev)
+        self.quad_ok = getattr(self, 'quad_ok', []) + [bool(quad['ok'])]
+
+    @staticmethod
+    def _grey(f):
+        return (0.299 * f[..., 0] + 0.587 * f[..., 1] + 0.114 * f[..., 2]).round().clip(0, 255).astype(np.uint8)
+
+    def fd(self, frames, dev, S):
+        import torch
+        import torch.nn.functional as F
+        gg = torch.from_numpy(np.stack([self._grey(f) for f in frames])).to(dev).float()
+        dk = (gg < DARK_ABS) & (((self._pix[None] - gg) > DARK_REL) | self._hole[None])
+        return F.avg_pool2d(dk.float()[:, None], 7).flatten(1)  # 7 px source cells = the 16 px patches at 512
 
 
 class CalMS21(Bench):
@@ -566,15 +611,13 @@ def cmd_encode(a):
                 cells = torch.nn.functional.interpolate(cells.view(1, 1, B.S // 16, B.S // 16), size=(G, G),
                                                         mode='nearest').flatten()
         with torch.no_grad():
-            bgi = B.bg_index(N)
-            bg = B.bg_reduce(torch.cat([grey_t(canvas_at(B, [fr[i] for i in bgi[b0:b0 + 16]], dev, S))
-                                        for b0 in range(0, len(bgi), 16)]))
+            B.mask_prep(fr, N, dev, S, cells)
             cs = np.clip(Rv.v.values, 0, N - 1)
             uc = np.unique(cs)
             K = {}
             for b0 in range(0, len(uc), 64):
                 ub = uc[b0:b0 + 64]
-                fd = fraction(canvas_at(B, [fr[i] for i in ub], dev, S), bg, cells)
+                fd = B.fd([fr[i] for i in ub], dev, S)
                 keep = (fd >= THR).cpu().numpy()
                 for i, c in enumerate(ub):
                     K[int(c)] = np.flatnonzero(keep[i]).astype(np.int64)
@@ -622,7 +665,8 @@ def cmd_encode(a):
             'n_records': len(W.recs), 'n_tokens': W.n, 'kept_mean': float(np.mean(nkept)) if nkept else 0,
             'records_zero_kept': int(np.sum(np.array(nkept) == 0)), 'wall_s': el, 'gpu_busy_s': enc.gpu_s,
             'decode_thread_s': tdec, 'decode_wait_s': twait, 'records_per_wall_s': len(W.recs) / max(el, 1),
-            'gpu': torch.cuda.get_device_name(0), 'bf16': getattr(enc, 'bf16', True)}
+            'gpu': torch.cuda.get_device_name(0), 'bf16': getattr(enc, 'bf16', True),
+            'arena_quad_ok_share': float(np.mean(B.quad_ok)) if hasattr(B, 'quad_ok') else None}
     W.close(info)
     log(json.dumps(info))
     od = OUT / 'encode'
