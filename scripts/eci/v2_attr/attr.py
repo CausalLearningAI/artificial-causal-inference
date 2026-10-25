@@ -87,6 +87,18 @@ RECOMMENDATION RULES (task 4):
           misses the occlusion peak (distance > 2 tokens) on most (> 50%) sheet frames of both arms.
 BUDGET: <= 25 GPU-h (expected ~3).
 
+AMENDMENT 2026-10-25 ~02:20 (after the first analyse run printed the token-probe block only; the attribution and frame
+probes of that run were never written because it crashed; no neuron number had been seen): the first run showed that
+tail occlusion changes strict body tokens even >= 7 tokens away (median relative change 0.07, M0 active set changed in
+80% of tokens), so a noise floor is needed to read any change. Two CONTROL conditions are added, nothing else changes:
+    occC  = the same fillT shape moved (torch.roll, shifts of 64-512 px, first with no animal pixel within 32 px) onto
+            bedding and filled with the same background (a same-area pixel change that removes no animal part);
+    orig2 = the original frame encoded again ALONE (batch of 1 instead of 5): bf16 numerical floor.
+    Reported next to occT: token probe AUROC / R^2 on occC and orig2, representation change by distance for both, and
+    per neuron D_C / a = max(0, a_orig - a_occC) / a and |a_orig - a_orig2| / a. Also tail-vs-control leak
+    AUROC_occC - AUROC_occT with a pool-bootstrap CI. The decision rules are unchanged. Sheet occlusion maps compute
+    the unoccluded value inside every batch (element 0), so the map is not shifted by batch-shape numerics.
+
 Steps (scripts/eci/v2_attr/job.sh; staging in $LOCAL_DIR):
     extract --shard i --nshard n [--selftest]   (GPU) -> BEE/mice/s<i>/
     analyse                                    (GPU) -> OUT/attr.json, OUT/table.md
@@ -116,7 +128,8 @@ BEE = Path(os.environ.get('V2A_BEE') or '/mnt/beegfs/locatgrp/shared/rcadei/eci_
 SAE_BEE = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_diag/mice/sae')
 DEPLOY = {'M0': 'V2F_M0_s901', 'N2': 'V2F_N2_s900'}
 ARMS = ('M0', 'N2')
-CONDS = ('orig', 'occT', 'occTout', 'occB')
+CONDS = ('orig', 'occT', 'occTout', 'occB', 'occC', 'orig2')
+ZCONDS = ('orig', 'occT', 'occC', 'orig2')  # conditions whose union tokens are stored
 NFR, FILL_PX, NB_R, MIN_COMP = 6, 2, 2, 64
 LAMS = (0.1, 1.0, 10.0, 100.0, 1e3, 1e4)
 DOM, SER = 'mice', 'v1'
@@ -136,6 +149,33 @@ def frame_list(se):
         for k in np.unique(np.round(np.linspace(0.08, 0.92, NFR) * (v['n'] - 1)).astype(int)):
             rows.append((v['obs'], int(k)))
     return rows
+
+
+class FakeEncoder:
+    """CPU dry run of the code paths only (V2A_FAKE_ENC=1): random tokens, never used for any reported number."""
+    def __init__(self, dev):
+        self.dev, self.gpu_s, self.n_frames = dev, 0.0, 0
+
+    def __call__(self, x):
+        import torch
+        g = torch.Generator().manual_seed(int(x[:, :, ::64, ::64].float().sum()) % 1000)
+        G = x.shape[-1] // 16
+        return torch.randn(x.shape[0], G * G, 1024, generator=g).half().to(x.device)
+
+
+def get_dev_enc():
+    import torch
+    if os.environ.get('V2A_FAKE_ENC'):
+        dev = torch.device('cpu')
+        return dev, FakeEncoder(dev)
+    from src.eci.v2.encode import Encoder
+    dev = torch.device('cuda')
+    return dev, Encoder(dev)
+
+
+def gpu_name():
+    import torch
+    return torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'cpu'
 
 
 def load_saes(dev):
@@ -174,8 +214,24 @@ class Geo:
         self.nfillT = pool(fillT) * 256
         bg = pack['bg'].round().clamp(0, 255).to(torch.uint8)[None]
         self.x = {'orig': x}
+        # amendment 2026-10-25 (control): the fillT shape moved to bedding (no animal pixel within 32 px), same fill
+        anim = dil(pix, 32)
+        best = None
+        for r_ in (64, 128, 192, 256, 320, 384, 448, 512):
+            for dy, dx in ((r_, 0), (-r_, 0), (0, r_), (0, -r_), (r_, r_), (-r_, -r_), (r_, -r_), (-r_, r_)):
+                sh = torch.roll(fillT, (dy, dx), (1, 2))
+                if not bool((sh & anim).any()):
+                    best = sh
+                    break
+            if best is not None:
+                break
+        self.fill['occC'] = best if best is not None else torch.roll(fillT, (256, 256), (1, 2)) & ~anim
         for c, m in self.fill.items():
             self.x[c] = torch.where(m[:, None], bg, x)
+        self.x['orig2'] = x
+        dpx = lambda c: float((self.x[c].float() - x.float()).abs().amax(1)[self.fill[c]].mean()) \
+            if self.fill[c].any() else 0.0  # noqa: E731
+        self.dpix = {'dpix_occT': dpx('occT'), 'dpix_occC': dpx('occC'), 'occC_px': int(self.fill['occC'].sum())}
         # token neighbourhood targets (5 x 5 minus self)
         yy, xx = torch.meshgrid(torch.arange(S, device=x.device, dtype=torch.float32),
                                 torch.arange(S, device=x.device, dtype=torch.float32), indexing='ij')
@@ -209,7 +265,7 @@ class Geo:
         self.frame = {'app_px': int(a_np.sum()), 'n_comp64': int((sizes >= MIN_COMP).sum()), 'pix_px': int(pix.sum()),
                       'core_px': int(core0.sum()), 'fillTout_px': int(self.fill['occTout'].sum()),
                       'fillT_px': int(fillT.sum()), 'fillB_px': int(self.fill['occB'].sum()),
-                      'n_M0': int(self.keep['M0'].sum()), 'n_N2': int(self.keep['N2'].sum())}
+                      'n_M0': int(self.keep['M0'].sum()), 'n_N2': int(self.keep['N2'].sum()), **self.dpix}
         self.app_px = app[0]
         self.S, self.G = S, G
 
@@ -235,8 +291,7 @@ def cmd_extract(args):
     from src.eci.v2.encode import Encoder
     from src.eci.v2.pipeline import Series
     from src.eci.v2.video import Prefetch
-    dev = torch.device('cuda')
-    enc = Encoder(dev)
+    dev, enc = get_dev_enc()
     se = Series(T2.series_cfg(DOM, SER), dev, encoder=enc)
     h = T2.h_of(DOM, SER)
     saes = load_saes(dev)
@@ -244,11 +299,11 @@ def cmd_extract(args):
     vid = {v['obs']: i for i, v in enumerate(se.videos)}
     fl = [r for r in frame_list(se) if vid[r[0]] % args.nshard == args.shard]
     if args.selftest:
-        fl = fl[:12]
+        fl = fl[::6][:int(os.environ.get('V2A_NSEL', 12))]  # one frame per video
     jobs = [((i,), se.job(se.V[o], k, 1, threads=2)) for i, (o, k) in enumerate(fl)]
     loc = N.local_dir() / f'attr_s{args.shard}'
     loc.mkdir(parents=True, exist_ok=True)
-    fz = {c: open(loc / f'z_{c}.f16', 'wb') for c in ('orig', 'occT')}
+    fz = {c: open(loc / f'z_{c}.f16', 'wb') for c in ZCONDS}
     tm = {k: [] for k in ('tok_frame', 'tok_pos', 'raw', 'new', 'napp', 'nfillT', 'nb_app', 'nb_ang', 'dist',
                           'kM0', 'kN2')}
     FC = {a: np.zeros((len(fl), len(CONDS), W), np.float16) for a in ARMS}
@@ -266,7 +321,8 @@ def cmd_extract(args):
         with torch.no_grad():
             x, _ = se.frames(v, fr, np.array([k]))
             g = Geo(se, v, x, k, packs[o], h)
-            z = enc(torch.cat([g.x[c] for c in CONDS]))  # (4, G*G, 1024) fp16
+            z = enc(torch.cat([g.x[c] for c in CONDS[:-1]]))  # (5, G*G, 1024) fp16
+            z = torch.cat([z, enc(g.x['orig2'])])  # orig again, alone in its batch: the numerical noise floor
             fc = frame_codes(saes, z, g.keep)
             for a in ARMS:
                 m, tc, idx = fc[a]
@@ -277,8 +333,8 @@ def cmd_extract(args):
                     am = tc.argmax(0)
                     ARG[a][i] = np.where(m[0].cpu().numpy() > 0, idx[am].cpu().numpy(), -1)
             U = torch.nonzero(g.keep['M0'] | g.keep['N2']).flatten()
-            for c, ci in (('orig', 0), ('occT', 1)):
-                fz[c].write(z[ci, U].cpu().numpy().tobytes())
+            for c in ZCONDS:
+                fz[c].write(z[CONDS.index(c), U].cpu().numpy().tobytes())
             tm['tok_frame'].append(np.full(len(U), i, np.int32))
             tm['tok_pos'].append(U.cpu().numpy().astype(np.int16))
             for nm, t_ in (('raw', g.raw), ('new', g.new), ('napp', g.napp), ('nfillT', g.nfillT),
@@ -303,8 +359,11 @@ def cmd_extract(args):
         np.save(loc / f'arg_{a}.npy', ARG[a])
     pd.DataFrame(recs).to_parquet(loc / 'frames.parquet')
     info = {'shard': args.shard, 'n_frames': len(recs), 'n_tokens': int(sum(len(x) for x in tm['tok_frame'])),
-            'wall_s': time.time() - t0, 'gpu_s': enc.gpu_s, 'gpu': torch.cuda.get_device_name(0)}
+            'wall_s': time.time() - t0, 'gpu_s': enc.gpu_s, 'gpu': gpu_name()}
     log(json.dumps(info))
+    if os.environ.get('V2A_FAKE_ENC'):
+        R4.atomic_copy(loc, BEE / DOM / f's{args.shard}')
+        return
     if args.selftest:
         selftest_panel(se, fl[:3], h, saes, dev)
         (OUT / 'selftest.json').write_text(json.dumps({'info': info, 'frames': recs}, indent=1, default=float))
@@ -413,7 +472,12 @@ def cv_probe(X, Y, groups, dev, Xextra=None, cap=300000, seed=0):
     from sklearn.model_selection import GroupKFold
     Y = Y.reshape(len(Y), -1).astype(np.float32)
     P = np.zeros_like(Y)
-    PE = np.zeros_like(Y) if Xextra is not None else None
+    if Xextra is not None and not isinstance(Xextra, dict):
+        Xextra = {'x': Xextra}
+        single = True
+    else:
+        single = False
+    PE = {k: np.zeros_like(Y) for k in Xextra} if Xextra is not None else None
     rng = np.random.default_rng(seed)
     lams = []
     for tr, te in GroupKFold(5).split(X, Y, groups):
@@ -439,10 +503,11 @@ def cv_probe(X, Y, groups, dev, Xextra=None, cap=300000, seed=0):
             tt = te[s0:s0 + 200000]
             P[tt] = ((torch.from_numpy(X[tt].astype(np.float32)).to(dev) - mu) / sd @ w + c).cpu().numpy()
             if Xextra is not None:
-                PE[tt] = ((torch.from_numpy(Xextra[tt].astype(np.float32)).to(dev) - mu) / sd @ w + c).cpu().numpy()
+                for k_, XE in Xextra.items():
+                    PE[k_][tt] = ((torch.from_numpy(XE[tt].astype(np.float32)).to(dev) - mu) / sd @ w + c).cpu().numpy()
         del Xt, Yt
         torch.cuda.empty_cache()
-    return P, PE, lams
+    return P, (PE['x'] if single else PE), lams
 
 
 def boot_auroc_diff(y, s1, s2, groups, n=500, seed=0):
@@ -474,7 +539,7 @@ def frame_mean(D, Z, sel, nf, dev):
 def cmd_analyse(args):
     import torch
     from scipy.stats import spearmanr
-    dev = torch.device('cuda')
+    dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     D = Data()
     F_, T = D.F, D.T
     res = {'n_frames': D.nf, 'n_tokens': D.nt, 'deploy': DEPLOY}
@@ -490,12 +555,15 @@ def cmd_analyse(args):
                      'share_fillT_outside_M0': float(F_.fillTout_px.sum() / max(1, F_.fillT_px.sum()))}
     log(json.dumps(res))
     # ------------------------------------------------ token probes (strict body tokens)
-    Zo, Zt = D.z('orig', strict), D.z('occT', strict)
+    Zo = D.z('orig', strict)
+    ZX = {c: D.z(c, strict) for c in ZCONDS[1:]}
+    Zt = ZX['occT']
     nb = T['nb_app'][strict]
     K1 = (nb >= 16).astype(np.float32)
     K2 = np.log1p(nb).astype(np.float32)
     gt = groups_f[tf[strict]]
-    P, PE, lams = cv_probe(Zo, np.stack([K1, K2], 1), gt, dev, Xextra=Zt)
+    P, PEd, lams = cv_probe(Zo, np.stack([K1, K2], 1), gt, dev, Xextra=ZX)
+    PE = PEd['occT']
     a_o, a_t = auroc(K1, P[:, 0]), auroc(K1, PE[:, 0])
     pos, neg = K1 > 0, K1 == 0
     share = float((P[pos, 0].mean() - PE[pos, 0].mean()) / (P[pos, 0].mean() - P[neg, 0].mean()))
@@ -505,25 +573,38 @@ def cmd_analyse(args):
            'K1_mean_score_pos_orig': float(P[pos, 0].mean()), 'K1_mean_score_pos_occT': float(PE[pos, 0].mean()),
            'K1_mean_score_neg_orig': float(P[neg, 0].mean()), 'K1_mean_score_neg_occT': float(PE[neg, 0].mean()),
            'K2_R2_orig': r2(K2, P[:, 1]), 'K2_R2_occT': r2(K2, PE[:, 1]), 'lambdas': lams}
+    for c in ('occC', 'orig2'):
+        tok[f'K1_AUROC_{c}'] = auroc(K1, PEd[c][:, 0])
+        tok[f'K2_R2_{c}'] = r2(K2, PEd[c][:, 1])
+    tok['K1_leak_vs_control_AUROC'] = tok['K1_AUROC_occC'] - a_t
+    tok['K1_leak_vs_control_CI95'] = boot_auroc_diff(K1, PEd['occC'][:, 0], PE[:, 0], gt)
     ang = T['nb_ang'][strict][pos]
     K3 = np.stack([np.cos(ang), np.sin(ang)], 1).astype(np.float32)
-    P3, PE3, _ = cv_probe(Zo[pos], K3, gt[pos], dev, Xextra=Zt[pos])
-    tok.update(K3_R2_orig=r2(K3, P3), K3_R2_occT=r2(K3, PE3), K3_n=int(pos.sum()))
-    # representation change by distance
+    P3, PE3, _ = cv_probe(Zo[pos], K3, gt[pos], dev, Xextra={c: X[pos] for c, X in ZX.items()})
+    tok.update(K3_R2_orig=r2(K3, P3), K3_n=int(pos.sum()), **{f'K3_R2_{c}': r2(K3, PE3[c]) for c in ZX})
+    # representation change by distance (tail occlusion, control occlusion, numerical floor)
     dist = T['dist'][strict].astype(int)
-    rel = np.linalg.norm(Zt.astype(np.float32) - Zo.astype(np.float32), axis=1) / np.linalg.norm(Zo.astype(np.float32), axis=1)
     bins = {'1': dist == 1, '2': dist == 2, '3': dist == 3, '4-6': (dist >= 4) & (dist <= 6), '>=7': dist >= 7}
-    tok['rel_change_median_by_dist'] = {b: float(np.median(rel[m])) if m.any() else None for b, m in bins.items()}
     tok['n_by_dist'] = {b: int(m.sum()) for b, m in bins.items()}
+    zo32 = Zo.astype(np.float32)
+    no = np.linalg.norm(zo32, axis=1)
     sae, norm = load_saes(dev)['M0']
-    ch = []
     with torch.no_grad():
-        for s0 in range(0, len(Zo), 100000):
-            co = sae.encode(norm(torch.from_numpy(Zo[s0:s0 + 100000]).to(dev).float()), 'threshold') > 0
-            ct = sae.encode(norm(torch.from_numpy(Zt[s0:s0 + 100000]).to(dev).float()), 'threshold') > 0
-            ch.append((co != ct).any(1).cpu().numpy())
-    ch = np.concatenate(ch)
-    tok['sae_active_set_changed_by_dist'] = {b: float(ch[m].mean()) if m.any() else None for b, m in bins.items()}
+        ao_ = [sae.encode(norm(torch.from_numpy(Zo[s0:s0 + 100000]).to(dev).float()), 'threshold') > 0
+               for s0 in range(0, len(Zo), 100000)]
+    for c, X in ZX.items():
+        rel = np.linalg.norm(X.astype(np.float32) - zo32, axis=1) / no
+        tok[f'rel_change_median_by_dist_{c}'] = {b: float(np.median(rel[m])) if m.any() else None for b, m in bins.items()}
+        ch = []
+        with torch.no_grad():
+            for q, s0 in enumerate(range(0, len(Zo), 100000)):
+                ct = sae.encode(norm(torch.from_numpy(X[s0:s0 + 100000]).to(dev).float()), 'threshold') > 0
+                ch.append((ao_[q] != ct).any(1).cpu().numpy())
+        ch = np.concatenate(ch)
+        tok[f'sae_active_set_changed_by_dist_{c}'] = {b: float(ch[m].mean()) if m.any() else None for b, m in bins.items()}
+    del ao_, zo32
+    tok['rel_change_median_by_dist'] = tok['rel_change_median_by_dist_occT']
+    tok['sae_active_set_changed_by_dist'] = tok['sae_active_set_changed_by_dist_occT']
     tok['Q2_context_carries_tail'] = bool(tok['K1_leak_AUROC'] >= 0.05 and ci[0] > 0)
     tok['Q2_mostly_context'] = bool(share >= 0.5)
     res['token_probe'] = tok
@@ -544,7 +625,7 @@ def cmd_analyse(args):
     npos, nneg = yk.sum(), (~yk).sum()
     au[okn] = (R[yk].sum(0) - npos * (npos + 1) / 2) / (npos * nneg)
     m0_tok = [int(j) for j in np.argsort(-np.nan_to_num(au, nan=-1))[:5]]
-    del Zo, Zt, C, R
+    del Zo, Zt, ZX, C, R
     sel_f = F_.half.values == 0
     test_f = ~sel_f
     F1 = np.log1p(F_.app_px.values)
@@ -576,7 +657,8 @@ def cmd_analyse(args):
         if len(ti) == 0:
             return None
         ao = fc[ti, 0]
-        dT, dTo, dB = (np.maximum(0, ao - fc[ti, CONDS.index(c)]) for c in ('occT', 'occTout', 'occB'))
+        dT, dTo, dB, dC = (np.maximum(0, ao - fc[ti, CONDS.index(c)]) for c in ('occT', 'occTout', 'occB', 'occC'))
+        dN = np.abs(ao - fc[ti, CONDS.index('orig2')])
         den = dT + dB
         ok = den > 0
         hm = D.hn[a][ti, j] / np.maximum(D.hd[a][ti, j], 1e-9)
@@ -584,6 +666,7 @@ def cmd_analyse(args):
                 'tail_share_median': float(np.median(dT[ok] / den[ok])) if ok.any() else None,
                 'dT_rel_median': float(np.median(dT / ao)), 'dTout_rel_median': float(np.median(dTo / ao)),
                 'dB_rel_median': float(np.median(dB / ao)), 'heat_tail_mass_median': float(np.median(hm)),
+                'dC_rel_median': float(np.median(dC / ao)), 'dNoise_rel_median': float(np.median(dN / ao)),
                 'frames': [int(x) for x in ti[:3]]}
     att = {'N2_tail': {}, 'M0_token': {}, 'M0_frame': {}, 'M0_random': {}, 'N2_random': {}}
     for j in n2_tail:
@@ -629,7 +712,7 @@ def cmd_analyse(args):
                      F1_mean_pred_orig=float(P_[:, 0].mean()), F1_mean_pred_occT=float(PE_[:, 0].mean()),
                      F1_mean_true=float(YF[:, 0].mean()))
         fr_res[nm] = r
-        log(nm, json.dumps(r, default=float))
+        log(nm + ' ' + json.dumps(r, default=float))
     res['frame_probe'] = fr_res
     res['frame_probe_F3_base_rate'] = float(YF[:, 2].mean())
     (OUT / 'attr.json').write_text(json.dumps(res, indent=1, default=float))
@@ -641,22 +724,28 @@ def write_table(res):
     L = ['# ECI v2 attribution: tight mask (V2F_M0 s901) vs thin-part mask (V2F_N2 s900), mice v1', '',
          f'{res["n_frames"]} frames; tokens {json.dumps(res["tokens"])}', '',
          '## Q2 context leak: token probe on strict body tokens (own pixels identical in orig / tail-occluded)', '',
-         '| target | metric | orig | tail occluded | drop |', '|---|---|---|---|---|',
+         '| target | metric | orig | tail occluded | control occlusion (same shape on bedding) | orig re-encoded alone '
+         '(numerical floor) | drop orig - tail occl. |', '|---|---|---|---|---|---|---|',
          f'| K1 tail within 2 tokens (base rate {t["K1_base_rate"]:.3f}) | AUROC | {t["K1_AUROC_orig"]:.3f} | '
-         f'{t["K1_AUROC_occT"]:.3f} | {t["K1_leak_AUROC"]:+.3f} [{t["K1_leak_CI95"][0]:+.3f}, {t["K1_leak_CI95"][1]:+.3f}] |',
-         f'| K2 log1p tail px nearby | R^2 | {t["K2_R2_orig"]:.3f} | {t["K2_R2_occT"]:.3f} | '
-         f'{t["K2_R2_orig"] - t["K2_R2_occT"]:+.3f} |',
+         f'{t["K1_AUROC_occT"]:.3f} | {t["K1_AUROC_occC"]:.3f} | {t["K1_AUROC_orig2"]:.3f} | '
+         f'{t["K1_leak_AUROC"]:+.3f} [{t["K1_leak_CI95"][0]:+.3f}, {t["K1_leak_CI95"][1]:+.3f}] |',
+         f'| K2 log1p tail px nearby | R^2 | {t["K2_R2_orig"]:.3f} | {t["K2_R2_occT"]:.3f} | {t["K2_R2_occC"]:.3f} | '
+         f'{t["K2_R2_orig2"]:.3f} | {t["K2_R2_orig"] - t["K2_R2_occT"]:+.3f} |',
          f'| K3 direction to tail (n {t["K3_n"]}) | R^2 | {t["K3_R2_orig"]:.3f} | {t["K3_R2_occT"]:.3f} | '
-         f'{t["K3_R2_orig"] - t["K3_R2_occT"]:+.3f} |', '',
-         f'K1 leak share of the probe score: {t["K1_leak_share_of_score"]:.3f}. Q2 context carries tail: '
+         f'{t["K3_R2_occC"]:.3f} | {t["K3_R2_orig2"]:.3f} | {t["K3_R2_orig"] - t["K3_R2_occT"]:+.3f} |', '',
+         f'K1 leak share of the probe score: {t["K1_leak_share_of_score"]:.3f}; tail vs control occlusion AUROC '
+         f'{t["K1_leak_vs_control_AUROC"]:+.3f} [{t["K1_leak_vs_control_CI95"][0]:+.3f}, '
+         f'{t["K1_leak_vs_control_CI95"][1]:+.3f}]. Q2 context carries tail: '
          f'{t["Q2_context_carries_tail"]}; mostly context: {t["Q2_mostly_context"]}', '',
-         '| token distance to tail | ' + ' | '.join(t['rel_change_median_by_dist']) + ' |',
-         '|---|' + '---|' * len(t['rel_change_median_by_dist']),
-         '| n tokens | ' + ' | '.join(str(v) for v in t['n_by_dist'].values()) + ' |',
-         '| median rel. change of z | ' + ' | '.join(f'{v:.3f}' if v is not None else '-' for v in
-                                                    t['rel_change_median_by_dist'].values()) + ' |',
-         '| share M0 SAE active set changed | ' + ' | '.join(f'{v:.3f}' if v is not None else '-' for v in
-                                                            t['sae_active_set_changed_by_dist'].values()) + ' |', '',
+         '| token distance to nearest tail patch | ' + ' | '.join(t['n_by_dist']) + ' |',
+         '|---|' + '---|' * len(t['n_by_dist']),
+         '| n strict body tokens | ' + ' | '.join(str(v) for v in t['n_by_dist'].values()) + ' |']
+    fm_ = lambda d: ' | '.join(f'{v:.3f}' if v is not None else '-' for v in d.values())  # noqa: E731
+    for c, nm in (('occT', 'tail occluded'), ('occC', 'control occlusion'), ('orig2', 'numerical floor')):
+        L.append(f'| median rel. change of z, {nm} | {fm_(t[f"rel_change_median_by_dist_{c}"])} |')
+    for c, nm in (('occT', 'tail occluded'), ('occC', 'control occlusion'), ('orig2', 'numerical floor')):
+        L.append(f'| share M0 SAE active set changed, {nm} | {fm_(t[f"sae_active_set_changed_by_dist_{c}"])} |')
+    L += ['',
          '## Frame-level probes (5-fold by pool)', '',
          f'F3 base rate {res["frame_probe_F3_base_rate"]:.3f}', '',
          '| features | F1 log1p tail px R^2 | F2 n tails R^2 | F3 tail visible AUROC | F1 R^2 tail occluded |',
@@ -667,8 +756,8 @@ def write_table(res):
             if 'F1_R2_occT' in r else '-'
         L.append(f'| {nm} | {r["F1_R2"]:.3f} | {r["F2_R2"]:.3f} | {f3} | {oc} |')
     L += ['', '## Q3 occlusion attribution (TEST frames, top 30 per neuron; medians)', '',
-          '| group | neuron | sel. score | a | tail share D_T/(D_T+D_B) | D_T/a | D_Tout/a | D_B/a | heat-map tail mass | flag |',
-          '|---|---|---|---|---|---|---|---|---|---|']
+          '| group | neuron | sel. score | a | tail share D_T/(D_T+D_B) | D_T/a | D_Tout/a | D_B/a | D_C/a (control) | '
+          '|noise|/a | heat-map tail mass | flag |', '|---|---|---|---|---|---|---|---|---|---|---|---|']
     S = res['selection']
     score = {'N2_tail': S['N2_appendage_share'], 'M0_token': S['M0_token_auroc'], 'M0_frame': S['M0_frame_spearman']}
     f = lambda v: '-' if v is None else f'{v:.3f}'  # noqa: E731
@@ -680,13 +769,15 @@ def write_table(res):
                     if grp.startswith('M0') else f'faithful {r["Q3_heat_faithful"]}')
             L.append(f'| {grp} | {j} | {f(score[grp].get(j, score[grp].get(str(j))))} | {r["a_median"]:.3f} | '
                      f'{f(r["tail_share_median"])} | {r["dT_rel_median"]:.3f} | {r["dTout_rel_median"]:.3f} | '
-                     f'{r["dB_rel_median"]:.3f} | {r["heat_tail_mass_median"]:.3f} | {flag} |')
+                     f'{r["dB_rel_median"]:.3f} | {r["dC_rel_median"]:.3f} | {r["dNoise_rel_median"]:.3f} | '
+                     f'{r["heat_tail_mass_median"]:.3f} | {flag} |')
     for grp in ('M0_random', 'N2_random'):
         rs = [r for r in res['attribution'][grp].values() if r]
         ts = [r['tail_share_median'] for r in rs if r['tail_share_median'] is not None]
         L.append(f'| {grp} (20) | median of medians | - | {np.median([r["a_median"] for r in rs]):.3f} | '
                  f'{np.median(ts):.3f} | {np.median([r["dT_rel_median"] for r in rs]):.3f} | '
                  f'{np.median([r["dTout_rel_median"] for r in rs]):.3f} | {np.median([r["dB_rel_median"] for r in rs]):.3f} | '
+                 f'{np.median([r["dC_rel_median"] for r in rs]):.3f} | {np.median([r["dNoise_rel_median"] for r in rs]):.3f} | '
                  f'{np.median([r["heat_tail_mass_median"] for r in rs]):.3f} | |')
     (OUT / 'table.md').write_text('\n'.join(L) + '\n')
     print('\n'.join(L))
@@ -702,10 +793,9 @@ def cmd_sheets(args):
     cmap = matplotlib.colormaps['turbo']
     from src.eci.v2.encode import Encoder
     from src.eci.v2.pipeline import Series
-    dev = torch.device('cuda')
     res = json.loads((OUT / 'attr.json').read_text())
     D = Data()
-    enc = Encoder(dev)
+    dev, enc = get_dev_enc()
     se = Series(T2.series_cfg(DOM, SER), dev, encoder=enc)
     h = T2.h_of(DOM, SER)
     saes = load_saes(dev)
@@ -739,22 +829,25 @@ def cmd_sheets(args):
                 blocks = torch.nonzero(pixd).flatten().tolist()
                 bg = pack['bg'].round().clamp(0, 255).to(torch.uint8)
                 occ = torch.zeros(G * G, device=dev)
-                for b0 in range(0, len(blocks), 16):
-                    bb = blocks[b0:b0 + 16]
-                    xs = x.repeat(len(bb), 1, 1, 1)
+                a0s = []
+                for b0 in range(0, len(blocks), 15):
+                    bb = blocks[b0:b0 + 15]
+                    xs = x.repeat(16, 1, 1, 1)  # element 0 = the unoccluded frame: same batch shape, same numerics
                     for q, bl in enumerate(bb):
                         yy, xx_ = (bl // G) * 16, (bl % G) * 16
-                        xs[q, :, yy:yy + 16, xx_:xx_ + 16] = bg[:, yy:yy + 16, xx_:xx_ + 16]
+                        xs[q + 1, :, yy:yy + 16, xx_:xx_ + 16] = bg[:, yy:yy + 16, xx_:xx_ + 16]
                     zb = enc(xs)
-                    cb = sae.encode(norm(zb[:, idx].float().flatten(0, 1)), 'threshold').view(len(bb), len(idx), -1)
-                    occ[torch.tensor(bb, device=dev)] = a0 - cb[:, :, j].amax(1)
+                    cb = sae.encode(norm(zb[:, idx].float().flatten(0, 1)), 'threshold').view(16, len(idx), -1)
+                    am = cb[:, :, j].amax(1)
+                    a0s.append(float(am[0]))
+                    occ[torch.tensor(bb, device=dev)] = am[0] - am[1:len(bb) + 1]
             hv, ov = heat.cpu().numpy(), occ.cpu().numpy()
             roi = np.array(blocks)
             sp = spearmanr(hv[roi], ov[roi]).correlation if len(roi) > 2 else np.nan
             ph, po = int(np.argmax(hv)), int(np.argmax(ov))
             pd_ = max(abs(ph // G - po // G), abs(ph % G - po % G))
             tail_occ = float(np.clip(ov, 0, None)[(g.napp.cpu().numpy() >= 16)].sum() / max(np.clip(ov, 0, None).sum(), 1e-9))
-            agr.append({'obs': o, 'k': k, 'a': a0, 'spearman_heat_occ': float(sp), 'peak_dist_tokens': pd_,
+            agr.append({'obs': o, 'k': k, 'a': a0, 'a_batch_sd': float(np.std(a0s)), 'spearman_heat_occ': float(sp), 'peak_dist_tokens': pd_,
                         'occ_mass_on_tail_tokens': tail_occ, 'n_blocks': len(blocks),
                         'occ_min': float(ov.min()), 'occ_max': float(ov.max())})
             img = x[0].permute(1, 2, 0).cpu().numpy()
