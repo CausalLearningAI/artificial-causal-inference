@@ -12,7 +12,8 @@ Frames -> kept tokens (ECI v2), one class per SERIES (a set of videos with one p
 
 Series config keys (configs/eci_v2/<domain>.json 'series'): name, experiment(s), plan (r4 plan json: videos with obs,
 src_lo, lay_lo, n, path, hflip, offset, role), ann (annotations.csv of src_lo), fps, step, offset, S, geometry,
-rot ('odor' | null), mask {cue, bg, align, dark_abs, dark_rel}, crop {side, locate}, layout (eci dir for codes).
+rot ('odor' | null), odor_corner (rot 'odor': the per-video corner table, default dataset/mice/v1/eci/odor_corner.csv),
+mask {cue, bg, align, dark_abs, dark_rel}, crop {side, locate}, layout (eci dir for codes).
 """
 import json
 import subprocess
@@ -94,7 +95,8 @@ class Series:
         self.rot = {}
         if cfg.get('rot') == 'odor':
             from src.eci.foreground import ODOR_ROT90
-            oc = pd.read_csv(REPO / 'dataset/mice/v1/eci/odor_corner.csv').set_index('observation_id')['odor_corner']
+            oc = pd.read_csv(REPO / cfg.get('odor_corner', 'dataset/mice/v1/eci/odor_corner.csv')).set_index(
+                'observation_id')['odor_corner']
             self.rot = {o: int(ODOR_ROT90[oc[o]]) for o in self.V}
         self._loc = {}
 

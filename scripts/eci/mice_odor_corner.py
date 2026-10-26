@@ -38,7 +38,7 @@ P measure how much time the mice spend at the same place without / after the odo
 Also prints chi-square tests of the corner against stage, genotype, line, sex, pool and recording date (pool level
 where the field is constant within pool).
 
-Usage: python scripts/eci/mice_odor_corner.py [--sheet]
+Usage: python scripts/eci/mice_odor_corner.py [--sheet] [--version v1|v2]
 """
 import argparse
 import sys
@@ -166,7 +166,13 @@ def sheet(d, path, t=128, nc=12):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--sheet', default=None, help='write a contact sheet PNG of every video with its zone here')
+    ap.add_argument('--version', default='v1', help='mice recording series: dataset/mice/<version>/eci/fg448/background'
+                    ' + data/mice/<version>/experiment.csv -> dataset/mice/<version>/eci/odor_corner.csv (same rule)')
     args = ap.parse_args()
+    global BG_DIR, OUT, EXPERIMENT
+    BG_DIR = ROOT / f'dataset/mice/{args.version}/eci/fg448/background'
+    OUT = ROOT / f'dataset/mice/{args.version}/eci/odor_corner.csv'
+    EXPERIMENT = ROOT / f'data/mice/{args.version}/experiment.csv'
     d = build()
     cols = ['observation_id', 'pool', 'line', 'sex', 'genotype', 'stage', 'odor', 'phase', 'date', 'time', 'session',
             'camera_spout_side', 'odor_corner', 'confidence', 'corner_source', 'bag_visible', 'bag_white_px',

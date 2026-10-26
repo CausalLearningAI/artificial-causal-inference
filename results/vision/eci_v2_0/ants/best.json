@@ -1,0 +1,13 @@
+{
+ "name": "v20_ants_N2_s900",
+ "seed": 900,
+ "eval_fve": 0.8690670612026377,
+ "theta_star": 2.071463108062744,
+ "candidates_eval_fve": {
+  "900": 0.8690670612026377,
+  "901": 0.8683454232293752,
+  "902": 0.8682765807656547
+ },
+ "rule": "highest held-out FVE among the spec seeds (label-free)",
+ "dir": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_0/ants/sae/v20_ants_N2_s900"
+}

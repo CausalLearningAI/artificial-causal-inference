@@ -95,8 +95,17 @@ def grey_quantiles(frames, qs=(0.02, 0.98), chunk=32):
     return tuple(out)
 
 
-def _maxpool(m, r):
+def _maxpool_ref(m, r):
     return F.max_pool2d(m, 2 * r + 1, 1, r)
+
+
+def _maxpool(m, r):
+    """(2r+1) square max filter = a (2r+1, 1) then a (1, 2r+1) max filter (max is separable over a rectangle; the
+    implicit -inf padding is the same), bit-identical to _maxpool_ref and O(r) instead of O(r^2) per pixel (v2.0
+    rollout 2026-10-25: the 2h / REACH filters of 129 / 385 px dominated the cue's cost at 1024 px)."""
+    if r <= 0:
+        return m
+    return F.max_pool2d(F.max_pool2d(m, (2 * r + 1, 1), 1, (r, 0)), (1, 2 * r + 1), 1, (0, r))
 
 
 def _open(m, r):
@@ -126,7 +135,7 @@ def hyst_pixels(x, bg, core0, h, t_lo=T_LO, t_hi=T_HI, k_noise=K_NOISE, reach_h=
         thr[i] = torch.clamp(k_noise * 1.4826 * mad, min=t_lo)
     tl = thr[:, None, None]
     if mad is not None and k_mad > 0:
-        tl = torch.maximum(tl, k_mad * mad[None])
+        tl = torch.maximum(tl, k_mad * (mad if mad.dim() == 3 else mad[None]))  # (S, S) or per-frame (B, S, S)
     cand = d > tl
     core = core0.clone()
     if strong:
@@ -196,16 +205,50 @@ def _ero(m, K):
     return F.conv2d(m.float()[:, None], K, padding=K.shape[-1] // 2)[:, 0] > float(K.sum()) - 0.5
 
 
+def _disk_or(m, r, pad):
+    """(B, H, W) bool -> OR of m over a disk of radius r (x^2 + y^2 <= r^2) around each pixel, outside the image = pad.
+    Rows of the disk are horizontal runs: OR over dy of the (1, 2 w(dy) + 1) max filter shifted by dy. Exact (binary
+    maxima), O(r) passes instead of the O(r^2)-per-pixel disk convolution (v2.0 rollout 2026-10-25: the 33 px disk
+    convolutions dominated the cue at 1024 px)."""
+    B, H, W = m.shape
+    x = F.pad(m.float()[:, None], (r, r, r, r), value=float(pad))
+    out = torch.zeros((B, 1, H, W), device=m.device)
+    hm = {}
+    for dy in range(-r, r + 1):
+        w = int(np.floor(np.sqrt(r * r - dy * dy) + 1e-9))
+        if w not in hm:
+            hm[w] = F.max_pool2d(x, (1, 2 * w + 1), 1, (0, w))
+        out = torch.maximum(out, hm[w][:, :, r + dy:r + dy + H, r:r + W])
+    return out[:, 0] > 0.5
+
+
+def _dil_r(m, r):
+    return _disk_or(m, r, 0)
+
+
+def _ero_r(m, r):
+    return ~_disk_or(~m, r, 1)
+
+
 @torch.no_grad()
-def appendage(pix, h):
-    """pix (B, S, S) bool -> (body, app): body = opening of pix by a disk of radius round(h/2) (parts at least about
-    a body width wide), app = pix outside body dilated by a disk of radius max(1, round(h/4)) AND within REACH_H * h of
-    the body (thin parts attached near a body: tails, antennae, legs; isolated specks far from any body excluded)."""
+def appendage_ref(pix, h):
+    """The original disk-convolution implementation of appendage() (reference for the identity test)."""
     Ko = _disk(max(1, int(round(h / 2))), pix.device)
     Kt = _disk(max(1, int(round(h / 4))), pix.device)
     body = _dil(_ero(pix, Ko), Ko)
     near = _maxpool(body.float()[:, None], int(round(REACH_H * h)))[:, 0] > 0.5
     return body, pix & ~_dil(body, Kt) & near
+
+
+@torch.no_grad()
+def appendage(pix, h):
+    """pix (B, S, S) bool -> (body, app): body = opening of pix by a disk of radius round(h/2) (parts at least about
+    a body width wide), app = pix outside body dilated by a disk of radius max(1, round(h/4)) AND within REACH_H * h of
+    the body (thin parts attached near a body: tails, antennae, legs; isolated specks far from any body excluded)."""
+    ro, rt = max(1, int(round(h / 2))), max(1, int(round(h / 4)))
+    body = _dil_r(_ero_r(pix, ro), ro)
+    near = _maxpool(body.float()[:, None], int(round(REACH_H * h)))[:, 0] > 0.5
+    return body, pix & ~_dil_r(body, rt) & near
 
 
 def token_fractions(pix, app, patch=16):

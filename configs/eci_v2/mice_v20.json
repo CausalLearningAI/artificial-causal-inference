@@ -1,0 +1,83 @@
+{
+ "domain": "mice",
+ "note": "mice v1 + v2 (ECI v2.0 rollout; copy of configs/eci_v2/mice.json with series v2 added, scripts/eci/v2/mice_v2_setup.py): v2 = the 216 mice v2 recordings (36 pools x 6 stages, genotype mixed), same rig / 2064 px source / 5 fps grid / rules as v1; v2 has no behaviour labels",
+ "series": [
+  {
+   "name": "v1",
+   "experiment": "v1",
+   "plan": "results/vision/eci_rollout_r4/mice/plan.json",
+   "ann": "dataset/mice/v1/annotations.csv",
+   "layout": "dataset/mice/v1/eci",
+   "fps": 30,
+   "step": 6,
+   "offset": 2,
+   "S": 1024,
+   "geometry": "frame",
+   "rot": "odor",
+   "mask": {
+    "cue": "dark",
+    "bg": "dataset/mice/v1/eci/fg448al/background",
+    "align": "odor",
+    "dark_abs": 60,
+    "dark_rel": 40
+   },
+   "pool_reuse": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/nnnt/r2/pool",
+   "align": {
+    "refs": {
+     "v1_online": [
+      "dataset/mice/v1/eci/codes/matryoshka_btk_1024_k16_fg448al_s0",
+      null
+     ],
+     "r4_d2": [
+      "dataset/mice/v1/eci/codes/matryoshka_btk_512_k16_r4d2_s0",
+      null
+     ]
+    }
+   },
+   "layout_ann": "dataset/mice/v1/annotations.csv"
+  },
+  {
+   "name": "v2",
+   "experiment": "v2",
+   "plan": "results/vision/eci_rollout_r4/mice_v2/plan.json",
+   "ann": "dataset/mice/v2/annotations.csv",
+   "layout": "dataset/mice/v2/eci",
+   "fps": 30,
+   "step": 6,
+   "offset": 2,
+   "S": 1024,
+   "geometry": "frame",
+   "rot": "odor",
+   "odor_corner": "dataset/mice/v2/eci/odor_corner.csv",
+   "mask": {
+    "cue": "dark",
+    "bg": "dataset/mice/v2/eci/fg448al/background",
+    "align": "odor",
+    "dark_abs": 60,
+    "dark_rel": 40
+   },
+   "layout_ann": "dataset/mice/v2/annotations.csv"
+  }
+ ],
+ "pool": {
+  "frames_per_experiment": null,
+  "note": "round-2 pool: bursts of 10 consecutive 5 fps frames, 16 per video, all 432 videos, built by scripts/eci/nnnt/r2.py with the same encoder / mask / rotation"
+ },
+ "encode": {
+  "n_shards": 24,
+  "chunk": 300,
+  "bs": 16,
+  "par": 6,
+  "threads": 4
+ },
+ "nes": {
+  "domain": "mice",
+  "env": {},
+  "sets": [
+   "core"
+  ],
+  "extra": [
+   "period_adjust"
+  ]
+ }
+}

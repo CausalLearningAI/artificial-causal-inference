@@ -1,0 +1,8 @@
+{
+ "S": 384,
+ "n_frames": 240,
+ "n_components": 295,
+ "body_halfwidth_px": 21.2602916254693,
+ "animal_px_per_frame_median": 4234.0,
+ "rule": "Body half-width of the tadpole crops (mask_test.cmd_calib rule: median over components >= 100 px of the max\n    distance transform of the frozen-cue pixels; 24 train videos x 10 frames, rng 0)."
+}
