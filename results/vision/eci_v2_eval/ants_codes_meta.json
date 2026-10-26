@@ -1,0 +1,19 @@
+{
+ "v2_tokens_per_frame": 43.77092767295598,
+ "v2_frames_without_token": 0,
+ "identity_v1_s0_c1v4": {
+  "frames": 36600,
+  "fire_agree": 0.999974865522541,
+  "mean_abs_diff": 0.0001256469258805737,
+  "max_abs_diff": 29.09375,
+  "wall_s": 566.5928437709808
+ },
+ "identity_v1_s0_eci30": {
+  "frames": 90600,
+  "fire_agree": 0.9999912583643764,
+  "mean_abs_diff": 3.0795134080108255e-05,
+  "max_abs_diff": 9.09375,
+  "wall_s": 1309.4899892807007
+ },
+ "v1_tokens_per_frame": 48.93323113207547
+}
