@@ -1,0 +1,16 @@
+{
+ "separable_maxpool_max_abs_diff": 0,
+ "identity_full1": {
+  "frames": 24,
+  "stored_tokens": 1099,
+  "stored_in_keep": 1099,
+  "keep_tokens": 5552,
+  "keep_eq_stored_frames": 0,
+  "tok_code_maxabs": 0.0,
+  "tok_code_exact_frac": 0.9999999875823656,
+  "frame_code_maxabs": 0.0,
+  "tok_maxabs": 0.0,
+  "stored_in_keep_frac": 1.0,
+  "note": "full1 keep p = 0.2 for mice (stored = a seeded subset of the N2 set: expect stored_in_keep_frac 1, keep_tokens ~5x stored); p = 1 for ants (expect keep == stored)"
+ }
+}

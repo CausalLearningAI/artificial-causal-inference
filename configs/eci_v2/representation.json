@@ -13,4 +13,5 @@
  "continuous": "centred mean over +-1 frame at 5 fps (0.6 s window) of the frame max = '<sae>_smooth'",
  "probability": "per-neuron 3-state zero-inflated log-normal HMM on the raw 5 fps frame max (src/eci/v2/hmm.py, K = 3), fitted label-free per domain on the calibration videos; P(on) = '<sae>_hmm', Viterbi on-state = '<sae>_hmmv'",
  "video_summaries": "mean P(on) (expected fraction of time on; PRIMARY NES outcome), bout rate and latency from the Viterbi on-state, mean of the continuous value (secondary)",
+ "smooth_h": 1,
  "discovery_prefixes": [128, 256, 2048]}

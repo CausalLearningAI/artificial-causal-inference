@@ -1,0 +1,32 @@
+{
+ "separable_maxpool_max_abs_diff": 0,
+ "identity_full1": {
+  "frames": 24,
+  "stored_tokens": 1100,
+  "stored_in_keep": 1100,
+  "keep_tokens": 1100,
+  "keep_eq_stored_frames": 24,
+  "tok_code_maxabs": 2.2296504974365234,
+  "tok_code_exact_frac": 0.991960845887661,
+  "frame_code_maxabs": 2.187596082687378,
+  "tok_maxabs": 0.095947265625,
+  "app_eq": [
+   true,
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  "app_px": [
+   535,
+   739,
+   477,
+   318,
+   345,
+   841
+  ],
+  "stored_in_keep_frac": 1.0,
+  "note": "full1 keep p = 0.2 for mice (stored = a seeded subset of the N2 set: expect stored_in_keep_frac 1, keep_tokens ~5x stored); p = 1 for ants (expect keep == stored)"
+ }
+}
