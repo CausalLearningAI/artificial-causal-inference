@@ -1,0 +1,22 @@
+{
+ "sae": "v20_frogs_N2_s901",
+ "K": 3,
+ "fit": "calibration videos of the domain",
+ "n_fallback": 54,
+ "stationary_on_share_median": 0.014632888892081728,
+ "mean_on_bout_frames_median": 6.84251395722174,
+ "series": {
+  "juv": {
+   "summaries": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0/frogs/summaries_juv.npz",
+   "median_mean_p_on": 8.483933925163e-06,
+   "median_time_on_viterbi": 0.0,
+   "never_on_video_neuron_frac": 0.7193219661712646
+  },
+  "tad": {
+   "summaries": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0/frogs/summaries_tad.npz",
+   "median_mean_p_on": 0.001885223318822682,
+   "median_time_on_viterbi": 0.001444444409571588,
+   "never_on_video_neuron_frac": 0.2799713611602783
+  }
+ }
+}

@@ -7,7 +7,8 @@
 set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 D=$1
-NAME=$(python -c "import json;print(json.load(open('results/vision/eci_v2_0/$D/best.json'))['name'])")
+OUTD=${V2_OUT:-results/vision/eci_v2_0}
+NAME=$(python -c "import json;print(json.load(open('$OUTD/$D/best.json'))['name'])")
 sub() {  # KIND ANTS_ECI SET ZERO
   sbatch --parsable -J v20nes_$1${2:+_$2}$3 --output=results/vision/eci_v2_0/logs/%x_%j.out \
     --export=ALL,KIND=$1,ANTS_ECI=$2,SAE=$NAME$3,PREFIXES=128,256,2048,V2_ZERO_THR=$4,TADPOLE_TAG=_r4 scripts/eci/v2/nes.sh

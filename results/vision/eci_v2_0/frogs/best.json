@@ -1,0 +1,13 @@
+{
+ "name": "v20_frogs_N2_s901",
+ "seed": 901,
+ "eval_fve": 0.8147291873410164,
+ "theta_star": 2.14497447013855,
+ "candidates_eval_fve": {
+  "900": 0.8133260288034941,
+  "901": 0.8147291873410164,
+  "902": 0.8139981770002722
+ },
+ "rule": "highest held-out FVE among the spec seeds (label-free)",
+ "dir": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_0/frogs/sae/v20_frogs_N2_s901"
+}

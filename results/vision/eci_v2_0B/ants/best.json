@@ -1,0 +1,15 @@
+{
+ "name": "v20_ants_N2f5_s951",
+ "seed": 951,
+ "eval_fve": 0.869028395684472,
+ "theta_star": 2.0780084133148193,
+ "candidates_eval_fve": {
+  "950": 0.8683284269314534,
+  "951": 0.869028395684472,
+  "952": 0.8688775302697586,
+  "953": 0.8689164404629426,
+  "954": 0.8688600647054074
+ },
+ "rule": "highest held-out FVE among the spec seeds (label-free)",
+ "dir": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_0/ants/sae5/v20_ants_N2f5_s951"
+}

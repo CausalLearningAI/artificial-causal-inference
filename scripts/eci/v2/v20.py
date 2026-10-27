@@ -44,6 +44,8 @@ OUT, BEE = R.OUT, R.BEE
 log = R.log
 BG_M2 = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_mask2/bg')
 V2F = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_diag')
+BG_V20 = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_0/bg')  # frogs / mice v2 packs (fixed: PASS B uses another V2_BEE)
+NOSTORE = os.environ.get('V20_NOSTORE') == '1'  # PASS B: no training store
 NSH = {'mice': 32, 'ants': 16, 'frogs': 16}
 NSH_STORE1 = 8  # frogs 1 fps store shards
 N_BG = 48
@@ -77,7 +79,7 @@ def h_of(dom, ser):
 
 def bg_file(dom, ser, obs, w):
     # stored mask2 packs for mice v1 / ants; mice v2 and frogs packs are built here (cmd_bgs)
-    root = BG_M2 if dom in ('mice', 'ants') and (dom, ser) != ('mice', 'v2') else BEE / 'bg'
+    root = BG_M2 if dom in ('mice', 'ants') and (dom, ser) != ('mice', 'v2') else BG_V20
     return root / f'{dom}_{ser}' / (f'{obs}.npz' if w == 0 else f'{obs}__w{w}.npz')
 
 
@@ -555,6 +557,8 @@ def cmd_encode(a):
                     acc['ai'].append(li.to(torch.int16).cpu().numpy())
                     acc['av'].append(cz[ti, li].half().cpu().numpy())
                     # training store: fixed random 20% of each frame's kept tokens
+                    if NOSTORE:
+                        continue
                     sel = np.concatenate([np.random.default_rng([crc, int(k)]).random(int(m)) < P_STORE
                                           for k, m in zip(kk, nk)]) if len(pic) else np.zeros(0, bool)
                     ft = bi.cpu().numpy()[sel]
@@ -582,14 +586,15 @@ def cmd_encode(a):
     Fm = pd.DataFrame(recs, columns=['series', 'obs', 'k', 'role', 'n_kept', 'n_store'])
     Fm.to_parquet(loc_s / 'frames.parquet')
     nt = int(Fm.n_store.sum())
-    assert (loc_s / 'tok.f16').stat().st_size == nt * 1024 * 2
+    assert NOSTORE or (loc_s / 'tok.f16').stat().st_size == nt * 1024 * 2
     wall = time.time() - T0
     info = {'domain': a.domain, 'shard': tag, 'frames': tot, 'store_tokens': nt, 'store_bytes': nt * 2048,
             'kept_tokens': int(Fm.n_kept.sum()), 'p_store': P_STORE, 'wall_s': wall, 'gpu_s': enc.gpu_s,
             'fps_wall': tot / max(wall, 1), 'gpu': torch.cuda.get_device_name(0), 'sae': b['name']}
     (OUT / a.domain / 'encode').mkdir(parents=True, exist_ok=True)
     (OUT / a.domain / 'encode' / f'{tag}.json').write_text(json.dumps(info, indent=1))
-    R.atomic_copy(loc_s, BEE / a.domain / 'store5' / tag)
+    if not NOSTORE:
+        R.atomic_copy(loc_s, BEE / a.domain / 'store5' / tag)
     log(f'{a.domain} shard {a.shard} DONE: ' + json.dumps(info))
 
 
@@ -781,6 +786,19 @@ def cmd_link(a):
 
 # ---------------------------------------------------------------------------------------------- 5 fps retrain
 SEEDS5 = (950, 951, 952, 953, 954)
+
+
+class HostTok:
+    """(n, d) fp16 host tensor indexed by device indices -> device rows (same values as a device tensor)."""
+
+    def __init__(self, x, dev):
+        self.x, self.dev, self.shape = x.pin_memory(), dev, x.shape
+
+    def __len__(self):
+        return len(self.x)
+
+    def __getitem__(self, i):
+        return self.x[i.cpu()].to(self.dev, non_blocking=True)
 CAP5 = {'train': 24_000_000, 'calib': 2_000_000, 'eval': 2_000_000}
 
 
@@ -823,7 +841,10 @@ def cmd_train5(a):
         assert o == take
         info[f'tokens_{r}'] = {'available': tot, 'used': take, 'read_s': round(time.time() - t0)}
         log(f'train5 {dom} {r}: {take:,} of {tot:,} tokens ({time.time() - t0:.0f}s)')
-        X[r] = torch.from_numpy(out).to(dev) if r == 'train' else torch.from_numpy(out)
+        if r == 'train' and os.environ.get('V20_HOSTTOK') == '1':  # tokens stay in pinned host memory (48 GB GPUs)
+            X[r] = HostTok(torch.from_numpy(out), dev)
+        else:
+            X[r] = torch.from_numpy(out).to(dev) if r == 'train' else torch.from_numpy(out)
     cfg = {**s['sae'], 'context_window': 0}
     if a.steps:
         cfg['steps'] = a.steps
