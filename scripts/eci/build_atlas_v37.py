@@ -53,12 +53,15 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / 'results/vision/eci_atlas_v37'
+# output root (res/, build/, site/, webm/): ATLAS_OUT (default the published atlas's build tree). The inputs every atlas
+# build shares (live page, methods runs, v0, alignment, tadpole strips, remuxed packs, clip frames) stay in OUT37.
+OUT37 = ROOT / 'results/vision/eci_atlas_v37'
+OUT = ROOT / os.environ.get('ATLAS_OUT', 'results/vision/eci_atlas_v37')
 R4 = ROOT / 'results/vision/eci_rollout_r4'
 V36 = ROOT / 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0/explorer_v36'
 # the online model's input page: live version 39 (git show ea6a534:atlas/index.html). atlas/index.html itself is the
 # output of this builder since version 42, so reading it would feed the build its own online entries back (duplicates)
-V36_PAGE = OUT / 'live_v39' / 'index.html'
+V36_PAGE = OUT37 / 'live_v39' / 'index.html'
 # versions 38 / 39 (another session, commits ca7ef24 / ea6a534) only drop the mean-pool and SOMP outcomes and mark those
 # aggregations off in ALL.aggs; the max-pool data of every entry is unchanged since version 37
 # version 37 (published 2026-10-16) = v36 with the ants entries replaced by the 30-min ants build (explorer_v39, ANTS_ECI
@@ -90,13 +93,26 @@ NEW = {'mice': ('mice', None, 'results/vision/mice/eci/nes', 'mice'),
        'v2_ants_v4p': ('ants', 'eci_r4v4p', 'results/vision/ants/eci_r4v4p/nes', 'ants'),
        'v2_frogs': ('frogs', None, 'results/vision/frogs/eci/nes', 'frogs'),
        'v2_frogs_tad': ('tadpoles', None, 'results/vision/frogs/eci_tadpole_r4/nes', 'frogs')}
-V2 = ROOT / 'results/vision/eci_v2'
+# the v2 model root (<domain>/best.json, manifest.json): ATLAS_V2_ROOT, default the frozen v2 (results/vision/eci_v2);
+# ECI v2.0 = results/vision/eci_v2_0B (PASS B). NES / NESS of every v2 model are written under results/vision/eci_v2
+# (scripts/eci/v2/nes.sh), so the NESS root V2NS never follows ATLAS_V2_ROOT. V20 = the v2.0 site (labels 'v2.0',
+# primary outcome = HMM P(on), variant 'hmm', which also carries the clips).
+V2 = ROOT / os.environ.get('ATLAS_V2_ROOT', 'results/vision/eci_v2')
+V2NS = ROOT / 'results/vision/eci_v2'
+V20 = V2.resolve() != V2NS.resolve()
+V2_BEE = os.environ.get('ATLAS_V2_BEE') or (
+    '/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/' + V2.name.replace('eci_', '', 1) if V20 else None)
+HEAT_STYLE = os.environ.get('ATLAS_HEAT_STYLE', 'patch')  # build_explorer tile_frames style ('alpha' = pink + outline)
 V2_SERIES = {'v2_mice': 'v1', 'v2_ants_v2p': 'v2', 'v2_ants_v3p': 'v3', 'v2_ants_v4p': 'v4', 'v2_frogs': 'juv',
              'v2_frogs_tad': 'tad'}
 V2_NESS = {'v2_mice': 'mice', 'v2_ants_v2p': 'ants_eci_r4v2p', 'v2_ants_v3p': 'ants_eci_r4v3p',
            'v2_ants_v4p': 'ants_eci_r4v4p', 'v2_frogs': 'frogs', 'v2_frogs_tad': 'frogs_tadpole'}
-V2_MODEL = {'smooth': 'new', 'thr': 'new (thr)', 'prob': 'new', 'map': 'new'}  # page model values of the v2 input sets (readout_axis)
-V2_SUF = {'smooth': '_smooth', 'thr': '', 'prob': '_prob', 'map': '_map'}
+V2_MODEL = {'smooth': 'new', 'thr': 'new (thr)', 'prob': 'new', 'map': 'new', 'hmm': 'new'}  # page model values of the v2 input sets (readout_axis)
+V2_SUF = {'smooth': '_smooth', 'thr': '', 'prob': '_prob', 'map': '_map', 'hmm': '_hmm'}
+V2_LET = {'smooth': 's', 'thr': 't', 'prob': 'p', 'map': 'm', 'hmm': 'h'}  # build tag letter per variant
+V2_TAG = 'v20' if V20 else 'v2'  # build tag prefix (pack names): v2.0 packs never collide with the frozen v2 ones
+CLIP_VAR = 'hmm' if V20 else 'smooth'  # the variant whose build carries the clip packs (the others share them)
+CLIP_READOUT = 'prob' if V20 else 'continuous'  # its page readout (v2.0: HMM P(on) is shown as readout 'prob')
 # online builds: (domain, ANTS_ECI, v36 result set, v36 tag)
 ONLINE = {'mice': ('mice', None, 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0', 'fg448al'),
           'ants': ('ants', 'eci30', 'results/vision/ants/eci30/nes/matryoshka_btk_1024_k16_antsfg_s0', 'antsfg'),
@@ -106,7 +122,7 @@ ONLINE = {'mice': ('mice', None, 'results/vision/mice/eci/nes/matryoshka_btk_102
           'ants_v4': ('ants', 'eci_c1v4_noday',
                       'results/vision/ants/eci_c1v4_noday/nes/matryoshka_btk_1024_k16_antsfg_s0', 'antsfg')}
 # methods output (scripts/eci/atlas_v37_methods.py): <METHODS>/<domain key>/<sae>/{dines, familyC_nes, familyC_dines}
-METHODS = OUT / 'methods'
+METHODS = OUT37 / 'methods'
 METHOD_KEY = {'mice': 'mice', 'ants_v2': 'ants_eci_r4v2', 'ants_v3': 'ants_eci_r4v3', 'ants_v4': 'ants_eci_r4v4',
               'ants_v2p': 'ants_eci_r4v2p', 'ants_v3p': 'ants_eci_r4v3p', 'ants_v4p': 'ants_eci_r4v4p',
               'frogs': 'frogs', 'frogs_tad': 'frogs_tadpole', 'online_mice': 'mice', 'online_ants': 'ants_eci30', 'online_frogs': 'frogs'}
@@ -119,7 +135,8 @@ TRANS = {'1to2': (1, 2), '2to3': (2, 3), '4to5': (4, 5), '5to6': (5, 6)}
 ap = argparse.ArgumentParser()
 ap.add_argument('--dom', default=None, help='build key: ' + ', '.join(NEW) + ' (new) / mice, ants, frogs (online)')
 ap.add_argument('--model', default='new', choices=('new', 'online'))
-ap.add_argument('--variant', default='d2', choices=('d2', 'd0', 'smooth', 'thr', 'prob', 'map'), help='r4: d2 / d0; v2: smooth / thr / prob / map')
+ap.add_argument('--variant', default='d2', choices=('d2', 'd0', 'smooth', 'thr', 'prob', 'map', 'hmm'),
+                help='r4: d2 / d0; v2: smooth / thr / prob / map; v2.0 (ATLAS_V2_ROOT): hmm (primary) / smooth')
 ap.add_argument('--steps', default='prep,data,patch,arena,render,dump', help='frogs_tad: tad')
 ap.add_argument('--max-pages', type=int, default=0, help='clip pages per build (build_explorer --max-pages)')
 ap.add_argument('--kr', type=int, default=None, help='clips rendered per row (default: build_explorer VIEW kr; mice 8)')
@@ -198,6 +215,9 @@ VZ.load_full_codes = _load_full_codes
 import build_explorer as BE  # noqa: E402
 
 DOMOBJ = {'mice': BE.MICE, 'ants': BE.ANTS, 'frogs': BE.FROGS}
+if HEAT_STYLE != 'patch':  # clip heat style (src/eci/viz.py _overlay_rgb; 'alpha' = one pink colour + max-patch outline)
+    _tile_frames = BE.tile_frames
+    BE.tile_frames = lambda *a, **k: _tile_frames(*a, **{**k, 'style': k.get('style', HEAT_STYLE)})
 _cg_s = BE.contrast_groups
 
 
@@ -430,10 +450,12 @@ def add_outcomes(c, base, prefix, cache, kinds=('rate', 'time', 'latency'), dine
 # searches added to a build's virtual result set: key -> (NES subdir of the R4 result set, methods out-root, analyses).
 # v3 t=2 vs t=8 shares no recording day, so the --day runs skip it; it is searched without --day (n_fg only,
 # scripts/eci/r4_v3_2v8.sh), its NES rows from <R4 result set>/v3_2_vs_8_noday, its DINES rows from methods_v3_2v8
-EXTRA_SEARCHES = {'ants_v3p_d2': ('v3_2_vs_8_noday', OUT / 'methods_v3_2v8', ('v3_2_vs_8',)),
-                  'v2_ants_v3p_thr': ('v3_2_vs_8_noday', V2 / 'ness_v3_2v8', ('v3_2_vs_8',)),
-                  'v2_ants_v3p_smooth': ('v3_2_vs_8_noday', V2 / 'ness_v3_2v8', ('v3_2_vs_8',)),
-                  'v2_ants_v3p_prob': ('v3_2_vs_8_noday', V2 / 'ness_v3_2v8', ('v3_2_vs_8',))}
+EXTRA_SEARCHES = {'ants_v3p_d2': ('v3_2_vs_8_noday', OUT37 / 'methods_v3_2v8', ('v3_2_vs_8',)),
+                  'v2_ants_v3p_thr': ('v3_2_vs_8_noday', V2NS / 'ness_v3_2v8', ('v3_2_vs_8',)),
+                  'v2_ants_v3p_smooth': ('v3_2_vs_8_noday', V2NS / 'ness_v3_2v8', ('v3_2_vs_8',)),
+                  'v2_ants_v3p_prob': ('v3_2_vs_8_noday', V2NS / 'ness_v3_2v8', ('v3_2_vs_8',))}
+if V20:  # the frozen v2's separate v3 t=2 vs 8 searches belong to its SAE, not v2.0's
+    EXTRA_SEARCHES = {k: v for k, v in EXTRA_SEARCHES.items() if not k.startswith('v2_')}
 
 
 def v2_name(rdom):
@@ -447,7 +469,7 @@ def new_paths():
         assert A.variant in V2_MODEL, A.variant
         sae = v2_name(rdom) + V2_SUF[A.variant]
         return dom_name, sae, ROOT / nes_root / sae, OUT / 'res' / key / sae, OUT / 'build' / key, \
-            V2 / 'ness' / V2_NESS[A.dom] / sae, key
+            V2NS / 'ness' / V2_NESS[A.dom] / sae, key
     sae = best_sae(rdom, A.variant) + '_fnorm'
     return dom_name, sae, ROOT / nes_root / sae, OUT / 'res' / key / sae, OUT / 'build' / key, \
         METHODS / METHOD_KEY[A.dom] / sae, key
@@ -472,7 +494,7 @@ def step_prep_new():
     xd = [x for x in xd if x[0].is_dir()]
     if A.dom == 'v2_mice':  # family S (sex) of the frozen v2: its own NES / NESS result sets
         xn += [src / 'family_S'] if (src / 'family_S').is_dir() else []
-        xd += [V2 / 'ness_S' / 'mice' / sae / 'dines'] if (V2 / 'ness_S' / 'mice' / sae / 'dines').is_dir() else []
+        xd += [V2NS / 'ness_S' / 'mice' / sae / 'dines'] if (V2NS / 'ness_S' / 'mice' / sae / 'dines').is_dir() else []
     for meth, srcs in (('nes', [src, M / 'familyC_nes'] + xn), ('dines', [M / 'dines', M / 'familyC_dines'] + xd)):
         have[meth] = []
         for kind, sub, *_ in OUTS:
@@ -515,8 +537,8 @@ def step_checks_new():
 def new_cfg():
     dom_name, sae, src, V, bout, M, key = new_paths()
     dom = DOMOBJ[dom_name]
-    tag = ('v2' + {'v2_mice': 'mice', 'v2_ants_v2p': 'v2p', 'v2_ants_v3p': 'v3p', 'v2_ants_v4p': 'v4p',
-                   'v2_frogs': 'frogs', 'v2_frogs_tad': 'tad'}[A.dom] + {'smooth': 's', 'thr': 't', 'prob': 'p', 'map': 'm'}[A.variant]) if A.dom.startswith('v2_') else \
+    tag = (V2_TAG + {'v2_mice': 'mice', 'v2_ants_v2p': 'v2p', 'v2_ants_v3p': 'v3p', 'v2_ants_v4p': 'v4p',
+                     'v2_frogs': 'frogs', 'v2_frogs_tad': 'tad'}[A.dom] + V2_LET[A.variant]) if A.dom.startswith('v2_') else \
         'r4' + {'mice': 'mice', 'ants_v2': 'v2', 'ants_v3': 'v3', 'ants_v4': 'v4', 'frogs': 'frogs', 'ants_v2p': 'v2p',
                 'ants_v3p': 'v3p', 'ants_v4p': 'v4p'}[A.dom] + A.variant
     c = make_cfg(V, sae, dom, tag, bout)
@@ -524,16 +546,22 @@ def new_cfg():
         c.kr = A.kr
     elif dom is BE.MICE:
         c.kr = 8  # the page shows 8 per row by default; 16 doubles the packs (asset store budget)
-    add_outcomes(c, V / 'nes', '', V / '_cache')
+    # HMM P(on) (v2.0 primary): its per-video mean (expected fraction of time on) only; bout rate / latency of the
+    # HMM come from the Viterbi set (<sae>_hmmv), not from P(on)
+    kinds = ('time',) if A.variant == 'hmm' else ('rate', 'time', 'latency')
+    add_outcomes(c, V / 'nes', '', V / '_cache', kinds=kinds)
     if (V / 'dines' / 'summary.csv').exists() or (V / 'dines' / 'maxpool_bouts' / 'summary.csv').exists():
-        add_outcomes(c, V / 'dines', 'd', V / '_cache', dines=True)
+        add_outcomes(c, V / 'dines', 'd', V / '_cache', kinds=kinds, dines=True)
+    if A.variant == 'hmm':
+        for o in c.outcomes + c.extras:
+            o.update(label='Expected fraction of time on (HMM P(on))', unit='fraction of time', short='P(on)')
     if A.dom == 'v2_mice':
         v2_subsets(c, src, sae)
     BE.plan_clips([c], A.max_pages)
     # the best-aligned neurons of the Alignment panel get clips for its interpretation box (user, 2026-10-22): in the
     # continuous build only (the clips the page shows for every v2 outcome input; a thresholded input can hold a neuron
     # that never fires in a series, which has no clips to render)
-    al = aligned_neurons(V2_ALIGN_SER[A.dom], 'v2') if A.dom in V2_ALIGN_SER and A.variant == 'smooth' else set()
+    al = aligned_neurons(V2_ALIGN_SER[A.dom], 'v2') if A.dom in V2_ALIGN_SER and A.variant == CLIP_VAR else set()
     if al:
         for k in c.keys:
             new = sorted(j for j in al if j not in c.clipplan.setdefault(k, {}))
@@ -553,7 +581,7 @@ def v2_subsets(c, src, sae):
     for name in BE.SUBSETS:
         core, extra = [], []
         for o in c.outcomes + c.extras:
-            base = (V2 / 'ness_strata' / name / 'mice' / sae / 'dines') if o['id'].startswith('d') else (src / 'subsets' / name)
+            base = (V2NS / 'ness_strata' / name / 'mice' / sae / 'dines') if o['id'].startswith('d') else (src / 'subsets' / name)
             d = base / sub_of[o['id']] if sub_of[o['id']] != '.' else base
             if (d / 'summary.csv').exists():
                 t = c.trim(pd.read_csv(d / 'summary.csv'))
@@ -754,8 +782,12 @@ def step_v2heat(c):
     (c.work / 'patch').mkdir(parents=True, exist_ok=True)
     cmd = [sys.executable, '-u', str(ROOT / 'scripts/eci/v2/run.py'), 'heat', '--domain', dom, '--series',
            V2_SERIES[A.dom], '--picks', str(c.work / 'picks.json'), '--out-dir', str(c.work / 'patch')]
-    log('v2heat:', ' '.join(cmd))
-    subprocess.run(cmd, check=True, cwd=ROOT)
+    env = dict(os.environ)
+    if V20:  # run.py reads its model root (best.json) and the token-code store from V2_OUT / V2_BEE
+        assert Path(V2_BEE, dom).is_dir(), f'v2heat: no token codes in {V2_BEE}/{dom} (set ATLAS_V2_BEE)'
+        env.update(V2_OUT=str(V2), V2_BEE=str(V2_BEE))
+    log('v2heat:', ' '.join(cmd), f'(V2_OUT {env.get("V2_OUT", "default")}, V2_BEE {env.get("V2_BEE", "default")})')
+    subprocess.run(cmd, check=True, cwd=ROOT, env=env)
 
 
 def step_render_new(c):
@@ -1101,13 +1133,13 @@ def step_dump_tadpoles():
     v2m = A.dom == 'v2_frogs_tad'  # the frozen v2 (its frogs SAE) on the tadpoles
     if v2m:
         sae = v2_name('frogs') + V2_SUF[A.variant]
-        ness = V2 / 'ness' / 'frogs_tadpole' / sae
+        ness = V2NS / 'ness' / 'frogs_tadpole' / sae
     else:
         sae = best_sae('frogs_tadpole', A.variant) + '_fnorm'
         ness = TAD_NESS / sae
     src = ROOT / NEW[A.dom][2] / sae
     key = f'{A.dom}_{A.variant}'
-    tg = ('v2tad' + {'smooth': 's', 'thr': 't', 'prob': 'p', 'map': 'm'}[A.variant]) if v2m else 'r4tad' + A.variant
+    tg = (V2_TAG + 'tad' + V2_LET[A.variant]) if v2m else 'r4tad' + A.variant
     V, bout = OUT / 'res' / key / sae, OUT / 'build' / key
     (V / '_cache').mkdir(parents=True, exist_ok=True)
     for f in (src / '_cache').glob('*.npz'):
@@ -1209,6 +1241,12 @@ MODEL_TIPS = {'online': 'v1 (deployed): DINOv2-base at 448 px, the animal mask, 
               'new_r4': 'v2 (in progress): DINOv3-L/16 at an input sized to the animal, the same lab masks, token + its '
                      'change over 2 s, Matryoshka BatchTopK SAE with 512 neurons (k 16), max pooling',
               'new (no Δ)': 'v2 without the 2 s change half (variant d0)'}
+if V20:
+    MODEL_TIPS['new'] = ('v2.0 (frozen 2026-10-25, configs/eci_v2/representation.json): DINOv3-L/16 block 20 at native '
+                         'resolution, canonical rotation (mice odour corner top right, frogs mutant side right), animal '
+                         'mask keeping thin parts (N2), no temporal channel, one Matryoshka BatchTopK SAE per domain '
+                         '(2048 neurons, k 16), max over kept tokens; Outcome selects the expected fraction of time on '
+                         '(HMM P(on), primary) or the continuous code (0.6 s mean, secondary)')
 METHOD_TIPS = {'NES': 'Neural Effect Search (Mencattini, Cadei, Locatello 2025): add the most significant neuron, '
                       're-test the others given the ones found, repeat until nothing is significant (Bonferroni)',
                'DINES': 'Direct-Indirect Neural Effect Search (successor of NES, src/eci/dines.py): a forward phase '
@@ -1259,9 +1297,12 @@ def spec_of(e):
         who = 'tadpoles' if e.get('tadpole') else {'mice': 'mice', 'ants': 'ants', 'frogs': 'frogs'}[dom]
         fm = ('DINOv3-L/16 block 20 · 96 px crop following the tadpole → 384 px' if e.get('tadpole') else
               f'DINOv3-L/16 block 20 · native resolution ({who} {S} px)' if S else 'DINOv3-L/16 block 20 · native resolution')
-        cells = {'fm': fm, 'mask': 'animal mask',
+        hmm = V20 and '_hmm@' in e['sae']
+        cells = {'fm': fm, 'mask': 'animal mask, thin parts kept (N2)' if V20 else 'animal mask',
                  'canon': CANON[dom] if not e.get('tadpole') else 'none (crop centred on the tadpole)',
-                 'input': 'token (no temporal channel)', 'pool': 'max over tokens · 0.6 s smoothing',
+                 'input': 'token (no temporal channel)',
+                 'pool': 'max over kept tokens · HMM P(on) per neuron (3-state, label-free)' if hmm else
+                         'max over tokens · 0.6 s smoothing',
                  'sae': 'Matryoshka 2048 · k 16 · one per domain',
                  'cov': 'foreground size (n_fg)' + (' + recording day (not for t=8 vs t=2, infested vs healthy)'
                                                     if dom == 'ants' else '')}
@@ -1382,7 +1423,7 @@ V0_ENTRIES = {'mice_v1': ('mice', 'results/vision/mice/eci_v0_mice_v1', 'fg448al
               'ants_v3': ('ants', 'results/vision/ants/eci_v0_ants_v3', '#ants_v3p_d2'),
               'ants_v4': ('ants', 'results/vision/ants/eci_v0_ants_v4', '#ants_v4p_d2'),
               'frogs_v1': ('frogs', 'results/vision/frogs/eci_v0_frogs_v1', 'frogsfg')}
-V0_FRAMES = OUT / 'v0'
+V0_FRAMES = OUT37 / 'v0'
 V0_NUIS = {'odor_corner': 'odor corner (camera period)', 'line': 'gene line', 'sex': 'sex', 'date': 'recording date',
            'batch': 'batch', 'position': 'arena position', 'recording_date': 'recording day', 'nestbox': 'nest box',
            'session': 'recording session', 'slot': 'dish slot', 'day': 'recording day'}
@@ -1403,8 +1444,8 @@ def v0_entries(site, saes, data):
         R0 = json.loads((res / 'results.json').read_text())
         ref = next(e for e in saes if e['model'] == {'model': 'new' if ref_key.startswith('#') else 'online',
                                                        'method': 'NES'}
-                   and ((e['sae'].endswith(ref_key) or e['sae'].endswith(ref_key.replace('#ants_', '#v2_ants_')
-                                                                          .replace('_d2', '_smooth')))
+                   and ((e['sae'].endswith(ref_key) or any(e['sae'].endswith(ref_key.replace('#ants_', '#v2_ants_')
+                                                                              .replace('_d2', x)) for x in ('_smooth', '_hmm')))
                         if ref_key.startswith('#') else e['tag'] == ref_key))
         vids = pd.read_csv(res / 'videos.csv', dtype={'observation_id': str})
         X = np.load(res / 'video_codes.npy').astype(np.float64)
@@ -1585,7 +1626,7 @@ def source_table():
 
 
 # ---- behaviour alignment panel + annotation check (scripts/eci/atlas_align.py -> OUT/align/<series>.json)
-ALIGN = OUT / 'align'
+ALIGN = OUT37 / 'align'  # alignment of v0 / v1 / the frozen v2 (v2.0: not measured, see align_table)
 ALIGN_CUT = 0.2  # a neuron counts as aligned with a behaviour when its cross-fitted R~ >= this (pre-stated)
 BEH_LAB = {'Y2F': 'grooming by yellow (Y2F)', 'B2F': 'grooming by blue (B2F)', 'groom_any': 'grooming, either (Y2F or B2F)',
            'YOL': 'yellow on the lid (YOL)', 'BOL': 'blue on the lid (BOL)', 'onlid_any': 'on the lid, either (YOL or BOL)',
@@ -1597,7 +1638,7 @@ def aligned_neurons(ser, model):
     model ('v0' / 'v1' / 'v2', every outcome input and prefix) on series ser: the neurons the Alignment panel opens in
     its interpretation box, so every build gives them clips (v2) or frame strips (v0)."""
     f = ALIGN / f'{ser}.json'
-    if not f.exists():
+    if not f.exists() or (V20 and model == 'v2'):  # ALIGN holds the frozen v2's neurons, not v2.0's
         return set()
     d = json.loads(f.read_text())
     return {int(v['top'][0][0]) for k, x in d['models'].items() if k.split('|')[0] == model
@@ -1623,8 +1664,9 @@ def align_table():
                            'beh': {b: (None if v is None else {'base': round(v['base_rate'], 4), 'n': v['n_frames'],
                                                                'cf1': round(v['cf_top1_rprec'], 4), 'top': v['top']})
                                    for b, v in x['beh'].items()}}
-                       for m, x in d['models'].items()}}
-    log('alignment: ' + ', '.join(out))
+                       for m, x in d['models'].items()
+                       if not (V20 and m.split('|')[0] == 'v2')}}  # v2.0: no alignment run -> 'not measured'
+    log('alignment: ' + ', '.join(out) + ('; v2.0 not measured (the frozen v2 rows dropped)' if V20 else ''))
     return out
 
 
@@ -1646,7 +1688,8 @@ def ann_check(saes, data):
             V, O = data['videos'], data['obs']
         else:
             ent = next(e for e in saes if e['domain'] == 'ants' and e['model'] == {'model': 'new', 'method': 'NES'}
-                       and (e['sae'].endswith(f'#ants_{ser[5:]}p_d2') or e['sae'].endswith(f'#v2_ants_{ser[5:]}p_smooth')))
+                       and (e['sae'].endswith(f'#ants_{ser[5:]}p_d2') or e['sae'].endswith(f'#v2_ants_{ser[5:]}p_smooth')
+                            or e['sae'].endswith(f'#v2_ants_{ser[5:]}p_hmm')))
             V, O = ent['videos'], ent['obs']
         obs = [o[0] for o in O]
         for a in ent['analyses']:
@@ -1712,7 +1755,7 @@ def ann_check(saes, data):
     return out
 
 
-TAD_STRIPS = OUT / 'tadpole_strips'
+TAD_STRIPS = OUT37 / 'tadpole_strips'
 
 
 def tadpole_strips(site, saes):
@@ -1757,12 +1800,13 @@ def tadpole_strips(site, saes):
         log(f'tadpole strips {e["sae"]}: {len(S["neurons"])} neurons, check {json.dumps(S["check"])}')
 
 
-PICKS = {'r4miced2': OUT / 'res/mice_d2', 'r4v2pd2': OUT / 'res/ants_v2p_d2', 'r4v3pd2': OUT / 'res/ants_v3p_d2',
-         'r4v4pd2': OUT / 'res/ants_v4p_d2', 'r4frogsd2': OUT / 'res/frogs_d2',
+PICKS = {'r4miced2': OUT37 / 'res/mice_d2', 'r4v2pd2': OUT37 / 'res/ants_v2p_d2', 'r4v3pd2': OUT37 / 'res/ants_v3p_d2',
+         'r4v4pd2': OUT37 / 'res/ants_v4p_d2', 'r4frogsd2': OUT37 / 'res/frogs_d2',
          'fg448al': ROOT / ONLINE['mice'][2], 'antsfg': ROOT / ONLINE['ants'][2], 'frogsfg': ROOT / ONLINE['frogs'][2],
-         **{f'v2{t}{v[0]}': OUT / f'res/{k}_{v}' for k, t in (('v2_mice', 'mice'), ('v2_ants_v2p', 'v2p'),
-                                                               ('v2_ants_v3p', 'v3p'), ('v2_ants_v4p', 'v4p'),
-                                                               ('v2_frogs', 'frogs'), ('v2_frogs_tad', 'tad')) for v in ('smooth', 'thr', 'prob', 'map')}}
+         **{f'{V2_TAG}{t}{V2_LET[v]}': OUT / f'res/{k}_{v}' for k, t in (('v2_mice', 'mice'), ('v2_ants_v2p', 'v2p'),
+                                                                         ('v2_ants_v3p', 'v3p'), ('v2_ants_v4p', 'v4p'),
+                                                                         ('v2_frogs', 'frogs'), ('v2_frogs_tad', 'tad'))
+            for v in V2_LET}}
 
 
 def clip_times(site, saes, data):
@@ -1786,7 +1830,7 @@ def clip_times(site, saes, data):
         st = stats.setdefault(tag, {'direct': 0, 'search': 0, 'exact': 0, 'unknown': 0, 'nosrc': 0})
         # online mice / frogs: the picks cache was re-run after the publish, so the frames come from the codes
         # themselves (scripts/eci/atlas_clip_frames.py: the unique window of that video with that mean, else null)
-        xf = OUT / 'clip_frames' / f'{tag}.json'
+        xf = OUT37 / 'clip_frames' / f'{tag}.json'
         XF = json.loads(xf.read_text()) if tag in ('fg448al', 'frogsfg') and xf.exists() else None
         if tag in ('fg448al', 'frogsfg') and XF is None:
             raise SystemExit(f'{xf} missing: run scripts/eci/atlas_clip_frames.sh first')
@@ -1848,7 +1892,7 @@ def split_v4_pack(site):
         f.write_text(t)
         n += m
     for k, _, _, ext in SPLIT:
-        shutil.copy(OUT / 'remux' / 'split' / f'{SPLIT_NAME}_p{k}.{ext}', site / 'assets' / f'{SPLIT_NAME}_p{k}.{ext}')
+        shutil.copy(OUT37 / 'remux' / 'split' / f'{SPLIT_NAME}_p{k}.{ext}', site / 'assets' / f'{SPLIT_NAME}_p{k}.{ext}')
     log(f'split pack: {n} references -> {SPLIT_NAME}_p0/1/2')
 
 
@@ -1940,6 +1984,13 @@ READOUT_TIPS = {'continuous': 'Continuous: the neuron\'s smoothed code (0.6 s me
                               'behaviour alignment of the continuous code (v2 only)',
                 'binary': 'Binary, fnorm threshold: the smoothed code kept only above the neuron\'s pre-specified firing '
                           'threshold. Loses most of the behaviour alignment of the continuous code (v2 only)'}
+if V20:
+    READOUT_TIPS = {'prob': 'Expected fraction of time on (HMM P(on)): per neuron and frame, P(on) of a label-free 3-state '
+                            'HMM on the raw frame max (src/eci/v2/hmm.py, fitted on the calibration videos); its '
+                            'per-video mean = the expected fraction of time the neuron is on. The primary v2.0 outcome '
+                            '(mean only)',
+                    'continuous': 'Continuous: the neuron\'s smoothed code (0.6 s mean of the frame max over the kept '
+                                  'tokens), no firing threshold. Secondary for v2.0; v0 and v1 have this readout only'}
 
 
 V2_CHECKS = {'window_hwhole': 'with habituation taken whole (30 min) instead of its last 15 min',
@@ -1970,14 +2021,14 @@ def share_v2_clips(site, saes):
     histogram and per-video values are its own)."""
     cont = {}
     for e in saes:
-        if e['model']['model'] == 'new' and e['model'].get('readout') == 'continuous' and '#' in e['sae']:
+        if e['model']['model'] == 'new' and e['model'].get('readout') == CLIP_READOUT and '#' in e['sae']:
             k = e['sae'].split('#')[1].rsplit('_', 1)[0]
             for f in _nfiles(e):
                 if (site / f).exists():
                     cont.setdefault(k, {}).update(_neurons(json.loads((site / f).read_text())))
     done, n_sh, n_no = set(), 0, 0
     for e in saes:
-        if e['model']['model'] != 'new' or e['model'].get('readout') == 'continuous' or '#' not in e['sae']:
+        if e['model']['model'] != 'new' or e['model'].get('readout') == CLIP_READOUT or '#' not in e['sae']:
             continue
         k = e['sae'].split('#')[1].rsplit('_', 1)[0]
         C = cont.get(k, {})
@@ -1997,15 +2048,16 @@ def share_v2_clips(site, saes):
                             n[x] = cn[x]
                         else:
                             n.pop(x, None)
-                    n['clips_from'] = 'continuous'
+                    n['clips_from'] = CLIP_READOUT
                     n_sh += 1
                 else:
                     n.pop('clips', None)
                     n['noclip'] = True
                     n_no += 1
             (site / f).write_text(json.dumps(D, separators=(',', ':')))
-        e['noclip_note'] = ('No clips for this neuron with this outcome: clips are rendered for the continuous outcome '
-                            '(the version size budget); this neuron was not listed there')
+        e['noclip_note'] = ('No clips for this neuron with this outcome: clips are rendered for the '
+                            + ('expected fraction of time on (HMM P(on))' if V20 else 'continuous') +
+                            ' outcome (the version size budget); this neuron was not listed there')
     log(f'v2 clips shared: {n_sh} neurons of the binary / prob outcomes show the continuous clips, {n_no} without clips')
 
 
@@ -2201,7 +2253,7 @@ def readout_axis(saes, data):
     for e in saes:
         m = e['model']
         binary = m['model'] == 'new (thr)' or e['sae'].endswith('_thr')
-        prob = '_prob@' in e['sae'] or e['sae'].endswith('_prob')
+        prob = '_prob@' in e['sae'] or e['sae'].endswith('_prob') or (V20 and '_hmm@' in e['sae'])  # v2.0 HMM P(on)
         bmap = '_map@' in e['sae'] or e['sae'].endswith('_map')
         m['readout'] = 'binary' if binary else 'prob' if prob else 'binary_map' if bmap else 'continuous'
         if m['readout'] == 'prob':  # expected fraction of time active: the per-video mean only
@@ -2214,12 +2266,25 @@ def readout_axis(saes, data):
     data['axes'].insert(1, {'key': 'readout', 'label': 'Outcome', 'tips': READOUT_TIPS,
                             'values': ['continuous', 'prob', 'binary_map', 'binary'],
                             'missing': {'prob': 'listed in the v2 manifest, page build pending' if has_prob else
-                                        'coming'}})
+                                        'coming'}} if not V20 else
+                        {'key': 'readout', 'label': 'Outcome', 'tips': READOUT_TIPS, 'values': ['prob', 'continuous'],
+                         'missing': {}})
     log(f'readout axis: prob in manifest {has_prob}; ' + ', '.join(
         f'{r} {sum(e["model"]["readout"] == r for e in saes)}' for r in ('continuous', 'prob', 'binary_map', 'binary')))
 
 
+def link_online_builds():
+    """A site built outside the published tree (ATLAS_OUT): the online (v1) model builds are reused from OUT37/build,
+    linked into OUT/build (read only)."""
+    if OUT.resolve() == OUT37.resolve():
+        return
+    for b in sorted((OUT37 / 'build').glob('online_*')):
+        link(b.resolve(), OUT / 'build' / b.name)
+        log(f'assemble: {OUT / "build" / b.name} -> {b.resolve()}')
+
+
 def step_assemble():
+    link_online_builds()
     site = OUT / 'site'
     if site.exists():
         shutil.rmtree(site)
@@ -2249,7 +2314,7 @@ def step_assemble():
 
     # ---- new model entries (one build per R4 domain; NES + DINES entries share the build's data files)
     new_entries, builds = {}, {}
-    keys_all = [f'{k}_{v}' for k in NEW for v in ('d2', 'd0', 'smooth', 'thr', 'prob', 'map')]
+    keys_all = [f'{k}_{v}' for k in NEW for v in ('d2', 'd0', 'smooth', 'thr', 'prob', 'map', 'hmm')]
     WEBM.mkdir(parents=True, exist_ok=True)
     webm_pairs = []
     v2_built = any(k.startswith('v2_') and (OUT / 'build' / k / 'core.json').exists() for k in keys_all)
@@ -2264,8 +2329,8 @@ def step_assemble():
         # clip packs of this build as WebM (to_webm); references renamed in its data files
         mp4s = sorted({m for f in (b / 'data').glob('*.json') for m in re.findall(r'assets/([\w.\-]+\.mp4)', f.read_text())
                        if m not in amap})
-        if key.startswith('v2_') and not key.endswith('_smooth'):
-            mp4s = []  # binary / prob outcomes: clips shared from the continuous build (share_v2_clips)
+        if key.startswith('v2_') and not key.endswith('_' + CLIP_VAR):
+            mp4s = []  # other outcome inputs: clips shared from the clip build (share_v2_clips; v2.0: the hmm build)
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(6) as ex:
             wm = dict(zip(mp4s, ex.map(lambda m: to_webm(b / 'assets' / m), mp4s)))
@@ -2293,7 +2358,7 @@ def step_assemble():
             series = {'ants_v2': 'v2', 'ants_v3': 'v3', 'ants_v4': 'v4'}.get(k0)
             e['pooled'] = k0.endswith('p') and k0.startswith('ants')
             e['sae'] = f'{e["sae"]}#{key}'  # unique per build (the pooled ants series share one SAE name)
-            e['note'] = ('v2. ' if key.startswith('v2_') else 'New model (R4, ' + ('2 s change, d2' if key.endswith('d2') else 'no change half, d0') +
+            e['note'] = (('v2.0. ' if V20 else 'v2. ') if key.startswith('v2_') else 'New model (R4, ' + ('2 s change, d2' if key.endswith('d2') else 'no change half, d0') +
                          '). ' + (f'Ants: one SAE per series; this is the {series} SAE, so its neuron numbers are '
                                   f'its own. ' if series else '') +
                          ('Ants: one SAE for all series (v2, v3, v4), so a neuron number means the same neuron in '
@@ -2320,7 +2385,7 @@ def step_assemble():
     order_new = [k for k in ('mice_d2', 'ants_v2p_d2', 'ants_v3p_d2', 'ants_v4p_d2', 'ants_v2_d2', 'ants_v3_d2',
                              'ants_v4_d2', 'frogs_d2', 'frogs_tad_d2', 'mice_d0', 'ants_v2p_d0', 'ants_v3p_d0', 'ants_v4p_d0',
                              'ants_v2_d0', 'ants_v3_d0', 'ants_v4_d0', 'frogs_d0') if k in new_entries] + \
-        [f'{k}_{v}' for v in ('smooth', 'thr', 'prob', 'map') for k in ('v2_mice', 'v2_ants_v2p', 'v2_ants_v3p', 'v2_ants_v4p', 'v2_frogs',
+        [f'{k}_{v}' for v in ('hmm', 'smooth', 'thr', 'prob', 'map') for k in ('v2_mice', 'v2_ants_v2p', 'v2_ants_v3p', 'v2_ants_v4p', 'v2_frogs',
                                                          'v2_frogs_tad') if f'{k}_{v}' in new_entries]
     for k in order_new:
         for e in new_entries[k]:
@@ -2494,6 +2559,18 @@ def step_assemble():
     clip_times(site, saes, data)
     split_v4_pack(site)
     tpl = TEMPLATE.read_text()
+    if V20:  # page labels of the 'new' model: v2.0; its readout 'prob' = the HMM P(on)
+        for a, b, n in (("const MLAB = {v0:'v0 (baseline)', online:'v1', new:'v2'}, MSHORT = {v0:'v0', online:'v1', new:'v2'}",
+                         "const MLAB = {v0:'v0 (baseline)', online:'v1', new:'v2.0'}, MSHORT = {v0:'v0', online:'v1', new:'v2.0'}", 1),
+                        ("['new','v2']]", "['new','v2.0']]", 1),
+                        ("prob:'expected fraction of time active (mean only)'", "prob:'expected fraction of time on (HMM P(on))'", 1),
+                        ("(v1, v2) · v2 outcome", "(v1, v2.0) · v2.0 outcome", 1),
+                        ("v1 = deployed, v2 = frozen\">Model", "v1 = deployed, v2.0 = frozen 2026-10-25\">Model", 1),
+                        ("The design choices of v0, v1 and v2", "The design choices of v0, v1 and v2.0", 1),
+                        ("<th>v2 (frozen)</th>", "<th>v2.0 (frozen)</th>", 1),
+                        ("(v2 Matryoshka blocks: 128 / 512 / 2048)", "(v2.0 Matryoshka blocks: 128 / 256 / 512 / 2048)", 1)):
+            assert tpl.count(a) == n, (a, tpl.count(a))
+            tpl = tpl.replace(a, b)
     assert tpl.count('/*__DATA__*/null') == 1
     page = tpl.replace('/*__DATA__*/null', json.dumps(data, separators=(',', ':')))
     (site / 'index.html').write_text(page)
@@ -2534,7 +2611,8 @@ def check_site(site, amap, saes):
                        'clip_lengths': ['frame', '1s'], 'methods': ['NES', 'NESS'], 'models': ['new', 'online', 'v0']},
            'version_files': {str(p.relative_to(site)): p.stat().st_size for p in sorted(files) if p.suffix not in ('.mp4', '.webm')},
            'packs_to_upload': {p.name: p.stat().st_size for p in sorted(packs) if p.name.startswith(('r4', 'v2'))},
-           'live_version_file_packs': {p.name: p.stat().st_size for p in sorted(packs) if not p.name.startswith('r4')},
+           'live_version_file_packs': {p.name: p.stat().st_size for p in sorted(packs)
+                                       if not p.name.startswith(('r4', 'v2') if V20 else 'r4')},
            'asset_store_urls_referenced': len(urls)}
     man['version_files']['index.html'] = len(page.encode())
     (site / 'manifest.json').write_text(json.dumps(man, indent=1))

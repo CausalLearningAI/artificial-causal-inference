@@ -7,6 +7,10 @@
 #   ARGS="--dom mice --model online --steps prep,dump" sbatch scripts/eci/build_atlas_v37.sh
 #   ARGS="--steps assemble" sbatch scripts/eci/build_atlas_v37.sh
 # WORKTREE=1 runs the working tree instead (tests of uncommitted changes to the v37 files only).
+# ECI v2.0 site (another output tree; the published tree results/vision/eci_atlas_v37 is only read):
+#   ATLAS_OUT=results/vision/eci_atlas_v20 ATLAS_V2_ROOT=results/vision/eci_v2_0B ATLAS_HEAT_STYLE=alpha \
+#   ARGS="--dom v2_ants_v2p --model new --variant hmm --steps prep,data,v2heat,arena,render,dump --pack-mb 7" \
+#   sbatch --export=ALL --output=results/vision/eci_atlas_v20/logs/%x_%j.out scripts/eci/build_atlas_v37.sh
 #SBATCH --job-name=atlas37
 #SBATCH --output=results/vision/eci_atlas_v37/logs/%x_%j.out
 #SBATCH --time=04:00:00
@@ -22,7 +26,8 @@ set -euo pipefail
 REPO=/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 cd $REPO
 export LOCAL_DIR=/localhome/$USER/${SLURM_JOB_ID:-local}_atlas37
-mkdir -p results/vision/eci_atlas_v37/code
+AOUT=${ATLAS_OUT:-results/vision/eci_atlas_v37}
+mkdir -p $AOUT/code $AOUT/logs
 mkdir -p $LOCAL_DIR 2>/dev/null || { export LOCAL_DIR=${TMPDIR:-/tmp}/${USER}_${SLURM_JOB_ID:-local}_atlas37; mkdir -p $LOCAL_DIR; echo "no /localhome on $(hostname): staging in $LOCAL_DIR"; }
 trap 'rm -rf $LOCAL_DIR' EXIT
 HEAD=$(git rev-parse HEAD)
@@ -33,8 +38,8 @@ if [ -z "${WORKTREE:-}" ]; then
   for d in data dataset results; do ln -s $REPO/$d $LOCAL_DIR/code/$d; done
   CODE=$LOCAL_DIR/code
 fi
-printf '{"head": "%s", "code_root": "%s", "worktree": "%s", "args": "%s", "time": "%s"}\n' "$HEAD" "$CODE" "${WORKTREE:-}" \
-  "${ARGS:-}" "$(date -Is)" > results/vision/eci_atlas_v37/code/${SLURM_JOB_ID:-local}.json
+printf '{"head": "%s", "code_root": "%s", "worktree": "%s", "args": "%s", "atlas_out": "%s", "atlas_v2_root": "%s", "heat_style": "%s", "time": "%s"}\n' \
+  "$HEAD" "$CODE" "${WORKTREE:-}" "${ARGS:-}" "$AOUT" "${ATLAS_V2_ROOT:-}" "${ATLAS_HEAT_STYLE:-}" "$(date -Is)" > $AOUT/code/${SLURM_JOB_ID:-local}.json
 echo "atlas v37: HEAD $HEAD, code $CODE, args ${ARGS:-}"
 cd $CODE
 eval python -u scripts/eci/build_atlas_v37.py ${ARGS:-}
