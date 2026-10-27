@@ -1,0 +1,28 @@
+{
+ "sae": "v20_ants_N2f5_s951",
+ "K": 3,
+ "fit": "calibration videos of the domain",
+ "n_fallback": 24,
+ "stationary_on_share_median": 0.025944426935266975,
+ "mean_on_bout_frames_median": 4.235685127349175,
+ "series": {
+  "v2": {
+   "summaries": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ants/summaries_v2.npz",
+   "median_mean_p_on": 0.011930610053241253,
+   "median_time_on_viterbi": 0.009999999776482582,
+   "never_on_video_neuron_frac": 0.17457164824008942
+  },
+  "v3": {
+   "summaries": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ants/summaries_v3.npz",
+   "median_mean_p_on": 0.02089131809771061,
+   "median_time_on_viterbi": 0.018333332613110542,
+   "never_on_video_neuron_frac": 0.06954585015773773
+  },
+  "v4": {
+   "summaries": "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ants/summaries_v4.npz",
+   "median_mean_p_on": 0.01669326424598694,
+   "median_time_on_viterbi": 0.014555555768311024,
+   "never_on_video_neuron_frac": 0.09293016791343689
+  }
+ }
+}

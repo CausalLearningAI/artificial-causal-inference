@@ -1,0 +1,15 @@
+{
+ "name": "v20_frogs_N2f5_s952",
+ "seed": 952,
+ "eval_fve": 0.8139286528662135,
+ "theta_star": 2.1567673683166504,
+ "candidates_eval_fve": {
+  "950": 0.8132492290171947,
+  "951": 0.813306350697668,
+  "952": 0.8139286528662135,
+  "953": 0.8132965751467742,
+  "954": 0.8132887848378335
+ },
+ "rule": "highest held-out FVE among the spec seeds (label-free)",
+ "dir": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_0/frogs/sae5/v20_frogs_N2f5_s952"
+}
