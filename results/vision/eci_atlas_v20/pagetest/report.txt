@@ -1,0 +1,1267 @@
+mice · v0: outcome options [['prob', True, 'expected fraction of time on (HMM P(on)) (not computed with this model / method)'], ['continuous', False, 'continuous']]
+mice · online: outcome options [['prob', True, 'expected fraction of time on (HMM P(on)) (not computed with this model / method)'], ['continuous', False, 'continuous']]
+mice · new: outcome options [['prob', False, 'expected fraction of time on (HMM P(on))'], ['continuous', False, 'continuous']]
+mice · v0 · outcome continuous: entry v0_topk4608_k20#mice_v1
+mice · v0 · NES · rate: disabled
+      annotation check v0 NES time A ctrl=1 Genotype=het: ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · A ctrl=1 Genotype=het: 23 found; listed ['#2561', '#1258', '#923', '#1236', '#1006', '#3073', '#2853', '#3005', '#2494', '#3968'] ; detail Neuron 2561
+      annotation check v0 NES time A ctrl=1 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · A ctrl=1 Genotype=wt: 38 found; listed ['#2561', '#3073', '#1006', '#1258', '#3815', '#4560', '#2853', '#3444', '#3968', '#2414'] ; detail Neuron 2561
+mice · v0 · NES · time · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check v0 NES time A ctrl=2 Genotype=het: ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · A ctrl=2 Genotype=het: 33 found; listed ['#923', '#1258', '#3081', '#1006', '#3073', '#15', '#2915', '#316', '#2853', '#3355'] ; detail Neuron 923
+      annotation check v0 NES time A ctrl=2 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · A ctrl=2 Genotype=wt: 37 found; listed ['#1006', '#3815', '#923', '#316', '#3081', '#1258', '#4560', '#2561', '#2853', '#1390'] ; detail Neuron 1006
+mice · v0 · NES · time · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check v0 NES time A ctrl=4 Genotype=het: ['annotation check: not recovered — annotated nose-nose (mutual) effect +0.00535 (p 0.0029)']
+mice · v0 · NES · time · A ctrl=4 Genotype=het: 29 found; listed ['#1258', '#2561', '#2915', '#2853', '#1006', '#1236', '#3081', '#3005', '#2758', '#1834'] ; detail Neuron 1258
+      annotation check v0 NES time A ctrl=4 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · A ctrl=4 Genotype=wt: 33 found; listed ['#1258', '#2561', '#2915', '#1834', '#1006', '#2853', '#3081', '#3815', '#3005', '#1236'] ; detail Neuron 1258
+mice · v0 · NES · time · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check v0 NES time A ctrl=5 Genotype=het: ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · A ctrl=5 Genotype=het: 21 found; listed ['#923', '#1006', '#1688', '#3081', '#1472', '#761', '#3815', '#2758', '#1861', '#316'] ; detail Neuron 923
+      annotation check v0 NES time A ctrl=5 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · A ctrl=5 Genotype=wt: 21 found; listed ['#3081', '#4195', '#923', '#316', '#1006', '#3815', '#2414', '#1390', '#761', '#1258'] ; detail Neuron 3081
+mice · v0 · NES · time · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check v0 NES time B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · B ctrl=None Phase=1: 8 found; listed ['#923', '#3815', '#1242', '#191', '#2092', '#2829', '#1390', '#3968'] ; detail Neuron 923
+      annotation check v0 NES time B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · B ctrl=None Phase=2: 6 found; listed ['#923', '#3232', '#1508', '#3865', '#1242', '#2886'] ; detail Neuron 923
+      annotation check v0 NES time B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · B ctrl=None Phase=3: 6 found; listed ['#923', '#3232', '#3815', '#2836', '#2652', '#3776'] ; detail Neuron 923
+      annotation check v0 NES time B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · B ctrl=None Phase=4: 6 found; listed ['#3815', '#923', '#2853', '#626', '#2829', '#15'] ; detail Neuron 3815
+      annotation check v0 NES time B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · B ctrl=None Phase=5: 6 found; listed ['#923', '#2853', '#4347', '#2829', '#1242', '#4560'] ; detail Neuron 923
+      annotation check v0 NES time B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · B ctrl=None Phase=6: 7 found; listed ['#3815', '#1258', '#3341', '#923', '#2836', '#536', '#2561'] ; detail Neuron 3815
+mice · v0 · NES · time · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check v0 NES time C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · C ctrl=1 : 8 found; listed ['#1508', '#3865', '#1242', '#923', '#2071', '#1834', '#626', '#4195'] ; detail Neuron 1508
+      annotation check v0 NES time C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · C ctrl=2 : 4 found; listed ['#2836', '#923', '#2071', '#4560'] ; detail Neuron 2836
+      annotation check v0 NES time C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · C ctrl=4 : 1 found; listed ['#2853'] ; detail Neuron 2853
+      annotation check v0 NES time C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · v0 · NES · time · C ctrl=5 : 3 found; listed ['#4195', '#1629', '#4347'] ; detail Neuron 4195
+mice · v0 · NES · time · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · v0 · NES · time · lines ['ash1l']: NOT RUN YET
+mice · v0 · NES · time · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · v0 · NES · time · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+mice · v0 · NES · latency: disabled
+mice · v0 · spatial aggregation buttons [agg, disabled, pressed]: []
+mice · v0 · method NESS (not computed with this model / outcome) (disabled)
+mice · online · outcome continuous: entry matryoshka_btk_1024_k16_fg448al_s0
+      annotation check online NES rate A ctrl=1 Genotype=het: ['annotation check: no significant annotated effect']
+mice · online · NES · rate · A ctrl=1 Genotype=het: 2 found; listed ['#223', '#83'] ; detail Neuron 223
+      annotation check online NES rate A ctrl=1 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · online · NES · rate · A ctrl=1 Genotype=wt: 3 found; listed ['#169', '#234', '#49'] ; detail Neuron 169
+mice · online · NES · rate · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NES rate A ctrl=2 Genotype=het: ['annotation check: no significant annotated effect']
+mice · online · NES · rate · A ctrl=2 Genotype=het: 2 found; listed ['#150', '#3'] ; detail Neuron 150
+      annotation check online NES rate A ctrl=2 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · online · NES · rate · A ctrl=2 Genotype=wt: 3 found; listed ['#17', '#234', '#223'] ; detail Neuron 17
+mice · online · NES · rate · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NES rate A ctrl=4 Genotype=het: ['annotation check: not recovered — annotated nose-nose (mutual) effect +0.00535 (p 0.0029)']
+mice · online · NES · rate · A ctrl=4 Genotype=het: 1 found; listed ['#71'] ; detail Neuron 71
+      annotation check online NES rate A ctrl=4 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · online · NES · rate · A ctrl=4 Genotype=wt: 3 found; listed ['#17', '#143', '#124'] ; detail Neuron 17
+mice · online · NES · rate · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NES rate A ctrl=5 Genotype=het: ['annotation check: no significant annotated effect']
+mice · online · NES · rate · A ctrl=5 Genotype=het: 1 found; listed ['#234'] ; detail Neuron 234
+      annotation check online NES rate A ctrl=5 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · online · NES · rate · A ctrl=5 Genotype=wt: 2 found; listed ['#234', '#2'] ; detail Neuron 234
+mice · online · NES · rate · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NES rate B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · online · NES · rate · B ctrl=None Phase=1: 1 found; listed ['#177'] ; detail Neuron 177
+      annotation check online NES rate B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · online · NES · rate · B ctrl=None Phase=2: 1 found; listed ['#183'] ; detail Neuron 183
+      annotation check online NES rate B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · online · NES · rate · B ctrl=None Phase=3: 3 found; listed ['#216', '#124', '#209'] ; detail Neuron 216
+      annotation check online NES rate B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · online · NES · rate · B ctrl=None Phase=4: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES rate B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · online · NES · rate · B ctrl=None Phase=5: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES rate B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · online · NES · rate · B ctrl=None Phase=6: 1 found; listed ['#164'] ; detail Neuron 164
+mice · online · NES · rate · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check online NES rate C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · online · NES · rate · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES rate C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · online · NES · rate · C ctrl=2 : 1 found; listed ['#183'] ; detail Neuron 183
+      annotation check online NES rate C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · online · NES · rate · C ctrl=4 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES rate C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · online · NES · rate · C ctrl=5 : 0 found; listed [] No neuron discovered; detail (no detail)
+mice · online · NES · rate · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · online · NES · rate · lines ['ash1l']: NOT RUN YET
+mice · online · NES · rate · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · online · NES · rate · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+      annotation check online NES time A ctrl=1 Genotype=het: ['annotation check: no significant annotated effect']
+mice · online · NES · time · A ctrl=1 Genotype=het: 2 found; listed ['#49', '#82'] ; detail Neuron 49
+      annotation check online NES time A ctrl=1 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · online · NES · time · A ctrl=1 Genotype=wt: 3 found; listed ['#49', '#11', '#93'] ; detail Neuron 49
+mice · online · NES · time · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NES time A ctrl=2 Genotype=het: ['annotation check: no significant annotated effect']
+mice · online · NES · time · A ctrl=2 Genotype=het: 2 found; listed ['#49', '#169'] ; detail Neuron 49
+      annotation check online NES time A ctrl=2 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · online · NES · time · A ctrl=2 Genotype=wt: 4 found; listed ['#123', '#49', '#53', '#48'] ; detail Neuron 123
+mice · online · NES · time · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NES time A ctrl=4 Genotype=het: ['annotation check: not recovered — annotated nose-nose (mutual) effect +0.00535 (p 0.0029)']
+mice · online · NES · time · A ctrl=4 Genotype=het: 1 found; listed ['#123'] ; detail Neuron 123
+      annotation check online NES time A ctrl=4 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · online · NES · time · A ctrl=4 Genotype=wt: 3 found; listed ['#123', '#169', '#49'] ; detail Neuron 123
+mice · online · NES · time · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NES time A ctrl=5 Genotype=het: ['annotation check: no significant annotated effect']
+mice · online · NES · time · A ctrl=5 Genotype=het: 2 found; listed ['#49', '#225'] ; detail Neuron 49
+      annotation check online NES time A ctrl=5 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · online · NES · time · A ctrl=5 Genotype=wt: 3 found; listed ['#123', '#49', '#169'] ; detail Neuron 123
+mice · online · NES · time · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NES time B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · online · NES · time · B ctrl=None Phase=1: 1 found; listed ['#84'] ; detail Neuron 84
+      annotation check online NES time B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · online · NES · time · B ctrl=None Phase=2: 1 found; listed ['#177'] ; detail Neuron 177
+      annotation check online NES time B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · online · NES · time · B ctrl=None Phase=3: 1 found; listed ['#216'] ; detail Neuron 216
+      annotation check online NES time B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · online · NES · time · B ctrl=None Phase=4: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES time B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · online · NES · time · B ctrl=None Phase=5: 1 found; listed ['#201'] ; detail Neuron 201
+      annotation check online NES time B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · online · NES · time · B ctrl=None Phase=6: 1 found; listed ['#89'] ; detail Neuron 89
+mice · online · NES · time · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check online NES time C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · online · NES · time · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES time C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · online · NES · time · C ctrl=2 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES time C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · online · NES · time · C ctrl=4 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES time C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · online · NES · time · C ctrl=5 : 0 found; listed [] No neuron discovered; detail (no detail)
+mice · online · NES · time · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · online · NES · time · lines ['ash1l']: NOT RUN YET
+mice · online · NES · time · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · online · NES · time · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+      annotation check online NES latency A ctrl=1 Genotype=het: ['annotation check: no significant annotated effect']
+mice · online · NES · latency · A ctrl=1 Genotype=het: 2 found; listed ['#173', '#57'] ; detail Neuron 173
+      annotation check online NES latency A ctrl=1 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · online · NES · latency · A ctrl=1 Genotype=wt: 3 found; listed ['#173', '#46', '#71'] ; detail Neuron 173
+mice · online · NES · latency · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NES latency A ctrl=2 Genotype=het: ['annotation check: no significant annotated effect']
+mice · online · NES · latency · A ctrl=2 Genotype=het: 1 found; listed ['#49'] ; detail Neuron 49
+      annotation check online NES latency A ctrl=2 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · online · NES · latency · A ctrl=2 Genotype=wt: 3 found; listed ['#49', '#171', '#83'] ; detail Neuron 49
+mice · online · NES · latency · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NES latency A ctrl=4 Genotype=het: ['annotation check: not recovered — annotated nose-nose (mutual) effect +0.00535 (p 0.0029)']
+mice · online · NES · latency · A ctrl=4 Genotype=het: 1 found; listed ['#118'] ; detail Neuron 118
+      annotation check online NES latency A ctrl=4 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · online · NES · latency · A ctrl=4 Genotype=wt: 2 found; listed ['#49', '#28'] ; detail Neuron 49
+mice · online · NES · latency · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NES latency A ctrl=5 Genotype=het: ['annotation check: no significant annotated effect']
+mice · online · NES · latency · A ctrl=5 Genotype=het: 3 found; listed ['#49', '#69', '#184'] ; detail Neuron 49
+      annotation check online NES latency A ctrl=5 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · online · NES · latency · A ctrl=5 Genotype=wt: 2 found; listed ['#49', '#209'] ; detail Neuron 49
+mice · online · NES · latency · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NES latency B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · online · NES · latency · B ctrl=None Phase=1: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES latency B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · online · NES · latency · B ctrl=None Phase=2: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES latency B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · online · NES · latency · B ctrl=None Phase=3: 1 found; listed ['#235'] ; detail Neuron 235
+      annotation check online NES latency B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · online · NES · latency · B ctrl=None Phase=4: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES latency B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · online · NES · latency · B ctrl=None Phase=5: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES latency B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · online · NES · latency · B ctrl=None Phase=6: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · online · NES · latency · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check online NES latency C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · online · NES · latency · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES latency C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · online · NES · latency · C ctrl=2 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES latency C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · online · NES · latency · C ctrl=4 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NES latency C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · online · NES · latency · C ctrl=5 : 0 found; listed [] No neuron discovered; detail (no detail)
+mice · online · NES · latency · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · online · NES · latency · lines ['ash1l']: NOT RUN YET
+mice · online · NES · latency · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · online · NES · latency · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+mice · online · spatial aggregation buttons [agg, disabled, pressed]: []
+mice · online · NESS · rate · A ctrl=1 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · rate · A ctrl=1 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · rate · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · online · NESS · rate · A ctrl=2 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · rate · A ctrl=2 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · rate · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · online · NESS · rate · A ctrl=4 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · rate · A ctrl=4 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · rate · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · online · NESS · rate · A ctrl=5 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · rate · A ctrl=5 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · rate · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NESS rate B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · online · NESS · rate · B ctrl=None Phase=1: 1 found; listed ['#164'] ; detail Neuron 164
+      annotation check online NESS rate B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · online · NESS · rate · B ctrl=None Phase=2: 1 found; listed ['#177'] ; detail Neuron 177
+      annotation check online NESS rate B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · online · NESS · rate · B ctrl=None Phase=3: 1 found; listed ['#216'] ; detail Neuron 216
+      annotation check online NESS rate B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · online · NESS · rate · B ctrl=None Phase=4: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NESS rate B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · online · NESS · rate · B ctrl=None Phase=5: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NESS rate B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · online · NESS · rate · B ctrl=None Phase=6: 1 found; listed ['#90'] ; detail Neuron 90
+mice · online · NESS · rate · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check online NESS rate C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · online · NESS · rate · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NESS rate C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · online · NESS · rate · C ctrl=2 : 1 found; listed ['#183'] ; detail Neuron 183
+      annotation check online NESS rate C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · online · NESS · rate · C ctrl=4 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NESS rate C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · online · NESS · rate · C ctrl=5 : 0 found; listed [] No neuron discovered; detail (no detail)
+mice · online · NESS · rate · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · online · NESS · rate · lines ['ash1l']: NOT RUN YET
+mice · online · NESS · rate · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · online · NESS · rate · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+mice · online · NESS · time · A ctrl=1 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · time · A ctrl=1 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · time · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · online · NESS · time · A ctrl=2 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · time · A ctrl=2 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · time · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · online · NESS · time · A ctrl=4 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · time · A ctrl=4 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · time · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · online · NESS · time · A ctrl=5 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · time · A ctrl=5 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · time · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NESS time B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · online · NESS · time · B ctrl=None Phase=1: 1 found; listed ['#163'] ; detail Neuron 163
+      annotation check online NESS time B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · online · NESS · time · B ctrl=None Phase=2: 1 found; listed ['#177'] ; detail Neuron 177
+      annotation check online NESS time B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · online · NESS · time · B ctrl=None Phase=3: 1 found; listed ['#216'] ; detail Neuron 216
+      annotation check online NESS time B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · online · NESS · time · B ctrl=None Phase=4: 1 found; listed ['#70'] ; detail Neuron 70
+      annotation check online NESS time B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · online · NESS · time · B ctrl=None Phase=5: 1 found; listed ['#201'] ; detail Neuron 201
+      annotation check online NESS time B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · online · NESS · time · B ctrl=None Phase=6: 1 found; listed ['#94'] ; detail Neuron 94
+mice · online · NESS · time · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check online NESS time C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · online · NESS · time · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NESS time C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · online · NESS · time · C ctrl=2 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NESS time C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · online · NESS · time · C ctrl=4 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NESS time C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · online · NESS · time · C ctrl=5 : 1 found; listed ['#5'] ; detail Neuron 5
+mice · online · NESS · time · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · online · NESS · time · lines ['ash1l']: NOT RUN YET
+mice · online · NESS · time · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · online · NESS · time · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+mice · online · NESS · latency · A ctrl=1 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · latency · A ctrl=1 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · latency · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · online · NESS · latency · A ctrl=2 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · latency · A ctrl=2 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · latency · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · online · NESS · latency · A ctrl=4 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · latency · A ctrl=4 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · latency · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · online · NESS · latency · A ctrl=5 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · latency · A ctrl=5 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · online · NESS · latency · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check online NESS latency B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · online · NESS · latency · B ctrl=None Phase=1: 1 found; listed ['#232'] ; detail Neuron 232
+      annotation check online NESS latency B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · online · NESS · latency · B ctrl=None Phase=2: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NESS latency B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · online · NESS · latency · B ctrl=None Phase=3: 1 found; listed ['#235'] ; detail Neuron 235
+      annotation check online NESS latency B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · online · NESS · latency · B ctrl=None Phase=4: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NESS latency B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · online · NESS · latency · B ctrl=None Phase=5: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NESS latency B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · online · NESS · latency · B ctrl=None Phase=6: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · online · NESS · latency · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check online NESS latency C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · online · NESS · latency · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NESS latency C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · online · NESS · latency · C ctrl=2 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NESS latency C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · online · NESS · latency · C ctrl=4 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check online NESS latency C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · online · NESS · latency · C ctrl=5 : 0 found; listed [] No neuron discovered; detail (no detail)
+mice · online · NESS · latency · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · online · NESS · latency · lines ['ash1l']: NOT RUN YET
+mice · online · NESS · latency · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · online · NESS · latency · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+mice · online · spatial aggregation buttons [agg, disabled, pressed]: []
+mice · new · outcome prob: entry v20_mice_N2f5_s950_hmm@nes#v2_mice_hmm
+mice · new · NES · rate: disabled
+      annotation check new NES time A ctrl=1 Genotype=het: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=1 Genotype=het: 1 found; listed ['#27'] ; detail Neuron 27
+      annotation check new NES time A ctrl=1 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=1 Genotype=wt: 1 found; listed ['#143'] ; detail Neuron 143
+mice · new · NES · time · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES time A ctrl=2 Genotype=het: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=2 Genotype=het: 1 found; listed ['#17'] ; detail Neuron 17
+      annotation check new NES time A ctrl=2 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=2 Genotype=wt: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · time · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES time A ctrl=4 Genotype=het: ['annotation check: not recovered — annotated nose-nose (mutual) effect +0.00535 (p 0.0029)']
+mice · new · NES · time · A ctrl=4 Genotype=het: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time A ctrl=4 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=4 Genotype=wt: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · time · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES time A ctrl=5 Genotype=het: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=5 Genotype=het: 1 found; listed ['#17'] ; detail Neuron 17
+      annotation check new NES time A ctrl=5 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=5 Genotype=wt: 1 found; listed ['#17'] ; detail Neuron 17
+mice · new · NES · time · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES time B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · new · NES · time · B ctrl=None Phase=1: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · new · NES · time · B ctrl=None Phase=2: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · new · NES · time · B ctrl=None Phase=3: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · new · NES · time · B ctrl=None Phase=4: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · new · NES · time · B ctrl=None Phase=5: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · new · NES · time · B ctrl=None Phase=6: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · time · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check new NES time C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · new · NES · time · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · new · NES · time · C ctrl=2 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · new · NES · time · C ctrl=4 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · new · NES · time · C ctrl=5 : 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · time · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · new · NES · time · lines ['ash1l']: NOT RUN YET
+mice · new · NES · time · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · new · NES · time · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+mice · new · NES · latency: disabled
+mice · new · spatial aggregation buttons [agg, disabled, pressed]: []
+mice · new · NESS · rate: disabled
+mice · new · NESS · time · A ctrl=1 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=1 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · new · NESS · time · A ctrl=2 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=2 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · new · NESS · time · A ctrl=4 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=4 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · new · NESS · time · A ctrl=5 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=5 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NESS time B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · new · NESS · time · B ctrl=None Phase=1: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · new · NESS · time · B ctrl=None Phase=2: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · new · NESS · time · B ctrl=None Phase=3: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · new · NESS · time · B ctrl=None Phase=4: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · new · NESS · time · B ctrl=None Phase=5: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · new · NESS · time · B ctrl=None Phase=6: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NESS · time · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check new NESS time C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · new · NESS · time · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · new · NESS · time · C ctrl=2 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · new · NESS · time · C ctrl=4 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · new · NESS · time · C ctrl=5 : 1 found; listed ['#194'] ; detail Neuron 194
+mice · new · NESS · time · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · new · NESS · time · lines ['ash1l']: NOT RUN YET
+mice · new · NESS · time · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · new · NESS · time · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+mice · new · NESS · latency: disabled
+mice · new · spatial aggregation buttons [agg, disabled, pressed]: []
+mice · new · outcome continuous: entry v20_mice_N2f5_s950_smooth@nes#v2_mice_smooth
+      annotation check new NES rate A ctrl=1 Genotype=het: ['annotation check: no significant annotated effect']
+mice · new · NES · rate · A ctrl=1 Genotype=het: 1 found; listed ['#61'] ; detail Neuron 61
+      annotation check new NES rate A ctrl=1 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · rate · A ctrl=1 Genotype=wt: 1 found; listed ['#39'] ; detail Neuron 39
+mice · new · NES · rate · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES rate A ctrl=2 Genotype=het: ['annotation check: no significant annotated effect']
+mice · new · NES · rate · A ctrl=2 Genotype=het: 1 found; listed ['#47'] ; detail Neuron 47
+      annotation check new NES rate A ctrl=2 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · rate · A ctrl=2 Genotype=wt: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · rate · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES rate A ctrl=4 Genotype=het: ['annotation check: not recovered — annotated nose-nose (mutual) effect +0.00535 (p 0.0029)']
+mice · new · NES · rate · A ctrl=4 Genotype=het: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES rate A ctrl=4 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · rate · A ctrl=4 Genotype=wt: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · rate · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES rate A ctrl=5 Genotype=het: ['annotation check: no significant annotated effect']
+mice · new · NES · rate · A ctrl=5 Genotype=het: 1 found; listed ['#230'] ; detail Neuron 230
+      annotation check new NES rate A ctrl=5 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · rate · A ctrl=5 Genotype=wt: 1 found; listed ['#230'] ; detail Neuron 230
+mice · new · NES · rate · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES rate B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · new · NES · rate · B ctrl=None Phase=1: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES rate B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · new · NES · rate · B ctrl=None Phase=2: 1 found; listed ['#117'] ; detail Neuron 117
+      annotation check new NES rate B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · new · NES · rate · B ctrl=None Phase=3: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES rate B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · new · NES · rate · B ctrl=None Phase=4: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES rate B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · new · NES · rate · B ctrl=None Phase=5: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES rate B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · new · NES · rate · B ctrl=None Phase=6: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · rate · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check new NES rate C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · new · NES · rate · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES rate C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · new · NES · rate · C ctrl=2 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES rate C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · new · NES · rate · C ctrl=4 : 1 found; listed ['#117'] ; detail Neuron 117
+      annotation check new NES rate C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · new · NES · rate · C ctrl=5 : 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · rate · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · new · NES · rate · lines ['ash1l']: NOT RUN YET
+mice · new · NES · rate · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · new · NES · rate · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+      annotation check new NES time A ctrl=1 Genotype=het: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=1 Genotype=het: 1 found; listed ['#27'] ; detail Neuron 27
+      annotation check new NES time A ctrl=1 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=1 Genotype=wt: 1 found; listed ['#17'] ; detail Neuron 17
+mice · new · NES · time · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES time A ctrl=2 Genotype=het: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=2 Genotype=het: 1 found; listed ['#20'] ; detail Neuron 20
+      annotation check new NES time A ctrl=2 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=2 Genotype=wt: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · time · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES time A ctrl=4 Genotype=het: ['annotation check: not recovered — annotated nose-nose (mutual) effect +0.00535 (p 0.0029)']
+mice · new · NES · time · A ctrl=4 Genotype=het: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time A ctrl=4 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=4 Genotype=wt: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · time · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES time A ctrl=5 Genotype=het: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=5 Genotype=het: 1 found; listed ['#161'] ; detail Neuron 161
+      annotation check new NES time A ctrl=5 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · time · A ctrl=5 Genotype=wt: 1 found; listed ['#17'] ; detail Neuron 17
+mice · new · NES · time · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES time B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · new · NES · time · B ctrl=None Phase=1: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · new · NES · time · B ctrl=None Phase=2: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · new · NES · time · B ctrl=None Phase=3: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · new · NES · time · B ctrl=None Phase=4: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · new · NES · time · B ctrl=None Phase=5: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · new · NES · time · B ctrl=None Phase=6: 1 found; listed ['#162'] ; detail Neuron 162
+mice · new · NES · time · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check new NES time C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · new · NES · time · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · new · NES · time · C ctrl=2 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · new · NES · time · C ctrl=4 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES time C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · new · NES · time · C ctrl=5 : 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · time · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · new · NES · time · lines ['ash1l']: NOT RUN YET
+mice · new · NES · time · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · new · NES · time · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+      annotation check new NES latency A ctrl=1 Genotype=het: ['annotation check: no significant annotated effect']
+mice · new · NES · latency · A ctrl=1 Genotype=het: 1 found; listed ['#239'] ; detail Neuron 239
+      annotation check new NES latency A ctrl=1 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · latency · A ctrl=1 Genotype=wt: 1 found; listed ['#102'] ; detail Neuron 102
+mice · new · NES · latency · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES latency A ctrl=2 Genotype=het: ['annotation check: no significant annotated effect']
+mice · new · NES · latency · A ctrl=2 Genotype=het: 1 found; listed ['#69'] ; detail Neuron 69
+      annotation check new NES latency A ctrl=2 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · latency · A ctrl=2 Genotype=wt: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · latency · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES latency A ctrl=4 Genotype=het: ['annotation check: not recovered — annotated nose-nose (mutual) effect +0.00535 (p 0.0029)']
+mice · new · NES · latency · A ctrl=4 Genotype=het: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES latency A ctrl=4 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · latency · A ctrl=4 Genotype=wt: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · latency · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES latency A ctrl=5 Genotype=het: ['annotation check: no significant annotated effect']
+mice · new · NES · latency · A ctrl=5 Genotype=het: 1 found; listed ['#217'] ; detail Neuron 217
+      annotation check new NES latency A ctrl=5 Genotype=wt: ['annotation check: no significant annotated effect']
+mice · new · NES · latency · A ctrl=5 Genotype=wt: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · latency · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NES latency B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · new · NES · latency · B ctrl=None Phase=1: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES latency B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · new · NES · latency · B ctrl=None Phase=2: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES latency B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · new · NES · latency · B ctrl=None Phase=3: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES latency B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · new · NES · latency · B ctrl=None Phase=4: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES latency B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · new · NES · latency · B ctrl=None Phase=5: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES latency B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · new · NES · latency · B ctrl=None Phase=6: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · latency · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check new NES latency C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · new · NES · latency · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES latency C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · new · NES · latency · C ctrl=2 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES latency C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · new · NES · latency · C ctrl=4 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES latency C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · new · NES · latency · C ctrl=5 : 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NES · latency · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · new · NES · latency · lines ['ash1l']: NOT RUN YET
+mice · new · NES · latency · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · new · NES · latency · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+mice · new · spatial aggregation buttons [agg, disabled, pressed]: []
+mice · new · NESS · rate · A ctrl=1 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · rate · A ctrl=1 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · rate · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · new · NESS · rate · A ctrl=2 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · rate · A ctrl=2 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · rate · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · new · NESS · rate · A ctrl=4 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · rate · A ctrl=4 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · rate · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · new · NESS · rate · A ctrl=5 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · rate · A ctrl=5 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · rate · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NESS rate B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · new · NESS · rate · B ctrl=None Phase=1: 1 found; listed ['#150'] ; detail Neuron 150
+      annotation check new NESS rate B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · new · NESS · rate · B ctrl=None Phase=2: 1 found; listed ['#117'] ; detail Neuron 117
+      annotation check new NESS rate B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · new · NESS · rate · B ctrl=None Phase=3: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS rate B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · new · NESS · rate · B ctrl=None Phase=4: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS rate B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · new · NESS · rate · B ctrl=None Phase=5: 1 found; listed ['#252'] ; detail Neuron 252
+      annotation check new NESS rate B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · new · NESS · rate · B ctrl=None Phase=6: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NESS · rate · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check new NESS rate C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · new · NESS · rate · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS rate C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · new · NESS · rate · C ctrl=2 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS rate C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · new · NESS · rate · C ctrl=4 : 1 found; listed ['#117'] ; detail Neuron 117
+      annotation check new NESS rate C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · new · NESS · rate · C ctrl=5 : 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NESS · rate · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · new · NESS · rate · lines ['ash1l']: NOT RUN YET
+mice · new · NESS · rate · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · new · NESS · rate · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+mice · new · NESS · time · A ctrl=1 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=1 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · new · NESS · time · A ctrl=2 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=2 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · new · NESS · time · A ctrl=4 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=4 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · new · NESS · time · A ctrl=5 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=5 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · time · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NESS time B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · new · NESS · time · B ctrl=None Phase=1: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · new · NESS · time · B ctrl=None Phase=2: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · new · NESS · time · B ctrl=None Phase=3: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · new · NESS · time · B ctrl=None Phase=4: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · new · NESS · time · B ctrl=None Phase=5: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · new · NESS · time · B ctrl=None Phase=6: 1 found; listed ['#162'] ; detail Neuron 162
+mice · new · NESS · time · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check new NESS time C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · new · NESS · time · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · new · NESS · time · C ctrl=2 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · new · NESS · time · C ctrl=4 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · new · NESS · time · C ctrl=5 : 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NESS · time · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · new · NESS · time · lines ['ash1l']: NOT RUN YET
+mice · new · NESS · time · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · new · NESS · time · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+mice · new · NESS · latency · A ctrl=1 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · latency · A ctrl=1 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · latency · A ctrl=1 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · new · NESS · latency · A ctrl=2 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · latency · A ctrl=2 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · latency · A ctrl=2 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · new · NESS · latency · A ctrl=4 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · latency · A ctrl=4 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · latency · A ctrl=4 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+mice · new · NESS · latency · A ctrl=5 Genotype=het: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · latency · A ctrl=5 Genotype=wt: NOT RUN YET | NOT RUN YETall pools: Not shown for NESS: in the paired design (within-pool centred) every neuron that changes consistently predicts the stage, so NESS cannot separate the neurons (almost all come out "undetermined"). Use NES for phase transitions.
+mice · new · NESS · latency · A ctrl=5 Genotype=het+wt: NOT RUN YET | NOT RUN YETGenotype: het and wt pooled are not searched (het − wt is the mutation-in-phase-transition contrast)
+      annotation check new NESS latency B ctrl=None Phase=1: ['annotation check: no significant annotated effect']
+mice · new · NESS · latency · B ctrl=None Phase=1: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS latency B ctrl=None Phase=2: ['annotation check: no significant annotated effect']
+mice · new · NESS · latency · B ctrl=None Phase=2: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS latency B ctrl=None Phase=3: ['annotation check: no significant annotated effect']
+mice · new · NESS · latency · B ctrl=None Phase=3: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS latency B ctrl=None Phase=4: ['annotation check: no significant annotated effect']
+mice · new · NESS · latency · B ctrl=None Phase=4: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS latency B ctrl=None Phase=5: ['annotation check: no significant annotated effect']
+mice · new · NESS · latency · B ctrl=None Phase=5: 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS latency B ctrl=None Phase=6: ['annotation check: no significant annotated effect']
+mice · new · NESS · latency · B ctrl=None Phase=6: 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NESS · latency · B ctrl=None Phase=1+2: NOT RUN YET | NOT RUN YETPhase: pooled phases are not searched (pick one phase)
+      annotation check new NESS latency C ctrl=1 : ['annotation check: no significant annotated effect']
+mice · new · NESS · latency · C ctrl=1 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS latency C ctrl=2 : ['annotation check: no significant annotated effect']
+mice · new · NESS · latency · C ctrl=2 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS latency C ctrl=4 : ['annotation check: no significant annotated effect']
+mice · new · NESS · latency · C ctrl=4 : 0 found; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS latency C ctrl=5 : ['annotation check: no significant annotated effect']
+mice · new · NESS · latency · C ctrl=5 : 0 found; listed [] No neuron discovered; detail (no detail)
+mice · new · NESS · latency · S ctrl=None : NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice · new · NESS · latency · lines ['ash1l']: NOT RUN YET
+mice · new · NESS · latency · lines ['ash1l', 'kdm6b']: NOT RUN YET
+mice · new · NESS · latency · lines ['ash1l', 'kdm6b', 'kmt5b']: NOT RUN YET
+mice · new · spatial aggregation buttons [agg, disabled, pressed]: []
+ants · v0: outcome options [['prob', True, 'expected fraction of time on (HMM P(on)) (not computed with this model / method)'], ['continuous', False, 'continuous']]
+ants · online: outcome options [['prob', True, 'expected fraction of time on (HMM P(on)) (not computed with this model / method)'], ['continuous', False, 'continuous']]
+ants · new: outcome options [['prob', False, 'expected fraction of time on (HMM P(on))'], ['continuous', False, 'continuous']]
+ants · v0 · outcome continuous: entry v0_topk4608_k20#ants_v2
+ants · v0 · NES · rate: disabled
+      annotation check v0 NES time v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · v0 · NES · time · v2 c=1 t=2: 2 found; listed ['#1616', '#4472'] ; detail Neuron 1616
+      clicked first listed: detail Neuron 1616
+      annotation check v0 NES time v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · v0 · NES · time · v3 c=2 t=6: 1 found; listed ['#4463'] ; detail Neuron 4463
+      clicked first listed: detail Neuron 4463
+      annotation check v0 NES time v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · v0 · NES · time · v3 c=2 t=8: 17 found · ⚠ confounded; listed ['#4543', '#3142', '#506', '#3044', '#3537', '#667', '#1705', '#2551', '#1219', '#577'] ; detail Neuron 4543
+      clicked first listed: detail Neuron 4543
+      annotation check v0 NES time v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · v0 · NES · time · v4 group exposure · healthy: 1 found; listed ['#4472'] ; detail Neuron 4472
+      clicked first listed: detail Neuron 4472
+      annotation check v0 NES time v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · v0 · NES · time · v4 group exposure · infested: 4 found; listed ['#1544', '#2504', '#3982', '#912'] ; detail Neuron 1544
+      clicked first listed: detail Neuron 1544
+ants · v0 · NES · time · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check v0 NES time v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · v0 · NES · time · v4 group colony · t2: 5 found · ⚠ confounded; listed ['#1050', '#1468', '#3044', '#4472', '#1882'] ; detail Neuron 1050
+      clicked first listed: detail Neuron 1050
+      annotation check v0 NES time v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · v0 · NES · time · v4 group colony · t6: 9 found · ⚠ confounded; listed ['#1050', '#3979', '#1616', '#1258', '#14', '#2504', '#2517', '#2954', '#2064'] ; detail Neuron 1050
+      clicked first listed: detail Neuron 1050
+      annotation check v0 NES time v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · v0 · NES · time · v4 group colony · t2+t6: 13 found · ⚠ confounded; listed ['#1050', '#3979', '#1258', '#1616', '#3044', '#1468', '#2517', '#2064', '#4472', '#2954'] ; detail Neuron 1050
+      clicked first listed: detail Neuron 1050
+ants · v0 · NES · latency: disabled
+ants · v0 · spatial aggregation buttons [agg, disabled, pressed]: []
+ants · v0 · method NESS (not computed with this model / outcome) (disabled)
+ants · online · outcome continuous: entry matryoshka_btk_1024_k16_antsfg_s0
+      annotation check online NES rate v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · online · NES · rate · v2 c=1 t=2: 0 found; listed ['#57', '#72', '#191'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 57
+      annotation check online NES rate v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · online · NES · rate · v3 c=2 t=6: 0 found; listed ['#17', '#76', '#24'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 17
+      annotation check online NES rate v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · online · NES · rate · v3 c=2 t=8: 2 found · ⚠ confounded; listed ['#240', '#133'] ; detail Neuron 240
+      clicked first listed: detail Neuron 240
+      annotation check online NES rate v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · online · NES · rate · v4 group exposure · healthy: 0 found; listed ['#108', '#96', '#193'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 108
+      annotation check online NES rate v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · online · NES · rate · v4 group exposure · infested: 0 found; listed ['#119', '#162', '#114'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 119
+ants · online · NES · rate · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check online NES rate v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · online · NES · rate · v4 group colony · t2: 3 found · ⚠ confounded; listed ['#86', '#62', '#22'] ; detail Neuron 86
+      clicked first listed: detail Neuron 86
+      annotation check online NES rate v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · online · NES · rate · v4 group colony · t6: 2 found · ⚠ confounded; listed ['#99', '#81'] ; detail Neuron 99
+      clicked first listed: detail Neuron 99
+      annotation check online NES rate v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · online · NES · rate · v4 group colony · t2+t6: 3 found · ⚠ confounded; listed ['#99', '#193', '#80'] ; detail Neuron 99
+      clicked first listed: detail Neuron 99
+      annotation check online NES time v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · online · NES · time · v2 c=1 t=2: 0 found; listed ['#53', '#95', '#79'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 53
+      annotation check online NES time v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · online · NES · time · v3 c=2 t=6: 0 found; listed ['#112', '#113', '#157'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 112
+      annotation check online NES time v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · online · NES · time · v3 c=2 t=8: 3 found · ⚠ confounded; listed ['#74', '#37', '#133'] ; detail Neuron 74
+      clicked first listed: detail Neuron 74
+      annotation check online NES time v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · online · NES · time · v4 group exposure · healthy: 0 found; listed ['#108', '#133', '#229'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 108
+      annotation check online NES time v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · online · NES · time · v4 group exposure · infested: 0 found; listed ['#145', '#109', '#234'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 145
+ants · online · NES · time · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check online NES time v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · online · NES · time · v4 group colony · t2: 1 found · ⚠ confounded; listed ['#123'] ; detail Neuron 123
+      clicked first listed: detail Neuron 123
+      annotation check online NES time v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · online · NES · time · v4 group colony · t6: 1 found · ⚠ confounded; listed ['#123'] ; detail Neuron 123
+      clicked first listed: detail Neuron 123
+      annotation check online NES time v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · online · NES · time · v4 group colony · t2+t6: 2 found · ⚠ confounded; listed ['#123', '#86'] ; detail Neuron 123
+      clicked first listed: detail Neuron 123
+      annotation check online NES latency v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · online · NES · latency · v2 c=1 t=2: 0 found; listed ['#12', '#120', '#173'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 12
+      annotation check online NES latency v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · online · NES · latency · v3 c=2 t=6: 0 found; listed ['#40', '#198', '#191'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 40
+      annotation check online NES latency v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · online · NES · latency · v3 c=2 t=8: 0 found · ⚠ confounded; listed ['#249', '#192', '#215'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 249
+      annotation check online NES latency v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · online · NES · latency · v4 group exposure · healthy: 0 found; listed ['#29', '#46', '#125'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 29
+      annotation check online NES latency v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · online · NES · latency · v4 group exposure · infested: 0 found; listed ['#69', '#114', '#199'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 69
+ants · online · NES · latency · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check online NES latency v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · online · NES · latency · v4 group colony · t2: 0 found · ⚠ confounded; listed ['#199', '#181', '#242'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 199
+      annotation check online NES latency v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · online · NES · latency · v4 group colony · t6: 0 found · ⚠ confounded; listed ['#64', '#46', '#32'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 64
+      annotation check online NES latency v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · online · NES · latency · v4 group colony · t2+t6: 0 found · ⚠ confounded; listed ['#64', '#32', '#27'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 64
+ants · online · spatial aggregation buttons [agg, disabled, pressed]: []
+      annotation check online NESS rate v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · online · NESS · rate · v2 c=1 t=2: 0 found; listed ['#201', '#72', '#191'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 201
+      annotation check online NESS rate v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · online · NESS · rate · v3 c=2 t=6: 0 found; listed ['#17', '#80', '#86'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 17
+      annotation check online NESS rate v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · online · NESS · rate · v3 c=2 t=8: 0 found · ⚠ confounded; listed ['#80', '#74', '#240'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 80
+      annotation check online NESS rate v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · online · NESS · rate · v4 group exposure · healthy: 0 found; listed ['#108', '#192', '#133'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 108
+      annotation check online NESS rate v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · online · NESS · rate · v4 group exposure · infested: 0 found; listed ['#119', '#114', '#162'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 119
+ants · online · NESS · rate · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check online NESS rate v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · online · NESS · rate · v4 group colony · t2: 0 found · ⚠ confounded; listed ['#54', '#22', '#155'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 54
+      annotation check online NESS rate v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · online · NESS · rate · v4 group colony · t6: 0 found · ⚠ confounded; listed ['#81', '#32', '#86'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 81
+      annotation check online NESS rate v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · online · NESS · rate · v4 group colony · t2+t6: 0 found · ⚠ confounded; listed ['#198', '#158', '#81'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 198
+      annotation check online NESS time v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · online · NESS · time · v2 c=1 t=2: 0 found; listed ['#95', '#1', '#53'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 95
+      annotation check online NESS time v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · online · NESS · time · v3 c=2 t=6: 0 found; listed ['#80', '#112', '#157'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 80
+      annotation check online NESS time v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · online · NESS · time · v3 c=2 t=8: 2 found · ⚠ confounded; listed ['#240', '#133'] ; detail Neuron 240
+      clicked first listed: detail Neuron 240
+      annotation check online NESS time v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · online · NESS · time · v4 group exposure · healthy: 0 found; listed ['#108', '#133', '#229'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 108
+      annotation check online NESS time v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · online · NESS · time · v4 group exposure · infested: 0 found; listed ['#145', '#2', '#156'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 145
+ants · online · NESS · time · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check online NESS time v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · online · NESS · time · v4 group colony · t2: 0 found · ⚠ confounded; listed ['#167', '#54', '#48'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 167
+      annotation check online NESS time v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · online · NESS · time · v4 group colony · t6: 0 found · ⚠ confounded; listed ['#45', '#81', '#158'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 45
+      annotation check online NESS time v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · online · NESS · time · v4 group colony · t2+t6: 1 found · ⚠ confounded; listed ['#81'] ; detail Neuron 81
+      clicked first listed: detail Neuron 81
+      annotation check online NESS latency v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · online · NESS · latency · v2 c=1 t=2: 0 found; listed ['#12', '#120', '#119'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 12
+      annotation check online NESS latency v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · online · NESS · latency · v3 c=2 t=6: 0 found; listed ['#40', '#198', '#191'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 40
+      annotation check online NESS latency v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · online · NESS · latency · v3 c=2 t=8: 1 found · ⚠ confounded; listed ['#249'] ; detail Neuron 249
+      clicked first listed: detail Neuron 249
+      annotation check online NESS latency v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · online · NESS · latency · v4 group exposure · healthy: 0 found; listed ['#29', '#125', '#164'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 29
+      annotation check online NESS latency v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · online · NESS · latency · v4 group exposure · infested: 0 found; listed ['#69', '#114', '#213'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 69
+ants · online · NESS · latency · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check online NESS latency v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · online · NESS · latency · v4 group colony · t2: 0 found · ⚠ confounded; listed ['#96', '#242', '#254'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 96
+      annotation check online NESS latency v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · online · NESS · latency · v4 group colony · t6: 0 found · ⚠ confounded; listed ['#121', '#195', '#242'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 121
+      annotation check online NESS latency v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · online · NESS · latency · v4 group colony · t2+t6: 0 found · ⚠ confounded; listed ['#121', '#96', '#191'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 121
+ants · online · spatial aggregation buttons [agg, disabled, pressed]: []
+ants · new · outcome prob: entry v20_ants_N2f5_s951_hmm@nes#v2_ants_v4p_hmm
+ants · new · NES · rate: disabled
+      annotation check new NES time v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v2 c=1 t=2: 0 found; listed ['#44', '#50', '#140'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 44
+      annotation check new NES time v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v3 c=2 t=6: 0 found; listed ['#53', '#152', '#199'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 53
+      annotation check new NES time v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v3 c=2 t=8: 1 found · ⚠ confounded; listed ['#249'] ; detail Neuron 249
+      clicked first listed: detail Neuron 249
+      annotation check new NES time v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v4 group exposure · healthy: 0 found; listed ['#184', '#162', '#109'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 184
+      annotation check new NES time v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v4 group exposure · infested: 0 found; listed ['#229', '#111', '#93'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 229
+ants · new · NES · time · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check new NES time v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v4 group colony · t2: 2 found · ⚠ confounded; listed ['#149', '#161'] ; detail Neuron 149
+      clicked first listed: detail Neuron 149
+      annotation check new NES time v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v4 group colony · t6: 1 found · ⚠ confounded; listed ['#71'] ; detail Neuron 71
+      clicked first listed: detail Neuron 71
+      annotation check new NES time v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v4 group colony · t2+t6: 1 found · ⚠ confounded; listed ['#78'] ; detail Neuron 78
+      clicked first listed: detail Neuron 78
+ants · new · NES · latency: disabled
+ants · new · spatial aggregation buttons [agg, disabled, pressed]: []
+ants · new · NESS · rate: disabled
+      annotation check new NESS time v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v2 c=1 t=2: 0 found; listed ['#44', '#50', '#140'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 44
+      annotation check new NESS time v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v3 c=2 t=6: 0 found; listed ['#152', '#199', '#223'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 152
+      annotation check new NESS time v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v3 c=2 t=8: 0 found · ⚠ confounded; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v4 group exposure · healthy: 0 found; listed ['#184', '#162', '#25'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 184
+      annotation check new NESS time v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v4 group exposure · infested: 0 found; listed ['#229', '#111', '#93'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 229
+ants · new · NESS · time · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check new NESS time v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v4 group colony · t2: 0 found · ⚠ confounded; listed ['#254', '#41', '#124'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 254
+      annotation check new NESS time v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v4 group colony · t6: 1 found · ⚠ confounded; listed ['#235'] ; detail Neuron 235
+      clicked first listed: detail Neuron 235
+      annotation check new NESS time v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v4 group colony · t2+t6: 2 found · ⚠ confounded; listed ['#78', '#71'] ; detail Neuron 78
+      clicked first listed: detail Neuron 78
+ants · new · NESS · latency: disabled
+ants · new · spatial aggregation buttons [agg, disabled, pressed]: []
+ants · new · outcome continuous: entry v20_ants_N2f5_s951_smooth@nes#v2_ants_v4p_smooth
+      annotation check new NES rate v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · new · NES · rate · v2 c=1 t=2: 0 found; listed ['#50', '#140', '#43'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 50
+      annotation check new NES rate v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · new · NES · rate · v3 c=2 t=6: 0 found; listed ['#53', '#223', '#199'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 53
+      annotation check new NES rate v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · new · NES · rate · v3 c=2 t=8: 1 found · ⚠ confounded; listed ['#249'] ; detail Neuron 249
+      clicked first listed: detail Neuron 249
+      annotation check new NES rate v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · new · NES · rate · v4 group exposure · healthy: 0 found; listed ['#184', '#208', '#191'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 184
+      annotation check new NES rate v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · new · NES · rate · v4 group exposure · infested: 0 found; listed ['#229', '#3', '#111'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 229
+ants · new · NES · rate · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check new NES rate v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · new · NES · rate · v4 group colony · t2: 2 found · ⚠ confounded; listed ['#125', '#161'] ; detail Neuron 125
+      clicked first listed: detail Neuron 125
+      annotation check new NES rate v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · new · NES · rate · v4 group colony · t6: 1 found · ⚠ confounded; listed ['#203'] ; detail Neuron 203
+      clicked first listed: detail Neuron 203
+      annotation check new NES rate v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · new · NES · rate · v4 group colony · t2+t6: 1 found · ⚠ confounded; listed ['#71'] ; detail Neuron 71
+      clicked first listed: detail Neuron 71
+      annotation check new NES time v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v2 c=1 t=2: 0 found; listed ['#50', '#44', '#140'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 50
+      annotation check new NES time v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v3 c=2 t=6: 0 found; listed ['#53', '#199', '#223'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 53
+      annotation check new NES time v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v3 c=2 t=8: 1 found · ⚠ confounded; listed ['#249'] ; detail Neuron 249
+      clicked first listed: detail Neuron 249
+      annotation check new NES time v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v4 group exposure · healthy: 0 found; listed ['#184', '#15', '#165'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 184
+      annotation check new NES time v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v4 group exposure · infested: 0 found; listed ['#72', '#229', '#111'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 72
+ants · new · NES · time · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check new NES time v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v4 group colony · t2: 1 found · ⚠ confounded; listed ['#67'] ; detail Neuron 67
+      clicked first listed: detail Neuron 67
+      annotation check new NES time v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v4 group colony · t6: 1 found · ⚠ confounded; listed ['#203'] ; detail Neuron 203
+      clicked first listed: detail Neuron 203
+      annotation check new NES time v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · new · NES · time · v4 group colony · t2+t6: 1 found · ⚠ confounded; listed ['#78'] ; detail Neuron 78
+      clicked first listed: detail Neuron 78
+      annotation check new NES latency v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · new · NES · latency · v2 c=1 t=2: 0 found; listed ['#61', '#178', '#229'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 61
+      annotation check new NES latency v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · new · NES · latency · v3 c=2 t=6: 0 found; listed ['#50', '#3', '#162'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 50
+      annotation check new NES latency v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · new · NES · latency · v3 c=2 t=8: 0 found · ⚠ confounded; listed [] No neuron discovered; detail (no detail)
+      annotation check new NES latency v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · new · NES · latency · v4 group exposure · healthy: 0 found; listed ['#16', '#205', '#100'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 16
+      annotation check new NES latency v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · new · NES · latency · v4 group exposure · infested: 0 found; listed ['#227', '#144', '#45'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 227
+ants · new · NES · latency · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check new NES latency v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · new · NES · latency · v4 group colony · t2: 0 found · ⚠ confounded; listed ['#12', '#250', '#156'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 12
+      annotation check new NES latency v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · new · NES · latency · v4 group colony · t6: 0 found · ⚠ confounded; listed ['#19', '#115', '#123'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 19
+      annotation check new NES latency v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · new · NES · latency · v4 group colony · t2+t6: 0 found · ⚠ confounded; listed ['#87', '#12', '#107'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 87
+ants · new · spatial aggregation buttons [agg, disabled, pressed]: []
+      annotation check new NESS rate v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · new · NESS · rate · v2 c=1 t=2: 0 found; listed ['#50', '#140', '#124'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 50
+      annotation check new NESS rate v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · new · NESS · rate · v3 c=2 t=6: 0 found; listed ['#223', '#199', '#245'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 223
+      annotation check new NESS rate v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · new · NESS · rate · v3 c=2 t=8: 0 found · ⚠ confounded; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS rate v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · new · NESS · rate · v4 group exposure · healthy: 0 found; listed ['#184', '#208', '#191'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 184
+      annotation check new NESS rate v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · new · NESS · rate · v4 group exposure · infested: 0 found; listed ['#3', '#72', '#111'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 3
+ants · new · NESS · rate · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check new NESS rate v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · new · NESS · rate · v4 group colony · t2: 0 found · ⚠ confounded; listed ['#254', '#124', '#2'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 254
+      annotation check new NESS rate v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · new · NESS · rate · v4 group colony · t6: 1 found · ⚠ confounded; listed ['#61'] ; detail Neuron 61
+      clicked first listed: detail Neuron 61
+      annotation check new NESS rate v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · new · NESS · rate · v4 group colony · t2+t6: 6 found · ⚠ confounded; listed ['#71', '#78', '#61', '#125', '#68', '#203'] ; detail Neuron 71
+      clicked first listed: detail Neuron 71
+      annotation check new NESS time v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v2 c=1 t=2: 0 found; listed ['#50', '#44', '#140'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 50
+      annotation check new NESS time v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v3 c=2 t=6: 0 found; listed ['#223', '#3', '#199'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 223
+      annotation check new NESS time v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v3 c=2 t=8: 0 found · ⚠ confounded; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS time v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v4 group exposure · healthy: 0 found; listed ['#184', '#64', '#165'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 184
+      annotation check new NESS time v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v4 group exposure · infested: 0 found; listed ['#72', '#111', '#3'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 72
+ants · new · NESS · time · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check new NESS time v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v4 group colony · t2: 1 found · ⚠ confounded; listed ['#41'] ; detail Neuron 41
+      clicked first listed: detail Neuron 41
+      annotation check new NESS time v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v4 group colony · t6: 1 found · ⚠ confounded; listed ['#235'] ; detail Neuron 235
+      clicked first listed: detail Neuron 235
+      annotation check new NESS time v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · new · NESS · time · v4 group colony · t2+t6: 3 found · ⚠ confounded; listed ['#78', '#71', '#117'] ; detail Neuron 78
+      clicked first listed: detail Neuron 78
+      annotation check new NESS latency v2 c=1 t=2: ['annotation check: no significant annotated effect']
+ants · new · NESS · latency · v2 c=1 t=2: 0 found; listed ['#229', '#178', '#169'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 229
+      annotation check new NESS latency v3 c=2 t=6: ['annotation check: no significant annotated effect']
+ants · new · NESS · latency · v3 c=2 t=6: 0 found; listed ['#50', '#3', '#90'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 50
+      annotation check new NESS latency v3 c=2 t=8: ['annotation check: no significant annotated effect']
+ants · new · NESS · latency · v3 c=2 t=8: 0 found · ⚠ confounded; listed [] No neuron discovered; detail (no detail)
+      annotation check new NESS latency v4 group exposure · healthy: ['annotation check: no significant annotated effect']
+ants · new · NESS · latency · v4 group exposure · healthy: 0 found; listed ['#16', '#100', '#205'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 16
+      annotation check new NESS latency v4 group exposure · infested: ['annotation check: no significant annotated effect']
+ants · new · NESS · latency · v4 group exposure · infested: 0 found; listed ['#227', '#14', '#20'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 227
+ants · new · NESS · latency · v4 group exposure · healthy+infested: NOT RUN YET; listed [] ; detail (no detail)
+      annotation check new NESS latency v4 group colony · t2: ['annotation check: no significant annotated effect']
+ants · new · NESS · latency · v4 group colony · t2: 0 found · ⚠ confounded; listed ['#87', '#191', '#20'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 87
+      annotation check new NESS latency v4 group colony · t6: ['annotation check: no significant annotated effect']
+ants · new · NESS · latency · v4 group colony · t6: 0 found · ⚠ confounded; listed ['#208', '#55', '#123'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 208
+      annotation check new NESS latency v4 group colony · t2+t6: ['annotation check: no significant annotated effect']
+ants · new · NESS · latency · v4 group colony · t2+t6: 0 found · ⚠ confounded; listed ['#87', '#191', '#156'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 87
+ants · new · spatial aggregation buttons [agg, disabled, pressed]: []
+frogs · v0: outcome options [['prob', True, 'expected fraction of time on (HMM P(on)) (not computed with this model / method)'], ['continuous', False, 'continuous']]
+frogs · online: outcome options [['prob', True, 'expected fraction of time on (HMM P(on)) (not computed with this model / method)'], ['continuous', False, 'continuous']]
+frogs · new: outcome options [['prob', False, 'expected fraction of time on (HMM P(on))'], ['continuous', False, 'continuous']]
+frogs · v0 · outcome continuous: entry v0_topk4608_k20#frogs_v1
+frogs · v0 · NES · rate: disabled
+frogs · v0 · NES · time · hour 1 c=WT t=FoxP1: 9 found · ⚠ confounded; listed ['#3566', '#3537', '#3130', '#2338', '#4128', '#4419', '#4543', '#2553', '#3502'] ; detail Neuron 3566
+      clicked first listed: detail Neuron 3566
+frogs · v0 · NES · time · hour 1 c=WT t=En1: 2 found · ⚠ confounded; listed ['#3537', '#3130'] ; detail Neuron 3537
+      clicked first listed: detail Neuron 3537
+frogs · v0 · NES · time · tadpoles (stage 44–48) c=WT t=FoxP1: 1 found · ⚠ confounded; listed ['#86'] ; detail Neuron 86
+      clicked first listed: detail Neuron 86
+frogs · v0 · NES · time · tadpoles (stage 44–48) c=WT t=En1: 2 found · ⚠ confounded; listed ['#99', '#180'] ; detail Neuron 99
+      clicked first listed: detail Neuron 99
+frogs · v0 · NES · latency: disabled
+frogs · v0 · spatial aggregation buttons [agg, disabled, pressed]: []
+frogs · v0 · method NESS (not computed with this model / outcome) (disabled)
+frogs · online · outcome continuous: entry matryoshka_btk_1024_k16_frogsfg_s0
+frogs · online · NES · rate · hour 1 c=WT t=FoxP1: 2 found · ⚠ confounded; listed ['#99', '#87'] ; detail Neuron 99
+      clicked first listed: detail Neuron 99
+frogs · online · NES · rate · hour 1 c=WT t=En1: 0 found · ⚠ confounded; listed ['#194', '#112', '#245'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 194
+frogs · online · NES · rate · tadpoles (stage 44–48) c=WT t=FoxP1: 1 found · ⚠ confounded; listed ['#86'] ; detail Neuron 86
+      clicked first listed: detail Neuron 86
+frogs · online · NES · rate · tadpoles (stage 44–48) c=WT t=En1: 2 found · ⚠ confounded; listed ['#99', '#180'] ; detail Neuron 99
+      clicked first listed: detail Neuron 99
+frogs · online · NES · time · hour 1 c=WT t=FoxP1: 1 found · ⚠ confounded; listed ['#19'] ; detail Neuron 19
+      clicked first listed: detail Neuron 19
+frogs · online · NES · time · hour 1 c=WT t=En1: 0 found · ⚠ confounded; listed ['#139', '#40', '#222'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 139
+frogs · online · NES · time · tadpoles (stage 44–48) c=WT t=FoxP1: 1 found · ⚠ confounded; listed ['#86'] ; detail Neuron 86
+      clicked first listed: detail Neuron 86
+frogs · online · NES · time · tadpoles (stage 44–48) c=WT t=En1: 2 found · ⚠ confounded; listed ['#99', '#180'] ; detail Neuron 99
+      clicked first listed: detail Neuron 99
+frogs · online · NES · latency · hour 1 c=WT t=FoxP1: 3 found · ⚠ confounded; listed ['#5', '#56', '#235'] ; detail Neuron 5
+      clicked first listed: detail Neuron 5
+frogs · online · NES · latency · hour 1 c=WT t=En1: 0 found · ⚠ confounded; listed ['#126', '#71', '#36'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 126
+frogs · online · NES · latency · tadpoles (stage 44–48) c=WT t=FoxP1: 1 found · ⚠ confounded; listed ['#86'] ; detail Neuron 86
+      clicked first listed: detail Neuron 86
+frogs · online · NES · latency · tadpoles (stage 44–48) c=WT t=En1: 2 found · ⚠ confounded; listed ['#99', '#180'] ; detail Neuron 99
+      clicked first listed: detail Neuron 99
+frogs · online · spatial aggregation buttons [agg, disabled, pressed]: []
+frogs · online · NESS · rate: disabled
+frogs · online · NESS · time · hour 1 c=WT t=FoxP1: 0 found · ⚠ confounded; listed ['#19', '#70', '#130'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 19
+frogs · online · NESS · time · hour 1 c=WT t=En1: 0 found · ⚠ confounded; listed ['#109', '#139', '#222'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 109
+frogs · online · NESS · time · tadpoles (stage 44–48) c=WT t=FoxP1: 1 found · ⚠ confounded; listed ['#86'] ; detail Neuron 86
+      clicked first listed: detail Neuron 86
+frogs · online · NESS · time · tadpoles (stage 44–48) c=WT t=En1: 0 found · ⚠ confounded; listed ['#99', '#180', '#63'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 99
+frogs · online · NESS · latency: disabled
+frogs · online · spatial aggregation buttons [agg, disabled, pressed]: []
+frogs · new · outcome prob: entry v20_frogs_N2f5_s952_hmm@nes#v2_frogs_hmm
+frogs · new · NES · rate: disabled
+frogs · new · NES · time · hour 1 c=WT t=FoxP1: 1 found · ⚠ confounded; listed ['#19'] ; detail Neuron 19
+      clicked first listed: detail Neuron 19
+frogs · new · NES · time · hour 1 c=WT t=En1: 0 found · ⚠ confounded; listed ['#139', '#40', '#222'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 139
+frogs · new · NES · time · tadpoles (stage 44–48) c=WT t=FoxP1: 1 found · ⚠ confounded; listed ['#86'] ; detail Neuron 86
+      clicked first listed: detail Neuron 86
+frogs · new · NES · time · tadpoles (stage 44–48) c=WT t=En1: 2 found · ⚠ confounded; listed ['#99', '#180'] ; detail Neuron 99
+      clicked first listed: detail Neuron 99
+frogs · new · NES · latency: disabled
+frogs · new · spatial aggregation buttons [agg, disabled, pressed]: []
+frogs · new · NESS · rate: disabled
+frogs · new · NESS · time · hour 1 c=WT t=FoxP1: 0 found · ⚠ confounded; listed ['#19', '#70', '#130'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 19
+frogs · new · NESS · time · hour 1 c=WT t=En1: 0 found · ⚠ confounded; listed ['#109', '#139', '#222'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 109
+frogs · new · NESS · time · tadpoles (stage 44–48) c=WT t=FoxP1: 1 found · ⚠ confounded; listed ['#86'] ; detail Neuron 86
+      clicked first listed: detail Neuron 86
+frogs · new · NESS · time · tadpoles (stage 44–48) c=WT t=En1: 0 found · ⚠ confounded; listed ['#99', '#180', '#63'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 99
+frogs · new · NESS · latency: disabled
+frogs · new · spatial aggregation buttons [agg, disabled, pressed]: []
+frogs · new · outcome continuous: entry v20_frogs_N2f5_s952_smooth@nes#v2_frogs_smooth
+frogs · new · NES · rate · hour 1 c=WT t=FoxP1: 1 found · ⚠ confounded; listed ['#118'] ; detail Neuron 118
+      clicked first listed: detail Neuron 118
+frogs · new · NES · rate · hour 1 c=WT t=En1: 0 found · ⚠ confounded; listed ['#38', '#166', '#109'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 38
+frogs · new · NES · rate · tadpoles (stage 44–48) c=WT t=FoxP1: 0 found · ⚠ confounded; listed ['#216', '#86', '#108'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 216
+frogs · new · NES · rate · tadpoles (stage 44–48) c=WT t=En1: 2 found · ⚠ confounded; listed ['#180', '#99'] ; detail Neuron 180
+      clicked first listed: detail Neuron 180
+frogs · new · NES · time · hour 1 c=WT t=FoxP1: 1 found · ⚠ confounded; listed ['#19'] ; detail Neuron 19
+      clicked first listed: detail Neuron 19
+frogs · new · NES · time · hour 1 c=WT t=En1: 0 found · ⚠ confounded; listed ['#109', '#139', '#121'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 109
+frogs · new · NES · time · tadpoles (stage 44–48) c=WT t=FoxP1: 1 found · ⚠ confounded; listed ['#86'] ; detail Neuron 86
+      clicked first listed: detail Neuron 86
+frogs · new · NES · time · tadpoles (stage 44–48) c=WT t=En1: 2 found · ⚠ confounded; listed ['#180', '#99'] ; detail Neuron 180
+      clicked first listed: detail Neuron 180
+frogs · new · NES · latency · hour 1 c=WT t=FoxP1: 2 found · ⚠ confounded; listed ['#69', '#19'] ; detail Neuron 69
+      clicked first listed: detail Neuron 69
+frogs · new · NES · latency · hour 1 c=WT t=En1: 0 found · ⚠ confounded; listed ['#68', '#85', '#24'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 68
+frogs · new · NES · latency · tadpoles (stage 44–48) c=WT t=FoxP1: 0 found · ⚠ confounded; listed ['#86', '#37', '#189'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 86
+frogs · new · NES · latency · tadpoles (stage 44–48) c=WT t=En1: 1 found · ⚠ confounded; listed ['#99'] ; detail Neuron 99
+      clicked first listed: detail Neuron 99
+frogs · new · spatial aggregation buttons [agg, disabled, pressed]: []
+frogs · new · NESS · rate · hour 1 c=WT t=FoxP1: 0 found · ⚠ confounded; listed ['#0', '#57', '#100'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 0
+frogs · new · NESS · rate · hour 1 c=WT t=En1: 0 found · ⚠ confounded; listed ['#166', '#156', '#198'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 166
+frogs · new · NESS · rate · tadpoles (stage 44–48) c=WT t=FoxP1: 1 found · ⚠ confounded; listed ['#216'] ; detail Neuron 216
+      clicked first listed: detail Neuron 216
+frogs · new · NESS · rate · tadpoles (stage 44–48) c=WT t=En1: 0 found · ⚠ confounded; listed ['#180', '#99', '#103'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 180
+frogs · new · NESS · time · hour 1 c=WT t=FoxP1: 0 found · ⚠ confounded; listed ['#80', '#19', '#124'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 80
+frogs · new · NESS · time · hour 1 c=WT t=En1: 0 found · ⚠ confounded; listed ['#109', '#139', '#222'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 109
+frogs · new · NESS · time · tadpoles (stage 44–48) c=WT t=FoxP1: 0 found · ⚠ confounded; listed ['#2', '#168', '#27'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 2
+frogs · new · NESS · time · tadpoles (stage 44–48) c=WT t=En1: 0 found · ⚠ confounded; listed ['#99', '#180', '#63'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 99
+frogs · new · NESS · latency · hour 1 c=WT t=FoxP1: 0 found · ⚠ confounded; listed ['#19', '#80', '#100'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 19
+frogs · new · NESS · latency · hour 1 c=WT t=En1: 0 found · ⚠ confounded; listed ['#24', '#139', '#68'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 24
+frogs · new · NESS · latency · tadpoles (stage 44–48) c=WT t=FoxP1: 0 found · ⚠ confounded; listed ['#86', '#239', '#37'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 86
+frogs · new · NESS · latency · tadpoles (stage 44–48) c=WT t=En1: 0 found · ⚠ confounded; listed ['#99', '#117', '#63'] No neuron discovered (candidates); detail (no detail)
+      clicked first listed: detail Neuron 99
+frogs · new · spatial aggregation buttons [agg, disabled, pressed]: []
+frogs default: phase options ['juveniles', 'tadpoles (stage 44–48) · v2.0 only']; model online
+frogs -> tadpoles: model new, 1 found · ⚠ confounded, detail Neuron 86, strip tiles 0
+tadpole clip: {'src': 'blob:http://127.0.0.1:45355/2699720f-edeb-4740-a5dd-e99b2c75faf2', 'ds': 'assets/v20tadh_1s_eeceaa17df.webm', 'ready': 4, 't': 8.162995, 'dur': 18, 'err': None}
+prefix buttons mice v0: [['4608', False, 'true', 'v0: its full 4608-code representation (TopK SAE, no nested blocks)']]; v0 note shown True
+prefix buttons mice online: [['128', False, 'false', 'The first 128 neurons: descriptive, not the primary search (v1 Matryoshka blocks: 128 / 256 / 512 / 1024)'], ['256', False, 'true', 'The first 256 neurons: the primary search (default) (v1 Matryoshka blocks: 128 / 256 / 512 / 1024)'], ['512', True, 'false', 'first 512 neurons: not reported (not shown to keep the page small)'], ['1024', True, 'false', 'first 1024 neurons: not reported (not shown to keep the page small)']]; v0 note shown False
+prefix buttons mice new: [['128', False, 'false', 'The first 128 neurons: descriptive, not the primary search (v2.0 Matryoshka blocks: 128 / 256 / 512 / 2048)'], ['256', False, 'true', 'The first 256 neurons: the primary search (default) (v2.0 Matryoshka blocks: 128 / 256 / 512 / 2048)'], ['512', True, 'false', 'first 512 neurons: not reported (not shown to keep the page small)'], ['2048', True, 'false', 'first 2048 neurons: not reported (not shown to keep the page small)']]; v0 note shown False
+align mice v2 prob prefix 128: 'Neurons: first 128 (v1, v2.0) · v2.0 outcome: expected fraction of time on (HMM P(on)) · v0: its full 4608 codes'; best per behaviour [v0, v1, v2] [['#2120', '#97', '#14'], ['#2910', '#27', '#88'], ['#815', '#27', '#14'], ['#1598', '#27', '#27']]; v1/v2 top-5 ids [0, 9, 13, 14, 16, 23, 27, 31, 33, 39, 43, 51, 70, 72, 73, 75, 85, 87, 88, 93, 97, 99, 107, 108, 109, 113, 536, 815, 875, 1258, 1324, 1390, 1406, 1598, 1834, 2120, 2561, 2836, 2853, 2910]
+   v1 / v2 best neurons outside the first 128: [] (must be [])
+align mice v2 prob prefix 256: 'Neurons: first 256 (v1, v2.0) · v2.0 outcome: expected fraction of time on (HMM P(on)) · v0: its full 4608 codes'; best per behaviour [v0, v1, v2] [['#2120', '#224', '#14'], ['#2910', '#224', '#232'], ['#815', '#224', '#232'], ['#1598', '#163', '#236']]; v1/v2 top-5 ids [9, 13, 14, 23, 27, 39, 43, 51, 70, 72, 88, 93, 97, 99, 113, 131, 151, 153, 163, 164, 186, 199, 202, 208, 216, 224, 232, 235, 236, 536, 815, 875, 1258, 1324, 1390, 1406, 1598, 1834, 2120, 2561]
+   v1 / v2 best neurons outside the first 256: [] (must be [])
+align mice v2 continuous prefix 128: 'Neurons: first 128 (v1, v2.0) · v2.0 outcome: continuous · v0: its full 4608 codes'; best per behaviour [v0, v1, v2] [['#2120', '#97', '#16'], ['#2910', '#27', '#9'], ['#815', '#27', '#43'], ['#1598', '#27', '#31']]; v1/v2 top-5 ids [9, 16, 23, 24, 27, 31, 33, 35, 36, 38, 41, 43, 51, 70, 75, 78, 85, 93, 97, 99, 106, 107, 108, 109, 113, 114, 118, 123, 536, 815, 875, 1258, 1324, 1390, 1406, 1598, 1834, 2120, 2561, 2836]
+   v1 / v2 best neurons outside the first 128: [] (must be [])
+align mice v2 continuous prefix 256: 'Neurons: first 256 (v1, v2.0) · v2.0 outcome: continuous · v0: its full 4608 codes'; best per behaviour [v0, v1, v2] [['#2120', '#224', '#151'], ['#2910', '#224', '#128'], ['#815', '#224', '#151'], ['#1598', '#163', '#180']]; v1/v2 top-5 ids [9, 23, 24, 27, 31, 35, 36, 38, 41, 43, 48, 70, 93, 97, 99, 106, 114, 128, 131, 151, 163, 164, 180, 199, 202, 211, 216, 220, 224, 235, 236, 536, 815, 875, 1258, 1324, 1390, 1406, 1598, 1834]
+   v1 / v2 best neurons outside the first 256: [] (must be [])
+align ants v2 prob prefix 128: 'Neurons: first 128 (v1, v2.0) · v2.0 outcome: expected fraction of time on (HMM P(on)) · v0: its full 4608 codes'; best per behaviour [v0, v1, v2] [['#1523', '#90', '#40'], ['#2203', '#90', '#40'], ['#1616', '#90', '#40'], ['not annotated', 'not annotated', 'not annotated'], ['not annotated', 'not annotated', 'not annotated'], ['not annotated', 'not annotated', 'not annotated']]; v1/v2 top-5 ids [3, 37, 40, 50, 53, 55, 67, 87, 90, 100, 107, 108, 386, 1023, 1523, 1616, 2203, 2659, 3476, 3622, 3982, 4166]
+   v1 / v2 best neurons outside the first 128: [] (must be [])
+align ants v2 prob prefix 256: 'Neurons: first 256 (v1, v2.0) · v2.0 outcome: expected fraction of time on (HMM P(on)) · v0: its full 4608 codes'; best per behaviour [v0, v1, v2] [['#1523', '#90', '#207'], ['#2203', '#90', '#40'], ['#1616', '#90', '#40'], ['not annotated', 'not annotated', 'not annotated'], ['not annotated', 'not annotated', 'not annotated'], ['not annotated', 'not annotated', 'not annotated']]; v1/v2 top-5 ids [40, 50, 53, 67, 87, 90, 107, 108, 166, 171, 186, 192, 207, 210, 386, 1023, 1523, 1616, 2203, 2659, 3476, 3622, 3982, 4166]
+   v1 / v2 best neurons outside the first 256: [] (must be [])
+align ants v2 continuous prefix 128: 'Neurons: first 128 (v1, v2.0) · v2.0 outcome: continuous · v0: its full 4608 codes'; best per behaviour [v0, v1, v2] [['#1523', '#90', '#40'], ['#2203', '#90', '#40'], ['#1616', '#90', '#40'], ['not annotated', 'not annotated', 'not annotated'], ['not annotated', 'not annotated', 'not annotated'], ['not annotated', 'not annotated', 'not annotated']]; v1/v2 top-5 ids [3, 37, 40, 50, 53, 55, 58, 67, 87, 90, 100, 107, 108, 386, 1023, 1523, 1616, 2203, 2659, 3476, 3622, 3982, 4166]
+   v1 / v2 best neurons outside the first 128: [] (must be [])
+align ants v2 continuous prefix 256: 'Neurons: first 256 (v1, v2.0) · v2.0 outcome: continuous · v0: its full 4608 codes'; best per behaviour [v0, v1, v2] [['#1523', '#90', '#207'], ['#2203', '#90', '#40'], ['#1616', '#90', '#40'], ['not annotated', 'not annotated', 'not annotated'], ['not annotated', 'not annotated', 'not annotated'], ['not annotated', 'not annotated', 'not annotated']]; v1/v2 top-5 ids [40, 87, 90, 107, 108, 166, 171, 181, 186, 192, 207, 210, 386, 1023, 1523, 1616, 2203, 2659, 3476, 3622, 3982, 4166]
+   v1 / v2 best neurons outside the first 256: [] (must be [])
+interp mice -: 12 of 12 best-neuron cells clickable
+   box mice - v0 #2120 (nn): {'h2': 'Neuron 2120', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with nose-nose (mutual) (v0 (baseline), its full 4608 codes): R̃ 0.0088 · AUROC 0.506 on held-out halves. close', 'note': 'Behaviour check (nose contact (nose-nose mutual, nose-nose directional or nose-tail; union), frame level, annotated videos): AUROC 0.501 (0.5 = chance); F1 of “neuron > 0” 0.0146 vs 0.0593 for always predicting the behaviour.'}
+   box mice - online #224 (nn): {'h2': 'Neuron 224', 'canvases': 0, 'tiles': 0, 'video': False, 'charts': 0, 'best': 'Best aligned with nose-nose (mutual) (v1, first 256 neurons): R̃ 0.0313 · AUROC 0.648 on held-out halves. close', 'note': 'No clips for this neuron: v1 reuses the data of its published page (v36, 2026-10-04), whose clips and heat maps were rendered only for the neurons its searches list; this neuron is not among them, and rendering new v1 heat-map clips needs the DINOv2 patch re-encoding of that build (not run for this page). Interpretation: tbd.'}
+   box mice - new #151 (nn): {'h2': 'Neuron 151', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with nose-nose (mutual) (v2.0, first 256 neurons, continuous): R̃ 0.0342 · AUROC 0.675 on held-out halves. close', 'note': None}
+   box mice - v0 #2910 (np): {'h2': 'Neuron 2910', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with nose-nose (directional) (v0 (baseline), its full 4608 codes): R̃ 0.0071 · AUROC 0.489 on held-out halves. close', 'note': 'v0 shows single frames only: no heat maps or arena map (it codes one mean token per frame, so it has no per-patch codes) and no 1 s clips (its codes are at 2 frames per second).'}
+   box mice - online #224 (np): {'h2': 'Neuron 224', 'canvases': 0, 'tiles': 0, 'video': False, 'charts': 0, 'best': 'Best aligned with nose-nose (directional) (v1, first 256 neurons): R̃ 0.0195 · AUROC 0.591 on held-out halves. close', 'note': 'No clips for this neuron: v1 reuses the data of its published page (v36, 2026-10-04), whose clips and heat maps were rendered only for the neurons its searches list; this neuron is not among them, and rendering new v1 heat-map clips needs the DINOv2 patch re-encoding of that build (not run for this page). Interpretation: tbd.'}
+   box mice - new #128 (np): {'h2': 'Neuron 128', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with nose-nose (directional) (v2.0, first 256 neurons, continuous): R̃ 0.0233 · AUROC 0.543 on held-out halves. close', 'note': None}
+   box mice - v0 #815 (nn_or_np): {'h2': 'Neuron 815', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with nose-nose (either) (v0 (baseline), its full 4608 codes): R̃ 0.0103 · AUROC 0.505 on held-out halves. close', 'note': 'Behaviour check (nose contact (nose-nose mutual, nose-nose directional or nose-tail; union), frame level, annotated videos): AUROC 0.506 (0.5 = chance); F1 of “neuron > 0” 0.0367 vs 0.0593 for always predicting the behaviour.'}
+   box mice - online #224 (nn_or_np): {'h2': 'Neuron 224', 'canvases': 0, 'tiles': 0, 'video': False, 'charts': 0, 'best': 'Best aligned with nose-nose (either) (v1, first 256 neurons): R̃ 0.0362 · AUROC 0.612 on held-out halves. close', 'note': 'No clips for this neuron: v1 reuses the data of its published page (v36, 2026-10-04), whose clips and heat maps were rendered only for the neurons its searches list; this neuron is not among them, and rendering new v1 heat-map clips needs the DINOv2 patch re-encoding of that build (not run for this page). Interpretation: tbd.'}
+   box mice - new #151 (nn_or_np): {'h2': 'Neuron 151', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with nose-nose (either) (v2.0, first 256 neurons, continuous): R̃ 0.0402 · AUROC 0.639 on held-out halves. close', 'note': None}
+   box mice - v0 #1598 (nt): {'h2': 'Neuron 1598', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with nose-tail (v0 (baseline), its full 4608 codes): R̃ 0.0215 · AUROC 0.514 on held-out halves. close', 'note': 'Behaviour check (nose contact (nose-nose mutual, nose-nose directional or nose-tail; union), frame level, annotated videos): AUROC 0.506 (0.5 = chance); F1 of “neuron > 0” 0.0357 vs 0.0593 for always predicting the behaviour.'}
+   box mice - online #163 (nt): {'h2': 'Neuron 163', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with nose-tail (v1, first 256 neurons): R̃ 0.0562 · AUROC 0.723 on held-out halves. close', 'note': None}
+   box mice - new #180 (nt): {'h2': 'Neuron 180', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with nose-tail (v2.0, first 256 neurons, continuous): R̃ 0.022 · AUROC 0.606 on held-out halves. close', 'note': None}
+lid rows ants v2: [[['yellow on the lid (YOL)', ''], ['not annotated', 'This behaviour is not annotated in this series (no labelled frames).'], ['not annotated', 'This behaviour is not annotated in this series (no labelled frames).'], ['not annotated', 'This behaviour is not annotated in this series (no labelled frames).']], [['blue on the lid (BOL)', ''], ['not annotated', 'This behaviour is not annotated in this series (no labelled frames).'], ['not annotated', 'This behaviour is not annotated in this series (no labelled frames).'], ['not annotated', 'This behaviour is not annotated in this series (no labelled frames).']], [['on the lid, either (YOL or BOL)', ''], ['not annotated', 'This behaviour is not annotated in this series (no labelled frames).'], ['not annotated', 'This behaviour is not annotated in this series (no labelled frames).'], ['not annotated', 'This behaviour is not annotated in this series (no labelled frames).']]]
+interp ants v2: 9 of 9 best-neuron cells clickable
+   box ants v2 v0 #1523 (Y2F): {'h2': 'Neuron 1523', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with grooming by yellow (Y2F) (v0 (baseline), its full 4608 codes): R̃ 0.102 · AUROC 0.575 on held-out halves. close', 'note': 'v0 shows single frames only: no heat maps or arena map (it codes one mean token per frame, so it has no per-patch codes) and no 1 s clips (its codes are at 2 frames per second).'}
+   box ants v2 online #90 (Y2F): {'h2': 'Neuron 90', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming by yellow (Y2F) (v1, first 256 neurons): R̃ 0.452 · AUROC 0.862 on held-out halves. close', 'note': None}
+   box ants v2 new #207 (Y2F): {'h2': 'Neuron 207', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming by yellow (Y2F) (v2.0, first 256 neurons, continuous): R̃ 0.442 · AUROC 0.785 on held-out halves. close', 'note': None}
+   box ants v2 v0 #2203 (B2F): {'h2': 'Neuron 2203', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with grooming by blue (B2F) (v0 (baseline), its full 4608 codes): R̃ 0.0974 · AUROC 0.529 on held-out halves. close', 'note': 'v0 shows single frames only: no heat maps or arena map (it codes one mean token per frame, so it has no per-patch codes) and no 1 s clips (its codes are at 2 frames per second).'}
+   box ants v2 online #90 (B2F): {'h2': 'Neuron 90', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming by blue (B2F) (v1, first 256 neurons): R̃ 0.43 · AUROC 0.884 on held-out halves. close', 'note': None}
+   box ants v2 new #40 (B2F): {'h2': 'Neuron 40', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming by blue (B2F) (v2.0, first 256 neurons, continuous): R̃ 0.422 · AUROC 0.868 on held-out halves. close', 'note': None}
+   box ants v2 v0 #1616 (groom_any): {'h2': 'Neuron 1616', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with grooming, either (Y2F or B2F) (v0 (baseline), its full 4608 codes): R̃ 0.119 · AUROC 0.576 on held-out halves. close', 'note': 'Behaviour check (grooming, frame level, annotated videos): AUROC 0.576 (0.5 = chance); F1 of “neuron > 0” 0.355 vs 0.365 for always predicting the behaviour.'}
+   box ants v2 online #90 (groom_any): {'h2': 'Neuron 90', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming, either (Y2F or B2F) (v1, first 256 neurons): R̃ 0.636 · AUROC 0.902 on held-out halves. close', 'note': None}
+   box ants v2 new #40 (groom_any): {'h2': 'Neuron 40', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming, either (Y2F or B2F) (v2.0, first 256 neurons, continuous): R̃ 0.618 · AUROC 0.893 on held-out halves. close', 'note': None}
+lid rows ants v3: [[['yellow on the lid (YOL)base rate 0.0273', ''], ['#2902R̃ 0.273 · AUROC 0.708', 'source: /mnt/beegfs/locatgrp/shared/rcadei/eci_v0/ants_v3 frame codes (mean-pooled token)'], ['#246R̃ 0.578 · AUROC 0.871', 'source: /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci30/codes/matryoshka_btk_1024_k16_antsfg_s0/codes_max.npy'], ['#191R̃ 0.332 · AUROC 0.888', 'source: /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci_r4v3p/codes/v20_ants_N2f5_s951_hmm/codes_max.npy']], [['blue on the lid (BOL)base rate 0.0065', ''], ['#735R̃ 0.0232 · AUROC 0.512', 'source: /mnt/beegfs/locatgrp/shared/rcadei/eci_v0/ants_v3 frame codes (mean-pooled token)'], ['#233R̃ 0 · AUROC 0.5', 'source: /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci30/codes/matryoshka_btk_1024_k16_antsfg_s0/codes_max.npy'], ['#150R̃ 0.0286 · AUROC 0.642', 'source: /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci_r4v3p/codes/v20_ants_N2f5_s951_hmm/codes_max.npy']], [['on the lid, either (YOL or BOL)base rate 0.0338', ''], ['#2902R̃ 0.246 · AUROC 0.666', 'source: /mnt/beegfs/locatgrp/shared/rcadei/eci_v0/ants_v3 frame codes (mean-pooled token)'], ['#246R̃ 0.607 · AUROC 0.883', 'source: /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci30/codes/matryoshka_btk_1024_k16_antsfg_s0/codes_max.npy'], ['#191R̃ 0.381 · AUROC 0.873', 'source: /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci_r4v3p/codes/v20_ants_N2f5_s951_hmm/codes_max.npy']]]
+interp ants v3: 18 of 18 best-neuron cells clickable
+   box ants v3 v0 #2176 (Y2F): {'h2': 'Neuron 2176', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with grooming by yellow (Y2F) (v0 (baseline), its full 4608 codes): R̃ 0.113 · AUROC 0.596 on held-out halves. close', 'note': 'v0 shows single frames only: no heat maps or arena map (it codes one mean token per frame, so it has no per-patch codes) and no 1 s clips (its codes are at 2 frames per second).'}
+   box ants v3 online #90 (Y2F): {'h2': 'Neuron 90', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming by yellow (Y2F) (v1, first 256 neurons): R̃ 0.407 · AUROC 0.845 on held-out halves. close', 'note': None}
+   box ants v3 new #207 (Y2F): {'h2': 'Neuron 207', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming by yellow (Y2F) (v2.0, first 256 neurons, continuous): R̃ 0.393 · AUROC 0.774 on held-out halves. close', 'note': None}
+   box ants v3 v0 #3777 (B2F): {'h2': 'Neuron 3777', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with grooming by blue (B2F) (v0 (baseline), its full 4608 codes): R̃ 0.114 · AUROC 0.576 on held-out halves. close', 'note': 'v0 shows single frames only: no heat maps or arena map (it codes one mean token per frame, so it has no per-patch codes) and no 1 s clips (its codes are at 2 frames per second).'}
+   box ants v3 online #90 (B2F): {'h2': 'Neuron 90', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming by blue (B2F) (v1, first 256 neurons): R̃ 0.437 · AUROC 0.856 on held-out halves. close', 'note': None}
+   box ants v3 new #207 (B2F): {'h2': 'Neuron 207', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming by blue (B2F) (v2.0, first 256 neurons, continuous): R̃ 0.41 · AUROC 0.784 on held-out halves. close', 'note': None}
+   box ants v3 v0 #2176 (groom_any): {'h2': 'Neuron 2176', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with grooming, either (Y2F or B2F) (v0 (baseline), its full 4608 codes): R̃ 0.139 · AUROC 0.583 on held-out halves. close', 'note': 'v0 shows single frames only: no heat maps or arena map (it codes one mean token per frame, so it has no per-patch codes) and no 1 s clips (its codes are at 2 frames per second).'}
+   box ants v3 online #90 (groom_any): {'h2': 'Neuron 90', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming, either (Y2F or B2F) (v1, first 256 neurons): R̃ 0.601 · AUROC 0.889 on held-out halves. close', 'note': None}
+   box ants v3 new #40 (groom_any): {'h2': 'Neuron 40', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming, either (Y2F or B2F) (v2.0, first 256 neurons, continuous): R̃ 0.589 · AUROC 0.883 on held-out halves. close', 'note': None}
+   box ants v3 v0 #2902 (YOL): {'h2': 'Neuron 2902', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with yellow on the lid (YOL) (v0 (baseline), its full 4608 codes): R̃ 0.273 · AUROC 0.708 on held-out halves. close', 'note': 'v0 shows single frames only: no heat maps or arena map (it codes one mean token per frame, so it has no per-patch codes) and no 1 s clips (its codes are at 2 frames per second).'}
+   box ants v3 online #246 (YOL): {'h2': 'Neuron 246', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with yellow on the lid (YOL) (v1, first 256 neurons): R̃ 0.578 · AUROC 0.871 on held-out halves. close', 'note': None}
+   box ants v3 new #191 (YOL): {'h2': 'Neuron 191', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with yellow on the lid (YOL) (v2.0, first 256 neurons, continuous): R̃ 0.433 · AUROC 0.881 on held-out halves. close', 'note': None}
+   box ants v3 v0 #735 (BOL): {'h2': 'Neuron 735', 'canvases': 0, 'tiles': 10, 'video': False, 'charts': 0, 'best': 'Best aligned with blue on the lid (BOL) (v0 (baseline), its full 4608 codes): R̃ 0.0232 · AUROC 0.512 on held-out halves. close', 'note': 'v0 shows single frames only: no heat maps or arena map (it codes one mean token per frame, so it has no per-patch codes) and no 1 s clips (its codes are at 2 frames per second).'}
+   box ants v3 online #233 (BOL): {'h2': 'Neuron 233', 'canvases': 0, 'tiles': 0, 'video': False, 'charts': 0, 'best': 'Best aligned with blue on the lid (BOL) (v1, first 256 neurons): R̃ 0 · AUROC 0.5 on held-out halves. close', 'note': 'No clips for this neuron: v1 reuses the data of its published page (v36, 2026-10-04), whose clips and heat maps were rendered only for the neurons its searches list; this neuron is not among them, and rendering new v1 heat-map clips needs the DINOv2 patch re-encoding of that build (not run for this page). Interpretation: tbd.'}
+   box ants v3 new #4 (BOL): {'h2': 'Neuron 4', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with blue on the lid (BOL) (v2.0, first 256 neurons, continuous): R̃ 0.039 · AUROC 0.506 on held-out halves. close', 'note': None}
+   box ants v3 v0 #2902 (onlid_any): {'h2': 'Neuron 2902', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with on the lid, either (YOL or BOL) (v0 (baseline), its full 4608 codes): R̃ 0.246 · AUROC 0.666 on held-out halves. close', 'note': 'v0 shows single frames only: no heat maps or arena map (it codes one mean token per frame, so it has no per-patch codes) and no 1 s clips (its codes are at 2 frames per second).'}
+   box ants v3 online #246 (onlid_any): {'h2': 'Neuron 246', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with on the lid, either (YOL or BOL) (v1, first 256 neurons): R̃ 0.607 · AUROC 0.883 on held-out halves. close', 'note': None}
+   box ants v3 new #191 (onlid_any): {'h2': 'Neuron 191', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with on the lid, either (YOL or BOL) (v2.0, first 256 neurons, continuous): R̃ 0.41 · AUROC 0.86 on held-out halves. close', 'note': None}
+lid rows ants v4: [[['yellow on the lid (YOL)', ''], ['no positives', 'No positive frame: 0 of 183,000 labelled frames (5 fps) in 61 videos.'], ['no positives', 'No positive frame: 0 of 183,000 labelled frames (5 fps) in 61 videos.'], ['no positives', 'No positive frame: 0 of 183,000 labelled frames (5 fps) in 61 videos.']], [['blue on the lid (BOL)base rate 0.0069', ''], ['#2467R̃ 0.0054 · AUROC 0.507', 'source: /mnt/beegfs/locatgrp/shared/rcadei/eci_v0/ants_v4 frame codes (mean-pooled token)'], ['#246R̃ 0.812 · AUROC 0.953', 'source: /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci_c1v4_noday/codes/matryoshka_btk_1024_k16_antsfg_s0/codes_max.npy'], ['#191R̃ 0.477 · AUROC 0.973', 'source: /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci_r4v4p/codes/v20_ants_N2f5_s951_smooth/codes_max.npy']], [['on the lid, either (YOL or BOL)base rate 0.0069', ''], ['#2467R̃ 0.0054 · AUROC 0.507', 'source: /mnt/beegfs/locatgrp/shared/rcadei/eci_v0/ants_v4 frame codes (mean-pooled token)'], ['#246R̃ 0.812 · AUROC 0.953', 'source: /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci_c1v4_noday/codes/matryoshka_btk_1024_k16_antsfg_s0/codes_max.npy'], ['#191R̃ 0.477 · AUROC 0.973', 'source: /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/dataset/ants/eci_r4v4p/codes/v20_ants_N2f5_s951_smooth/codes_max.npy']]]
+interp ants v4: 15 of 15 best-neuron cells clickable
+   box ants v4 v0 #1050 (Y2F): {'h2': 'Neuron 1050', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with grooming by yellow (Y2F) (v0 (baseline), its full 4608 codes): R̃ 0.158 · AUROC 0.602 on held-out halves. close', 'note': 'Behaviour check (grooming, frame level, annotated videos): AUROC 0.634 (0.5 = chance); F1 of “neuron > 0” 0.592 vs 0.609 for always predicting the behaviour.'}
+   box ants v4 online #90 (Y2F): {'h2': 'Neuron 90', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming by yellow (Y2F) (v1, first 256 neurons): R̃ 0.427 · AUROC 0.829 on held-out halves. close', 'note': None}
+   box ants v4 new #207 (Y2F): {'h2': 'Neuron 207', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming by yellow (Y2F) (v2.0, first 256 neurons, continuous): R̃ 0.416 · AUROC 0.783 on held-out halves. close', 'note': None}
+   box ants v4 v0 #1050 (B2F): {'h2': 'Neuron 1050', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with grooming by blue (B2F) (v0 (baseline), its full 4608 codes): R̃ 0.157 · AUROC 0.631 on held-out halves. close', 'note': 'Behaviour check (grooming, frame level, annotated videos): AUROC 0.634 (0.5 = chance); F1 of “neuron > 0” 0.592 vs 0.609 for always predicting the behaviour.'}
+   box ants v4 online #90 (B2F): {'h2': 'Neuron 90', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming by blue (B2F) (v1, first 256 neurons): R̃ 0.389 · AUROC 0.816 on held-out halves. close', 'note': None}
+   box ants v4 new #207 (B2F): {'h2': 'Neuron 207', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming by blue (B2F) (v2.0, first 256 neurons, continuous): R̃ 0.405 · AUROC 0.779 on held-out halves. close', 'note': None}
+   box ants v4 v0 #1050 (groom_any): {'h2': 'Neuron 1050', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with grooming, either (Y2F or B2F) (v0 (baseline), its full 4608 codes): R̃ 0.209 · AUROC 0.634 on held-out halves. close', 'note': 'Behaviour check (grooming, frame level, annotated videos): AUROC 0.634 (0.5 = chance); F1 of “neuron > 0” 0.592 vs 0.609 for always predicting the behaviour.'}
+   box ants v4 online #90 (groom_any): {'h2': 'Neuron 90', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming, either (Y2F or B2F) (v1, first 256 neurons): R̃ 0.569 · AUROC 0.864 on held-out halves. close', 'note': None}
+   box ants v4 new #40 (groom_any): {'h2': 'Neuron 40', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with grooming, either (Y2F or B2F) (v2.0, first 256 neurons, continuous): R̃ 0.555 · AUROC 0.853 on held-out halves. close', 'note': None}
+   box ants v4 v0 #2467 (BOL): {'h2': 'Neuron 2467', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with blue on the lid (BOL) (v0 (baseline), its full 4608 codes): R̃ 0.0054 · AUROC 0.507 on held-out halves. close', 'note': 'v0 shows single frames only: no heat maps or arena map (it codes one mean token per frame, so it has no per-patch codes) and no 1 s clips (its codes are at 2 frames per second).'}
+   box ants v4 online #246 (BOL): {'h2': 'Neuron 246', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with blue on the lid (BOL) (v1, first 256 neurons): R̃ 0.812 · AUROC 0.953 on held-out halves. close', 'note': None}
+   box ants v4 new #191 (BOL): {'h2': 'Neuron 191', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with blue on the lid (BOL) (v2.0, first 256 neurons, continuous): R̃ 0.477 · AUROC 0.973 on held-out halves. close', 'note': None}
+   box ants v4 v0 #2467 (onlid_any): {'h2': 'Neuron 2467', 'canvases': 0, 'tiles': 16, 'video': False, 'charts': 0, 'best': 'Best aligned with on the lid, either (YOL or BOL) (v0 (baseline), its full 4608 codes): R̃ 0.0054 · AUROC 0.507 on held-out halves. close', 'note': 'v0 shows single frames only: no heat maps or arena map (it codes one mean token per frame, so it has no per-patch codes) and no 1 s clips (its codes are at 2 frames per second).'}
+   box ants v4 online #246 (onlid_any): {'h2': 'Neuron 246', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with on the lid, either (YOL or BOL) (v1, first 256 neurons): R̃ 0.812 · AUROC 0.953 on held-out halves. close', 'note': None}
+   box ants v4 new #191 (onlid_any): {'h2': 'Neuron 191', 'canvases': 17, 'tiles': 0, 'video': True, 'charts': 0, 'best': 'Best aligned with on the lid, either (YOL or BOL) (v2.0, first 256 neurons, continuous): R̃ 0.477 · AUROC 0.973 on held-out halves. close', 'note': None}
+#73 discovery panel head: [None, None]; interpretation line None
+#73 check: listed []; detail (none); facts None; activity tooltip None
+discovery head ants new: ['Neural Effects', 't=1 (control) n = 24 · t=2 (treatment) n = 20 · stopped: no further neuron below the Bonferroni threshold']; first detail facts None
+discovery head ants v0: ['Neural Effects', 't=1 (control) n = 24 · t=2 (treatment) n = 20 · single pass: every neuron at raw p < 0.05']; first detail facts 'activation: 30.1% frames; 1 token/frame (mean-pooled) · τ = +0.437 activation · p = 0.0056 · raw p only'
+discovery head frogs new: ['Neural Effects', 'WT (control) n = 13 · FoxP1 (treatment) n = 14 · stopped early: too few comparable units per arm (overlap rule)']; first detail facts 'activation: 87.4% frames · τ = +11.4 activation · p = <0.0001'
+discovery head mice online: [None, None]; first detail facts None
+Details panel prose left (must be all False): Priors False, Assumptions False, v2 final decisions False, v0 on this comparison False, v0 SAE False
+ants v4 colony strata ['t2']: 1 found · ⚠ confounded
+ants v4 colony strata ['t6']: 1 found · ⚠ confounded
+ants v4 colony strata ['t2', 't6']: 1 found · ⚠ confounded
+ants v4 exposure strata healthy+infested: NOT RUN YET | NOT RUN YETColony: healthy and infested pooled is not searched
+mice A het 4->5 badges: ['annotation check: not recovered — annotated nose-nose (mutual) effect +0.00535 (p 0.0029)']
+mice line ash1l: NOT RUN YET
+mice sex contrast: NOT RUN YET | NOT RUN YETSex contrast (female vs male within a phase, optionally within het or wt; family S): not run for this model
+mice B badges: ['annotation check: no significant annotated effect']
+v0 banner (last state): v0 = baseline (the original ECI paper recipe, not a candidate model): its rule lists every neuron at raw p < 0.05 with no correction, so about 5% of the tested neurons are listed by chance. Known limitation: its SAE was trained on single patch tokens but is applied to the mean token, where it is out of distribution (fraction of variance explained -3.42, below 0 = worse than predicting the mean).
+fresh mice: model online, readout ['expected fraction of time on (HMM P(on)) (not computed with this model / method)', 'continuous'], prefix ['128', '256', '512', '1024'], alignment 'Neurons: first 256 (v1, v2.0) · v2.0 outcome: continuous · v0: its full 4608 codes\n\nbehaviour · base rate\tv0 (baseline)\tv1\tv2.0\nnose-nose (mutual)\nbase rate 0.0'
+fresh mice experiment details: "Animals\n3 autism gene lines (ash1l, kdm6b, kmt5b) · het vs wt · pools of 4 mice\nDesign\n72 pools (36 het, 36 wt) × 6 phases = 432 videos · 5 fps\nPhases\n1–3 social odor, 4–6 fear odor · each: habituation 30 min → odor 15 min → post 15 min\nRecording\ntop-down camera, one arena per pool · 5 fps analysed\nContrasts\nphase transition (paired, per genotype) · mutation (het vs wt, per phase) · mutation in transition (het − wt change) · sex (female vs male pools, per phase)\nStrata\ngene line · sex (default: all)\nLabels\nnose-nose mutual (nn: both noses meet), nose-nose directional (np: one mouse's nose to the other's nose / head, not reciprocated), nose-tail (nt) on 24 pools (144 videos)\nConfound\ncamera period unbalanced by genotype (affects het vs wt; the transition contrasts cancel constant period effects)"
+fresh ants_v4: model online, readout ['expected fraction of time on (HMM P(on)) (not computed with this model / method)', 'continuous'], prefix ['128', '256', '512', '1024'], alignment 'Neurons: first 256 (v1, v2.0) · v2.0 outcome: continuous · v0: its full 4608 codes\n\nbehaviour · base rate\tv0 (baseline)\tv1\tv2.0\ngrooming by yellow (Y2F)\nbase ra'
+fresh ants_v4 experiment details: 'Animals\nfocal ant + 2 nestmates (yellow and blue dots) · t = pathogen-exposure treatment\nSeries\nv2 ISTAnt 10 min · v3 30 min · v4 healthy and v4 infested colonies (Exp4) 30 min\nRecording\ntop-down, one Petri dish per group · 5 fps analysed\nUnits\nvideo · v2 t=1 24 / t=2 20 · v3 t=2 38 / t=6 34 / t=8 35 · v4 t=2 20 / t=6 20 · v4 infested t=2 18 / t=6 23\nContrasts\ntreated vs control within a series · Exp4: exposure (t=6 vs 2 per colony) · colony (infested vs healthy at t=2, t=6 or both)\nLabels\ngrooming by yellow (Y2F) / blue (B2F) · on the lid yellow (YOL) / blue (BOL) · v2: grooming only\nConfounds\nv3 t=8 recorded only on day C · infested vs healthy share one day (F): confounded with day and colony'
+fresh frogs_tadpoles: Alignment disabled (No behaviour annotations for frogs)
+fresh frogs_tadpoles: model new, readout ['expected fraction of time on (HMM P(on))', 'continuous'], prefix ['128', '256', '512', '2048'], alignment 'No behaviour annotations for frogs.'
+fresh frogs_tadpoles experiment details: 'Animals\nXenopus · WT vs FoxP1 / En1 CRISPR mutants\nJuveniles\n35 froglets (13 WT, 14 FoxP1, 8 En1) · half-body mutants, mutant side mirrored right · hour 1\nTadpoles\nstage 44–48 · whole-embryo mutants · hour 1 · 118 recorded, 116 kept\nQC\ntadpoles: FoxP1_275_3 and WT_206_5 excluded (the tracked crop misses the animal: < 80% of pose points inside it)\nRecording\ntop-down, one animal per dish · 5 fps analysed\nContrasts\nFoxP1 vs WT · En1 vs WT (unit = animal)\nConfound\ngroup fully confounded with recording session and date'
+clip packs (v2): {"checked": 137, "webm": 123, "loaded": 136, "in_page": 136, "looping": 136}; not loaded: [('interp box mice - online #163 (nt)', {'src': '', 'ds': '/_blob/8371951269652b7d37eafbcef3faf53f', 'ready': 0, 't': 0, 'dur': nan, 'err': None})]
+candidate lists shown next to discoveries (must be 0): 0
+JS errors: 0

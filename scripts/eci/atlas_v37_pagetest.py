@@ -106,8 +106,13 @@ with sync_playwright() as p:
             report.append(f'{d} · {m_}: outcome options {ros}')
             pairs += [(m_, r[0]) for r in ros if not r[1]] or [(m_, None)]
         for model, ro in pairs:
-            pg.select_option('#domSel', d)
+            # back to the domain's default entry first (an earlier pair can leave an Outcome / method for which this
+            # model is not computed, e.g. v0 / v1 under the v2.0 'prob' outcome, and its option is then disabled)
+            pg.evaluate('d => setSae(ALL.domains.find(x => x.id === d).default)', d)
             pg.wait_for_timeout(300)
+            if pg.eval_on_selector(f'#ax_model option[value="{model}"]', 'o => o.disabled'):
+                report.append(f'{d} · {model}: model option disabled from the domain default (not reachable)')
+                continue
             pg.select_option('#ax_model', model)
             pg.wait_for_timeout(400)
             if ro and pg.eval_on_selector('#ax_readout', 'e => e.value') != ro:
@@ -127,10 +132,13 @@ with sync_playwright() as p:
                     if pg.eval_on_selector(f'#kindSeg button[data-kind="{kind[0]}"]', 'b => b.disabled'):
                         # an earlier pick switched to an entry (another series) without this aggregation: back to the
                         # model / method of this loop on the domain's first entry of it
-                        pg.select_option('#domSel', d)
+                        pg.evaluate('d => setSae(ALL.domains.find(x => x.id === d).default)', d)
                         pg.wait_for_timeout(500)
                         pg.select_option('#ax_model', model)
                         pg.wait_for_timeout(400)
+                        if ro and pg.eval_on_selector('#ax_readout', 'e => e.value') != ro:
+                            pg.select_option('#ax_readout', ro)
+                            pg.wait_for_timeout(400)
                         pg.select_option('#ax_method', meth[0])
                         pg.wait_for_timeout(400)
                         if pg.eval_on_selector(f'#kindSeg button[data-kind="{kind[0]}"]', 'b => b.disabled'):
