@@ -31,6 +31,8 @@ def count(f, outcome):
     s = pd.read_csv(f)
     if 'correction' in s:
         s = s[s.correction == 'bonferroni']
+    if 'test' in s:  # the sign-flip rows are a sensitivity check on the same neurons
+        s = s[s.test == 't']
     if 'window' in s:
         s = s[s.window.isin(['full', 'common'])]
     if outcome == 'mean' and 'outcome_type' in s:
