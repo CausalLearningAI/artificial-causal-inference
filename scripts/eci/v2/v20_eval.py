@@ -45,7 +45,7 @@ import pandas as pd  # noqa: E402
 
 EC = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes')
 BEE = EC / 'v2_0' / 'eval'
-OUT = REPO / 'results/vision/eci_v2_0/eval'
+OUT = Path(os.environ.get('V2_OUT') or REPO / 'results/vision/eci_v2_0') / 'eval'
 V2F_SEEDS, F5_SEEDS = (900, 901, 902, 903, 904), (950, 951, 952, 953, 954)
 
 
@@ -190,6 +190,8 @@ def cmd_score(a):
         dicts[f'V2F_N2_s{s}'] = ('cmp', p)
     for s in F5_SEEDS:
         dicts[f'V20F5_s{s}'] = ('cmp', BEE / dom / f'V20F5_s{s}.npy')
+    if a.deliv_only:
+        dicts = {}
     for suf in ('_raw', '_smooth', '_hmm'):
         dicts[f'deliv{suf}'] = ('deliv', suf)
     summ = {'eligibility': elig, 'dicts': {}}
@@ -238,6 +240,7 @@ def main():
     p.add_argument('step', choices=('codes', 'score'))
     p.add_argument('--dom', choices=('mice', 'ants'))
     p.add_argument('--force', action='store_true')
+    p.add_argument('--deliv-only', action='store_true')
     a = p.parse_args()
     {'codes': cmd_codes, 'score': cmd_score}[a.step](a)
 

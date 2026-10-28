@@ -69,8 +69,14 @@ if [ "$KIND" = "tadpoles" ]; then
 else
   python -u $L/scripts/eci/atlas_v37_methods.py --res $L/$RES --workers ${SLURM_CPUS_PER_TASK:-1} --out-root $REPO/results/vision/eci_v2/ness
   if [ "$KIND" = "ants" ] && [ -f $RES/pairs_noday/summary.csv ]; then
-    python -u $L/scripts/eci/atlas_v37_methods.py --res $L/$RES --nes-subdir pairs_noday --workers ${SLURM_CPUS_PER_TASK:-1} \
-      --out-root $REPO/results/vision/eci_v2/ness_noday || echo "NESS noday failed"
+    # NESS reads every aggregation's sanity.json; the no-day latency runner is not supported, so without it the noday
+    # NESS is skipped LOUDLY (stated) instead of failing silently; when every input exists a failure stops the job
+    if [ -f $RES/pairs_noday/maxpool_bouts/sanity.json ] && [ -f $RES/pairs_noday/maxpool_latency/sanity.json ]; then
+      python -u $L/scripts/eci/atlas_v37_methods.py --res $L/$RES --nes-subdir pairs_noday --workers ${SLURM_CPUS_PER_TASK:-1} \
+        --out-root $REPO/results/vision/eci_v2/ness_noday
+    else
+      echo "NESS noday SKIPPED: $RES/pairs_noday lacks maxpool_bouts or maxpool_latency sanity.json (no-day latency unsupported)"
+    fi
   fi
 fi
 echo done

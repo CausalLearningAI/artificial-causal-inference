@@ -7,11 +7,12 @@
 set -euo pipefail
 cd /nfs/scistore19/locatgrp/rcadei/artificial-causal-inference
 D=$1
-OUTD=${V2_OUT:-results/vision/eci_v2_0}
+OUTD=${V2_OUT:-results/vision/eci_v2_0B}  # final deliverable = PASS B (5 fps adopted in every domain)
 NAME=$(python -c "import json;print(json.load(open('$OUTD/$D/best.json'))['name'])")
 sub() {  # KIND ANTS_ECI SET ZERO
-  sbatch --parsable -J v20nes_$1${2:+_$2}$3 --output=results/vision/eci_v2_0/logs/%x_%j.out \
-    --export=ALL,KIND=$1,ANTS_ECI=$2,SAE=$NAME$3,PREFIXES=128,256,2048,V2_ZERO_THR=$4,TADPOLE_TAG=_r4 scripts/eci/v2/nes.sh
+  # PREFIXES goes through the environment (sbatch --export splits on commas)
+  PREFIXES=128,256,2048 sbatch --parsable -J v20nes_$1${2:+_$2}$3 --output=$OUTD/logs/%x_%j.out \
+    --export=ALL,KIND=$1,ANTS_ECI=$2,SAE=$NAME$3,V2_ZERO_THR=$4,TADPOLE_TAG=_r4 scripts/eci/v2/nes.sh
 }
 for set in _hmm _smooth _hmmv; do
   z=0; [ $set = _hmmv ] && z=1
