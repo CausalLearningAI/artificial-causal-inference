@@ -1,0 +1,178 @@
+{
+ "v1|mice": {
+  "mean": {
+   "128": {
+    "kept": 5,
+    "undetermined": 5
+   },
+   "256": {
+    "kept": 6,
+    "undetermined": 4
+   },
+   "1024": {
+    "kept": 5,
+    "undetermined": 8
+   }
+  },
+  "maxpool_bouts": {
+   "128": {
+    "kept": 7,
+    "undetermined": 16
+   },
+   "256": {
+    "kept": 4,
+    "undetermined": 48
+   },
+   "1024": {
+    "kept": 6,
+    "undetermined": 68
+   }
+  }
+ },
+ "v2.0_hmm|mice": {
+  "mean": {
+   "128": {
+    "kept": 3,
+    "undetermined": 0
+   },
+   "256": {
+    "kept": 1,
+    "undetermined": 1
+   },
+   "2048": {
+    "kept": 3,
+    "undetermined": 2
+   }
+  },
+  "maxpool_bouts": {
+   "128": {
+    "kept": 0,
+    "undetermined": 2
+   },
+   "2048": {
+    "kept": 5,
+    "undetermined": 31
+   }
+  }
+ },
+ "v2.0_smooth|mice": {
+  "mean": {
+   "128": {
+    "kept": 3,
+    "undetermined": 0
+   },
+   "256": {
+    "kept": 3,
+    "undetermined": 30
+   },
+   "2048": {
+    "kept": 3,
+    "undetermined": 30
+   }
+  },
+  "maxpool_bouts": {
+   "128": {
+    "kept": 2,
+    "undetermined": 9
+   },
+   "256": {
+    "kept": 3,
+    "undetermined": 41
+   },
+   "2048": {
+    "kept": 4,
+    "undetermined": 1
+   }
+  }
+ },
+ "v1|ants": {
+  "mean": {
+   "128": {
+    "kept": 3,
+    "undetermined": 0
+   },
+   "256": {
+    "kept": 4,
+    "undetermined": 0
+   },
+   "1024": {
+    "kept": 1,
+    "undetermined": 2
+   }
+  },
+  "maxpool_bouts": {
+   "128": {
+    "kept": 1,
+    "undetermined": 0
+   },
+   "256": {
+    "kept": 1,
+    "undetermined": 0
+   },
+   "1024": {
+    "kept": 2,
+    "undetermined": 0
+   }
+  }
+ },
+ "v2.0_hmm|ants_v4": {
+  "mean": {
+   "128": {
+    "kept": 1,
+    "undetermined": 3
+   },
+   "256": {
+    "kept": 0,
+    "undetermined": 3
+   },
+   "2048": {
+    "kept": 0,
+    "undetermined": 4
+   }
+  },
+  "maxpool_bouts": {
+   "128": {
+    "kept": 1,
+    "undetermined": 4
+   },
+   "256": {
+    "kept": 1,
+    "undetermined": 2
+   },
+   "2048": {
+    "kept": 1,
+    "undetermined": 6
+   }
+  }
+ },
+ "v2.0_smooth|ants_v4": {
+  "mean": {
+   "128": {
+    "kept": 1,
+    "undetermined": 1
+   },
+   "256": {
+    "kept": 2,
+    "undetermined": 3
+   },
+   "2048": {
+    "kept": 0,
+    "undetermined": 5
+   }
+  },
+  "maxpool_bouts": {
+   "128": {
+    "kept": 1,
+    "undetermined": 6
+   },
+   "256": {
+    "kept": 1,
+    "undetermined": 6
+   },
+   "2048": {
+    "kept": 1,
+    "undetermined": 7
+   }
+  }
+ }
+}
