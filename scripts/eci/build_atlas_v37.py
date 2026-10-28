@@ -457,8 +457,9 @@ EXTRA_SEARCHES = {'ants_v3p_d2': ('v3_2_vs_8_noday', OUT37 / 'methods_v3_2v8', (
                   'v2_ants_v3p_thr': ('v3_2_vs_8_noday', V2NS / 'ness_v3_2v8', ('v3_2_vs_8',)),
                   'v2_ants_v3p_smooth': ('v3_2_vs_8_noday', V2NS / 'ness_v3_2v8', ('v3_2_vs_8',)),
                   'v2_ants_v3p_prob': ('v3_2_vs_8_noday', V2NS / 'ness_v3_2v8', ('v3_2_vs_8',))}
-if V20:  # the frozen v2's separate v3 t=2 vs 8 searches belong to its SAE, not v2.0's
+if V20:  # v2.0: t=2 vs 8 from its own no-day NES run (scripts/eci/v2/nes.sh pairs_noday; no no-day NESS run exists)
     EXTRA_SEARCHES = {k: v for k, v in EXTRA_SEARCHES.items() if not k.startswith('v2_')}
+    EXTRA_SEARCHES.update({f'v2_ants_v3p_{v}': ('pairs_noday', V2NS / 'ness_noday', ('v3_2_vs_8',)) for v in ('hmm', 'smooth')})
 
 
 def v2_name(rdom):
