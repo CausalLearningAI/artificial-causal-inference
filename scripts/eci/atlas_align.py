@@ -29,6 +29,7 @@ Usage: sbatch scripts/eci/atlas_align.sh   (SERIES=mice,ants_v3 for a subset)
 """
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 
@@ -37,7 +38,7 @@ import pandas as pd
 from scipy.stats import rankdata
 
 REPO = Path(__file__).resolve().parents[2]
-OUT = REPO / 'results/vision/eci_atlas_v37/align'
+OUT = REPO / os.environ.get('ATLAS_ALIGN_OUT', 'results/vision/eci_atlas_v37/align')
 BIG = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_v0')
 V2SAE = {'mice': 'v2_mice_c0_w2048_s7_smooth', 'ants': 'v2_ants_c0_w2048_s6_smooth'}  # the frozen v2, primary input
 V1SAE = {'mice': 'matryoshka_btk_1024_k16_fg448al_s0', 'ants': 'matryoshka_btk_1024_k16_antsfg_s0'}
@@ -55,6 +56,12 @@ MIN_LAB, MIN_POS = 100, 10  # inclusion rule of a behaviour (shared 1 fps frames
 PREFIXES = (128, 256)  # the two smallest page prefixes of v1 and v2 (the others are not shown, page size)
 # v2 outcome inputs (page Outcome selector value -> code set suffix of the frozen v2 SAE)
 V2_READOUT = {'continuous': '_smooth', 'binary': '', 'prob': '_prob', 'binary_map': '_map'}
+# ECI v2.0 as the 'v2' model (ATLAS_ALIGN_V2_ROOT = its model root, e.g. results/vision/eci_v2_0B): the deployed SAE of
+# <root>/<domain>/best.json; outcome inputs continuous = <name>_smooth, prob = <name>_hmm (HMM P(on), the page's 'prob')
+if os.environ.get('ATLAS_ALIGN_V2_ROOT'):
+    _r = REPO / os.environ['ATLAS_ALIGN_V2_ROOT']
+    V2SAE = {d: json.loads((_r / d / 'best.json').read_text())['name'] + '_smooth' for d in ('mice', 'ants')}
+    V2_READOUT = {'continuous': '_smooth', 'prob': '_hmm'}
 
 
 def log(*x):

@@ -1626,7 +1626,10 @@ def source_table():
 
 
 # ---- behaviour alignment panel + annotation check (scripts/eci/atlas_align.py -> OUT/align/<series>.json)
-ALIGN = OUT37 / 'align'  # alignment of v0 / v1 / the frozen v2 (v2.0: not measured, see align_table)
+# alignment (scripts/eci/atlas_align.py) of v0 / v1 / v2: ATLAS_ALIGN (default the frozen v2's, OUT37/align); a v2.0
+# site reading the frozen v2's alignment drops its v2 rows (v2.0: 'not measured'), see align_table
+ALIGN = ROOT / os.environ.get('ATLAS_ALIGN', 'results/vision/eci_atlas_v37/align')
+ALIGN_V2_STALE = V20 and ALIGN.resolve() == (OUT37 / 'align').resolve()
 ALIGN_CUT = 0.2  # a neuron counts as aligned with a behaviour when its cross-fitted R~ >= this (pre-stated)
 BEH_LAB = {'Y2F': 'grooming by yellow (Y2F)', 'B2F': 'grooming by blue (B2F)', 'groom_any': 'grooming, either (Y2F or B2F)',
            'YOL': 'yellow on the lid (YOL)', 'BOL': 'blue on the lid (BOL)', 'onlid_any': 'on the lid, either (YOL or BOL)',
@@ -1638,7 +1641,7 @@ def aligned_neurons(ser, model):
     model ('v0' / 'v1' / 'v2', every outcome input and prefix) on series ser: the neurons the Alignment panel opens in
     its interpretation box, so every build gives them clips (v2) or frame strips (v0)."""
     f = ALIGN / f'{ser}.json'
-    if not f.exists() or (V20 and model == 'v2'):  # ALIGN holds the frozen v2's neurons, not v2.0's
+    if not f.exists() or (ALIGN_V2_STALE and model == 'v2'):  # ALIGN holds the frozen v2's neurons, not v2.0's
         return set()
     d = json.loads(f.read_text())
     return {int(v['top'][0][0]) for k, x in d['models'].items() if k.split('|')[0] == model
@@ -1665,8 +1668,8 @@ def align_table():
                                                                'cf1': round(v['cf_top1_rprec'], 4), 'top': v['top']})
                                    for b, v in x['beh'].items()}}
                        for m, x in d['models'].items()
-                       if not (V20 and m.split('|')[0] == 'v2')}}  # v2.0: no alignment run -> 'not measured'
-    log('alignment: ' + ', '.join(out) + ('; v2.0 not measured (the frozen v2 rows dropped)' if V20 else ''))
+                       if not (ALIGN_V2_STALE and m.split('|')[0] == 'v2')}}  # v2.0 without its run: 'not measured'
+    log('alignment: ' + ', '.join(out) + ('; v2.0 not measured (the frozen v2 rows dropped)' if ALIGN_V2_STALE else f' (from {ALIGN})'))
     return out
 
 
