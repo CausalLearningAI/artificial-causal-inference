@@ -113,6 +113,9 @@ V2_LET = {'smooth': 's', 'thr': 't', 'prob': 'p', 'map': 'm', 'hmm': 'h'}  # bui
 V2_TAG = 'v20' if V20 else 'v2'  # build tag prefix (pack names): v2.0 packs never collide with the frozen v2 ones
 CLIP_VAR = 'hmm' if V20 else 'smooth'  # the variant whose build carries the clip packs (the others share them)
 CLIP_READOUT = 'prob' if V20 else 'continuous'  # its page readout (v2.0: HMM P(on) is shown as readout 'prob')
+# variants whose builds keep their own clip packs on the page (v2.0: the continuous toggle keeps its own clips too, so
+# every neuron it lists has clips; the frozen v2: the continuous build only, the others share its clips)
+CLIP_VARS = ('hmm', 'smooth') if V20 else ('smooth',)
 # online builds: (domain, ANTS_ECI, v36 result set, v36 tag)
 ONLINE = {'mice': ('mice', None, 'results/vision/mice/eci/nes/matryoshka_btk_1024_k16_fg448al_s0', 'fg448al'),
           'ants': ('ants', 'eci30', 'results/vision/ants/eci30/nes/matryoshka_btk_1024_k16_antsfg_s0', 'antsfg'),
@@ -2031,7 +2034,8 @@ def share_v2_clips(site, saes):
                     cont.setdefault(k, {}).update(_neurons(json.loads((site / f).read_text())))
     done, n_sh, n_no = set(), 0, 0
     for e in saes:
-        if e['model']['model'] != 'new' or e['model'].get('readout') == CLIP_READOUT or '#' not in e['sae']:
+        if e['model']['model'] != 'new' or e['model'].get('readout') == CLIP_READOUT or '#' not in e['sae'] or \
+                e['sae'].rsplit('_', 1)[-1] in CLIP_VARS:  # a build with its own packs
             continue
         k = e['sae'].split('#')[1].rsplit('_', 1)[0]
         C = cont.get(k, {})
@@ -2332,7 +2336,7 @@ def step_assemble():
         # clip packs of this build as WebM (to_webm); references renamed in its data files
         mp4s = sorted({m for f in (b / 'data').glob('*.json') for m in re.findall(r'assets/([\w.\-]+\.mp4)', f.read_text())
                        if m not in amap})
-        if key.startswith('v2_') and not key.endswith('_' + CLIP_VAR):
+        if key.startswith('v2_') and not key.endswith(tuple('_' + v for v in CLIP_VARS)):
             mp4s = []  # other outcome inputs: clips shared from the clip build (share_v2_clips; v2.0: the hmm build)
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(6) as ex:
