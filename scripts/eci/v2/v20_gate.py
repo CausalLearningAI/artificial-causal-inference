@@ -25,6 +25,27 @@ PART B variants (SAE level, 3 seeds, the v2.0 recipe otherwise): context mask = 
     tokens, 1 fps lag 1 frame; mice v2_prob dense N2 tokens, lag 5 frames; mice readout 0.6 s smooth, ants raw) and the
     dynamic share @256 (v20_vs_v1 'dyn' rule). ADOPT a variant only if it passes MORE ants cells than v2.0 AND loses no
     mice cell that v2.0 passes; otherwise v2.0 stays frozen.
+AMENDMENT 1 (2026-10-29, user additions relayed by the coordinator; written BEFORE any variant was trained and before
+    any proximity number existed; the Part A gate scores of v1 / v2.0 were running, none read):
+  (a) DYN is REPLACED by DYN3: SAE input = [z_t, z_t - z_(t-1), std_(t-2..t+2)(z)] at the same grid position (5 fps,
+      consecutive frames; difference 0 if the position is not kept at t-1; std over the window frames where the position
+      is kept, 0 if only t), each 1024 block normalised (per-block TokenNorm). Trained on the suite's contiguous
+      all-token 5 fps probe stores (mice and ants), seeds 970-972, train tokens capped at 12M. No 30 fps.
+  (b) ANTS variant scoring needs 5 fps context, so the ants comparison of v1 / v2.0 / DYN3 uses the v2_prob Tier B
+      probe frames (contiguous 5 fps, labelled; ants v2 44 x 2 min, v3 107 x 1 min) with the same scorer / splits /
+      eligibility and this gate (v1 s0-10 codes on those frames exist); mice uses the eval frames (already 5 fps).
+      ADOPT DYN3 iff it passes more ants cells than v2.0 on that table AND loses no mice cell v2.0 passes.
+  (c) MASK domain invariance: a mask variant is adopted only if it passes in ants AND mice. The context (dilated) mask is
+      NOT re-run: the diag ablation measured it twice (B_d3l20dil one-cell dilation; V1M_d2 = v1's exact dilated mask on
+      the v2 encoder: ants v2 groom R~ -0.082 vs tight, 50-65% background neurons); reported instead.
+  (d) PROXIMITY-MATCHED TEST (no training): proxy per frame = minimum Euclidean distance (in patches) between distinct
+      8-connected components of the tight-body token grid (tokens with >= 25% frozen-cue animal pixels, fr_raw >= 0.25),
+      0 when the grid has exactly one component (all visible animals touching), NaN when it has none. Cells: ants groom_any / Y2F / B2F, mice nn / np / nt / nose_nose. For the AUROC-picked best
+      neuron of each cross-fit direction, on the held-out half: strata = deciles of the proxy over the cell's frames
+      (unique quantile edges; ties form one stratum), AUROC inside every stratum with >= 10 positive and >= 10 negative
+      frames, mean weighted by positives = STRATIFIED AUROC; averaged over directions. PROXY AUROC = AUROC of -proxy
+      (closer = higher) on the cell's frames. Reading: a neuron that only encodes 'bodies close' drops to ~0.5 within
+      strata. Reported for v1 (11 seeds), v2.0 (P(on), continuous) and DYN3; descriptive (no pass rule).
 ==================================================================================================================
 Steps: gate (CPU) ; dyn_train --dom D (GPU) ; dyn_codes --dom D (GPU) ; dyn_gate --dom D (CPU)
 """
