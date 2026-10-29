@@ -24,8 +24,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": false,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": false
    },
    "v1|np": {
     "eligible": true,
@@ -50,8 +52,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": false,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": false
    },
    "v1|nose_nose": {
     "eligible": true,
@@ -76,8 +80,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": false,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": false
    },
    "v1|nt": {
     "eligible": true,
@@ -102,8 +108,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": false,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": false
    }
   },
   "smooth": {
@@ -130,8 +138,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": false,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": false
    },
    "v1|np": {
     "eligible": true,
@@ -156,8 +166,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": false,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": false
    },
    "v1|nose_nose": {
     "eligible": true,
@@ -182,8 +194,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": false,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": false
    },
    "v1|nt": {
     "eligible": true,
@@ -208,8 +222,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": false,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": false
    }
   },
   "distinct_nn_nt_hmm": {
@@ -248,8 +264,10 @@
     ],
     "c1_auroc": false,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v2|B2F": {
     "eligible": true,
@@ -274,8 +292,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": false,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v2|groom_any": {
     "eligible": true,
@@ -300,8 +320,10 @@
     ],
     "c1_auroc": false,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v3|Y2F": {
     "eligible": true,
@@ -326,8 +348,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": false,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v3|B2F": {
     "eligible": true,
@@ -352,8 +376,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": false,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v3|groom_any": {
     "eligible": true,
@@ -378,8 +404,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v3|FOL": {
     "eligible": false,
@@ -404,8 +432,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": false,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": false
    },
    "v3|YOL": {
     "eligible": false,
@@ -430,8 +460,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v3|BOL": {
     "eligible": false,
@@ -456,8 +488,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": false,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": false
    },
    "v3|onlid_any": {
     "eligible": false,
@@ -482,8 +516,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v3|lid_any3": {
     "eligible": false,
@@ -508,8 +544,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v4|Y2F": {
     "eligible": true,
@@ -534,8 +572,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v4|B2F": {
     "eligible": true,
@@ -560,8 +600,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": false,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v4|groom_any": {
     "eligible": true,
@@ -586,8 +628,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v4_infested|Y2F": {
     "eligible": true,
@@ -612,8 +656,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": false,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v4_infested|B2F": {
     "eligible": true,
@@ -638,8 +684,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v4_infested|groom_any": {
     "eligible": true,
@@ -664,8 +712,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": true,
     "c3_prec": true,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": true
    }
   },
   "smooth": {
@@ -692,8 +742,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v2|B2F": {
     "eligible": true,
@@ -718,8 +770,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": true
    },
    "v2|groom_any": {
     "eligible": true,
@@ -744,8 +798,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v3|Y2F": {
     "eligible": true,
@@ -770,8 +826,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v3|B2F": {
     "eligible": true,
@@ -796,8 +854,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v3|groom_any": {
     "eligible": true,
@@ -822,8 +882,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": true,
     "c3_prec": true,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": true
    },
    "v3|FOL": {
     "eligible": false,
@@ -848,8 +910,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": false,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": false
    },
    "v3|YOL": {
     "eligible": false,
@@ -874,8 +938,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": true
    },
    "v3|BOL": {
     "eligible": false,
@@ -900,8 +966,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": false,
     "c3_prec": true,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v3|onlid_any": {
     "eligible": false,
@@ -926,8 +994,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": true
    },
    "v3|lid_any3": {
     "eligible": false,
@@ -952,8 +1022,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": true
    },
    "v4|Y2F": {
     "eligible": true,
@@ -978,8 +1050,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v4|B2F": {
     "eligible": true,
@@ -1004,8 +1078,10 @@
     ],
     "c1_auroc": false,
     "c2_lift3": false,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v4|groom_any": {
     "eligible": true,
@@ -1030,8 +1106,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": true,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v4_infested|Y2F": {
     "eligible": true,
@@ -1056,8 +1134,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": true,
+    "c2b_half": true,
     "c3_prec": true,
-    "PASS": true
+    "PASS": true,
+    "PASS_am4": true
    },
    "v4_infested|B2F": {
     "eligible": true,
@@ -1082,8 +1162,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": false,
     "c3_prec": false,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": false
    },
    "v4_infested|groom_any": {
     "eligible": true,
@@ -1108,8 +1190,10 @@
     ],
     "c1_auroc": true,
     "c2_lift3": false,
+    "c2b_half": true,
     "c3_prec": true,
-    "PASS": false
+    "PASS": false,
+    "PASS_am4": true
    }
   }
  }
