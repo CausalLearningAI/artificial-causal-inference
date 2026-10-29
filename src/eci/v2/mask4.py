@@ -218,10 +218,12 @@ def assemble(chosen, objs, pix, core, h, rule='A', app=None):
     return u, nfb
 
 
-def tokens(pix, h, patch=16):
-    """(S, S) bool np -> (G*G,) bool r25t token rule (as N2)."""
+def tokens(pix, h, patch=16, dev=None):
+    """(S, S) bool np -> (G*G,) bool r25t token rule (as N2); dev: run the morphology there (same result)."""
     p = torch.from_numpy(pix)[None]
+    if dev is not None:
+        p = p.to(dev)
     _, app = M2.appendage(p, h)
     fr = F.avg_pool2d(p.float()[:, None], patch).flatten(1)
     na = F.avg_pool2d(app.float()[:, None], patch).flatten(1) * patch * patch
-    return ((fr >= 0.25) | (na >= M2.MIN_THIN_PX))[0].numpy()
+    return ((fr >= 0.25) | (na >= M2.MIN_THIN_PX))[0].cpu().numpy()

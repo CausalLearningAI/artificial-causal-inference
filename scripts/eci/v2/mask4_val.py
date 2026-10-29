@@ -536,6 +536,8 @@ def cmd_bench(a):
     g1 = np.random.default_rng(1)
     pickv = set(g1.choice(len(vids), 2, replace=False).tolist())
     for vi, ((nm, xb, x, ks, kps), pk) in enumerate(zip(vids, packs)):
+        if vi % a.nshard != a.shard:
+            continue
         pk = {k: v.to(dev) if torch.is_tensor(v) else v for k, v in pk.items()}
         for b0 in range(0, len(x), 8):
             xx = x[b0:b0 + 8].to(dev)
@@ -571,8 +573,30 @@ def cmd_bench(a):
                 if vi in pickv and b0 + i == 0:
                     sheet.append({'img': img, 'n2': ms['N2'][0][i].cpu().numpy(), 'n2pix': pix, 'arms': keepd, 'nm': nm})
         log(f'{kind} video {vi + 1}/{len(vids)} {time.time() - t0:.0f}s')
-    out = {'set': kind, 'S': S, 'G': G, 'h': h, 'n_videos': len(vids), 'n_frames': len(rows['N2']),
-           'device': torch.cuda.get_device_name(0), 'wall_s': time.time() - t0,
+    if a.nshard > 1:
+        import pickle
+        (BEE / 'bench').mkdir(parents=True, exist_ok=True)
+        (BEE / 'bench' / f'rows_{kind}{a.tag}_{a.shard}.pkl').write_bytes(pickle.dumps(
+            {'rows': rows, 'tm': tm, 'S': S, 'G': G, 'h': h, 'n_videos': len(vids), 'sheet': sheet,
+             'device': torch.cuda.get_device_name(0)}))
+        log(f'shard {a.shard}/{a.nshard} saved')
+        return
+    bench_out(kind, rows, tm, S, G, h, len(vids), sheet, torch.cuda.get_device_name(0), time.time() - t0, a.tag)
+
+
+def cmd_benchmerge(a):
+    import pickle
+    parts = [pickle.loads((BEE / 'bench' / f'rows_{a.set}{a.tag}_{i}.pkl').read_bytes()) for i in range(a.nshard)]
+    rows = {k: sum((p['rows'][k] for p in parts), []) for k in parts[0]['rows']}
+    tm = {k: sum((p['tm'][k] for p in parts), []) for k in parts[0]['tm']}
+    P = parts[0]
+    bench_out(a.set, rows, tm, P['S'], P['G'], P['h'], P['n_videos'], sum((p['sheet'] for p in parts), []), P['device'], 0, a.tag)
+
+
+def bench_out(kind, rows, tm, S, G, h, n_videos, sheet, device, wall, tag=''):
+    import torch
+    out = {'set': kind, 'S': S, 'G': G, 'h': h, 'n_videos': n_videos, 'n_frames': len(rows['N2']),
+           'device': device, 'wall_s': wall,
            's_per_frame_median': {arm: float(np.median(v[1:])) for arm, v in tm.items()}}
     for arm, R in rows.items():
         keys = sorted({k for r in R for k in r if k not in ('tokens', 'leak_n')})
@@ -583,10 +607,10 @@ def cmd_bench(a):
     out['identity_N2_max_abs_diff'] = max(abs(out['N2'][k] - v) for k, v in ref['N2'].items())
     out['identity_h_diff'] = h - ref['h']
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / f'bench_{kind}.json').write_text(json.dumps(out, indent=1))
+    (OUT / f'bench_{kind}{tag}.json').write_text(json.dumps(out, indent=1))
     (BEE / 'bench').mkdir(parents=True, exist_ok=True)
     for j, sr in enumerate(sheet):
-        np.savez_compressed(BEE / 'bench' / f'{kind}_{j}.npz', img=sr['img'], n2=sr['n2'], n2pix=sr['n2pix'], nm=sr['nm'],
+        np.savez_compressed(BEE / 'bench' / f'{kind}{tag}_{j}.npz', img=sr['img'], n2=sr['n2'], n2pix=sr['n2pix'], nm=sr['nm'],
                             **{f'{k}_keep': v[0] for k, v in sr['arms'].items()},
                             **{f'{k}_pix': np.packbits(v[1], -1) for k, v in sr['arms'].items()})
     log(json.dumps({k: v for k, v in out.items() if k in ('N2', 'identity_N2_max_abs_diff', 'identity_h_diff')}))
@@ -601,6 +625,23 @@ def diff_tile(im, ko, kn, pix_new, col_both=(255, 255, 255)):
     o = overlay(o, up(kn & ~ko), (0, 230, 0), 0.5)
     o = overlay(o, up(ko & ~kn), (255, 0, 0), 0.5)
     return overlay(o, outline(pix_new), (255, 255, 0), 0.9)
+
+
+def thin_box(pw, pn, S, h, side):
+    """square of `side` px centred on the densest thin-part region: appendage pixels (mask2.appendage) of the chosen
+    mask or of N2 (legs, antennae, tails); falls back to the largest component."""
+    import cv2
+    import torch
+    from src.eci.v2 import mask2 as M2
+    _, a1 = M2.appendage(torch.from_numpy(pw)[None], h)
+    _, a2 = M2.appendage(torch.from_numpy(pn)[None], h)
+    ap = (a1[0] | a2[0]).numpy().astype(np.float32)
+    side = int(min(S, side))
+    if ap.sum() < 5:
+        return zoom_box(pw | pn, S, side)
+    d = cv2.boxFilter(ap, -1, (side // 2, side // 2), normalize=False)
+    cy, cx = np.unravel_index(int(np.argmax(d)), d.shape)
+    return int(np.clip(cx - side / 2, 0, S - side)), int(np.clip(cy - side / 2, 0, S - side)), side
 
 
 def zoom_box(pix, S, side):
@@ -643,11 +684,11 @@ def render_sheet(rows, arms, path, zoom_h=6.0):
     for r, (title, im, (pn, kn2), aw, h) in enumerate(rows):
         S = im.shape[0]
         pw, kw = aw[-1]
-        x0, y0, side = zoom_box(pw | pn, S, max(96, zoom_h * 2 * h))
+        x0, y0, side = thin_box(pw, pn, S, h, max(96, zoom_h * 2 * h))
         z = diff_tile(im, kn2, kw, pw)[y0:y0 + side, x0:x0 + side]
         tiles = [(im, title), (tint(im, kn2, (0, 90, 255)), f'N2 {int(kn2.sum())} tok')]
         tiles += [(tint(im, k_, (0, 220, 0)), f'{nm} {int(k_.sum())} tok') for nm, (_, k_) in zip(arms, aw)]
-        tiles.append((z, f'zoom {arms[-1]} vs N2: green only {arms[-1]}, red only N2'))
+        tiles.append((z, f'thin-part zoom {arms[-1]} vs N2: green only {arms[-1]}, red only N2, yellow outline'))
         for j, (t, lab) in enumerate(tiles):
             tt = Image.fromarray(t).resize((T, T), Image.NEAREST if j == nc - 1 else Image.BILINEAR)
             d = ImageDraw.Draw(tt)
@@ -665,16 +706,93 @@ def cmd_sheet(a):
         render_sheet(sheet_rows(dom, arms, a.tag), arms, OUT / f'{dom}.png')
     rows = []
     for kind in ('mab', 'cal', 'crim'):
-        if not (OUT / f'bench_{kind}.json').exists():
+        if not (OUT / f'bench_{kind}{a.btag}.json').exists():
             continue
-        h = json.loads((OUT / f'bench_{kind}.json').read_text())['h']
-        for f in sorted((BEE / 'bench').glob(f'{kind}_*.npz')):
+        h = json.loads((OUT / f'bench_{kind}{a.btag}.json').read_text())['h']
+        for f in sorted((BEE / 'bench').glob(f'{kind}{a.btag}_[0-9]*.npz')):
             z = np.load(f)
+            if not all(x + '_pix' in z.files for x in arms):
+                continue
             S = z['img'].shape[0]
             aw = [(np.unpackbits(z[x + '_pix'], -1)[:, :S].astype(bool), z[x + '_keep'].astype(bool)) for x in arms]
             rows.append((f'random | {kind} {z["nm"]}', z['img'], (z['n2pix'], z['n2'].astype(bool)), aw, h))
     if rows:
         render_sheet(rows, arms, OUT / 'benchmarks.png')
+
+
+def window_of_(dom, k):
+    return int(k) // 3000 if dom == 'ants' else 0
+
+
+def cmd_tempunion(a):
+    """chosen arm B_s_crop on 5-frame windows t-2..t+2 at 5 fps: temporal-union token factor |U_{t-2..t+2} keep| / |keep_t|
+    and end-to-end mask throughput (N2 cue + SAM + assembly + token rule, decode excluded) per frame."""
+    import torch
+    import mask3_val as MV
+    from src.eci.v2 import mask4 as M4
+    dev = torch.device('cuda')
+    mod, proc = M4.load_sam('small', dev)
+    res = {}
+    plan = {'mice': [('v1', 5), ('v2', 5)], 'ants': [('v2', 4), ('v3', 3), ('v4', 3)], 'frogs': [('juv', 5), ('tad', 5)]}
+    for dom in (a.dom.split(',') if a.dom else plan):
+        rows, times, tbs = [], [], []
+        for ser, nv in plan[dom]:
+            o, _ = MV.series_pair(dom, ser, dev, rule='m3b')
+            g = np.random.default_rng(3)
+            vids = [o.videos[i] for i in g.choice(len(o.videos), nv, replace=False)]
+            for v in vids:
+                for k in np.sort(g.integers(2, v['n'] - 3, 3)):
+                    ks = list(range(int(k) - 2, int(k) + 3))
+                    try:
+                        fr = o.run_job(**o.job(v, ks[0], 5, threads=4))
+                    except RuntimeError as e:
+                        log(f'DECODE FAIL {v["obs"]} {k}: {str(e)[:100]}')
+                        continue
+                    o.cap.clear()
+                    o.pack(v['obs'], window_of_(dom, ks[0]))  # background pack load (once per video / window), not timed
+                    torch.cuda.synchronize()
+                    t0 = time.time()
+                    o.frames(v, fr, ks)
+                    cap = {key: torch.cat([c[key] for c in o.cap]) for key in ('x', 'core0', 'pix', 'app', 'keep')}
+                    torch.cuda.synchronize()
+                    tb = {'n2': time.time() - t0, 'prompt': 0., 'sam': 0., 'assemble': 0., 'tokens': 0.}
+                    keeps = []
+                    for i in range(5):
+                        t1 = time.time()
+                        pix = cap['pix'][i].cpu().numpy()
+                        app = cap['app'][i].cpu().numpy()
+                        core = cap['core0'][i].cpu().numpy() | (pix & ~app)
+                        objs = M4.objects(pix, core, o.h)
+                        t2 = time.time()
+                        ch = M4.sam_crop(mod, proc, cap['x'][i].permute(1, 2, 0).cpu().numpy().astype(np.uint8), objs, dev, o.h)
+                        torch.cuda.synchronize()
+                        t3 = time.time()
+                        u, _ = M4.assemble(ch, objs, pix, core, o.h, rule='B', app=app)
+                        t4 = time.time()
+                        keeps.append(M4.tokens(u, o.h, dev=dev))
+                        torch.cuda.synchronize()
+                        t5 = time.time()
+                        tb['prompt'] += t2 - t1; tb['sam'] += t3 - t2; tb['assemble'] += t4 - t3; tb['tokens'] += t5 - t4
+                    times.append(sum(tb.values()) / 5)
+                    tbs.append({k: v_ / 5 for k, v_ in tb.items()})
+                    K = np.stack(keeps)
+                    n2 = cap['keep'].cpu().numpy().astype(bool)
+                    rows.append({'ser': ser, 'obs': v['obs'], 'k': int(k), 'tok_t': int(K[2].sum()), 'union': int(K.any(0).sum()),
+                                 'n2_t': int(n2[2].sum()), 'n2_union': int(n2.any(0).sum())})
+            log(f'{dom} {ser}: {len(rows)} windows')
+        r = [x for x in rows if x['tok_t'] > 0]
+        res[dom] = {'n_windows': len(rows), 'n_videos': sum(n for _, n in plan[dom]),
+                    'union_factor_mean': float(np.mean([x['union'] / x['tok_t'] for x in r])),
+                    'union_factor_median': float(np.median([x['union'] / x['tok_t'] for x in r])),
+                    'union_factor_of_sums': sum(x['union'] for x in r) / max(sum(x['tok_t'] for x in r), 1),
+                    'n2_union_factor_of_sums': sum(x['n2_union'] for x in r) / max(sum(x['n2_t'] for x in r), 1),
+                    'tok_per_frame': float(np.mean([x['tok_t'] for x in rows])),
+                    'union_tok_per_frame': float(np.mean([x['union'] for x in rows])),
+                    's_per_frame_median': float(np.median(times[1:])), 's_per_frame_mean': float(np.mean(times[1:])),
+                    'breakdown_s_per_frame_median': {k: float(np.median([t[k] for t in tbs[1:]])) for k in tbs[0]},
+                    'device': torch.cuda.get_device_name(0), 'rows': rows}
+        log(json.dumps({k: v for k, v in res[dom].items() if k != 'rows'}))
+        (OUT / f'tempunion_{dom}.json').write_text(json.dumps(res[dom], indent=1))
 
 
 def main():
@@ -690,6 +808,9 @@ def main():
     ap.add_argument('--crop', type=int, default=0)
     ap.add_argument('--view', default='')
     ap.add_argument('--keys', default='')
+    ap.add_argument('--shard', type=int, default=0)
+    ap.add_argument('--btag', default='')
+    ap.add_argument('--nshard', type=int, default=1)
     a = ap.parse_args()
     globals()['cmd_' + a.step](a)
 

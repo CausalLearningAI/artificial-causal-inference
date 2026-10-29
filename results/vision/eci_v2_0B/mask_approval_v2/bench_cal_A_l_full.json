@@ -1,0 +1,42 @@
+{
+ "set": "cal",
+ "S": 1024,
+ "G": 64,
+ "h": 40.58302148765902,
+ "n_videos": 19,
+ "n_frames": 456,
+ "device": "NVIDIA GeForce RTX 2080 Ti",
+ "wall_s": 0,
+ "s_per_frame_median": {
+  "A_l_full": 0.444063663482666
+ },
+ "N2": {
+  "body_tok": 0.9656432748538013,
+  "pale_missed": 0.30043859649122806,
+  "pale_tok": 0.2725563909774436,
+  "tail_base_tok_int": 0.35964912280701755,
+  "tail_base_tok_res": 0.9605263157894737,
+  "tokens_per_frame": 229.49780701754386,
+  "leak": 0.2211063439432017
+ },
+ "A_l_full": {
+  "body_tok": 0.9495614035087719,
+  "pale_missed": 0.5701754385964912,
+  "pale_tok": 0.28978696741854637,
+  "tail_base_tok_int": 0.3355263157894737,
+  "tail_base_tok_res": 0.9473684210526315,
+  "tokens_per_frame": 111.55701754385964,
+  "leak": 0.0284057401218793
+ },
+ "B_l_full": {
+  "body_tok": 0.9736842105263158,
+  "pale_missed": 0.5219298245614035,
+  "pale_tok": 0.31265664160400997,
+  "tail_base_tok_int": 0.3618421052631579,
+  "tail_base_tok_res": 0.9495614035087719,
+  "tokens_per_frame": 127.6140350877193,
+  "leak": 0.03417995600769865
+ },
+ "identity_N2_max_abs_diff": 5.551115123125783e-17,
+ "identity_h_diff": 0.0
+}
