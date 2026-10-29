@@ -7,8 +7,15 @@
  "n2_union_factor_of_sums": 1.4305428980601484,
  "tok_per_frame": 213.13333333333333,
  "union_tok_per_frame": 326.3,
- "s_per_frame_median": 3.9639050483703615,
- "s_per_frame_mean": 3.9459179368512385,
+ "s_per_frame_median": 0.5005210399627685,
+ "s_per_frame_mean": 0.4877015524897082,
+ "breakdown_s_per_frame_median": {
+  "n2": 0.028565502166748045,
+  "prompt": 0.09557108879089356,
+  "sam": 0.3536535263061523,
+  "assemble": 0.014645099639892578,
+  "tokens": 0.007094240188598633
+ },
  "device": "NVIDIA GeForce RTX 2080 Ti",
  "rows": [
   {

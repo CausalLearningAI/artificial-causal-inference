@@ -1,0 +1,285 @@
+{
+ "n_windows": 30,
+ "n_videos": 10,
+ "union_factor_mean": 1.5115845230942853,
+ "union_factor_median": 1.5227272727272727,
+ "union_factor_of_sums": 1.5236907730673317,
+ "n2_union_factor_of_sums": 1.4768460575719649,
+ "tok_per_frame": 26.733333333333334,
+ "union_tok_per_frame": 40.733333333333334,
+ "s_per_frame_median": 0.43541827201843264,
+ "s_per_frame_mean": 0.6114854434440874,
+ "device": "NVIDIA GeForce RTX 2080 Ti",
+ "rows": [
+  {
+   "ser": "juv",
+   "obs": "WT_158_1",
+   "k": 1696,
+   "tok_t": 42,
+   "union": 106,
+   "n2_t": 44,
+   "n2_union": 105
+  },
+  {
+   "ser": "juv",
+   "obs": "WT_158_1",
+   "k": 5981,
+   "tok_t": 44,
+   "union": 67,
+   "n2_t": 44,
+   "n2_union": 65
+  },
+  {
+   "ser": "juv",
+   "obs": "WT_158_1",
+   "k": 7797,
+   "tok_t": 43,
+   "union": 110,
+   "n2_t": 46,
+   "n2_union": 113
+  },
+  {
+   "ser": "juv",
+   "obs": "FoxP1_243_2",
+   "k": 4767,
+   "tok_t": 35,
+   "union": 35,
+   "n2_t": 35,
+   "n2_union": 35
+  },
+  {
+   "ser": "juv",
+   "obs": "FoxP1_243_2",
+   "k": 8624,
+   "tok_t": 39,
+   "union": 39,
+   "n2_t": 39,
+   "n2_union": 39
+  },
+  {
+   "ser": "juv",
+   "obs": "FoxP1_243_2",
+   "k": 11183,
+   "tok_t": 39,
+   "union": 70,
+   "n2_t": 42,
+   "n2_union": 75
+  },
+  {
+   "ser": "juv",
+   "obs": "WT_157_4",
+   "k": 2877,
+   "tok_t": 31,
+   "union": 31,
+   "n2_t": 30,
+   "n2_union": 31
+  },
+  {
+   "ser": "juv",
+   "obs": "WT_157_4",
+   "k": 12447,
+   "tok_t": 32,
+   "union": 32,
+   "n2_t": 32,
+   "n2_union": 32
+  },
+  {
+   "ser": "juv",
+   "obs": "WT_157_4",
+   "k": 13224,
+   "tok_t": 27,
+   "union": 27,
+   "n2_t": 26,
+   "n2_union": 26
+  },
+  {
+   "ser": "juv",
+   "obs": "WT_158_4",
+   "k": 590,
+   "tok_t": 26,
+   "union": 64,
+   "n2_t": 27,
+   "n2_union": 60
+  },
+  {
+   "ser": "juv",
+   "obs": "WT_158_4",
+   "k": 2047,
+   "tok_t": 31,
+   "union": 54,
+   "n2_t": 30,
+   "n2_union": 53
+  },
+  {
+   "ser": "juv",
+   "obs": "WT_158_4",
+   "k": 8139,
+   "tok_t": 28,
+   "union": 29,
+   "n2_t": 28,
+   "n2_union": 29
+  },
+  {
+   "ser": "juv",
+   "obs": "WT_158_2",
+   "k": 7043,
+   "tok_t": 26,
+   "union": 26,
+   "n2_t": 27,
+   "n2_union": 27
+  },
+  {
+   "ser": "juv",
+   "obs": "WT_158_2",
+   "k": 9302,
+   "tok_t": 27,
+   "union": 33,
+   "n2_t": 28,
+   "n2_union": 34
+  },
+  {
+   "ser": "juv",
+   "obs": "WT_158_2",
+   "k": 15981,
+   "tok_t": 26,
+   "union": 45,
+   "n2_t": 28,
+   "n2_union": 45
+  },
+  {
+   "ser": "tad",
+   "obs": "WT_194_4",
+   "k": 1715,
+   "tok_t": 0,
+   "union": 0,
+   "n2_t": 0,
+   "n2_union": 0
+  },
+  {
+   "ser": "tad",
+   "obs": "WT_194_4",
+   "k": 6047,
+   "tok_t": 13,
+   "union": 24,
+   "n2_t": 14,
+   "n2_union": 17
+  },
+  {
+   "ser": "tad",
+   "obs": "WT_194_4",
+   "k": 7884,
+   "tok_t": 17,
+   "union": 27,
+   "n2_t": 20,
+   "n2_union": 24
+  },
+  {
+   "ser": "tad",
+   "obs": "En1_290_3",
+   "k": 4767,
+   "tok_t": 14,
+   "union": 26,
+   "n2_t": 19,
+   "n2_union": 31
+  },
+  {
+   "ser": "tad",
+   "obs": "En1_290_3",
+   "k": 8624,
+   "tok_t": 19,
+   "union": 23,
+   "n2_t": 20,
+   "n2_union": 23
+  },
+  {
+   "ser": "tad",
+   "obs": "En1_290_3",
+   "k": 11183,
+   "tok_t": 18,
+   "union": 28,
+   "n2_t": 21,
+   "n2_union": 28
+  },
+  {
+   "ser": "tad",
+   "obs": "WT_104_2",
+   "k": 2877,
+   "tok_t": 27,
+   "union": 27,
+   "n2_t": 25,
+   "n2_union": 26
+  },
+  {
+   "ser": "tad",
+   "obs": "WT_104_2",
+   "k": 12446,
+   "tok_t": 21,
+   "union": 51,
+   "n2_t": 26,
+   "n2_union": 44
+  },
+  {
+   "ser": "tad",
+   "obs": "WT_104_2",
+   "k": 13223,
+   "tok_t": 19,
+   "union": 23,
+   "n2_t": 21,
+   "n2_union": 25
+  },
+  {
+   "ser": "tad",
+   "obs": "WT_206_5",
+   "k": 590,
+   "tok_t": 23,
+   "union": 25,
+   "n2_t": 17,
+   "n2_union": 18
+  },
+  {
+   "ser": "tad",
+   "obs": "WT_206_5",
+   "k": 2047,
+   "tok_t": 27,
+   "union": 28,
+   "n2_t": 20,
+   "n2_union": 20
+  },
+  {
+   "ser": "tad",
+   "obs": "WT_206_5",
+   "k": 8139,
+   "tok_t": 29,
+   "union": 34,
+   "n2_t": 29,
+   "n2_union": 32
+  },
+  {
+   "ser": "tad",
+   "obs": "WT_194_5",
+   "k": 7121,
+   "tok_t": 23,
+   "union": 38,
+   "n2_t": 22,
+   "n2_union": 36
+  },
+  {
+   "ser": "tad",
+   "obs": "WT_194_5",
+   "k": 9406,
+   "tok_t": 34,
+   "union": 59,
+   "n2_t": 22,
+   "n2_union": 54
+  },
+  {
+   "ser": "tad",
+   "obs": "WT_194_5",
+   "k": 16159,
+   "tok_t": 22,
+   "union": 41,
+   "n2_t": 17,
+   "n2_union": 33
+  }
+ ]
+}
