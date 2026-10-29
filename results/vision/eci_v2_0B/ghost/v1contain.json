@@ -1,0 +1,28 @@
+{
+ "v1_contain": {
+  "mice/diag": {
+   "v1_tokens": 8730628,
+   "outside_share": 0.3269877035191512,
+   "frames": 14400,
+   "frames_outside_gt_5pct": 1.0
+  },
+  "ants/scored_v2": {
+   "v1_tokens": 641508,
+   "outside_share": 0.3987682148936568,
+   "frames": 4400,
+   "frames_outside_gt_5pct": 1.0
+  },
+  "ants/scored_v3": {
+   "v1_tokens": 1610848,
+   "outside_share": 0.37204565545600826,
+   "frames": 10700,
+   "frames_outside_gt_5pct": 0.9992523364485981
+  }
+ },
+ "images": [
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/ghost_v1_het_kmt5b_m_2_F_H.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/ghost_v1_het_ash1l_m_3_F_O.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/ghost_v2_mixed_kmt5b_m_1_F_H.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/ghost_v2_mixed_kmt5b_m_3_F_H.png"
+ ]
+}
