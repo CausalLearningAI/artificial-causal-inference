@@ -171,19 +171,28 @@ def cmd_run(a):
             (OUT / f'{dom}_train.json').write_text(json.dumps({'data': info, 'runs': recs}, indent=1, default=float))
         del Xtr
     del X
-    # codes: eval frames (v2_prob store) and suite probe frames (training store)
+    codes(dom, S, P, dev, ('eval', 'probe'), t0)
+
+
+def codes(dom, S, P, dev, which, t0):
+    """frame-max codes of every arm / seed on the eval frames (v2_prob store) and the suite probe frames (training store)."""
+    import torch
+    from src.eci.v2 import sae as SA
     od = BEE / dom / 'codes'
     od.mkdir(parents=True, exist_ok=True)
-    sets = {'eval': (Seq(store(EC / 'v2_prob', dom)), pd.read_parquet(REPO / f'results/vision/eci_v2_prob/{dom}/probe.parquet')),
-            'probe': (S, pd.read_parquet(REPO / f'results/vision/eci_v2_behav/{dom}/probe.parquet'))}
+    sets = {'probe': (S, pd.read_parquet(REPO / f'results/vision/eci_v2_behav/{dom}/probe.parquet'))}
+    if 'eval' in which:
+        sets['eval'] = (Seq(store(EC / 'v2_prob', dom)), pd.read_parquet(REPO / f'results/vision/eci_v2_prob/{dom}/probe.parquet'))
     for nm, (Sq, Pr) in sets.items():
+        if nm not in which:
+            continue
         fo = pmap(Pr, Sq.St.F)[Sq.tf]
         sel = np.flatnonzero(fo >= 0)
         saes = {f'{arm}_s{seed}': SA.load(BEE / dom / 'sae' / f'{arm}_s{seed}' / 'sae_theta.pt', dev)
                 for arm in ARMS for seed in SEEDS}
         Xc = {k: torch.zeros((len(Pr), 2048), device=dev) for k in saes}
-        for c0 in range(0, len(sel), 200_000):
-            s_ = sel[c0:c0 + 200_000]
+        for c0 in range(0, len(sel), 50_000):
+            s_ = sel[c0:c0 + 50_000]
             f = feats(Sq, s_, P, dev)
             fl = torch.from_numpy(fo[s_]).to(dev)
             for k, (sae, norm) in saes.items():
@@ -195,6 +204,15 @@ def cmd_run(a):
             np.save(od / f'{k}_{nm}.npy', x.half().cpu().numpy())
         log(f'{dom} {nm}: codes saved ({time.time() - t0:.0f}s)')
         del Xc
+
+
+def cmd_pcodes(a):
+    """resume: probe-frame codes only (the eval codes exist), PCA from BEE/<dom>_pca.pt."""
+    import torch
+    dev = torch.device('cuda')
+    S = Seq(store(EC / 'v2_behav', a.dom))
+    P = torch.load(BEE / f'{a.dom}_pca.pt', map_location=dev)
+    codes(a.dom, S, P, dev, ('probe',), time.time())
 
 
 def cmd_score(a):
@@ -260,10 +278,10 @@ def cmd_score(a):
 def main():
     import argparse
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('run', 'score'))
+    p.add_argument('step', choices=('run', 'score', 'pcodes'))
     p.add_argument('--dom', choices=('mice', 'ants'))
     a = p.parse_args()
-    {'run': cmd_run, 'score': cmd_score}[a.step](a)
+    {'run': cmd_run, 'score': cmd_score, 'pcodes': cmd_pcodes}[a.step](a)
 
 
 if __name__ == '__main__':
