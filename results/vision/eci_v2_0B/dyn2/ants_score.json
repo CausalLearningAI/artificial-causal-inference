@@ -1,0 +1,2627 @@
+{
+ "v2.0": {
+  "hmm": {
+   "v2|Y2F": {
+    "eligible": false,
+    "bouts": [
+     17,
+     11
+    ],
+    "base": 0.11257346998567441,
+    "best_neuron": 207,
+    "v1_AUROC": 0.8865096675586733,
+    "v2_AUROC": 0.836853592787932,
+    "v1_nAP": 0.4277444276819612,
+    "v2_nAP": 0.2818531322989382,
+    "v1_top1_prec": 0.7379586652525422,
+    "v2_top1_prec": 0.592704131758289,
+    "v1_top1_lift": 6.857081707484204,
+    "v2_top1_lift": 5.045741009895923,
+    "dAUROC": [
+     -0.0496560747707413,
+     -0.08247003342034132,
+     -0.01684211612114129
+    ],
+    "c1_auroc": false,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|B2F": {
+    "eligible": false,
+    "bouts": [
+     11,
+     10
+    ],
+    "base": 0.09776973470070344,
+    "best_neuron": 40,
+    "v1_AUROC": 0.8683338597925476,
+    "v2_AUROC": 0.7679120706695776,
+    "v1_nAP": 0.3030951791604531,
+    "v2_nAP": 0.12774675562774887,
+    "v1_top1_prec": 0.6694239593140501,
+    "v2_top1_prec": 0.48319784285268647,
+    "v1_top1_lift": 7.003279539577187,
+    "v2_top1_lift": 4.991053215873806,
+    "dAUROC": [
+     -0.10042178912297006,
+     -0.13456641865943197,
+     -0.06627715958650814
+    ],
+    "c1_auroc": false,
+    "c2_lift3": true,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|groom_any": {
+    "eligible": false,
+    "bouts": [
+     26,
+     16
+    ],
+    "base": 0.18679038377222967,
+    "best_neuron": 40,
+    "v1_AUROC": 0.9090002383220142,
+    "v2_AUROC": 0.8721936703272704,
+    "v1_nAP": 0.6458953097356369,
+    "v2_nAP": 0.5130316179803309,
+    "v1_top1_prec": 0.8749353166051037,
+    "v2_top1_prec": 0.8564572596513864,
+    "v1_top1_lift": 4.809463999088901,
+    "v2_top1_lift": 4.665572102813351,
+    "dAUROC": [
+     -0.0368065679947438,
+     -0.06779340326079107,
+     -0.005819732728696524
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v3|Y2F": {
+    "eligible": true,
+    "bouts": [
+     28,
+     34
+    ],
+    "base": 0.18763908688960365,
+    "best_neuron": 40,
+    "v1_AUROC": 0.822726084453553,
+    "v2_AUROC": 0.8002562180281431,
+    "v1_nAP": 0.4048321931699135,
+    "v2_nAP": 0.26548615867370157,
+    "v1_top1_prec": 0.774688706436515,
+    "v2_top1_prec": 0.5305051780208352,
+    "v1_top1_lift": 4.250677125106584,
+    "v2_top1_lift": 2.9119042162273288,
+    "dAUROC": [
+     -0.022469866425409935,
+     -0.06096005346070559,
+     0.016020320609885723
+    ],
+    "c1_auroc": true,
+    "c2_lift3": false,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": false,
+    "PASS_final": false
+   },
+   "v3|B2F": {
+    "eligible": true,
+    "bouts": [
+     27,
+     30
+    ],
+    "base": 0.18927418579621344,
+    "best_neuron": 40,
+    "v1_AUROC": 0.8280443184482867,
+    "v2_AUROC": 0.8259370879280851,
+    "v1_nAP": 0.395981870261118,
+    "v2_nAP": 0.40475056605102894,
+    "v1_top1_prec": 0.7665321393764022,
+    "v2_top1_prec": 0.5465112291676288,
+    "v1_top1_lift": 4.075604348046411,
+    "v2_top1_lift": 2.925445678377002,
+    "dAUROC": [
+     -0.002107230520201675,
+     -0.03844055733281693,
+     0.03422609629241358
+    ],
+    "c1_auroc": true,
+    "c2_lift3": false,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": false,
+    "PASS_final": false
+   },
+   "v3|groom_any": {
+    "eligible": true,
+    "bouts": [
+     45,
+     42
+    ],
+    "base": 0.31459518440657935,
+    "best_neuron": 40,
+    "v1_AUROC": 0.8662803214943051,
+    "v2_AUROC": 0.8699869961948904,
+    "v1_nAP": 0.6160488019823848,
+    "v2_nAP": 0.5042326611601491,
+    "v1_top1_prec": 0.9382420427292538,
+    "v2_top1_prec": 0.7658166269540271,
+    "v1_top1_lift": 3.024618948069211,
+    "v2_top1_lift": 2.467271256025591,
+    "dAUROC": [
+     0.0037066747005852774,
+     -0.03280845279859373,
+     0.04022180219976428
+    ],
+    "c1_auroc": true,
+    "c2_lift3": false,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|YOL": {
+    "eligible": false,
+    "bouts": [
+     3,
+     2
+    ],
+    "base": 0.04051726877876395,
+    "best_neuron": 1337,
+    "v1_AUROC": 0.7830493106398161,
+    "v2_AUROC": 0.8040496251145377,
+    "v1_nAP": 0.6681037279123948,
+    "v2_nAP": 0.7805735057581928,
+    "v1_top1_prec": 0.6648011625188338,
+    "v2_top1_prec": 0.43893319345594595,
+    "v1_top1_lift": 20.557026877235167,
+    "v2_top1_lift": 11.325710056956016,
+    "dAUROC": [
+     0.021000314474721615,
+     -0.007467563316864836,
+     0.04946819226630807
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|onlid_any": {
+    "eligible": false,
+    "bouts": [
+     3,
+     3
+    ],
+    "base": 0.044111363139705116,
+    "best_neuron": 893,
+    "v1_AUROC": 0.8703809167801375,
+    "v2_AUROC": 0.8704155833466763,
+    "v1_nAP": 0.7560356304560003,
+    "v2_nAP": 0.8705377018211718,
+    "v1_top1_prec": 0.8386885580335623,
+    "v2_top1_prec": 0.6153449174282508,
+    "v1_top1_lift": 27.01279926398329,
+    "v2_top1_lift": 19.759161928366268,
+    "dAUROC": [
+     3.466656653883238e-05,
+     -0.02024156154180742,
+     0.020310894674885085
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|lid_any3": {
+    "eligible": false,
+    "bouts": [
+     3,
+     3
+    ],
+    "base": 0.044111363139705116,
+    "best_neuron": 893,
+    "v1_AUROC": 0.8703809167801375,
+    "v2_AUROC": 0.8704155833466763,
+    "v1_nAP": 0.7560356304560003,
+    "v2_nAP": 0.8705377018211718,
+    "v1_top1_prec": 0.8387838505816851,
+    "v2_top1_prec": 0.6148488856822191,
+    "v1_top1_lift": 27.01515200553821,
+    "v2_top1_lift": 19.680545576165006,
+    "dAUROC": [
+     3.466656653883238e-05,
+     -0.02024156154180742,
+     0.020310894674885085
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   }
+  },
+  "smooth": {
+   "v2|Y2F": {
+    "eligible": false,
+    "bouts": [
+     17,
+     11
+    ],
+    "base": 0.11257346998567441,
+    "best_neuron": 40,
+    "v1_AUROC": 0.8865096675586733,
+    "v2_AUROC": 0.8534846956503075,
+    "v1_nAP": 0.4277444276819612,
+    "v2_nAP": 0.25352102369381074,
+    "v1_top1_prec": 0.7379586652525422,
+    "v2_top1_prec": 0.43586880454348037,
+    "v1_top1_lift": 6.857081707484204,
+    "v2_top1_lift": 3.940159289753614,
+    "dAUROC": [
+     -0.03302497190836584,
+     -0.06583893055796586,
+     -0.00021101325876583116
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|B2F": {
+    "eligible": false,
+    "bouts": [
+     11,
+     10
+    ],
+    "base": 0.09776973470070344,
+    "best_neuron": 40,
+    "v1_AUROC": 0.8683338597925476,
+    "v2_AUROC": 0.8334508932804406,
+    "v1_nAP": 0.3030951791604531,
+    "v2_nAP": 0.2501188931399864,
+    "v1_top1_prec": 0.6694239593140501,
+    "v2_top1_prec": 0.6062710474400025,
+    "v1_top1_lift": 7.003279539577187,
+    "v2_top1_lift": 6.3314377677849665,
+    "dAUROC": [
+     -0.03488296651210698,
+     -0.06902759604856891,
+     -0.000738336975645057
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|groom_any": {
+    "eligible": false,
+    "bouts": [
+     26,
+     16
+    ],
+    "base": 0.18679038377222967,
+    "best_neuron": 40,
+    "v1_AUROC": 0.9090002383220142,
+    "v2_AUROC": 0.9135603894429374,
+    "v1_nAP": 0.6458953097356369,
+    "v2_nAP": 0.5642901811495701,
+    "v1_top1_prec": 0.8749353166051037,
+    "v2_top1_prec": 0.7975947631344277,
+    "v1_top1_lift": 4.809463999088901,
+    "v2_top1_lift": 4.389589528681621,
+    "dAUROC": [
+     0.004560151120923228,
+     -0.026426684145124047,
+     0.0355469863869705
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|Y2F": {
+    "eligible": true,
+    "bouts": [
+     28,
+     34
+    ],
+    "base": 0.18763908688960365,
+    "best_neuron": 40,
+    "v1_AUROC": 0.822726084453553,
+    "v2_AUROC": 0.8464983083415167,
+    "v1_nAP": 0.4048321931699135,
+    "v2_nAP": 0.33326715632597775,
+    "v1_top1_prec": 0.774688706436515,
+    "v2_top1_prec": 0.7755003023606085,
+    "v1_top1_lift": 4.250677125106584,
+    "v2_top1_lift": 4.258365657182352,
+    "dAUROC": [
+     0.02377222388796374,
+     -0.014717963147331918,
+     0.0622624109232594
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v3|B2F": {
+    "eligible": true,
+    "bouts": [
+     27,
+     30
+    ],
+    "base": 0.18927418579621344,
+    "best_neuron": 40,
+    "v1_AUROC": 0.8280443184482867,
+    "v2_AUROC": 0.8413008428120143,
+    "v1_nAP": 0.395981870261118,
+    "v2_nAP": 0.38718032891113224,
+    "v1_top1_prec": 0.7665321393764022,
+    "v2_top1_prec": 0.7722356472539326,
+    "v1_top1_lift": 4.075604348046411,
+    "v2_top1_lift": 4.11369338008738,
+    "dAUROC": [
+     0.013256524363727595,
+     -0.023076802448887657,
+     0.04958985117634285
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v3|groom_any": {
+    "eligible": true,
+    "bouts": [
+     45,
+     42
+    ],
+    "base": 0.31459518440657935,
+    "best_neuron": 40,
+    "v1_AUROC": 0.8662803214943051,
+    "v2_AUROC": 0.87708858947137,
+    "v1_nAP": 0.6160488019823848,
+    "v2_nAP": 0.5925547599553905,
+    "v1_top1_prec": 0.9382420427292538,
+    "v2_top1_prec": 0.9219342239550166,
+    "v1_top1_lift": 3.024618948069211,
+    "v2_top1_lift": 2.9831605646351793,
+    "dAUROC": [
+     0.010808267977064911,
+     -0.025706859522114094,
+     0.04732339547624392
+    ],
+    "c1_auroc": true,
+    "c2_lift3": false,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": false,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v3|YOL": {
+    "eligible": false,
+    "bouts": [
+     3,
+     2
+    ],
+    "base": 0.04051726877876395,
+    "best_neuron": 339,
+    "v1_AUROC": 0.7830493106398161,
+    "v2_AUROC": 0.8526615033943532,
+    "v1_nAP": 0.6681037279123948,
+    "v2_nAP": 0.7862223623309733,
+    "v1_top1_prec": 0.6648011625188338,
+    "v2_top1_prec": 0.8349918515545468,
+    "v1_top1_lift": 20.557026877235167,
+    "v2_top1_lift": 24.12796199737776,
+    "dAUROC": [
+     0.06961219275453712,
+     0.041144314962950665,
+     0.09808007054612357
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v3|onlid_any": {
+    "eligible": false,
+    "bouts": [
+     3,
+     3
+    ],
+    "base": 0.044111363139705116,
+    "best_neuron": 339,
+    "v1_AUROC": 0.8703809167801375,
+    "v2_AUROC": 0.9205307842118186,
+    "v1_nAP": 0.7560356304560003,
+    "v2_nAP": 0.8751008800644261,
+    "v1_top1_prec": 0.8386885580335623,
+    "v2_top1_prec": 0.9389329805996472,
+    "v1_top1_lift": 27.01279926398329,
+    "v2_top1_lift": 30.195660834173765,
+    "dAUROC": [
+     0.05014986743168104,
+     0.029873639323334786,
+     0.0704260955400273
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v3|lid_any3": {
+    "eligible": false,
+    "bouts": [
+     3,
+     3
+    ],
+    "base": 0.044111363139705116,
+    "best_neuron": 339,
+    "v1_AUROC": 0.8703809167801375,
+    "v2_AUROC": 0.9205307842118186,
+    "v1_nAP": 0.7560356304560003,
+    "v2_nAP": 0.8751008800644261,
+    "v1_top1_prec": 0.8387838505816851,
+    "v2_top1_prec": 0.9389329805996472,
+    "v1_top1_lift": 27.01515200553821,
+    "v2_top1_lift": 30.195660834173765,
+    "dAUROC": [
+     0.05014986743168104,
+     0.029873639323334786,
+     0.0704260955400273
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   }
+  }
+ },
+ "X0_s990": {
+  "gate": {
+   "v2|Y2F": {
+    "eligible": false,
+    "bouts": [
+     17,
+     11
+    ],
+    "base": 0.11257346998567441,
+    "best_neuron": 69,
+    "v1_AUROC": 0.8865096675586733,
+    "v2_AUROC": 0.8601580612429576,
+    "v1_nAP": 0.4277444276819612,
+    "v2_nAP": 0.3282416577818282,
+    "v1_top1_prec": 0.7379586652525422,
+    "v2_top1_prec": 0.36965091368218755,
+    "v1_top1_lift": 6.857081707484204,
+    "v2_top1_lift": 3.2512063489083975,
+    "dAUROC": [
+     -0.02635160631571576,
+     -0.05916556496531577,
+     0.006462352333884251
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|B2F": {
+    "eligible": false,
+    "bouts": [
+     11,
+     10
+    ],
+    "base": 0.09776973470070344,
+    "best_neuron": 52,
+    "v1_AUROC": 0.8683338597925476,
+    "v2_AUROC": 0.8509989299647226,
+    "v1_nAP": 0.3030951791604531,
+    "v2_nAP": 0.22407945773805668,
+    "v1_top1_prec": 0.6694239593140501,
+    "v2_top1_prec": 0.5894730543491032,
+    "v1_top1_lift": 7.003279539577187,
+    "v2_top1_lift": 6.108946135769094,
+    "dAUROC": [
+     -0.01733492982782503,
+     -0.051479559364286956,
+     0.016809699708636897
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|groom_any": {
+    "eligible": false,
+    "bouts": [
+     26,
+     16
+    ],
+    "base": 0.18679038377222967,
+    "best_neuron": 52,
+    "v1_AUROC": 0.9090002383220142,
+    "v2_AUROC": 0.8574111855473555,
+    "v1_nAP": 0.6458953097356369,
+    "v2_nAP": 0.5061724969598479,
+    "v1_top1_prec": 0.8749353166051037,
+    "v2_top1_prec": 0.7351982966323165,
+    "v1_top1_lift": 4.809463999088901,
+    "v2_top1_lift": 4.021381045253992,
+    "dAUROC": [
+     -0.05158905277465864,
+     -0.08257588804070591,
+     -0.020602217508611364
+    ],
+    "c1_auroc": false,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|Y2F": {
+    "eligible": true,
+    "bouts": [
+     28,
+     34
+    ],
+    "base": 0.18763908688960365,
+    "best_neuron": 52,
+    "v1_AUROC": 0.822726084453553,
+    "v2_AUROC": 0.8355392199689544,
+    "v1_nAP": 0.4048321931699135,
+    "v2_nAP": 0.38127522590653706,
+    "v1_top1_prec": 0.774688706436515,
+    "v2_top1_prec": 0.7415536026389905,
+    "v1_top1_lift": 4.250677125106584,
+    "v2_top1_lift": 4.042303763667577,
+    "dAUROC": [
+     0.01281313551540142,
+     -0.025677051519894238,
+     0.05130332255069708
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v3|B2F": {
+    "eligible": true,
+    "bouts": [
+     27,
+     30
+    ],
+    "base": 0.18927418579621344,
+    "best_neuron": 52,
+    "v1_AUROC": 0.8280443184482867,
+    "v2_AUROC": 0.8339910068848102,
+    "v1_nAP": 0.395981870261118,
+    "v2_nAP": 0.3904721530283401,
+    "v1_top1_prec": 0.7665321393764022,
+    "v2_top1_prec": 0.7843364167005661,
+    "v1_top1_lift": 4.075604348046411,
+    "v2_top1_lift": 4.191756760363779,
+    "dAUROC": [
+     0.005946688436523462,
+     -0.03038663837609179,
+     0.042280015249138714
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v3|groom_any": {
+    "eligible": true,
+    "bouts": [
+     45,
+     42
+    ],
+    "base": 0.31459518440657935,
+    "best_neuron": 52,
+    "v1_AUROC": 0.8662803214943051,
+    "v2_AUROC": 0.8622622738580104,
+    "v1_nAP": 0.6160488019823848,
+    "v2_nAP": 0.6183221460770704,
+    "v1_top1_prec": 0.9382420427292538,
+    "v2_top1_prec": 0.9292727972699354,
+    "v1_top1_lift": 3.024618948069211,
+    "v2_top1_lift": 2.997445873972994,
+    "dAUROC": [
+     -0.004018047636294764,
+     -0.04053317513547377,
+     0.03249707986288424
+    ],
+    "c1_auroc": true,
+    "c2_lift3": false,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": false,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   }
+  },
+  "prox": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.7716503302192862,
+    "proxy_AUROC": 0.6042589818310068,
+    "AUROC": 0.8601580612429576,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.7674379688751699,
+    "proxy_AUROC": 0.6916556365362598,
+    "AUROC": 0.8509989299647226,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.8005473169587649,
+    "proxy_AUROC": 0.610221639170561,
+    "AUROC": 0.8574111855473555,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.7909901655788399,
+    "proxy_AUROC": 0.6341415323508985,
+    "AUROC": 0.8355392199689544,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.7769573329186975,
+    "proxy_AUROC": 0.7367729059001842,
+    "AUROC": 0.8339910068848102,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.8251318699817772,
+    "proxy_AUROC": 0.6554959010928016,
+    "AUROC": 0.8622622738580104,
+    "n_strata": 8
+   }
+  },
+  "dyn256": {
+   "dynamic": 54,
+   "eligible": 256,
+   "share": 0.2109375
+  },
+  "n_dec_share_gt_0.25": 0,
+  "n_dec_share_gt_0.25_256": 0,
+  "n_pass": 2,
+  "n_pass_am4": 3
+ },
+ "X0_s991": {
+  "gate": {
+   "v2|Y2F": {
+    "eligible": false,
+    "bouts": [
+     17,
+     11
+    ],
+    "base": 0.11257346998567441,
+    "best_neuron": 82,
+    "v1_AUROC": 0.8865096675586733,
+    "v2_AUROC": 0.8384510877547621,
+    "v1_nAP": 0.4277444276819612,
+    "v2_nAP": 0.35295869248923967,
+    "v1_top1_prec": 0.7379586652525422,
+    "v2_top1_prec": 0.6877584842058527,
+    "v1_top1_lift": 6.857081707484204,
+    "v2_top1_lift": 6.186177224333224,
+    "dAUROC": [
+     -0.04805857980391126,
+     -0.08087253845351128,
+     -0.015244621154311251
+    ],
+    "c1_auroc": false,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|B2F": {
+    "eligible": false,
+    "bouts": [
+     11,
+     10
+    ],
+    "base": 0.09776973470070344,
+    "best_neuron": 61,
+    "v1_AUROC": 0.8683338597925476,
+    "v2_AUROC": 0.8409631409401751,
+    "v1_nAP": 0.3030951791604531,
+    "v2_nAP": 0.22680606419921345,
+    "v1_top1_prec": 0.6694239593140501,
+    "v2_top1_prec": 0.5488156051085114,
+    "v1_top1_lift": 7.003279539577187,
+    "v2_top1_lift": 5.686697502687498,
+    "dAUROC": [
+     -0.027370718852372522,
+     -0.06151534838883445,
+     0.006773910684089404
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|groom_any": {
+    "eligible": false,
+    "bouts": [
+     26,
+     16
+    ],
+    "base": 0.18679038377222967,
+    "best_neuron": 82,
+    "v1_AUROC": 0.9090002383220142,
+    "v2_AUROC": 0.8539075463510771,
+    "v1_nAP": 0.6458953097356369,
+    "v2_nAP": 0.5493396515836743,
+    "v1_top1_prec": 0.8749353166051037,
+    "v2_top1_prec": 0.8627020523054086,
+    "v1_top1_lift": 4.809463999088901,
+    "v2_top1_lift": 4.662252669215113,
+    "dAUROC": [
+     -0.055092691970937024,
+     -0.0860795272369843,
+     -0.02410585670488975
+    ],
+    "c1_auroc": false,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|Y2F": {
+    "eligible": true,
+    "bouts": [
+     28,
+     34
+    ],
+    "base": 0.18763908688960365,
+    "best_neuron": 61,
+    "v1_AUROC": 0.822726084453553,
+    "v2_AUROC": 0.8033685849899067,
+    "v1_nAP": 0.4048321931699135,
+    "v2_nAP": 0.34170558354764474,
+    "v1_top1_prec": 0.774688706436515,
+    "v2_top1_prec": 0.6385966770428374,
+    "v1_top1_lift": 4.250677125106584,
+    "v2_top1_lift": 3.456925588515006,
+    "dAUROC": [
+     -0.019357499463646288,
+     -0.057847686498941946,
+     0.01913268757164937
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|B2F": {
+    "eligible": true,
+    "bouts": [
+     27,
+     30
+    ],
+    "base": 0.18927418579621344,
+    "best_neuron": 61,
+    "v1_AUROC": 0.8280443184482867,
+    "v2_AUROC": 0.8127638387597526,
+    "v1_nAP": 0.395981870261118,
+    "v2_nAP": 0.3663128532788434,
+    "v1_top1_prec": 0.7665321393764022,
+    "v2_top1_prec": 0.7421142667404044,
+    "v1_top1_lift": 4.075604348046411,
+    "v2_top1_lift": 3.970322886185409,
+    "dAUROC": [
+     -0.015280479688534188,
+     -0.05161380650114944,
+     0.021052847124081064
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v3|groom_any": {
+    "eligible": true,
+    "bouts": [
+     45,
+     42
+    ],
+    "base": 0.31459518440657935,
+    "best_neuron": 61,
+    "v1_AUROC": 0.8662803214943051,
+    "v2_AUROC": 0.8438513095706063,
+    "v1_nAP": 0.6160488019823848,
+    "v2_nAP": 0.5807450148202599,
+    "v1_top1_prec": 0.9382420427292538,
+    "v2_top1_prec": 0.9052000898027472,
+    "v1_top1_lift": 3.024618948069211,
+    "v2_top1_lift": 2.9164934812691468,
+    "dAUROC": [
+     -0.02242901192369884,
+     -0.05894413942287784,
+     0.014086115575480167
+    ],
+    "c1_auroc": true,
+    "c2_lift3": false,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": false,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   }
+  },
+  "prox": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.7810690630850518,
+    "proxy_AUROC": 0.6042589818310068,
+    "AUROC": 0.8384510877547621,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.7741017493417338,
+    "proxy_AUROC": 0.6916556365362598,
+    "AUROC": 0.8409631409401751,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.8153387713141171,
+    "proxy_AUROC": 0.610221639170561,
+    "AUROC": 0.8539075463510771,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.7479582631385652,
+    "proxy_AUROC": 0.6341415323508985,
+    "AUROC": 0.8033685849899067,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.7523387410895738,
+    "proxy_AUROC": 0.7367729059001842,
+    "AUROC": 0.8127638387597526,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.8014442753313314,
+    "proxy_AUROC": 0.6554959010928016,
+    "AUROC": 0.8438513095706063,
+    "n_strata": 8
+   }
+  },
+  "dyn256": {
+   "dynamic": 59,
+   "eligible": 256,
+   "share": 0.23046875
+  },
+  "n_dec_share_gt_0.25": 0,
+  "n_dec_share_gt_0.25_256": 0,
+  "n_pass": 1,
+  "n_pass_am4": 2
+ },
+ "X0_s992": {
+  "gate": {
+   "v2|Y2F": {
+    "eligible": false,
+    "bouts": [
+     17,
+     11
+    ],
+    "base": 0.11257346998567441,
+    "best_neuron": 106,
+    "v1_AUROC": 0.8865096675586733,
+    "v2_AUROC": 0.8932175897541913,
+    "v1_nAP": 0.4277444276819612,
+    "v2_nAP": 0.46689563209490825,
+    "v1_top1_prec": 0.7379586652525422,
+    "v2_top1_prec": 0.6668812170680973,
+    "v1_top1_lift": 6.857081707484204,
+    "v2_top1_lift": 6.31188680780235,
+    "dAUROC": [
+     0.006707922195517968,
+     -0.026106036454082042,
+     0.03952188084511798
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|B2F": {
+    "eligible": false,
+    "bouts": [
+     11,
+     10
+    ],
+    "base": 0.09776973470070344,
+    "best_neuron": 74,
+    "v1_AUROC": 0.8683338597925476,
+    "v2_AUROC": 0.7789751455681274,
+    "v1_nAP": 0.3030951791604531,
+    "v2_nAP": 0.21965870822825603,
+    "v1_top1_prec": 0.6694239593140501,
+    "v2_top1_prec": 0.7100160102772612,
+    "v1_top1_lift": 7.003279539577187,
+    "v2_top1_lift": 7.3788850719302665,
+    "dAUROC": [
+     -0.08935871422442021,
+     -0.12350334376088214,
+     -0.055214084687958284
+    ],
+    "c1_auroc": false,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|groom_any": {
+    "eligible": false,
+    "bouts": [
+     26,
+     16
+    ],
+    "base": 0.18679038377222967,
+    "best_neuron": 74,
+    "v1_AUROC": 0.9090002383220142,
+    "v2_AUROC": 0.8759938875602936,
+    "v1_nAP": 0.6458953097356369,
+    "v2_nAP": 0.5393681797673553,
+    "v1_top1_prec": 0.8749353166051037,
+    "v2_top1_prec": 0.8590209836071773,
+    "v1_top1_lift": 4.809463999088901,
+    "v2_top1_lift": 4.672121251529204,
+    "dAUROC": [
+     -0.03300635076172054,
+     -0.06399318602776781,
+     -0.0020195154956732624
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v3|Y2F": {
+    "eligible": true,
+    "bouts": [
+     28,
+     34
+    ],
+    "base": 0.18763908688960365,
+    "best_neuron": 74,
+    "v1_AUROC": 0.822726084453553,
+    "v2_AUROC": 0.8045739983948924,
+    "v1_nAP": 0.4048321931699135,
+    "v2_nAP": 0.35680737565864945,
+    "v1_top1_prec": 0.774688706436515,
+    "v2_top1_prec": 0.7189353830200039,
+    "v1_top1_lift": 4.250677125106584,
+    "v2_top1_lift": 3.9706434462119926,
+    "dAUROC": [
+     -0.018152086058660588,
+     -0.056642273093956245,
+     0.02033810097663507
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|B2F": {
+    "eligible": true,
+    "bouts": [
+     27,
+     30
+    ],
+    "base": 0.18927418579621344,
+    "best_neuron": 74,
+    "v1_AUROC": 0.8280443184482867,
+    "v2_AUROC": 0.86852054109696,
+    "v1_nAP": 0.395981870261118,
+    "v2_nAP": 0.5613829851933493,
+    "v1_top1_prec": 0.7665321393764022,
+    "v2_top1_prec": 0.9420113897748029,
+    "v1_top1_lift": 4.075604348046411,
+    "v2_top1_lift": 5.055728661301296,
+    "dAUROC": [
+     0.04047622264867323,
+     0.00414289583605798,
+     0.07680954946128848
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v3|groom_any": {
+    "eligible": true,
+    "bouts": [
+     45,
+     42
+    ],
+    "base": 0.31459518440657935,
+    "best_neuron": 74,
+    "v1_AUROC": 0.8662803214943051,
+    "v2_AUROC": 0.8668838420755477,
+    "v1_nAP": 0.6160488019823848,
+    "v2_nAP": 0.6250479131535916,
+    "v1_top1_prec": 0.9382420427292538,
+    "v2_top1_prec": 0.9775823940580479,
+    "v1_top1_lift": 3.024618948069211,
+    "v2_top1_lift": 3.1524499630140266,
+    "dAUROC": [
+     0.0006035205812425781,
+     -0.03591160691793643,
+     0.03711864808042158
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   }
+  },
+  "prox": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.8215329234940207,
+    "proxy_AUROC": 0.6042589818310068,
+    "AUROC": 0.8932175897541913,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.7155120179007325,
+    "proxy_AUROC": 0.6916556365362598,
+    "AUROC": 0.7789751455681274,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.8198281534174039,
+    "proxy_AUROC": 0.610221639170561,
+    "AUROC": 0.8759938875602936,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.7475019851193551,
+    "proxy_AUROC": 0.6341415323508985,
+    "AUROC": 0.8045739983948924,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.8240741456046976,
+    "proxy_AUROC": 0.7367729059001842,
+    "AUROC": 0.86852054109696,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.8251670968223214,
+    "proxy_AUROC": 0.6554959010928016,
+    "AUROC": 0.8668838420755477,
+    "n_strata": 8
+   }
+  },
+  "dyn256": {
+   "dynamic": 60,
+   "eligible": 256,
+   "share": 0.234375
+  },
+  "n_dec_share_gt_0.25": 0,
+  "n_dec_share_gt_0.25_256": 0,
+  "n_pass": 2,
+  "n_pass_am4": 2
+ },
+ "A_s990": {
+  "gate": {
+   "v2|Y2F": {
+    "eligible": false,
+    "bouts": [
+     17,
+     11
+    ],
+    "base": 0.11257346998567441,
+    "best_neuron": 30,
+    "v1_AUROC": 0.8865096675586733,
+    "v2_AUROC": 0.8660059556598944,
+    "v1_nAP": 0.4277444276819612,
+    "v2_nAP": 0.16242903424498,
+    "v1_top1_prec": 0.7379586652525422,
+    "v2_top1_prec": 0.5495939675630751,
+    "v1_top1_lift": 6.857081707484204,
+    "v2_top1_lift": 5.152994811819517,
+    "dAUROC": [
+     -0.020503711898778976,
+     -0.053317670548378986,
+     0.012310246750821034
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|B2F": {
+    "eligible": false,
+    "bouts": [
+     11,
+     10
+    ],
+    "base": 0.09776973470070344,
+    "best_neuron": 30,
+    "v1_AUROC": 0.8683338597925476,
+    "v2_AUROC": 0.8788237106942004,
+    "v1_nAP": 0.3030951791604531,
+    "v2_nAP": 0.18326437559513353,
+    "v1_top1_prec": 0.6694239593140501,
+    "v2_top1_prec": 0.6682085033648727,
+    "v1_top1_lift": 7.003279539577187,
+    "v2_top1_lift": 6.923275141291479,
+    "dAUROC": [
+     0.010489850901652775,
+     -0.02365477863480915,
+     0.0446344804381147
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v2|groom_any": {
+    "eligible": false,
+    "bouts": [
+     26,
+     16
+    ],
+    "base": 0.18679038377222967,
+    "best_neuron": 30,
+    "v1_AUROC": 0.9090002383220142,
+    "v2_AUROC": 0.896972660278586,
+    "v1_nAP": 0.6458953097356369,
+    "v2_nAP": 0.4702810366389696,
+    "v1_top1_prec": 0.8749353166051037,
+    "v2_top1_prec": 0.7889892514892515,
+    "v1_top1_lift": 4.809463999088901,
+    "v2_top1_lift": 4.348428497342206,
+    "dAUROC": [
+     -0.012027578043428133,
+     -0.043014413309475405,
+     0.018959257222619142
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|Y2F": {
+    "eligible": true,
+    "bouts": [
+     28,
+     34
+    ],
+    "base": 0.18763908688960365,
+    "best_neuron": 30,
+    "v1_AUROC": 0.822726084453553,
+    "v2_AUROC": 0.7702307573174192,
+    "v1_nAP": 0.4048321931699135,
+    "v2_nAP": 0.21873064889063656,
+    "v1_top1_prec": 0.774688706436515,
+    "v2_top1_prec": 0.6313933902518691,
+    "v1_top1_lift": 4.250677125106584,
+    "v2_top1_lift": 3.4022713319977296,
+    "dAUROC": [
+     -0.05249532713613381,
+     -0.09098551417142947,
+     -0.01400514010083815
+    ],
+    "c1_auroc": false,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|B2F": {
+    "eligible": true,
+    "bouts": [
+     27,
+     30
+    ],
+    "base": 0.18927418579621344,
+    "best_neuron": 30,
+    "v1_AUROC": 0.8280443184482867,
+    "v2_AUROC": 0.8173840060528185,
+    "v1_nAP": 0.395981870261118,
+    "v2_nAP": 0.29217508110732154,
+    "v1_top1_prec": 0.7665321393764022,
+    "v2_top1_prec": 0.5058766872164585,
+    "v1_top1_lift": 4.075604348046411,
+    "v2_top1_lift": 2.647814920155717,
+    "dAUROC": [
+     -0.010660312395468274,
+     -0.046993639208083526,
+     0.025673014417146978
+    ],
+    "c1_auroc": true,
+    "c2_lift3": false,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": false,
+    "PASS_final": false
+   },
+   "v3|groom_any": {
+    "eligible": true,
+    "bouts": [
+     45,
+     42
+    ],
+    "base": 0.31459518440657935,
+    "best_neuron": 30,
+    "v1_AUROC": 0.8662803214943051,
+    "v2_AUROC": 0.8250084785408763,
+    "v1_nAP": 0.6160488019823848,
+    "v2_nAP": 0.4609555172323742,
+    "v1_top1_prec": 0.9382420427292538,
+    "v2_top1_prec": 0.7928787099156548,
+    "v1_top1_lift": 3.024618948069211,
+    "v2_top1_lift": 2.540249850768736,
+    "dAUROC": [
+     -0.04127184295342878,
+     -0.0777869704526078,
+     -0.004756715454249778
+    ],
+    "c1_auroc": true,
+    "c2_lift3": false,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   }
+  },
+  "prox": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.7496604628343393,
+    "proxy_AUROC": 0.6042589818310068,
+    "AUROC": 0.8660059556598944,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.7746986796738854,
+    "proxy_AUROC": 0.6916556365362598,
+    "AUROC": 0.8788237106942004,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.7887133569265209,
+    "proxy_AUROC": 0.610221639170561,
+    "AUROC": 0.896972660278586,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.7087947284313217,
+    "proxy_AUROC": 0.6341415323508985,
+    "AUROC": 0.7702307573174192,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.7304112579707783,
+    "proxy_AUROC": 0.7367729059001842,
+    "AUROC": 0.8173840060528185,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.7559852949501883,
+    "proxy_AUROC": 0.6554959010928016,
+    "AUROC": 0.8250084785408763,
+    "n_strata": 8
+   }
+  },
+  "dyn256": {
+   "dynamic": 200,
+   "eligible": 256,
+   "share": 0.78125
+  },
+  "n_dec_share_gt_0.25": 775,
+  "n_dec_share_gt_0.25_256": 182,
+  "n_pass": 0,
+  "n_pass_am4": 0
+ },
+ "A_s991": {
+  "gate": {
+   "v2|Y2F": {
+    "eligible": false,
+    "bouts": [
+     17,
+     11
+    ],
+    "base": 0.11257346998567441,
+    "best_neuron": 16,
+    "v1_AUROC": 0.8865096675586733,
+    "v2_AUROC": 0.9329769860275915,
+    "v1_nAP": 0.4277444276819612,
+    "v2_nAP": 0.49795567951895753,
+    "v1_top1_prec": 0.7379586652525422,
+    "v2_top1_prec": 0.7671632064576382,
+    "v1_top1_lift": 6.857081707484204,
+    "v2_top1_lift": 6.999441513911299,
+    "dAUROC": [
+     0.04646731846891816,
+     0.013653359819318152,
+     0.07928127711851818
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v2|B2F": {
+    "eligible": false,
+    "bouts": [
+     11,
+     10
+    ],
+    "base": 0.09776973470070344,
+    "best_neuron": 16,
+    "v1_AUROC": 0.8683338597925476,
+    "v2_AUROC": 0.8938504302058967,
+    "v1_nAP": 0.3030951791604531,
+    "v2_nAP": 0.1882929753261339,
+    "v1_top1_prec": 0.6694239593140501,
+    "v2_top1_prec": 0.4034041002080666,
+    "v1_top1_lift": 7.003279539577187,
+    "v2_top1_lift": 4.181825854921111,
+    "dAUROC": [
+     0.025516570413349093,
+     -0.008628059123112833,
+     0.05966119994981102
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|groom_any": {
+    "eligible": false,
+    "bouts": [
+     26,
+     16
+    ],
+    "base": 0.18679038377222967,
+    "best_neuron": 16,
+    "v1_AUROC": 0.9090002383220142,
+    "v2_AUROC": 0.9479676505830996,
+    "v1_nAP": 0.6458953097356369,
+    "v2_nAP": 0.7215129993702099,
+    "v1_top1_prec": 0.8749353166051037,
+    "v2_top1_prec": 0.8684199553307105,
+    "v1_top1_lift": 4.809463999088901,
+    "v2_top1_lift": 4.736337409040463,
+    "dAUROC": [
+     0.038967412261085466,
+     0.00798057699503819,
+     0.06995424752713274
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v3|Y2F": {
+    "eligible": true,
+    "bouts": [
+     28,
+     34
+    ],
+    "base": 0.18763908688960365,
+    "best_neuron": 16,
+    "v1_AUROC": 0.822726084453553,
+    "v2_AUROC": 0.8467347645526275,
+    "v1_nAP": 0.4048321931699135,
+    "v2_nAP": 0.3991070819183237,
+    "v1_top1_prec": 0.774688706436515,
+    "v2_top1_prec": 0.7455788537640705,
+    "v1_top1_lift": 4.250677125106584,
+    "v2_top1_lift": 4.04545583589469,
+    "dAUROC": [
+     0.02400868009907453,
+     -0.014481506936221127,
+     0.06249886713437019
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v3|B2F": {
+    "eligible": true,
+    "bouts": [
+     27,
+     30
+    ],
+    "base": 0.18927418579621344,
+    "best_neuron": 16,
+    "v1_AUROC": 0.8280443184482867,
+    "v2_AUROC": 0.8526217402021579,
+    "v1_nAP": 0.395981870261118,
+    "v2_nAP": 0.4052129077135997,
+    "v1_top1_prec": 0.7665321393764022,
+    "v2_top1_prec": 0.679125745693673,
+    "v1_top1_lift": 4.075604348046411,
+    "v2_top1_lift": 3.620409731951868,
+    "dAUROC": [
+     0.02457742175387112,
+     -0.011755905058744132,
+     0.06091074856648637
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|groom_any": {
+    "eligible": true,
+    "bouts": [
+     45,
+     42
+    ],
+    "base": 0.31459518440657935,
+    "best_neuron": 16,
+    "v1_AUROC": 0.8662803214943051,
+    "v2_AUROC": 0.8994008749958121,
+    "v1_nAP": 0.6160488019823848,
+    "v2_nAP": 0.6496628102737748,
+    "v1_top1_prec": 0.9382420427292538,
+    "v2_top1_prec": 0.9097025591867007,
+    "v1_top1_lift": 3.024618948069211,
+    "v2_top1_lift": 2.926791733377535,
+    "dAUROC": [
+     0.033120553501507,
+     -0.0033945739976720055,
+     0.06963568100068601
+    ],
+    "c1_auroc": true,
+    "c2_lift3": false,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": false,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   }
+  },
+  "prox": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.892484671070508,
+    "proxy_AUROC": 0.6042589818310068,
+    "AUROC": 0.9329769860275915,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.8153483107003647,
+    "proxy_AUROC": 0.6916556365362598,
+    "AUROC": 0.8938504302058967,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.9223586038891501,
+    "proxy_AUROC": 0.610221639170561,
+    "AUROC": 0.9479676505830996,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.7981738713593147,
+    "proxy_AUROC": 0.6341415323508985,
+    "AUROC": 0.8467347645526275,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.7984495823236294,
+    "proxy_AUROC": 0.7367729059001842,
+    "AUROC": 0.8526217402021579,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.8585721164448824,
+    "proxy_AUROC": 0.6554959010928016,
+    "AUROC": 0.8994008749958121,
+    "n_strata": 8
+   }
+  },
+  "dyn256": {
+   "dynamic": 200,
+   "eligible": 256,
+   "share": 0.78125
+  },
+  "n_dec_share_gt_0.25": 767,
+  "n_dec_share_gt_0.25_256": 185,
+  "n_pass": 1,
+  "n_pass_am4": 2
+ },
+ "A_s992": {
+  "gate": {
+   "v2|Y2F": {
+    "eligible": false,
+    "bouts": [
+     17,
+     11
+    ],
+    "base": 0.11257346998567441,
+    "best_neuron": 230,
+    "v1_AUROC": 0.8865096675586733,
+    "v2_AUROC": 0.863590776828625,
+    "v1_nAP": 0.4277444276819612,
+    "v2_nAP": 0.5485021624635197,
+    "v1_top1_prec": 0.7379586652525422,
+    "v2_top1_prec": 0.7208136437255429,
+    "v1_top1_lift": 6.857081707484204,
+    "v2_top1_lift": 6.494693396257684,
+    "dAUROC": [
+     -0.02291889073004838,
+     -0.05573284937964839,
+     0.00989506791955163
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v2|B2F": {
+    "eligible": false,
+    "bouts": [
+     11,
+     10
+    ],
+    "base": 0.09776973470070344,
+    "best_neuron": 65,
+    "v1_AUROC": 0.8683338597925476,
+    "v2_AUROC": 0.860035492318684,
+    "v1_nAP": 0.3030951791604531,
+    "v2_nAP": 0.11780505151467745,
+    "v1_top1_prec": 0.6694239593140501,
+    "v2_top1_prec": 0.6486122649280545,
+    "v1_top1_lift": 7.003279539577187,
+    "v2_top1_lift": 6.736730963311101,
+    "dAUROC": [
+     -0.008298367473863588,
+     -0.042442997010325514,
+     0.025846262062598338
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v2|groom_any": {
+    "eligible": false,
+    "bouts": [
+     26,
+     16
+    ],
+    "base": 0.18679038377222967,
+    "best_neuron": 65,
+    "v1_AUROC": 0.9090002383220142,
+    "v2_AUROC": 0.8770729861285121,
+    "v1_nAP": 0.6458953097356369,
+    "v2_nAP": 0.5380949877290405,
+    "v1_top1_prec": 0.8749353166051037,
+    "v2_top1_prec": 0.7334590085028682,
+    "v1_top1_lift": 4.809463999088901,
+    "v2_top1_lift": 4.045270289975621,
+    "dAUROC": [
+     -0.03192725219350201,
+     -0.06291408745954928,
+     -0.000940416927454734
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|Y2F": {
+    "eligible": true,
+    "bouts": [
+     28,
+     34
+    ],
+    "base": 0.18763908688960365,
+    "best_neuron": 65,
+    "v1_AUROC": 0.822726084453553,
+    "v2_AUROC": 0.7278503129858015,
+    "v1_nAP": 0.4048321931699135,
+    "v2_nAP": 0.16464470110758941,
+    "v1_top1_prec": 0.774688706436515,
+    "v2_top1_prec": 0.49465619627257745,
+    "v1_top1_lift": 4.250677125106584,
+    "v2_top1_lift": 2.595831701448073,
+    "dAUROC": [
+     -0.0948757714677515,
+     -0.13336595850304717,
+     -0.056385584432455844
+    ],
+    "c1_auroc": false,
+    "c2_lift3": false,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": false,
+    "PASS_final": false
+   },
+   "v3|B2F": {
+    "eligible": true,
+    "bouts": [
+     27,
+     30
+    ],
+    "base": 0.18927418579621344,
+    "best_neuron": 65,
+    "v1_AUROC": 0.8280443184482867,
+    "v2_AUROC": 0.7840447334951451,
+    "v1_nAP": 0.395981870261118,
+    "v2_nAP": 0.2590206612732446,
+    "v1_top1_prec": 0.7665321393764022,
+    "v2_top1_prec": 0.47846587668916846,
+    "v1_top1_lift": 4.075604348046411,
+    "v2_top1_lift": 2.519688903068785,
+    "dAUROC": [
+     -0.0439995849531416,
+     -0.08033291176575685,
+     -0.00766625814052635
+    ],
+    "c1_auroc": true,
+    "c2_lift3": false,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": false,
+    "PASS_final": false
+   },
+   "v3|groom_any": {
+    "eligible": true,
+    "bouts": [
+     45,
+     42
+    ],
+    "base": 0.31459518440657935,
+    "best_neuron": 65,
+    "v1_AUROC": 0.8662803214943051,
+    "v2_AUROC": 0.7991781599319996,
+    "v1_nAP": 0.6160488019823848,
+    "v2_nAP": 0.36375398341090576,
+    "v1_top1_prec": 0.9382420427292538,
+    "v2_top1_prec": 0.7718511128664552,
+    "v1_top1_lift": 3.024618948069211,
+    "v2_top1_lift": 2.4645124280290176,
+    "dAUROC": [
+     -0.06710216156230553,
+     -0.10361728906148454,
+     -0.030587034063126524
+    ],
+    "c1_auroc": false,
+    "c2_lift3": false,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   }
+  },
+  "prox": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.811637029900838,
+    "proxy_AUROC": 0.6042589818310068,
+    "AUROC": 0.863590776828625,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.7388271478709568,
+    "proxy_AUROC": 0.6916556365362598,
+    "AUROC": 0.860035492318684,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.7501955480057632,
+    "proxy_AUROC": 0.610221639170561,
+    "AUROC": 0.8770729861285121,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.6610464440518528,
+    "proxy_AUROC": 0.6341415323508985,
+    "AUROC": 0.7278503129858015,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.6793228252125024,
+    "proxy_AUROC": 0.7367729059001842,
+    "AUROC": 0.7840447334951451,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.7126899161178962,
+    "proxy_AUROC": 0.6554959010928016,
+    "AUROC": 0.7991781599319996,
+    "n_strata": 8
+   }
+  },
+  "dyn256": {
+   "dynamic": 202,
+   "eligible": 256,
+   "share": 0.7890625
+  },
+  "n_dec_share_gt_0.25": 810,
+  "n_dec_share_gt_0.25_256": 182,
+  "n_pass": 0,
+  "n_pass_am4": 0
+ },
+ "B_s990": {
+  "gate": {
+   "v2|Y2F": {
+    "eligible": false,
+    "bouts": [
+     17,
+     11
+    ],
+    "base": 0.11257346998567441,
+    "best_neuron": 156,
+    "v1_AUROC": 0.8865096675586733,
+    "v2_AUROC": 0.9009306857545362,
+    "v1_nAP": 0.4277444276819612,
+    "v2_nAP": 0.5850210920481955,
+    "v1_top1_prec": 0.7379586652525422,
+    "v2_top1_prec": 0.8392395447448843,
+    "v1_top1_lift": 6.857081707484204,
+    "v2_top1_lift": 7.980954029529773,
+    "dAUROC": [
+     0.014421018195862834,
+     -0.018392940453737176,
+     0.047234976845462844
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v2|B2F": {
+    "eligible": false,
+    "bouts": [
+     11,
+     10
+    ],
+    "base": 0.09776973470070344,
+    "best_neuron": 99,
+    "v1_AUROC": 0.8683338597925476,
+    "v2_AUROC": 0.7195020156360927,
+    "v1_nAP": 0.3030951791604531,
+    "v2_nAP": 0.0924196825145044,
+    "v1_top1_prec": 0.6694239593140501,
+    "v2_top1_prec": 0.4091077889113739,
+    "v1_top1_lift": 7.003279539577187,
+    "v2_top1_lift": 4.2841482541355935,
+    "dAUROC": [
+     -0.1488318441564549,
+     -0.1829764736929168,
+     -0.11468721461999297
+    ],
+    "c1_auroc": false,
+    "c2_lift3": true,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|groom_any": {
+    "eligible": false,
+    "bouts": [
+     26,
+     16
+    ],
+    "base": 0.18679038377222967,
+    "best_neuron": 156,
+    "v1_AUROC": 0.9090002383220142,
+    "v2_AUROC": 0.8535820160610176,
+    "v1_nAP": 0.6458953097356369,
+    "v2_nAP": 0.6369840797950888,
+    "v1_top1_prec": 0.8749353166051037,
+    "v2_top1_prec": 0.9722476920627187,
+    "v1_top1_lift": 4.809463999088901,
+    "v2_top1_lift": 5.297791775453825,
+    "dAUROC": [
+     -0.055418222260996575,
+     -0.08640505752704385,
+     -0.0244313869949493
+    ],
+    "c1_auroc": false,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|Y2F": {
+    "eligible": true,
+    "bouts": [
+     28,
+     34
+    ],
+    "base": 0.18763908688960365,
+    "best_neuron": 156,
+    "v1_AUROC": 0.822726084453553,
+    "v2_AUROC": 0.755928294483296,
+    "v1_nAP": 0.4048321931699135,
+    "v2_nAP": 0.2322711056402488,
+    "v1_top1_prec": 0.774688706436515,
+    "v2_top1_prec": 0.5003887926260638,
+    "v1_top1_lift": 4.250677125106584,
+    "v2_top1_lift": 2.5941190770306854,
+    "dAUROC": [
+     -0.06679778997025698,
+     -0.10528797700555265,
+     -0.028307602934961325
+    ],
+    "c1_auroc": false,
+    "c2_lift3": false,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": false,
+    "PASS_final": false
+   },
+   "v3|B2F": {
+    "eligible": true,
+    "bouts": [
+     27,
+     30
+    ],
+    "base": 0.18927418579621344,
+    "best_neuron": 156,
+    "v1_AUROC": 0.8280443184482867,
+    "v2_AUROC": 0.7380542357473967,
+    "v1_nAP": 0.395981870261118,
+    "v2_nAP": 0.2877011324683692,
+    "v1_top1_prec": 0.7665321393764022,
+    "v2_top1_prec": 0.5193357770888203,
+    "v1_top1_lift": 4.075604348046411,
+    "v2_top1_lift": 2.7795936748773507,
+    "dAUROC": [
+     -0.08999008270089004,
+     -0.1263234095135053,
+     -0.05365675588827479
+    ],
+    "c1_auroc": false,
+    "c2_lift3": false,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": false,
+    "PASS_final": false
+   },
+   "v3|groom_any": {
+    "eligible": true,
+    "bouts": [
+     45,
+     42
+    ],
+    "base": 0.31459518440657935,
+    "best_neuron": 156,
+    "v1_AUROC": 0.8662803214943051,
+    "v2_AUROC": 0.8122077883996353,
+    "v1_nAP": 0.6160488019823848,
+    "v2_nAP": 0.4190976130634935,
+    "v1_top1_prec": 0.9382420427292538,
+    "v2_top1_prec": 0.7654002431095229,
+    "v1_top1_lift": 3.024618948069211,
+    "v2_top1_lift": 2.459933188644114,
+    "dAUROC": [
+     -0.05407253309466986,
+     -0.09058766059384887,
+     -0.017557405595490856
+    ],
+    "c1_auroc": false,
+    "c2_lift3": false,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   }
+  },
+  "prox": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.8671677838125319,
+    "proxy_AUROC": 0.6042589818310068,
+    "AUROC": 0.9009306857545362,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.6372634672331453,
+    "proxy_AUROC": 0.6916556365362598,
+    "AUROC": 0.7195020156360927,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.8374446076093195,
+    "proxy_AUROC": 0.610221639170561,
+    "AUROC": 0.8535820160610176,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.6955837133533423,
+    "proxy_AUROC": 0.6341415323508985,
+    "AUROC": 0.755928294483296,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.673746124420728,
+    "proxy_AUROC": 0.7367729059001842,
+    "AUROC": 0.7380542357473967,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.7508879312884899,
+    "proxy_AUROC": 0.6554959010928016,
+    "AUROC": 0.8122077883996353,
+    "n_strata": 8
+   }
+  },
+  "dyn256": {
+   "dynamic": 198,
+   "eligible": 256,
+   "share": 0.7734375
+  },
+  "n_dec_share_gt_0.25": 1180,
+  "n_dec_share_gt_0.25_256": 187,
+  "n_pass": 0,
+  "n_pass_am4": 0
+ },
+ "B_s991": {
+  "gate": {
+   "v2|Y2F": {
+    "eligible": false,
+    "bouts": [
+     17,
+     11
+    ],
+    "base": 0.11257346998567441,
+    "best_neuron": 130,
+    "v1_AUROC": 0.8865096675586733,
+    "v2_AUROC": 0.8530719144974315,
+    "v1_nAP": 0.4277444276819612,
+    "v2_nAP": 0.4223845903334657,
+    "v1_top1_prec": 0.7379586652525422,
+    "v2_top1_prec": 0.6745952948088721,
+    "v1_top1_lift": 6.857081707484204,
+    "v2_top1_lift": 6.1144348091010245,
+    "dAUROC": [
+     -0.03343775306124186,
+     -0.06625171171084188,
+     -0.0006237944116418495
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|B2F": {
+    "eligible": false,
+    "bouts": [
+     11,
+     10
+    ],
+    "base": 0.09776973470070344,
+    "best_neuron": 94,
+    "v1_AUROC": 0.8683338597925476,
+    "v2_AUROC": 0.8757523445764236,
+    "v1_nAP": 0.3030951791604531,
+    "v2_nAP": 0.19995668807238595,
+    "v1_top1_prec": 0.6694239593140501,
+    "v2_top1_prec": 0.699370584143658,
+    "v1_top1_lift": 7.003279539577187,
+    "v2_top1_lift": 7.2471969573098685,
+    "dAUROC": [
+     0.007418484783875967,
+     -0.02672614475258596,
+     0.04156311432033789
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v2|groom_any": {
+    "eligible": false,
+    "bouts": [
+     26,
+     16
+    ],
+    "base": 0.18679038377222967,
+    "best_neuron": 94,
+    "v1_AUROC": 0.9090002383220142,
+    "v2_AUROC": 0.8926459263578962,
+    "v1_nAP": 0.6458953097356369,
+    "v2_nAP": 0.55801410276497,
+    "v1_top1_prec": 0.8749353166051037,
+    "v2_top1_prec": 0.8052863476185368,
+    "v1_top1_lift": 4.809463999088901,
+    "v2_top1_lift": 4.418182159513838,
+    "dAUROC": [
+     -0.016354311964117962,
+     -0.047341147230165234,
+     0.014632523301929313
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|Y2F": {
+    "eligible": true,
+    "bouts": [
+     28,
+     34
+    ],
+    "base": 0.18763908688960365,
+    "best_neuron": 130,
+    "v1_AUROC": 0.822726084453553,
+    "v2_AUROC": 0.7639149119395617,
+    "v1_nAP": 0.4048321931699135,
+    "v2_nAP": 0.24125430926622096,
+    "v1_top1_prec": 0.774688706436515,
+    "v2_top1_prec": 0.5736007190467721,
+    "v1_top1_lift": 4.250677125106584,
+    "v2_top1_lift": 3.065410137149371,
+    "dAUROC": [
+     -0.05881117251399126,
+     -0.09730135954928693,
+     -0.020320985478695604
+    ],
+    "c1_auroc": false,
+    "c2_lift3": true,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|B2F": {
+    "eligible": true,
+    "bouts": [
+     27,
+     30
+    ],
+    "base": 0.18927418579621344,
+    "best_neuron": 94,
+    "v1_AUROC": 0.8280443184482867,
+    "v2_AUROC": 0.7896478163465765,
+    "v1_nAP": 0.395981870261118,
+    "v2_nAP": 0.2842858458275345,
+    "v1_top1_prec": 0.7665321393764022,
+    "v2_top1_prec": 0.5177531744035764,
+    "v1_top1_lift": 4.075604348046411,
+    "v2_top1_lift": 2.731358888274048,
+    "dAUROC": [
+     -0.038396502101710195,
+     -0.07472982891432545,
+     -0.002063175289094943
+    ],
+    "c1_auroc": true,
+    "c2_lift3": false,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": false,
+    "PASS_final": false
+   },
+   "v3|groom_any": {
+    "eligible": true,
+    "bouts": [
+     45,
+     42
+    ],
+    "base": 0.31459518440657935,
+    "best_neuron": 130,
+    "v1_AUROC": 0.8662803214943051,
+    "v2_AUROC": 0.8136230847517486,
+    "v1_nAP": 0.6160488019823848,
+    "v2_nAP": 0.4669868160078206,
+    "v1_top1_prec": 0.9382420427292538,
+    "v2_top1_prec": 0.7796614616495425,
+    "v1_top1_lift": 3.024618948069211,
+    "v2_top1_lift": 2.496550959743175,
+    "dAUROC": [
+     -0.05265723674255651,
+     -0.08917236424173552,
+     -0.016142109243377507
+    ],
+    "c1_auroc": false,
+    "c2_lift3": false,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   }
+  },
+  "prox": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.779785053229165,
+    "proxy_AUROC": 0.6042589818310068,
+    "AUROC": 0.8530719144974315,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.7698393337040307,
+    "proxy_AUROC": 0.6916556365362598,
+    "AUROC": 0.8757523445764236,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.7814733595626328,
+    "proxy_AUROC": 0.610221639170561,
+    "AUROC": 0.8926459263578962,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.6936411939213168,
+    "proxy_AUROC": 0.6341415323508985,
+    "AUROC": 0.7639149119395617,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.7141171773078671,
+    "proxy_AUROC": 0.7367729059001842,
+    "AUROC": 0.7896478163465765,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.750331757842912,
+    "proxy_AUROC": 0.6554959010928016,
+    "AUROC": 0.8136230847517486,
+    "n_strata": 8
+   }
+  },
+  "dyn256": {
+   "dynamic": 206,
+   "eligible": 256,
+   "share": 0.8046875
+  },
+  "n_dec_share_gt_0.25": 1188,
+  "n_dec_share_gt_0.25_256": 193,
+  "n_pass": 0,
+  "n_pass_am4": 0
+ },
+ "B_s992": {
+  "gate": {
+   "v2|Y2F": {
+    "eligible": false,
+    "bouts": [
+     17,
+     11
+    ],
+    "base": 0.11257346998567441,
+    "best_neuron": 67,
+    "v1_AUROC": 0.8865096675586733,
+    "v2_AUROC": 0.8475250985612203,
+    "v1_nAP": 0.4277444276819612,
+    "v2_nAP": 0.4227934147347605,
+    "v1_top1_prec": 0.7379586652525422,
+    "v2_top1_prec": 0.5954565312078661,
+    "v1_top1_lift": 6.857081707484204,
+    "v2_top1_lift": 5.412206700262008,
+    "dAUROC": [
+     -0.03898456899745306,
+     -0.07179852764705308,
+     -0.006170610347853052
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v2|B2F": {
+    "eligible": false,
+    "bouts": [
+     11,
+     10
+    ],
+    "base": 0.09776973470070344,
+    "best_neuron": 67,
+    "v1_AUROC": 0.8683338597925476,
+    "v2_AUROC": 0.8857409168787512,
+    "v1_nAP": 0.3030951791604531,
+    "v2_nAP": 0.2811780361979266,
+    "v1_top1_prec": 0.6694239593140501,
+    "v2_top1_prec": 0.7337956904242183,
+    "v1_top1_lift": 7.003279539577187,
+    "v2_top1_lift": 7.590833538984822,
+    "dAUROC": [
+     0.017407057086203603,
+     -0.016737572450258323,
+     0.05155168662266553
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": true,
+    "PASS": true,
+    "PASS_am4": true,
+    "c2f_final": true,
+    "PASS_final": true
+   },
+   "v2|groom_any": {
+    "eligible": false,
+    "bouts": [
+     26,
+     16
+    ],
+    "base": 0.18679038377222967,
+    "best_neuron": 67,
+    "v1_AUROC": 0.9090002383220142,
+    "v2_AUROC": 0.8996289504256801,
+    "v1_nAP": 0.6458953097356369,
+    "v2_nAP": 0.5178236906666127,
+    "v1_top1_prec": 0.8749353166051037,
+    "v2_top1_prec": 0.8206987716636841,
+    "v1_top1_lift": 4.809463999088901,
+    "v2_top1_lift": 4.5108092482508635,
+    "dAUROC": [
+     -0.009371287896334013,
+     -0.040358123162381285,
+     0.021615547369713262
+    ],
+    "c1_auroc": true,
+    "c2_lift3": true,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   },
+   "v3|Y2F": {
+    "eligible": true,
+    "bouts": [
+     28,
+     34
+    ],
+    "base": 0.18763908688960365,
+    "best_neuron": 67,
+    "v1_AUROC": 0.822726084453553,
+    "v2_AUROC": 0.7669956320093997,
+    "v1_nAP": 0.4048321931699135,
+    "v2_nAP": 0.24369689040042178,
+    "v1_top1_prec": 0.774688706436515,
+    "v2_top1_prec": 0.5420364674433582,
+    "v1_top1_lift": 4.250677125106584,
+    "v2_top1_lift": 2.910783043523748,
+    "dAUROC": [
+     -0.05573045244415331,
+     -0.09422063947944898,
+     -0.017240265408857654
+    ],
+    "c1_auroc": false,
+    "c2_lift3": false,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": false,
+    "PASS_final": false
+   },
+   "v3|B2F": {
+    "eligible": true,
+    "bouts": [
+     27,
+     30
+    ],
+    "base": 0.18927418579621344,
+    "best_neuron": 67,
+    "v1_AUROC": 0.8280443184482867,
+    "v2_AUROC": 0.7964813132791684,
+    "v1_nAP": 0.395981870261118,
+    "v2_nAP": 0.26138343906817085,
+    "v1_top1_prec": 0.7665321393764022,
+    "v2_top1_prec": 0.4413155893114153,
+    "v1_top1_lift": 4.075604348046411,
+    "v2_top1_lift": 2.334002831339943,
+    "dAUROC": [
+     -0.03156300516911836,
+     -0.06789633198173362,
+     0.004770321643496889
+    ],
+    "c1_auroc": true,
+    "c2_lift3": false,
+    "c2b_half": false,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": false,
+    "PASS_final": false
+   },
+   "v3|groom_any": {
+    "eligible": true,
+    "bouts": [
+     45,
+     42
+    ],
+    "base": 0.31459518440657935,
+    "best_neuron": 67,
+    "v1_AUROC": 0.8662803214943051,
+    "v2_AUROC": 0.8291718767762787,
+    "v1_nAP": 0.6160488019823848,
+    "v2_nAP": 0.4513261364880861,
+    "v1_top1_prec": 0.9382420427292538,
+    "v2_top1_prec": 0.7748857951380184,
+    "v1_top1_lift": 3.024618948069211,
+    "v2_top1_lift": 2.489122969006184,
+    "dAUROC": [
+     -0.037108444718026434,
+     -0.07362357221720545,
+     -0.0005933172188474292
+    ],
+    "c1_auroc": true,
+    "c2_lift3": false,
+    "c2b_half": true,
+    "c3_prec": false,
+    "PASS": false,
+    "PASS_am4": false,
+    "c2f_final": true,
+    "PASS_final": false
+   }
+  },
+  "prox": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.7571311279854515,
+    "proxy_AUROC": 0.6042589818310068,
+    "AUROC": 0.8475250985612203,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.7902718620528132,
+    "proxy_AUROC": 0.6916556365362598,
+    "AUROC": 0.8857409168787512,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.8028118592186239,
+    "proxy_AUROC": 0.610221639170561,
+    "AUROC": 0.8996289504256801,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.704973170555637,
+    "proxy_AUROC": 0.6341415323508985,
+    "AUROC": 0.7669956320093997,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.7202251120283685,
+    "proxy_AUROC": 0.7367729059001842,
+    "AUROC": 0.7964813132791684,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.7673972510645527,
+    "proxy_AUROC": 0.6554959010928016,
+    "AUROC": 0.8291718767762787,
+    "n_strata": 8
+   }
+  },
+  "dyn256": {
+   "dynamic": 199,
+   "eligible": 256,
+   "share": 0.77734375
+  },
+  "n_dec_share_gt_0.25": 1177,
+  "n_dec_share_gt_0.25_256": 183,
+  "n_pass": 0,
+  "n_pass_am4": 0
+ }
+}
