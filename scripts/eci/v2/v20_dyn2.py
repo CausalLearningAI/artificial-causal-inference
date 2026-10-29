@@ -212,7 +212,7 @@ def cmd_pcodes(a):
     dev = torch.device('cuda')
     S = Seq(store(EC / 'v2_behav', a.dom))
     P = torch.load(BEE / f'{a.dom}_pca.pt', map_location=dev)
-    codes(a.dom, S, P, dev, ('probe',), time.time())
+    codes(a.dom, S, P, dev, tuple(a.which.split(',')), time.time())
 
 
 def cmd_score(a):
@@ -280,6 +280,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('step', choices=('run', 'score', 'pcodes'))
     p.add_argument('--dom', choices=('mice', 'ants'))
+    p.add_argument('--which', default='probe')
     a = p.parse_args()
     {'run': cmd_run, 'score': cmd_score, 'pcodes': cmd_pcodes}[a.step](a)
 
