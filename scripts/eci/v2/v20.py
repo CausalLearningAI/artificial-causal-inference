@@ -47,7 +47,10 @@ V2F = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_diag')
 BG_V20 = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_0/bg')  # frogs / mice v2 packs (fixed: PASS B uses another V2_BEE)
 NOSTORE = os.environ.get('V20_NOSTORE') == '1'  # PASS B: no training store
 FULLTOK = os.environ.get('V20_FULLTOK') == '1'  # full token store: N2 dilated by one token + flags, no per-video code npz
-POOLED = os.environ.get('V20_POOLED', '0') == '1'  # mice full store: also the session-pooled-background N2 (superset + flag)
+POOLED = os.environ.get('V20_POOLED', '0') == '1'
+V1MASK = os.environ.get('V20_V1MASK', '0') == '1'  # full store: also v1's exact dilated mask (V1M_d2), flag + union
+V1RULE = {'mice': 'fg448', 'ants': 'ants', 'frogs': 'frogs'}
+_M2 = {}  # mice full store: also the session-pooled-background N2 (superset + flag)
 TOKROOT = Path(os.environ.get('V20_TOKROOT', '/mnt/beegfs/locatgrp/shared/rcadei/eci_tokens/v2_full'))
 NSH = {'mice': 32, 'ants': 16, 'frogs': 16}
 NSH_STORE1 = 8  # frogs 1 fps store shards
@@ -106,6 +109,21 @@ def make_series_class(dom):
             self.dom, self.ser = dom, cfg['name']
             self.h = h_of(dom, self.ser)
             self._packs = {}
+            self.fb = None
+            self.last_v1 = None
+            if V1MASK and self.geometry == 'frame':  # v1's exact mask (scripts/eci/v2_diag/v1mask.py V1M_d2)
+                from src.eci.foreground import RULES, FgBackgrounds
+                from src.eci.v2.pipeline import obs_ranges
+                m = cfg['mask']
+                self.fb = FgBackgrounds(REPO / m['bg'], obs_ranges(REPO / cfg['ann']), RULES[V1RULE[dom]], dev,
+                                        align=m.get('align', 'none'), cache=4)
+                if 'm2' not in _M2:
+                    from transformers import AutoModel
+                    _M2['m2'] = AutoModel.from_pretrained('facebook/dinov2-base', attn_implementation='sdpa').to(dev).eval().requires_grad_(False)
+                    _M2['mean'] = torch.tensor((0.485, 0.456, 0.406), device=dev)[None, :, None, None]
+                    _M2['std'] = torch.tensor((0.229, 0.224, 0.225), device=dev)[None, :, None, None]
+                cen = ((np.arange(self.G) + 0.5) * 32 / self.G).astype(int)
+                self.idx32 = torch.from_numpy((cen[:, None] * 32 + cen[None, :]).ravel()).to(dev)
             self.stats = {'frames': 0, 'kept': 0, 'm0': 0}
 
         def pack(self, obs, w):
@@ -197,6 +215,12 @@ def make_series_class(dom):
             self.stats['m0'] += int(m0.sum())
             self.last_m0 = m0
             self.last_n2pool = None
+            if self.fb is not None:
+                x512 = F.interpolate(x.float(), size=(512, 512), mode='bicubic', antialias=True, align_corners=False).round().clamp(0, 255)
+                x448 = F.interpolate(x512, size=(448, 448), mode='bicubic', antialias=True, align_corners=False)
+                t2 = _M2['m2'](pixel_values=((x448 / 255 - _M2['mean']) / _M2['std'])).last_hidden_state[:, 1:].float()
+                m32, _ = self.fb.mask(t2, grey_of(x512.to(torch.uint8)), v['src_lo'] + ks)
+                self.last_v1 = m32[:, self.idx32]
             if POOLED and self.dom == 'mice' and self.geometry != 'crop':
                 kp, _ = self.n2(x, core0, self.pool_pack(v['obs']))
                 self.last_n2pool = kp
@@ -547,7 +571,7 @@ def cmd_encode(a):
     loc_s = R.local_dir() / f'store5_{tag}'
     loc_s.mkdir(parents=True, exist_ok=True)
     ftok = open(loc_s / 'tok.f16', 'ab')
-    st_tf, st_pos, recs, st_n2, st_m0, st_np = [], [], [], [], [], []
+    st_tf, st_pos, recs, st_n2, st_m0, st_np, st_v1 = [], [], [], [], [], [], []
     T0, tot = time.time(), 0
     for ser, vi in todo:
         sc = R.series_of(c, ser)
@@ -589,7 +613,8 @@ def cmd_encode(a):
                     if FULLTOK:  # store = N2 dilated by one token (v1-style ring) with per-token N2 / tight flags
                         G_ = Se.G
                         kp_ = Se.last_n2pool if getattr(Se, 'last_n2pool', None) is not None else torch.zeros_like(keep)
-                        dil = F.max_pool2d((keep | kp_).float().view(-1, 1, G_, G_), 3, 1, 1).flatten(1) > 0.5
+                        v1_ = Se.last_v1 if getattr(Se, 'last_v1', None) is not None else torch.zeros_like(keep)
+                        dil = (F.max_pool2d((keep | kp_).float().view(-1, 1, G_, G_), 3, 1, 1).flatten(1) > 0.5) | v1_
                         bd, pd_ = dil.nonzero(as_tuple=True)
                         ftok.write(z[bd, pd_].cpu().numpy().tobytes())
                         st_pos.append(pd_.to(torch.int16).cpu().numpy())
@@ -597,6 +622,7 @@ def cmd_encode(a):
                         st_n2.append(keep[bd, pd_].cpu().numpy())
                         st_m0.append(Se.last_m0[bd, pd_].cpu().numpy())
                         st_np.append(kp_[bd, pd_].cpu().numpy())
+                        st_v1.append(v1_[bd, pd_].cpu().numpy())
                         cnt = np.bincount(bd.cpu().numpy(), minlength=len(kk))
                         for i_, k in enumerate(kk):
                             recs.append((ser, v['obs'], int(k), v['role'], int(nk[i_]), int(cnt[i_])))
@@ -635,6 +661,7 @@ def cmd_encode(a):
         np.save(loc_s / 'flag_n2.npy', np.concatenate(st_n2))
         np.save(loc_s / 'flag_tight.npy', np.concatenate(st_m0))
         np.save(loc_s / 'flag_n2pool.npy', np.concatenate(st_np))  # all False outside mice
+        np.save(loc_s / 'flag_v1.npy', np.concatenate(st_v1))  # v1's exact dilated mask (all False for tadpoles)
     Fm = pd.DataFrame(recs, columns=['series', 'obs', 'k', 'role', 'n_kept', 'n_store'])
     Fm.to_parquet(loc_s / 'frames.parquet')
     nt = int(Fm.n_store.sum())
