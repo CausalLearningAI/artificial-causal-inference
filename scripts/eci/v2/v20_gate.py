@@ -75,6 +75,12 @@ POST-HOC AMENDMENT 4 (2026-10-29, user, AFTER the Part A gate results were seen)
 POST-HOC AMENDMENT 5 (2026-10-29, user's FINAL rule, after AMENDMENT 4 results were seen): criterion (2) =
   'top-1% precision >= min(3 x base rate, base + 0.5 (1 - base))'; (1) and (3) unchanged. Reported side by side:
   PASS (original 3x), PASS_am4 (base + 0.5 (1 - base)), PASS_final (this rule).
+AMENDMENT 6 (2026-10-29, user-approved motion retry; written BEFORE any of these SAEs existed): arms A and B of
+  AMENDMENT 3 with the motion blocks DOWN-WEIGHTED: with x keeping its scale, the motion blocks (A: block1; B: block1 and
+  block2, equal shares) are rescaled so that together they make w = 10% (arms A10 / B10) or 20% (A20 / B20) of the mean
+  squared norm of the input; same probe stores, same token sample (rng 0), same PCA (U1, U2), same recipe, seeds
+  990-992; X0 = the existing control. Scored like AMENDMENT 3 (gate final rule, mean AUROC, dynamic share @256,
+  neurons with decoder squared-norm share > 0.25 on the motion blocks). No adoption rule here: reported to the user.
 ==================================================================================================================
 Steps: gate (CPU) ; dyn_train --dom D (GPU) ; dyn_codes --dom D (GPU) ; dyn_gate --dom D (CPU)
 """

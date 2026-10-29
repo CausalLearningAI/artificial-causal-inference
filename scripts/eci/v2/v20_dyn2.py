@@ -20,6 +20,17 @@ BEE = EC / 'v2_0B/dyn2'
 OUT = REPO / 'results/vision/eci_v2_0B/dyn2'
 SEEDS = (990, 991, 992)
 ARMS = {'X0': 1024, 'A': 1152, 'B': 1280}
+WARMS = {'A10': (1152, 0.10), 'A20': (1152, 0.20), 'B10': (1280, 0.10), 'B20': (1280, 0.20)}  # AMENDMENT 6
+
+
+def wscale(x, arm):
+    """equal-norm features [x, b1, b2] -> motion blocks rescaled to a share w of the mean squared norm (AMENDMENT 6)."""
+    d, w = WARMS[arm]
+    nb = 1 if d == 1152 else 2
+    f = (w / (1 - w) / nb) ** 0.5  # each equal-norm motion block has the msn of x
+    y = x[:, :d].clone()
+    y[:, 1024:] *= f
+    return y
 CAP = {'train': 12_000_000, 'calib': 1_500_000, 'eval': 1_500_000}
 NPCA, KP = 1_000_000, 128
 log = lambda s: print(time.strftime('%H:%M:%S'), s, flush=True)  # noqa: E731
@@ -174,7 +185,7 @@ def cmd_run(a):
     codes(dom, S, P, dev, ('eval', 'probe'), t0)
 
 
-def codes(dom, S, P, dev, which, t0):
+def codes(dom, S, P, dev, which, t0, arms=None):
     """frame-max codes of every arm / seed on the eval frames (v2_prob store) and the suite probe frames (training store)."""
     import torch
     from src.eci.v2 import sae as SA
@@ -188,22 +199,61 @@ def codes(dom, S, P, dev, which, t0):
             continue
         fo = pmap(Pr, Sq.St.F)[Sq.tf]
         sel = np.flatnonzero(fo >= 0)
+        arms_ = arms or ARMS
         saes = {f'{arm}_s{seed}': SA.load(BEE / dom / 'sae' / f'{arm}_s{seed}' / 'sae_theta.pt', dev)
-                for arm in ARMS for seed in SEEDS}
+                for arm in arms_ for seed in SEEDS}
         Xc = {k: torch.zeros((len(Pr), 2048), device=dev) for k in saes}
         for c0 in range(0, len(sel), 50_000):
             s_ = sel[c0:c0 + 50_000]
             f = feats(Sq, s_, P, dev)
             fl = torch.from_numpy(fo[s_]).to(dev)
             for k, (sae, norm) in saes.items():
-                d = ARMS[k.split('_')[0]]
+                arm = k.split('_')[0]
                 with torch.no_grad():
-                    cc = sae.encode(norm(f[:, :d]), mode='threshold').float()
+                    xin = wscale(f, arm) if arm in WARMS else f[:, :ARMS[arm]]
+                    cc = sae.encode(norm(xin), mode='threshold').float()
                 Xc[k].index_reduce_(0, fl, cc, 'amax', include_self=True)
         for k, x in Xc.items():
             np.save(od / f'{k}_{nm}.npy', x.half().cpu().numpy())
         log(f'{dom} {nm}: codes saved ({time.time() - t0:.0f}s)')
         del Xc
+
+
+def cmd_runw(a):
+    """AMENDMENT 6: train the down-weighted arms on the same token sample, then their codes."""
+    import torch
+    from src.eci.v2 import sae as SA
+    import v20 as V
+    dom = a.dom
+    dev = torch.device('cuda')
+    t0 = time.time()
+    S = Seq(store(EC / 'v2_behav', dom))
+    P = torch.load(BEE / f'{dom}_pca.pt', map_location=dev)
+    tr = roles_of(dom, S.St.F.obs.values)[S.tf]
+    rng = np.random.default_rng(0)
+    trn = np.flatnonzero(tr == 'train')
+    rng.choice(trn, min(NPCA, len(trn)), replace=False)  # replay the run step's draws (PCA sample, scale sample)
+    rng.choice(trn, 200_000, replace=False)
+    X = {}
+    for r in ('train', 'calib', 'eval'):
+        ii = np.flatnonzero(tr == r)
+        ii = np.sort(rng.choice(ii, min(len(ii), CAP[r]), replace=False))
+        X[r] = torch.cat([feats(S, ii[c:c + 100_000], P, dev).half().cpu() for c in range(0, len(ii), 100_000)])
+        log(f'{dom} {r}: {len(ii):,} ({time.time() - t0:.0f}s)')
+    s = V.R.spec()
+    recs = {}
+    for arm in WARMS:
+        Xtr = V.HostTok(wscale(X['train'], arm).contiguous(), dev)
+        Xca, Xev = wscale(X['calib'], arm), wscale(X['eval'], arm)
+        for seed in SEEDS:
+            od = BEE / dom / 'sae' / f'{arm}_s{seed}'
+            r_ = SA.train({**s['sae'], 'context_window': 0, 'norm': 'global', 'arm': arm}, seed, Xtr, Xca, Xev, od, dev)
+            recs[f'{arm}_s{seed}'] = r_
+            log(f'{dom} {arm} s{seed}: FVE {r_["eval_fve"]:.5f} ({r_["train_time_s"]:.0f}s)')
+            (OUT / f'{dom}_trainw.json').write_text(json.dumps(recs, indent=1, default=float))
+        del Xtr
+    del X
+    codes(dom, S, P, dev, ('eval', 'probe'), t0, arms=WARMS)
 
 
 def cmd_pcodes(a):
@@ -243,7 +293,7 @@ def cmd_score(a):
     zs = lambda r: (r - r.mean()) / r.std()  # noqa: E731
     zM, zA = zs(rankdata(z['me'][ok])), zs(rankdata(z['area'][ok]))
     out = {'v2.0': {k: G.gate_rows(dom, v1, S['v2'][k], elig) for k in ('hmm', 'smooth')}}
-    for arm in ARMS:
+    for arm in (WARMS if a.weighted else ARMS):
         for seed in SEEDS:
             k = f'{arm}_s{seed}'
             X = take(np.load(BEE / dom / 'codes' / f'{k}_eval.npy').astype(np.float32))
@@ -272,17 +322,18 @@ def cmd_score(a):
                 f'dyn256 {n}/{e}; dec share>0.25 {out[k]["n_dec_share_gt_0.25"]}; '
                 + ', '.join(f'{c} AUROC {r["v2_AUROC"]:.3f} top1 {r["v2_top1_prec"]:.3f}' for c, r in gate.items() if r['eligible']))
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / f'{dom}_score.json').write_text(json.dumps(out, indent=1, default=float))
+    (OUT / f'{dom}_score{"w" if a.weighted else ""}.json').write_text(json.dumps(out, indent=1, default=float))
 
 
 def main():
     import argparse
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('run', 'score', 'pcodes'))
+    p.add_argument('step', choices=('run', 'score', 'pcodes', 'runw'))
     p.add_argument('--dom', choices=('mice', 'ants'))
     p.add_argument('--which', default='probe')
+    p.add_argument('--weighted', action='store_true')
     a = p.parse_args()
-    {'run': cmd_run, 'score': cmd_score, 'pcodes': cmd_pcodes}[a.step](a)
+    {'run': cmd_run, 'score': cmd_score, 'pcodes': cmd_pcodes, 'runw': cmd_runw}[a.step](a)
 
 
 if __name__ == '__main__':
