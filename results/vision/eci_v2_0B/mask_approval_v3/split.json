@@ -1,0 +1,80 @@
+{
+ "mice": {
+  "dev": [
+   "mice_v1_het_ash1l_m_1_S_O_3412",
+   "mice_v2_mixed_ash1l_m_3_F_O_3371",
+   "mice_v1_wt_kmt5b_f_3_F_H_7740",
+   "mice_v2_mixed_ash1l_f_2_F_O_3020",
+   "mice_v2_mixed_kmt5b_f_5_F_P_4259",
+   "mice_v1_wt_kdm6b_f_4_S_P_1022",
+   "mice_v1_wt_kdm6b_m_6_S_O_1268",
+   "mice_v1_wt_kmt5b_m_4_F_P_4259",
+   "mice_v1_het_ash1l_m_6_F_H_1661",
+   "mice_v2_mixed_kmt5b_f_4_F_P_517"
+  ],
+  "test": [
+   "mice_v1_het_kdm6b_m_1_F_O_4160",
+   "mice_v2_mixed_kdm6b_m_1_S_H_8013",
+   "mice_v2_mixed_ash1l_f_5_S_H_7740",
+   "mice_v2_mixed_kmt5b_f_4_S_H_2044",
+   "mice_v2_mixed_kmt5b_m_2_F_H_3524",
+   "mice_v1_wt_kdm6b_m_1_S_P_4006",
+   "mice_v1_wt_ash1l_m_3_F_O_474",
+   "mice_v1_het_kmt5b_f_2_F_O_3020",
+   "mice_v2_mixed_ash1l_m_1_S_H_8479",
+   "mice_v2_mixed_ash1l_m_5_F_H_4590"
+  ]
+ },
+ "ants": {
+  "dev": [
+   "ants_v2_a1_450",
+   "ants_v3_3_9_3_8479",
+   "ants_v3_3_12_2_7740",
+   "ants_v3_3_25_5_2044",
+   "ants_v4_4_27_1_2044",
+   "ants_v2_d7_681",
+   "ants_v3_3_12_1_4590",
+   "ants_v3_3_1_7_1352",
+   "ants_v2_b1_2580",
+   "ants_v4_4_1_2_1352"
+  ],
+  "test": [
+   "ants_v2_b2_896",
+   "ants_v4_4_16_5_4590",
+   "ants_v3_3_6_3_1661",
+   "ants_v4_4_23_3_8054",
+   "ants_v4_4_3_2_8479",
+   "ants_v2_e2_2826",
+   "ants_v2_c9_553",
+   "ants_v2_c1_1530",
+   "ants_v3_3_8_1_2688",
+   "ants_v4_4_14_8_8388"
+  ]
+ },
+ "frogs": {
+  "dev": [
+   "frogs_juv_En1_220_1_8537",
+   "frogs_tad_En1_301_1_4089",
+   "frogs_juv_WT_158_3_4152",
+   "frogs_tad_En1_290_1_17041",
+   "frogs_tad_WT_178_5_16644",
+   "frogs_juv_FoxP1_236_5_4752",
+   "frogs_juv_WT_158_2_10263",
+   "frogs_juv_WT_283_2_11166",
+   "frogs_juv_En1_293_3_9002",
+   "frogs_tad_FoxP1_U04_5_3324"
+  ],
+  "test": [
+   "frogs_juv_FoxP1_149_1_12085",
+   "frogs_tad_FoxP1_239_2_15485",
+   "frogs_tad_En1_290_2_5074",
+   "frogs_tad_WT_104_2_13651",
+   "frogs_tad_WT_194_6_12219",
+   "frogs_juv_FoxP1_243_1_9566",
+   "frogs_juv_FoxP1_152_2_11219",
+   "frogs_juv_FoxP1_150_1_14337",
+   "frogs_tad_En1_300_6_16028",
+   "frogs_tad_FoxP1_170_6_1902"
+  ]
+ }
+}
