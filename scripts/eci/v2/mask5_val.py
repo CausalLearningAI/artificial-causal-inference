@@ -249,17 +249,20 @@ def cmd_fit(a):
 
         def newfn(cfg):
             return lambda key: postproc(fr[key]['p'][fr[key]['it']], fr[key]['G'], cfg['t'], cfg['t_core'],
-                                        fr[key]['n2app'][fr[key]['it']] if cfg['or_n2'] else None)
+                                        fr[key]['n2app'][fr[key]['it']] if cfg['or_n2'] else None, cfg.get('smooth', True))
         devk = [k_ for k_ in split[dom]['dev'] if k_ in fr]
         testk = [k_ for k_ in split[dom]['test'] if k_ in fr]
         n2dev = eval_set(devk, n2fn)
         grid = []
-        for t in (0.2, 0.3, 0.4, 0.5, 0.6):
-            for tc in (0.5, 0.8, 0.9, 0.95):
+        TS, TCS, SMS = ((0.2, 0.3, 0.4, 0.5, 0.6), (0.5, 0.8, 0.9, 0.95), (True,)) if not a.ext else \
+            ((0.5, 0.6, 0.7, 0.8, 0.9), (0.8, 0.9, 0.95, 0.98), (True, False))
+        for t in TS:
+            for tc in TCS:
                 for orn in (False, True):
-                    cfg = {'t': t, 't_core': tc, 'or_n2': orn}
-                    m = eval_set(devk, newfn(cfg))
-                    grid.append((cfg, m))
+                    for sm in SMS:
+                        cfg = {'t': t, 't_core': tc, 'or_n2': orn, 'smooth': sm}
+                        m = eval_set(devk, newfn(cfg))
+                        grid.append((cfg, m))
         ok = [(c, m) for c, m in grid if m['thin_recall'] >= n2dev['thin_recall'] and m['bg_tok_per_frame'] <= n2dev['bg_tok_per_frame']]
         cfg, mdev = max(ok or grid, key=lambda cm: cm[1]['token_f1'])
         # ---- test (once)
@@ -277,7 +280,8 @@ def cmd_fit(a):
         rat, ins, ut = [], [], []
         import cv2
         for key, q in fr.items():
-            ks = [postproc(q['p'][i], q['G'], cfg['t'], cfg['t_core'], q['n2app'][i] if cfg['or_n2'] else None) for i in range(len(q['p']))]
+            ks = [postproc(q['p'][i], q['G'], cfg['t'], cfg['t_core'], q['n2app'][i] if cfg['or_n2'] else None,
+                           cfg.get('smooth', True)) for i in range(len(q['p']))]
             U = np.any(ks, 0)
             kt = ks[q['it']]
             G = q['G']
@@ -301,9 +305,78 @@ def cmd_fit(a):
         for arm_, m in out.items():
             L.append(f'| {arm_} | ' + ' | '.join(f'{m[c]:.3f}' for c in cols) + ' |')
         L += ['', f'test: {out["new"]["n_frames"]} frames, {out["new"]["n_thin"]} thin points; store: {store}', '']
-    (OUT / 'results.json').write_text(json.dumps(res, indent=1, default=float))
+    (OUT / f'results{a.tag}.json').write_text(json.dumps(res, indent=1, default=float))
     (OUT / f'table{a.tag}.md').write_text('\n'.join(L) + '\n')
     print('\n'.join(L))
+
+
+def grid_tint(im, keep, col, a=0.45):
+    """tokens tinted + 16 px patch grid overlaid."""
+    G = int(round(np.sqrt(keep.size)))
+    S = im.shape[0]
+    K = np.kron(keep.reshape(G, G), np.ones((S // G, S // G), bool))
+    o = im.astype(np.float32).copy()
+    o[K] = (1 - a) * o[K] + a * np.array(col)
+    o[::S // G, :] = 0.6 * o[::S // G, :] + 0.4 * 255
+    o[:, ::S // G] = 0.6 * o[:, ::S // G] + 0.4 * 255
+    return o.clip(0, 255).astype(np.uint8)
+
+
+def cmd_sheet(a):
+    import mask4_val as M4V
+    from PIL import Image, ImageDraw
+    import torch
+    from src.eci.v2 import mask2 as M2
+    res = json.loads((OUT / f'results{a.tag}.json').read_text())
+    for dom in a.doms.split(','):
+        D = BEE / dom
+        P = {k: np.load(D / 'probe.npz')[k] for k in ('mu', 'sd', 'w', 'b')}
+        P['b'] = float(P['b'])
+        cfg = res[dom]['cfg']
+        rows = []
+        for ser in SER[dom]:
+            for role, obs, k in M4V.old_rows(dom, ser):
+                f = D / f'win_{ser}_{obs}_{k}.npz'
+                if not f.exists():
+                    continue
+                z = np.load(f)
+                it = int(z['it'])
+                G = int(z['G'])
+                p = probe_p(P, z['z'][it])
+                new = postproc(p, G, cfg['t'], cfg['t_core'], z['n2app'][it] if cfg['or_n2'] else None, cfg.get('smooth', True))
+                rows.append((f'{"random" if role == "rand" else role[5:]} | {dom} {ser} {obs} k{k}', z['x'], z['n2'][it].astype(bool),
+                             new, float(z['h']), np.unpackbits(z['n2pix'], -1)[:, :G * 16].astype(bool)))
+        T = 512
+        sh = Image.new('RGB', (4 * T, T * len(rows)))
+        for r, (title, im, kn, kw, h, n2pix) in enumerate(rows):
+            S = im.shape[0]
+            G = S // 16
+            # thin-part zoom: densest N2 appendage region
+            _, ap = M2.appendage(torch.from_numpy(n2pix)[None], h)
+            import cv2
+            side = int(min(S, max(96, 12 * h)))
+            apf = ap[0].numpy().astype(np.float32)
+            if apf.sum() > 5:
+                d = cv2.boxFilter(apf, -1, (side // 2, side // 2), normalize=False)
+                cy, cx = np.unravel_index(int(np.argmax(d)), d.shape)
+            else:
+                ys, xs = np.nonzero(np.kron(kw.reshape(G, G), np.ones((16, 16), bool)))
+                cy, cx = (int(np.median(ys)), int(np.median(xs))) if len(ys) else (S // 2, S // 2)
+            x0, y0 = int(np.clip(cx - side / 2, 0, S - side)), int(np.clip(cy - side / 2, 0, S - side))
+            both = grid_tint(im, kn & kw, (255, 255, 255), 0.25)
+            both = grid_tint(both, kw & ~kn, (0, 220, 0), 0.5)
+            both = grid_tint(both, kn & ~kw, (255, 0, 0), 0.5)
+            tiles = [(im, title), (grid_tint(im, kn, (0, 90, 255)), f'N2 {int(kn.sum())} tok'),
+                     (grid_tint(im, kw, (0, 220, 0)), f'new {int(kw.sum())} tok'),
+                     (both[y0:y0 + side, x0:x0 + side], 'thin-part zoom: green new only, red N2 only, white both')]
+            for j, (t, lab) in enumerate(tiles):
+                tt = Image.fromarray(t).resize((T, T), Image.NEAREST if j == 3 else Image.BILINEAR)
+                dr = ImageDraw.Draw(tt)
+                dr.rectangle([0, 0, T, 15], fill=(0, 0, 0))
+                dr.text((4, 2), lab[:84], fill=(255, 255, 0))
+                sh.paste(tt, (j * T, r * T))
+        sh.save(OUT / f'{dom}.png')
+        log(f'{dom}: {len(rows)} rows -> {OUT / f"{dom}.png"}')
 
 
 def main():
@@ -312,6 +385,7 @@ def main():
     ap.add_argument('--dom', default='mice')
     ap.add_argument('--doms', default='mice,ants,frogs')
     ap.add_argument('--tag', default='')
+    ap.add_argument('--ext', action='store_true')
     a = ap.parse_args()
     globals()['cmd_' + a.step](a)
 

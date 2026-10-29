@@ -36,3 +36,9 @@ Extra per-frame cost of the new mask; on 5-frame windows (t-2..t+2) around the g
 union of the new mask / new mask at t (token ratio), the share of the new mask at t inside the previously proposed
 store S (union of N2 dilated by 1 token), and the projected store size (union tokens/frame x 1024 x 2 bytes x frames
 at 5 fps: mice 3.89 M, ants 1.82 M, frogs 2.76 M).
+
+## POST-HOC AMENDMENT 1 (2026-10-30 ~00:25, AFTER the ants test numbers of the pre-registered grid were seen)
+Ants failed: no dev setting met background <= N2 (the grid stopped at t = 0.6 and always smoothed). Amendment: a
+second, extended dev grid t in {0.5, 0.6, 0.7, 0.8, 0.9}, t_core in {0.8, 0.9, 0.95, 0.98}, N2-thin-OR {off, on},
+3x3 smoothing {on, off}, same dev selection rule, scored on the same test split. Reported separately and labelled
+post hoc ("ext"); the pre-registered results stand as the primary verdict.
