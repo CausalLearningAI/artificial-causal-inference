@@ -1,0 +1,81 @@
+{
+ "unit": "bytes; TB = 1e12 bytes, TiB = 2^40",
+ "bytes_per_token": 2048,
+ "limit_TB": 5.0,
+ "rule_5fps": "k % step == 0, 0 <= k < N",
+ "bench": {
+  "crim13": {
+   "S": 640,
+   "G": 40,
+   "step": 5,
+   "videos": 236,
+   "source_frames": 3624999,
+   "frames_5fps": 725094,
+   "tokens": 1160150400,
+   "bytes": 2375988019200,
+   "TB": 2.3759880192,
+   "TiB": 2.1609485149383545,
+   "per_set": {
+    "test": {
+     "videos": 133,
+     "frames_5fps": 399030
+    },
+    "train": {
+     "videos": 103,
+     "frames_5fps": 326064
+    }
+   },
+   "flag_bytes_per_flag_file": 145018800
+  },
+  "calms21": {
+   "S": 1024,
+   "G": 64,
+   "step": 6,
+   "videos": 89,
+   "source_frames": 769845,
+   "frames_5fps": 128343,
+   "tokens": 525692928,
+   "bytes": 1076619116544,
+   "TB": 1.076619116544,
+   "TiB": 0.9791793823242188,
+   "per_set": {
+    "train": {
+     "videos": 70,
+     "frames_5fps": 84652
+    },
+    "test": {
+     "videos": 19,
+     "frames_5fps": 43691
+    }
+   },
+   "flag_bytes_per_flag_file": 65711616
+  },
+  "mabe22": {
+   "S": 512,
+   "G": 32,
+   "step": 6,
+   "videos": 2612,
+   "source_frames": 4704212,
+   "frames_5fps": 786212,
+   "tokens": 805081088,
+   "bytes": 1648806068224,
+   "TB": 1.648806068224,
+   "TiB": 1.4995803833007812,
+   "per_set": {
+    "mouse_userTrain": {
+     "videos": 784,
+     "frames_5fps": 235984
+    },
+    "mouse_submission": {
+     "videos": 1828,
+     "frames_5fps": 550228
+    }
+   },
+   "flag_bytes_per_flag_file": 100635136
+  }
+ },
+ "total_bytes": 5101413203968,
+ "total_TB": 5.101413203968,
+ "total_TiB": 4.6397082805633545,
+ "above_limit": true
+}
