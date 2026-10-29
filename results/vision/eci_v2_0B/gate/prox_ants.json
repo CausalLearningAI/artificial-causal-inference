@@ -1,0 +1,968 @@
+{
+ "v1": {
+  "0": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.8381776390724758,
+    "proxy_AUROC": 0.6413946482935744,
+    "AUROC": 0.8609801951418228,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.8625214085838137,
+    "proxy_AUROC": 0.59263789391138,
+    "AUROC": 0.8815553602513854,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.8900835088313649,
+    "proxy_AUROC": 0.5873209082769009,
+    "AUROC": 0.9001726307260857,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.7912054553812414,
+    "proxy_AUROC": 0.6463152854536639,
+    "AUROC": 0.8456481499027247,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.8108793859577995,
+    "proxy_AUROC": 0.6648939787877972,
+    "AUROC": 0.85667541679616,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.8513952753708955,
+    "proxy_AUROC": 0.6223860839935211,
+    "AUROC": 0.8893319106195409,
+    "n_strata": 8
+   },
+   "v4|Y2F": {
+    "strat_AUROC": 0.7623225157476918,
+    "proxy_AUROC": 0.6727132086725002,
+    "AUROC": 0.8110171639263882,
+    "n_strata": 5
+   },
+   "v4|B2F": {
+    "strat_AUROC": 0.7348064493934935,
+    "proxy_AUROC": 0.6592059093281696,
+    "AUROC": 0.795067465470373,
+    "n_strata": 5
+   },
+   "v4|groom_any": {
+    "strat_AUROC": 0.7836311550643574,
+    "proxy_AUROC": 0.6712630562651789,
+    "AUROC": 0.8435810745763349,
+    "n_strata": 5
+   },
+   "v4_infested|Y2F": {
+    "strat_AUROC": 0.8158075656880589,
+    "proxy_AUROC": 0.614806523100146,
+    "AUROC": 0.866014580299202,
+    "n_strata": 9
+   },
+   "v4_infested|B2F": {
+    "strat_AUROC": 0.7468565938104778,
+    "proxy_AUROC": 0.7027095906855894,
+    "AUROC": 0.8461544062669684,
+    "n_strata": 9
+   },
+   "v4_infested|groom_any": {
+    "strat_AUROC": 0.8493118236636872,
+    "proxy_AUROC": 0.6026647930568039,
+    "AUROC": 0.8946209432173275,
+    "n_strata": 9
+   }
+  },
+  "1": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.818805574529411,
+    "proxy_AUROC": 0.6413946482935744,
+    "AUROC": 0.8461202688192905,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.7575641119430596,
+    "proxy_AUROC": 0.59263789391138,
+    "AUROC": 0.7900714760408025,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.8415995002468444,
+    "proxy_AUROC": 0.5873209082769009,
+    "AUROC": 0.8563375482233057,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.7105460266124233,
+    "proxy_AUROC": 0.6463152854536639,
+    "AUROC": 0.7666156377879835,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.6924147507067723,
+    "proxy_AUROC": 0.6648939787877972,
+    "AUROC": 0.7611776148094545,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.7245944208660106,
+    "proxy_AUROC": 0.6223860839935211,
+    "AUROC": 0.7840445751909147,
+    "n_strata": 8
+   },
+   "v4|Y2F": {
+    "strat_AUROC": 0.6852168763600738,
+    "proxy_AUROC": 0.6727132086725002,
+    "AUROC": 0.7394210235895824,
+    "n_strata": 5
+   },
+   "v4|B2F": {
+    "strat_AUROC": 0.6647363699435934,
+    "proxy_AUROC": 0.6592059093281696,
+    "AUROC": 0.7235949780207532,
+    "n_strata": 5
+   },
+   "v4|groom_any": {
+    "strat_AUROC": 0.692292033329116,
+    "proxy_AUROC": 0.6712630562651789,
+    "AUROC": 0.7512296779572333,
+    "n_strata": 5
+   },
+   "v4_infested|Y2F": {
+    "strat_AUROC": 0.776151550665312,
+    "proxy_AUROC": 0.614806523100146,
+    "AUROC": 0.8282150887541818,
+    "n_strata": 9
+   },
+   "v4_infested|B2F": {
+    "strat_AUROC": 0.624582323073076,
+    "proxy_AUROC": 0.7027095906855894,
+    "AUROC": 0.7336789890831307,
+    "n_strata": 9
+   },
+   "v4_infested|groom_any": {
+    "strat_AUROC": 0.776000416912879,
+    "proxy_AUROC": 0.6026647930568039,
+    "AUROC": 0.8445104218386285,
+    "n_strata": 9
+   }
+  },
+  "2": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.9048831337151766,
+    "proxy_AUROC": 0.6413946482935744,
+    "AUROC": 0.9249922880730524,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.8869739941624489,
+    "proxy_AUROC": 0.59263789391138,
+    "AUROC": 0.9080765301210302,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.9458905774976393,
+    "proxy_AUROC": 0.5873209082769009,
+    "AUROC": 0.9560624245863044,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.8315266536587983,
+    "proxy_AUROC": 0.6463152854536639,
+    "AUROC": 0.8798044120963815,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.8218716833478488,
+    "proxy_AUROC": 0.6648939787877972,
+    "AUROC": 0.8714062334085617,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.8791700652525511,
+    "proxy_AUROC": 0.6223860839935211,
+    "AUROC": 0.9190925300886613,
+    "n_strata": 8
+   },
+   "v4|Y2F": {
+    "strat_AUROC": 0.7893303086237585,
+    "proxy_AUROC": 0.6727132086725002,
+    "AUROC": 0.8320565458270872,
+    "n_strata": 5
+   },
+   "v4|B2F": {
+    "strat_AUROC": 0.7368448385163179,
+    "proxy_AUROC": 0.6592059093281696,
+    "AUROC": 0.7979251898198702,
+    "n_strata": 5
+   },
+   "v4|groom_any": {
+    "strat_AUROC": 0.7940506005263828,
+    "proxy_AUROC": 0.6712630562651789,
+    "AUROC": 0.8554046526880854,
+    "n_strata": 5
+   },
+   "v4_infested|Y2F": {
+    "strat_AUROC": 0.8719888105065879,
+    "proxy_AUROC": 0.614806523100146,
+    "AUROC": 0.9043197327999346,
+    "n_strata": 9
+   },
+   "v4_infested|B2F": {
+    "strat_AUROC": 0.7626744140431962,
+    "proxy_AUROC": 0.7027095906855894,
+    "AUROC": 0.8664008569221214,
+    "n_strata": 9
+   },
+   "v4_infested|groom_any": {
+    "strat_AUROC": 0.8861926700621158,
+    "proxy_AUROC": 0.6026647930568039,
+    "AUROC": 0.9285373065006947,
+    "n_strata": 9
+   }
+  },
+  "3": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.8792305787356711,
+    "proxy_AUROC": 0.6413946482935744,
+    "AUROC": 0.9023904753039776,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.8923250943695092,
+    "proxy_AUROC": 0.59263789391138,
+    "AUROC": 0.9125110241298308,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.9334103806406313,
+    "proxy_AUROC": 0.5873209082769009,
+    "AUROC": 0.9445853555263689,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.8167682064735707,
+    "proxy_AUROC": 0.6463152854536639,
+    "AUROC": 0.8684733916366424,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.8276108690500115,
+    "proxy_AUROC": 0.6648939787877972,
+    "AUROC": 0.8741465757141104,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.8771758593190938,
+    "proxy_AUROC": 0.6223860839935211,
+    "AUROC": 0.9148116639306036,
+    "n_strata": 8
+   },
+   "v4|Y2F": {
+    "strat_AUROC": 0.775008817831705,
+    "proxy_AUROC": 0.6727132086725002,
+    "AUROC": 0.8218388746296518,
+    "n_strata": 5
+   },
+   "v4|B2F": {
+    "strat_AUROC": 0.7469812200089231,
+    "proxy_AUROC": 0.6592059093281696,
+    "AUROC": 0.8056088223749156,
+    "n_strata": 5
+   },
+   "v4|groom_any": {
+    "strat_AUROC": 0.7974587439989819,
+    "proxy_AUROC": 0.6712630562651789,
+    "AUROC": 0.8566372401261656,
+    "n_strata": 5
+   },
+   "v4_infested|Y2F": {
+    "strat_AUROC": 0.8458861555041682,
+    "proxy_AUROC": 0.614806523100146,
+    "AUROC": 0.8897557938387223,
+    "n_strata": 9
+   },
+   "v4_infested|B2F": {
+    "strat_AUROC": 0.7784825698742349,
+    "proxy_AUROC": 0.7027095906855894,
+    "AUROC": 0.8720666877906068,
+    "n_strata": 9
+   },
+   "v4_infested|groom_any": {
+    "strat_AUROC": 0.8851165123398689,
+    "proxy_AUROC": 0.6026647930568039,
+    "AUROC": 0.925583526287859,
+    "n_strata": 9
+   }
+  },
+  "4": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.8835913475761389,
+    "proxy_AUROC": 0.6413946482935744,
+    "AUROC": 0.9062640610467526,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.8670431843333587,
+    "proxy_AUROC": 0.59263789391138,
+    "AUROC": 0.8911857264747226,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.9236692654647505,
+    "proxy_AUROC": 0.5873209082769009,
+    "AUROC": 0.9356568803089935,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.8132358561054938,
+    "proxy_AUROC": 0.6463152854536639,
+    "AUROC": 0.8581928229296452,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.7843524104813263,
+    "proxy_AUROC": 0.6648939787877972,
+    "AUROC": 0.8399044723750723,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.8488974654561652,
+    "proxy_AUROC": 0.6223860839935211,
+    "AUROC": 0.8884550411095339,
+    "n_strata": 8
+   },
+   "v4|Y2F": {
+    "strat_AUROC": 0.7651748372608403,
+    "proxy_AUROC": 0.6727132086725002,
+    "AUROC": 0.8104026442200486,
+    "n_strata": 5
+   },
+   "v4|B2F": {
+    "strat_AUROC": 0.7343647949779943,
+    "proxy_AUROC": 0.6592059093281696,
+    "AUROC": 0.7886713108840654,
+    "n_strata": 5
+   },
+   "v4|groom_any": {
+    "strat_AUROC": 0.7745552025383247,
+    "proxy_AUROC": 0.6712630562651789,
+    "AUROC": 0.8332540461863248,
+    "n_strata": 5
+   },
+   "v4_infested|Y2F": {
+    "strat_AUROC": 0.803913448690332,
+    "proxy_AUROC": 0.614806523100146,
+    "AUROC": 0.8589529489485512,
+    "n_strata": 9
+   },
+   "v4_infested|B2F": {
+    "strat_AUROC": 0.7332528258670546,
+    "proxy_AUROC": 0.7027095906855894,
+    "AUROC": 0.8290767219038891,
+    "n_strata": 9
+   },
+   "v4_infested|groom_any": {
+    "strat_AUROC": 0.8452127730045412,
+    "proxy_AUROC": 0.6026647930568039,
+    "AUROC": 0.8884629031244908,
+    "n_strata": 9
+   }
+  },
+  "5": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.8064382045629425,
+    "proxy_AUROC": 0.6413946482935744,
+    "AUROC": 0.8416729304886815,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.7806225721724102,
+    "proxy_AUROC": 0.59263789391138,
+    "AUROC": 0.8110109533271749,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.8375367305923588,
+    "proxy_AUROC": 0.5873209082769009,
+    "AUROC": 0.8566259930249339,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.711058278303565,
+    "proxy_AUROC": 0.6463152854536639,
+    "AUROC": 0.765627456308255,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.6846844926500478,
+    "proxy_AUROC": 0.6648939787877972,
+    "AUROC": 0.7482217102004207,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.7152771387879523,
+    "proxy_AUROC": 0.6223860839935211,
+    "AUROC": 0.7730672127779643,
+    "n_strata": 8
+   },
+   "v4|Y2F": {
+    "strat_AUROC": 0.6984587365396225,
+    "proxy_AUROC": 0.6727132086725002,
+    "AUROC": 0.7490102127964783,
+    "n_strata": 5
+   },
+   "v4|B2F": {
+    "strat_AUROC": 0.6751988841068525,
+    "proxy_AUROC": 0.6592059093281696,
+    "AUROC": 0.7310085737024008,
+    "n_strata": 5
+   },
+   "v4|groom_any": {
+    "strat_AUROC": 0.705253496671043,
+    "proxy_AUROC": 0.6712630562651789,
+    "AUROC": 0.7611104176245771,
+    "n_strata": 5
+   },
+   "v4_infested|Y2F": {
+    "strat_AUROC": 0.7088241466599858,
+    "proxy_AUROC": 0.614806523100146,
+    "AUROC": 0.7676163905408168,
+    "n_strata": 9
+   },
+   "v4_infested|B2F": {
+    "strat_AUROC": 0.6414150305191021,
+    "proxy_AUROC": 0.7027095906855894,
+    "AUROC": 0.7444976057217115,
+    "n_strata": 9
+   },
+   "v4_infested|groom_any": {
+    "strat_AUROC": 0.7259401437854577,
+    "proxy_AUROC": 0.6026647930568039,
+    "AUROC": 0.8148864810626235,
+    "n_strata": 9
+   }
+  },
+  "6": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.8991995192261784,
+    "proxy_AUROC": 0.6413946482935744,
+    "AUROC": 0.9180649534029214,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.8892850646961029,
+    "proxy_AUROC": 0.59263789391138,
+    "AUROC": 0.9086483596847471,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.9450092765591885,
+    "proxy_AUROC": 0.5873209082769009,
+    "AUROC": 0.9524918907441114,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.8255055200852318,
+    "proxy_AUROC": 0.6463152854536639,
+    "AUROC": 0.871682303524457,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.8218946764485732,
+    "proxy_AUROC": 0.6648939787877972,
+    "AUROC": 0.8684109289429752,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.8787087513862994,
+    "proxy_AUROC": 0.6223860839935211,
+    "AUROC": 0.9140202762273545,
+    "n_strata": 8
+   },
+   "v4|Y2F": {
+    "strat_AUROC": 0.7882939436835752,
+    "proxy_AUROC": 0.6727132086725002,
+    "AUROC": 0.8299159117958771,
+    "n_strata": 5
+   },
+   "v4|B2F": {
+    "strat_AUROC": 0.7503280057264528,
+    "proxy_AUROC": 0.6592059093281696,
+    "AUROC": 0.8065502196355406,
+    "n_strata": 5
+   },
+   "v4|groom_any": {
+    "strat_AUROC": 0.8034400627786263,
+    "proxy_AUROC": 0.6712630562651789,
+    "AUROC": 0.8597807530843039,
+    "n_strata": 5
+   },
+   "v4_infested|Y2F": {
+    "strat_AUROC": 0.8485191524173973,
+    "proxy_AUROC": 0.614806523100146,
+    "AUROC": 0.8903155524400755,
+    "n_strata": 9
+   },
+   "v4_infested|B2F": {
+    "strat_AUROC": 0.7681851061103462,
+    "proxy_AUROC": 0.7027095906855894,
+    "AUROC": 0.8598389527640785,
+    "n_strata": 9
+   },
+   "v4_infested|groom_any": {
+    "strat_AUROC": 0.8800355732869011,
+    "proxy_AUROC": 0.6026647930568039,
+    "AUROC": 0.9173929599074001,
+    "n_strata": 9
+   }
+  },
+  "7": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.8846380631254659,
+    "proxy_AUROC": 0.6413946482935744,
+    "AUROC": 0.9043461248424016,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.872760953250118,
+    "proxy_AUROC": 0.59263789391138,
+    "AUROC": 0.8926915415472726,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.9277340788125232,
+    "proxy_AUROC": 0.5873209082769009,
+    "AUROC": 0.934612201545919,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.8164383109753799,
+    "proxy_AUROC": 0.6463152854536639,
+    "AUROC": 0.8628452476670349,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.8016033670128965,
+    "proxy_AUROC": 0.6648939787877972,
+    "AUROC": 0.8563749982703764,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.861430134609019,
+    "proxy_AUROC": 0.6223860839935211,
+    "AUROC": 0.8992247163918853,
+    "n_strata": 8
+   },
+   "v4|Y2F": {
+    "strat_AUROC": 0.7754724604647353,
+    "proxy_AUROC": 0.6727132086725002,
+    "AUROC": 0.8204793706349222,
+    "n_strata": 5
+   },
+   "v4|B2F": {
+    "strat_AUROC": 0.7419749180940082,
+    "proxy_AUROC": 0.6592059093281696,
+    "AUROC": 0.7988673003008345,
+    "n_strata": 5
+   },
+   "v4|groom_any": {
+    "strat_AUROC": 0.7910153830587102,
+    "proxy_AUROC": 0.6712630562651789,
+    "AUROC": 0.8466284781125687,
+    "n_strata": 5
+   },
+   "v4_infested|Y2F": {
+    "strat_AUROC": 0.8023032024680942,
+    "proxy_AUROC": 0.614806523100146,
+    "AUROC": 0.8574088810586072,
+    "n_strata": 9
+   },
+   "v4_infested|B2F": {
+    "strat_AUROC": 0.7521175284204658,
+    "proxy_AUROC": 0.7027095906855894,
+    "AUROC": 0.8548509440181936,
+    "n_strata": 9
+   },
+   "v4_infested|groom_any": {
+    "strat_AUROC": 0.8437510115641503,
+    "proxy_AUROC": 0.6026647930568039,
+    "AUROC": 0.8905238662724811,
+    "n_strata": 9
+   }
+  },
+  "8": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.8472121673511381,
+    "proxy_AUROC": 0.6413946482935744,
+    "AUROC": 0.8686846461206916,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.8317460547860076,
+    "proxy_AUROC": 0.59263789391138,
+    "AUROC": 0.8542331645207105,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.8817044014575594,
+    "proxy_AUROC": 0.5873209082769009,
+    "AUROC": 0.890539800000932,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.7781432030992352,
+    "proxy_AUROC": 0.6463152854536639,
+    "AUROC": 0.8239193429370112,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.757969531405393,
+    "proxy_AUROC": 0.6648939787877972,
+    "AUROC": 0.8123329327400123,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.8092958399710195,
+    "proxy_AUROC": 0.6223860839935211,
+    "AUROC": 0.8467915992458125,
+    "n_strata": 8
+   },
+   "v4|Y2F": {
+    "strat_AUROC": 0.7542862012767997,
+    "proxy_AUROC": 0.6727132086725002,
+    "AUROC": 0.7991170920541718,
+    "n_strata": 5
+   },
+   "v4|B2F": {
+    "strat_AUROC": 0.7063109595120322,
+    "proxy_AUROC": 0.6592059093281696,
+    "AUROC": 0.7602323963077828,
+    "n_strata": 5
+   },
+   "v4|groom_any": {
+    "strat_AUROC": 0.7587243129039232,
+    "proxy_AUROC": 0.6712630562651789,
+    "AUROC": 0.8125650693350952,
+    "n_strata": 5
+   },
+   "v4_infested|Y2F": {
+    "strat_AUROC": 0.7175701973338326,
+    "proxy_AUROC": 0.614806523100146,
+    "AUROC": 0.7718436100433222,
+    "n_strata": 9
+   },
+   "v4_infested|B2F": {
+    "strat_AUROC": 0.6505635212013826,
+    "proxy_AUROC": 0.7027095906855894,
+    "AUROC": 0.7788145135933875,
+    "n_strata": 9
+   },
+   "v4_infested|groom_any": {
+    "strat_AUROC": 0.7267491878254053,
+    "proxy_AUROC": 0.6026647930568039,
+    "AUROC": 0.806062011096874,
+    "n_strata": 9
+   }
+  },
+  "9": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.8415444567042937,
+    "proxy_AUROC": 0.6413946482935744,
+    "AUROC": 0.8823490618031279,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.8389324749650665,
+    "proxy_AUROC": 0.59263789391138,
+    "AUROC": 0.8680375035628992,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.8877355984626822,
+    "proxy_AUROC": 0.5873209082769009,
+    "AUROC": 0.9104418306151908,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.7528368096700319,
+    "proxy_AUROC": 0.6463152854536639,
+    "AUROC": 0.828747152131303,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.7590256380819945,
+    "proxy_AUROC": 0.6648939787877972,
+    "AUROC": 0.8320929621757247,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.8168123126420136,
+    "proxy_AUROC": 0.6223860839935211,
+    "AUROC": 0.8719214736945107,
+    "n_strata": 8
+   },
+   "v4|Y2F": {
+    "strat_AUROC": 0.6505780283660682,
+    "proxy_AUROC": 0.6727132086725002,
+    "AUROC": 0.7300633658433937,
+    "n_strata": 5
+   },
+   "v4|B2F": {
+    "strat_AUROC": 0.64102513406118,
+    "proxy_AUROC": 0.6592059093281696,
+    "AUROC": 0.7228237064977492,
+    "n_strata": 5
+   },
+   "v4|groom_any": {
+    "strat_AUROC": 0.700627763168631,
+    "proxy_AUROC": 0.6712630562651789,
+    "AUROC": 0.7891426893649012,
+    "n_strata": 5
+   },
+   "v4_infested|Y2F": {
+    "strat_AUROC": 0.8091109332008645,
+    "proxy_AUROC": 0.614806523100146,
+    "AUROC": 0.868484451735175,
+    "n_strata": 9
+   },
+   "v4_infested|B2F": {
+    "strat_AUROC": 0.6892419344971886,
+    "proxy_AUROC": 0.7027095906855894,
+    "AUROC": 0.8229065755598436,
+    "n_strata": 9
+   },
+   "v4_infested|groom_any": {
+    "strat_AUROC": 0.8228250316402077,
+    "proxy_AUROC": 0.6026647930568039,
+    "AUROC": 0.8948091164206652,
+    "n_strata": 9
+   }
+  },
+  "10": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.8136115228506758,
+    "proxy_AUROC": 0.6413946482935744,
+    "AUROC": 0.8438663594159173,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.8368098736731889,
+    "proxy_AUROC": 0.59263789391138,
+    "AUROC": 0.859794314634554,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.8676395760553107,
+    "proxy_AUROC": 0.5873209082769009,
+    "AUROC": 0.8843483944803084,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.7671207207689171,
+    "proxy_AUROC": 0.6463152854536639,
+    "AUROC": 0.8315117750983845,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.7832015610039499,
+    "proxy_AUROC": 0.6648939787877972,
+    "AUROC": 0.840233158103564,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.8258644442861467,
+    "proxy_AUROC": 0.6223860839935211,
+    "AUROC": 0.876134314512283,
+    "n_strata": 8
+   },
+   "v4|Y2F": {
+    "strat_AUROC": 0.6920824406507874,
+    "proxy_AUROC": 0.6727132086725002,
+    "AUROC": 0.7566873045404051,
+    "n_strata": 5
+   },
+   "v4|B2F": {
+    "strat_AUROC": 0.6778972980447248,
+    "proxy_AUROC": 0.6592059093281696,
+    "AUROC": 0.7398025466810366,
+    "n_strata": 5
+   },
+   "v4|groom_any": {
+    "strat_AUROC": 0.7277725200918405,
+    "proxy_AUROC": 0.6712630562651789,
+    "AUROC": 0.8073102313841719,
+    "n_strata": 5
+   },
+   "v4_infested|Y2F": {
+    "strat_AUROC": 0.831977370963278,
+    "proxy_AUROC": 0.614806523100146,
+    "AUROC": 0.8808379469379263,
+    "n_strata": 9
+   },
+   "v4_infested|B2F": {
+    "strat_AUROC": 0.7153317183145207,
+    "proxy_AUROC": 0.7027095906855894,
+    "AUROC": 0.8204535053713894,
+    "n_strata": 9
+   },
+   "v4_infested|groom_any": {
+    "strat_AUROC": 0.8470967049522434,
+    "proxy_AUROC": 0.6026647930568039,
+    "AUROC": 0.9027032702419021,
+    "n_strata": 9
+   }
+  }
+ },
+ "v2": {
+  "hmm": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.7939216986848799,
+    "proxy_AUROC": 0.6413946482935744,
+    "AUROC": 0.8326572633764332,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.8235382700993958,
+    "proxy_AUROC": 0.59263789391138,
+    "AUROC": 0.8492679554219342,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.8488690350167735,
+    "proxy_AUROC": 0.5873209082769009,
+    "AUROC": 0.86785555468645,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.7547274041318058,
+    "proxy_AUROC": 0.6463152854536639,
+    "AUROC": 0.8151727112294531,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.784389495833311,
+    "proxy_AUROC": 0.6648939787877972,
+    "AUROC": 0.8385618277414332,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.830554455052904,
+    "proxy_AUROC": 0.6223860839935211,
+    "AUROC": 0.8756486169225216,
+    "n_strata": 8
+   },
+   "v4|Y2F": {
+    "strat_AUROC": 0.7430250636631834,
+    "proxy_AUROC": 0.6727132086725002,
+    "AUROC": 0.801265134020667,
+    "n_strata": 5
+   },
+   "v4|B2F": {
+    "strat_AUROC": 0.6941658921769503,
+    "proxy_AUROC": 0.6592059093281696,
+    "AUROC": 0.7526711996664491,
+    "n_strata": 5
+   },
+   "v4|groom_any": {
+    "strat_AUROC": 0.731869295513733,
+    "proxy_AUROC": 0.6712630562651789,
+    "AUROC": 0.8055418139338174,
+    "n_strata": 5
+   },
+   "v4_infested|Y2F": {
+    "strat_AUROC": 0.7677641439778781,
+    "proxy_AUROC": 0.614806523100146,
+    "AUROC": 0.8295790582833541,
+    "n_strata": 9
+   },
+   "v4_infested|B2F": {
+    "strat_AUROC": 0.7399428936466212,
+    "proxy_AUROC": 0.7027095906855894,
+    "AUROC": 0.815566269972061,
+    "n_strata": 9
+   },
+   "v4_infested|groom_any": {
+    "strat_AUROC": 0.8365558976688283,
+    "proxy_AUROC": 0.6026647930568039,
+    "AUROC": 0.8909788560128966,
+    "n_strata": 9
+   }
+  },
+  "smooth": {
+   "v2|Y2F": {
+    "strat_AUROC": 0.8192046252156474,
+    "proxy_AUROC": 0.6413946482935744,
+    "AUROC": 0.8545155838678609,
+    "n_strata": 9
+   },
+   "v2|B2F": {
+    "strat_AUROC": 0.8431689904991649,
+    "proxy_AUROC": 0.59263789391138,
+    "AUROC": 0.870208069802516,
+    "n_strata": 9
+   },
+   "v2|groom_any": {
+    "strat_AUROC": 0.8718483219887987,
+    "proxy_AUROC": 0.5873209082769009,
+    "AUROC": 0.8952837394785296,
+    "n_strata": 9
+   },
+   "v3|Y2F": {
+    "strat_AUROC": 0.7710534588551221,
+    "proxy_AUROC": 0.6463152854536639,
+    "AUROC": 0.8316405076754033,
+    "n_strata": 8
+   },
+   "v3|B2F": {
+    "strat_AUROC": 0.7937007381247309,
+    "proxy_AUROC": 0.6648939787877972,
+    "AUROC": 0.8459180359313656,
+    "n_strata": 8
+   },
+   "v3|groom_any": {
+    "strat_AUROC": 0.8363246909166159,
+    "proxy_AUROC": 0.6223860839935211,
+    "AUROC": 0.8829275242091077,
+    "n_strata": 8
+   },
+   "v4|Y2F": {
+    "strat_AUROC": 0.7100171099389319,
+    "proxy_AUROC": 0.6727132086725002,
+    "AUROC": 0.7736798339914066,
+    "n_strata": 5
+   },
+   "v4|B2F": {
+    "strat_AUROC": 0.6658577513068697,
+    "proxy_AUROC": 0.6592059093281696,
+    "AUROC": 0.7258201011103025,
+    "n_strata": 5
+   },
+   "v4|groom_any": {
+    "strat_AUROC": 0.7334180641327253,
+    "proxy_AUROC": 0.6712630562651789,
+    "AUROC": 0.8127479128322722,
+    "n_strata": 5
+   },
+   "v4_infested|Y2F": {
+    "strat_AUROC": 0.8010500312777005,
+    "proxy_AUROC": 0.614806523100146,
+    "AUROC": 0.8628376667622896,
+    "n_strata": 9
+   },
+   "v4_infested|B2F": {
+    "strat_AUROC": 0.6989482681795347,
+    "proxy_AUROC": 0.7027095906855894,
+    "AUROC": 0.7817186834042751,
+    "n_strata": 9
+   },
+   "v4_infested|groom_any": {
+    "strat_AUROC": 0.8476560533113607,
+    "proxy_AUROC": 0.6026647930568039,
+    "AUROC": 0.9075840921110707,
+    "n_strata": 9
+   }
+  }
+ }
+}
