@@ -33,7 +33,10 @@ def train(cfg, seed, Xtr, Xca, Xev, out_dir, dev):
     g = np.random.default_rng(seed)
     ii = torch.from_numpy(np.sort(g.choice(len(Xtr), min(250_000, len(Xtr)), replace=False))).to(dev)
     init = Xtr[ii].float()
-    norm = TokenNorm(din).to(dev).fit_blocks(init, [1024] * (din // 1024), seed=seed)
+    if cfg.get('norm') == 'global':  # one scale for all dims (inputs whose blocks were pre-scaled by the caller)
+        norm = TokenNorm(din).to(dev).fit(init, seed=seed)
+    else:
+        norm = TokenNorm(din).to(dev).fit_blocks(init, [1024] * (din // 1024), seed=seed)
     sae = MatryoshkaBatchTopKSAE(d_in=din, n_latents=cfg['W'], prefixes=tuple(cfg['prefixes']), k=cfg['k'],
                                  seed=seed).to(dev)
     with torch.no_grad():

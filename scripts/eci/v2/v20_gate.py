@@ -56,6 +56,22 @@ AMENDMENT 2 (2026-10-29, user; before any variant score): GPU cap 120 GPU-h. On-
     adopted only if it passes in both, AMENDMENT 1 (c)); scored with this gate on the eval.py frames, the proximity test
     and the dynamic share @256 (suite probe frames). ADOPT CTX iff it passes more ants cells than v2.0 AND loses no mice
     cell v2.0 passes.
+AMENDMENT 3 (2026-10-29, user-approved design; written BEFORE any of its features / SAEs / scores existed):
+  DYNAMIC-INPUT arms (scripts/eci/v2/v20_dyn2.py). x_t = a patch's DINOv3 token at frame t (5 fps, fixed position, N2
+  tokens). Block 1: c_t = (x_(t+1) - x_(t-1)) / 2 (one-sided x_(t+1) - x_t or x_t - x_(t-1) when one neighbour is
+  missing (video edge / position not kept), 0 when both are), U1 = top 128 PCA directions of c (per domain, ~1M random
+  training patches), block1 = U1 c_t. Block 2: window t-2..t+2 (available frames), m_t = window mean, r = x_(t+k) - m_t,
+  U2 = top 128 PCA directions of r, block2 = sqrt(mean_k (U2 r_(t+k))^2) (>= 0; 0 with a single frame). Each block
+  rescaled to the mean squared norm of x (on the PCA sample), then one global TokenNorm. ARMS: X0 = [x] (control, same
+  frames), A = [x, block1] (1152), B = [x, block1, block2] (1280); Matryoshka BatchTopK 2048, k16, 128/256/512/2048,
+  30k; 3 seeds each (990-992); trained on the suite's contiguous 5 fps probe stores (v2_behav, ants and mice), 12M
+  train tokens (uniform, rng 0). SCORED on the v2_prob Tier B probe frames (mice = the eval.py frames; ants = the 5 fps
+  probe table of v20_prox.py; readout mice 0.6 s smooth, ants raw) with this gate (on-lid removed), the proximity test,
+  the dynamic share @256 (suite probe frames) and the number of neurons whose decoder squared-norm share on blocks 1 + 2
+  exceeds 0.25. Adoption of an arm is NOT decided here (no re-encoding; the user decides on these numbers).
+POST-HOC AMENDMENT 4 (2026-10-29, user, AFTER the Part A gate results were seen): criterion (2) 'top-1% precision >= 3 x
+  base rate' is unreachable when the base rate > 1/3; it is REPLACED by 'top-1% precision >= base + 0.5 (1 - base)'.
+  Both the original (PASS) and the amended (PASS_am4) decisions are reported; criteria (1) and (3) unchanged.
 ==================================================================================================================
 Steps: gate (CPU) ; dyn_train --dom D (GPU) ; dyn_codes --dom D (GPU) ; dyn_gate --dom D (CPU)
 """
@@ -176,14 +192,16 @@ def gate_rows(dom, v1, v2, elig):
         r['dAUROC'] = one_vs(v2[cell]['AUROC'], [c['AUROC'] for c in v1c])
         c1 = r['dAUROC'][2] >= -0.01
         c2 = (r['v2_top1_lift'] or 0) >= 3
+        c2b = (r['v2_top1_prec'] or 0) >= r['base'] + 0.5 * (1 - r['base'])
         c3 = (r['v2_top1_prec'] or 0) >= r['v1_top1_prec'] - 0.05
-        r.update(c1_auroc=bool(c1), c2_lift3=bool(c2), c3_prec=bool(c3), PASS=bool(c1 and c2 and c3))
+        r.update(c1_auroc=bool(c1), c2_lift3=bool(c2), c2b_half=bool(c2b), c3_prec=bool(c3), PASS=bool(c1 and c2 and c3),
+                 PASS_am4=bool(c1 and c2b and c3))
         rows[cell] = r
     return rows
 
 
 def table(a):
-    L = ['| domain | cell | elig (bouts h0/h1) | base | v1 AUROC | v2 AUROC (P(on)) | dAUROC [CI] | v1 nAP | v2 nAP | v1 top1% prec | v2 top1% prec (lift) | v2 cont top1% prec | PASS P(on) | PASS cont |',
+    L = ['| domain | cell | elig (bouts h0/h1) | base | v1 AUROC | v2 AUROC (P(on)) | dAUROC [CI] | v1 nAP | v2 nAP | v1 top1% prec | v2 top1% prec (lift) | v2 cont top1% prec | PASS P(on) orig/am4 | PASS cont orig/am4 |',
          '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|']
     summ = {}
     for dom in a.doms.split(','):
@@ -199,7 +217,7 @@ def table(a):
             L.append(f'| {dom} | {cell} | {"Y" if r["eligible"] else "N (descr.)"} ({r["bouts"][0]}/{r["bouts"][1]}) | {r["base"]:.4f} | '
                      f'{r["v1_AUROC"]:.3f} | {r["v2_AUROC"]:.3f} | {d[0]:+.3f} [{d[1]:+.3f}, {d[2]:+.3f}] | {r["v1_nAP"]:.3f} | '
                      f'{r["v2_nAP"]:.3f} | {r["v1_top1_prec"]:.3f} | {r["v2_top1_prec"]:.3f} ({r["v2_top1_lift"]:.1f}x) | '
-                     f'{rc.get("v2_top1_prec", float("nan")):.3f} | {"PASS" if r["PASS"] else "FAIL"} | {"PASS" if rc.get("PASS") else "FAIL"} |')
+                     f'{rc.get("v2_top1_prec", float("nan")):.3f} | {"PASS" if r["PASS"] else "FAIL"}/{"PASS" if r["PASS_am4"] else "FAIL"} | {"PASS" if rc.get("PASS") else "FAIL"}/{"PASS" if rc.get("PASS_am4") else "FAIL"} |')
         if dom == 'mice':
             for k in ('hmm', 'smooth'):
                 nn, nt = R[k]['v1|nn']['best_neuron'], R[k]['v1|nt']['best_neuron']
@@ -210,7 +228,7 @@ def table(a):
     for dom, R in summ.items():
         for k in ('hmm', 'smooth'):
             el = {c: r for c, r in R[k].items() if r['eligible'] and c.split('|')[1] not in ONLID}
-            log(f'{dom} {k}: PASS {sum(r["PASS"] for r in el.values())} / {len(el)} eligible cells; '
+            log(f'{dom} {k}: PASS {sum(r["PASS"] for r in el.values())} (am4 {sum(r["PASS_am4"] for r in el.values())}) / {len(el)} eligible cells; '
                 + (json.dumps(R.get(f'distinct_nn_nt_{k}')) if dom == 'mice' else ''))
 
 
