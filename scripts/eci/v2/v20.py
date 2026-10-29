@@ -46,6 +46,8 @@ BG_M2 = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_mask2/bg')
 V2F = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_diag')
 BG_V20 = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_0/bg')  # frogs / mice v2 packs (fixed: PASS B uses another V2_BEE)
 NOSTORE = os.environ.get('V20_NOSTORE') == '1'  # PASS B: no training store
+FULLTOK = os.environ.get('V20_FULLTOK') == '1'  # full token store: ALL N2 tokens, no per-video code npz
+TOKROOT = Path(os.environ.get('V20_TOKROOT', '/mnt/beegfs/locatgrp/shared/rcadei/eci_tokens/v2_full'))
 NSH = {'mice': 32, 'ants': 16, 'frogs': 16}
 NSH_STORE1 = 8  # frogs 1 fps store shards
 N_BG = 48
@@ -559,8 +561,11 @@ def cmd_encode(a):
                     # training store: fixed random 20% of each frame's kept tokens
                     if NOSTORE:
                         continue
-                    sel = np.concatenate([np.random.default_rng([crc, int(k)]).random(int(m)) < P_STORE
-                                          for k, m in zip(kk, nk)]) if len(pic) else np.zeros(0, bool)
+                    if FULLTOK:
+                        sel = np.ones(len(pic), bool)
+                    else:
+                        sel = np.concatenate([np.random.default_rng([crc, int(k)]).random(int(m)) < P_STORE
+                                              for k, m in zip(kk, nk)]) if len(pic) else np.zeros(0, bool)
                     ft = bi.cpu().numpy()[sel]
                     ftok.write(xin[torch.from_numpy(sel).to(dev)].half().cpu().numpy().tobytes())
                     st_pos.append(pic[sel])
@@ -571,6 +576,11 @@ def cmd_encode(a):
         arr = {k_: np.concatenate(x_) for k_, x_ in acc.items()}
         assert len(arr['cm']) == n and int(arr['nk'].sum()) == len(arr['tp']) == len(arr['ac'])
         loc = R.local_dir() / f'{v["obs"]}.npz'
+        if FULLTOK:  # the full token store keeps no per-video code files (codes reproducible from the tokens)
+            tot += n
+            log(f'{ser} {v["obs"]}: {n} frames in {time.time() - t0:.0f}s ({n / (time.time() - t0):.1f} fps) | kept/frame '
+                f'{arr["nk"].mean():.1f} | store tokens {sum(r[5] for r in recs):,}')
+            continue
         np.savez(loc, codes_max=arr['cm'], argmax=arr['am'], n_kept=arr['nk'], tok_pos=arr['tp'], act_count=arr['ac'],
                  act_idx=arr['ai'], act_val=arr['av'], obs=v['obs'], n=n, G=Se.G, W=W, sae=b['name'])
         R.atomic_copy(loc, outd / loc.name)
@@ -588,12 +598,15 @@ def cmd_encode(a):
     nt = int(Fm.n_store.sum())
     assert NOSTORE or (loc_s / 'tok.f16').stat().st_size == nt * 1024 * 2
     wall = time.time() - T0
-    info = {'domain': a.domain, 'shard': tag, 'frames': tot, 'store_tokens': nt, 'store_bytes': nt * 2048,
-            'kept_tokens': int(Fm.n_kept.sum()), 'p_store': P_STORE, 'wall_s': wall, 'gpu_s': enc.gpu_s,
+    info = {'full_token_store': FULLTOK, 'domain': a.domain, 'shard': tag, 'frames': tot, 'store_tokens': nt, 'store_bytes': nt * 2048,
+            'kept_tokens': int(Fm.n_kept.sum()), 'p_store': 1.0 if FULLTOK else P_STORE, 'wall_s': wall, 'gpu_s': enc.gpu_s,
             'fps_wall': tot / max(wall, 1), 'gpu': torch.cuda.get_device_name(0), 'sae': b['name']}
-    (OUT / a.domain / 'encode').mkdir(parents=True, exist_ok=True)
-    (OUT / a.domain / 'encode' / f'{tag}.json').write_text(json.dumps(info, indent=1))
-    if not NOSTORE:
+    md = (TOKROOT / a.domain / '_meta') if FULLTOK else (OUT / a.domain / 'encode')
+    md.mkdir(parents=True, exist_ok=True)
+    (md / f'{tag}.json').write_text(json.dumps(info, indent=1))
+    if FULLTOK:
+        R.atomic_copy(loc_s, TOKROOT / a.domain / tag)
+    elif not NOSTORE:
         R.atomic_copy(loc_s, BEE / a.domain / 'store5' / tag)
     log(f'{a.domain} shard {a.shard} DONE: ' + json.dumps(info))
 
