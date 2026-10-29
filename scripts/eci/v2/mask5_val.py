@@ -143,14 +143,19 @@ def postproc(p, G, t, t_core, n2app=None, smooth=True):
     return keep.ravel()
 
 
+_GC = {}
+
+
 def score(keep, gold_pix, thin, G, h):
     import cv2
     import torch
     import torch.nn.functional as F
     from src.eci.v2 import mask4 as M4
     S = gold_pix.shape[0]
-    gtok = M4.tokens(gold_pix, h)
-    gfrac = F.avg_pool2d(torch.from_numpy(gold_pix).float()[None, None], S // G).flatten().numpy()
+    ck = id(gold_pix)
+    if ck not in _GC:
+        _GC[ck] = (M4.tokens(gold_pix, h), F.avg_pool2d(torch.from_numpy(gold_pix).float()[None, None], S // G).flatten().numpy())
+    gtok, gfrac = _GC[ck]
     bg = keep & (gfrac < 0.05)
     n, lab = cv2.connectedComponents(keep.reshape(G, G).astype(np.uint8), connectivity=8)
     iso = sum(1 for c in range(1, n) if not (gfrac.reshape(G, G)[lab == c] >= 0.05).any())
@@ -205,6 +210,7 @@ def cmd_fit(a):
     res = {}
     L = ['# Mask v5 (no SAM at inference): test-split metrics (pre-registered in scripts/eci/v2/mask5_prereg.md)', '']
     for dom in a.doms.split(','):
+        _GC.clear()
         D = BEE / dom
         # ---- train
         Zs, Ys = [], []

@@ -1,0 +1,92 @@
+{
+ "ants": {
+  "cfg": {
+   "t": 0.7,
+   "t_core": 0.8,
+   "or_n2": false,
+   "smooth": false
+  },
+  "dev": {
+   "new": {
+    "token_f1": 0.9090909090909092,
+    "token_recall": 0.9426229508196722,
+    "token_precision": 0.8778625954198473,
+    "thin_recall": 0.7716535433070866,
+    "bg_tok_per_frame": 3.6,
+    "iso_bg_comp_per_frame": 0.0,
+    "tok_per_frame": 52.4,
+    "n_frames": 10,
+    "n_thin": 127
+   },
+   "N2": {
+    "token_f1": 0.8474204171240395,
+    "token_recall": 0.7909836065573771,
+    "token_precision": 0.9125295508274232,
+    "thin_recall": 0.3937007874015748,
+    "bg_tok_per_frame": 2.3,
+    "iso_bg_comp_per_frame": 0.1,
+    "tok_per_frame": 42.3,
+    "n_frames": 10,
+    "n_thin": 127
+   }
+  },
+  "test": {
+   "N2": {
+    "token_f1": 0.8665158371040723,
+    "token_recall": 0.8183760683760684,
+    "token_precision": 0.9206730769230769,
+    "thin_recall": 0.47863247863247865,
+    "bg_tok_per_frame": 0.8,
+    "iso_bg_comp_per_frame": 0.0,
+    "tok_per_frame": 41.6,
+    "n_frames": 10,
+    "n_thin": 117
+   },
+   "new": {
+    "token_f1": 0.9107692307692308,
+    "token_recall": 0.9487179487179487,
+    "token_precision": 0.8757396449704142,
+    "thin_recall": 0.7606837606837606,
+    "bg_tok_per_frame": 2.6,
+    "iso_bg_comp_per_frame": 0.0,
+    "tok_per_frame": 50.7,
+    "n_frames": 10,
+    "n_thin": 117
+   },
+   "B_s_crop": {
+    "token_f1": 0.9242937853107344,
+    "token_recall": 0.8739316239316239,
+    "token_precision": 0.9808153477218226,
+    "thin_recall": 0.5811965811965812,
+    "bg_tok_per_frame": 0.2,
+    "iso_bg_comp_per_frame": 0.0,
+    "tok_per_frame": 41.7,
+    "n_frames": 10,
+    "n_thin": 117
+   }
+  },
+  "pass": false,
+  "store": {
+   "union5_over_t": 1.330392572709147,
+   "new_inside_S_N2": 0.9985093167701864,
+   "union_tok_per_frame": 68.21739130434783,
+   "store_TB": 0.25427077565217393,
+   "probe_s_per_frame": 0.06699900627136231,
+   "x_identical_min": 1.0
+  },
+  "n_train_frames": 120,
+  "n_train_tokens": 29808,
+  "test_keys": [
+   "ants_v2_b2_896",
+   "ants_v4_4_16_5_4590",
+   "ants_v3_3_6_3_1661",
+   "ants_v4_4_23_3_8054",
+   "ants_v4_4_3_2_8479",
+   "ants_v2_e2_2826",
+   "ants_v2_c9_553",
+   "ants_v2_c1_1530",
+   "ants_v3_3_8_1_2688",
+   "ants_v4_4_14_8_8388"
+  ]
+ }
+}

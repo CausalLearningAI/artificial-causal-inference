@@ -1,0 +1,182 @@
+{
+ "mice": {
+  "cfg": {
+   "t": 0.9,
+   "t_core": 0.8,
+   "or_n2": false,
+   "smooth": false
+  },
+  "dev": {
+   "new": {
+    "token_f1": 0.9259850905218318,
+    "token_recall": 0.924508240297714,
+    "token_precision": 0.9274666666666667,
+    "thin_recall": 0.68,
+    "bg_tok_per_frame": 7.3,
+    "iso_bg_comp_per_frame": 0.1,
+    "tok_per_frame": 187.5,
+    "n_frames": 10,
+    "n_thin": 50
+   },
+   "N2": {
+    "token_f1": 0.8245487364620938,
+    "token_recall": 0.9106858054226475,
+    "token_precision": 0.7532981530343008,
+    "thin_recall": 0.56,
+    "bg_tok_per_frame": 43.8,
+    "iso_bg_comp_per_frame": 0.4,
+    "tok_per_frame": 227.4,
+    "n_frames": 10,
+    "n_thin": 50
+   }
+  },
+  "test": {
+   "N2": {
+    "token_f1": 0.7782463928967814,
+    "token_recall": 0.9040742650850954,
+    "token_precision": 0.6831644583008574,
+    "thin_recall": 0.48936170212765956,
+    "bg_tok_per_frame": 66.9,
+    "iso_bg_comp_per_frame": 0.9,
+    "tok_per_frame": 256.6,
+    "n_frames": 10,
+    "n_thin": 47
+   },
+   "new": {
+    "token_f1": 0.920585967617579,
+    "token_recall": 0.9236719958741619,
+    "token_precision": 0.9175204918032787,
+    "thin_recall": 0.574468085106383,
+    "bg_tok_per_frame": 10.1,
+    "iso_bg_comp_per_frame": 0.6,
+    "tok_per_frame": 195.2,
+    "n_frames": 10,
+    "n_thin": 47
+   },
+   "B_s_crop": {
+    "token_f1": 0.8871128871128872,
+    "token_recall": 0.9159360495100567,
+    "token_precision": 0.8600484261501211,
+    "thin_recall": 0.5106382978723404,
+    "bg_tok_per_frame": 23.1,
+    "iso_bg_comp_per_frame": 0.1,
+    "tok_per_frame": 206.5,
+    "n_frames": 10,
+    "n_thin": 47
+   }
+  },
+  "pass": true,
+  "store": {
+   "union5_over_t": 1.2760997010208261,
+   "new_inside_S_N2": 0.9792767782924995,
+   "union_tok_per_frame": 247.72,
+   "store_TB": 1.9735158784,
+   "probe_s_per_frame": 0.1330737590789795,
+   "x_identical_min": 1.0
+  },
+  "n_train_frames": 120,
+  "n_train_tokens": 120000,
+  "test_keys": [
+   "mice_v1_het_kdm6b_m_1_F_O_4160",
+   "mice_v2_mixed_kdm6b_m_1_S_H_8013",
+   "mice_v2_mixed_ash1l_f_5_S_H_7740",
+   "mice_v2_mixed_kmt5b_f_4_S_H_2044",
+   "mice_v2_mixed_kmt5b_m_2_F_H_3524",
+   "mice_v1_wt_kdm6b_m_1_S_P_4006",
+   "mice_v1_wt_ash1l_m_3_F_O_474",
+   "mice_v1_het_kmt5b_f_2_F_O_3020",
+   "mice_v2_mixed_ash1l_m_1_S_H_8479",
+   "mice_v2_mixed_ash1l_m_5_F_H_4590"
+  ]
+ },
+ "frogs": {
+  "cfg": {
+   "t": 0.9,
+   "t_core": 0.8,
+   "or_n2": false,
+   "smooth": false
+  },
+  "dev": {
+   "new": {
+    "token_f1": 0.8633663366336634,
+    "token_recall": 0.8515625,
+    "token_precision": 0.8755020080321285,
+    "thin_recall": 0.925,
+    "bg_tok_per_frame": 1.0,
+    "iso_bg_comp_per_frame": 0.0,
+    "tok_per_frame": 24.9,
+    "n_frames": 10,
+    "n_thin": 40
+   },
+   "N2": {
+    "token_f1": 0.870967741935484,
+    "token_recall": 0.84375,
+    "token_precision": 0.9,
+    "thin_recall": 0.75,
+    "bg_tok_per_frame": 1.4,
+    "iso_bg_comp_per_frame": 0.3,
+    "tok_per_frame": 24.0,
+    "n_frames": 10,
+    "n_thin": 40
+   }
+  },
+  "test": {
+   "N2": {
+    "token_f1": 0.772823779193206,
+    "token_recall": 0.91,
+    "token_precision": 0.6715867158671587,
+    "thin_recall": 0.6206896551724138,
+    "bg_tok_per_frame": 7.8,
+    "iso_bg_comp_per_frame": 0.6,
+    "tok_per_frame": 27.1,
+    "n_frames": 10,
+    "n_thin": 29
+   },
+   "new": {
+    "token_f1": 0.8840579710144928,
+    "token_recall": 0.915,
+    "token_precision": 0.8551401869158879,
+    "thin_recall": 0.7931034482758621,
+    "bg_tok_per_frame": 2.1,
+    "iso_bg_comp_per_frame": 0.0,
+    "tok_per_frame": 21.4,
+    "n_frames": 10,
+    "n_thin": 29
+   },
+   "B_s_crop": {
+    "token_f1": 0.8268398268398269,
+    "token_recall": 0.955,
+    "token_precision": 0.7290076335877863,
+    "thin_recall": 0.8620689655172413,
+    "bg_tok_per_frame": 6.6,
+    "iso_bg_comp_per_frame": 0.1,
+    "tok_per_frame": 26.2,
+    "n_frames": 10,
+    "n_thin": 29
+   }
+  },
+  "pass": true,
+  "store": {
+   "union5_over_t": 1.5205938585085306,
+   "new_inside_S_N2": 0.9982758620689655,
+   "union_tok_per_frame": 35.95238095238095,
+   "store_TB": 0.20322011428571427,
+   "probe_s_per_frame": 0.0655019760131836,
+   "x_identical_min": 1.0
+  },
+  "n_train_frames": 120,
+  "n_train_tokens": 26952,
+  "test_keys": [
+   "frogs_juv_FoxP1_149_1_12085",
+   "frogs_tad_FoxP1_239_2_15485",
+   "frogs_tad_En1_290_2_5074",
+   "frogs_tad_WT_104_2_13651",
+   "frogs_tad_WT_194_6_12219",
+   "frogs_juv_FoxP1_243_1_9566",
+   "frogs_juv_FoxP1_152_2_11219",
+   "frogs_juv_FoxP1_150_1_14337",
+   "frogs_tad_En1_300_6_16028",
+   "frogs_tad_FoxP1_170_6_1902"
+  ]
+ }
+}

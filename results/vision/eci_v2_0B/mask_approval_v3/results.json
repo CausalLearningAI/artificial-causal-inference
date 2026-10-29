@@ -1,0 +1,91 @@
+{
+ "ants": {
+  "cfg": {
+   "t": 0.5,
+   "t_core": 0.5,
+   "or_n2": true
+  },
+  "dev": {
+   "new": {
+    "token_f1": 0.8506876227897839,
+    "token_recall": 0.8872950819672131,
+    "token_precision": 0.8169811320754717,
+    "thin_recall": 0.49606299212598426,
+    "bg_tok_per_frame": 6.9,
+    "iso_bg_comp_per_frame": 0.0,
+    "tok_per_frame": 53.0,
+    "n_frames": 10,
+    "n_thin": 127
+   },
+   "N2": {
+    "token_f1": 0.8474204171240395,
+    "token_recall": 0.7909836065573771,
+    "token_precision": 0.9125295508274232,
+    "thin_recall": 0.3937007874015748,
+    "bg_tok_per_frame": 2.3,
+    "iso_bg_comp_per_frame": 0.1,
+    "tok_per_frame": 42.3,
+    "n_frames": 10,
+    "n_thin": 127
+   }
+  },
+  "test": {
+   "N2": {
+    "token_f1": 0.8665158371040723,
+    "token_recall": 0.8183760683760684,
+    "token_precision": 0.9206730769230769,
+    "thin_recall": 0.47863247863247865,
+    "bg_tok_per_frame": 0.8,
+    "iso_bg_comp_per_frame": 0.0,
+    "tok_per_frame": 41.6,
+    "n_frames": 10,
+    "n_thin": 117
+   },
+   "new": {
+    "token_f1": 0.8336755646817249,
+    "token_recall": 0.8675213675213675,
+    "token_precision": 0.8023715415019763,
+    "thin_recall": 0.5470085470085471,
+    "bg_tok_per_frame": 6.1,
+    "iso_bg_comp_per_frame": 0.0,
+    "tok_per_frame": 50.6,
+    "n_frames": 10,
+    "n_thin": 117
+   },
+   "B_s_crop": {
+    "token_f1": 0.9242937853107344,
+    "token_recall": 0.8739316239316239,
+    "token_precision": 0.9808153477218226,
+    "thin_recall": 0.5811965811965812,
+    "bg_tok_per_frame": 0.2,
+    "iso_bg_comp_per_frame": 0.0,
+    "tok_per_frame": 41.7,
+    "n_frames": 10,
+    "n_thin": 117
+   }
+  },
+  "pass": false,
+  "store": {
+   "union5_over_t": 1.2477472441190494,
+   "new_inside_S_N2": 1.0,
+   "union_tok_per_frame": 64.34782608695652,
+   "store_TB": 0.23984751304347823,
+   "probe_s_per_frame": 0.07726445198059081,
+   "x_identical_min": 1.0
+  },
+  "n_train_frames": 120,
+  "n_train_tokens": 29808,
+  "test_keys": [
+   "ants_v2_b2_896",
+   "ants_v4_4_16_5_4590",
+   "ants_v3_3_6_3_1661",
+   "ants_v4_4_23_3_8054",
+   "ants_v4_4_3_2_8479",
+   "ants_v2_e2_2826",
+   "ants_v2_c9_553",
+   "ants_v2_c1_1530",
+   "ants_v3_3_8_1_2688",
+   "ants_v4_4_14_8_8388"
+  ]
+ }
+}
