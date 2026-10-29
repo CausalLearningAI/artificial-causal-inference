@@ -1,0 +1,82 @@
+{
+ "mice/diag": {
+  "r1": {
+   "outside_tokens": 2854808,
+   "off_animal_share": 0.8283113960728707,
+   "animal_px_missed_by_N2_share": 0.006865610576963495,
+   "dist_q50_q90_max": [
+    2.0,
+    4.0,
+    47.0
+   ]
+  },
+  "r4": {
+   "outside_tokens": 317700,
+   "off_animal_share": 0.7875889203651243,
+   "animal_px_missed_by_N2_share": 0.03412968209002203,
+   "dist_q50_q90_max": [
+    8.0,
+    36.0,
+    47.0
+   ]
+  }
+ },
+ "ants/scored_v2": {
+  "r1": {
+   "outside_tokens": 255813,
+   "off_animal_share": 0.9980962656315355,
+   "animal_px_missed_by_N2_share": 0.00997603718341132,
+   "dist_q50_q90_max": [
+    2.0,
+    21.0,
+    40.0
+   ]
+  },
+  "r4": {
+   "outside_tokens": 73377,
+   "off_animal_share": 0.9998364610163948,
+   "animal_px_missed_by_N2_share": 0.0,
+   "dist_q50_q90_max": [
+    17.0,
+    30.0,
+    40.0
+   ]
+  }
+ },
+ "ants/scored_v3": {
+  "r1": {
+   "outside_tokens": 599309,
+   "off_animal_share": 0.9970949877275329,
+   "animal_px_missed_by_N2_share": 0.004712093427597449,
+   "dist_q50_q90_max": [
+    3.0,
+    24.0,
+    46.0
+   ]
+  },
+  "r4": {
+   "outside_tokens": 209737,
+   "off_animal_share": 0.9991608538312268,
+   "animal_px_missed_by_N2_share": 0.00019548291431650114,
+   "dist_q50_q90_max": [
+    18.0,
+    32.0,
+    46.0
+   ]
+  }
+ },
+ "examples": [
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/v1out_mice_diag_wt_ash1l_m_1_S_H_1.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/v1out_mice_diag_wt_ash1l_m_1_S_H_6001.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/v1out_mice_diag_wt_ash1l_f_1_S_P_3003.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/v1out_mice_diag_wt_kmt5b_m_1_S_H_2.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/v1out_ants_scored_v2_a1_0.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/v1out_ants_scored_v2_a3_0.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/v1out_ants_scored_v2_a5_0.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/v1out_ants_scored_v2_a7_0.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/v1out_ants_scored_v3_3_1_1_0.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/v1out_ants_scored_v3_3_3_9_0.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/v1out_ants_scored_v3_3_8_8_0.png",
+  "/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/ghost/v1out_ants_scored_v3_3_9_6_0.png"
+ ]
+}
