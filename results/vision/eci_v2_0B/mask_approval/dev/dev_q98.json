@@ -1,0 +1,32 @@
+[
+ {
+  "case": "mice/v1/wt_ash1l_m_1_S_H/6001",
+  "old": 359,
+  "new": 474,
+  "added": 117,
+  "removed": 2,
+  "ghost_area_old": 0.013090133666992188,
+  "ghost_area_new": 0.0,
+  "region_area": 0.09452247619628906
+ },
+ {
+  "case": "mice/v1/het_ash1l_m_3_F_O/1500",
+  "old": 179,
+  "new": 290,
+  "added": 112,
+  "removed": 1,
+  "ghost_area_old": 0.03048419952392578,
+  "ghost_area_new": 0.0,
+  "region_area": 0.13648509979248047
+ },
+ {
+  "case": "mice/v2/mixed_kmt5b_m_1_F_H/1000",
+  "old": 203,
+  "new": 288,
+  "added": 85,
+  "removed": 0,
+  "ghost_area_old": 0.030414581298828125,
+  "ghost_area_new": 0.0,
+  "region_area": 0.1243143081665039
+ }
+]

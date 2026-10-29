@@ -1,0 +1,56 @@
+{
+ "set": "mab",
+ "S": 896,
+ "G": 56,
+ "h": 18.110770276274835,
+ "n_videos": 120,
+ "n_frames": 960,
+ "ghost_area_old_mean": 0.0024500944176498725,
+ "ghost_area_new_mean": 0.0,
+ "ghost_area_old_max": 0.009923818160076531,
+ "added_share": 0.19021930930173936,
+ "removed_share": 0.004310562137635493,
+ "added_share_b": 0.045071842702293925,
+ "removed_share_b": 0.0026468364003024956,
+ "wall_s": 2334.3887231349945,
+ "device": "cpu",
+ "N2": {
+  "body_tok": 0.5912037037037037,
+  "tail_base_tok": 0.5892361111111112,
+  "tail_seg_px": 0.32784722222222223,
+  "tail_seg_tok": 0.3109722222222222,
+  "tail_tip_tok": 0.09479166666666665,
+  "tokens_per_frame": 41.322916666666664,
+  "leak": 0.027577514494580287
+ },
+ "NEW": {
+  "body_tok": 0.6303626543209877,
+  "tail_base_tok": 0.6746527777777778,
+  "tail_seg_px": 0.44604166666666667,
+  "tail_seg_tok": 0.4395138888888888,
+  "tail_tip_tok": 0.16736111111111113,
+  "tokens_per_frame": 49.005208333333336,
+  "leak": 0.02839834201296631
+ },
+ "NEWB": {
+  "body_tok": 0.599344135802469,
+  "tail_base_tok": 0.6222222222222221,
+  "tail_seg_px": 0.3572569444444444,
+  "tail_seg_tok": 0.3430208333333333,
+  "tail_tip_tok": 0.10868055555555553,
+  "tokens_per_frame": 43.07604166666667,
+  "leak": 0.026406790317510215
+ },
+ "M0": {
+  "body_tok": 0.5176311728395062,
+  "tail_base_tok": 0.3885416666666667,
+  "tail_seg_px": 0.145625,
+  "tail_seg_tok": 0.10746527777777778,
+  "tail_tip_tok": 0.05694444444444444,
+  "tokens_per_frame": 26.669791666666665,
+  "leak": 0.02359098543139476
+ },
+ "identity_N2_max_abs_diff": 0.0,
+ "identity_M0_max_abs_diff": 0.0,
+ "identity_h_diff": 0.0
+}

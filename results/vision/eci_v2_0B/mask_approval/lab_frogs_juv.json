@@ -1,0 +1,21 @@
+{
+ "dom": "frogs",
+ "ser": "juv",
+ "frames": 105,
+ "decode_fail": 0,
+ "h": 15.811388300841896,
+ "G": 50,
+ "wall_s": 296.89477825164795,
+ "old": {
+  "tokens_per_frame": 27.409523809523808,
+  "leakA": 0.0,
+  "leakB": 0.0
+ },
+ "new": {
+  "tokens_per_frame": 27.419047619047618,
+  "leakA": 0.0,
+  "leakB": 0.0
+ },
+ "added_share": 0.00034746351633078526,
+ "removed_share": 0.0
+}

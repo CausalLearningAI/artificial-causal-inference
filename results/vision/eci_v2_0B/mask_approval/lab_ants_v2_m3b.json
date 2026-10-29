@@ -1,0 +1,21 @@
+{
+ "dom": "ants",
+ "ser": "v2",
+ "frames": 120,
+ "decode_fail": 0,
+ "h": 13.92838827718412,
+ "G": 48,
+ "wall_s": 266.9049344062805,
+ "old": {
+  "tokens_per_frame": 38.40833333333333,
+  "leakA": 0.0,
+  "leakB": 0.0
+ },
+ "new": {
+  "tokens_per_frame": 38.416666666666664,
+  "leakA": 0.0,
+  "leakB": 0.0
+ },
+ "added_share": 0.00021696680407897592,
+ "removed_share": 0.0
+}

@@ -498,27 +498,32 @@ def cmd_bench(a):
 
 
 def cmd_sheet(a):
+    """per domain one PNG: frame | old N2 (blue) | mask3 (green) | mask3b (green); rows = the saved sheet rows."""
     from PIL import Image, ImageDraw
-    groups = {'mice': ['mice_'], 'ants': ['ants_'], 'frogs': ['frogs_'], 'benchmarks': ['bench_']}
+    groups = {'mice': 'mice_', 'ants': 'ants_', 'frogs': 'frogs_', 'benchmarks': 'bench_'}
+    tile = 512
     for dom, pre in groups.items():
-        fs = sorted(f for f in (OUT / 'rows').glob('*.png') if any(f.name.startswith(p) for p in pre))
+        fs = sorted(f for f in (OUT / 'rows').glob(pre + '*.png') if not f.stem.endswith('_m3b'))
         if not fs:
             continue
-        tile = 512
-        sh = Image.new('RGB', (3 * tile, tile * len(fs)))
+        sh = Image.new('RGB', (4 * tile, tile * len(fs)))
         for r, f in enumerate(fs):
-            im = Image.open(f)
-            w, hh = im.size
-            for j in range(3):
-                t = im.crop((j * w // 3, 0, (j + 1) * w // 3, hh)).resize((tile, tile), Image.BILINEAR)
+            fb = f.with_name(f.stem + '_m3b.png')
+            ims = [Image.open(f)] + ([Image.open(fb)] if fb.exists() else [])
+            w, hh = ims[0].size
+            parts = [ims[0].crop((j * w // 3, 0, (j + 1) * w // 3, hh)) for j in range(3)]
+            parts.append(ims[1].crop((2 * w // 3, 0, w, hh)) if len(ims) > 1 else Image.new('RGB', (w // 3, hh)))
+            txt = (OUT / 'rows' / f'{f.stem}.txt').read_text().split(' | old')[0]
+            nb = (OUT / 'rows' / f'{f.stem}_m3b.txt').read_text().split('| new ')[-1] if fb.exists() else 'n/a'
+            no, nn = (OUT / 'rows' / f'{f.stem}.txt').read_text().split('| old ')[1].split(' | new ')
+            for j, (p_, lab) in enumerate(zip(parts, ['frame', f'old N2 {no}', f'mask3 {nn}', f'mask3b {nb}'])):
+                t = p_.resize((tile, tile), Image.BILINEAR)
                 d = ImageDraw.Draw(t)
-                txt = (OUT / 'rows' / f.with_suffix('.txt').name).read_text()
                 d.rectangle([0, 0, tile, 16], fill=(0, 0, 0))
-                d.text((4, 3), ['frame', 'old N2 (blue)', 'new mask3 (green)'][j] + ' | ' + txt[:70], fill=(255, 255, 0))
+                d.text((4, 3), f'{lab} | {txt}'[:80], fill=(255, 255, 0))
                 sh.paste(t, (j * tile, r * tile))
         sh.save(OUT / f'{dom}.png')
         log(f'{dom}: {len(fs)} rows -> {OUT / f"{dom}.png"}')
-
 
 def cmd_sweep(a):
     """post-hoc development sweep of (K_MAD, REACH_H) on frames outside the metric sample; frame | old | variants."""

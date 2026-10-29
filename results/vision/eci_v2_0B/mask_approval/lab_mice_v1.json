@@ -1,0 +1,21 @@
+{
+ "dom": "mice",
+ "ser": "v1",
+ "frames": 120,
+ "decode_fail": 0,
+ "h": 32.0,
+ "G": 64,
+ "wall_s": 3078.9675080776215,
+ "old": {
+  "tokens_per_frame": 243.38333333333333,
+  "leakA": 0.0,
+  "leakB": 0.0
+ },
+ "new": {
+  "tokens_per_frame": 287.425,
+  "leakA": 0.07947000666840626,
+  "leakB": 0.0
+ },
+ "added_share": 0.19006368554406627,
+ "removed_share": 0.00910771759227556
+}

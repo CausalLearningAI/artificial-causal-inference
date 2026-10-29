@@ -1,0 +1,102 @@
+[
+ {
+  "case": "mice/v1/wt_ash1l_m_1_S_H/6001",
+  "old": 359,
+  "new": 456,
+  "added": 97,
+  "removed": 0,
+  "ghost_area_old": 0.013090133666992188,
+  "ghost_area_new": 0.0,
+  "region_area": 0.09452247619628906
+ },
+ {
+  "case": "mice/v1/het_kmt5b_m_2_F_H/1000",
+  "old": 151,
+  "new": 205,
+  "added": 59,
+  "removed": 5,
+  "ghost_area_old": 0.030862808227539062,
+  "ghost_area_new": 0.0011854171752929688,
+  "region_area": 0.10438251495361328
+ },
+ {
+  "case": "mice/v1/het_kmt5b_m_2_F_H/4500",
+  "old": 167,
+  "new": 201,
+  "added": 36,
+  "removed": 2,
+  "ghost_area_old": 0.030862808227539062,
+  "ghost_area_new": 0.0011854171752929688,
+  "region_area": 0.10438251495361328
+ },
+ {
+  "case": "mice/v1/het_ash1l_m_3_F_O/1500",
+  "old": 179,
+  "new": 291,
+  "added": 115,
+  "removed": 3,
+  "ghost_area_old": 0.03048419952392578,
+  "ghost_area_new": 0.0,
+  "region_area": 0.13648509979248047
+ },
+ {
+  "case": "mice/v1/het_ash1l_m_3_F_O/3000",
+  "old": 171,
+  "new": 276,
+  "added": 107,
+  "removed": 2,
+  "ghost_area_old": 0.03048419952392578,
+  "ghost_area_new": 0.0,
+  "region_area": 0.13648509979248047
+ },
+ {
+  "case": "mice/v2/mixed_kmt5b_m_1_F_H/1000",
+  "old": 203,
+  "new": 272,
+  "added": 69,
+  "removed": 0,
+  "ghost_area_old": 0.030414581298828125,
+  "ghost_area_new": 0.0,
+  "region_area": 0.1243143081665039
+ },
+ {
+  "case": "mice/v2/mixed_kmt5b_m_1_F_H/4500",
+  "old": 210,
+  "new": 286,
+  "added": 79,
+  "removed": 3,
+  "ghost_area_old": 0.030414581298828125,
+  "ghost_area_new": 0.0,
+  "region_area": 0.1243143081665039
+ },
+ {
+  "case": "ants/v4/4_1_1/1000",
+  "old": 35,
+  "new": 39,
+  "added": 4,
+  "removed": 0,
+  "ghost_area_old": 0.0016324851018838908,
+  "ghost_area_new": 0.001548382833525567,
+  "region_area": 0.02653276384083045
+ },
+ {
+  "case": "frogs/juv/WT_157_1/1000",
+  "old": 31,
+  "new": 31,
+  "added": 0,
+  "removed": 0,
+  "ghost_area_old": 0.0,
+  "ghost_area_new": 0.0,
+  "region_area": 0.0
+ },
+ {
+  "case": "frogs/tad/WT_100_1/1000",
+  "old": 4,
+  "new": 4,
+  "added": 0,
+  "removed": 0,
+  "ghost_area_old": 8.633633633633634e-05,
+  "ghost_area_new": 0.0001388888888888889,
+  "region_area": 0.013138138138138139
+ }
+]

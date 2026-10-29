@@ -1,0 +1,21 @@
+{
+ "dom": "frogs",
+ "ser": "tad",
+ "frames": 120,
+ "decode_fail": 0,
+ "h": 21.2602916254693,
+ "G": 24,
+ "wall_s": 128.31197929382324,
+ "old": {
+  "tokens_per_frame": 23.441666666666666,
+  "leakA": 0.0,
+  "leakB": 0.0
+ },
+ "new": {
+  "tokens_per_frame": 23.441666666666666,
+  "leakA": 0.0,
+  "leakB": 0.0
+ },
+ "added_share": 0.0,
+ "removed_share": 0.0
+}
