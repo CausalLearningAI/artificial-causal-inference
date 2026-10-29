@@ -1,6 +1,7 @@
 import json, sys, numpy as np
 dom = sys.argv[1]
-d = json.load(open(f'results/vision/eci_v2_0B/dyn2/{dom}_score.json'))
+suf = sys.argv[2] if len(sys.argv) > 2 else ''
+d = json.load(open(f'results/vision/eci_v2_0B/dyn2/{dom}_score{suf}.json'))
 el = lambda G: {c: r for c, r in G.items() if r['eligible'] and c.split('|')[1] not in ('YOL', 'BOL', 'FOL', 'onlid_any', 'lid_any3')}
 rows = {}
 for k in ('hmm', 'smooth'):
@@ -10,7 +11,7 @@ print(f'{dom}: cells', list(v1))
 print('v1 (11 seeds mean): AUROC', round(np.mean([r['v2_AUROC'] for r in v1.values()]), 3), 'top1', round(np.mean([r['v2_top1_prec'] for r in v1.values()]), 3))
 for k, G in rows.items():
     print(k, 'PASS orig/final', sum(r['PASS'] for r in G.values()), sum(r['PASS_final'] for r in G.values()), '/', len(G), 'AUROC', round(np.mean([r['v2_AUROC'] for r in G.values()]), 3), 'top1', round(np.mean([r['v2_top1_prec'] for r in G.values()]), 3))
-for arm in ('X0', 'A', 'B'):
+for arm in (('A10', 'A20', 'B10', 'B20') if suf == 'w' else ('X0', 'A', 'B')):
     S = [d[f'{arm}_s{s}'] for s in (990, 991, 992)]
     Gs = [el(x['gate']) for x in S]
     pf = [sum(r['PASS_final'] for r in G.values()) for G in Gs]
