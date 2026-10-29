@@ -46,6 +46,16 @@ AMENDMENT 1 (2026-10-29, user additions relayed by the coordinator; written BEFO
       frames, mean weighted by positives = STRATIFIED AUROC; averaged over directions. PROXY AUROC = AUROC of -proxy
       (closer = higher) on the cell's frames. Reading: a neuron that only encodes 'bodies close' drops to ~0.5 within
       strata. Reported for v1 (11 seeds), v2.0 (P(on), continuous) and DYN3; descriptive (no pass rule).
+AMENDMENT 2 (2026-10-29, user; before any variant score): GPU cap 120 GPU-h. On-lid labels (YOL / BOL / FOL, onlid_any)
+    are REMOVED from the gate and the tables; ants gate labels = Y2F, B2F, groom_any. DYN3 is ON HOLD (not trained;
+    jobs cancelled before any code / score). The CONTEXT-MASK variant CTX is run after all (store missing -> encode):
+    CTX = the v2.0 N2 token set dilated by one token (3 x 3 neighbourhood on the DINOv3 grid = v1's one-patch ring),
+    same encoder / resolution / canonical frame, frame max over the kept tokens. Tokens encoded for: the suite's 5 fps
+    probe frames (training, label-free) and the eval.py frames (scoring); SAE = the v2.0 recipe (2048, 128/256/512/2048,
+    k16, 30k), seeds 980-982, train tokens capped at 16M (uniform, rng 0). Ants first, then mice (domain-invariant rule:
+    adopted only if it passes in both, AMENDMENT 1 (c)); scored with this gate on the eval.py frames, the proximity test
+    and the dynamic share @256 (suite probe frames). ADOPT CTX iff it passes more ants cells than v2.0 AND loses no mice
+    cell v2.0 passes.
 ==================================================================================================================
 Steps: gate (CPU) ; dyn_train --dom D (GPU) ; dyn_codes --dom D (GPU) ; dyn_gate --dom D (CPU)
 """
@@ -65,6 +75,7 @@ V = REPO / 'results/vision'
 OUT = V / 'eci_v2_0B/gate'
 EC = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes')
 BEE = EC / 'v2_0B/gate'
+ONLID = ('YOL', 'BOL', 'FOL', 'onlid_any', 'lid_any3')  # removed from the gate (AMENDMENT 2)
 log = lambda s: print(time.strftime('%H:%M:%S'), s, flush=True)  # noqa: E731
 
 
@@ -181,6 +192,8 @@ def table(a):
         R = {k: gate_rows(dom, v1, S['v2'][k], S['eligibility']) for k in ('hmm', 'smooth')}
         summ[dom] = R
         for cell, r in R['hmm'].items():
+            if cell.split('|')[1] in ONLID:
+                continue
             rc = R['smooth'].get(cell, {})
             d = r['dAUROC']
             L.append(f'| {dom} | {cell} | {"Y" if r["eligible"] else "N (descr.)"} ({r["bouts"][0]}/{r["bouts"][1]}) | {r["base"]:.4f} | '
@@ -196,7 +209,7 @@ def table(a):
     print('\n'.join(L))
     for dom, R in summ.items():
         for k in ('hmm', 'smooth'):
-            el = {c: r for c, r in R[k].items() if r['eligible']}
+            el = {c: r for c, r in R[k].items() if r['eligible'] and c.split('|')[1] not in ONLID}
             log(f'{dom} {k}: PASS {sum(r["PASS"] for r in el.values())} / {len(el)} eligible cells; '
                 + (json.dumps(R.get(f'distinct_nn_nt_{k}')) if dom == 'mice' else ''))
 
