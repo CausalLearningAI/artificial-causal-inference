@@ -1,0 +1,27 @@
+{
+ "A_s_full": {
+  "s_per_frame_median": 0.10760354995727539,
+  "n": 10,
+  "device": "NVIDIA GeForce RTX 2080 Ti"
+ },
+ "A_l_full": {
+  "s_per_frame_median": 0.3772299289703369,
+  "n": 10,
+  "device": "NVIDIA GeForce RTX 2080 Ti"
+ },
+ "A_s_crop": {
+  "s_per_frame_median": 0.1014719009399414,
+  "n": 10,
+  "device": "NVIDIA GeForce RTX 2080 Ti"
+ },
+ "A_l_crop": {
+  "s_per_frame_median": 0.37283897399902344,
+  "n": 10,
+  "device": "NVIDIA GeForce RTX 2080 Ti"
+ },
+ "A_s_video": {
+  "s_per_frame_median": 1.5350358486175537,
+  "n": 10,
+  "device": "NVIDIA GeForce RTX 2080 Ti"
+ }
+}

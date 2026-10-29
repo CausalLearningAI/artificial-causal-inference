@@ -503,12 +503,12 @@ def cmd_bench(a):
         with ThreadPoolExecutor(6) as ex:
             loaded = list(ex.map(lambda it: VA.load_cal(it, 'test'), VA.cal_videos('test', 24, 0)))
         S, G = 1024, 64
-        vids = [(nm, torch.from_numpy(xb).to(dev), torch.from_numpy(x).to(dev), ks, kps) for nm, xb, x, ks, kps in loaded]
+        vids = [(nm, torch.from_numpy(xb), torch.from_numpy(x), ks, kps) for nm, xb, x, ks, kps in loaded]
     elif kind == 'crim':
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(6) as ex:
             v0 = list(ex.map(lambda it: VA.load_crim(it, dev), VA.crim_videos(12, 16, 0)))
-        vids = [(nm, xb, x, ks, [(xy[i], st) for i in range(len(ks))]) for nm, st, xb, x, ks, xy in v0]
+        vids = [(nm, xb.cpu(), x.cpu(), ks, [(xy[i], st) for i in range(len(ks))]) for nm, st, xb, x, ks, xy in v0]
         S, G = 640, 40
     else:
         from common import mab_decode
@@ -516,10 +516,17 @@ def cmd_bench(a):
         for c, ks, kps in VA.mab_clips(120, 8, 0):
             arr = mab_decode('mouse_submission', c)
             ib = np.linspace(0, len(arr) - 1, VA.N_BG).round().astype(int)
-            vids.append((c, VA.up4(arr[ib], dev), VA.up4(arr[ks + 1], dev), ks, kps))
+            vids.append((c, VA.up4(arr[ib], dev).cpu(), VA.up4(arr[ks + 1], dev).cpu(), ks, kps))
         S, G = 896, 56
-    packs = [M2.background_pack(xb) for _, xb, _, _, _ in vids]
-    h = VA.body_h([c.cpu().numpy() for (_, xb, _, _, _), pk in zip(vids, packs) for c in VA.dark_cue(xb[::6], pk['q98'])])
+    # frames stay on the CPU, one video at a time on the GPU (11 GB cards); the arithmetic is the validate.py one
+    packs, cores = [], []
+    for _, xb, _, _, _ in vids:
+        xg = xb.to(dev)
+        pk = M2.background_pack(xg)
+        cores += [c.cpu().numpy() for c in VA.dark_cue(xg[::6], pk['q98'])]
+        packs.append({k: v.cpu() if torch.is_tensor(v) else v for k, v in pk.items()})
+        del xg
+    h = VA.body_h(cores)
     log(f'{kind}: {len(vids)} videos loaded, h {h:.2f}, {time.time() - t0:.0f}s')
     arms = a.arms.split(',') if a.arms else ['A_s_full', 'A_l_full', 'A_s_crop', 'A_l_crop']
     models = {}
@@ -529,8 +536,9 @@ def cmd_bench(a):
     g1 = np.random.default_rng(1)
     pickv = set(g1.choice(len(vids), 2, replace=False).tolist())
     for vi, ((nm, xb, x, ks, kps), pk) in enumerate(zip(vids, packs)):
+        pk = {k: v.to(dev) if torch.is_tensor(v) else v for k, v in pk.items()}
         for b0 in range(0, len(x), 8):
-            xx = x[b0:b0 + 8]
+            xx = x[b0:b0 + 8].to(dev)
             ms, r = VA.masks_all(xx, pk, h)
             core0 = VA.dark_cue(xx, pk['q98'])
             _, app = M2.appendage(r['pix'], h)
@@ -582,6 +590,91 @@ def cmd_bench(a):
                             **{f'{k}_keep': v[0] for k, v in sr['arms'].items()},
                             **{f'{k}_pix': np.packbits(v[1], -1) for k, v in sr['arms'].items()})
     log(json.dumps({k: v for k, v in out.items() if k in ('N2', 'identity_N2_max_abs_diff', 'identity_h_diff')}))
+
+
+def diff_tile(im, ko, kn, pix_new, col_both=(255, 255, 255)):
+    """token difference: both kept (light), new only (green), old only (red); new mask pixel outline (yellow)."""
+    G = int(round(np.sqrt(ko.size)))
+    S = im.shape[0]
+    up = lambda k: np.kron(k.reshape(G, G), np.ones((S // G, S // G), bool))  # noqa: E731
+    o = overlay(im, up(ko & kn), col_both, 0.25)
+    o = overlay(o, up(kn & ~ko), (0, 230, 0), 0.5)
+    o = overlay(o, up(ko & ~kn), (255, 0, 0), 0.5)
+    return overlay(o, outline(pix_new), (255, 255, 0), 0.9)
+
+
+def zoom_box(pix, S, side):
+    """square of `side` px around the mask component with the most thin (appendage-like) pixels: here simply the
+    densest window of mask pixels' bounding boxes -> the largest component's centre."""
+    import cv2
+    n, lab, st, cen = cv2.connectedComponentsWithStats(pix.astype(np.uint8), connectivity=8)
+    if n <= 1:
+        return 0, 0, S
+    j = 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA]))
+    cx, cy = cen[j]
+    side = int(min(S, side))
+    return int(np.clip(cx - side / 2, 0, S - side)), int(np.clip(cy - side / 2, 0, S - side)), side
+
+
+def sheet_rows(dom, arms, tag=''):
+    rows = []
+    for d, ser in SERIES:
+        if d != dom:
+            continue
+        meta = {(m['obs'], m['k']): m for m in json.loads((OUT / 'cap' / f'{d}_{ser}.json').read_text())}
+        for role, obs, k in old_rows(d, ser):
+            m = meta.get((obs, k))
+            if m is None:
+                log(f'sheet: {d} {ser} {obs} {k} not captured')
+                continue
+            am, c = arm_masks(d, ser, m, tag)
+            rows.append((f'{"random" if role == "rand" else role[5:]} | {d} {ser} {obs} k{k}', c['x'][-1], am['N2'],
+                         [am[x] for x in arms], m['h']))
+    return rows
+
+
+def render_sheet(rows, arms, path, zoom_h=6.0):
+    """frame | N2 | each arm (green tokens) | zoom on the last arm vs N2 (green = arm only, red = N2 only, yellow =
+    the arm's pixel outline)."""
+    from PIL import Image, ImageDraw
+    T = 448
+    nc = 3 + len(arms)
+    sh = Image.new('RGB', (nc * T, T * len(rows)))
+    for r, (title, im, (pn, kn2), aw, h) in enumerate(rows):
+        S = im.shape[0]
+        pw, kw = aw[-1]
+        x0, y0, side = zoom_box(pw | pn, S, max(96, zoom_h * 2 * h))
+        z = diff_tile(im, kn2, kw, pw)[y0:y0 + side, x0:x0 + side]
+        tiles = [(im, title), (tint(im, kn2, (0, 90, 255)), f'N2 {int(kn2.sum())} tok')]
+        tiles += [(tint(im, k_, (0, 220, 0)), f'{nm} {int(k_.sum())} tok') for nm, (_, k_) in zip(arms, aw)]
+        tiles.append((z, f'zoom {arms[-1]} vs N2: green only {arms[-1]}, red only N2'))
+        for j, (t, lab) in enumerate(tiles):
+            tt = Image.fromarray(t).resize((T, T), Image.NEAREST if j == nc - 1 else Image.BILINEAR)
+            d = ImageDraw.Draw(tt)
+            d.rectangle([0, 0, T, 15], fill=(0, 0, 0))
+            d.text((4, 2), lab[:74], fill=(255, 255, 0))
+            sh.paste(tt, (j * T, r * T))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sh.save(path)
+    log(f'{path}: {len(rows)} rows')
+
+
+def cmd_sheet(a):
+    arms = (a.arms or 'A_s_crop,A_l_full,B_l_full').split(',')
+    for dom in ('mice', 'ants', 'frogs'):
+        render_sheet(sheet_rows(dom, arms, a.tag), arms, OUT / f'{dom}.png')
+    rows = []
+    for kind in ('mab', 'cal', 'crim'):
+        if not (OUT / f'bench_{kind}.json').exists():
+            continue
+        h = json.loads((OUT / f'bench_{kind}.json').read_text())['h']
+        for f in sorted((BEE / 'bench').glob(f'{kind}_*.npz')):
+            z = np.load(f)
+            S = z['img'].shape[0]
+            aw = [(np.unpackbits(z[x + '_pix'], -1)[:, :S].astype(bool), z[x + '_keep'].astype(bool)) for x in arms]
+            rows.append((f'random | {kind} {z["nm"]}', z['img'], (z['n2pix'], z['n2'].astype(bool)), aw, h))
+    if rows:
+        render_sheet(rows, arms, OUT / 'benchmarks.png')
 
 
 def main():

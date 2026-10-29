@@ -36,6 +36,7 @@ SAM_DIR = {'small': f'{HF}/models--facebook--sam2.1-hiera-small/snapshots/ee5bba
 MIN_BODY_H2, PAD_H, PTS_AREA_H2, MAX_PTS = 0.5, 0.5, 8.0, 4
 MAX_GROW, MIN_COVER = 3.0, 0.5
 CROP_MIN_H, CROP_PAD_H = 4.0, 1.0
+CROP_BATCH = 4  # crops per SAM pass (memory only; results do not depend on it beyond float rounding)
 
 
 def adt():
@@ -149,8 +150,8 @@ def sam_crop(model, proc, img, objs, dev, h, prompts=None):
         pts.append([[[x - a, y - b] for x, y in P]])
         labs.append([L])
     res = []
-    for j in range(0, len(ims), 8):
-        sl = slice(j, j + 8)
+    for j in range(0, len(ims), CROP_BATCH):
+        sl = slice(j, j + CROP_BATCH)
         kw = dict(images=ims[sl], input_points=pts[sl], input_labels=labs[sl], return_tensors='pt')
         if prompts is None or all(p.get('box', True) for p in prompts[sl]):
             kw['input_boxes'] = boxes[sl]

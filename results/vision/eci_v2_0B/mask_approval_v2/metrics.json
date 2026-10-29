@@ -1,0 +1,2194 @@
+{
+ "series": {
+  "mice_v1": {
+   "N2": {
+    "iou_px": 0.6231586566670383,
+    "tok_recall": 0.9205851619644723,
+    "tok_precision": 0.6730328495034378,
+    "tok_f1": 0.7775816416593117,
+    "thin_recall_tok": 0.5740740740740741,
+    "thin_recall_px": 0.48148148148148145,
+    "bg_tok_per_frame": 70.0,
+    "bg_share": 0.26737967914438504,
+    "tok_per_frame": 261.8,
+    "gold_tok_per_frame": 191.4,
+    "n_frames": 10,
+    "n_thin": 54
+   },
+   "mask3b": {
+    "iou_px": 0.6257939431125602,
+    "tok_recall": 0.9482758620689655,
+    "tok_precision": 0.6636197440585009,
+    "tok_f1": 0.7808130780813077,
+    "thin_recall_tok": 0.6666666666666666,
+    "thin_recall_px": 0.5740740740740741,
+    "bg_tok_per_frame": 74.7,
+    "bg_share": 0.27312614259597806,
+    "tok_per_frame": 273.5,
+    "gold_tok_per_frame": 191.4,
+    "n_frames": 10,
+    "n_thin": 54
+   },
+   "A_s_full": {
+    "iou_px": 0.8050700084261102,
+    "tok_recall": 0.9393939393939394,
+    "tok_precision": 0.8586437440305635,
+    "tok_f1": 0.8972055888223553,
+    "thin_recall_tok": 0.5925925925925926,
+    "thin_recall_px": 0.5925925925925926,
+    "bg_tok_per_frame": 21.0,
+    "bg_share": 0.10028653295128939,
+    "tok_per_frame": 209.4,
+    "gold_tok_per_frame": 191.4,
+    "n_frames": 10,
+    "n_thin": 54
+   },
+   "B_s_full": {
+    "iou_px": 0.7976186258270813,
+    "tok_recall": 0.9404388714733543,
+    "tok_precision": 0.8438818565400844,
+    "tok_f1": 0.8895478131949592,
+    "thin_recall_tok": 0.5925925925925926,
+    "thin_recall_px": 0.5925925925925926,
+    "bg_tok_per_frame": 24.4,
+    "bg_share": 0.11439287388654477,
+    "tok_per_frame": 213.3,
+    "gold_tok_per_frame": 191.4,
+    "n_frames": 10,
+    "n_thin": 54
+   },
+   "A_l_full": {
+    "iou_px": 0.7785826621550779,
+    "tok_recall": 0.9122257053291536,
+    "tok_precision": 0.8550440744368266,
+    "tok_f1": 0.8827098078867542,
+    "thin_recall_tok": 0.6481481481481481,
+    "thin_recall_px": 0.6296296296296297,
+    "bg_tok_per_frame": 22.9,
+    "bg_share": 0.11214495592556317,
+    "tok_per_frame": 204.2,
+    "gold_tok_per_frame": 191.4,
+    "n_frames": 10,
+    "n_thin": 54
+   },
+   "B_l_full": {
+    "iou_px": 0.7698953421813994,
+    "tok_recall": 0.9200626959247649,
+    "tok_precision": 0.8330179754020813,
+    "tok_f1": 0.8743793445878847,
+    "thin_recall_tok": 0.6481481481481481,
+    "thin_recall_px": 0.6296296296296297,
+    "bg_tok_per_frame": 27.5,
+    "bg_share": 0.13008514664143803,
+    "tok_per_frame": 211.4,
+    "gold_tok_per_frame": 191.4,
+    "n_frames": 10,
+    "n_thin": 54
+   },
+   "A_s_crop": {
+    "iou_px": 0.7858434692297017,
+    "tok_recall": 0.9258098223615465,
+    "tok_precision": 0.8458233890214797,
+    "tok_f1": 0.8840109753055625,
+    "thin_recall_tok": 0.5740740740740741,
+    "thin_recall_px": 0.5370370370370371,
+    "bg_tok_per_frame": 25.4,
+    "bg_share": 0.12124105011933174,
+    "tok_per_frame": 209.5,
+    "gold_tok_per_frame": 191.4,
+    "n_frames": 10,
+    "n_thin": 54
+   },
+   "B_s_crop": {
+    "iou_px": 0.7762005875039882,
+    "tok_recall": 0.9315569487983281,
+    "tok_precision": 0.8289167828916782,
+    "tok_f1": 0.8772447724477245,
+    "thin_recall_tok": 0.5925925925925926,
+    "thin_recall_px": 0.5370370370370371,
+    "bg_tok_per_frame": 29.4,
+    "bg_share": 0.13668061366806136,
+    "tok_per_frame": 215.1,
+    "gold_tok_per_frame": 191.4,
+    "n_frames": 10,
+    "n_thin": 54
+   },
+   "A_l_crop": {
+    "iou_px": 0.7613800129746298,
+    "tok_recall": 0.9294670846394985,
+    "tok_precision": 0.8213296398891967,
+    "tok_f1": 0.8720588235294118,
+    "thin_recall_tok": 0.5555555555555556,
+    "thin_recall_px": 0.5185185185185185,
+    "bg_tok_per_frame": 32.4,
+    "bg_share": 0.14958448753462603,
+    "tok_per_frame": 216.6,
+    "gold_tok_per_frame": 191.4,
+    "n_frames": 10,
+    "n_thin": 54
+   },
+   "B_l_crop": {
+    "iou_px": 0.749706955561866,
+    "tok_recall": 0.9320794148380356,
+    "tok_precision": 0.7996414164051995,
+    "tok_f1": 0.8607961399276236,
+    "thin_recall_tok": 0.5555555555555556,
+    "thin_recall_px": 0.5185185185185185,
+    "bg_tok_per_frame": 37.7,
+    "bg_share": 0.16898251904975348,
+    "tok_per_frame": 223.1,
+    "gold_tok_per_frame": 191.4,
+    "n_frames": 10,
+    "n_thin": 54
+   },
+   "A_s_video": {
+    "iou_px": 0.7644433980494111,
+    "tok_recall": 0.9096133751306165,
+    "tok_precision": 0.840656687590536,
+    "tok_f1": 0.8737766624843162,
+    "thin_recall_tok": 0.6481481481481481,
+    "thin_recall_px": 0.5925925925925926,
+    "bg_tok_per_frame": 24.9,
+    "bg_share": 0.1202317720907774,
+    "tok_per_frame": 207.1,
+    "gold_tok_per_frame": 191.4,
+    "n_frames": 10,
+    "n_thin": 54
+   },
+   "B_s_video": {
+    "iou_px": 0.755718900533428,
+    "tok_recall": 0.9132706374085684,
+    "tok_precision": 0.828043581241118,
+    "tok_f1": 0.8685714285714287,
+    "thin_recall_tok": 0.6666666666666666,
+    "thin_recall_px": 0.6296296296296297,
+    "bg_tok_per_frame": 27.8,
+    "bg_share": 0.13169114163903364,
+    "tok_per_frame": 211.1,
+    "gold_tok_per_frame": 191.4,
+    "n_frames": 10,
+    "n_thin": 54
+   }
+  },
+  "mice_v2": {
+   "N2": {
+    "iou_px": 0.700383797233624,
+    "tok_recall": 0.8940188877229801,
+    "tok_precision": 0.7668766876687669,
+    "tok_f1": 0.8255813953488372,
+    "thin_recall_tok": 0.46511627906976744,
+    "thin_recall_px": 0.4186046511627907,
+    "bg_tok_per_frame": 40.7,
+    "bg_share": 0.18316831683168316,
+    "tok_per_frame": 222.2,
+    "gold_tok_per_frame": 190.6,
+    "n_frames": 10,
+    "n_thin": 43
+   },
+   "mask3b": {
+    "iou_px": 0.6854811786548902,
+    "tok_recall": 0.9270724029380902,
+    "tok_precision": 0.7380952380952381,
+    "tok_f1": 0.821860465116279,
+    "thin_recall_tok": 0.5581395348837209,
+    "thin_recall_px": 0.4883720930232558,
+    "bg_tok_per_frame": 49.1,
+    "bg_share": 0.20509607351712614,
+    "tok_per_frame": 239.4,
+    "gold_tok_per_frame": 190.6,
+    "n_frames": 10,
+    "n_thin": 43
+   },
+   "A_s_full": {
+    "iou_px": 0.8646003728078517,
+    "tok_recall": 0.8997901364113327,
+    "tok_precision": 0.929035752979415,
+    "tok_f1": 0.914179104477612,
+    "thin_recall_tok": 0.3488372093023256,
+    "thin_recall_px": 0.3488372093023256,
+    "bg_tok_per_frame": 6.6,
+    "bg_share": 0.035752979414951244,
+    "tok_per_frame": 184.6,
+    "gold_tok_per_frame": 190.6,
+    "n_frames": 10,
+    "n_thin": 43
+   },
+   "B_s_full": {
+    "iou_px": 0.8571026016141796,
+    "tok_recall": 0.9081846799580273,
+    "tok_precision": 0.9105733824302998,
+    "tok_f1": 0.9093774625689518,
+    "thin_recall_tok": 0.4186046511627907,
+    "thin_recall_px": 0.4186046511627907,
+    "bg_tok_per_frame": 10.4,
+    "bg_share": 0.05470804839558127,
+    "tok_per_frame": 190.1,
+    "gold_tok_per_frame": 190.6,
+    "n_frames": 10,
+    "n_thin": 43
+   },
+   "A_l_full": {
+    "iou_px": 0.8659645369646604,
+    "tok_recall": 0.8987408184679958,
+    "tok_precision": 0.9350436681222707,
+    "tok_f1": 0.9165329052969503,
+    "thin_recall_tok": 0.4418604651162791,
+    "thin_recall_px": 0.4186046511627907,
+    "bg_tok_per_frame": 7.5,
+    "bg_share": 0.04093886462882096,
+    "tok_per_frame": 183.2,
+    "gold_tok_per_frame": 190.6,
+    "n_frames": 10,
+    "n_thin": 43
+   },
+   "B_l_full": {
+    "iou_px": 0.8557881744166727,
+    "tok_recall": 0.9144805876180483,
+    "tok_precision": 0.9082855653986451,
+    "tok_f1": 0.9113725490196078,
+    "thin_recall_tok": 0.5116279069767442,
+    "thin_recall_px": 0.4883720930232558,
+    "bg_tok_per_frame": 12.9,
+    "bg_share": 0.0672225117248567,
+    "tok_per_frame": 191.9,
+    "gold_tok_per_frame": 190.6,
+    "n_frames": 10,
+    "n_thin": 43
+   },
+   "A_s_crop": {
+    "iou_px": 0.856209338961242,
+    "tok_recall": 0.8824763903462749,
+    "tok_precision": 0.9282560706401766,
+    "tok_f1": 0.9047875201721355,
+    "thin_recall_tok": 0.3488372093023256,
+    "thin_recall_px": 0.37209302325581395,
+    "bg_tok_per_frame": 9.4,
+    "bg_share": 0.05187637969094923,
+    "tok_per_frame": 181.2,
+    "gold_tok_per_frame": 190.6,
+    "n_frames": 10,
+    "n_thin": 43
+   },
+   "B_s_crop": {
+    "iou_px": 0.8536493231151342,
+    "tok_recall": 0.9097586568730325,
+    "tok_precision": 0.9045383411580594,
+    "tok_f1": 0.9071409887522887,
+    "thin_recall_tok": 0.46511627906976744,
+    "thin_recall_px": 0.46511627906976744,
+    "bg_tok_per_frame": 14.0,
+    "bg_share": 0.07303077725612937,
+    "tok_per_frame": 191.7,
+    "gold_tok_per_frame": 190.6,
+    "n_frames": 10,
+    "n_thin": 43
+   },
+   "A_l_crop": {
+    "iou_px": 0.859057078015569,
+    "tok_recall": 0.8740818467995802,
+    "tok_precision": 0.9328107502799552,
+    "tok_f1": 0.9024918743228602,
+    "thin_recall_tok": 0.3488372093023256,
+    "thin_recall_px": 0.3023255813953488,
+    "bg_tok_per_frame": 8.2,
+    "bg_share": 0.04591265397536394,
+    "tok_per_frame": 178.6,
+    "gold_tok_per_frame": 190.6,
+    "n_frames": 10,
+    "n_thin": 43
+   },
+   "B_l_crop": {
+    "iou_px": 0.8492358342033778,
+    "tok_recall": 0.8945435466946485,
+    "tok_precision": 0.903072033898305,
+    "tok_f1": 0.8987875593041644,
+    "thin_recall_tok": 0.46511627906976744,
+    "thin_recall_px": 0.4418604651162791,
+    "bg_tok_per_frame": 14.2,
+    "bg_share": 0.07521186440677965,
+    "tok_per_frame": 188.8,
+    "gold_tok_per_frame": 190.6,
+    "n_frames": 10,
+    "n_thin": 43
+   },
+   "A_s_video": {
+    "iou_px": 0.8586771041196546,
+    "tok_recall": 0.9249737670514165,
+    "tok_precision": 0.9054956343091937,
+    "tok_f1": 0.9151310667012718,
+    "thin_recall_tok": 0.5348837209302325,
+    "thin_recall_px": 0.4883720930232558,
+    "bg_tok_per_frame": 11.5,
+    "bg_share": 0.05906522855675398,
+    "tok_per_frame": 194.7,
+    "gold_tok_per_frame": 190.6,
+    "n_frames": 10,
+    "n_thin": 43
+   },
+   "B_s_video": {
+    "iou_px": 0.8486174935385096,
+    "tok_recall": 0.9333683105981112,
+    "tok_precision": 0.885515181682429,
+    "tok_f1": 0.9088122605363983,
+    "thin_recall_tok": 0.5813953488372093,
+    "thin_recall_px": 0.5348837209302325,
+    "bg_tok_per_frame": 16.0,
+    "bg_share": 0.07964161274265803,
+    "tok_per_frame": 200.9,
+    "gold_tok_per_frame": 190.6,
+    "n_frames": 10,
+    "n_thin": 43
+   }
+  },
+  "ants_v2": {
+   "N2": {
+    "iou_px": 0.7254694582344053,
+    "tok_recall": 0.8361774744027304,
+    "tok_precision": 0.928030303030303,
+    "tok_f1": 0.8797127468581688,
+    "thin_recall_tok": 0.5212765957446809,
+    "thin_recall_px": 0.7978723404255319,
+    "bg_tok_per_frame": 0.5714285714285714,
+    "bg_share": 0.015151515151515152,
+    "tok_per_frame": 37.714285714285715,
+    "gold_tok_per_frame": 41.857142857142854,
+    "n_frames": 7,
+    "n_thin": 94
+   },
+   "mask3b": {
+    "iou_px": 0.7254694582344053,
+    "tok_recall": 0.8361774744027304,
+    "tok_precision": 0.928030303030303,
+    "tok_f1": 0.8797127468581688,
+    "thin_recall_tok": 0.5212765957446809,
+    "thin_recall_px": 0.7978723404255319,
+    "bg_tok_per_frame": 0.5714285714285714,
+    "bg_share": 0.015151515151515152,
+    "tok_per_frame": 37.714285714285715,
+    "gold_tok_per_frame": 41.857142857142854,
+    "n_frames": 7,
+    "n_thin": 94
+   },
+   "A_s_full": {
+    "iou_px": 0.7368836712913553,
+    "tok_recall": 0.863481228668942,
+    "tok_precision": 0.937037037037037,
+    "tok_f1": 0.8987566607460036,
+    "thin_recall_tok": 0.5638297872340425,
+    "thin_recall_px": 0.7340425531914894,
+    "bg_tok_per_frame": 0.5714285714285714,
+    "bg_share": 0.014814814814814815,
+    "tok_per_frame": 38.57142857142857,
+    "gold_tok_per_frame": 41.857142857142854,
+    "n_frames": 7,
+    "n_thin": 94
+   },
+   "B_s_full": {
+    "iou_px": 0.7396309931689047,
+    "tok_recall": 0.8805460750853242,
+    "tok_precision": 0.9314079422382672,
+    "tok_f1": 0.9052631578947368,
+    "thin_recall_tok": 0.5851063829787234,
+    "thin_recall_px": 0.7872340425531915,
+    "bg_tok_per_frame": 0.7142857142857143,
+    "bg_share": 0.018050541516245487,
+    "tok_per_frame": 39.57142857142857,
+    "gold_tok_per_frame": 41.857142857142854,
+    "n_frames": 7,
+    "n_thin": 94
+   },
+   "A_l_full": {
+    "iou_px": 0.7834614244338526,
+    "tok_recall": 0.8668941979522184,
+    "tok_precision": 0.951310861423221,
+    "tok_f1": 0.907142857142857,
+    "thin_recall_tok": 0.5531914893617021,
+    "thin_recall_px": 0.723404255319149,
+    "bg_tok_per_frame": 0.2857142857142857,
+    "bg_share": 0.00749063670411985,
+    "tok_per_frame": 38.142857142857146,
+    "gold_tok_per_frame": 41.857142857142854,
+    "n_frames": 7,
+    "n_thin": 94
+   },
+   "B_l_full": {
+    "iou_px": 0.7840582009382862,
+    "tok_recall": 0.8839590443686007,
+    "tok_precision": 0.9487179487179487,
+    "tok_f1": 0.9151943462897526,
+    "thin_recall_tok": 0.6063829787234043,
+    "thin_recall_px": 0.7978723404255319,
+    "bg_tok_per_frame": 0.42857142857142855,
+    "bg_share": 0.01098901098901099,
+    "tok_per_frame": 39.0,
+    "gold_tok_per_frame": 41.857142857142854,
+    "n_frames": 7,
+    "n_thin": 94
+   },
+   "A_s_crop": {
+    "iou_px": 0.7899403599514435,
+    "tok_recall": 0.863481228668942,
+    "tok_precision": 0.9768339768339769,
+    "tok_f1": 0.9166666666666666,
+    "thin_recall_tok": 0.6276595744680851,
+    "thin_recall_px": 0.776595744680851,
+    "bg_tok_per_frame": 0.2857142857142857,
+    "bg_share": 0.007722007722007722,
+    "tok_per_frame": 37.0,
+    "gold_tok_per_frame": 41.857142857142854,
+    "n_frames": 7,
+    "n_thin": 94
+   },
+   "B_s_crop": {
+    "iou_px": 0.7911303350878107,
+    "tok_recall": 0.8873720136518771,
+    "tok_precision": 0.966542750929368,
+    "tok_f1": 0.9252669039145908,
+    "thin_recall_tok": 0.6702127659574468,
+    "thin_recall_px": 0.8085106382978723,
+    "bg_tok_per_frame": 0.5714285714285714,
+    "bg_share": 0.01486988847583643,
+    "tok_per_frame": 38.42857142857143,
+    "gold_tok_per_frame": 41.857142857142854,
+    "n_frames": 7,
+    "n_thin": 94
+   },
+   "A_l_crop": {
+    "iou_px": 0.7916711648494008,
+    "tok_recall": 0.8703071672354948,
+    "tok_precision": 0.9807692307692307,
+    "tok_f1": 0.9222423146473778,
+    "thin_recall_tok": 0.5851063829787234,
+    "thin_recall_px": 0.776595744680851,
+    "bg_tok_per_frame": 0.14285714285714285,
+    "bg_share": 0.0038461538461538464,
+    "tok_per_frame": 37.142857142857146,
+    "gold_tok_per_frame": 41.857142857142854,
+    "n_frames": 7,
+    "n_thin": 94
+   },
+   "B_l_crop": {
+    "iou_px": 0.7971824984687492,
+    "tok_recall": 0.8976109215017065,
+    "tok_precision": 0.9704797047970479,
+    "tok_f1": 0.9326241134751773,
+    "thin_recall_tok": 0.6382978723404256,
+    "thin_recall_px": 0.8191489361702128,
+    "bg_tok_per_frame": 0.5714285714285714,
+    "bg_share": 0.014760147601476014,
+    "tok_per_frame": 38.714285714285715,
+    "gold_tok_per_frame": 41.857142857142854,
+    "n_frames": 7,
+    "n_thin": 94
+   },
+   "A_s_video": {
+    "iou_px": 0.7414963055513668,
+    "tok_recall": 0.863481228668942,
+    "tok_precision": 0.937037037037037,
+    "tok_f1": 0.8987566607460036,
+    "thin_recall_tok": 0.5851063829787234,
+    "thin_recall_px": 0.7659574468085106,
+    "bg_tok_per_frame": 0.2857142857142857,
+    "bg_share": 0.007407407407407408,
+    "tok_per_frame": 38.57142857142857,
+    "gold_tok_per_frame": 41.857142857142854,
+    "n_frames": 7,
+    "n_thin": 94
+   },
+   "B_s_video": {
+    "iou_px": 0.7390196917808219,
+    "tok_recall": 0.863481228668942,
+    "tok_precision": 0.9267399267399268,
+    "tok_f1": 0.8939929328621908,
+    "thin_recall_tok": 0.5851063829787234,
+    "thin_recall_px": 0.7659574468085106,
+    "bg_tok_per_frame": 0.7142857142857143,
+    "bg_share": 0.018315018315018316,
+    "tok_per_frame": 39.0,
+    "gold_tok_per_frame": 41.857142857142854,
+    "n_frames": 7,
+    "n_thin": 94
+   }
+  },
+  "ants_v3": {
+   "N2": {
+    "iou_px": 0.6242492555643411,
+    "tok_recall": 0.7988505747126436,
+    "tok_precision": 0.896774193548387,
+    "tok_f1": 0.8449848024316108,
+    "thin_recall_tok": 0.43209876543209874,
+    "thin_recall_px": 0.5185185185185185,
+    "bg_tok_per_frame": 3.2857142857142856,
+    "bg_share": 0.07419354838709677,
+    "tok_per_frame": 44.285714285714285,
+    "gold_tok_per_frame": 49.714285714285715,
+    "n_frames": 7,
+    "n_thin": 81
+   },
+   "mask3b": {
+    "iou_px": 0.6234292050265439,
+    "tok_recall": 0.7988505747126436,
+    "tok_precision": 0.896774193548387,
+    "tok_f1": 0.8449848024316108,
+    "thin_recall_tok": 0.43209876543209874,
+    "thin_recall_px": 0.5185185185185185,
+    "bg_tok_per_frame": 3.2857142857142856,
+    "bg_share": 0.07419354838709677,
+    "tok_per_frame": 44.285714285714285,
+    "gold_tok_per_frame": 49.714285714285715,
+    "n_frames": 7,
+    "n_thin": 81
+   },
+   "A_s_full": {
+    "iou_px": 0.6706492773061786,
+    "tok_recall": 0.8362068965517241,
+    "tok_precision": 0.9208860759493671,
+    "tok_f1": 0.8765060240963854,
+    "thin_recall_tok": 0.49382716049382713,
+    "thin_recall_px": 0.5308641975308642,
+    "bg_tok_per_frame": 2.2857142857142856,
+    "bg_share": 0.05063291139240506,
+    "tok_per_frame": 45.142857142857146,
+    "gold_tok_per_frame": 49.714285714285715,
+    "n_frames": 7,
+    "n_thin": 81
+   },
+   "B_s_full": {
+    "iou_px": 0.6737571154151173,
+    "tok_recall": 0.8448275862068966,
+    "tok_precision": 0.9216300940438872,
+    "tok_f1": 0.8815592203898053,
+    "thin_recall_tok": 0.5308641975308642,
+    "thin_recall_px": 0.6049382716049383,
+    "bg_tok_per_frame": 2.2857142857142856,
+    "bg_share": 0.050156739811912224,
+    "tok_per_frame": 45.57142857142857,
+    "gold_tok_per_frame": 49.714285714285715,
+    "n_frames": 7,
+    "n_thin": 81
+   },
+   "A_l_full": {
+    "iou_px": 0.6936202864659456,
+    "tok_recall": 0.8218390804597702,
+    "tok_precision": 0.9255663430420712,
+    "tok_f1": 0.8706240487062405,
+    "thin_recall_tok": 0.4444444444444444,
+    "thin_recall_px": 0.49382716049382713,
+    "bg_tok_per_frame": 2.2857142857142856,
+    "bg_share": 0.05177993527508091,
+    "tok_per_frame": 44.142857142857146,
+    "gold_tok_per_frame": 49.714285714285715,
+    "n_frames": 7,
+    "n_thin": 81
+   },
+   "B_l_full": {
+    "iou_px": 0.69518239131227,
+    "tok_recall": 0.8333333333333334,
+    "tok_precision": 0.9265175718849841,
+    "tok_f1": 0.8774583963691378,
+    "thin_recall_tok": 0.48148148148148145,
+    "thin_recall_px": 0.5308641975308642,
+    "bg_tok_per_frame": 2.2857142857142856,
+    "bg_share": 0.051118210862619806,
+    "tok_per_frame": 44.714285714285715,
+    "gold_tok_per_frame": 49.714285714285715,
+    "n_frames": 7,
+    "n_thin": 81
+   },
+   "A_s_crop": {
+    "iou_px": 0.7327064702788006,
+    "tok_recall": 0.8448275862068966,
+    "tok_precision": 0.9514563106796117,
+    "tok_f1": 0.8949771689497718,
+    "thin_recall_tok": 0.5185185185185185,
+    "thin_recall_px": 0.6172839506172839,
+    "bg_tok_per_frame": 1.7142857142857142,
+    "bg_share": 0.038834951456310676,
+    "tok_per_frame": 44.142857142857146,
+    "gold_tok_per_frame": 49.714285714285715,
+    "n_frames": 7,
+    "n_thin": 81
+   },
+   "B_s_crop": {
+    "iou_px": 0.738422646937041,
+    "tok_recall": 0.8735632183908046,
+    "tok_precision": 0.95,
+    "tok_f1": 0.9101796407185629,
+    "thin_recall_tok": 0.5555555555555556,
+    "thin_recall_px": 0.654320987654321,
+    "bg_tok_per_frame": 1.7142857142857142,
+    "bg_share": 0.0375,
+    "tok_per_frame": 45.714285714285715,
+    "gold_tok_per_frame": 49.714285714285715,
+    "n_frames": 7,
+    "n_thin": 81
+   },
+   "A_l_crop": {
+    "iou_px": 0.7410590335162293,
+    "tok_recall": 0.8448275862068966,
+    "tok_precision": 0.9453376205787781,
+    "tok_f1": 0.8922610015174507,
+    "thin_recall_tok": 0.5061728395061729,
+    "thin_recall_px": 0.5925925925925926,
+    "bg_tok_per_frame": 1.7142857142857142,
+    "bg_share": 0.03858520900321544,
+    "tok_per_frame": 44.42857142857143,
+    "gold_tok_per_frame": 49.714285714285715,
+    "n_frames": 7,
+    "n_thin": 81
+   },
+   "B_l_crop": {
+    "iou_px": 0.7470639789658194,
+    "tok_recall": 0.8764367816091954,
+    "tok_precision": 0.9442724458204335,
+    "tok_f1": 0.9090909090909091,
+    "thin_recall_tok": 0.5679012345679012,
+    "thin_recall_px": 0.654320987654321,
+    "bg_tok_per_frame": 1.8571428571428572,
+    "bg_share": 0.04024767801857585,
+    "tok_per_frame": 46.142857142857146,
+    "gold_tok_per_frame": 49.714285714285715,
+    "n_frames": 7,
+    "n_thin": 81
+   },
+   "A_s_video": {
+    "iou_px": 0.656702822152123,
+    "tok_recall": 0.8850574712643678,
+    "tok_precision": 0.9085545722713865,
+    "tok_f1": 0.8966521106259098,
+    "thin_recall_tok": 0.6049382716049383,
+    "thin_recall_px": 0.691358024691358,
+    "bg_tok_per_frame": 2.7142857142857144,
+    "bg_share": 0.05604719764011799,
+    "tok_per_frame": 48.42857142857143,
+    "gold_tok_per_frame": 49.714285714285715,
+    "n_frames": 7,
+    "n_thin": 81
+   },
+   "B_s_video": {
+    "iou_px": 0.6574515786457192,
+    "tok_recall": 0.8850574712643678,
+    "tok_precision": 0.9085545722713865,
+    "tok_f1": 0.8966521106259098,
+    "thin_recall_tok": 0.6049382716049383,
+    "thin_recall_px": 0.691358024691358,
+    "bg_tok_per_frame": 2.7142857142857144,
+    "bg_share": 0.05604719764011799,
+    "tok_per_frame": 48.42857142857143,
+    "gold_tok_per_frame": 49.714285714285715,
+    "n_frames": 7,
+    "n_thin": 81
+   }
+  },
+  "ants_v4": {
+   "N2": {
+    "iou_px": 0.7058007055693714,
+    "tok_recall": 0.780952380952381,
+    "tok_precision": 0.9283018867924528,
+    "tok_f1": 0.8482758620689655,
+    "thin_recall_tok": 0.3188405797101449,
+    "thin_recall_px": 0.4492753623188406,
+    "bg_tok_per_frame": 0.6666666666666666,
+    "bg_share": 0.01509433962264151,
+    "tok_per_frame": 44.166666666666664,
+    "gold_tok_per_frame": 52.5,
+    "n_frames": 6,
+    "n_thin": 69
+   },
+   "mask3b": {
+    "iou_px": 0.7058256544704476,
+    "tok_recall": 0.780952380952381,
+    "tok_precision": 0.9283018867924528,
+    "tok_f1": 0.8482758620689655,
+    "thin_recall_tok": 0.3188405797101449,
+    "thin_recall_px": 0.4492753623188406,
+    "bg_tok_per_frame": 0.6666666666666666,
+    "bg_share": 0.01509433962264151,
+    "tok_per_frame": 44.166666666666664,
+    "gold_tok_per_frame": 52.5,
+    "n_frames": 6,
+    "n_thin": 69
+   },
+   "A_s_full": {
+    "iou_px": 0.7299319204584792,
+    "tok_recall": 0.834920634920635,
+    "tok_precision": 0.9326241134751773,
+    "tok_f1": 0.88107202680067,
+    "thin_recall_tok": 0.4057971014492754,
+    "thin_recall_px": 0.5362318840579711,
+    "bg_tok_per_frame": 0.5,
+    "bg_share": 0.010638297872340425,
+    "tok_per_frame": 47.0,
+    "gold_tok_per_frame": 52.5,
+    "n_frames": 6,
+    "n_thin": 69
+   },
+   "B_s_full": {
+    "iou_px": 0.7311493059560887,
+    "tok_recall": 0.8412698412698413,
+    "tok_precision": 0.9330985915492958,
+    "tok_f1": 0.8848080133555928,
+    "thin_recall_tok": 0.42028985507246375,
+    "thin_recall_px": 0.5507246376811594,
+    "bg_tok_per_frame": 0.5,
+    "bg_share": 0.01056338028169014,
+    "tok_per_frame": 47.333333333333336,
+    "gold_tok_per_frame": 52.5,
+    "n_frames": 6,
+    "n_thin": 69
+   },
+   "A_l_full": {
+    "iou_px": 0.7705228879408067,
+    "tok_recall": 0.819047619047619,
+    "tok_precision": 0.9485294117647058,
+    "tok_f1": 0.8790459965928449,
+    "thin_recall_tok": 0.37681159420289856,
+    "thin_recall_px": 0.4492753623188406,
+    "bg_tok_per_frame": 0.3333333333333333,
+    "bg_share": 0.007352941176470588,
+    "tok_per_frame": 45.333333333333336,
+    "gold_tok_per_frame": 52.5,
+    "n_frames": 6,
+    "n_thin": 69
+   },
+   "B_l_full": {
+    "iou_px": 0.7721122757882164,
+    "tok_recall": 0.834920634920635,
+    "tok_precision": 0.9494584837545126,
+    "tok_f1": 0.8885135135135136,
+    "thin_recall_tok": 0.42028985507246375,
+    "thin_recall_px": 0.4782608695652174,
+    "bg_tok_per_frame": 0.3333333333333333,
+    "bg_share": 0.007220216606498195,
+    "tok_per_frame": 46.166666666666664,
+    "gold_tok_per_frame": 52.5,
+    "n_frames": 6,
+    "n_thin": 69
+   },
+   "A_s_crop": {
+    "iou_px": 0.8070494357618395,
+    "tok_recall": 0.8317460317460318,
+    "tok_precision": 0.9703703703703703,
+    "tok_f1": 0.8957264957264957,
+    "thin_recall_tok": 0.42028985507246375,
+    "thin_recall_px": 0.5362318840579711,
+    "bg_tok_per_frame": 0.5,
+    "bg_share": 0.011111111111111112,
+    "tok_per_frame": 45.0,
+    "gold_tok_per_frame": 52.5,
+    "n_frames": 6,
+    "n_thin": 69
+   },
+   "B_s_crop": {
+    "iou_px": 0.8092762894842063,
+    "tok_recall": 0.8507936507936508,
+    "tok_precision": 0.9710144927536232,
+    "tok_f1": 0.9069373942470389,
+    "thin_recall_tok": 0.463768115942029,
+    "thin_recall_px": 0.5797101449275363,
+    "bg_tok_per_frame": 0.5,
+    "bg_share": 0.010869565217391304,
+    "tok_per_frame": 46.0,
+    "gold_tok_per_frame": 52.5,
+    "n_frames": 6,
+    "n_thin": 69
+   },
+   "A_l_crop": {
+    "iou_px": 0.7859736288935602,
+    "tok_recall": 0.8285714285714286,
+    "tok_precision": 0.9738805970149254,
+    "tok_f1": 0.8953687821612349,
+    "thin_recall_tok": 0.463768115942029,
+    "thin_recall_px": 0.5652173913043478,
+    "bg_tok_per_frame": 0.16666666666666666,
+    "bg_share": 0.0037313432835820895,
+    "tok_per_frame": 44.666666666666664,
+    "gold_tok_per_frame": 52.5,
+    "n_frames": 6,
+    "n_thin": 69
+   },
+   "B_l_crop": {
+    "iou_px": 0.7881261154074956,
+    "tok_recall": 0.8380952380952381,
+    "tok_precision": 0.974169741697417,
+    "tok_f1": 0.9010238907849829,
+    "thin_recall_tok": 0.463768115942029,
+    "thin_recall_px": 0.5942028985507246,
+    "bg_tok_per_frame": 0.16666666666666666,
+    "bg_share": 0.0036900369003690036,
+    "tok_per_frame": 45.166666666666664,
+    "gold_tok_per_frame": 52.5,
+    "n_frames": 6,
+    "n_thin": 69
+   },
+   "A_s_video": {
+    "iou_px": 0.7258416811026588,
+    "tok_recall": 0.8634920634920635,
+    "tok_precision": 0.9283276450511946,
+    "tok_f1": 0.8947368421052632,
+    "thin_recall_tok": 0.4782608695652174,
+    "thin_recall_px": 0.5507246376811594,
+    "bg_tok_per_frame": 0.6666666666666666,
+    "bg_share": 0.013651877133105802,
+    "tok_per_frame": 48.833333333333336,
+    "gold_tok_per_frame": 52.5,
+    "n_frames": 6,
+    "n_thin": 69
+   },
+   "B_s_video": {
+    "iou_px": 0.7265573523597959,
+    "tok_recall": 0.8698412698412699,
+    "tok_precision": 0.9288135593220339,
+    "tok_f1": 0.898360655737705,
+    "thin_recall_tok": 0.4927536231884058,
+    "thin_recall_px": 0.5507246376811594,
+    "bg_tok_per_frame": 0.6666666666666666,
+    "bg_share": 0.013559322033898305,
+    "tok_per_frame": 49.166666666666664,
+    "gold_tok_per_frame": 52.5,
+    "n_frames": 6,
+    "n_thin": 69
+   }
+  },
+  "frogs_juv": {
+   "N2": {
+    "iou_px": 0.8247440519105984,
+    "tok_recall": 0.9605263157894737,
+    "tok_precision": 0.9240506329113924,
+    "tok_f1": 0.9419354838709677,
+    "thin_recall_tok": 0.7169811320754716,
+    "thin_recall_px": 0.9056603773584906,
+    "bg_tok_per_frame": 1.4,
+    "bg_share": 0.05907172995780591,
+    "tok_per_frame": 23.7,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 53
+   },
+   "mask3b": {
+    "iou_px": 0.8246964847016754,
+    "tok_recall": 0.9605263157894737,
+    "tok_precision": 0.9240506329113924,
+    "tok_f1": 0.9419354838709677,
+    "thin_recall_tok": 0.7169811320754716,
+    "thin_recall_px": 0.9056603773584906,
+    "bg_tok_per_frame": 1.4,
+    "bg_share": 0.05907172995780591,
+    "tok_per_frame": 23.7,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 53
+   },
+   "A_s_full": {
+    "iou_px": 0.8170995670995671,
+    "tok_recall": 0.9605263157894737,
+    "tok_precision": 0.9690265486725663,
+    "tok_f1": 0.9647577092511014,
+    "thin_recall_tok": 0.8113207547169812,
+    "thin_recall_px": 1.0,
+    "bg_tok_per_frame": 0.2,
+    "bg_share": 0.008849557522123894,
+    "tok_per_frame": 22.6,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 53
+   },
+   "B_s_full": {
+    "iou_px": 0.8113737034693372,
+    "tok_recall": 0.9605263157894737,
+    "tok_precision": 0.9563318777292577,
+    "tok_f1": 0.9584245076586434,
+    "thin_recall_tok": 0.8113207547169812,
+    "thin_recall_px": 1.0,
+    "bg_tok_per_frame": 0.5,
+    "bg_share": 0.021834061135371178,
+    "tok_per_frame": 22.9,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 53
+   },
+   "A_l_full": {
+    "iou_px": 0.8532315847726677,
+    "tok_recall": 0.9473684210526315,
+    "tok_precision": 0.96,
+    "tok_f1": 0.9536423841059603,
+    "thin_recall_tok": 0.7735849056603774,
+    "thin_recall_px": 0.9245283018867925,
+    "bg_tok_per_frame": 0.4,
+    "bg_share": 0.017777777777777778,
+    "tok_per_frame": 22.5,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 53
+   },
+   "B_l_full": {
+    "iou_px": 0.846546062107507,
+    "tok_recall": 0.9517543859649122,
+    "tok_precision": 0.9559471365638766,
+    "tok_f1": 0.9538461538461538,
+    "thin_recall_tok": 0.7735849056603774,
+    "thin_recall_px": 0.9433962264150944,
+    "bg_tok_per_frame": 0.5,
+    "bg_share": 0.022026431718061675,
+    "tok_per_frame": 22.7,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 53
+   },
+   "A_s_crop": {
+    "iou_px": 0.9270495599814729,
+    "tok_recall": 0.9736842105263158,
+    "tok_precision": 0.9779735682819384,
+    "tok_f1": 0.9758241758241758,
+    "thin_recall_tok": 0.8301886792452831,
+    "thin_recall_px": 0.9811320754716981,
+    "bg_tok_per_frame": 0.4,
+    "bg_share": 0.01762114537444934,
+    "tok_per_frame": 22.7,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 53
+   },
+   "B_s_crop": {
+    "iou_px": 0.9058510469794405,
+    "tok_recall": 0.9868421052631579,
+    "tok_precision": 0.9574468085106383,
+    "tok_f1": 0.9719222462203023,
+    "thin_recall_tok": 0.8490566037735849,
+    "thin_recall_px": 0.9811320754716981,
+    "bg_tok_per_frame": 0.7,
+    "bg_share": 0.029787234042553193,
+    "tok_per_frame": 23.5,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 53
+   },
+   "A_l_crop": {
+    "iou_px": 0.916532366371206,
+    "tok_recall": 0.956140350877193,
+    "tok_precision": 0.990909090909091,
+    "tok_f1": 0.9732142857142858,
+    "thin_recall_tok": 0.8113207547169812,
+    "thin_recall_px": 0.9245283018867925,
+    "bg_tok_per_frame": 0.1,
+    "bg_share": 0.004545454545454545,
+    "tok_per_frame": 22.0,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 53
+   },
+   "B_l_crop": {
+    "iou_px": 0.9029558861246474,
+    "tok_recall": 0.9780701754385965,
+    "tok_precision": 0.9695652173913043,
+    "tok_f1": 0.9737991266375545,
+    "thin_recall_tok": 0.8113207547169812,
+    "thin_recall_px": 0.9433962264150944,
+    "bg_tok_per_frame": 0.4,
+    "bg_share": 0.017391304347826087,
+    "tok_per_frame": 23.0,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 53
+   },
+   "A_s_video": {
+    "iou_px": 0.8296075931435047,
+    "tok_recall": 0.9517543859649122,
+    "tok_precision": 0.9601769911504425,
+    "tok_f1": 0.9559471365638766,
+    "thin_recall_tok": 0.7735849056603774,
+    "thin_recall_px": 0.9433962264150944,
+    "bg_tok_per_frame": 0.2,
+    "bg_share": 0.008849557522123894,
+    "tok_per_frame": 22.6,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 53
+   },
+   "B_s_video": {
+    "iou_px": 0.8245933819405497,
+    "tok_recall": 0.956140350877193,
+    "tok_precision": 0.9396551724137931,
+    "tok_f1": 0.9478260869565217,
+    "thin_recall_tok": 0.7735849056603774,
+    "thin_recall_px": 0.9433962264150944,
+    "bg_tok_per_frame": 0.6,
+    "bg_share": 0.02586206896551724,
+    "tok_per_frame": 23.2,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 53
+   }
+  },
+  "frogs_tad": {
+   "N2": {
+    "iou_px": 0.5468144560357675,
+    "tok_recall": 0.7850877192982456,
+    "tok_precision": 0.6532846715328468,
+    "tok_f1": 0.7131474103585658,
+    "thin_recall_tok": 0.625,
+    "thin_recall_px": 0.625,
+    "bg_tok_per_frame": 7.8,
+    "bg_share": 0.2846715328467153,
+    "tok_per_frame": 27.4,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 16
+   },
+   "mask3b": {
+    "iou_px": 0.5468144560357675,
+    "tok_recall": 0.7850877192982456,
+    "tok_precision": 0.6532846715328468,
+    "tok_f1": 0.7131474103585658,
+    "thin_recall_tok": 0.625,
+    "thin_recall_px": 0.625,
+    "bg_tok_per_frame": 7.8,
+    "bg_share": 0.2846715328467153,
+    "tok_per_frame": 27.4,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 16
+   },
+   "A_s_full": {
+    "iou_px": 0.6367296441527396,
+    "tok_recall": 0.8157894736842105,
+    "tok_precision": 0.7914893617021277,
+    "tok_f1": 0.8034557235421166,
+    "thin_recall_tok": 0.875,
+    "thin_recall_px": 0.875,
+    "bg_tok_per_frame": 4.3,
+    "bg_share": 0.1829787234042553,
+    "tok_per_frame": 23.5,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 16
+   },
+   "B_s_full": {
+    "iou_px": 0.5893393247980786,
+    "tok_recall": 0.8157894736842105,
+    "tok_precision": 0.6992481203007519,
+    "tok_f1": 0.7530364372469636,
+    "thin_recall_tok": 0.875,
+    "thin_recall_px": 0.875,
+    "bg_tok_per_frame": 7.4,
+    "bg_share": 0.2781954887218045,
+    "tok_per_frame": 26.6,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 16
+   },
+   "A_l_full": {
+    "iou_px": 0.6468879302755525,
+    "tok_recall": 0.7982456140350878,
+    "tok_precision": 0.8125,
+    "tok_f1": 0.8053097345132744,
+    "thin_recall_tok": 0.8125,
+    "thin_recall_px": 0.875,
+    "bg_tok_per_frame": 3.8,
+    "bg_share": 0.16964285714285715,
+    "tok_per_frame": 22.4,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 16
+   },
+   "B_l_full": {
+    "iou_px": 0.5972949037919653,
+    "tok_recall": 0.8070175438596491,
+    "tok_precision": 0.7215686274509804,
+    "tok_f1": 0.761904761904762,
+    "thin_recall_tok": 0.8125,
+    "thin_recall_px": 0.875,
+    "bg_tok_per_frame": 6.7,
+    "bg_share": 0.2627450980392157,
+    "tok_per_frame": 25.5,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 16
+   },
+   "A_s_crop": {
+    "iou_px": 0.6165969024696526,
+    "tok_recall": 0.8114035087719298,
+    "tok_precision": 0.7805907172995781,
+    "tok_f1": 0.7956989247311829,
+    "thin_recall_tok": 0.8125,
+    "thin_recall_px": 0.875,
+    "bg_tok_per_frame": 4.6,
+    "bg_share": 0.1940928270042194,
+    "tok_per_frame": 23.7,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 16
+   },
+   "B_s_crop": {
+    "iou_px": 0.5725509028044564,
+    "tok_recall": 0.8114035087719298,
+    "tok_precision": 0.6902985074626866,
+    "tok_f1": 0.7459677419354839,
+    "thin_recall_tok": 0.8125,
+    "thin_recall_px": 0.875,
+    "bg_tok_per_frame": 7.7,
+    "bg_share": 0.2873134328358209,
+    "tok_per_frame": 26.8,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 16
+   },
+   "A_l_crop": {
+    "iou_px": 0.6219312968557682,
+    "tok_recall": 0.7763157894736842,
+    "tok_precision": 0.815668202764977,
+    "tok_f1": 0.7955056179775281,
+    "thin_recall_tok": 0.75,
+    "thin_recall_px": 0.875,
+    "bg_tok_per_frame": 3.5,
+    "bg_share": 0.16129032258064516,
+    "tok_per_frame": 21.7,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 16
+   },
+   "B_l_crop": {
+    "iou_px": 0.577807492048056,
+    "tok_recall": 0.7982456140350878,
+    "tok_precision": 0.7165354330708661,
+    "tok_f1": 0.7551867219917011,
+    "thin_recall_tok": 0.75,
+    "thin_recall_px": 0.875,
+    "bg_tok_per_frame": 6.7,
+    "bg_share": 0.2637795275590551,
+    "tok_per_frame": 25.4,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 16
+   },
+   "A_s_video": {
+    "iou_px": 0.522660716775903,
+    "tok_recall": 0.793859649122807,
+    "tok_precision": 0.6678966789667896,
+    "tok_f1": 0.7254509018036073,
+    "thin_recall_tok": 0.75,
+    "thin_recall_px": 0.8125,
+    "bg_tok_per_frame": 8.3,
+    "bg_share": 0.3062730627306273,
+    "tok_per_frame": 27.1,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 16
+   },
+   "B_s_video": {
+    "iou_px": 0.5055391432791728,
+    "tok_recall": 0.8070175438596491,
+    "tok_precision": 0.6433566433566433,
+    "tok_f1": 0.7159533073929961,
+    "thin_recall_tok": 0.8125,
+    "thin_recall_px": 0.8125,
+    "bg_tok_per_frame": 9.5,
+    "bg_share": 0.3321678321678322,
+    "tok_per_frame": 28.6,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 10,
+    "n_thin": 16
+   }
+  }
+ },
+ "domain": {
+  "ants": {
+   "N2": {
+    "iou_px": 0.6808314937454011,
+    "tok_recall": 0.8043933054393305,
+    "tok_precision": 0.9165673420738975,
+    "tok_f1": 0.8568245125348188,
+    "thin_recall_tok": 0.4344262295081967,
+    "thin_recall_px": 0.6065573770491803,
+    "bg_tok_per_frame": 1.55,
+    "bg_share": 0.03694874851013111,
+    "tok_per_frame": 41.95,
+    "gold_tok_per_frame": 47.8,
+    "n_frames": 20,
+    "n_thin": 244
+   },
+   "mask3b": {
+    "iou_px": 0.6805006086427268,
+    "tok_recall": 0.8043933054393305,
+    "tok_precision": 0.9165673420738975,
+    "tok_f1": 0.8568245125348188,
+    "thin_recall_tok": 0.4344262295081967,
+    "thin_recall_px": 0.6065573770491803,
+    "bg_tok_per_frame": 1.55,
+    "bg_share": 0.03694874851013111,
+    "tok_per_frame": 41.95,
+    "gold_tok_per_frame": 47.8,
+    "n_frames": 20,
+    "n_thin": 244
+   },
+   "A_l_crop": {
+    "iou_px": 0.7712736429680523,
+    "tok_recall": 0.8472803347280334,
+    "tok_precision": 0.965435041716329,
+    "tok_f1": 0.9025069637883009,
+    "thin_recall_tok": 0.5245901639344263,
+    "thin_recall_px": 0.6557377049180327,
+    "bg_tok_per_frame": 0.7,
+    "bg_share": 0.0166865315852205,
+    "tok_per_frame": 41.95,
+    "gold_tok_per_frame": 47.8,
+    "n_frames": 20,
+    "n_thin": 244
+   },
+   "A_l_full": {
+    "iou_px": 0.7457649010224059,
+    "tok_recall": 0.8347280334728033,
+    "tok_precision": 0.9410377358490566,
+    "tok_f1": 0.88470066518847,
+    "thin_recall_tok": 0.4672131147540984,
+    "thin_recall_px": 0.569672131147541,
+    "bg_tok_per_frame": 1.0,
+    "bg_share": 0.02358490566037736,
+    "tok_per_frame": 42.4,
+    "gold_tok_per_frame": 47.8,
+    "n_frames": 20,
+    "n_thin": 244
+   },
+   "A_s_crop": {
+    "iou_px": 0.7749531284756427,
+    "tok_recall": 0.8462343096234309,
+    "tok_precision": 0.9653937947494033,
+    "tok_f1": 0.9018952062430324,
+    "thin_recall_tok": 0.5327868852459017,
+    "thin_recall_px": 0.6557377049180327,
+    "bg_tok_per_frame": 0.85,
+    "bg_share": 0.02028639618138425,
+    "tok_per_frame": 41.9,
+    "gold_tok_per_frame": 47.8,
+    "n_frames": 20,
+    "n_thin": 244
+   },
+   "A_s_full": {
+    "iou_px": 0.7104256290551794,
+    "tok_recall": 0.8441422594142259,
+    "tok_precision": 0.9297235023041475,
+    "tok_f1": 0.8848684210526315,
+    "thin_recall_tok": 0.4959016393442623,
+    "thin_recall_px": 0.610655737704918,
+    "bg_tok_per_frame": 1.15,
+    "bg_share": 0.026497695852534562,
+    "tok_per_frame": 43.4,
+    "gold_tok_per_frame": 47.8,
+    "n_frames": 20,
+    "n_thin": 244
+   },
+   "A_s_video": {
+    "iou_px": 0.7046092815313897,
+    "tok_recall": 0.8713389121338913,
+    "tok_precision": 0.9235033259423503,
+    "tok_f1": 0.8966630785791174,
+    "thin_recall_tok": 0.5614754098360656,
+    "thin_recall_px": 0.680327868852459,
+    "bg_tok_per_frame": 1.25,
+    "bg_share": 0.02771618625277162,
+    "tok_per_frame": 45.1,
+    "gold_tok_per_frame": 47.8,
+    "n_frames": 20,
+    "n_thin": 244
+   },
+   "B_l_crop": {
+    "iou_px": 0.7758752875031945,
+    "tok_recall": 0.8702928870292888,
+    "tok_precision": 0.9618497109826589,
+    "tok_f1": 0.913783635365184,
+    "thin_recall_tok": 0.5655737704918032,
+    "thin_recall_px": 0.7008196721311475,
+    "bg_tok_per_frame": 0.9,
+    "bg_share": 0.020809248554913295,
+    "tok_per_frame": 43.25,
+    "gold_tok_per_frame": 47.8,
+    "n_frames": 20,
+    "n_thin": 244
+   },
+   "B_l_full": {
+    "iou_px": 0.7470724566967553,
+    "tok_recall": 0.8493723849372385,
+    "tok_precision": 0.9409038238702202,
+    "tok_f1": 0.8927982407916438,
+    "thin_recall_tok": 0.5122950819672131,
+    "thin_recall_px": 0.6188524590163934,
+    "bg_tok_per_frame": 1.05,
+    "bg_share": 0.02433371958285052,
+    "tok_per_frame": 43.15,
+    "gold_tok_per_frame": 47.8,
+    "n_frames": 20,
+    "n_thin": 244
+   },
+   "B_s_crop": {
+    "iou_px": 0.7781388525184963,
+    "tok_recall": 0.8702928870292888,
+    "tok_precision": 0.9618497109826589,
+    "tok_f1": 0.913783635365184,
+    "thin_recall_tok": 0.5737704918032787,
+    "thin_recall_px": 0.6926229508196722,
+    "bg_tok_per_frame": 0.95,
+    "bg_share": 0.021965317919075144,
+    "tok_per_frame": 43.25,
+    "gold_tok_per_frame": 47.8,
+    "n_frames": 20,
+    "n_thin": 244
+   },
+   "B_s_full": {
+    "iou_px": 0.7127988802424429,
+    "tok_recall": 0.854602510460251,
+    "tok_precision": 0.928409090909091,
+    "tok_f1": 0.8899782135076253,
+    "thin_recall_tok": 0.5204918032786885,
+    "thin_recall_px": 0.6598360655737705,
+    "bg_tok_per_frame": 1.2,
+    "bg_share": 0.02727272727272727,
+    "tok_per_frame": 44.0,
+    "gold_tok_per_frame": 47.8,
+    "n_frames": 20,
+    "n_thin": 244
+   },
+   "B_s_video": {
+    "iou_px": 0.7044583506113268,
+    "tok_recall": 0.8734309623430963,
+    "tok_precision": 0.9206174200661521,
+    "tok_f1": 0.8964036500268384,
+    "thin_recall_tok": 0.5655737704918032,
+    "thin_recall_px": 0.680327868852459,
+    "bg_tok_per_frame": 1.4,
+    "bg_share": 0.030871003307607496,
+    "tok_per_frame": 45.35,
+    "gold_tok_per_frame": 47.8,
+    "n_frames": 20,
+    "n_thin": 244
+   }
+  },
+  "frogs": {
+   "N2": {
+    "iou_px": 0.6558881783713428,
+    "tok_recall": 0.8728070175438597,
+    "tok_precision": 0.7788649706457925,
+    "tok_f1": 0.8231644260599794,
+    "thin_recall_tok": 0.6956521739130435,
+    "thin_recall_px": 0.8405797101449275,
+    "bg_tok_per_frame": 4.6,
+    "bg_share": 0.18003913894324852,
+    "tok_per_frame": 25.55,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 20,
+    "n_thin": 69
+   },
+   "mask3b": {
+    "iou_px": 0.6558733320506581,
+    "tok_recall": 0.8728070175438597,
+    "tok_precision": 0.7788649706457925,
+    "tok_f1": 0.8231644260599794,
+    "thin_recall_tok": 0.6956521739130435,
+    "thin_recall_px": 0.8405797101449275,
+    "bg_tok_per_frame": 4.6,
+    "bg_share": 0.18003913894324852,
+    "tok_per_frame": 25.55,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 20,
+    "n_thin": 69
+   },
+   "A_l_crop": {
+    "iou_px": 0.7397574829794948,
+    "tok_recall": 0.8662280701754386,
+    "tok_precision": 0.9038901601830663,
+    "tok_f1": 0.8846584546472565,
+    "thin_recall_tok": 0.7971014492753623,
+    "thin_recall_px": 0.9130434782608695,
+    "bg_tok_per_frame": 1.8,
+    "bg_share": 0.08237986270022883,
+    "tok_per_frame": 21.85,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 20,
+    "n_thin": 69
+   },
+   "A_l_full": {
+    "iou_px": 0.7356993318206321,
+    "tok_recall": 0.8728070175438597,
+    "tok_precision": 0.8864142538975501,
+    "tok_f1": 0.8795580110497238,
+    "thin_recall_tok": 0.782608695652174,
+    "thin_recall_px": 0.9130434782608695,
+    "bg_tok_per_frame": 2.1,
+    "bg_share": 0.0935412026726058,
+    "tok_per_frame": 22.45,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 20,
+    "n_thin": 69
+   },
+   "A_s_crop": {
+    "iou_px": 0.7368920339461067,
+    "tok_recall": 0.8925438596491229,
+    "tok_precision": 0.8771551724137931,
+    "tok_f1": 0.8847826086956523,
+    "thin_recall_tok": 0.8260869565217391,
+    "thin_recall_px": 0.9565217391304348,
+    "bg_tok_per_frame": 2.5,
+    "bg_share": 0.10775862068965517,
+    "tok_per_frame": 23.2,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 20,
+    "n_thin": 69
+   },
+   "A_s_full": {
+    "iou_px": 0.7143624962675426,
+    "tok_recall": 0.8881578947368421,
+    "tok_precision": 0.8785249457700651,
+    "tok_f1": 0.8833151581243185,
+    "thin_recall_tok": 0.8260869565217391,
+    "thin_recall_px": 0.9710144927536232,
+    "bg_tok_per_frame": 2.25,
+    "bg_share": 0.09761388286334056,
+    "tok_per_frame": 23.05,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 20,
+    "n_thin": 69
+   },
+   "A_s_video": {
+    "iou_px": 0.6395756666630694,
+    "tok_recall": 0.8728070175438597,
+    "tok_precision": 0.8008048289738431,
+    "tok_f1": 0.8352570828961176,
+    "thin_recall_tok": 0.7681159420289855,
+    "thin_recall_px": 0.9130434782608695,
+    "bg_tok_per_frame": 4.25,
+    "bg_share": 0.1710261569416499,
+    "tok_per_frame": 24.85,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 20,
+    "n_thin": 69
+   },
+   "B_l_crop": {
+    "iou_px": 0.7037156584027511,
+    "tok_recall": 0.8881578947368421,
+    "tok_precision": 0.8367768595041323,
+    "tok_f1": 0.8617021276595747,
+    "thin_recall_tok": 0.7971014492753623,
+    "thin_recall_px": 0.927536231884058,
+    "bg_tok_per_frame": 3.55,
+    "bg_share": 0.14669421487603307,
+    "tok_per_frame": 24.2,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 20,
+    "n_thin": 69
+   },
+   "B_l_full": {
+    "iou_px": 0.699815161496718,
+    "tok_recall": 0.8793859649122807,
+    "tok_precision": 0.8319502074688797,
+    "tok_f1": 0.8550106609808102,
+    "thin_recall_tok": 0.782608695652174,
+    "thin_recall_px": 0.927536231884058,
+    "bg_tok_per_frame": 3.6,
+    "bg_share": 0.14937759336099585,
+    "tok_per_frame": 24.1,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 20,
+    "n_thin": 69
+   },
+   "B_s_crop": {
+    "iou_px": 0.6983629688976049,
+    "tok_recall": 0.8991228070175439,
+    "tok_precision": 0.8151093439363817,
+    "tok_f1": 0.8550573514077164,
+    "thin_recall_tok": 0.8405797101449275,
+    "thin_recall_px": 0.9565217391304348,
+    "bg_tok_per_frame": 4.2,
+    "bg_share": 0.16699801192842942,
+    "tok_per_frame": 25.15,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 20,
+    "n_thin": 69
+   },
+   "B_s_full": {
+    "iou_px": 0.6810721105756116,
+    "tok_recall": 0.8881578947368421,
+    "tok_precision": 0.8181818181818182,
+    "tok_f1": 0.8517350157728707,
+    "thin_recall_tok": 0.8260869565217391,
+    "thin_recall_px": 0.9710144927536232,
+    "bg_tok_per_frame": 3.95,
+    "bg_share": 0.1595959595959596,
+    "tok_per_frame": 24.75,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 20,
+    "n_thin": 69
+   },
+   "B_s_video": {
+    "iou_px": 0.6250052501155026,
+    "tok_recall": 0.881578947368421,
+    "tok_precision": 0.7760617760617761,
+    "tok_f1": 0.8254620123203286,
+    "thin_recall_tok": 0.782608695652174,
+    "thin_recall_px": 0.9130434782608695,
+    "bg_tok_per_frame": 5.05,
+    "bg_share": 0.19498069498069498,
+    "tok_per_frame": 25.9,
+    "gold_tok_per_frame": 22.8,
+    "n_frames": 20,
+    "n_thin": 69
+   }
+  },
+  "mice": {
+   "N2": {
+    "iou_px": 0.659547218978836,
+    "tok_recall": 0.9073298429319372,
+    "tok_precision": 0.7161157024793389,
+    "tok_f1": 0.8004618937644342,
+    "thin_recall_tok": 0.5257731958762887,
+    "thin_recall_px": 0.4536082474226804,
+    "bg_tok_per_frame": 55.35,
+    "bg_share": 0.22871900826446281,
+    "tok_per_frame": 242.0,
+    "gold_tok_per_frame": 191.0,
+    "n_frames": 20,
+    "n_thin": 97
+   },
+   "mask3b": {
+    "iou_px": 0.6542901137331735,
+    "tok_recall": 0.937696335078534,
+    "tok_precision": 0.6983817508286215,
+    "tok_f1": 0.8005363727790814,
+    "thin_recall_tok": 0.6185567010309279,
+    "thin_recall_px": 0.5360824742268041,
+    "bg_tok_per_frame": 61.9,
+    "bg_share": 0.24137258724897642,
+    "tok_per_frame": 256.45,
+    "gold_tok_per_frame": 191.0,
+    "n_frames": 20,
+    "n_thin": 97
+   },
+   "A_l_crop": {
+    "iou_px": 0.8074332564764574,
+    "tok_recall": 0.9018324607329843,
+    "tok_precision": 0.8717105263157895,
+    "tok_f1": 0.8865156973751931,
+    "thin_recall_tok": 0.4639175257731959,
+    "thin_recall_px": 0.422680412371134,
+    "bg_tok_per_frame": 20.3,
+    "bg_share": 0.1027327935222672,
+    "tok_per_frame": 197.6,
+    "gold_tok_per_frame": 191.0,
+    "n_frames": 20,
+    "n_thin": 97
+   },
+   "A_l_full": {
+    "iou_px": 0.8208703514150999,
+    "tok_recall": 0.9054973821989529,
+    "tok_precision": 0.8928755807950439,
+    "tok_f1": 0.899142188718482,
+    "thin_recall_tok": 0.5567010309278351,
+    "thin_recall_px": 0.5360824742268041,
+    "bg_tok_per_frame": 15.2,
+    "bg_share": 0.07847186370676304,
+    "tok_per_frame": 193.7,
+    "gold_tok_per_frame": 191.0,
+    "n_frames": 20,
+    "n_thin": 97
+   },
+   "A_s_crop": {
+    "iou_px": 0.8197628650960469,
+    "tok_recall": 0.9041884816753927,
+    "tok_precision": 0.8840542615817762,
+    "tok_f1": 0.894008023812605,
+    "thin_recall_tok": 0.4742268041237113,
+    "thin_recall_px": 0.4639175257731959,
+    "bg_tok_per_frame": 17.4,
+    "bg_share": 0.0890708983875096,
+    "tok_per_frame": 195.35,
+    "gold_tok_per_frame": 191.0,
+    "n_frames": 20,
+    "n_thin": 97
+   },
+   "A_s_full": {
+    "iou_px": 0.8339547589822155,
+    "tok_recall": 0.9196335078534031,
+    "tok_precision": 0.8916243654822334,
+    "tok_f1": 0.9054123711340206,
+    "thin_recall_tok": 0.4845360824742268,
+    "thin_recall_px": 0.4845360824742268,
+    "bg_tok_per_frame": 13.8,
+    "bg_share": 0.0700507614213198,
+    "tok_per_frame": 197.0,
+    "gold_tok_per_frame": 191.0,
+    "n_frames": 20,
+    "n_thin": 97
+   },
+   "A_s_video": {
+    "iou_px": 0.8104211712813256,
+    "tok_recall": 0.9172774869109948,
+    "tok_precision": 0.8720756595321055,
+    "tok_f1": 0.8941056391936718,
+    "thin_recall_tok": 0.5979381443298969,
+    "thin_recall_px": 0.5463917525773195,
+    "bg_tok_per_frame": 18.2,
+    "bg_share": 0.09059233449477352,
+    "tok_per_frame": 200.9,
+    "gold_tok_per_frame": 191.0,
+    "n_frames": 20,
+    "n_thin": 97
+   },
+   "B_l_crop": {
+    "iou_px": 0.7966772651422902,
+    "tok_recall": 0.9133507853403141,
+    "tok_precision": 0.8470502549162418,
+    "tok_f1": 0.8789520090691523,
+    "thin_recall_tok": 0.5154639175257731,
+    "thin_recall_px": 0.4845360824742268,
+    "bg_tok_per_frame": 25.95,
+    "bg_share": 0.1260014566642389,
+    "tok_per_frame": 205.95,
+    "gold_tok_per_frame": 191.0,
+    "n_frames": 20,
+    "n_thin": 97
+   },
+   "B_l_full": {
+    "iou_px": 0.8114749671656266,
+    "tok_recall": 0.9172774869109948,
+    "tok_precision": 0.8688321348871808,
+    "tok_f1": 0.8923978097542341,
+    "thin_recall_tok": 0.5876288659793815,
+    "thin_recall_px": 0.5670103092783505,
+    "bg_tok_per_frame": 20.2,
+    "bg_share": 0.10017356806347633,
+    "tok_per_frame": 201.65,
+    "gold_tok_per_frame": 191.0,
+    "n_frames": 20,
+    "n_thin": 97
+   },
+   "B_s_crop": {
+    "iou_px": 0.8135618315237756,
+    "tok_recall": 0.9206806282722513,
+    "tok_precision": 0.8645526057030481,
+    "tok_f1": 0.8917342799188641,
+    "thin_recall_tok": 0.5360824742268041,
+    "thin_recall_px": 0.5051546391752577,
+    "bg_tok_per_frame": 21.7,
+    "bg_share": 0.10668633235004917,
+    "tok_per_frame": 203.4,
+    "gold_tok_per_frame": 191.0,
+    "n_frames": 20,
+    "n_thin": 97
+   },
+   "B_s_full": {
+    "iou_px": 0.8264882231129458,
+    "tok_recall": 0.9243455497382199,
+    "tok_precision": 0.8753098661378285,
+    "tok_f1": 0.8991596638655462,
+    "thin_recall_tok": 0.5154639175257731,
+    "thin_recall_px": 0.5154639175257731,
+    "bg_tok_per_frame": 17.4,
+    "bg_share": 0.08626673277144274,
+    "tok_per_frame": 201.7,
+    "gold_tok_per_frame": 191.0,
+    "n_frames": 20,
+    "n_thin": 97
+   },
+   "B_s_video": {
+    "iou_px": 0.8010935566039428,
+    "tok_recall": 0.9232984293193718,
+    "tok_precision": 0.8560679611650486,
+    "tok_f1": 0.8884130982367758,
+    "thin_recall_tok": 0.6288659793814433,
+    "thin_recall_px": 0.5876288659793815,
+    "bg_tok_per_frame": 21.9,
+    "bg_share": 0.10631067961165049,
+    "tok_per_frame": 206.0,
+    "gold_tok_per_frame": 191.0,
+    "n_frames": 20,
+    "n_thin": 97
+   }
+  }
+ },
+ "boot": {
+  "ants": {
+   "mask3b": {
+    "tok_f1": [
+     0.0,
+     0.0
+    ],
+    "thin_recall_tok": [
+     0.0,
+     0.0
+    ],
+    "bg_tok_per_frame": [
+     0.0,
+     0.0
+    ]
+   },
+   "A_l_crop": {
+    "tok_f1": [
+     0.029853502182925637,
+     0.06159723218418875
+    ],
+    "thin_recall_tok": [
+     0.027137254901960797,
+     0.15177815914226972
+    ],
+    "bg_tok_per_frame": [
+     -1.4,
+     -0.4
+    ]
+   },
+   "A_l_full": {
+    "tok_f1": [
+     0.015501834977752744,
+     0.04171952482216541
+    ],
+    "thin_recall_tok": [
+     -0.02277637485970817,
+     0.08939059060895078
+    ],
+    "bg_tok_per_frame": [
+     -0.9512500000000002,
+     -0.19999999999999996
+    ]
+   },
+   "A_s_crop": {
+    "tok_f1": [
+     0.03075745953566567,
+     0.05941440460137525
+    ],
+    "thin_recall_tok": [
+     0.03830169999034096,
+     0.15726278311599173
+    ],
+    "bg_tok_per_frame": [
+     -1.15,
+     -0.3
+    ]
+   },
+   "A_s_full": {
+    "tok_f1": [
+     0.016427621664501797,
+     0.03907384700475759
+    ],
+    "thin_recall_tok": [
+     0.012654272151898693,
+     0.10732206723891266
+    ],
+    "bg_tok_per_frame": [
+     -0.8512500000000001,
+     0.0
+    ]
+   },
+   "A_s_video": {
+    "tok_f1": [
+     0.025084899078157176,
+     0.05429313145058304
+    ],
+    "thin_recall_tok": [
+     0.07358251504592969,
+     0.18111148268628588
+    ],
+    "bg_tok_per_frame": [
+     -0.8,
+     0.10000000000000009
+    ]
+   },
+   "B_l_crop": {
+    "tok_f1": [
+     0.042431135317322496,
+     0.07091093109789953
+    ],
+    "thin_recall_tok": [
+     0.0762568370585455,
+     0.1865144987956272
+    ],
+    "bg_tok_per_frame": [
+     -1.2000000000000002,
+     -0.15000000000000002
+    ]
+   },
+   "B_l_full": {
+    "tok_f1": [
+     0.0261922414836789,
+     0.04779874743161091
+    ],
+    "thin_recall_tok": [
+     0.022987187598861203,
+     0.12706444018137422
+    ],
+    "bg_tok_per_frame": [
+     -0.8999999999999999,
+     -0.19999999999999973
+    ]
+   },
+   "B_s_crop": {
+    "tok_f1": [
+     0.04577640637604787,
+     0.06832934744293853
+    ],
+    "thin_recall_tok": [
+     0.08119095816464236,
+     0.19433479532163736
+    ],
+    "bg_tok_per_frame": [
+     -1.05,
+     -0.15000000000000013
+    ]
+   },
+   "B_s_full": {
+    "tok_f1": [
+     0.02255790248115095,
+     0.043303044879881396
+    ],
+    "thin_recall_tok": [
+     0.03702947845804989,
+     0.136004255319149
+    ],
+    "bg_tok_per_frame": [
+     -0.8012500000000002,
+     0.050000000000000044
+    ]
+   },
+   "B_s_video": {
+    "tok_f1": [
+     0.02592529350935352,
+     0.05392195408835201
+    ],
+    "thin_recall_tok": [
+     0.07722795497185739,
+     0.18402184873949573
+    ],
+    "bg_tok_per_frame": [
+     -0.55,
+     0.19999999999999996
+    ]
+   }
+  },
+  "frogs": {
+   "mask3b": {
+    "tok_f1": [
+     0.0,
+     0.0
+    ],
+    "thin_recall_tok": [
+     0.0,
+     0.0
+    ],
+    "bg_tok_per_frame": [
+     0.0,
+     0.0
+    ]
+   },
+   "A_l_crop": {
+    "tok_f1": [
+     0.020770812926582873,
+     0.11571114037890044
+    ],
+    "thin_recall_tok": [
+     0.012345679012345734,
+     0.2153846153846154
+    ],
+    "bg_tok_per_frame": [
+     -6.0512500000000005,
+     -0.8999999999999999
+    ]
+   },
+   "A_l_full": {
+    "tok_f1": [
+     0.022246853382430213,
+     0.10195993352219125
+    ],
+    "thin_recall_tok": [
+     0.02631578947368418,
+     0.17108666061705985
+    ],
+    "bg_tok_per_frame": [
+     -5.25,
+     -0.8500000000000001
+    ]
+   },
+   "A_s_crop": {
+    "tok_f1": [
+     0.019657613456349626,
+     0.10835649295513275
+    ],
+    "thin_recall_tok": [
+     0.03635815991237679,
+     0.24493493049393672
+    ],
+    "bg_tok_per_frame": [
+     -4.949999999999999,
+     -0.10000000000000009
+    ]
+   },
+   "A_s_full": {
+    "tok_f1": [
+     0.02778178982674892,
+     0.0998882736519662
+    ],
+    "thin_recall_tok": [
+     0.06059693318729469,
+     0.22062908496732023
+    ],
+    "bg_tok_per_frame": [
+     -4.90125,
+     -0.7999999999999999
+    ]
+   },
+   "A_s_video": {
+    "tok_f1": [
+     -0.026317459196279102,
+     0.045691896605846785
+    ],
+    "thin_recall_tok": [
+     0.014280684104627716,
+     0.14866377571601455
+    ],
+    "bg_tok_per_frame": [
+     -2.0,
+     2.1499999999999986
+    ]
+   },
+   "B_l_crop": {
+    "tok_f1": [
+     0.021428177175149103,
+     0.05876839861095731
+    ],
+    "thin_recall_tok": [
+     0.012345679012345734,
+     0.2153846153846154
+    ],
+    "bg_tok_per_frame": [
+     -1.5999999999999999,
+     -0.5499999999999998
+    ]
+   },
+   "B_l_full": {
+    "tok_f1": [
+     0.014647499855098462,
+     0.050786671742828644
+    ],
+    "thin_recall_tok": [
+     0.02631578947368418,
+     0.17108666061705985
+    ],
+    "bg_tok_per_frame": [
+     -1.6500000000000004,
+     -0.39999999999999947
+    ]
+   },
+   "B_s_crop": {
+    "tok_f1": [
+     0.008408758506971304,
+     0.05644292890184215
+    ],
+    "thin_recall_tok": [
+     0.05432246376811596,
+     0.25460073710073705
+    ],
+    "bg_tok_per_frame": [
+     -1.2,
+     0.4500000000000002
+    ]
+   },
+   "B_s_full": {
+    "tok_f1": [
+     0.009223620085882378,
+     0.0485677291225662
+    ],
+    "thin_recall_tok": [
+     0.06059693318729469,
+     0.22062908496732023
+    ],
+    "bg_tok_per_frame": [
+     -1.2500000000000002,
+     -0.04999999999999982
+    ]
+   },
+   "B_s_video": {
+    "tok_f1": [
+     -0.04058839215527722,
+     0.0396309629286864
+    ],
+    "thin_recall_tok": [
+     0.025974025974025983,
+     0.1724137931034483
+    ],
+    "bg_tok_per_frame": [
+     -1.2999999999999998,
+     3.3000000000000007
+    ]
+   }
+  },
+  "mice": {
+   "mask3b": {
+    "tok_f1": [
+     -0.011349943421899076,
+     0.011178600140807902
+    ],
+    "thin_recall_tok": [
+     0.045042514424536884,
+     0.14457831325301201
+    ],
+    "bg_tok_per_frame": [
+     1.600000000000008,
+     11.251249999999999
+    ]
+   },
+   "A_l_crop": {
+    "tok_f1": [
+     0.06631278128945675,
+     0.104484945777909
+    ],
+    "thin_recall_tok": [
+     -0.1428914835164835,
+     0.012349537037037088
+    ],
+    "bg_tok_per_frame": [
+     -46.60625,
+     -23.84875
+    ]
+   },
+   "A_l_full": {
+    "tok_f1": [
+     0.0736037910701577,
+     0.12382579317048747
+    ],
+    "thin_recall_tok": [
+     -0.06065340909090915,
+     0.11224776427424904
+    ],
+    "bg_tok_per_frame": [
+     -53.303749999999994,
+     -28.0
+    ]
+   },
+   "A_s_crop": {
+    "tok_f1": [
+     0.07309180496408096,
+     0.11432089795227159
+    ],
+    "thin_recall_tok": [
+     -0.13957912032355918,
+     0.03529411764705881
+    ],
+    "bg_tok_per_frame": [
+     -51.15375,
+     -26.15
+    ]
+   },
+   "A_s_full": {
+    "tok_f1": [
+     0.0820017570448078,
+     0.1265993585031767
+    ],
+    "thin_recall_tok": [
+     -0.14853761238192786,
+     0.06898556535685635
+    ],
+    "bg_tok_per_frame": [
+     -54.30500000000001,
+     -29.49875
+    ]
+   },
+   "A_s_video": {
+    "tok_f1": [
+     0.060535412998238336,
+     0.1232931636383021
+    ],
+    "thin_recall_tok": [
+     -0.03191489361702127,
+     0.17928542753914084
+    ],
+    "bg_tok_per_frame": [
+     -50.25375,
+     -24.200000000000003
+    ]
+   },
+   "B_l_crop": {
+    "tok_f1": [
+     0.060152699653337985,
+     0.09680364234967652
+    ],
+    "thin_recall_tok": [
+     -0.05607739157828416,
+     0.03809523809523807
+    ],
+    "bg_tok_per_frame": [
+     -40.252500000000005,
+     -19.9975
+    ]
+   },
+   "B_l_full": {
+    "tok_f1": [
+     0.06938024437083282,
+     0.11633166227941694
+    ],
+    "thin_recall_tok": [
+     0.008695652173912993,
+     0.11957608695652182
+    ],
+    "bg_tok_per_frame": [
+     -48.205000000000005,
+     -24.150000000000002
+    ]
+   },
+   "B_s_crop": {
+    "tok_f1": [
+     0.07319925896040237,
+     0.11294204018671086
+    ],
+    "thin_recall_tok": [
+     -0.04054328718962863,
+     0.06666666666666671
+    ],
+    "bg_tok_per_frame": [
+     -46.65375,
+     -22.447499999999998
+    ]
+   },
+   "B_s_full": {
+    "tok_f1": [
+     0.07728690677150125,
+     0.11788919454894872
+    ],
+    "thin_recall_tok": [
+     -0.10233495670995672,
+     0.08000892857142858
+    ],
+    "bg_tok_per_frame": [
+     -50.401250000000005,
+     -26.395000000000003
+    ]
+   },
+   "B_s_video": {
+    "tok_f1": [
+     0.05880189601664568,
+     0.11505902766879039
+    ],
+    "thin_recall_tok": [
+     0.01086378353376508,
+     0.19271416656737758
+    ],
+    "bg_tok_per_frame": [
+     -46.3,
+     -21.597500000000004
+    ]
+   }
+  }
+ },
+ "decision": {
+  "overall_f1": {
+   "N2": 0.8268169441197442,
+   "mask3b": 0.8268417704579599,
+   "A_l_crop": 0.8912270386035835,
+   "A_l_full": 0.8878002883188919,
+   "A_s_crop": 0.89356194625043,
+   "A_s_full": 0.8911986501036568,
+   "A_s_video": 0.8753419335563023,
+   "B_l_crop": 0.8848125906979704,
+   "B_l_full": 0.8800689038422295,
+   "B_s_crop": 0.8868584222305881,
+   "B_s_full": 0.8802909643820142,
+   "B_s_video": 0.8700929201946477
+  },
+  "winner": "A_s_crop",
+  "adopted": false
+ }
+}
