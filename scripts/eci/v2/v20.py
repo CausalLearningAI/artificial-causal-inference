@@ -46,7 +46,8 @@ BG_M2 = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_mask2/bg')
 V2F = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_diag')
 BG_V20 = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_0/bg')  # frogs / mice v2 packs (fixed: PASS B uses another V2_BEE)
 NOSTORE = os.environ.get('V20_NOSTORE') == '1'  # PASS B: no training store
-FULLTOK = os.environ.get('V20_FULLTOK') == '1'  # full token store: ALL N2 tokens, no per-video code npz
+FULLTOK = os.environ.get('V20_FULLTOK') == '1'  # full token store: N2 dilated by one token + flags, no per-video code npz
+POOLED = os.environ.get('V20_POOLED', '0') == '1'  # mice full store: also the session-pooled-background N2 (superset + flag)
 TOKROOT = Path(os.environ.get('V20_TOKROOT', '/mnt/beegfs/locatgrp/shared/rcadei/eci_tokens/v2_full'))
 NSH = {'mice': 32, 'ants': 16, 'frogs': 16}
 NSH_STORE1 = 8  # frogs 1 fps store shards
@@ -126,6 +127,24 @@ def make_series_class(dom):
                                         'ghost': (gb < m.get('dark_abs', 60)) & ((q98 - gb) > m.get('dark_rel', 40))}
             return self._packs[key]
 
+        def pool_pack(self, obs):
+            """mice: session-pooled background = per-pixel median of the per-video packs (bg, q98, mad) of the videos of
+            the same pool and odour session (observation id without its phase suffix), ghost recomputed on it."""
+            g = obs.rsplit('_', 1)[0]
+            key = ('pool', g)
+            if key not in self._packs:
+                mem = [o for o in self.V if o.rsplit('_', 1)[0] == g]
+                zs = [np.load(bg_file(self.dom, self.ser, o, 0)) for o in mem]
+                med = {k: np.median(np.stack([z[k].astype(np.float32) for z in zs]), 0) for k in ('bg', 'q98', 'mad_s15')}
+                m = self.cfg['mask']
+                bg = torch.from_numpy(med['bg']).to(self.dev).float()
+                q98 = torch.from_numpy(med['q98']).to(self.dev).float()
+                gb = M2.grey_f(bg[None])[0]
+                self._packs[key] = {'bg': bg, 'mad': torch.from_numpy(med['mad_s15']).to(self.dev).float(), 'q98': q98,
+                                    'ghost': (gb < m.get('dark_abs', 60)) & ((q98 - gb) > m.get('dark_rel', 40)),
+                                    'members': len(mem)}
+            return self._packs[key]
+
         @torch.no_grad()
         def n2(self, x, core0, pack, roi=None):
             """-> keep (B, G*G) bool (N2), m0 (B, G*G) bool (tight rule on core0)."""
@@ -177,6 +196,10 @@ def make_series_class(dom):
             self.stats['kept'] += int(keep.sum())
             self.stats['m0'] += int(m0.sum())
             self.last_m0 = m0
+            self.last_n2pool = None
+            if POOLED and self.dom == 'mice' and self.geometry != 'crop':
+                kp, _ = self.n2(x, core0, self.pool_pack(v['obs']))
+                self.last_n2pool = kp
             return x, keep.float()
 
     return N2Series
@@ -524,7 +547,7 @@ def cmd_encode(a):
     loc_s = R.local_dir() / f'store5_{tag}'
     loc_s.mkdir(parents=True, exist_ok=True)
     ftok = open(loc_s / 'tok.f16', 'ab')
-    st_tf, st_pos, recs, st_n2, st_m0 = [], [], [], [], []
+    st_tf, st_pos, recs, st_n2, st_m0, st_np = [], [], [], [], [], []
     T0, tot = time.time(), 0
     for ser, vi in todo:
         sc = R.series_of(c, ser)
@@ -565,13 +588,15 @@ def cmd_encode(a):
                         continue
                     if FULLTOK:  # store = N2 dilated by one token (v1-style ring) with per-token N2 / tight flags
                         G_ = Se.G
-                        dil = F.max_pool2d(keep.float().view(-1, 1, G_, G_), 3, 1, 1).flatten(1) > 0.5
+                        kp_ = Se.last_n2pool if getattr(Se, 'last_n2pool', None) is not None else torch.zeros_like(keep)
+                        dil = F.max_pool2d((keep | kp_).float().view(-1, 1, G_, G_), 3, 1, 1).flatten(1) > 0.5
                         bd, pd_ = dil.nonzero(as_tuple=True)
                         ftok.write(z[bd, pd_].cpu().numpy().tobytes())
                         st_pos.append(pd_.to(torch.int16).cpu().numpy())
                         st_tf.append(len(recs) + bd.cpu().numpy().astype(np.int32))
                         st_n2.append(keep[bd, pd_].cpu().numpy())
                         st_m0.append(Se.last_m0[bd, pd_].cpu().numpy())
+                        st_np.append(kp_[bd, pd_].cpu().numpy())
                         cnt = np.bincount(bd.cpu().numpy(), minlength=len(kk))
                         for i_, k in enumerate(kk):
                             recs.append((ser, v['obs'], int(k), v['role'], int(nk[i_]), int(cnt[i_])))
@@ -609,6 +634,7 @@ def cmd_encode(a):
     if FULLTOK:
         np.save(loc_s / 'flag_n2.npy', np.concatenate(st_n2))
         np.save(loc_s / 'flag_tight.npy', np.concatenate(st_m0))
+        np.save(loc_s / 'flag_n2pool.npy', np.concatenate(st_np))  # all False outside mice
     Fm = pd.DataFrame(recs, columns=['series', 'obs', 'k', 'role', 'n_kept', 'n_store'])
     Fm.to_parquet(loc_s / 'frames.parquet')
     nt = int(Fm.n_store.sum())
