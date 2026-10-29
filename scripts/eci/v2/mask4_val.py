@@ -795,6 +795,53 @@ def cmd_tempunion(a):
         (OUT / f'tempunion_{dom}.json').write_text(json.dumps(res[dom], indent=1))
 
 
+def cmd_storecheck(a):
+    """store candidate S = union over t-2..t+2 of (N2 tokens dilated by 1 token, 3x3); t = each captured gold / sheet
+    frame k. -> share of B_s_crop / B_l_full tokens at t outside S, |S| vs |N2_t|."""
+    import torch
+    import torch.nn.functional as F
+    import mask3_val as MV
+    dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    res = {}
+    for dom, ser in SERIES:
+        meta = json.loads((OUT / 'cap' / f'{dom}_{ser}.json').read_text())
+        o, _ = MV.series_pair(dom, ser, dev, rule='m3b')
+        acc = {'frames': 0, 'S': 0, 'n2': 0, 'Bs': 0, 'Bs_out': 0, 'Bl': 0, 'Bl_out': 0, 'Bs_frames_out': 0}
+        for m in meta:
+            v = o.V[m['obs']]
+            k = m['k']
+            k0 = max(0, k - 2)
+            n = min(v['n'] - 1, k + 2) - k0 + 1
+            fr = o.run_job(**o.job(v, k0, n, threads=4))
+            o.cap.clear()
+            o.frames(v, fr, list(range(k0, k0 + n)))
+            keep = torch.cat([c['keep'] for c in o.cap]).float()
+            G = m['G']
+            dil = F.max_pool2d(keep.view(-1, 1, G, G), 3, 1, 1).view(len(keep), -1) > 0.5
+            S_ = dil.any(0).cpu().numpy()
+            n2t = keep[k - k0].bool().cpu().numpy()
+            z = np.load(BEE / 'arms' / f'{dom}_{ser}_{m["obs"]}_{k}.npz')
+            bs, bl = z['B_s_crop_keep'].astype(bool), z['B_l_full_keep'].astype(bool)
+            acc['frames'] += 1; acc['S'] += int(S_.sum()); acc['n2'] += int(n2t.sum())
+            acc['Bs'] += int(bs.sum()); acc['Bs_out'] += int((bs & ~S_).sum()); acc['Bs_frames_out'] += int((bs & ~S_).any())
+            acc['Bl'] += int(bl.sum()); acc['Bl_out'] += int((bl & ~S_).sum())
+        r = dict(acc)
+        r['Bs_inside'] = 1 - acc['Bs_out'] / max(acc['Bs'], 1)
+        r['Bl_inside'] = 1 - acc['Bl_out'] / max(acc['Bl'], 1)
+        r['S_per_frame'] = acc['S'] / acc['frames']; r['n2_per_frame'] = acc['n2'] / acc['frames']
+        r['S_over_n2'] = acc['S'] / max(acc['n2'], 1)
+        res[f'{dom}_{ser}'] = r
+        log(json.dumps({f'{dom}_{ser}': r}))
+    for dom in ('mice', 'ants', 'frogs'):
+        rs = [v for k_, v in res.items() if k_.startswith(dom)]
+        t = {key: sum(r[key] for r in rs) for key in ('frames', 'S', 'n2', 'Bs', 'Bs_out', 'Bl', 'Bl_out', 'Bs_frames_out')}
+        res[dom] = {**t, 'Bs_inside': 1 - t['Bs_out'] / t['Bs'], 'Bl_inside': 1 - t['Bl_out'] / t['Bl'],
+                    'S_per_frame': t['S'] / t['frames'], 'n2_per_frame': t['n2'] / t['frames'], 'S_over_n2': t['S'] / t['n2']}
+    (OUT / 'storecheck.json').write_text(json.dumps(res, indent=1))
+    for dom in ('mice', 'ants', 'frogs'):
+        log(json.dumps({dom: res[dom]}))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('step')
