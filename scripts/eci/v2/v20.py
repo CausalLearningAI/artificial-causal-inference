@@ -176,6 +176,7 @@ def make_series_class(dom):
             self.stats['frames'] += len(ks)
             self.stats['kept'] += int(keep.sum())
             self.stats['m0'] += int(m0.sum())
+            self.last_m0 = m0
             return x, keep.float()
 
     return N2Series
@@ -504,6 +505,7 @@ def cmd_encode(a):
     from src.eci.v2.encode import Encoder
     from src.eci.v2.video import Prefetch
     from src.eci.v2.context import sae_input
+    import torch.nn.functional as F
     Series = patch_series(a.domain)
     dev = torch.device('cuda')
     torch.backends.cuda.matmul.allow_tf32 = False
@@ -522,7 +524,7 @@ def cmd_encode(a):
     loc_s = R.local_dir() / f'store5_{tag}'
     loc_s.mkdir(parents=True, exist_ok=True)
     ftok = open(loc_s / 'tok.f16', 'ab')
-    st_tf, st_pos, recs = [], [], []
+    st_tf, st_pos, recs, st_n2, st_m0 = [], [], [], [], []
     T0, tot = time.time(), 0
     for ser, vi in todo:
         sc = R.series_of(c, ser)
@@ -561,8 +563,19 @@ def cmd_encode(a):
                     # training store: fixed random 20% of each frame's kept tokens
                     if NOSTORE:
                         continue
-                    if FULLTOK:
-                        sel = np.ones(len(pic), bool)
+                    if FULLTOK:  # store = N2 dilated by one token (v1-style ring) with per-token N2 / tight flags
+                        G_ = Se.G
+                        dil = F.max_pool2d(keep.float().view(-1, 1, G_, G_), 3, 1, 1).flatten(1) > 0.5
+                        bd, pd_ = dil.nonzero(as_tuple=True)
+                        ftok.write(z[bd, pd_].cpu().numpy().tobytes())
+                        st_pos.append(pd_.to(torch.int16).cpu().numpy())
+                        st_tf.append(len(recs) + bd.cpu().numpy().astype(np.int32))
+                        st_n2.append(keep[bd, pd_].cpu().numpy())
+                        st_m0.append(Se.last_m0[bd, pd_].cpu().numpy())
+                        cnt = np.bincount(bd.cpu().numpy(), minlength=len(kk))
+                        for i_, k in enumerate(kk):
+                            recs.append((ser, v['obs'], int(k), v['role'], int(nk[i_]), int(cnt[i_])))
+                        continue
                     else:
                         sel = np.concatenate([np.random.default_rng([crc, int(k)]).random(int(m)) < P_STORE
                                               for k, m in zip(kk, nk)]) if len(pic) else np.zeros(0, bool)
@@ -593,6 +606,9 @@ def cmd_encode(a):
     ftok.close()
     np.save(loc_s / 'tok_frame.npy', np.concatenate(st_tf) if st_tf else np.zeros(0, np.int32))
     np.save(loc_s / 'tok_pos.npy', np.concatenate(st_pos) if st_pos else np.zeros(0, np.int16))
+    if FULLTOK:
+        np.save(loc_s / 'flag_n2.npy', np.concatenate(st_n2))
+        np.save(loc_s / 'flag_tight.npy', np.concatenate(st_m0))
     Fm = pd.DataFrame(recs, columns=['series', 'obs', 'k', 'role', 'n_kept', 'n_store'])
     Fm.to_parquet(loc_s / 'frames.parquet')
     nt = int(Fm.n_store.sum())

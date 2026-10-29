@@ -72,6 +72,9 @@ AMENDMENT 3 (2026-10-29, user-approved design; written BEFORE any of its feature
 POST-HOC AMENDMENT 4 (2026-10-29, user, AFTER the Part A gate results were seen): criterion (2) 'top-1% precision >= 3 x
   base rate' is unreachable when the base rate > 1/3; it is REPLACED by 'top-1% precision >= base + 0.5 (1 - base)'.
   Both the original (PASS) and the amended (PASS_am4) decisions are reported; criteria (1) and (3) unchanged.
+POST-HOC AMENDMENT 5 (2026-10-29, user's FINAL rule, after AMENDMENT 4 results were seen): criterion (2) =
+  'top-1% precision >= min(3 x base rate, base + 0.5 (1 - base))'; (1) and (3) unchanged. Reported side by side:
+  PASS (original 3x), PASS_am4 (base + 0.5 (1 - base)), PASS_final (this rule).
 ==================================================================================================================
 Steps: gate (CPU) ; dyn_train --dom D (GPU) ; dyn_codes --dom D (GPU) ; dyn_gate --dom D (CPU)
 """
@@ -193,15 +196,16 @@ def gate_rows(dom, v1, v2, elig):
         c1 = r['dAUROC'][2] >= -0.01
         c2 = (r['v2_top1_lift'] or 0) >= 3
         c2b = (r['v2_top1_prec'] or 0) >= r['base'] + 0.5 * (1 - r['base'])
+        c2f = (r['v2_top1_prec'] or 0) >= min(3 * r['base'], r['base'] + 0.5 * (1 - r['base']))
         c3 = (r['v2_top1_prec'] or 0) >= r['v1_top1_prec'] - 0.05
         r.update(c1_auroc=bool(c1), c2_lift3=bool(c2), c2b_half=bool(c2b), c3_prec=bool(c3), PASS=bool(c1 and c2 and c3),
-                 PASS_am4=bool(c1 and c2b and c3))
+                 PASS_am4=bool(c1 and c2b and c3), c2f_final=bool(c2f), PASS_final=bool(c1 and c2f and c3))
         rows[cell] = r
     return rows
 
 
 def table(a):
-    L = ['| domain | cell | elig (bouts h0/h1) | base | v1 AUROC | v2 AUROC (P(on)) | dAUROC [CI] | v1 nAP | v2 nAP | v1 top1% prec | v2 top1% prec (lift) | v2 cont top1% prec | PASS P(on) orig/am4 | PASS cont orig/am4 |',
+    L = ['| domain | cell | elig (bouts h0/h1) | base | v1 AUROC | v2 AUROC (P(on)) | dAUROC [CI] | v1 nAP | v2 nAP | v1 top1% prec | v2 top1% prec (lift) | v2 cont top1% prec | PASS P(on) orig/am4/final | PASS cont orig/am4/final |',
          '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|']
     summ = {}
     for dom in a.doms.split(','):
@@ -217,7 +221,7 @@ def table(a):
             L.append(f'| {dom} | {cell} | {"Y" if r["eligible"] else "N (descr.)"} ({r["bouts"][0]}/{r["bouts"][1]}) | {r["base"]:.4f} | '
                      f'{r["v1_AUROC"]:.3f} | {r["v2_AUROC"]:.3f} | {d[0]:+.3f} [{d[1]:+.3f}, {d[2]:+.3f}] | {r["v1_nAP"]:.3f} | '
                      f'{r["v2_nAP"]:.3f} | {r["v1_top1_prec"]:.3f} | {r["v2_top1_prec"]:.3f} ({r["v2_top1_lift"]:.1f}x) | '
-                     f'{rc.get("v2_top1_prec", float("nan")):.3f} | {"PASS" if r["PASS"] else "FAIL"}/{"PASS" if r["PASS_am4"] else "FAIL"} | {"PASS" if rc.get("PASS") else "FAIL"}/{"PASS" if rc.get("PASS_am4") else "FAIL"} |')
+                     f'{rc.get("v2_top1_prec", float("nan")):.3f} | {"P" if r["PASS"] else "F"}/{"P" if r["PASS_am4"] else "F"}/{"P" if r["PASS_final"] else "F"} | {"P" if rc.get("PASS") else "F"}/{"P" if rc.get("PASS_am4") else "F"}/{"P" if rc.get("PASS_final") else "F"} |')
         if dom == 'mice':
             for k in ('hmm', 'smooth'):
                 nn, nt = R[k]['v1|nn']['best_neuron'], R[k]['v1|nt']['best_neuron']
@@ -228,7 +232,7 @@ def table(a):
     for dom, R in summ.items():
         for k in ('hmm', 'smooth'):
             el = {c: r for c, r in R[k].items() if r['eligible'] and c.split('|')[1] not in ONLID}
-            log(f'{dom} {k}: PASS {sum(r["PASS"] for r in el.values())} (am4 {sum(r["PASS_am4"] for r in el.values())}) / {len(el)} eligible cells; '
+            log(f'{dom} {k}: PASS {sum(r["PASS"] for r in el.values())} (am4 {sum(r["PASS_am4"] for r in el.values())}, final {sum(r["PASS_final"] for r in el.values())}) / {len(el)} eligible cells; '
                 + (json.dumps(R.get(f'distinct_nn_nt_{k}')) if dom == 'mice' else ''))
 
 
