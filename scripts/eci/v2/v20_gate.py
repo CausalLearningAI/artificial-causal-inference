@@ -1,0 +1,193 @@
+"""
+ECI v2.0 per-label DEPLOYMENT GATE (Part A) and the ants-gap variants (Part B).
+
+==================================================================================================================
+PRE-REGISTRATION (written 2026-10-29 BEFORE any top-1% precision or variant score existed; user's gate relayed by the
+coordinator. Known: AUROC / nAP per cell of v1 (11 seeds) and v2.0 (v20_vs_v1 align.md).)
+FRAMES / SCORER: the evaluation audit (scripts/eci/v2_eval/eval.py): frame tables, splits atlas + rnd0-4 (both
+    directions), neuron eligibility, score_cells (cross-fitted best single neuron by AUROC). Cells = (series, label):
+    mice nn (mutual), np (directional), nt (nose-to-tail), nose_nose (nn | np); ants Y2F (yellow grooming), B2F (blue),
+    groom_any, YOL / BOL / FOL (on lid; focal) and onlid_any, for every series eval.py scores (v2 / v3 / v4 / v4_infested).
+MODELS: v1 = s0-10 (raw frame max); v2.0 = final PASS B model, readouts P(on) (PRIMARY) and continuous (0.6 s).
+TOP-1% PRECISION: for every cross-fit direction, the neuron picked by AUROC on one half; on the other half the frames
+    with the top ceil(1%) codes of that neuron (rank order, ties broken by a fixed random order, rng 0) -> share carrying
+    the label (precision) and precision / base rate of that half (lift); averaged over the directions.
+PASS (per cell, v2.0 P(on); continuous reported too): (1) AUROC not worse than v1: v2 - mean(v1 seeds), t CI (df 10),
+    upper bound >= -0.01; (2) top-1% precision >= 3 x base rate; (3) top-1% precision >= mean_v1 - 0.05.
+    Cells that fail eval.py's bout eligibility (>= 20 bouts and >= 3 positive videos per atlas half; on-lid labels) are
+    scored DESCRIPTIVELY with their bout counts and are not part of the decision.
+MICE DISTINCT: nn and nt best neurons of v2.0 = the neuron picked most often over the AUROC directions; distinct iff they
+    differ (reported for P(on) and continuous).
+PART B variants (SAE level, 3 seeds, the v2.0 recipe otherwise): context mask = NOT re-run (the diag ablation V1M_d2 and
+    B_d3l20dil already measured it; reported); DYN = token input [z_t, z_t - z_(t - 1 s)] at the same grid position
+    (difference 0 when that position is not kept 1 s earlier), ants trained on the full1 1 fps N2 store, mice on the
+    behaviour-suite 5 fps probe dense N2 store (lag 5 frames); scored with this gate on the eval frames (ants full1 N2
+    tokens, 1 fps lag 1 frame; mice v2_prob dense N2 tokens, lag 5 frames; mice readout 0.6 s smooth, ants raw) and the
+    dynamic share @256 (v20_vs_v1 'dyn' rule). ADOPT a variant only if it passes MORE ants cells than v2.0 AND loses no
+    mice cell that v2.0 passes; otherwise v2.0 stays frozen.
+==================================================================================================================
+Steps: gate (CPU) ; dyn_train --dom D (GPU) ; dyn_codes --dom D (GPU) ; dyn_gate --dom D (CPU)
+"""
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+REPO = Path(__file__).resolve().parents[3]
+for p in ('', 'scripts/eci/v2', 'scripts/eci/v2_eval', 'scripts/eci/v2_prob', 'scripts/eci/v2_behav'):
+    sys.path.insert(0, str(REPO / p))
+V = REPO / 'results/vision'
+OUT = V / 'eci_v2_0B/gate'
+EC = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes')
+BEE = EC / 'v2_0B/gate'
+log = lambda s: print(time.strftime('%H:%M:%S'), s, flush=True)  # noqa: E731
+
+
+def one_vs(x, b):
+    from scipy import stats
+    b = np.asarray(b, float)
+    h = stats.t.ppf(0.975, len(b) - 1) * b.std(ddof=1) / np.sqrt(len(b))
+    return [float(x - b.mean()), float(x - b.mean() - h), float(x - b.mean() + h)]
+
+
+def top1(F, X, use, SP, cells_res):
+    """{cell: {'prec', 'lift', 'base'}} for the AUROC-picked neurons of score_cells output cells_res."""
+    import eval as EV
+    out = {}
+    rng = np.random.default_rng(0)
+    for cell, r in cells_res.items():
+        ser, b = cell.split('|')
+        vm = F[f'v_{b}'].values & (F.series.values == ser) & use
+        idx = np.flatnonzero(vm)
+        y = F[f'y_{b}'].values[idx]
+        units = F.unit.values[idx]
+        tb = rng.random(len(idx))
+        P, L, B = [], [], []
+        for nm, h, j in r['AUROC_neurons']:
+            half = np.array([SP[nm][u] for u in units])
+            o = np.flatnonzero(half == 1 - h)
+            if len(o) == 0 or y[o].sum() == 0:
+                continue
+            c = np.asarray(X[idx[o], j], np.float64)
+            n = max(1, int(np.ceil(0.01 * len(o))))
+            top = np.lexsort((tb[o], -c))[:n]
+            p_ = float(y[o][top].mean())
+            P.append(p_)
+            B.append(float(y[o].mean()))
+            L.append(p_ / max(B[-1], 1e-12))
+        out[cell] = {'prec': float(np.mean(P)) if P else None, 'lift': float(np.mean(L)) if L else None,
+                     'base': float(np.mean(B)) if B else None}
+    return out
+
+
+def score(dom, X, use, F, SP):
+    import eval as EV
+    cr = EV.score_cells(F, X, use, SP)
+    t = top1(F, X, use, SP, cr)
+    for c in cr:
+        cr[c].update({f'top1_{k}': v for k, v in t[c].items()})
+        js = pd.Series([x[2] for x in cr[c]['AUROC_neurons']]).value_counts()
+        cr[c]['best_neuron'] = int(js.index[0]) if len(js) else None
+    return cr
+
+
+def v1_X(dom, s, F):
+    import eval as EV
+    return EV.load_dict(dom, f'v1_s{s}', F)
+
+
+def cmd_gate(a):
+    import analysis as AN
+    import eval as EV
+    os.environ.setdefault('V2_OUT', str(V / 'eci_v2_0B'))
+    os.environ.setdefault('V2_BEE', str(EC / 'v2_0B'))
+    import v20_eval as VE
+    OUT.mkdir(parents=True, exist_ok=True)
+    for dom in a.doms.split(','):
+        F = EV.frame_table(dom)
+        SP = AN.splits(F.unit.values, EV.SPLITS)
+        elig = EV.row_counts(dom, F, SP)
+        res = {'eligibility': elig, 'v1': {}, 'v2': {}}
+        for s in range(11):
+            f = OUT / f'{dom}_v1_s{s}.json'
+            if not f.exists():
+                X, use = v1_X(dom, s, F)
+                f.write_text(json.dumps(score(dom, X, use, F, SP)))
+            res['v1'][s] = json.loads(f.read_text())
+            log(f'{dom} v1 s{s} done')
+        for k, suf in (('hmm', '_hmm'), ('smooth', '_smooth')):
+            f = OUT / f'{dom}_v2_{k}.json'
+            if not f.exists():
+                X, use = VE.deliverable_codes(dom, F, suf)
+                f.write_text(json.dumps(score(dom, X, use, F, SP)))
+            res['v2'][k] = json.loads(f.read_text())
+        (OUT / f'{dom}_scores.json').write_text(json.dumps(res))
+        log(f'{dom}: gate scores written')
+    table(a)
+
+
+def gate_rows(dom, v1, v2, elig):
+    rows = {}
+    for cell in v2:
+        v1c = [v1[s][cell] for s in v1 if cell in v1[s] and v1[s][cell].get('AUROC') is not None]
+        if not v1c or v2[cell].get('AUROC') is None:
+            continue
+        r = {'eligible': bool(elig.get(cell, {}).get('eligible')), 'bouts': [elig.get(cell, {}).get('h0_bouts'), elig.get(cell, {}).get('h1_bouts')],
+             'base': v2[cell].get('top1_base'), 'best_neuron': v2[cell].get('best_neuron')}
+        for M in ('AUROC', 'nAP', 'top1_prec', 'top1_lift'):
+            r[f'v1_{M}'] = float(np.mean([c[M] for c in v1c if c.get(M) is not None]))
+            r[f'v2_{M}'] = v2[cell].get(M)
+        r['dAUROC'] = one_vs(v2[cell]['AUROC'], [c['AUROC'] for c in v1c])
+        c1 = r['dAUROC'][2] >= -0.01
+        c2 = (r['v2_top1_lift'] or 0) >= 3
+        c3 = (r['v2_top1_prec'] or 0) >= r['v1_top1_prec'] - 0.05
+        r.update(c1_auroc=bool(c1), c2_lift3=bool(c2), c3_prec=bool(c3), PASS=bool(c1 and c2 and c3))
+        rows[cell] = r
+    return rows
+
+
+def table(a):
+    L = ['| domain | cell | elig (bouts h0/h1) | base | v1 AUROC | v2 AUROC (P(on)) | dAUROC [CI] | v1 nAP | v2 nAP | v1 top1% prec | v2 top1% prec (lift) | v2 cont top1% prec | PASS P(on) | PASS cont |',
+         '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|']
+    summ = {}
+    for dom in a.doms.split(','):
+        S = json.loads((OUT / f'{dom}_scores.json').read_text())
+        v1 = S['v1']
+        R = {k: gate_rows(dom, v1, S['v2'][k], S['eligibility']) for k in ('hmm', 'smooth')}
+        summ[dom] = R
+        for cell, r in R['hmm'].items():
+            rc = R['smooth'].get(cell, {})
+            d = r['dAUROC']
+            L.append(f'| {dom} | {cell} | {"Y" if r["eligible"] else "N (descr.)"} ({r["bouts"][0]}/{r["bouts"][1]}) | {r["base"]:.4f} | '
+                     f'{r["v1_AUROC"]:.3f} | {r["v2_AUROC"]:.3f} | {d[0]:+.3f} [{d[1]:+.3f}, {d[2]:+.3f}] | {r["v1_nAP"]:.3f} | '
+                     f'{r["v2_nAP"]:.3f} | {r["v1_top1_prec"]:.3f} | {r["v2_top1_prec"]:.3f} ({r["v2_top1_lift"]:.1f}x) | '
+                     f'{rc.get("v2_top1_prec", float("nan")):.3f} | {"PASS" if r["PASS"] else "FAIL"} | {"PASS" if rc.get("PASS") else "FAIL"} |')
+        if dom == 'mice':
+            for k in ('hmm', 'smooth'):
+                nn, nt = R[k]['v1|nn']['best_neuron'], R[k]['v1|nt']['best_neuron']
+                summ[dom][f'distinct_nn_nt_{k}'] = {'nn': nn, 'nt': nt, 'distinct': nn != nt}
+    (OUT / 'gate.json').write_text(json.dumps(summ, indent=1, default=float))
+    (OUT / 'gate.md').write_text('\n'.join(L))
+    print('\n'.join(L))
+    for dom, R in summ.items():
+        for k in ('hmm', 'smooth'):
+            el = {c: r for c, r in R[k].items() if r['eligible']}
+            log(f'{dom} {k}: PASS {sum(r["PASS"] for r in el.values())} / {len(el)} eligible cells; '
+                + (json.dumps(R.get(f'distinct_nn_nt_{k}')) if dom == 'mice' else ''))
+
+
+def main():
+    import argparse
+    p = argparse.ArgumentParser()
+    p.add_argument('step', choices=('gate', 'table'))
+    p.add_argument('--doms', default='mice,ants')
+    a = p.parse_args()
+    {'gate': cmd_gate, 'table': table}[a.step](a)
+
+
+if __name__ == '__main__':
+    main()
