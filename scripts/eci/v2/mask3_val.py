@@ -44,6 +44,17 @@ APPROVAL SHEETS (OUT/<domain>.png; frame | old N2 (blue) | new (green)): per ser
     canonical top-right quarter); ants: the middle frame of the video with the largest ghost area per series; frogs:
     dish rim = the juv metric frame with the most old-N2 tokens in the outer 10% border of the frame; benchmarks: 2
     validate frames per set (rng 1) -> OUT/benchmarks.png.
+POST-HOC AMENDMENT 1 (2026-10-29 ~17:00, AFTER the pre-registered mask3 lab metrics of all 7 series, the mice v2
+    eye check and 3 mice v1 eye-check frames were seen; before any mask3b number): mice show bedding halos and wall
+    blocks kept next to old huddle spots (mice v1 / v2 +19% / +18% tokens, LEAK A 0.079). Cause: inside the fixed
+    region the q98 fill differs from the current frame where the median was right (wall corners that the frozen ghost
+    rule flags, displaced bedding). Rule mask3b (mask3.keep3b): candidate / strong-core pixels must differ from BOTH the
+    fixed background and the stored median, d = min(d_fixed, d_median); fix_pack unchanged (q98 fill). Also found:
+    mask2.hyst_pixels overwrites its per-pixel MAD argument with the per-frame scalar noise MAD inside its loop, so
+    the per-pixel background-MAD term never acts in N2 (mask3's MAD inpainting therefore changes nothing). Same frames,
+    metrics and sheets for mask3b (suffix _m3b); the benchmark step reports N2, mask3 and mask3b (bench_<set>_v2.json).
+    A development sweep (frames outside the metric sample, OUT/sweep*/) found REACH_H 10 and T_LO 25 add wall /
+    bedding blocks; they are NOT adopted. mask3 numbers stay reported as pre-registered.
 ==================================================================================================================
 
 Steps (scripts/eci/v2/mask3.sh, PY = this file):
@@ -76,7 +87,7 @@ def env():
     return V
 
 
-def series_pair(dom, ser, dev, fill=None):
+def series_pair(dom, ser, dev, fill=None, rule='m3'):
     """-> (old N2 series, new mask3 series) sharing nothing but the config; both capture per-frame intermediates."""
     import torch
     import torch.nn.functional as F
@@ -111,7 +122,9 @@ def series_pair(dom, ser, dev, fill=None):
                 da, dr = m.get('dark_abs', 60), m.get('dark_rel', 40)
                 if self.geometry == 'crop':
                     fx = M3.fix_pack(P['bg'], P['q98'], P['mad'], self.h, da, dr, fill=fill)
-                    out = {'bg': fx['bg'], 'mad': fx['mad'], 'q98': P['q98'], 'bg_raw': P['bg']}
+                    bgc = fx['bg'] if rule == 'm3' else np.concatenate([fx['bg'], np.asarray(P['bg'], np.float32)], 0)
+                    # m3b: channels 3-5 carry the median through the frozen crop code (grey_f reads channels 0-2 only)
+                    out = {'bg': bgc, 'mad': fx['mad'], 'q98': P['q98'], 'bg_raw': P['bg']}
                 else:
                     tn = lambda t: t.cpu().numpy()  # noqa: E731
                     fx = M3.fix_pack(tn(P['bg']), tn(P['q98']), tn(P['mad']), self.h, da, dr, fill=fill)
@@ -128,8 +141,16 @@ def series_pair(dom, ser, dev, fill=None):
             return self._packs[key]
 
         def n2(self, x, core0, pack, roi=None):
-            keep, pix, app = M3.keep3(x, pack['bg'], pack['mad'], core0, self.h, roi=roi)
-            self.cap.append({'x': x, 'core0': core0, 'bg_new': pack['bg'], 'roi': roi, 'pix': pix, 'app': app,
+            bgf = pack['bg']
+            if rule == 'm3':
+                keep, pix, app = M3.keep3(x, bgf, pack['mad'], core0, self.h, roi=roi)
+            else:
+                if self.geometry == 'crop':
+                    bgf, bgm = bgf[:, :3], bgf[:, 3:]
+                else:
+                    bgm = pack['bg_raw']
+                keep, pix, app = M3.keep3b(x, bgf, bgm, core0, self.h, roi=roi)
+            self.cap.append({'x': x, 'core0': core0, 'bg_new': bgf, 'roi': roi, 'pix': pix, 'app': app,
                              'keep': keep})
             return keep, pool(core0) >= 0.25
 
@@ -234,7 +255,12 @@ def sample_frames(se):
     return [f for f in out if f not in dev]
 
 
+SUF = {'m3': '', 'm3b': '_m3b'}
+RULE = ['m3']
+
+
 def save_row(im, ko, kn, G, title, name):
+    name = name + SUF[RULE[0]]
     from PIL import Image
     (OUT / 'rows').mkdir(parents=True, exist_ok=True)
     Image.fromarray(np.concatenate([im, tint(im, ko, G, (0, 90, 255)), tint(im, kn, G, (0, 220, 0))], 1)).save(
@@ -248,7 +274,7 @@ def cmd_lab(a):
     from src.eci.v2 import mask2 as M2
     torch.set_num_threads(int(os.environ.get('SLURM_CPUS_PER_TASK', 8)))
     dev = torch.device('cpu')
-    o, n = series_pair(a.dom, a.ser, dev)
+    o, n = series_pair(a.dom, a.ser, dev, rule=a.rule)
     fr = sample_frames(o)
     t0 = time.time()
     acc = {'old': {'tok': 0, 'leakA': 0, 'leakB': 0}, 'new': {'tok': 0, 'leakA': 0, 'leakB': 0}, 'add': 0, 'rem': 0,
@@ -298,7 +324,7 @@ def cmd_lab(a):
     res['added_share'] = acc['add'] / max(acc['old']['tok'], 1)
     res['removed_share'] = acc['rem'] / max(acc['old']['tok'], 1)
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / f'lab_{a.dom}_{a.ser}.json').write_text(json.dumps(res, indent=1))
+    (OUT / f'lab_{a.dom}_{a.ser}{SUF[a.rule]}.json').write_text(json.dumps(res, indent=1))
     log(json.dumps(res))
     # ---- sheet rows: random (rng 1), hard cases, rule-picked cases
     g1 = np.random.default_rng(1)
@@ -340,7 +366,7 @@ def cmd_lab(a):
                     t = Image.fromarray(a_).resize((640, 640), Image.BILINEAR)
                     ImageDraw.Draw(t).text((5, 5), f'{["frame", "old", "new"][jj]} {ob} k{k}', fill=(255, 255, 0))
                     sh.paste(t, (jj * 640, r_ * 640))
-            sh.save(OUT / f'tailcheck_{a.ser}_{b0 // 5}.png')
+            sh.save(OUT / f'tailcheck_{a.ser}_{b0 // 5}{SUF[a.rule]}.png')
 
 
 def cmd_ghost(a):
@@ -385,7 +411,8 @@ def cmd_bench(a):
     import validate as VA
     from src.eci.v2 import mask2 as M2
     from src.eci.v2 import mask3 as M3
-    dev = torch.device('cuda')
+    dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    torch.set_num_threads(int(os.environ.get('SLURM_CPUS_PER_TASK', 8)))
     kind = a.set
     t0 = time.time()
     if kind == 'cal':
@@ -413,8 +440,8 @@ def cmd_bench(a):
         S, G = 896, 56
     packs = [M2.background_pack(xb) for _, xb, _, _, _ in vids]
     h = VA.body_h([c.cpu().numpy() for (_, xb, _, _, _), pk in zip(vids, packs) for c in VA.dark_cue(xb[::6], pk['q98'])])
-    rows = {'N2': [], 'NEW': [], 'M0': []}
-    gho, ghn, chg = [], [], {'old': 0, 'add': 0, 'rem': 0}
+    rows = {'N2': [], 'NEW': [], 'NEWB': [], 'M0': []}
+    gho, ghn, chg = [], [], {'old': 0, 'add': 0, 'rem': 0, 'addb': 0, 'remb': 0}
     sheet = []
     g1 = np.random.default_rng(1)
     pickv = set(g1.choice(len(vids), 2, replace=False).tolist())
@@ -430,22 +457,28 @@ def cmd_bench(a):
             ms, _ = VA.masks_all(xx, pk, h)
             core0 = VA.dark_cue(xx, pk['q98'])
             kn, pixn, _ = M3.keep3(xx, bgn, madn, core0, h)
+            knb, pixb, _ = M3.keep3b(xx, bgn, pk['bg'], core0, h)
             for i in range(len(xx)):
                 kk = kps[b0 + i]
                 for arm, (kp_, px_) in (('M0', ms['M0']), ('N2', ms['N2'])):
                     rows[arm].append(VA.score_frame(kp_[i], px_[i], kk, S, G, h, kind))
                 rows['NEW'].append(VA.score_frame(kn[i], pixn[i], kk, S, G, h, kind))
+                rows['NEWB'].append(VA.score_frame(knb[i], pixb[i], kk, S, G, h, kind))
+                chg['addb'] += int((knb[i] & ~ms['N2'][0][i]).sum())
+                chg['remb'] += int((ms['N2'][0][i] & ~knb[i]).sum())
                 ko_ = ms['N2'][0][i]
                 chg['old'] += int(ko_.sum())
                 chg['add'] += int((kn[i] & ~ko_).sum())
                 chg['rem'] += int((ko_ & ~kn[i]).sum())
                 if vi in pickv and b0 + i == 0:
-                    sheet.append((xx[i].cpu().numpy().transpose(1, 2, 0), ko_.cpu().numpy(), kn[i].cpu().numpy(), nm))
+                    sheet.append((xx[i].cpu().numpy().transpose(1, 2, 0), ko_.cpu().numpy(), kn[i].cpu().numpy(), nm,
+                                  knb[i].cpu().numpy()))
     out = {'set': kind, 'S': S, 'G': G, 'h': h, 'n_videos': len(vids), 'n_frames': len(rows['N2']),
            'ghost_area_old_mean': float(np.mean(gho)), 'ghost_area_new_mean': float(np.mean(ghn)),
            'ghost_area_old_max': float(np.max(gho)), 'added_share': chg['add'] / max(chg['old'], 1),
-           'removed_share': chg['rem'] / max(chg['old'], 1), 'wall_s': time.time() - t0,
-           'gpu': torch.cuda.get_device_name(0)}
+           'removed_share': chg['rem'] / max(chg['old'], 1), 'added_share_b': chg['addb'] / max(chg['old'], 1),
+           'removed_share_b': chg['remb'] / max(chg['old'], 1), 'wall_s': time.time() - t0,
+           'device': torch.cuda.get_device_name(0) if dev.type == 'cuda' else 'cpu'}
     for arm, R in rows.items():
         keys = sorted({k for r in R for k in r if k not in ('tokens', 'leak_n')})
         out[arm] = {k: float(np.mean([r[k] for r in R if k in r])) for k in keys}
@@ -455,9 +488,12 @@ def cmd_bench(a):
     out['identity_N2_max_abs_diff'] = max(abs(out['N2'][k] - v) for k, v in ref['N2'].items())
     out['identity_M0_max_abs_diff'] = max(abs(out['M0'][k] - v) for k, v in ref['M0'].items())
     out['identity_h_diff'] = h - ref['h']
-    (OUT / f'bench_{kind}.json').write_text(json.dumps(out, indent=1))
-    for im, ko, kn, nm in sheet:
+    (OUT / f'bench_{kind}_v2.json').write_text(json.dumps(out, indent=1))
+    for im, ko, kn, nm, knb in sheet:
         save_row(im, ko, kn, G, f'random | {kind} {nm}', f'bench_{kind}_{nm}')
+        RULE[0] = 'm3b'
+        save_row(im, ko, knb, G, f'random | {kind} {nm}', f'bench_{kind}_{nm}')
+        RULE[0] = 'm3'
     log(json.dumps(out))
 
 
@@ -484,17 +520,64 @@ def cmd_sheet(a):
         log(f'{dom}: {len(fs)} rows -> {OUT / f"{dom}.png"}')
 
 
+def cmd_sweep(a):
+    """post-hoc development sweep of (K_MAD, REACH_H) on frames outside the metric sample; frame | old | variants."""
+    import torch
+    from PIL import Image, ImageDraw
+    from src.eci.v2 import mask3 as M3
+    torch.set_num_threads(int(os.environ.get('SLURM_CPUS_PER_TASK', 8)))
+    dev = torch.device('cpu')
+    var = [tuple(float(t) for t in v.split('/')) + ((35.0,) if v.count('/') == 1 else ()) for v in a.variants.split(',')]
+    cases = [c.split('/') for c in a.cases.split(',')]
+    pairs, info = {}, []
+    (OUT / f'sweep{a.fill}').mkdir(parents=True, exist_ok=True)
+    for dom, ser, obs, k in cases:
+        if (dom, ser) not in pairs:
+            pairs[(dom, ser)] = series_pair(dom, ser, dev, fill=a.fill or None)
+            pairs[(dom, ser)][0].metric = set(sample_frames(pairs[(dom, ser)][0]))
+        o, n = pairs[(dom, ser)]
+        assert (obs, int(k)) not in o.metric, f'{obs} {k} is a metric frame'
+        r = masks_for(o, n, o.V[obs], [int(k)])
+        if not r:
+            continue
+        _, co, cn = r[0]
+        P = n.pack(obs, env().window_of(dom, int(k)))
+        G = o.G
+        im = co['x'][0].permute(1, 2, 0).numpy()
+        tiles = [(im, 'frame'), (tint(im, co['keep'][0].numpy(), G, (0, 90, 255)), f'old N2 {int(co["keep"][0].sum())}')]
+        row = {'case': f'{dom}/{ser}/{obs}/{k}', 'old': int(co['keep'][0].sum())}
+        for km, rh, tl in var:
+            kk, _, _ = M3.keep3(cn['x'], P['bg'] if torch.is_tensor(P['bg']) else cn['bg_new'], P['mad'] if torch.is_tensor(P['mad']) else None,
+                                cn['core0'], o.h, roi=cn['roi'], k_mad=km, reach_h=rh, t_lo=tl)
+            row[f'km{km:g}_r{rh:g}_t{tl:g}'] = int(kk[0].sum())
+            tiles.append((tint(im, kk[0].numpy(), G, (0, 220, 0)), f'K_MAD {km:g} REACH {rh:g} T_LO {tl:g}: {int(kk[0].sum())}'))
+        info.append(row)
+        log(json.dumps(row))
+        T = 512
+        sh = Image.new('RGB', (T * len(tiles), T))
+        for j, (a_, t) in enumerate(tiles):
+            tt = Image.fromarray(a_).resize((T, T), Image.BILINEAR)
+            ImageDraw.Draw(tt).text((5, 5), t, fill=(255, 255, 0))
+            sh.paste(tt, (j * T, 0))
+        sh.save(OUT / f'sweep{a.fill}' / f'{obs}_{k}.png')
+    (OUT / f'sweep{a.fill}' / 'sweep.json').write_text(json.dumps(info, indent=1))
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('step', choices=('dev', 'lab', 'ghost', 'bench', 'sheet'))
+    ap.add_argument('step', choices=('dev', 'lab', 'ghost', 'bench', 'sheet', 'sweep'))
     ap.add_argument('--dom', default='mice')
     ap.add_argument('--ser', default='v1')
     ap.add_argument('--set', default='mab')
+    ap.add_argument('--fill', default='')
+    ap.add_argument('--rule', default='m3', choices=('m3', 'm3b'))
+    ap.add_argument('--variants', default='6/6,3/6,3/10,0/10')
     ap.add_argument('--cases', default='')
     ap.add_argument('--fills', default='q98,telea')
     ap.add_argument('--bg', action='store_true')
     a = ap.parse_args()
-    {'dev': cmd_dev, 'lab': cmd_lab, 'ghost': cmd_ghost, 'bench': cmd_bench, 'sheet': cmd_sheet}[a.step](a)
+    RULE[0] = a.rule
+    {'dev': cmd_dev, 'lab': cmd_lab, 'ghost': cmd_ghost, 'bench': cmd_bench, 'sheet': cmd_sheet, 'sweep': cmd_sweep}[a.step](a)
 
 
 if __name__ == '__main__':
