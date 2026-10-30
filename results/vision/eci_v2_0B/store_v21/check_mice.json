@@ -1,0 +1,23 @@
+{
+ "gpu": "NVIDIA GeForce RTX 2080 Ti",
+ "domain": "mice",
+ "tokens_vs_store5": "no v2_0 store5 for this domain",
+ "mask_iou_vs_2080ti": {
+  "windows": 4,
+  "token_iou": 1.0,
+  "mean_abs_token_diff": 0.0
+ },
+ "videos": [
+  {
+   "obs": "wt_ash1l_m_1_S_H",
+   "frames": 300,
+   "s": 289.5485873222351,
+   "fps": 1.036095540214581,
+   "U_tok_per_frame": 258.75666666666666,
+   "pairs_checked": 311850,
+   "missing": 0,
+   "size_ok": true
+  }
+ ],
+ "pass": true
+}

@@ -1,0 +1,32 @@
+{
+ "gpu": "NVIDIA GeForce RTX 2080 Ti",
+ "domain": "ants",
+ "tokens_vs_store5": {
+  "shard": "s0",
+  "obs": "a1",
+  "frames": 24,
+  "tokens": 212,
+  "max_abs_diff": 0.09130859375,
+  "mean_abs_diff": 0.0043052625842392445,
+  "cos_min": 0.9998027086257935,
+  "cos_mean": 0.9999749660491943
+ },
+ "mask_iou_vs_2080ti": {
+  "windows": 4,
+  "token_iou": 1.0,
+  "mean_abs_token_diff": 0.0
+ },
+ "videos": [
+  {
+   "obs": "a1",
+   "frames": 300,
+   "s": 127.35411858558655,
+   "fps": 2.355636420178977,
+   "U_tok_per_frame": 114.95666666666666,
+   "pairs_checked": 80502,
+   "missing": 0,
+   "size_ok": true
+  }
+ ],
+ "pass": true
+}
