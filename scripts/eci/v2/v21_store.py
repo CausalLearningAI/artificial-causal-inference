@@ -37,6 +37,9 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / 'scripts/eci/v2'))
 CFG = json.loads((REPO / 'configs/eci_v2/store_v21.json').read_text())
 RES = REPO / 'results/vision/eci_v2_0B/store_v21'
+# token gate vs the v2.0 store5 (recalibrated 2026-10-30 on the mice / ants per-token cosine distributions, see
+# check_<dom>.json 'controls': a one-frame shift or a 90 degree rotation must fail it)
+COS_P1, COS_MIN, MAD_MAX = 0.999, 0.995, 0.02
 log = lambda s: print(time.strftime('%H:%M:%S'), s, flush=True)  # noqa: E731
 
 
@@ -360,26 +363,46 @@ def cmd_check(a):
         v = Se.V[obs]
         rows = np.flatnonzero((F.obs == obs).values)[:a.nframes]
         ks = F.k.values[rows]
-        fr = Se.run_job(**Se.job(v, int(ks[0]), int(ks[-1] - ks[0] + 1), threads=4))
+        fr = Se.run_job(**Se.job(v, int(ks[0]), int(ks[-1] - ks[0] + 2), threads=4))  # +1 frame for the shift control
+        arms = {'same': [], 'ctl_next_frame': [], 'ctl_rot90': []}
+        dd_all = []
+
+        def cosv(a_, b_):
+            return (a_ * b_).sum(1) / (np.linalg.norm(a_, axis=1) * np.linalg.norm(b_, axis=1))
         with torch.no_grad():
             for i0 in range(0, len(ks), 8):
                 kk = ks[i0:i0 + 8]
                 x, _ = Se.frames(v, fr[kk - ks[0]], kk)
                 z = encb(enc, x).float().cpu().numpy()
+                xn, _ = Se.frames(v, fr[kk - ks[0] + 1], kk + 1)
+                zn = encb(enc, xn).float().cpu().numpy()
+                zr = encb(enc, torch.rot90(x, 1, dims=(2, 3)).contiguous()).float().cpu().numpy()
                 for j, r in enumerate(rows[i0:i0 + 8]):
                     sel = np.flatnonzero(tf == r)
                     if not len(sel):
                         continue
                     ref = tok[sel].astype(np.float32)
-                    mine = z[j, tp[sel].astype(np.int64)]
-                    diffs.append(np.abs(mine - ref).ravel())
-                    coss.append((mine * ref).sum(1) / (np.linalg.norm(mine, axis=1) * np.linalg.norm(ref, axis=1)))
+                    pos = tp[sel].astype(np.int64)
+                    dd_all.append(np.abs(z[j, pos] - ref).ravel())
+                    arms['same'].append(cosv(z[j, pos], ref))
+                    arms['ctl_next_frame'].append(cosv(zn[j, pos], ref))
+                    arms['ctl_rot90'].append(cosv(zr[j, pos], ref))
                     nt += len(sel)
-        dd = np.concatenate(diffs)
-        cc = np.concatenate(coss)
+        dd = np.concatenate(dd_all)
+        stats = {}
+        for nm, L in arms.items():
+            cc = np.concatenate(L)
+            stats[nm] = {'cos_min': float(cc.min()), 'cos_p0.1': float(np.quantile(cc, 0.001)),
+                         'cos_p1': float(np.quantile(cc, 0.01)), 'cos_p5': float(np.quantile(cc, 0.05)),
+                         'cos_median': float(np.median(cc)), 'cos_mean': float(cc.mean()),
+                         'share_below_0.999': float((cc < 0.999).mean()), 'share_below_0.99': float((cc < 0.99).mean())}
+        gate = lambda st_: st_['cos_p1'] >= COS_P1 and st_['cos_min'] >= COS_MIN  # noqa: E731
         out['tokens_vs_store5'] = {'shard': shards[0].name, 'obs': obs, 'frames': int(len(ks)), 'tokens': int(nt),
-                                   'max_abs_diff': float(dd.max()), 'mean_abs_diff': float(dd.mean()),
-                                   'cos_min': float(cc.min()), 'cos_mean': float(cc.mean())}
+                                   'max_abs_diff': float(dd.max()), 'mean_abs_diff': float(dd.mean()), **stats['same'],
+                                   'controls': {k_: v_ for k_, v_ in stats.items() if k_ != 'same'},
+                                   'gate': f'cos_p1 >= {COS_P1} and cos_min >= {COS_MIN} and mean_abs_diff <= {MAD_MAX}',
+                                   'pass': bool(gate(stats['same']) and dd.mean() <= MAD_MAX),
+                                   'controls_fail_gate': bool(not any(gate(stats[c_]) for c_ in ('ctl_next_frame', 'ctl_rot90')))}
     else:
         out['tokens_vs_store5'] = 'no v2_0 store5 for this domain'
     log(json.dumps(out))
@@ -426,7 +449,8 @@ def cmd_check(a):
         shutil.rmtree(od)
         log(json.dumps(thr[-1]))
     out['videos'] = thr
-    out['pass'] = bool((isinstance(out['tokens_vs_store5'], str) or out['tokens_vs_store5']['cos_min'] > 0.999)
+    t5 = out['tokens_vs_store5']
+    out['pass'] = bool((isinstance(t5, str) or (t5['pass'] and t5['controls_fail_gate']))
                        and out['mask_iou_vs_2080ti']['token_iou'] >= 0.98 and all(t['missing'] == 0 and t['size_ok'] for t in thr))
     RES.mkdir(parents=True, exist_ok=True)
     (RES / f'check_{dom}.json').write_text(json.dumps(out, indent=1))
