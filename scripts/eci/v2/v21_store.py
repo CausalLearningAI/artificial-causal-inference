@@ -456,12 +456,16 @@ def cmd_manifest(a):
             for k in ('frames', 'tokens', 'bytes'):
                 tot[k] += rows[-1][k]
             tot['videos'] += 1
-    exp = len(lab_videos(a.domain))
-    man = {'domain': a.domain, 'version': CFG['version'], 'expected_videos': exp, **tot, 'TB': tot['bytes'] / 1e12, 'videos_list': rows}
+    allv = lab_videos(a.domain)
+    done = {(r['series'], r['obs']) for r in rows}
+    missing = [f'{ser}/{v["obs"]}' for ser, v in allv if (ser, v['obs']) not in done]
+    exp = len(allv)
+    man = {'domain': a.domain, 'version': CFG['version'], 'expected_videos': exp, **tot, 'TB': tot['bytes'] / 1e12,
+           'missing_videos': missing, 'videos_list': rows}
     (vroot(a.domain) / 'manifest.json').write_text(json.dumps(man, indent=1))
     RES.mkdir(parents=True, exist_ok=True)
     (RES / f'manifest_{a.domain}.json').write_text(json.dumps(man, indent=1))
-    log(json.dumps({k: v for k, v in man.items() if k != 'videos_list'}))
+    log(json.dumps({k: (v if k != 'missing_videos' else len(v)) for k, v in man.items() if k != 'videos_list'}))
 
 
 def cmd_benchtest(a):
