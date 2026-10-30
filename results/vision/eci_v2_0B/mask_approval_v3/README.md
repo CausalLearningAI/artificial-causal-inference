@@ -71,3 +71,41 @@ on a few store frames before use.
 `mice.png`, `ants.png`, `frogs.png`: frame | N2 (blue) | new (green, extended setting) with the 16 px patch grid |
 thin-part zoom (green = new only, red = N2 only, white = both). Rows: the old approval sheets' random frames + hard
 cases (huddles, pale tail, odour box, largest ghost, dish rim). Some rows are dev or training-video frames.
+
+# Mask v5 on the mouse benchmarks (MABe22, CalMS21, CRIM13)
+
+Pre-registration: `scripts/eci/v2/mask5_bench_prereg.md` (commit f936a05, before any benchmark probe or score).
+Code: `scripts/eci/v2/mask5_bench.py` (+ `.sh`). Per-benchmark tables: `bench_{mab,cal,crim}_v5.md` / `.json`.
+Arms: T = approved mice probe as is (t 0.9, t_core 0.8, no smoothing, no N2 OR); B = same recipe trained on 120
+SAM-labelled frames (B_l_full, offline) of the benchmark's TRAINING split, same thresholds; N2 with the pooled
+per-setup background (reference) and with the per-clip background. Held-out = validate.py test frames; scoring with
+keypoints only. Ran on debug_gpu (RTX 2080 Ti, fp32 encode; the -p gpu queue start estimate was the next morning).
+N2 per-clip reproduces validate.py exactly (max |diff| CalMS21 5.6e-17, CRIM13 0.0).
+
+| bench (frames) | arm | all-keypoint recall | animal miss rate | white / BC intruder miss | background tok / frame | isolated bg comp / frame | tok / frame |
+|---|---|---|---|---|---|---|---|
+| MABe22 (960) | N2 pooled | 0.888 | 0.000 | - | 36.5 | 1.94 | 66.9 |
+| | N2 per-clip | 0.534 | 0.245 | - | 0.3 | 0.03 | 15.5 |
+| | T | 0.326 | 0.263 | - | 0.2 | 0.13 | 8.4 |
+| | B | 0.888 | 0.000 | - | 12.7 | 4.64 | 41.2 |
+| CalMS21 (456) | N2 pooled | 0.641 | 0.117 | 0.235 | 75.8 | 16.17 | 269.3 |
+| | N2 per-clip | 0.619 | 0.150 | 0.300 | 50.5 | 14.19 | 229.5 |
+| | T | 0.693 | 0.011 | 0.022 | 3.0 | 0.67 | 109.7 |
+| | B | 0.825 | 0.010 | 0.020 | 6.5 | 2.00 | 156.4 |
+| CRIM13 (384) | N2 pooled | 0.758 | 0.161 | 0.615 | 59.4 | 5.57 | 203.1 |
+| | N2 per-clip | 0.755 | 0.167 | 0.635 | 25.2 | 3.35 | 141.8 |
+| | T | 0.785 | 0.060 | 0.188 | 2.7 | 0.83 | 58.9 |
+| | B | 0.831 | 0.072 | 0.266 | 7.2 | 1.25 | 89.3 |
+
+Background = kept token with no pixel of (keypoint convex hull dilated by 1.5 h) (CalMS21 + tail-base disk; CRIM13 a
+6 h disk per track point). CRIM13 miss = no kept token within 1 token of the track point.
+
+Pre-registered verdict: chosen arm T on all three (B always fails the background guard B <= T + max(1, 0.1 T)).
+PASS vs pooled N2: CalMS21 PASS, CRIM13 PASS, MABe22 FAIL (T misses 26% of mice). Post hoc (not the pre-registered
+rule): on MABe22 B equals pooled N2 on recall (0.8884 vs 0.8885) and miss (0.000) with a third of its background.
+
+Store projection (union t-2..t+2, 5 fps, fp16 1024-d): T MABe22 0.025 TB, CalMS21 0.059 TB, CRIM13 0.170 TB;
+B 0.095 / 0.076 / 0.252 TB (dilated by 1 token: T 0.092 / 0.111 / 0.388, B 0.283 / 0.137 / 0.511 TB).
+Sheets: `bench_mabe22.png`, `bench_calms21.png`, `bench_crim13.png` (frame with keypoints | N2 pooled | T | B |
+zoom of the chosen arm vs N2 on MABe22 tail tip / CalMS21 white intruder nose / CRIM13 intruder point; 6 random rows
++ the 2 worst frames of the chosen arm).
