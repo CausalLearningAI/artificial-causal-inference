@@ -132,13 +132,113 @@ class BenchSeries:
         return x, (fd >= 0.25).float() if fd.dtype != torch.bool else fd.float()
 
 
+class BenchSource:
+    """design-benchmark source on the APPROVED mask-v5 benchmark path (the benchmark agent's code, imported read-only):
+    decode + canvas = scripts/eci/v2/mask5_bench.Data (MABe22 512 bicubic, CalMS21 1024 accurate-seek padded canvas,
+    CRIM13 640 canvas_gpu), 5 fps grid = source frames k * STEP; N2 (flag bit1) = mask5_bench.n2_masks with the pooled
+    background pack (Data.packs); final mask M_t (flag bit0) = mask5_tune.kg_fast(probe mask, keypoints); probe-only
+    mask (flag bit2) = mask5_val.postproc of the probe."""
+
+    geometry = 'bench'
+
+    def __init__(self, dom, dev, encoder=None):
+        for q in ('scripts/eci/v2_mask2', 'scripts/benchmark/crim13', 'scripts/eci/v2_temporal'):
+            if str(REPO / q) not in sys.path:
+                sys.path.insert(0, str(REPO / q))
+        import mask5_bench as MB
+        import v20_bench_store as BS
+        self.MB, self.kind, self.dev = MB, dom, dev
+        self.D = MB.Data(dom, dev)
+        self.S, self.step, self.h = MB.SIDE[dom], MB.STEP[dom], MB.h_of(dom)
+        self.G = self.S // 16
+        _, U = BS.video_universe(MB.NAME[dom])
+        self.videos = [{'obs': q, 'split': sp, 'N': int(N), 'n': -(-int(N) // self.step), 'path': None} for q, sp, N in U]
+        self.V = {v['obs']: v for v in self.videos}
+        self.cur, self.kpcache = None, {}
+
+    def job(self, v, k0, n, threads=4):
+        return {'vid': v['obs'], 'split': v['split'], 'N': v['N'], 'idx': [int(k) * self.step for k in range(k0, k0 + n)]}
+
+    def run_job(self, vid, split, N, idx):
+        CM = self.D.CM
+        idx = np.minimum(np.asarray(idx), N - 1)
+        if self.kind == 'mab':
+            arr = CM.mab_decode(split, vid)
+            return arr[np.clip(idx, 0, len(arr) - 1)]
+        if self.kind == 'cal':
+            return CM.cal_decode(vid, split, idx, threads=2)
+        from align_common import ROOT, load_seek, read_frames
+        v = self.D.inv[vid]
+        d = ROOT / v['dir']
+        offs = load_seek(d / f'{vid}_t-seek.mat')
+        fr, _ = read_frames(d / f'{vid}_t.seq', offs, set(idx.tolist()), threads=2)
+        return np.stack([fr[int(i)] for i in idx])
+
+    def _prep(self, v):
+        if self.cur == v['obs']:
+            return
+        dec = self.D.decode(v['obs'], v['split'], np.array([0]), v['N'])
+        self.W, self.H = dec.get('W'), dec.get('H')
+        _, self.pack, self.pooled = self.D.packs(v['obs'], dec)
+        self.kpf = self._kps_loader(v)
+        self.cur = v['obs']
+
+    def _kps_loader(self, v):
+        CM = self.D.CM
+        q, sp = v['obs'], v['split']
+        if self.kind == 'mab':
+            if sp not in self.kpcache:
+                self.kpcache = {sp: CM.mab_keypoints(sp)}
+            seq = self.kpcache[sp].get(q)
+
+            def f(s):
+                i = int(s) - 1  # keypoint index = video frame - 1
+                if seq is None or i < 0 or i >= len(seq['keypoints']):
+                    return np.full((3, 12, 2), np.nan, np.float32), 1.0
+                k = CM.mab_kp(seq, i, 512 / 224)
+                k[((k < 0) | (k > 512)).any(-1)] = np.nan
+                return k, 1.0
+            return f
+        if self.kind == 'cal':
+            if sp not in self.kpcache:
+                self.kpcache = {sp: CM.CalKP(sp)}
+            K = self.kpcache[sp]
+            T = int(K.lens[K.names.index(q)])
+            return lambda s: (K.get(q, int(min(s, T - 1))), 1.0)
+        from align_common import ROOT, geom, load_track
+        iv = self.D.inv[q]
+        pos, nm = load_track(ROOT / iv['dir'] / f'{q}_t-track.mat')
+        W, H = int(iv['header']['width']), int(iv['header']['height'])
+        pt, sc = geom(W, H)
+        xy = np.stack([pos[..., 0] * sc, (pos[..., 1] + pt) * sc], -1)
+        xy[nm < 2] = np.nan
+        return lambda s: (xy[int(min(s, len(nm) - 1))], 640 / W)
+
+    def frames(self, v, fr, ks):
+        self._prep(v)
+        x = self.D.canvas(fr, self.W, self.H) if self.kind == 'crim' else self.D.canvas(fr)
+        n2 = np.stack([r['keep'] for r in self.MB.n2_masks(x, self.pack, self.h)])
+        import torch
+        return x, torch.from_numpy(n2.astype(np.float32))
+
+    def final_mask(self, v, k, p, d):
+        """-> (M_t final, probe-only mask, fallback flag)."""
+        import mask5_tune as MT
+        B = mask_of(p, self.G, d)
+        if d.get('arm', 'probe') in ('KG', 'KGt'):
+            kps, scale = self.kpf(int(k) * self.step)
+            M, fb = MT.kg_fast(self.kind, B, kps, self.S, self.G, self.h, scale)
+            return M, B, bool(fb)
+        return B, B, True
+
+
 BENCH_NAME_REV = {'MABe22': 'mab', 'CalMS21': 'cal', 'CRIM13': 'crim'}
 
 
 def lab_videos(dom):
     """-> [(series, video dict)] over the domain's series (plan order); benchmarks: [(dom, clip)]."""
     if dcfg(dom)['kind'] == 'bench':
-        return [(dom, v) for v in BenchSeries(dom, None).videos]
+        return [(dom, v) for v in BenchSource(dom, None).videos]
     import v20 as V
     c = V.dcfg(dom)
     out = []
@@ -157,9 +257,10 @@ class Writer:
         self.buf = {}  # k -> dict(z (N, 1024) cuda fp16, p (N,) np, M (N,) bool, n2 (N,) bool)
         self.idx, self.flag, self.prob, self.cnt, self.ks = [], [], [], [], []
         self.tok = []
+        self.nfb = 0  # benchmark frames where the keypoint step fell back to the probe mask
 
-    def push(self, k, z, p, M, n2):
-        self.buf[k] = {'z': z, 'p': p, 'M': M, 'n2': n2}
+    def push(self, k, z, p, M, n2, B=None):
+        self.buf[k] = {'z': z, 'p': p, 'M': M, 'n2': n2, 'B': B}
         self.flush(k - 2)
 
     def flush(self, t):
@@ -174,7 +275,10 @@ class Writer:
         import torch
         self.tok.append(b['z'][torch.from_numpy(ii.astype(np.int64)).to(b['z'].device)].cpu().numpy())
         self.idx.append(ii)
-        self.flag.append((b['M'][ii].astype(np.uint8) | (b['n2'][ii].astype(np.uint8) << 1)))
+        fl = b['M'][ii].astype(np.uint8) | (b['n2'][ii].astype(np.uint8) << 1)
+        if b['B'] is not None:
+            fl |= b['B'][ii].astype(np.uint8) << 2
+        self.flag.append(fl)
         self.prob.append(np.round(255 * b['p'][ii]).astype(np.uint8))
         self.cnt.append(len(ii))
         self.ks.append(t)
@@ -210,7 +314,12 @@ def encode_video(Se, enc, P, d, v, n, ch, bs, local, par=4):
                 p = probe_gpu(P, z).cpu().numpy()
             n2 = (fd >= 0.25).cpu().numpy()
             for i, k in enumerate(kk):
-                W.push(int(k), z[i], p[i], mask_of(p[i], Se.G, d), n2[i])
+                if hasattr(Se, 'final_mask'):
+                    M, B, fb = Se.final_mask(v, k, p[i], d)
+                    W.nfb += int(fb)
+                    W.push(int(k), z[i], p[i], M, n2[i], B)
+                else:
+                    W.push(int(k), z[i], p[i], mask_of(p[i], Se.G, d), n2[i])
                 while W.tok:
                     a = W.tok.pop(0)
                     ftok.write(a.tobytes())
@@ -229,7 +338,8 @@ def encode_video(Se, enc, P, d, v, n, ch, bs, local, par=4):
              flag=np.concatenate(W.flag) if W.flag else np.zeros(0, np.uint8),
              prob=np.concatenate(W.prob) if W.prob else np.zeros(0, np.uint8), G=Se.G, S=Se.S, obs=v['obs'],
              version=CFG['version'], probe_t=d['t'], probe_t_core=d['t_core'], probe_smooth=d['smooth'],
-             fps=5, encoder=CFG['encoder'])
+             fps=5, encoder=CFG['encoder'], arm=d.get('arm', 'probe'), arm_label=d.get('label', ''),
+             kg_fallback_frames=W.nfb, flag_bits='bit0 M_t final | bit1 N2 at t | bit2 probe-only mask (benchmarks)')
     return od, int(cnt.sum()), nbytes
 
 
@@ -251,7 +361,7 @@ def verify_video(od):
 
 def series_obj(dom, ser, dev, enc):
     if dcfg(dom)['kind'] == 'bench':
-        return BenchSeries(dom, dev)
+        return BenchSource(dom, dev)
     import v20 as V
     NS = V.make_series_class(dom)
     sc = V.R.series_of(V.dcfg(dom), ser)
@@ -279,7 +389,7 @@ def cmd_encode(a):
     d = dcfg(a.domain)
     if d['kind'] == 'bench':
         assert d.get('enabled') and d.get('probe'), f'{a.domain}: benchmark mask not approved yet (configs/eci_v2/store_v21.json)'
-        ecfg = {'chunk': 300, 'bs': 16}
+        ecfg = {'chunk': 400, 'bs': 16}
     else:
         import v20 as V
         ecfg = V.dcfg(a.domain)['encode']
@@ -515,6 +625,68 @@ def cmd_benchtest(a):
     log(json.dumps(out))
 
 
+def cmd_benchcheck(a):
+    """benchmark pre-launch check: probe probabilities / masks vs the benchmark agent's 2080 Ti outputs (eval files),
+    no-duplication + throughput on the first video(s)."""
+    import torch
+    from src.eci.v2.encode import Encoder
+    dom = a.domain
+    d = dcfg(dom)
+    dev = torch.device('cuda')
+    torch.backends.cuda.matmul.allow_tf32 = False
+    enc = Encoder(dev)
+    P = load_probe(dom, dev)
+    Se = BenchSource(dom, dev)
+    out = {'gpu': torch.cuda.get_device_name(0), 'domain': dom, 'arm': d['arm']}
+    ev = sorted((Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_mask5_bench') / dom).glob('eval_*.npz'))[:a.nwin]
+    dp, ip, ia, ua, ik, uk, nfr = [], 0, 0, 0, 0, 0, 0
+    for f in ev:
+        z = np.load(f)
+        vid = str(z['vid'])
+        v = Se.V[vid]
+        ks = np.asarray(z['ks'])
+        fr = Se.run_job(vid, v['split'], v['N'], ks)
+        with torch.no_grad():
+            x, _ = Se.frames(v, fr, ks // Se.step)
+            zt = encb(enc, x)
+            p = probe_gpu(P, zt).cpu().numpy()
+        for i in range(len(ks)):
+            pa = z['pB'][z['inv'][i][2]].astype(np.float32)
+            dp.append(np.abs(p[i] - pa))
+            m1, m2 = mask_of(p[i], Se.G, d), mask_of(pa, Se.G, d)
+            ia += int((m1 & m2).sum()); ua += int((m1 | m2).sum())
+            k5 = ks[i] // Se.step
+            f1, _, _ = Se.final_mask(v, k5, p[i], d)
+            f2, _, _ = Se.final_mask(v, k5, pa, d)
+            ik += int((f1 & f2).sum()); uk += int((f1 | f2).sum())
+            nfr += 1
+    dd = np.concatenate(dp)
+    out['vs_bench_agent_2080ti'] = {'eval_files': len(ev), 'frames': nfr, 'max_abs_dp': float(dd.max()), 'mean_abs_dp': float(dd.mean()),
+                                    'probe_mask_iou': ia / max(ua, 1), 'final_mask_iou': ik / max(uk, 1)}
+    log(json.dumps(out))
+    local = Path(os.environ['LOCAL_DIR'])
+    thr = []
+    for v in Se.videos[:a.nvid]:
+        n = min(v['n'], a.max_frames)
+        t0 = time.time()
+        od, ntok, nb = encode_video(Se, enc, P, d, v, n, 400, 16, local)
+        dt = time.time() - t0
+        ver = verify_video(od)
+        zi = np.load(od / 'index.npz')
+        thr.append({'obs': v['obs'], 'frames': n, 'fps': n / dt, 'U_tok_per_frame': ntok / n, 'kg_fallback_frames': int(zi['kg_fallback_frames']),
+                    'M_tok_per_frame': float(((zi['flag'] & 1) > 0).sum() / n), **ver})
+        shutil.rmtree(od)
+        log(json.dumps(thr[-1]))
+    out['videos'] = thr
+    vb = out['vs_bench_agent_2080ti']
+    out['pass'] = bool(vb['probe_mask_iou'] >= 0.98 and vb['final_mask_iou'] >= 0.98 and all(t['missing'] == 0 and t['size_ok'] for t in thr))
+    RES.mkdir(parents=True, exist_ok=True)
+    (RES / f'check_{dom}.json').write_text(json.dumps(out, indent=1))
+    log(f'CHECK {dom} pass={out["pass"]}')
+    if not out['pass']:
+        raise SystemExit(f'check failed for {dom}')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('step')
@@ -526,7 +698,7 @@ def main():
     ap.add_argument('--nwin', type=int, default=4)
     ap.add_argument('--nvid', type=int, default=1)
     a = ap.parse_args()
-    if a.step == 'check' and not a.max_frames:
+    if a.step in ('check', 'benchcheck') and not a.max_frames:
         a.max_frames = 300
     globals()['cmd_' + a.step](a)
 

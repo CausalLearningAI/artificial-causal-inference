@@ -1,21 +1,89 @@
-{"version": "v2.1_m5",
+{
+ "version": "v2.1_m5",
  "status": "mask v5 APPROVED by the user 2026-10-30 (extended per-domain probe settings, results/vision/eci_v2_0B/mask_approval_v3)",
  "root": "/mnt/beegfs/locatgrp/shared/rcadei/eci_tokens/v2_full",
  "encoder": "src/eci/v2/encode.Encoder: facebook/dinov3-vitl16-pretrain-lvd1689m @ ea8dc2863c51be0a264bab82070e3e8836b02d51, block 20 + final LayerNorm, bf16 autocast, fp16 tokens, native side S, canonical orientation, 5 fps",
  "store": "per frame t: U_t = union of the probe masks M_s, s in t-2..t+2 (frames available); patch indices uint16, tokens fp16 1024-d, flag uint8 (bit0 = in M_t, bit1 = in N2 at t), probe probability uint8 (round(255 p))",
  "domains": {
-  "ants":  {"kind": "lab", "series": ["v2", "v3", "v4"], "pending_series": ["v4_infested"],
-            "probe": "/mnt/beegfs/locatgrp/shared/rcadei/eci_tokens/v2_full/ants/v2.1_m5/_probe/probe.npz",
-            "t": 0.7, "t_core": 0.8, "smooth": false, "or_n2": false},
-  "mice":  {"kind": "lab", "series": ["v1", "v2"],
-            "probe": "/mnt/beegfs/locatgrp/shared/rcadei/eci_tokens/v2_full/mice/v2.1_m5/_probe/probe.npz",
-            "t": 0.9, "t_core": 0.8, "smooth": false, "or_n2": false},
-  "frogs": {"kind": "lab", "series": ["juv", "tad"],
-            "probe": "/mnt/beegfs/locatgrp/shared/rcadei/eci_tokens/v2_full/frogs/v2.1_m5/_probe/probe.npz",
-            "t": 0.9, "t_core": 0.8, "smooth": false, "or_n2": false},
-  "mab":   {"kind": "bench", "enabled": false, "probe": null, "t": null, "t_core": null, "smooth": false, "or_n2": false,
-            "note": "waits for the approved benchmark probe (separate agent); frame layout from scripts/eci/v2/v20_bench_store.py"},
-  "cal":   {"kind": "bench", "enabled": false, "probe": null, "t": null, "t_core": null, "smooth": false, "or_n2": false},
-  "crim":  {"kind": "bench", "enabled": false, "probe": null, "t": null, "t_core": null, "smooth": false, "or_n2": false}
- }
+  "ants": {
+   "kind": "lab",
+   "series": [
+    "v2",
+    "v3",
+    "v4"
+   ],
+   "pending_series": [
+    "v4_infested"
+   ],
+   "probe": "/mnt/beegfs/locatgrp/shared/rcadei/eci_tokens/v2_full/ants/v2.1_m5/_probe/probe.npz",
+   "t": 0.7,
+   "t_core": 0.8,
+   "smooth": false,
+   "or_n2": false
+  },
+  "mice": {
+   "kind": "lab",
+   "series": [
+    "v1",
+    "v2"
+   ],
+   "probe": "/mnt/beegfs/locatgrp/shared/rcadei/eci_tokens/v2_full/mice/v2.1_m5/_probe/probe.npz",
+   "t": 0.9,
+   "t_core": 0.8,
+   "smooth": false,
+   "or_n2": false
+  },
+  "frogs": {
+   "kind": "lab",
+   "series": [
+    "juv",
+    "tad"
+   ],
+   "probe": "/mnt/beegfs/locatgrp/shared/rcadei/eci_tokens/v2_full/frogs/v2.1_m5/_probe/probe.npz",
+   "t": 0.9,
+   "t_core": 0.8,
+   "smooth": false,
+   "or_n2": false
+  },
+  "mab": {
+   "kind": "bench",
+   "enabled": true,
+   "probe": "/mnt/beegfs/locatgrp/shared/rcadei/eci_mask5_bench/mab/probe.npz",
+   "t": 0.95,
+   "t_core": 0.98,
+   "smooth": false,
+   "or_n2": false,
+   "arm": "KGt",
+   "label": "KGt (tuned probe + keypoint gate 0.8 L / 1.0 L tail ext., skeleton fill 0.75 h); probe alone where a build point is missing",
+   "h": 10.35,
+   "S": 512
+  },
+  "cal": {
+   "kind": "bench",
+   "enabled": true,
+   "probe": "/mnt/beegfs/locatgrp/shared/rcadei/eci_mask5_bench/cal/probe.npz",
+   "t": 0.9,
+   "t_core": 0.8,
+   "smooth": false,
+   "or_n2": false,
+   "arm": "KG",
+   "label": "KG UNTUNED (post-hoc choice): probe at the mice setting + keypoint gate / skeleton fill",
+   "h": 40.58,
+   "S": 1024
+  },
+  "crim": {
+   "kind": "bench",
+   "enabled": true,
+   "probe": "/mnt/beegfs/locatgrp/shared/rcadei/eci_mask5_bench/crim/probe.npz",
+   "t": 0.6,
+   "t_core": 0.8,
+   "smooth": true,
+   "or_n2": false,
+   "arm": "KGt",
+   "label": "KGt (tuned probe + gate disk 1.25 x 131 x 640/W, fill disk radius h); probe alone where < 2 points",
+   "h": 27.02,
+   "S": 640
+  }
+ },
+ "status_bench": "benchmark masks APPROVED by the user 2026-10-30 (benchmark agent: results/vision/eci_v2_0B/mask_approval_v3/tune_<set>.*)"
 }
