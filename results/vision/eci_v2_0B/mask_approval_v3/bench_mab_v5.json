@@ -1,0 +1,287 @@
+{
+ "set": "mab",
+ "bench": "mabe22",
+ "S": 512,
+ "G": 32,
+ "h": 10.349011586442762,
+ "cfg": {
+  "t": 0.9,
+  "t_core": 0.8,
+  "or_n2": false,
+  "smooth": false
+ },
+ "n_frames": 960,
+ "n_videos": 120,
+ "arms": {
+  "N2_pool": {
+   "all_kp": 0.8884837962962963,
+   "miss/all": 0.0,
+   "kp/nose": 0.8524305555555556,
+   "kp/ear_l": 0.9451388888888889,
+   "kp/ear_r": 0.9517361111111111,
+   "kp/neck": 0.9986111111111111,
+   "kp/paw_fl": 0.9798611111111111,
+   "kp/paw_fr": 0.9736111111111111,
+   "kp/center": 0.9996527777777777,
+   "kp/paw_hl": 0.9840277777777777,
+   "kp/paw_hr": 0.9829861111111111,
+   "kp/tail_base": 0.94375,
+   "kp/tail_mid": 0.7069444444444445,
+   "kp/tail_tip": 0.34305555555555556,
+   "miss/mouse": 0.0,
+   "bg_tok": 36.459375,
+   "iso_bg_comp": 1.9375,
+   "tok": 66.85,
+   "n_kp": 34560
+  },
+  "N2_clip": {
+   "all_kp": 0.534375,
+   "miss/all": 0.2454861111111111,
+   "kp/nose": 0.5149305555555556,
+   "kp/ear_l": 0.5892361111111111,
+   "kp/ear_r": 0.6,
+   "kp/neck": 0.6364583333333333,
+   "kp/paw_fl": 0.6177083333333333,
+   "kp/paw_fr": 0.6149305555555555,
+   "kp/center": 0.6256944444444444,
+   "kp/paw_hl": 0.6170138888888889,
+   "kp/paw_hr": 0.6003472222222223,
+   "kp/tail_base": 0.5777777777777777,
+   "kp/tail_mid": 0.3121527777777778,
+   "kp/tail_tip": 0.10625,
+   "miss/mouse": 0.2454861111111111,
+   "bg_tok": 0.3145833333333333,
+   "iso_bg_comp": 0.030208333333333334,
+   "tok": 15.538541666666667,
+   "n_kp": 34560
+  },
+  "T": {
+   "all_kp": 0.32624421296296297,
+   "miss/all": 0.2625,
+   "kp/nose": 0.259375,
+   "kp/ear_l": 0.32743055555555556,
+   "kp/ear_r": 0.31180555555555556,
+   "kp/neck": 0.4045138888888889,
+   "kp/paw_fl": 0.3645833333333333,
+   "kp/paw_fr": 0.34791666666666665,
+   "kp/center": 0.47673611111111114,
+   "kp/paw_hl": 0.3736111111111111,
+   "kp/paw_hr": 0.35659722222222223,
+   "kp/tail_base": 0.3368055555555556,
+   "kp/tail_mid": 0.26875,
+   "kp/tail_tip": 0.08680555555555555,
+   "miss/mouse": 0.2625,
+   "bg_tok": 0.16458333333333333,
+   "iso_bg_comp": 0.12604166666666666,
+   "tok": 8.366666666666667,
+   "n_kp": 34560
+  },
+  "B": {
+   "all_kp": 0.8883969907407407,
+   "miss/all": 0.0,
+   "kp/nose": 0.8552083333333333,
+   "kp/ear_l": 0.9378472222222223,
+   "kp/ear_r": 0.9222222222222223,
+   "kp/neck": 0.9930555555555556,
+   "kp/paw_fl": 0.9826388888888888,
+   "kp/paw_fr": 0.9763888888888889,
+   "kp/center": 0.9951388888888889,
+   "kp/paw_hl": 0.9673611111111111,
+   "kp/paw_hr": 0.9659722222222222,
+   "kp/tail_base": 0.9246527777777778,
+   "kp/tail_mid": 0.7277777777777777,
+   "kp/tail_tip": 0.4125,
+   "miss/mouse": 0.0,
+   "bg_tok": 12.721875,
+   "iso_bg_comp": 4.64375,
+   "tok": 41.166666666666664,
+   "n_kp": 34560
+  }
+ },
+ "enc_s_per_frame_median": 0.13957942525545758,
+ "gpu": [
+  "NVIDIA GeForce RTX 2080 Ti"
+ ],
+ "train": {
+  "frames": 120,
+  "tokens": 41087,
+  "pos": 7295,
+  "videos": 60,
+  "mean_label_tok": 60.791666666666664,
+  "mean_n2_tok": 62.266666666666666
+ },
+ "chosen": "T",
+ "pass": false,
+ "store": {
+  "T": {
+   "tok_at_t": 8.366666666666667,
+   "union5_tok": 15.75,
+   "union5_over_t": 1.8824701195219122,
+   "union5_dil1_tok": 57.06875,
+   "frames_5fps": 786212,
+   "TB_union5": 0.025360054272,
+   "TB_union5_dil1": 0.0918899426816,
+   "TB_all_patches": 1.648806068224
+  },
+  "B": {
+   "tok_at_t": 41.166666666666664,
+   "union5_tok": 58.71458333333333,
+   "union5_over_t": 1.4262651821862349,
+   "union5_dil1_tok": 175.88229166666667,
+   "frames_5fps": 786212,
+   "TB_union5": 0.09454000126293334,
+   "TB_union5_dil1": 0.2831990134698667,
+   "TB_all_patches": 1.648806068224
+  }
+ },
+ "worst": {
+  "T": [
+   {
+    "file": "eval_000.npz",
+    "i": 6,
+    "N2_pool": {
+     "kp_miss": 3.0,
+     "animal_miss": 0.0,
+     "bg": 85.0
+    },
+    "N2_clip": {
+     "kp_miss": 18.0,
+     "animal_miss": 0.0,
+     "bg": 0.0
+    },
+    "T": {
+     "kp_miss": 36.0,
+     "animal_miss": 3.0,
+     "bg": 0.0
+    },
+    "B": {
+     "kp_miss": 2.0,
+     "animal_miss": 0.0,
+     "bg": 16.0
+    }
+   },
+   {
+    "file": "eval_004.npz",
+    "i": 3,
+    "N2_pool": {
+     "kp_miss": 0.0,
+     "animal_miss": 0.0,
+     "bg": 46.0
+    },
+    "N2_clip": {
+     "kp_miss": 32.0,
+     "animal_miss": 2.0,
+     "bg": 0.0
+    },
+    "T": {
+     "kp_miss": 36.0,
+     "animal_miss": 3.0,
+     "bg": 0.0
+    },
+    "B": {
+     "kp_miss": 2.0,
+     "animal_miss": 0.0,
+     "bg": 12.0
+    }
+   },
+   {
+    "file": "eval_004.npz",
+    "i": 4,
+    "N2_pool": {
+     "kp_miss": 0.0,
+     "animal_miss": 0.0,
+     "bg": 45.0
+    },
+    "N2_clip": {
+     "kp_miss": 31.0,
+     "animal_miss": 2.0,
+     "bg": 0.0
+    },
+    "T": {
+     "kp_miss": 36.0,
+     "animal_miss": 3.0,
+     "bg": 0.0
+    },
+    "B": {
+     "kp_miss": 2.0,
+     "animal_miss": 0.0,
+     "bg": 10.0
+    }
+   }
+  ],
+  "B": [
+   {
+    "file": "eval_043.npz",
+    "i": 4,
+    "N2_pool": {
+     "kp_miss": 5.0,
+     "animal_miss": 0.0,
+     "bg": 20.0
+    },
+    "N2_clip": {
+     "kp_miss": 11.0,
+     "animal_miss": 0.0,
+     "bg": 0.0
+    },
+    "T": {
+     "kp_miss": 35.0,
+     "animal_miss": 2.0,
+     "bg": 0.0
+    },
+    "B": {
+     "kp_miss": 13.0,
+     "animal_miss": 0.0,
+     "bg": 27.0
+    }
+   },
+   {
+    "file": "eval_108.npz",
+    "i": 5,
+    "N2_pool": {
+     "kp_miss": 5.0,
+     "animal_miss": 0.0,
+     "bg": 8.0
+    },
+    "N2_clip": {
+     "kp_miss": 10.0,
+     "animal_miss": 0.0,
+     "bg": 1.0
+    },
+    "T": {
+     "kp_miss": 9.0,
+     "animal_miss": 0.0,
+     "bg": 0.0
+    },
+    "B": {
+     "kp_miss": 13.0,
+     "animal_miss": 0.0,
+     "bg": 2.0
+    }
+   },
+   {
+    "file": "eval_009.npz",
+    "i": 7,
+    "N2_pool": {
+     "kp_miss": 3.0,
+     "animal_miss": 0.0,
+     "bg": 72.0
+    },
+    "N2_clip": {
+     "kp_miss": 36.0,
+     "animal_miss": 3.0,
+     "bg": 0.0
+    },
+    "T": {
+     "kp_miss": 34.0,
+     "animal_miss": 1.0,
+     "bg": 0.0
+    },
+    "B": {
+     "kp_miss": 12.0,
+     "animal_miss": 0.0,
+     "bg": 3.0
+    }
+   }
+  ]
+ }
+}
