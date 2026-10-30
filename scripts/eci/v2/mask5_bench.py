@@ -106,10 +106,38 @@ class Data:
             self.pk_cache.clear()
             st = np.load(BG / NAME[self.kind] / f'pool_g{g}.npy')
             shp = self.groups['groups'][str(g)]['shape']
-            x = self.canvas(st, shp[1], shp[0]) if self.kind == 'crim' else self.canvas(st)
-            self.pk_cache[g] = M2.background_pack(x)
+            import torch
+            try:
+                x = self.canvas(st, shp[1], shp[0]) if self.kind == 'crim' else self.canvas(st)
+                self.pk_cache[g] = M2.background_pack(x)
+            except torch.cuda.OutOfMemoryError:
+                x = None
+                torch.cuda.empty_cache()
+                dev0, self.dev = self.dev, torch.device('cpu')
+                x = self.canvas(st, shp[1], shp[0]) if self.kind == 'crim' else self.canvas(st)
+                self.dev = dev0
+                self.pk_cache[g] = {k: v.to(dev0) if torch.is_tensor(v) else v for k, v in M2.background_pack(x).items()}
+                log(f'pooled pack g{g}: GPU OOM -> computed on the CPU')
             del x
+            torch.cuda.empty_cache()
         return pc, self.pk_cache[g], True
+
+
+def prefetch(ex, fn, items, k=3):
+    """ordered map with at most k results decoded ahead (bounded memory)."""
+    from collections import deque
+    q = deque()
+    it = iter(items)
+    for x in it:
+        q.append(ex.submit(fn, x))
+        if len(q) >= k:
+            break
+    while q:
+        r = q.popleft().result()
+        nx = next(it, None)
+        if nx is not None:
+            q.append(ex.submit(fn, nx))
+        yield r
 
 
 def n2_masks(x, pack, h):
@@ -192,21 +220,34 @@ def cmd_run(a):
     G = S // 16
     data = Data(kind, dev)
     enc = Encoder(dev)
+    if not torch.cuda.is_bf16_supported():  # RTX 2080 Ti (debug_gpu): fp32 encode, as mask5_val build
+        import src.eci.v2.encode as EN
+
+        def call32(self, x):
+            xin = (x.float() / 255 - self.mean) / self.std
+            with torch.no_grad():
+                hh = self.m(pixel_values=xin).last_hidden_state
+            z = hh[:, EN.N_PRE:].float()
+            assert torch.isfinite(z).all()
+            return z.half()
+        EN.Encoder.__call__ = call32
+        log('encoder: fp32 (bf16 unsupported on this GPU)')
+    EB = 1 if S >= 1024 else 4  # encode batch (11 GB 2080 Ti in fp32)
     t0 = time.time()
     log(f'{kind}: S {S} G {G} h {h:.3f} on {torch.cuda.get_device_name(0)}')
     # ---------------- training frames for B
-    if not (D / 'probe.npz').exists():
+    if a.part in ('train', 'all') and not (D / 'probe.npz').exists():
         sam, proc = M4.load_sam('large', dev)
         items = train_items(kind)
         Zs, Ys, stats = [], [], []
         gneg = np.random.default_rng(0)
         with ThreadPoolExecutor(4) as ex:
-            decs = ex.map(lambda it: data.decode(it[0], it[1], it[2], it[3]), items)
+            decs = prefetch(ex, lambda it: data.decode(it[0], it[1], it[2], it[3]), items)
             for (vid, sp, ks, N), dec in zip(items, decs):
                 x = data.canvas(dec['x'], dec.get('W'), dec.get('H'))
                 _, pp, _ = data.packs(vid, dec)
                 n2 = n2_masks(x, pp, h)
-                z = enc(x)
+                z = torch.cat([enc(x[i:i + EB]) for i in range(0, len(x), EB)])
                 for i in range(len(ks)):
                     q = n2[i]
                     core = q['core0'] | (q['pix'] & ~q['app'])
@@ -229,6 +270,8 @@ def cmd_run(a):
         log(f'{kind}: probe B on {len(stats)} frames, {len(Y)} tokens ({int(Y.sum())} pos) {time.time() - t0:.0f}s')
         del sam, proc
         torch.cuda.empty_cache()
+    if a.part == 'train':
+        return
     PB, PT = load_probe(D / 'probe.npz'), load_probe(MICE_PROBE)
     Pt = {k: (torch.tensor(np.asarray(v), dtype=torch.float32, device=dev) if k != 'b' else v) for k, v in PT.items()}
     Pb = {k: (torch.tensor(np.asarray(v), dtype=torch.float32, device=dev) if k != 'b' else v) for k, v in PB.items()}
@@ -236,19 +279,19 @@ def cmd_run(a):
     def prob(P, z):
         return torch.sigmoid(((z.float() - P['mu']) / P['sd']) @ P['w'] + P['b'])
     # ---------------- held-out frames
-    items = eval_items(kind)
+    items = [(vi, it) for vi, it in enumerate(eval_items(kind)) if vi % a.nshard == a.shard]
     st = STEP[kind]
     tenc = []
     with ThreadPoolExecutor(4) as ex:
         def dec_one(it):
-            vid, sp, ks, N, kps, extra = it
+            vid, sp, ks, N, kps, extra = it[1]
             win = np.clip(np.asarray(ks)[:, None] + st * np.arange(-2, 3)[None], 0, N - 1)
             u, inv = np.unique(win, return_inverse=True)
             d = data.decode(vid, sp, u, N)
             d['inv'] = inv.reshape(win.shape)
             d['cpos'] = np.searchsorted(u, np.asarray(ks))
             return d
-        for vi, (it, dec) in enumerate(zip(items, ex.map(dec_one, items))):
+        for (vi, it), dec in zip(items, prefetch(ex, dec_one, items)):
             vid, sp, ks, N, kps, extra = it
             x = data.canvas(dec['x'], dec.get('W'), dec.get('H'))
             pc, pp, pooled = data.packs(vid, dec)
@@ -256,7 +299,7 @@ def cmd_run(a):
             n2c, n2p = n2_masks(xc, pc, h), n2_masks(xc, pp, h)
             torch.cuda.synchronize()
             t1 = time.time()
-            z = torch.cat([enc(x[i:i + 8]) for i in range(0, len(x), 8)])
+            z = torch.cat([enc(x[i:i + EB]) for i in range(0, len(x), EB)])
             tenc.append((time.time() - t1) / len(x))
             pt_, pb_ = prob(Pt, z).cpu().numpy(), prob(Pb, z).cpu().numpy()
             ident = []
@@ -273,8 +316,8 @@ def cmd_run(a):
                 ident=json.dumps(ident))
             del x, z
             if vi % 10 == 0:
-                log(f'eval {vi + 1}/{len(items)} {time.time() - t0:.0f}s')
-    (D / 'run.json').write_text(json.dumps({'enc_s_per_frame_median': float(np.median(tenc)), 'gpu': torch.cuda.get_device_name(0),
+                log(f'eval video {vi} ({len(items)} in shard) {time.time() - t0:.0f}s')
+    (D / f'run_{a.shard}.json').write_text(json.dumps({'enc_s_per_frame_median': float(np.median(tenc)), 'gpu': torch.cuda.get_device_name(0),
                                            'h': h, 'S': S, 'wall_s': time.time() - t0}))
     log(f'{kind}: done {time.time() - t0:.0f}s, encode {np.median(tenc):.4f} s/frame')
 
@@ -364,7 +407,9 @@ def cmd_score(a):
     import mask5_val as MV
     kind = a.set
     D = BEE / kind
-    run = json.loads((D / 'run.json').read_text())
+    runs = [json.loads(f.read_text()) for f in sorted(D.glob('run_*.json'))]
+    run = {'S': runs[0]['S'], 'h': runs[0]['h'], 'gpu': sorted({r['gpu'] for r in runs}),
+           'enc_s_per_frame_median': float(np.median([r['enc_s_per_frame_median'] for r in runs]))}
     S, h = run['S'], run['h']
     G = S // 16
     pp = lambda p: MV.postproc(p.astype(np.float32), G, CFG['t'], CFG['t_core'], None, CFG['smooth'])  # noqa: E731
@@ -497,6 +542,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('step')
     ap.add_argument('--set', default='cal', choices=('cal', 'mab', 'crim'))
+    ap.add_argument('--part', default='all', choices=('all', 'train', 'eval'))
+    ap.add_argument('--shard', type=int, default=0)
+    ap.add_argument('--nshard', type=int, default=1)
     a = ap.parse_args()
     globals()['cmd_' + a.step](a)
 

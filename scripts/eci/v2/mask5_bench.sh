@@ -3,9 +3,9 @@
 #   sbatch -J m5b_cal -p gpu --gres=gpu:1 --constraint="L40S|A100|A40" --exclude=gpu240,gpu241,gpu242,gpu278 \
 #          --export=ALL,CHAIN="run --set cal;score --set cal;sheet --set cal" scripts/eci/v2/mask5_bench.sh
 #SBATCH --output=/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/results/vision/eci_v2_0B/mask_approval_v3/logs/%x_%j.out
-#SBATCH --time=6:00:00
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=96G
+#SBATCH --time=1:00:00
+#SBATCH --cpus-per-task=6
+#SBATCH --mem=32G
 module load conda
 conda activate crl
 export PYTHONUNBUFFERED=1 TQDM_DISABLE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_VERBOSITY=error PYTHONWARNINGS=ignore

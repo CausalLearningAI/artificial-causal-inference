@@ -1,0 +1,272 @@
+{
+ "set": "crim",
+ "bench": "crim13",
+ "S": 640,
+ "G": 40,
+ "h": 27.018512172212592,
+ "cfg": {
+  "t": 0.9,
+  "t_core": 0.8,
+  "or_n2": false,
+  "smooth": false
+ },
+ "n_frames": 384,
+ "n_videos": 24,
+ "arms": {
+  "N2_pool": {
+   "kp/res_point": 0.9713541666666666,
+   "kp/res_point_tol1": 0.984375,
+   "kp/int_BC_point": 0.09375,
+   "kp/int_BC_point_tol1": 0.3854166666666667,
+   "all_kp": 0.7578125,
+   "miss/resident": 0.015625,
+   "miss/intruder_BC": 0.6145833333333334,
+   "miss/all": 0.16145833333333334,
+   "bg_tok": 59.361979166666664,
+   "iso_bg_comp": 5.5703125,
+   "tok": 203.06770833333334,
+   "kp/int_C57_point": 0.9947916666666666,
+   "kp/int_C57_point_tol1": 1.0,
+   "miss/intruder_C57": 0.0,
+   "n_kp": 768
+  },
+  "N2_clip": {
+   "kp/res_point": 0.96875,
+   "kp/res_point_tol1": 0.9869791666666666,
+   "kp/int_BC_point": 0.08854166666666667,
+   "kp/int_BC_point_tol1": 0.3645833333333333,
+   "all_kp": 0.7552083333333334,
+   "miss/resident": 0.013020833333333334,
+   "miss/intruder_BC": 0.6354166666666666,
+   "miss/all": 0.16666666666666666,
+   "bg_tok": 25.231770833333332,
+   "iso_bg_comp": 3.3489583333333335,
+   "tok": 141.76041666666666,
+   "kp/int_C57_point": 0.9947916666666666,
+   "kp/int_C57_point_tol1": 0.9947916666666666,
+   "miss/intruder_C57": 0.005208333333333333,
+   "n_kp": 768
+  },
+  "T": {
+   "kp/res_point": 0.8828125,
+   "kp/res_point_tol1": 0.9817708333333334,
+   "kp/int_BC_point": 0.4479166666666667,
+   "kp/int_BC_point_tol1": 0.8125,
+   "all_kp": 0.78515625,
+   "miss/resident": 0.018229166666666668,
+   "miss/intruder_BC": 0.1875,
+   "miss/all": 0.059895833333333336,
+   "bg_tok": 2.65625,
+   "iso_bg_comp": 0.8307291666666666,
+   "tok": 58.880208333333336,
+   "kp/int_C57_point": 0.9270833333333334,
+   "kp/int_C57_point_tol1": 0.984375,
+   "miss/intruder_C57": 0.015625,
+   "n_kp": 768
+  },
+  "B": {
+   "kp/res_point": 0.9661458333333334,
+   "kp/res_point_tol1": 0.9895833333333334,
+   "kp/int_BC_point": 0.4114583333333333,
+   "kp/int_BC_point_tol1": 0.734375,
+   "all_kp": 0.8307291666666666,
+   "miss/resident": 0.010416666666666666,
+   "miss/intruder_BC": 0.265625,
+   "miss/all": 0.07161458333333333,
+   "bg_tok": 7.231770833333333,
+   "iso_bg_comp": 1.2473958333333333,
+   "tok": 89.3359375,
+   "kp/int_C57_point": 0.9791666666666666,
+   "kp/int_C57_point_tol1": 1.0,
+   "miss/intruder_C57": 0.0,
+   "n_kp": 768
+  }
+ },
+ "enc_s_per_frame_median": 0.22192680564446327,
+ "gpu": [
+  "NVIDIA GeForce RTX 2080 Ti"
+ ],
+ "train": {
+  "frames": 120,
+  "tokens": 67765,
+  "pos": 14362,
+  "videos": 40,
+  "mean_label_tok": 119.68333333333334,
+  "mean_n2_tok": 187.125
+ },
+ "identity_N2_clip_vs_validate_max_abs_diff": 0.0,
+ "chosen": "T",
+ "pass": true,
+ "store": {
+  "T": {
+   "tok_at_t": 58.880208333333336,
+   "union5_tok": 114.5390625,
+   "union5_over_t": 1.9452896948252985,
+   "union5_dil1_tok": 260.984375,
+   "frames_5fps": 725094,
+   "TB_union5": 0.170089650144,
+   "TB_union5_dil1": 0.387559842624,
+   "TB_all_patches": 2.3759880192
+  },
+  "B": {
+   "tok_at_t": 89.3359375,
+   "union5_tok": 169.58333333333334,
+   "union5_over_t": 1.8982655589564204,
+   "union5_dil1_tok": 344.2369791666667,
+   "frames_5fps": 725094,
+   "TB_union5": 0.25182998016,
+   "TB_union5_dil1": 0.511189336416,
+   "TB_all_patches": 2.3759880192
+  }
+ },
+ "worst": {
+  "T": [
+   {
+    "file": "eval_006.npz",
+    "i": 5,
+    "N2_pool": {
+     "kp_miss": 2.0,
+     "animal_miss": 2.0,
+     "bg": 39.0
+    },
+    "N2_clip": {
+     "kp_miss": 2.0,
+     "animal_miss": 2.0,
+     "bg": 12.0
+    },
+    "T": {
+     "kp_miss": 2.0,
+     "animal_miss": 2.0,
+     "bg": 1.0
+    },
+    "B": {
+     "kp_miss": 2.0,
+     "animal_miss": 2.0,
+     "bg": 0.0
+    }
+   },
+   {
+    "file": "eval_000.npz",
+    "i": 6,
+    "N2_pool": {
+     "kp_miss": 1.0,
+     "animal_miss": 1.0,
+     "bg": 48.0
+    },
+    "N2_clip": {
+     "kp_miss": 1.0,
+     "animal_miss": 0.0,
+     "bg": 31.0
+    },
+    "T": {
+     "kp_miss": 2.0,
+     "animal_miss": 1.0,
+     "bg": 1.0
+    },
+    "B": {
+     "kp_miss": 1.0,
+     "animal_miss": 1.0,
+     "bg": 0.0
+    }
+   },
+   {
+    "file": "eval_006.npz",
+    "i": 6,
+    "N2_pool": {
+     "kp_miss": 2.0,
+     "animal_miss": 0.0,
+     "bg": 29.0
+    },
+    "N2_clip": {
+     "kp_miss": 2.0,
+     "animal_miss": 0.0,
+     "bg": 8.0
+    },
+    "T": {
+     "kp_miss": 2.0,
+     "animal_miss": 1.0,
+     "bg": 2.0
+    },
+    "B": {
+     "kp_miss": 2.0,
+     "animal_miss": 2.0,
+     "bg": 1.0
+    }
+   }
+  ],
+  "B": [
+   {
+    "file": "eval_006.npz",
+    "i": 5,
+    "N2_pool": {
+     "kp_miss": 2.0,
+     "animal_miss": 2.0,
+     "bg": 39.0
+    },
+    "N2_clip": {
+     "kp_miss": 2.0,
+     "animal_miss": 2.0,
+     "bg": 12.0
+    },
+    "T": {
+     "kp_miss": 2.0,
+     "animal_miss": 2.0,
+     "bg": 1.0
+    },
+    "B": {
+     "kp_miss": 2.0,
+     "animal_miss": 2.0,
+     "bg": 0.0
+    }
+   },
+   {
+    "file": "eval_006.npz",
+    "i": 6,
+    "N2_pool": {
+     "kp_miss": 2.0,
+     "animal_miss": 0.0,
+     "bg": 29.0
+    },
+    "N2_clip": {
+     "kp_miss": 2.0,
+     "animal_miss": 0.0,
+     "bg": 8.0
+    },
+    "T": {
+     "kp_miss": 2.0,
+     "animal_miss": 1.0,
+     "bg": 2.0
+    },
+    "B": {
+     "kp_miss": 2.0,
+     "animal_miss": 2.0,
+     "bg": 1.0
+    }
+   },
+   {
+    "file": "eval_006.npz",
+    "i": 14,
+    "N2_pool": {
+     "kp_miss": 2.0,
+     "animal_miss": 2.0,
+     "bg": 39.0
+    },
+    "N2_clip": {
+     "kp_miss": 2.0,
+     "animal_miss": 1.0,
+     "bg": 9.0
+    },
+    "T": {
+     "kp_miss": 0.0,
+     "animal_miss": 0.0,
+     "bg": 1.0
+    },
+    "B": {
+     "kp_miss": 2.0,
+     "animal_miss": 1.0,
+     "bg": 3.0
+    }
+   }
+  ]
+ }
+}
