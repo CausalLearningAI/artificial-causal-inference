@@ -1,0 +1,95 @@
+{
+ "set": "cal",
+ "bench": "calms21",
+ "S": 1024,
+ "h": 40.58302148765902,
+ "n_frames": 456,
+ "circular": false,
+ "arms": {
+  "T": {
+   "held_kp": 0.6070906432748538,
+   "miss_held": 0.12938596491228072,
+   "bg_tok": 3.026315789473684,
+   "iso_bg_comp": 0.6710526315789473,
+   "tok": 109.73684210526316,
+   "held/res_nose": 0.6732456140350878,
+   "held/res_ear_l": 0.7521929824561403,
+   "held/res_ear_r": 0.7302631578947368,
+   "miss_held/resident": 0.06578947368421052,
+   "held/int_nose": 0.4100877192982456,
+   "held/int_ear_l": 0.5592105263157895,
+   "held/int_ear_r": 0.5175438596491229,
+   "miss_held/intruder_white": 0.19298245614035087,
+   "n_held_kp": 2736
+  },
+  "B": {
+   "held_kp": 0.7949561403508771,
+   "miss_held": 0.06578947368421052,
+   "bg_tok": 6.5394736842105265,
+   "iso_bg_comp": 2.0,
+   "tok": 156.359649122807,
+   "held/res_nose": 0.9583333333333334,
+   "held/res_ear_l": 0.993421052631579,
+   "held/res_ear_r": 0.993421052631579,
+   "miss_held/resident": 0.0,
+   "held/int_nose": 0.5131578947368421,
+   "held/int_ear_l": 0.6359649122807017,
+   "held/int_ear_r": 0.6754385964912281,
+   "miss_held/intruder_white": 0.13157894736842105,
+   "n_held_kp": 2736
+  },
+  "KG": {
+   "held_kp": 0.8475877192982456,
+   "miss_held": 0.01425438596491228,
+   "bg_tok": 0.27631578947368424,
+   "iso_bg_comp": 0.0,
+   "tok": 178.19298245614036,
+   "held/res_nose": 0.9429824561403509,
+   "held/res_ear_l": 0.9956140350877193,
+   "held/res_ear_r": 0.9956140350877193,
+   "miss_held/resident": 0.0,
+   "held/int_nose": 0.4451754385964912,
+   "held/int_ear_l": 0.8377192982456141,
+   "held/int_ear_r": 0.868421052631579,
+   "miss_held/intruder_white": 0.02850877192982456,
+   "n_held_kp": 2736
+  }
+ },
+ "window_frames": 2280,
+ "window_frames_fallback_B": 0,
+ "store": {
+  "T": {
+   "union5_tok": 223.20394736842104,
+   "TB": 0.058668368316631574
+  },
+  "B": {
+   "union5_tok": 290.8793859649123,
+   "TB": 0.07645661805136843
+  },
+  "KG": {
+   "union5_tok": 293.1425438596491,
+   "TB": 0.07705148110147368
+  }
+ },
+ "adopt_KG": true,
+ "most_changed": [
+  {
+   "file": "eval_016.npz",
+   "i": 19,
+   "T": 71,
+   "B": 309,
+   "KG": 254,
+   "removed": 97,
+   "added": 42
+  },
+  {
+   "file": "eval_016.npz",
+   "i": 18,
+   "T": 83,
+   "B": 251,
+   "KG": 236,
+   "removed": 74,
+   "added": 59
+  }
+ ]
+}

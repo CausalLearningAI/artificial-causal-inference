@@ -109,3 +109,14 @@ B 0.095 / 0.076 / 0.252 TB (dilated by 1 token: T 0.092 / 0.111 / 0.388, B 0.283
 Sheets: `bench_mabe22.png`, `bench_calms21.png`, `bench_crim13.png` (frame with keypoints | N2 pooled | T | B |
 zoom of the chosen arm vs N2 on MABe22 tail tip / CalMS21 white intruder nose / CRIM13 intruder point; 6 random rows
 + the 2 worst frames of the chosen arm).
+
+## Keypoints for the benchmark masks (inventory, keypoint-guided mask, per-benchmark tuning)
+Inventory `kp_inventory.json` (5 fps store grid of every store clip): CalMS21 all 7 parts x 2 mice on 100% of frames
+(MARS, with confidence scores); MABe22 all 12 parts x 3 mice on 76.8% (userTrain) / 77.9% (submission) of frames, no
+scores; CRIM13 one track point per mouse (the dataset's `_t-track.mat`), 2 points on 75.0-75.7% of frames, 1 on ~22%,
+0 on 2.5-2.9%.
+Keypoint-guided mask (`scripts/eci/v2/mask5_kpg_prereg.md`, `kpg_*`): gate + skeleton fill + attached components on arm B,
+scored on keypoints NOT used to build it. Per-benchmark tuning (`scripts/eci/v2/mask5_tune_prereg.md`, `tune_*`): dev/test
+split by video, B thresholds tuned on dev (Bt), keypoint-guided Bt (KGt), final pick on test. CRIM13 checks are circular.
+Sheets: `kpg_{mabe22,calms21,crim13}.png` (frame | B | KG | zoom), `tune_{mabe22,calms21,crim13}.png` (frame | Bt | pre-registered pick
+| zoom), `tune_calms21_KGt.png` (CalMS21 with KGt in the final column).

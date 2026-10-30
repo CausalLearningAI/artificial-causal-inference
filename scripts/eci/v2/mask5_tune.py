@@ -192,7 +192,7 @@ def cmd_run(a):
     sheet(kind, res, test, cfg, S, G, h, pp, wk)
 
 
-def sheet(kind, res, test, cfg, S, G, h, pp, wk):
+def sheet(kind, res, test, cfg, S, G, h, pp, wk, suffix=''):
     import cv2
     import mask5_val as MV
     from PIL import Image, ImageDraw
@@ -234,9 +234,23 @@ def sheet(kind, res, test, cfg, S, G, h, pp, wk):
             dr.rectangle([0, 0, T, 15], fill=(0, 0, 0))
             dr.text((4, 2), lab[:74], fill=(255, 255, 0))
             sh.paste(tt, (j * T, r * T))
-    p = OUT / f'tune_{MB.NAME[kind]}.png'
+    p = OUT / f'tune_{MB.NAME[kind]}{suffix}.png'
     sh.save(p)
     log(f'{p}: {len(picks)} rows')
+
+
+def cmd_sheet_kgt(a):
+    """re-render the test sheet with the final column = KGt (whatever the pre-registered pick)."""
+    import mask5_val as MV
+    kind = a.set
+    res = json.loads((OUT / f'tune_{kind}.json').read_text())
+    res['pick'] = 'KGt'
+    S, h = res['S'], res['h']
+    G = S // 16
+    cfg = res['tuned_cfg']
+    test = [BEE / kind / f for f in res['test_files']]
+    pp = lambda p, c: MV.postproc(p.astype(np.float32), G, c['t'], c['t_core'], None, c['smooth'])  # noqa: E731
+    sheet(kind, res, test, cfg, S, G, h, pp, KG.window_kps(kind), '_KGt')
 
 
 if __name__ == '__main__':
