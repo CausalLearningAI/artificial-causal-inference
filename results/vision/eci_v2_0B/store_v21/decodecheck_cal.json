@@ -1,0 +1,25 @@
+{
+ "video": "mouse001_task1_annotator1",
+ "split": "train",
+ "N": 21364,
+ "frames": 120,
+ "chunks": [
+  {
+   "k0": 0,
+   "frames": 60,
+   "identical": true,
+   "n_diff_px": 0,
+   "old_fps": 2.4359390778275105,
+   "new_fps": 85.63509110063946
+  },
+  {
+   "k0": 60,
+   "frames": 60,
+   "identical": true,
+   "n_diff_px": 0,
+   "old_fps": 5.132153677488321,
+   "new_fps": 98.15071618620607
+  }
+ ],
+ "end_identical": true
+}

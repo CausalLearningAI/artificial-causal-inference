@@ -166,7 +166,7 @@ class BenchSource:
             arr = CM.mab_decode(split, vid)
             return arr[np.clip(idx, 0, len(arr) - 1)]
         if self.kind == 'cal':
-            return CM.cal_decode(vid, split, idx, threads=2)
+            return cal_decode_seq(CM, vid, split, idx)
         from align_common import ROOT, load_seek, read_frames
         v = self.D.inv[vid]
         d = ROOT / v['dir']
@@ -685,6 +685,64 @@ def cmd_benchcheck(a):
     log(f'CHECK {dom} pass={out["pass"]}')
     if not out['pass']:
         raise SystemExit(f'check failed for {dom}')
+
+
+def cal_decode_seq(CM, name, split, idx, threads=4):
+    """CalMS21 frames idx (an every-STEP run, possibly repeated at the clip end) in ONE ffmpeg pass: accurate seek to the
+    first frame exactly as common.cal_decode does for a single frame, then keep every 6th decoded frame (select), same
+    pad filter -> (n, 3, 1024, 1024) uint8, pixel-identical to common.cal_decode (verified by `decodecheck`). Any other
+    index pattern falls back to common.cal_decode."""
+    import subprocess
+    idx = np.asarray(idx, int)
+    a0 = int(idx[0])
+    rel = idx - a0
+    if (rel < 0).any() or (rel % 6).any() or (np.diff(idx) < 0).any():
+        return CM.cal_decode(name, split, idx, threads=2)
+    cnt = int(rel.max() // 6 + 1)
+    path = CM.CAL / f'videos/task1_videos_mp4/{split}/{name}.mp4'
+    cmd = [CM.FFMPEG, '-nostdin', '-v', 'error', '-threads', str(threads)]
+    if a0 > 0:
+        cmd += ['-ss', f'{(a0 - 0.5) / 30:.6f}']
+    cmd += ['-i', str(path), '-vf', 'select=not(mod(n\\,6)),pad=1024:1024:0:227:color=0x7C7468', '-vsync', '0',
+            '-frames:v', str(cnt), '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']
+    p = subprocess.run(cmd, capture_output=True)
+    a = np.frombuffer(p.stdout, np.uint8)
+    got = a.size // (1024 * 1024 * 3)
+    if got < cnt:  # clip end: fewer frames decoded than requested (indices clipped to N - 1 repeat the last one)
+        if got == 0:
+            return CM.cal_decode(name, split, idx, threads=2)
+    a = a[:got * 1024 * 1024 * 3].reshape(got, 1024, 1024, 3)
+    j = np.minimum(rel // 6, got - 1)
+    return a[j].transpose(0, 3, 1, 2).copy()
+
+
+def cmd_decodecheck(a):
+    """pixel identity of cal_decode_seq vs common.cal_decode on one CalMS21 video (first a.max_frames 5 fps frames, two
+    chunks), plus decode timings."""
+    for q in ('scripts/eci/v2_mask2',):
+        sys.path.insert(0, str(REPO / q))
+    import common as CM
+    Se = BenchSource('cal', None)
+    v = Se.videos[a.task]
+    n = min(v['n'], a.max_frames)
+    out = {'video': v['obs'], 'split': v['split'], 'N': v['N'], 'frames': n, 'chunks': []}
+    for k0 in (0, n // 2):
+        idx = np.minimum(np.arange(k0, min(n, k0 + n // 2)) * 6, v['N'] - 1)
+        t0 = time.time()
+        x1 = CM.cal_decode(v['obs'], v['split'], idx, threads=2)
+        t1 = time.time()
+        x2 = cal_decode_seq(CM, v['obs'], v['split'], idx)
+        t2 = time.time()
+        out['chunks'].append({'k0': int(k0), 'frames': int(len(idx)), 'identical': bool(np.array_equal(x1, x2)),
+                              'n_diff_px': int((x1 != x2).any(1).sum()), 'old_fps': len(idx) / (t1 - t0),
+                              'new_fps': len(idx) / (t2 - t1)})
+        log(json.dumps(out['chunks'][-1]))
+    # the clip end (indices clipped to N - 1)
+    idx = np.minimum(np.arange(v['n'] - 5, v['n'] + 1) * 6, v['N'] - 1)
+    out['end_identical'] = bool(np.array_equal(CM.cal_decode(v['obs'], v['split'], idx, threads=2), cal_decode_seq(CM, v['obs'], v['split'], idx)))
+    log(json.dumps(out))
+    RES.mkdir(parents=True, exist_ok=True)
+    (RES / 'decodecheck_cal.json').write_text(json.dumps(out, indent=1))
 
 
 def main():
