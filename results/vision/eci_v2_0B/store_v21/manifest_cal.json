@@ -1,0 +1,814 @@
+{
+ "domain": "cal",
+ "version": "v2.1_m5",
+ "expected_videos": 89,
+ "videos": 89,
+ "frames": 128343,
+ "tokens": 37741093,
+ "bytes": 77293758464,
+ "TB": 0.077293758464,
+ "missing_videos": [],
+ "videos_list": [
+  {
+   "series": "cal",
+   "obs": "mouse001_task1_annotator1",
+   "frames": 3561,
+   "tokens": 888241,
+   "bytes": 1819117568,
+   "crc32_tok": 509915640,
+   "crc32_index": 2895103344
+  },
+  {
+   "series": "cal",
+   "obs": "mouse002_task1_annotator1",
+   "frames": 3224,
+   "tokens": 1016834,
+   "bytes": 2082476032,
+   "crc32_tok": 3993477753,
+   "crc32_index": 1080063565
+  },
+  {
+   "series": "cal",
+   "obs": "mouse003_task1_annotator1",
+   "frames": 2204,
+   "tokens": 708942,
+   "bytes": 1451913216,
+   "crc32_tok": 1292158349,
+   "crc32_index": 1899984672
+  },
+  {
+   "series": "cal",
+   "obs": "mouse004_task1_annotator1",
+   "frames": 1239,
+   "tokens": 380637,
+   "bytes": 779544576,
+   "crc32_tok": 3498804839,
+   "crc32_index": 1519102673
+  },
+  {
+   "series": "cal",
+   "obs": "mouse005_task1_annotator1",
+   "frames": 941,
+   "tokens": 313576,
+   "bytes": 642203648,
+   "crc32_tok": 1108908112,
+   "crc32_index": 1949868444
+  },
+  {
+   "series": "cal",
+   "obs": "mouse006_task1_annotator1",
+   "frames": 505,
+   "tokens": 174066,
+   "bytes": 356487168,
+   "crc32_tok": 593961096,
+   "crc32_index": 3748354917
+  },
+  {
+   "series": "cal",
+   "obs": "mouse007_task1_annotator1",
+   "frames": 1671,
+   "tokens": 505492,
+   "bytes": 1035247616,
+   "crc32_tok": 2181872387,
+   "crc32_index": 3318097783
+  },
+  {
+   "series": "cal",
+   "obs": "mouse008_task1_annotator1",
+   "frames": 1902,
+   "tokens": 631142,
+   "bytes": 1292578816,
+   "crc32_tok": 705958117,
+   "crc32_index": 2756523016
+  },
+  {
+   "series": "cal",
+   "obs": "mouse009_task1_annotator1",
+   "frames": 1389,
+   "tokens": 462301,
+   "bytes": 946792448,
+   "crc32_tok": 2796823464,
+   "crc32_index": 2495483045
+  },
+  {
+   "series": "cal",
+   "obs": "mouse010_task1_annotator1",
+   "frames": 1445,
+   "tokens": 414146,
+   "bytes": 848171008,
+   "crc32_tok": 89510763,
+   "crc32_index": 2200378914
+  },
+  {
+   "series": "cal",
+   "obs": "mouse011_task1_annotator1",
+   "frames": 710,
+   "tokens": 203430,
+   "bytes": 416624640,
+   "crc32_tok": 630579760,
+   "crc32_index": 3842101739
+  },
+  {
+   "series": "cal",
+   "obs": "mouse012_task1_annotator1",
+   "frames": 1199,
+   "tokens": 374477,
+   "bytes": 766928896,
+   "crc32_tok": 1493522851,
+   "crc32_index": 783999887
+  },
+  {
+   "series": "cal",
+   "obs": "mouse013_task1_annotator1",
+   "frames": 378,
+   "tokens": 99727,
+   "bytes": 204240896,
+   "crc32_tok": 1910097532,
+   "crc32_index": 2036073615
+  },
+  {
+   "series": "cal",
+   "obs": "mouse014_task1_annotator1",
+   "frames": 1499,
+   "tokens": 434169,
+   "bytes": 889178112,
+   "crc32_tok": 4165873372,
+   "crc32_index": 1301968306
+  },
+  {
+   "series": "cal",
+   "obs": "mouse015_task1_annotator1",
+   "frames": 1235,
+   "tokens": 318458,
+   "bytes": 652201984,
+   "crc32_tok": 312526303,
+   "crc32_index": 972838238
+  },
+  {
+   "series": "cal",
+   "obs": "mouse016_task1_annotator1",
+   "frames": 616,
+   "tokens": 161972,
+   "bytes": 331718656,
+   "crc32_tok": 254861176,
+   "crc32_index": 3817992693
+  },
+  {
+   "series": "cal",
+   "obs": "mouse017_task1_annotator1",
+   "frames": 1034,
+   "tokens": 287414,
+   "bytes": 588623872,
+   "crc32_tok": 3175414302,
+   "crc32_index": 3689552843
+  },
+  {
+   "series": "cal",
+   "obs": "mouse018_task1_annotator1",
+   "frames": 1022,
+   "tokens": 291349,
+   "bytes": 596682752,
+   "crc32_tok": 4105771017,
+   "crc32_index": 4088957872
+  },
+  {
+   "series": "cal",
+   "obs": "mouse019_task1_annotator1",
+   "frames": 744,
+   "tokens": 230038,
+   "bytes": 471117824,
+   "crc32_tok": 12709647,
+   "crc32_index": 2052901127
+  },
+  {
+   "series": "cal",
+   "obs": "mouse020_task1_annotator1",
+   "frames": 619,
+   "tokens": 161324,
+   "bytes": 330391552,
+   "crc32_tok": 662333925,
+   "crc32_index": 2046979081
+  },
+  {
+   "series": "cal",
+   "obs": "mouse021_task1_annotator1",
+   "frames": 1887,
+   "tokens": 495734,
+   "bytes": 1015263232,
+   "crc32_tok": 3685360263,
+   "crc32_index": 3786824336
+  },
+  {
+   "series": "cal",
+   "obs": "mouse022_task1_annotator1",
+   "frames": 1632,
+   "tokens": 402792,
+   "bytes": 824918016,
+   "crc32_tok": 2783645880,
+   "crc32_index": 237908071
+  },
+  {
+   "series": "cal",
+   "obs": "mouse023_task1_annotator1",
+   "frames": 307,
+   "tokens": 78907,
+   "bytes": 161601536,
+   "crc32_tok": 658300521,
+   "crc32_index": 4217777979
+  },
+  {
+   "series": "cal",
+   "obs": "mouse024_task1_annotator1",
+   "frames": 1484,
+   "tokens": 350676,
+   "bytes": 718184448,
+   "crc32_tok": 514804066,
+   "crc32_index": 4211508743
+  },
+  {
+   "series": "cal",
+   "obs": "mouse025_task1_annotator1",
+   "frames": 629,
+   "tokens": 148762,
+   "bytes": 304664576,
+   "crc32_tok": 2433090820,
+   "crc32_index": 537812576
+  },
+  {
+   "series": "cal",
+   "obs": "mouse026_task1_annotator1",
+   "frames": 606,
+   "tokens": 169993,
+   "bytes": 348145664,
+   "crc32_tok": 2573863353,
+   "crc32_index": 1591296143
+  },
+  {
+   "series": "cal",
+   "obs": "mouse027_task1_annotator1",
+   "frames": 332,
+   "tokens": 96940,
+   "bytes": 198533120,
+   "crc32_tok": 1774842333,
+   "crc32_index": 167619075
+  },
+  {
+   "series": "cal",
+   "obs": "mouse028_task1_annotator1",
+   "frames": 173,
+   "tokens": 49641,
+   "bytes": 101664768,
+   "crc32_tok": 2752886578,
+   "crc32_index": 3695784075
+  },
+  {
+   "series": "cal",
+   "obs": "mouse029_task1_annotator1",
+   "frames": 507,
+   "tokens": 141991,
+   "bytes": 290797568,
+   "crc32_tok": 4182807639,
+   "crc32_index": 189085554
+  },
+  {
+   "series": "cal",
+   "obs": "mouse030_task1_annotator1",
+   "frames": 268,
+   "tokens": 89715,
+   "bytes": 183736320,
+   "crc32_tok": 1967035063,
+   "crc32_index": 4260159007
+  },
+  {
+   "series": "cal",
+   "obs": "mouse031_task1_annotator1",
+   "frames": 850,
+   "tokens": 256343,
+   "bytes": 524990464,
+   "crc32_tok": 1666429621,
+   "crc32_index": 2777008692
+  },
+  {
+   "series": "cal",
+   "obs": "mouse032_task1_annotator1",
+   "frames": 961,
+   "tokens": 289741,
+   "bytes": 593389568,
+   "crc32_tok": 1202006748,
+   "crc32_index": 73063217
+  },
+  {
+   "series": "cal",
+   "obs": "mouse033_task1_annotator1",
+   "frames": 417,
+   "tokens": 123496,
+   "bytes": 252919808,
+   "crc32_tok": 3901619881,
+   "crc32_index": 1901526900
+  },
+  {
+   "series": "cal",
+   "obs": "mouse034_task1_annotator1",
+   "frames": 177,
+   "tokens": 77836,
+   "bytes": 159408128,
+   "crc32_tok": 510281540,
+   "crc32_index": 4269701442
+  },
+  {
+   "series": "cal",
+   "obs": "mouse035_task1_annotator1",
+   "frames": 814,
+   "tokens": 239809,
+   "bytes": 491128832,
+   "crc32_tok": 1262563336,
+   "crc32_index": 2691603812
+  },
+  {
+   "series": "cal",
+   "obs": "mouse036_task1_annotator1",
+   "frames": 16,
+   "tokens": 7574,
+   "bytes": 15511552,
+   "crc32_tok": 3718553909,
+   "crc32_index": 4168044028
+  },
+  {
+   "series": "cal",
+   "obs": "mouse037_task1_annotator1",
+   "frames": 856,
+   "tokens": 204962,
+   "bytes": 419762176,
+   "crc32_tok": 4181568148,
+   "crc32_index": 1319531332
+  },
+  {
+   "series": "cal",
+   "obs": "mouse038_task1_annotator1",
+   "frames": 466,
+   "tokens": 148457,
+   "bytes": 304039936,
+   "crc32_tok": 52161953,
+   "crc32_index": 1574531980
+  },
+  {
+   "series": "cal",
+   "obs": "mouse039_task1_annotator1",
+   "frames": 532,
+   "tokens": 163836,
+   "bytes": 335536128,
+   "crc32_tok": 432882959,
+   "crc32_index": 303817992
+  },
+  {
+   "series": "cal",
+   "obs": "mouse040_task1_annotator1",
+   "frames": 441,
+   "tokens": 115523,
+   "bytes": 236591104,
+   "crc32_tok": 1863597220,
+   "crc32_index": 3928716499
+  },
+  {
+   "series": "cal",
+   "obs": "mouse041_task1_annotator1",
+   "frames": 240,
+   "tokens": 58943,
+   "bytes": 120715264,
+   "crc32_tok": 4045657773,
+   "crc32_index": 4123521970
+  },
+  {
+   "series": "cal",
+   "obs": "mouse042_task1_annotator1",
+   "frames": 559,
+   "tokens": 165844,
+   "bytes": 339648512,
+   "crc32_tok": 77899617,
+   "crc32_index": 357828807
+  },
+  {
+   "series": "cal",
+   "obs": "mouse043_task1_annotator1",
+   "frames": 163,
+   "tokens": 40890,
+   "bytes": 83742720,
+   "crc32_tok": 266895854,
+   "crc32_index": 1195056696
+  },
+  {
+   "series": "cal",
+   "obs": "mouse044_task1_annotator1",
+   "frames": 566,
+   "tokens": 158688,
+   "bytes": 324993024,
+   "crc32_tok": 2022629509,
+   "crc32_index": 1420220044
+  },
+  {
+   "series": "cal",
+   "obs": "mouse045_task1_annotator1",
+   "frames": 453,
+   "tokens": 185396,
+   "bytes": 379691008,
+   "crc32_tok": 1171521058,
+   "crc32_index": 4063884499
+  },
+  {
+   "series": "cal",
+   "obs": "mouse046_task1_annotator1",
+   "frames": 845,
+   "tokens": 219156,
+   "bytes": 448831488,
+   "crc32_tok": 385033367,
+   "crc32_index": 1172788594
+  },
+  {
+   "series": "cal",
+   "obs": "mouse047_task1_annotator1",
+   "frames": 459,
+   "tokens": 114712,
+   "bytes": 234930176,
+   "crc32_tok": 345796977,
+   "crc32_index": 74751315
+  },
+  {
+   "series": "cal",
+   "obs": "mouse048_task1_annotator1",
+   "frames": 203,
+   "tokens": 69521,
+   "bytes": 142379008,
+   "crc32_tok": 4214889604,
+   "crc32_index": 3357755611
+  },
+  {
+   "series": "cal",
+   "obs": "mouse049_task1_annotator1",
+   "frames": 481,
+   "tokens": 127646,
+   "bytes": 261419008,
+   "crc32_tok": 2921015464,
+   "crc32_index": 2364225504
+  },
+  {
+   "series": "cal",
+   "obs": "mouse050_task1_annotator1",
+   "frames": 214,
+   "tokens": 110025,
+   "bytes": 225331200,
+   "crc32_tok": 1585670736,
+   "crc32_index": 2159558964
+  },
+  {
+   "series": "cal",
+   "obs": "mouse051_task1_annotator1",
+   "frames": 2888,
+   "tokens": 828967,
+   "bytes": 1697724416,
+   "crc32_tok": 863833662,
+   "crc32_index": 4182949428
+  },
+  {
+   "series": "cal",
+   "obs": "mouse052_task1_annotator1",
+   "frames": 2991,
+   "tokens": 833114,
+   "bytes": 1706217472,
+   "crc32_tok": 390546600,
+   "crc32_index": 2268666169
+  },
+  {
+   "series": "cal",
+   "obs": "mouse053_task1_annotator1",
+   "frames": 2912,
+   "tokens": 875805,
+   "bytes": 1793648640,
+   "crc32_tok": 2438243288,
+   "crc32_index": 1323945744
+  },
+  {
+   "series": "cal",
+   "obs": "mouse054_task1_annotator1",
+   "frames": 2887,
+   "tokens": 801353,
+   "bytes": 1641170944,
+   "crc32_tok": 880211080,
+   "crc32_index": 3743460766
+  },
+  {
+   "series": "cal",
+   "obs": "mouse055_task1_annotator1",
+   "frames": 2940,
+   "tokens": 941901,
+   "bytes": 1929013248,
+   "crc32_tok": 4242705819,
+   "crc32_index": 8453349
+  },
+  {
+   "series": "cal",
+   "obs": "mouse056_task1_annotator1",
+   "frames": 2737,
+   "tokens": 797302,
+   "bytes": 1632874496,
+   "crc32_tok": 2821242749,
+   "crc32_index": 1808845370
+  },
+  {
+   "series": "cal",
+   "obs": "mouse057_task1_annotator1",
+   "frames": 3103,
+   "tokens": 843440,
+   "bytes": 1727365120,
+   "crc32_tok": 2203665320,
+   "crc32_index": 528575115
+  },
+  {
+   "series": "cal",
+   "obs": "mouse058_task1_annotator1",
+   "frames": 3071,
+   "tokens": 907493,
+   "bytes": 1858545664,
+   "crc32_tok": 3079900306,
+   "crc32_index": 4031993222
+  },
+  {
+   "series": "cal",
+   "obs": "mouse059_task1_annotator1",
+   "frames": 916,
+   "tokens": 286184,
+   "bytes": 586104832,
+   "crc32_tok": 1674968270,
+   "crc32_index": 953811713
+  },
+  {
+   "series": "cal",
+   "obs": "mouse060_task1_annotator1",
+   "frames": 793,
+   "tokens": 270277,
+   "bytes": 553527296,
+   "crc32_tok": 1068508875,
+   "crc32_index": 598625206
+  },
+  {
+   "series": "cal",
+   "obs": "mouse061_task1_annotator1",
+   "frames": 666,
+   "tokens": 256704,
+   "bytes": 525729792,
+   "crc32_tok": 1625688016,
+   "crc32_index": 3560659548
+  },
+  {
+   "series": "cal",
+   "obs": "mouse062_task1_annotator1",
+   "frames": 1293,
+   "tokens": 444097,
+   "bytes": 909510656,
+   "crc32_tok": 596590414,
+   "crc32_index": 1093699739
+  },
+  {
+   "series": "cal",
+   "obs": "mouse063_task1_annotator1",
+   "frames": 2195,
+   "tokens": 713958,
+   "bytes": 1462185984,
+   "crc32_tok": 2809996012,
+   "crc32_index": 4100370200
+  },
+  {
+   "series": "cal",
+   "obs": "mouse064_task1_annotator1",
+   "frames": 1192,
+   "tokens": 438675,
+   "bytes": 898406400,
+   "crc32_tok": 62448721,
+   "crc32_index": 2187886376
+  },
+  {
+   "series": "cal",
+   "obs": "mouse065_task1_annotator1",
+   "frames": 1351,
+   "tokens": 394715,
+   "bytes": 808376320,
+   "crc32_tok": 3567839052,
+   "crc32_index": 3115408965
+  },
+  {
+   "series": "cal",
+   "obs": "mouse066_task1_annotator1",
+   "frames": 1235,
+   "tokens": 399374,
+   "bytes": 817917952,
+   "crc32_tok": 3641718402,
+   "crc32_index": 1029941537
+  },
+  {
+   "series": "cal",
+   "obs": "mouse067_task1_annotator1",
+   "frames": 1171,
+   "tokens": 435833,
+   "bytes": 892585984,
+   "crc32_tok": 2227207024,
+   "crc32_index": 2917420954
+  },
+  {
+   "series": "cal",
+   "obs": "mouse068_task1_annotator1",
+   "frames": 1640,
+   "tokens": 538515,
+   "bytes": 1102878720,
+   "crc32_tok": 192933398,
+   "crc32_index": 3173690614
+  },
+  {
+   "series": "cal",
+   "obs": "mouse069_task1_annotator1",
+   "frames": 1906,
+   "tokens": 562889,
+   "bytes": 1152796672,
+   "crc32_tok": 2404173698,
+   "crc32_index": 2017250890
+  },
+  {
+   "series": "cal",
+   "obs": "mouse070_task1_annotator1",
+   "frames": 2090,
+   "tokens": 693560,
+   "bytes": 1420410880,
+   "crc32_tok": 3980282228,
+   "crc32_index": 345776569
+  },
+  {
+   "series": "cal",
+   "obs": "mouse071_task1_annotator1",
+   "frames": 3969,
+   "tokens": 1071301,
+   "bytes": 2194024448,
+   "crc32_tok": 3969556065,
+   "crc32_index": 345777089
+  },
+  {
+   "series": "cal",
+   "obs": "mouse072_task1_annotator1",
+   "frames": 3028,
+   "tokens": 707964,
+   "bytes": 1449910272,
+   "crc32_tok": 3165836031,
+   "crc32_index": 531689517
+  },
+  {
+   "series": "cal",
+   "obs": "mouse073_task1_annotator1",
+   "frames": 3193,
+   "tokens": 820718,
+   "bytes": 1680830464,
+   "crc32_tok": 119553102,
+   "crc32_index": 694762761
+  },
+  {
+   "series": "cal",
+   "obs": "mouse074_task1_annotator1",
+   "frames": 3138,
+   "tokens": 916931,
+   "bytes": 1877874688,
+   "crc32_tok": 839727234,
+   "crc32_index": 3145596350
+  },
+  {
+   "series": "cal",
+   "obs": "mouse075_task1_annotator1",
+   "frames": 3003,
+   "tokens": 823972,
+   "bytes": 1687494656,
+   "crc32_tok": 3558692996,
+   "crc32_index": 484384114
+  },
+  {
+   "series": "cal",
+   "obs": "mouse076_task1_annotator1",
+   "frames": 3285,
+   "tokens": 935976,
+   "bytes": 1916878848,
+   "crc32_tok": 1680053532,
+   "crc32_index": 2288327779
+  },
+  {
+   "series": "cal",
+   "obs": "mouse077_task1_annotator1",
+   "frames": 3152,
+   "tokens": 890599,
+   "bytes": 1823946752,
+   "crc32_tok": 1421407812,
+   "crc32_index": 118438869
+  },
+  {
+   "series": "cal",
+   "obs": "mouse078_task1_annotator1",
+   "frames": 3246,
+   "tokens": 1114072,
+   "bytes": 2281619456,
+   "crc32_tok": 98578686,
+   "crc32_index": 1931714494
+  },
+  {
+   "series": "cal",
+   "obs": "mouse079_task1_annotator1",
+   "frames": 2914,
+   "tokens": 801684,
+   "bytes": 1641848832,
+   "crc32_tok": 1956291587,
+   "crc32_index": 668165046
+  },
+  {
+   "series": "cal",
+   "obs": "mouse080_task1_annotator1",
+   "frames": 1030,
+   "tokens": 297394,
+   "bytes": 609062912,
+   "crc32_tok": 1401848959,
+   "crc32_index": 2016170152
+  },
+  {
+   "series": "cal",
+   "obs": "mouse081_task1_annotator1",
+   "frames": 822,
+   "tokens": 244097,
+   "bytes": 499910656,
+   "crc32_tok": 4233528135,
+   "crc32_index": 694567641
+  },
+  {
+   "series": "cal",
+   "obs": "mouse082_task1_annotator1",
+   "frames": 1186,
+   "tokens": 387832,
+   "bytes": 794279936,
+   "crc32_tok": 805936759,
+   "crc32_index": 3645158981
+  },
+  {
+   "series": "cal",
+   "obs": "mouse083_task1_annotator1",
+   "frames": 814,
+   "tokens": 257776,
+   "bytes": 527925248,
+   "crc32_tok": 4239887959,
+   "crc32_index": 205951316
+  },
+  {
+   "series": "cal",
+   "obs": "mouse084_task1_annotator1",
+   "frames": 938,
+   "tokens": 260711,
+   "bytes": 533936128,
+   "crc32_tok": 3218557076,
+   "crc32_index": 113651029
+  },
+  {
+   "series": "cal",
+   "obs": "mouse085_task1_annotator1",
+   "frames": 3200,
+   "tokens": 860534,
+   "bytes": 1762373632,
+   "crc32_tok": 3762678775,
+   "crc32_index": 2654599934
+  },
+  {
+   "series": "cal",
+   "obs": "mouse086_task1_annotator1",
+   "frames": 1437,
+   "tokens": 390960,
+   "bytes": 800686080,
+   "crc32_tok": 652654110,
+   "crc32_index": 223714683
+  },
+  {
+   "series": "cal",
+   "obs": "mouse087_task1_annotator1",
+   "frames": 1986,
+   "tokens": 674745,
+   "bytes": 1381877760,
+   "crc32_tok": 3041367825,
+   "crc32_index": 1306414501
+  },
+  {
+   "series": "cal",
+   "obs": "mouse088_task1_annotator1",
+   "frames": 1471,
+   "tokens": 528518,
+   "bytes": 1082404864,
+   "crc32_tok": 780983185,
+   "crc32_index": 4106984366
+  },
+  {
+   "series": "cal",
+   "obs": "mouse089_task1_annotator1",
+   "frames": 1879,
+   "tokens": 529869,
+   "bytes": 1085171712,
+   "crc32_tok": 2104183450,
+   "crc32_index": 165261202
+  }
+ ]
+}

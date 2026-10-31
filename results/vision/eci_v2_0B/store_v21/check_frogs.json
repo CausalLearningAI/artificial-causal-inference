@@ -1,0 +1,63 @@
+{
+ "gpu": "NVIDIA L40S",
+ "domain": "frogs",
+ "tokens_vs_store5": {
+  "shard": "s0",
+  "obs": "WT_157_1",
+  "frames": 24,
+  "tokens": 165,
+  "max_abs_diff": 0.0,
+  "mean_abs_diff": 0.0,
+  "cos_min": 0.9999998807907104,
+  "cos_p0.1": 0.9999998807907104,
+  "cos_p1": 0.9999998807907104,
+  "cos_p5": 0.9999998807907104,
+  "cos_median": 1.0,
+  "cos_mean": 1.0,
+  "share_below_0.999": 0.0,
+  "share_below_0.99": 0.0,
+  "controls": {
+   "ctl_next_frame": {
+    "cos_min": 0.11052856594324112,
+    "cos_p0.1": 0.11507117035984993,
+    "cos_p1": 0.13891350388526916,
+    "cos_p5": 0.3329226553440094,
+    "cos_median": 0.9836477041244507,
+    "cos_mean": 0.8277332782745361,
+    "share_below_0.999": 0.8484848484848485,
+    "share_below_0.99": 0.5393939393939394
+   },
+   "ctl_rot90": {
+    "cos_min": 0.019024230539798737,
+    "cos_p0.1": 0.022073368638753893,
+    "cos_p1": 0.06369700133800507,
+    "cos_p5": 0.12260669618844987,
+    "cos_median": 0.2594021260738373,
+    "cos_mean": 0.31011340022087097,
+    "share_below_0.999": 1.0,
+    "share_below_0.99": 1.0
+   }
+  },
+  "gate": "cos_p1 >= 0.999 and cos_min >= 0.995 and mean_abs_diff <= 0.02",
+  "pass": true,
+  "controls_fail_gate": true
+ },
+ "mask_iou_vs_2080ti": {
+  "windows": 4,
+  "token_iou": 1.0,
+  "mean_abs_token_diff": 0.008353865705430508
+ },
+ "videos": [
+  {
+   "obs": "WT_157_1",
+   "frames": 300,
+   "s": 10.025238752365112,
+   "fps": 29.924474360196683,
+   "U_tok_per_frame": 46.72,
+   "pairs_checked": 53202,
+   "missing": 0,
+   "size_ok": true
+  }
+ ],
+ "pass": true
+}

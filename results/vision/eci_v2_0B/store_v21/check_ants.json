@@ -9,24 +9,44 @@
   "max_abs_diff": 0.09130859375,
   "mean_abs_diff": 0.0043052625842392445,
   "cos_min": 0.9998027086257935,
-  "cos_mean": 0.9999749660491943
+  "cos_p0.1": 0.9998255099654197,
+  "cos_p1": 0.9999140006303787,
+  "cos_p5": 0.999939140677452,
+  "cos_median": 0.9999803304672241,
+  "cos_mean": 0.9999749660491943,
+  "share_below_0.999": 0.0,
+  "share_below_0.99": 0.0,
+  "controls": {
+   "ctl_next_frame": {
+    "cos_min": 0.09230770170688629,
+    "cos_p0.1": 0.1014846120774746,
+    "cos_p1": 0.24921591728925704,
+    "cos_p5": 0.3625666737556458,
+    "cos_median": 0.8328949213027954,
+    "cos_mean": 0.7831728458404541,
+    "share_below_0.999": 1.0,
+    "share_below_0.99": 0.9433962264150944
+   },
+   "ctl_rot90": {
+    "cos_min": 0.12596549093723297,
+    "cos_p0.1": 0.12598979517817496,
+    "cos_p1": 0.1327499583363533,
+    "cos_p5": 0.15921180993318557,
+    "cos_median": 0.26344558596611023,
+    "cos_mean": 0.2847761809825897,
+    "share_below_0.999": 1.0,
+    "share_below_0.99": 1.0
+   }
+  },
+  "gate": "cos_p1 >= 0.999 and cos_min >= 0.995 and mean_abs_diff <= 0.02",
+  "pass": true,
+  "controls_fail_gate": true
  },
  "mask_iou_vs_2080ti": {
   "windows": 4,
   "token_iou": 1.0,
   "mean_abs_token_diff": 0.0
  },
- "videos": [
-  {
-   "obs": "a1",
-   "frames": 300,
-   "s": 127.35411858558655,
-   "fps": 2.355636420178977,
-   "U_tok_per_frame": 114.95666666666666,
-   "pairs_checked": 80502,
-   "missing": 0,
-   "size_ok": true
-  }
- ],
+ "videos": [],
  "pass": true
 }

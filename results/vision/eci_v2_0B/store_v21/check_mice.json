@@ -1,20 +1,60 @@
 {
- "gpu": "NVIDIA GeForce RTX 2080 Ti",
+ "gpu": "NVIDIA A10",
  "domain": "mice",
- "tokens_vs_store5": "no v2_0 store5 for this domain",
+ "tokens_vs_store5": {
+  "shard": "v1_s0",
+  "obs": "wt_ash1l_m_1_S_H",
+  "frames": 24,
+  "tokens": 1391,
+  "max_abs_diff": 0.0,
+  "mean_abs_diff": 0.0,
+  "cos_min": 0.9999998807907104,
+  "cos_p0.1": 0.9999998807907104,
+  "cos_p1": 0.9999998807907104,
+  "cos_p5": 0.9999999403953552,
+  "cos_median": 1.0,
+  "cos_mean": 1.0,
+  "share_below_0.999": 0.0,
+  "share_below_0.99": 0.0,
+  "controls": {
+   "ctl_next_frame": {
+    "cos_min": 0.23858286440372467,
+    "cos_p0.1": 0.2595612990856171,
+    "cos_p1": 0.36973865032196046,
+    "cos_p5": 0.5133803188800812,
+    "cos_median": 0.9630999565124512,
+    "cos_mean": 0.8829555511474609,
+    "share_below_0.999": 0.9920920201294033,
+    "share_below_0.99": 0.7893601725377426
+   },
+   "ctl_rot90": {
+    "cos_min": 0.1273888349533081,
+    "cos_p0.1": 0.1366094696521759,
+    "cos_p1": 0.18861352950334548,
+    "cos_p5": 0.24605805426836014,
+    "cos_median": 0.4709038734436035,
+    "cos_mean": 0.4982781708240509,
+    "share_below_0.999": 1.0,
+    "share_below_0.99": 1.0
+   }
+  },
+  "gate": "cos_p1 >= 0.999 and cos_min >= 0.995 and mean_abs_diff <= 0.02",
+  "pass": true,
+  "controls_fail_gate": true
+ },
  "mask_iou_vs_2080ti": {
   "windows": 4,
-  "token_iou": 1.0,
-  "mean_abs_token_diff": 0.0
+  "token_iou": 0.9968168462291871,
+  "mean_abs_token_diff": 0.008239657967351377
  },
  "videos": [
   {
    "obs": "wt_ash1l_m_1_S_H",
    "frames": 300,
-   "s": 289.5485873222351,
-   "fps": 1.036095540214581,
-   "U_tok_per_frame": 258.75666666666666,
-   "pairs_checked": 311850,
+   "s": 48.55134320259094,
+   "fps": 6.179025753174024,
+   "U_tok_per_frame": 258.6933333333333,
+   "pairs_checked": 311847,
    "missing": 0,
    "size_ok": true
   }

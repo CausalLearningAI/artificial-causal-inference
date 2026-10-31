@@ -1,24 +1,24 @@
 {
- "gpu": "NVIDIA GeForce RTX 2080 Ti",
+ "gpu": "NVIDIA L40S",
  "domain": "mab",
  "arm": "KGt",
  "vs_bench_agent_2080ti": {
-  "eval_files": 4,
-  "frames": 32,
-  "max_abs_dp": 0.000244140625,
-  "mean_abs_dp": 1.884138873720076e-05,
-  "probe_mask_iou": 0.9977246871444824,
-  "final_mask_iou": 0.9987562189054726
+  "eval_files": 3,
+  "frames": 24,
+  "max_abs_dp": 0.07766896486282349,
+  "mean_abs_dp": 0.0019504731753841043,
+  "probe_mask_iou": 0.9842857142857143,
+  "final_mask_iou": 0.9873617693522907
  },
  "videos": [
   {
    "obs": "0AR581DJEE9V0NJPQGQQ",
    "frames": 120,
-   "fps": 5.539512224113424,
-   "U_tok_per_frame": 35.483333333333334,
+   "fps": 9.252549717360681,
+   "U_tok_per_frame": 35.516666666666666,
    "kg_fallback_frames": 10,
-   "M_tok_per_frame": 25.883333333333333,
-   "pairs_checked": 15361,
+   "M_tok_per_frame": 25.825,
+   "pairs_checked": 15326,
    "missing": 0,
    "size_ok": true
   }
