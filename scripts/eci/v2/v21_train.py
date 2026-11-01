@@ -47,6 +47,12 @@ AMENDMENT 1 (2026-11-01, user; ADDED AFTER the mice S / A / B / V results were s
          frame reported.
     Seeds 1001-1003, same recipe / readouts / metrics / gate; reported next to S / A / B / V. The pre-registered pick rule
     above is applied to S / A / B / V as written; W and S_N2 are reported against it but were not part of it.
+AMENDMENT 2 (2026-11-01, coordinator / user, before these numbers existed): reference row 'PB' = the v2.0 PASS B model
+    (mice v20_mice_N2f5_s950, ants v20_ants_N2f5_s951), NOT retrained, scored through THIS pipeline (same rows, same
+    readouts incl. the HMM fitted on the scoring windows) from its stored per-video frame codes (frame max over the FULL N2
+    token set at every 5 fps frame, eci_codes/v2_0B/<dom>/videos). Contrasts: PB rescored vs PB as reported = scoring
+    pipeline; PB rescored vs S = mask v5 + new training sample; S vs S_N2 = the mask inside U only. Also measured: the
+    share of the real N2 tokens outside U (v20_n2cover.py, old all-token probe stores).
 ==================================================================================================================
 Steps: prep --dom D (GPU) | train --dom D --arm X --seed s (GPU) | codes --dom D (GPU) | score --dom D (CPU) | report (CPU)
 """
@@ -430,6 +436,20 @@ def cmd_codes(a):
 
 
 # ---------------------------------------------------------------------------------------------- score
+REF_SEED = {'mice': 950, 'ants': 951}
+
+
+def ref_codes(dom, R):
+    """v2.0 PASS B frame codes (frame max over the FULL N2 token set, stored per video at every 5 fps frame) at the rows
+    R (series, obs, k) -> (len(R), 2048) float32."""
+    root = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_0B') / dom / 'videos'
+    X = np.zeros((len(R), 2048), np.float32)
+    for (ser, obs), g in R.groupby(['series', 'obs'], sort=False):
+        z = np.load(root / ser / f'{obs}.npz')
+        X[g.index.values] = z['codes_max'][g.k.values].astype(np.float32)
+    return X
+
+
 def cmd_score(a):
     import analysis as AN
     import eval as EV
@@ -463,8 +483,10 @@ def cmd_score(a):
     pix = pd.Series(np.arange(len(Rp)), index=pd.MultiIndex.from_frame(Rp)).reindex(pd.MultiIndex.from_frame(Pr)).values.astype(np.int64)
     use = np.ones(len(F), bool)
     out = {}
+    if a.ref:  # AMENDMENT 2: the v2.0 PASS B model re-scored through this pipeline from its stored full-N2 frame codes
+        arms, seeds_ = ['PB'], {'PB': (REF_SEED[dom],)}
     for arm in arms:
-        for s in SEEDS:
+        for s in (seeds_[arm] if a.ref else SEEDS):
             k = f'{arm}_s{s}'
             if a.only and k != a.only:
                 continue
@@ -472,7 +494,7 @@ def cmd_score(a):
             if f_.exists() and not a.force:
                 out[k] = json.loads(f_.read_text())
                 continue
-            raw = np.load(od / f'{k}_eval.npy').astype(np.float32)
+            raw = ref_codes(dom, R) if a.ref else np.load(od / f'{k}_eval.npy').astype(np.float32)
             sm = np.concatenate([RO.smooth(raw[a0:a1], 1) for a0, a1 in zip(st[:-1], st[1:])])
             # HMM P(on): fitted per neuron on these spans (label-free), applied per span
             from src.eci.v2 import hmm as HM
@@ -494,7 +516,7 @@ def cmd_score(a):
                                                    for c, v in sc.items()}}
                 if proxy is not None and rd != 'raw':
                     res[rd]['prox'] = PX.strat(F, Xe, use, SP, sc, proxy)
-            C = np.load(od / f'{k}_probe.npy').astype(np.float32)[pix]
+            C = (ref_codes(dom, Rp) if a.ref else np.load(od / f'{k}_probe.npy').astype(np.float32))[pix]
             n = e = 0
             for j in range(256):
                 cj = C[:, j]
@@ -505,7 +527,8 @@ def cmd_score(a):
                 e += 1
                 n += int(rm >= 0.10 and rm > abs(ra))
             res['dyn256'] = {'dynamic': n, 'eligible': e, 'share': n / max(e, 1)}
-            res['fve'] = json.loads((OUT / f'{dom}_train_{k}.json').read_text())['eval_fve']
+            res['fve'] = (json.loads((REPO / f'results/vision/eci_v2_0/{dom}/train5.json').read_text())['seeds'][str(s)]['eval_fve']
+                          if a.ref else json.loads((OUT / f'{dom}_train_{k}.json').read_text())['eval_fve'])
             f_.parent.mkdir(parents=True, exist_ok=True)
             f_.write_text(json.dumps(res, default=float))
             out[k] = res
@@ -522,6 +545,7 @@ def main():
     p.add_argument('--arm', default='S')
     p.add_argument('--seed', type=int, default=1001)
     p.add_argument('--force', action='store_true')
+    p.add_argument('--ref', action='store_true', help='AMENDMENT 2: score the v2.0 PASS B model (no retraining)')
     p.add_argument('--only', default='', help='score one <arm>_s<seed> (parallel CPU jobs)')
     p.add_argument('--outdir', default='', help='write the score json here (identity check)')
     a = p.parse_args()
