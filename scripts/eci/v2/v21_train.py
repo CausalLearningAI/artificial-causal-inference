@@ -356,7 +356,9 @@ def cmd_score(a):
     for arm in ARMS:
         for s in SEEDS:
             k = f'{arm}_s{s}'
-            f_ = OUT / dom / f'{k}.json'
+            if a.only and k != a.only:
+                continue
+            f_ = (Path(a.outdir) if a.outdir else OUT / dom) / f'{k}.json'
             if f_.exists() and not a.force:
                 out[k] = json.loads(f_.read_text())
                 continue
@@ -394,7 +396,7 @@ def cmd_score(a):
                 n += int(rm >= 0.10 and rm > abs(ra))
             res['dyn256'] = {'dynamic': n, 'eligible': e, 'share': n / max(e, 1)}
             res['fve'] = json.loads((OUT / f'{dom}_train_{k}.json').read_text())['eval_fve']
-            (OUT / dom).mkdir(parents=True, exist_ok=True)
+            f_.parent.mkdir(parents=True, exist_ok=True)
             f_.write_text(json.dumps(res, default=float))
             out[k] = res
             el = {c: r for c, r in res['hmm']['gate'].items() if r['eligible']}
@@ -409,6 +411,8 @@ def main():
     p.add_argument('--arm', default='S')
     p.add_argument('--seed', type=int, default=1001)
     p.add_argument('--force', action='store_true')
+    p.add_argument('--only', default='', help='score one <arm>_s<seed> (parallel CPU jobs)')
+    p.add_argument('--outdir', default='', help='write the score json here (identity check)')
     a = p.parse_args()
     {'prep': cmd_prep, 'train': cmd_train, 'codes': cmd_codes, 'score': cmd_score}[a.step](a)
 
