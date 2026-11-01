@@ -1,0 +1,23 @@
+{
+ "windows": 15536,
+ "M_tokens_per_frame_est": 54.0972962962963,
+ "U1_var_share": 0.8784683343394477,
+ "U2_var_share": 0.8776859054694395,
+ "s1": 3.3816021876034585,
+ "s2": 2.7344040904139493,
+ "median_norm_ratio_dx_over_x": 0.23337045311927795,
+ "tokens": {
+  "train": {
+   "available": 18456084,
+   "used": 16000000
+  },
+  "calib": {
+   "available": 1796608,
+   "used": 1500000
+  },
+  "eval": {
+   "available": 1714740,
+   "used": 1500000
+  }
+ }
+}
