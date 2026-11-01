@@ -38,6 +38,15 @@ DECISION: the deployment gate of results/vision/eci_v2_0B/gate/gate.md, AMENDMEN
     count = median over its seeds of the eligible cells passed (mice + ants). PICK: among the arms with the highest count,
     the higher median AUROC across seeds (mean over eligible cells); a motion arm (A / B / V) wins over S only if it passes
     at least as many cells AND has a higher median dynamic share @256.
+AMENDMENT 1 (2026-11-01, user; ADDED AFTER the mice S / A / B / V results were seen, before any W / S_N2 SAE or score):
+    W    x + d1 + d2 (1024): d1 = (x_{t+1} - x_{t-1}) / 2 exactly as V (same edge rule); d2 = s_t - mean(s), s_t = the
+         per-dimension std over the window t-2..t+2 (frames that exist, sqrt(mean_k (x_{t+k} - m_t)^2)), mean(s) = its
+         per-dimension mean over the training sample. Reported: median ||d1|| / ||x|| and ||d2|| / ||x||.
+    S_N2 (key SN2) the static input x on the N2-flagged tokens (flag bit1) of the same store, for training AND readout
+         positions; everything else as S. Isolates the mask from the other S vs v2.0 PASS B differences. N2 tokens per
+         frame reported.
+    Seeds 1001-1003, same recipe / readouts / metrics / gate; reported next to S / A / B / V. The pre-registered pick rule
+    above is applied to S / A / B / V as written; W and S_N2 are reported against it but were not part of it.
 ==================================================================================================================
 Steps: prep --dom D (GPU) | train --dom D --arm X --seed s (GPU) | codes --dom D (GPU) | score --dom D (CPU) | report (CPU)
 """
@@ -61,6 +70,8 @@ BEE = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_1')
 OUT = REPO / 'results/vision/eci_v2_1'
 ARMS = {'S': 1024, 'A': 1152, 'B': 1280, 'V': 1024}
 SEEDS = (1001, 1002, 1003)
+ARMS2 = {'W': 1024, 'SN2': 1024}  # AMENDMENT 1 (added after the mice S / A / B / V results were seen)
+BIT = {'SN2': 2}  # mask bit of the training / readout tokens (default bit0 = mask v5; SN2 = bit1 = N2)
 CAP = {'train': 16_000_000, 'calib': 1_500_000, 'eval': 1_500_000}
 WIN, NPCA, KP = 25, 1_000_000, 128
 log = lambda s: print(time.strftime('%H:%M:%S'), s, flush=True)  # noqa: E731
@@ -84,12 +95,12 @@ class Video:
         return {'tok': tok, 'fi': fi, 'pos': self.idx[r0:r1], 'flag': self.flag[r0:r1], 'a0': a0, 'a1': a1, 'i0': i0, 'i1': i1}
 
 
-def centre_rows(W):
+def centre_rows(W, bit=1):
     """rows of the M_t tokens of frames i0..i1-1 and the rows of the same positions at frames t-2..t+2 (-1 if absent)."""
     fi, pos = W['fi'], W['pos']
     key = fi * 65536 + pos
     s = pd.Series(np.arange(len(fi)), index=key)
-    c = np.flatnonzero(((W['flag'] & 1) > 0) & (fi >= W['i0']) & (fi < W['i1']))
+    c = np.flatnonzero(((W['flag'] & bit) > 0) & (fi >= W['i0']) & (fi < W['i1']))
     nb = {d: s.reindex(key[c] + d * 65536).fillna(-1).values.astype(np.int64) for d in (-2, -1, 1, 2)}
     return c, nb
 
@@ -117,7 +128,14 @@ def arm_inputs(x, cd, rs, cnt, P):
     for r, m in rs:
         acc += ((r @ P['U2'].T) ** 2) * m[:, None]
     b2 = torch.sqrt(acc / cnt[:, None])
-    return {'S': x, 'A': torch.cat([x, P['s1'] * b1], 1), 'B': torch.cat([x, P['s1'] * b1, P['s2'] * b2], 1), 'V': x + cd}
+    out = {}
+    if 'mean_s' in P:  # arm W (AMENDMENT 1): per-dimension 5-frame std, centred by its training-sample mean
+        acc2 = torch.zeros_like(x)
+        for r, m in rs:
+            acc2 += (r ** 2) * m[:, None]
+        out['W'] = x + cd + (torch.sqrt(acc2 / cnt[:, None]) - P['mean_s'])
+        out['SN2'] = x
+    return {**out, 'S': x, 'A': torch.cat([x, P['s1'] * b1], 1), 'B': torch.cat([x, P['s1'] * b1, P['s2'] * b2], 1), 'V': x + cd}
 
 
 def videos_of(dom):
@@ -234,6 +252,87 @@ def cmd_prep(a):
     log(f'{dom} prep done: {json.dumps(info)} ({time.time() - t0:.0f}s)')
 
 
+def cmd_prep2(a):
+    """AMENDMENT 1 arms: W (x + d1 + d2, d2 = per-dimension 5-frame std minus its training-sample mean) on the mask-v5
+    tokens and SN2 (x on the N2 tokens, flag bit1). Same window plan rule and rng as cmd_prep -> BEE/<dom>/data/
+    <role>_{W,SN2}.npy, w_stats.pt (mean_s), OUT/<dom>_prep2.json."""
+    import torch
+    import shutil
+    dev = torch.device('cuda')
+    dom = a.dom
+    vids = videos_of(dom)
+    loc = Path(os.environ['LOCAL_DIR'])
+    od = BEE / dom / 'data'
+    info = {}
+    for arm, bit in (('W', 1), ('SN2', 2)):
+        rng = np.random.default_rng(0)
+        mpf = np.mean([((Video(dom, v[0], v[1]).flag & bit) > 0).sum() / len(Video(dom, v[0], v[1]).k)
+                       for v in vids[::max(1, len(vids) // 6)][:6]])
+        plan = []
+        for r in CAP:
+            vs = [v for v in vids if v[2] == r]
+            n_win = max(1, int(np.ceil(1.1 * CAP[r] / mpf / (WIN * max(1, len(vs))))))
+            for ser, obs, role in vs:
+                nf = len(Video(dom, ser, obs).k)
+                st_ = np.sort(rng.choice(max(1, nf - WIN), min(n_win, max(1, nf - WIN)), replace=False))
+                plan += [(ser, obs, role, int(x_)) for x_ in st_]
+        data = {r: {'a': [], 's': []} for r in CAP}
+        ratio1, samp = [], []
+        cache = {}
+        for j, (ser, obs, role, s_) in enumerate(plan):
+            if (ser, obs) not in cache:
+                cache.clear()
+                cache[(ser, obs)] = Video(dom, ser, obs)
+            V_ = cache[(ser, obs)]
+            W = V_.window(s_, min(len(V_.k), s_ + WIN))
+            c, nb = centre_rows(W, bit)
+            if not len(c):
+                continue
+            x, cd, rs, cnt = raw_feats(W['tok'], c, nb, dev)
+            if arm == 'W':
+                acc2 = torch.zeros_like(x)
+                for rr, m in rs:
+                    acc2 += (rr ** 2) * m[:, None]
+                sd = torch.sqrt(acc2 / cnt[:, None])
+                data[role]['a'].append((x + cd).half().cpu())
+                data[role]['s'].append(sd.half().cpu())
+                if role == 'train' and len(ratio1) < 300:
+                    ratio1.append((cd.norm(dim=1) / x.norm(dim=1)).cpu().numpy())
+                    samp.append((sd.cpu(), x.norm(dim=1).cpu()))
+            else:
+                data[role]['a'].append(x.half().cpu())
+            if j % 1000 == 0:
+                log(f'{dom} prep2 {arm} {j}/{len(plan)}')
+        rng2 = np.random.default_rng(1)
+        st = {}
+        if arm == 'W':
+            S_tr = torch.cat(data['train']['s']).float()
+            st['mean_s'] = S_tr.mean(0)
+            del S_tr
+        inf = {'mask_bit': bit, 'tokens_per_frame_est': float(mpf), 'windows': len(plan), 'tokens': {}}
+        for r in CAP:
+            A_ = torch.cat(data[r]['a'])
+            keep = torch.from_numpy(np.sort(rng2.choice(len(A_), min(len(A_), CAP[r]), replace=False)))
+            X = A_[keep].float()
+            if arm == 'W':
+                X = X + (torch.cat(data[r]['s'])[keep].float() - st['mean_s'])
+            data[r] = None
+            info_r = {'available': int(len(A_)), 'used': int(len(keep))}
+            inf['tokens'][r] = info_r
+            np.save(loc / f'{r}_{arm}.npy', X.half().numpy())
+            shutil.copyfile(loc / f'{r}_{arm}.npy', od / f'{r}_{arm}.npy')
+            (loc / f'{r}_{arm}.npy').unlink()
+            del A_, X
+        if arm == 'W':
+            torch.save(st, od / 'w_stats.pt')
+            inf['median_norm_ratio_d1_over_x'] = float(np.median(np.concatenate(ratio1)))
+            inf['median_norm_ratio_d2_over_x'] = float(np.median(np.concatenate(
+                [((sd.float() - st['mean_s']).norm(dim=1) / xn).numpy() for sd, xn in samp])))
+        info[arm] = inf
+        log(f'{dom} prep2 {arm}: {json.dumps(inf)}')
+    (OUT / f'{dom}_prep2.json').write_text(json.dumps(info, indent=1))
+
+
 def cmd_train(a):
     import torch
     import v20 as V
@@ -243,6 +342,9 @@ def cmd_train(a):
     X = {}
     for r in CAP:
         B_ = np.load(od / f'{r}_B.npy', mmap_mode='r')
+        if a.arm in ARMS2:
+            X[r] = torch.from_numpy(np.load(od / f'{r}_{a.arm}.npy'))
+            continue
         if a.arm == 'V':
             X[r] = torch.from_numpy(np.asarray(B_[:, :1024], np.float32) + np.load(od / f'{r}_C.npy').astype(np.float32)).half()
         else:
@@ -280,7 +382,13 @@ def cmd_codes(a):
     dev = torch.device('cuda')
     dom = a.dom
     P = torch.load(BEE / dom / 'data' / 'pca.pt', map_location=dev)
-    saes = {f'{arm}_s{s}': SA.load(BEE / dom / 'sae' / f'{arm}_s{s}' / 'sae_theta.pt', dev) for arm in ARMS for s in SEEDS}
+    arms = a.arms.split(',') if a.arms else list(ARMS)
+    if any(x_ in ARMS2 for x_ in arms):
+        P.update(torch.load(BEE / dom / 'data' / 'w_stats.pt', map_location=dev))
+    bits = {BIT.get(x_, 1) for x_ in arms}
+    assert len(bits) == 1, 'one mask bit per codes job'
+    bit = bits.pop()
+    saes = {f'{arm}_s{s}': SA.load(BEE / dom / 'sae' / f'{arm}_s{s}' / 'sae_theta.pt', dev) for arm in arms for s in SEEDS}
     od = BEE / dom / 'codes'
     od.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
@@ -303,7 +411,7 @@ def cmd_codes(a):
             i0, i1 = kpos[k0], kpos[k1 - 1] + 1
             for b0 in range(i0, i1, 600):
                 W = V_.window(b0, min(i1, b0 + 600))
-                c, nb = centre_rows(W)
+                c, nb = centre_rows(W, bit)
                 if len(c):
                     x, cd, rs, cnt = raw_feats(W['tok'], c, nb, dev)
                     f = arm_inputs(x, cd, rs, cnt, P)
@@ -315,7 +423,7 @@ def cmd_codes(a):
                         m = torch.zeros((i1 - i0, 2048), device=dev).index_reduce_(0, fl, cc, 'amax', include_self=True)
                         Xc[k][base + b0 - i0: base + b0 - i0 + nfr] = m[b0 - i0: b0 - i0 + nfr].half().cpu().numpy()
             base += i1 - i0
-        R.to_parquet(od / f'{nm}_rows.parquet')
+        R.to_parquet(od / f'{nm}_rows{"_n2" if bit == 2 else ""}.parquet')
         for k, x in Xc.items():
             np.save(od / f'{k}_{nm}.npy', x)
         log(f'{dom} {nm}: {len(R):,} frames, codes of {len(saes)} SAEs saved ({time.time() - t0:.0f}s)')
@@ -337,7 +445,9 @@ def cmd_score(a):
     S = json.loads((G.OUT / f'{dom}_scores.json').read_text())
     v1, elig = S['v1'], S['eligibility']
     od = BEE / dom / 'codes'
-    R = pd.read_parquet(od / 'eval_rows.parquet')
+    arms = a.arms.split(',') if a.arms else list(ARMS)
+    sfx = '_n2' if any(BIT.get(x_, 1) == 2 for x_ in arms) else ''
+    R = pd.read_parquet(od / f'eval_rows{sfx}.parquet')
     E = frame_sets(dom)['eval']
     rix = pd.Series(np.arange(len(R)), index=pd.MultiIndex.from_frame(R)).reindex(pd.MultiIndex.from_frame(E)).values
     assert not np.isnan(rix).any()
@@ -348,12 +458,12 @@ def cmd_score(a):
     ok = np.isfinite(z['me'])
     zs = lambda r: (r - r.mean()) / r.std()  # noqa: E731
     zM, zA = zs(rankdata(z['me'][ok])), zs(rankdata(z['area'][ok]))
-    Rp = pd.read_parquet(od / 'probe_rows.parquet')
+    Rp = pd.read_parquet(od / f'probe_rows{sfx}.parquet')
     Pr = frame_sets(dom)['probe']
     pix = pd.Series(np.arange(len(Rp)), index=pd.MultiIndex.from_frame(Rp)).reindex(pd.MultiIndex.from_frame(Pr)).values.astype(np.int64)
     use = np.ones(len(F), bool)
     out = {}
-    for arm in ARMS:
+    for arm in arms:
         for s in SEEDS:
             k = f'{arm}_s{s}'
             if a.only and k != a.only:
@@ -406,7 +516,8 @@ def cmd_score(a):
 def main():
     import argparse
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('prep', 'train', 'codes', 'score'))
+    p.add_argument('step', choices=('prep', 'prep2', 'train', 'codes', 'score'))
+    p.add_argument('--arms', default='')
     p.add_argument('--dom', choices=('mice', 'ants'))
     p.add_argument('--arm', default='S')
     p.add_argument('--seed', type=int, default=1001)
@@ -414,7 +525,7 @@ def main():
     p.add_argument('--only', default='', help='score one <arm>_s<seed> (parallel CPU jobs)')
     p.add_argument('--outdir', default='', help='write the score json here (identity check)')
     a = p.parse_args()
-    {'prep': cmd_prep, 'train': cmd_train, 'codes': cmd_codes, 'score': cmd_score}[a.step](a)
+    {'prep': cmd_prep, 'prep2': cmd_prep2, 'train': cmd_train, 'codes': cmd_codes, 'score': cmd_score}[a.step](a)
 
 
 if __name__ == '__main__':
