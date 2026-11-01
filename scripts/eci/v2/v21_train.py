@@ -53,6 +53,23 @@ AMENDMENT 2 (2026-11-01, coordinator / user, before these numbers existed): refe
     token set at every 5 fps frame, eci_codes/v2_0B/<dom>/videos). Contrasts: PB rescored vs PB as reported = scoring
     pipeline; PB rescored vs S = mask v5 + new training sample; S vs S_N2 = the mask inside U only. Also measured: the
     share of the real N2 tokens outside U (v20_n2cover.py, old all-token probe stores).
+AMENDMENT 3 (2026-11-01, POST-HOC DIAGNOSTICS after the mice and ants S/A/B/V results; they do NOT change the pick
+    rule; written before any of their numbers):
+  D1 mice gap test (scripts/eci/v2/v21_gap.py). Hypothesis: mask v5 drops the patches between interacting mice where
+    nose-nose / nose-tail contact is visible, which is why S (AUROC 0.737) is below v2.0 PASS B (0.778) on mice.
+    Frames = the mice eval frames; N2 = the PASS B kept tokens (full N2, stored per frame); v5 = flag bit0 of the v2.1
+    store at the same frame. N2-only = N2 minus v5; BRIDGE = an N2-only patch within one body width (2h / 16 = 4 patches,
+    Chebyshev) of two distinct 8-connected v5 components. (a) counts on nn+ / nt+ frames vs negatives matched on the
+    body-gap proxy deciles (proxy_mice.npy; equal counts per decile, rng 0): medians and the share of frames with >= 1
+    bridge patch. (b) PASS B best neurons nn #803, nt #1402: their peak (argmax) patch on their top-1% frames and on the
+    positive frames: share outside v5 and share on bridge patches. SUPPORTED iff positives have clearly more bridge
+    patches (share with >= 1 bridge higher by >= 0.10) AND the neurons peak outside v5 on >= 30% of their best frames;
+    REFUTED if the peaks sit inside v5 (< 10% outside).
+  D2 ants frame-aggregation test. Hypothesis: grooming is spread over many small patches at native resolution, so the
+    single-max frame readout gives less pure top frames than v1. S and V (3 seeds each, no retraining) re-scored with
+    ONLY the patch-to-frame aggregation changed: max (current), mean of the top-k token codes (k = 3, 5, 10; fewer
+    tokens -> mean of those), mean over all M_t tokens; then the same readouts / scorer. REFUTED if no aggregation moves
+    top-1% precision (P(on), mean over eligible cells) by more than +0.03 toward v1's 0.840. Mice: same, as a check.
 ==================================================================================================================
 Steps: prep --dom D (GPU) | train --dom D --arm X --seed s (GPU) | codes --dom D (GPU) | score --dom D (CPU) | report (CPU)
 """
@@ -409,7 +426,10 @@ def cmd_codes(a):
         for ser, obs, k0, k1 in spans:
             rows += [(ser, obs, k) for k in range(k0, k1)]
         R = pd.DataFrame(rows, columns=['series', 'obs', 'k'])
-        Xc = {k: np.zeros((len(R), 2048), np.float16) for k in saes}
+        aggs = [x_ for x_ in a.aggs.split(',') if x_] if (a.aggs and nm == 'eval') else []
+        if a.aggs and nm != 'eval':
+            continue
+        Xc = {(k, g_): np.zeros((len(R), 2048), np.float16) for k in saes for g_ in (aggs or ['max'])}
         base = 0
         for (ser, obs, k0, k1) in spans:
             V_ = Video(dom, ser, obs)
@@ -426,12 +446,32 @@ def cmd_codes(a):
                     for k, (sae, norm) in saes.items():
                         with torch.no_grad():
                             cc = sae.encode(norm(f[k.split('_')[0]]), mode='threshold').float()
-                        m = torch.zeros((i1 - i0, 2048), device=dev).index_reduce_(0, fl, cc, 'amax', include_self=True)
-                        Xc[k][base + b0 - i0: base + b0 - i0 + nfr] = m[b0 - i0: b0 - i0 + nfr].half().cpu().numpy()
+                        if not aggs:
+                            m = torch.zeros((i1 - i0, 2048), device=dev).index_reduce_(0, fl, cc, 'amax', include_self=True)
+                            Xc[(k, 'max')][base + b0 - i0: base + b0 - i0 + nfr] = m[b0 - i0: b0 - i0 + nfr].half().cpu().numpy()
+                            continue
+                        # AMENDMENT 3 diagnostic aggregations: dense (frame, token, neuron) per window
+                        lf = fl - (b0 - i0)
+                        o_ = torch.argsort(lf, stable=True)
+                        lfs = lf[o_]
+                        cnt_ = torch.bincount(lfs, minlength=nfr)
+                        st_ = torch.cumsum(cnt_, 0) - cnt_
+                        rk = torch.arange(len(lfs), device=dev) - st_[lfs]
+                        D = torch.zeros((nfr, int(cnt_.max()), 2048), device=dev)
+                        D[lfs, rk] = cc[o_]
+                        cf = cnt_.clamp(min=1).float()[:, None]
+                        for g_ in aggs:
+                            if g_ == 'mean':
+                                v_ = D.sum(1) / cf
+                            else:
+                                kk = int(g_[3:])
+                                v_ = D.topk(min(kk, D.shape[1]), dim=1).values.sum(1) / cf.clamp(max=kk)
+                            Xc[(k, g_)][base + b0 - i0: base + b0 - i0 + nfr] = v_.half().cpu().numpy()
+                        del D
             base += i1 - i0
         R.to_parquet(od / f'{nm}_rows{"_n2" if bit == 2 else ""}.parquet')
-        for k, x in Xc.items():
-            np.save(od / f'{k}_{nm}.npy', x)
+        for (k, g_), x in Xc.items():
+            np.save(od / (f'{k}_{nm}.npy' if g_ == 'max' else f'{k}_{nm}_{g_}.npy'), x)
         log(f'{dom} {nm}: {len(R):,} frames, codes of {len(saes)} SAEs saved ({time.time() - t0:.0f}s)')
 
 
@@ -490,11 +530,11 @@ def cmd_score(a):
             k = f'{arm}_s{s}'
             if a.only and k != a.only:
                 continue
-            f_ = (Path(a.outdir) if a.outdir else OUT / dom) / f'{k}.json'
+            f_ = (Path(a.outdir) if a.outdir else OUT / dom) / (f'{k}_{a.agg}.json' if a.agg else f'{k}.json')
             if f_.exists() and not a.force:
                 out[k] = json.loads(f_.read_text())
                 continue
-            raw = ref_codes(dom, R) if a.ref else np.load(od / f'{k}_eval.npy').astype(np.float32)
+            raw = ref_codes(dom, R) if a.ref else np.load(od / (f'{k}_eval_{a.agg}.npy' if a.agg else f'{k}_eval.npy')).astype(np.float32)
             sm = np.concatenate([RO.smooth(raw[a0:a1], 1) for a0, a1 in zip(st[:-1], st[1:])])
             # HMM P(on): fitted per neuron on these spans (label-free), applied per span
             from src.eci.v2 import hmm as HM
@@ -516,7 +556,7 @@ def cmd_score(a):
                                                    for c, v in sc.items()}}
                 if proxy is not None and rd != 'raw':
                     res[rd]['prox'] = PX.strat(F, Xe, use, SP, sc, proxy)
-            C = (ref_codes(dom, Rp) if a.ref else np.load(od / f'{k}_probe.npy').astype(np.float32))[pix]
+            C = (ref_codes(dom, Rp) if a.ref else np.load(od / f'{k}_probe.npy').astype(np.float32))[pix]  # max readout (dyn unchanged)
             n = e = 0
             for j in range(256):
                 cj = C[:, j]
@@ -541,6 +581,8 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('step', choices=('prep', 'prep2', 'train', 'codes', 'score'))
     p.add_argument('--arms', default='')
+    p.add_argument('--aggs', default='', help='codes: eval-frame aggregations, e.g. top3,top5,top10,mean (AMENDMENT 3)')
+    p.add_argument('--agg', default='', help='score: one aggregation')
     p.add_argument('--dom', choices=('mice', 'ants'))
     p.add_argument('--arm', default='S')
     p.add_argument('--seed', type=int, default=1001)
