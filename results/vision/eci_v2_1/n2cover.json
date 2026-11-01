@@ -1,0 +1,42 @@
+{
+ "v2_prob/mice": {
+  "frames": 17280,
+  "N2_tokens_per_frame": 265.6866898148148,
+  "U_tokens_per_frame": 291.0126157407407,
+  "N2_outside_U_share": 0.19667153554316144,
+  "per_frame_outside_share_q50_q90": [
+   0.1753788748564868,
+   0.3106060606060606
+  ]
+ },
+ "v2_prob/ants": {
+  "frames": 11700,
+  "N2_tokens_per_frame": 43.3817094017094,
+  "U_tokens_per_frame": 88.36290598290599,
+  "N2_outside_U_share": 0.011389651789126931,
+  "per_frame_outside_share_q50_q90": [
+   0.0,
+   0.030303030303030304
+  ]
+ },
+ "v2_behav/mice": {
+  "frames": 21600,
+  "N2_tokens_per_frame": 225.14560185185186,
+  "U_tokens_per_frame": 265.1798148148148,
+  "N2_outside_U_share": 0.14229536647580937,
+  "per_frame_outside_share_q50_q90": [
+   0.1167413932726303,
+   0.23404255319148937
+  ]
+ },
+ "v2_behav/ants": {
+  "frames": 21600,
+  "N2_tokens_per_frame": 42.82703703703704,
+  "U_tokens_per_frame": 84.58384259259259,
+  "N2_outside_U_share": 0.009051265642160975,
+  "per_frame_outside_share_q50_q90": [
+   0.0,
+   0.027777777777777776
+  ]
+ }
+}
