@@ -352,6 +352,9 @@ def cmd_report(a):
     agg = a.agg
     out, md = {}, []
     for dom in ('mice', 'ants'):
+        if not (LB / f'boot_{dom}.npz').exists():
+            log(f'no bootstrap for {dom} yet; skipped')
+            continue
         S0 = json.loads((G.OUT / f'{dom}_scores.json').read_text())
         gcells = [c for c, r in S0['eligibility'].items() if r['eligible'] and c.split('|')[1] not in G.ONLID]
         fel = focal_elig() if dom == 'ants' else {}
