@@ -1,0 +1,17 @@
+{
+ "mode": "P253",
+ "windows": 21640,
+ "tokens_per_frame_est": 38.984,
+ "train": {
+  "available": 18708212,
+  "used": 16000000
+ },
+ "calib": {
+  "available": 1783406,
+  "used": 1500000
+ },
+ "eval": {
+  "available": 1700608,
+  "used": 1500000
+ }
+}

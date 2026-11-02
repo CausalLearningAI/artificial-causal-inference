@@ -1,0 +1,17 @@
+{
+ "mode": "E",
+ "windows": 51088,
+ "tokens_per_frame_est": 16.397759259259256,
+ "train": {
+  "available": 18919601,
+  "used": 16000000
+ },
+ "calib": {
+  "available": 1797290,
+  "used": 1500000
+ },
+ "eval": {
+  "available": 1754793,
+  "used": 1500000
+ }
+}

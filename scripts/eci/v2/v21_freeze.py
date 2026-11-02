@@ -343,7 +343,14 @@ def cmd_prep(a):
 def cmd_train(a):
     if a.arm not in ('S', 'V'):
         T.ARMS2[a.arm] = 1024
+    import torch
     T.cmd_train(a)
+    f = T.OUT / f'{a.dom}_train_{a.arm}_s{a.seed}.json'
+    rec = json.loads(f.read_text())
+    rec['gpu'] = torch.cuda.get_device_name(0)
+    rec['tf32_matmul'] = bool(torch.backends.cuda.matmul.allow_tf32)
+    f.write_text(json.dumps(rec, indent=1, default=float))
+    log(f'gpu {rec["gpu"]} recorded in {f.name}')
 
 
 # ---------------------------------------------------------------------------------------------- codes
@@ -572,10 +579,20 @@ def readout_fz(dom, key, agg, F):
 def cmd_score(a):
     """readout (P(on) HMM fitted once on the scoring spans for v2; raw for v1) -> v21_ladder.score2 on the gate cells
     (+ ants focal) -> ladder json / npz; identity check vs the existing ladder json where one exists (fail loud)."""
+    if ',' in a.agg:
+        import copy
+        for g in a.agg.split(','):
+            b = copy.copy(a)
+            b.agg = g
+            cmd_score(b)
+        return
     import v20_gate as G
     L = ladder_mod()
     dom, key, agg = a.dom, a.model, a.agg
     tag = f'{key}_{agg}'
+    if (FZ / 'ladder' / dom / f'{tag}.json').exists():
+        log(f'{tag} exists, skipped')
+        return
     t0 = time.time()
     F, SP = L.frames(dom)
     X = readout_fz(dom, key, agg, F)
@@ -616,6 +633,185 @@ def cmd_score(a):
 def cmd_boot(a):
     L = ladder_mod()
     L.cmd_boot(a)
+
+
+# ---------------------------------------------------------------------------------------------- report
+MASKS = ('M', 'E', 'P253')
+ARMK = lambda f, m: f if m == 'M' else f'{f}{m}'  # noqa: E731
+S1, S2 = (1004, 1005, 1006), (1007, 1008, 1009)
+DOMS = ('mice', 'ants')
+
+
+def _groups():
+    g = {}
+    for agg in AGGS:
+        g[f'v1|{agg}'] = [f'v1_s{i}_{agg}' for i in range(11)]
+        for m in MASKS:
+            for f in ('S', 'V'):
+                g[f'{f}@{m}|{agg}'] = [f'{ARMK(f, m)}_s{s}_{agg}' for s in S1]
+            g[f'V@{m}|{agg}|s2'] = [f'V{"" if m == "M" else m}_s{s}_{agg}' for s in S2]
+    return g
+
+
+def cmd_report(a):
+    import v20_gate as G
+    L = ladder_mod()
+    NB = L.NB
+    out, md = {'domains': {}}, ['# v2.1 freeze: mask x readout (P(on) for v2, raw pooled code for v1; 95% CI = '
+                                'pools/videos + seeds resampled, 2000 replicates)', '']
+    rng = np.random.default_rng(L.SEED + 11)
+    D = {}
+    for dom in DOMS:
+        bp = LBF / f'boot_{dom}.npz'
+        if not bp.exists():
+            continue
+        z = np.load(bp)
+        S0 = json.loads((G.OUT / f'{dom}_scores.json').read_text())
+        gcells = [c for c, r in S0['eligibility'].items() if r['eligible'] and c.split('|')[1] not in G.ONLID]
+        fcells = {}
+        if dom == 'ants':
+            fel = L.focal_elig()
+            fcells = {'single': [c for c, e in fel.items() if e and c.endswith('|single')],
+                      'double': [c for c, e in fel.items() if e and c.endswith('|double')],
+                      'or': [c for c in gcells if c.endswith('|groom_any')]}
+        dm, lv = {}, {}
+        for gname, tags in _groups().items():
+            tags = [t for t in tags if all(f'{t}|gate|{c}' in z for c in gcells)]
+            if not tags:
+                continue
+            dm[gname] = np.stack([np.mean([z[f'{t}|gate|{c}'] for c in gcells], 0) for t in tags])
+            R = {'n': len(tags)}
+            for i, M in enumerate(L.MN):
+                R[M] = dm[gname][:, i, 0].tolist()
+            for f, cs in fcells.items():
+                if cs:
+                    part = 'gate' if f == 'or' else 'focal'
+                    R[f'focal_{f}_AUROC'] = [float(np.mean([z[f'{t}|{part}|{c}'][0, 0] for c in cs])) for t in tags]
+            if not gname.startswith('v1'):
+                agg = gname.split('|')[1]
+                v1f = {}
+                for i in range(11):
+                    jf = FZ / 'ladder' / dom / f'v1_s{i}_{agg}.json'
+                    if jf.exists():
+                        v1f[str(i)] = json.loads(jf.read_text())['gate']
+                pa, pf = [], []
+                for t in tags:
+                    J = json.loads((FZ / 'ladder' / dom / f'{t}.json').read_text())['gate']
+                    pa.append(sum(r['PASS_final'] for c, r in G.gate_rows(dom, S0['v1'], J, S0['eligibility']).items() if c in gcells))
+                    if v1f:
+                        pf.append(sum(r['PASS_final'] for c, r in G.gate_rows(dom, v1f, J, S0['eligibility']).items() if c in gcells))
+                R['gate_pass_am5'] = pa
+                R['gate_pass_v1_same_readout'] = pf
+            lv[gname] = R
+        D[dom] = dm
+        out['domains'][dom] = {'gate_cells': gcells, 'focal_cells': fcells, 'levels': lv, 'contrasts': {}}
+
+    def con(dom, x, y):
+        dm = D.get(dom, {})
+        if x not in dm or y not in dm:
+            return None
+        r = {}
+        for mi, M in enumerate(L.MN):
+            ax, ay = dm[x][:, mi, 1:], dm[y][:, mi, 1:]
+            ix = rng.integers(0, len(ax), (NB, len(ax)))
+            iy = rng.integers(0, len(ay), (NB, len(ay)))
+            rr = np.arange(NB)[:, None]
+            d = np.nanmean(ax[ix, rr], 1) - np.nanmean(ay[iy, rr], 1)
+            r[M] = {'diff': float(dm[x][:, mi, 0].mean() - dm[y][:, mi, 0].mean()),
+                    'ci': np.nanpercentile(d, [2.5, 97.5]).tolist()}
+        out['domains'][dom]['contrasts'][f'{x} - {y}'] = r
+        return r
+    eff = lambda r: r is not None and r['AUROC']['ci'][0] > 0  # noqa: E731
+    noninf = lambda r: r is not None and r['AUROC']['ci'][0] >= -0.01  # noqa: E731
+    med = lambda dom, g: float(np.median(out['domains'][dom]['levels'][g]['AUROC']))  # noqa: E731
+    dec = {}
+    # 1 mask
+    qual = []
+    for m in ('E', 'P253'):
+        cm, ca = con('mice', f'V@{m}|max', 'V@M|max'), con('ants', f'V@{m}|max', 'V@M|max')
+        if eff(cm) and noninf(ca):
+            qual.append(m)
+    for m in ('E', 'P253'):
+        for dom in DOMS:
+            con(dom, f'S@{m}|max', 'S@M|max')
+    mask = max(qual, key=lambda m: np.mean([med(d, f'V@{m}|max') for d in DOMS])) if qual else 'M'
+    dec['mask'] = {'qualifying': qual, 'chosen': mask}
+    # 2 readout
+    qual, why = [], {}
+    for r_ in ('mean', 'top10', 'maxmean'):
+        cs = {dom: con(dom, f'V@{mask}|{r_}', f'V@{mask}|max') for dom in DOMS}
+        e = [d for d in DOMS if eff(cs[d])]
+        if e and all(eff(cs[d]) or noninf(cs[d]) for d in DOMS):
+            qual.append(r_)
+            why[r_] = e
+    ro = max(qual, key=lambda r_: np.mean([med(d, f'V@{mask}|{r_}') for d in DOMS])) if qual else 'max'
+    dec['readout'] = {'qualifying': qual, 'chosen': ro}
+    rec = f'V@{mask}|{ro}'
+    dec['recipe'] = rec
+    eff_doms = set(why.get(ro, [])) | ({'mice'} if mask != 'M' else set())
+    dec['stage1_effect_domains'] = sorted(eff_doms)
+    # contrasts reported for every readout and arm
+    for dom in DOMS:
+        for agg in AGGS:
+            for m in MASKS:
+                for f in ('S', 'V'):
+                    con(dom, f'{f}@{m}|{agg}', f'v1|{agg}')
+            for m in ('E', 'P253'):
+                con(dom, f'V@{m}|{agg}', f'V@M|{agg}')
+        for m in ('E', 'P253'):
+            con(dom, f'S@{m}|max', 'S@M|max')
+        for agg in ('mean', 'top10', 'maxmean'):
+            for m in MASKS:
+                con(dom, f'V@{m}|{agg}', f'V@{m}|max')
+    # confirmation
+    if rec != 'V@M|max':
+        c2 = {dom: con(dom, f'{rec}|s2', 'V@M|max|s2') for dom in DOMS}
+        if any(v is None for v in c2.values()):
+            dec['confirmation'] = 'PENDING (stage-2 scores missing)'
+        else:
+            ok = all(eff(c2[d]) if d in eff_doms else noninf(c2[d]) for d in DOMS)
+            dec['confirmation'] = 'CONFIRMED' if ok else 'NOT CONFIRMED -> freeze V@M|max'
+            if not ok:
+                dec['frozen'] = 'V@M|max'
+    else:
+        dec['confirmation'] = 'not needed (recipe = V@M|max)'
+    dec.setdefault('frozen', rec)
+    fr = dec['frozen']
+    agg = fr.split('|')[1]
+    for dom in DOMS:
+        con(dom, fr, f'v1|{agg}')
+        con(dom, f'{fr}|s2', f'v1|{agg}')
+    vs = {}
+    for tag, g in (('s1', fr), ('s2', f'{fr}|s2')):
+        cm = out['domains'].get('mice', {}).get('contrasts', {}).get(f'{g} - v1|{agg}')
+        ca = out['domains'].get('ants', {}).get('contrasts', {}).get(f'{g} - v1|{agg}')
+        if cm and ca:
+            vs[tag] = {'C3_mice_effect': eff(cm), 'C4_ants_noninferior': noninf(ca)}
+    dec['vs_v1'] = vs
+    out['decision'] = dec
+    # markdown
+    f3 = lambda v: '-' if not v else (f'{np.median(v):.3f} [{min(v):.3f}, {max(v):.3f}]' if len(v) > 1 else f'{v[0]:.3f}')  # noqa
+    for dom in DOMS:
+        if dom not in out['domains']:
+            continue
+        O = out['domains'][dom]
+        md += [f'## {dom} ({len(O["gate_cells"])} gate cells)', '',
+               '| group (arm@mask, readout) | n | mean AUROC | top-1% prec | nAP | gate passes AM5 (v1 max bar) | gate passes (v1 same readout)'
+               + (' | focal single / double / or AUROC |' if dom == 'ants' else ' |'), '|' + '---|' * (8 if dom == 'ants' else 7)]
+        for gname, R in O['levels'].items():
+            tail = (f' | {f3(R.get("focal_single_AUROC"))} / {f3(R.get("focal_double_AUROC"))} / {f3(R.get("focal_or_AUROC"))} |'
+                    if dom == 'ants' else ' |')
+            md.append(f'| {gname} | {R["n"]} | {f3(R["AUROC"])} | {f3(R["top1_prec"])} | {f3(R["nAP"])} | '
+                      f'{R.get("gate_pass_am5", "-")} | {R.get("gate_pass_v1_same_readout", "-")}' + tail)
+        md += ['', '| contrast | d mean AUROC [95% CI] | d top-1% prec | d nAP |', '|---|---|---|---|']
+        for k, r in O['contrasts'].items():
+            md.append(f'| {k} | ' + ' | '.join(f'{r[M]["diff"]:+.3f} [{r[M]["ci"][0]:+.3f}, {r[M]["ci"][1]:+.3f}]'
+                                               for M in ('AUROC', 'top1_prec', 'nAP')) + ' |')
+        md.append('')
+    md += ['## Decision (pre-registered rules, scripts/eci/v2/v21_freeze_prereg.md)', '', '```', json.dumps(dec, indent=1), '```']
+    (FZ / 'report.json').write_text(json.dumps(out, indent=1, default=float))
+    (FZ / 'report.md').write_text('\n'.join(md))
+    print('\n'.join(md))
 
 
 def main():
