@@ -70,6 +70,47 @@ AMENDMENT 3 (2026-11-01, POST-HOC DIAGNOSTICS after the mice and ants S/A/B/V re
     ONLY the patch-to-frame aggregation changed: max (current), mean of the top-k token codes (k = 3, 5, 10; fewer
     tokens -> mean of those), mean over all M_t tokens; then the same readouts / scorer. REFUTED if no aggregation moves
     top-1% precision (P(on), mean over eligible cells) by more than +0.03 toward v1's 0.840. Mice: same, as a check.
+AMENDMENT 4 (2026-11-02 ~01:30, overnight wrap-up lead; written AFTER the S/A/B/V/W/SN2(ants)/PB/D2 numbers of seeds
+    1001-1003 were seen, BEFORE any seed-1004-1006 SAE, any focal-label score, any top-10 code of W/SN2/B and any bootstrap
+    number existed). Code: scripts/eci/v2/v21_ladder.py. Nothing here changes the earlier pick; all of it is REPORTED.
+  F  ANTS FOCAL GROOMING LABELS (permanent from now on). From the dataset configs: Y2F = the yellow ('orange') nestmate
+     grooms the focal, B2F = the blue nestmate grooms the focal ('groom-orangeandblue' sets both). single = Y2F XOR B2F,
+     double = Y2F AND B2F, or = Y2F OR B2F (identical to the existing groom_any cell). Same frames (eval.py ants 1 fps),
+     scorer (eval.score_cells + v20_gate.top1), splits and eval.py eligibility (counted before scoring: single eligible in
+     v2 / v3 / v4 / v4_infested; double eligible in v3 and v4 only, v2 17 bouts and v4_infested 10 bouts in one atlas
+     half). Scored for v1 (s0-10, raw frame max, its stored codes on the same frames), PB, SN2, S, A, B, V, W and the
+     fresh seeds. REPORTED cells, NOT gate cells (the gate stays the AMENDMENT 5 rule on Y2F / B2F / groom_any).
+  L  LADDER. R0 v1 (11 seeds, raw frame max); R1 DINOv3 native-res static on the old-style N2 mask: SN2 (3 seeds; misses
+     14-20% of the real N2 tokens on mice, ~1% on ants) and PB (v2.0 PASS B, 1 model, full N2, rescored); R2 + mask v5 =
+     S; R3 + temporal = V, W (B for reference). Every v2 row through this pipeline, readout P(on) (primary) for the metrics.
+  B  PAIRED BOOTSTRAP. Unit = mice pool (eval.py 'unit', the 2 phase videos of a pool together); ants video, resampled
+     within series. 2000 replicates, rng 20261102. Each replicate resamples units AND each rung's seeds (with replacement;
+     PB has one model, so only units). The neuron picked per cross-fit direction is held FIXED at its full-data pick (the
+     CI therefore omits selection variance; stated). A model's metric per cell = mean over directions of the held-out
+     half metric with frame weights = unit multiplicity (weighted versions of the scorer's AUROC (ties 0.5), nAP =
+     (AP - base) / (1 - base) with tied scores as one step, top-1% precision with cut = ceil(0.01 x total weight) and the
+     scorer's fixed random tie-break); domain metric = mean over the eligible gate cells; rung = mean over its seeds.
+     95% CI = 2.5 / 97.5 percentiles of the replicate differences; 'significant' = CI excludes 0. Contrasts per domain
+     (mean AUROC, top-1% precision, nAP): every rung - R0; SN2 -> S (mask only), PB -> S, S -> V, S -> W, W - V.
+     Secondary: seeds fixed (units only). IDENTITY CHECK (fail loud): with all weights 1 the per-cell AUROC / nAP / top-1%
+     precision must equal the stored score JSONs to 1e-6.
+  C  CONFIRMATION on fresh seeds 1004-1006 (both domains), arms S, V, W, same recipe / data / pipeline. Candidates V and
+     W chosen on seeds 1001-1003: V = best mice mean AUROC P(on) (0.812) with 4/4 mice cells; W = most ants gate passes
+     among max-readout arms (median 6) and ants top-1% precision 0.770. S fresh = the static control. Pre-registered
+     tests (P(on), max readout, bootstrap B above with the fresh seeds as the rung): C1 mice mean AUROC V - S > 0 (CI
+     excludes 0); C2 the same for W - S; C3 mice mean AUROC V - v1 and W - v1 > 0; C4 ants mean AUROC V - v1 and W - v1
+     non-inferior (lower CI bound >= -0.01); C5 ants top-1% precision V - v1, W - v1 reported (expected < 0 under max).
+     FROZEN ARM: of V and W the one with more gate passes (final rule, P(on), mice + ants, median over fresh seeds, under
+     the readout adopted by R below); tie -> higher mean over the two domains of mean AUROC P(on) (median over fresh
+     seeds). 'Temporal context helps' is SUPPORTED only if the frozen arm passes C1/C2 (its own) and C4.
+  R  READOUT (POST HOC, chosen after D2): candidate aggregation top10 = per frame, the mean of the 10 largest token codes
+     of each neuron (fewer tokens -> their mean), the aggregation that on seeds 1001-1003 closed most of the ants top-1%
+     gap (V 0.724 -> 0.822, S 0.760 -> 0.790, median) at the smallest mice cost (V mean AUROC 0.812 -> 0.801; 'mean' cost
+     0.015 and top-1% 0.032). Confirmed on the fresh seeds: ADOPT top10 for ALL arms iff, over the 9 fresh models (S, V,
+     W x 1004-1006), the median of [ants mean top-1% precision P(on) top10 - max] >= +0.03 AND the median of [mice mean
+     AUROC P(on) top10 - max] >= -0.02. Both readouts are reported for every arm that has token codes (S, V, W, B, SN2);
+     PB (stored frame-max codes only) and v1 (stored frame-max codes only; re-encoding the v1 tokens is not done tonight)
+     stay at frame max - stated as a caveat for every top10 comparison against them.
 ==================================================================================================================
 Steps: prep --dom D (GPU) | train --dom D --arm X --seed s (GPU) | codes --dom D (GPU) | score --dom D (CPU) | report (CPU)
 """
@@ -397,6 +438,11 @@ def frame_sets(dom):
     return {'eval': E.reset_index(drop=True), 'probe': Pr.reset_index(drop=True)}
 
 
+def seeds_of(a):
+    """--seeds (AMENDMENT 4 confirmation seeds 1004-1006) or the default 1001-1003."""
+    return tuple(int(x_) for x_ in a.seeds.split(',')) if getattr(a, 'seeds', '') else SEEDS
+
+
 def cmd_codes(a):
     """frame-max codes over the M_t tokens of every arm / seed: the 5 fps spans of the eval videos (for the readouts) and
     the suite probe frames -> BEE/<dom>/codes/<arm>_s<seed>_{span,probe}.npy + span index."""
@@ -411,7 +457,7 @@ def cmd_codes(a):
     bits = {BIT.get(x_, 1) for x_ in arms}
     assert len(bits) == 1, 'one mask bit per codes job'
     bit = bits.pop()
-    saes = {f'{arm}_s{s}': SA.load(BEE / dom / 'sae' / f'{arm}_s{s}' / 'sae_theta.pt', dev) for arm in arms for s in SEEDS}
+    saes = {f'{arm}_s{s}': SA.load(BEE / dom / 'sae' / f'{arm}_s{s}' / 'sae_theta.pt', dev) for arm in arms for s in seeds_of(a)}
     od = BEE / dom / 'codes'
     od.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
@@ -469,7 +515,8 @@ def cmd_codes(a):
                             Xc[(k, g_)][base + b0 - i0: base + b0 - i0 + nfr] = v_.half().cpu().numpy()
                         del D
             base += i1 - i0
-        R.to_parquet(od / f'{nm}_rows{"_n2" if bit == 2 else ""}.parquet')
+        if not a.no_rows:
+            R.to_parquet(od / f'{nm}_rows{"_n2" if bit == 2 else ""}.parquet')
         for (k, g_), x in Xc.items():
             np.save(od / (f'{k}_{nm}.npy' if g_ == 'max' else f'{k}_{nm}_{g_}.npy'), x)
         log(f'{dom} {nm}: {len(R):,} frames, codes of {len(saes)} SAEs saved ({time.time() - t0:.0f}s)')
@@ -526,7 +573,7 @@ def cmd_score(a):
     if a.ref:  # AMENDMENT 2: the v2.0 PASS B model re-scored through this pipeline from its stored full-N2 frame codes
         arms, seeds_ = ['PB'], {'PB': (REF_SEED[dom],)}
     for arm in arms:
-        for s in (seeds_[arm] if a.ref else SEEDS):
+        for s in (seeds_[arm] if a.ref else seeds_of(a)):
             k = f'{arm}_s{s}'
             if a.only and k != a.only:
                 continue
@@ -590,6 +637,8 @@ def main():
     p.add_argument('--ref', action='store_true', help='AMENDMENT 2: score the v2.0 PASS B model (no retraining)')
     p.add_argument('--only', default='', help='score one <arm>_s<seed> (parallel CPU jobs)')
     p.add_argument('--outdir', default='', help='write the score json here (identity check)')
+    p.add_argument('--seeds', default='', help='codes / score: comma-separated seeds (default 1001-1003)')
+    p.add_argument('--no_rows', action='store_true', help='codes: do not rewrite <set>_rows.parquet (parallel jobs)')
     a = p.parse_args()
     {'prep': cmd_prep, 'prep2': cmd_prep2, 'train': cmd_train, 'codes': cmd_codes, 'score': cmd_score}[a.step](a)
 
