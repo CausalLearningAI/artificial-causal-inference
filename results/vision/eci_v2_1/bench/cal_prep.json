@@ -1,0 +1,97 @@
+{
+ "roles": {
+  "calib": [
+   "mouse028_task1_annotator1",
+   "mouse061_task1_annotator1",
+   "mouse037_task1_annotator1",
+   "mouse047_task1_annotator1",
+   "mouse045_task1_annotator1",
+   "mouse005_task1_annotator1"
+  ],
+  "eval": [
+   "mouse009_task1_annotator1",
+   "mouse035_task1_annotator1",
+   "mouse024_task1_annotator1",
+   "mouse051_task1_annotator1",
+   "mouse067_task1_annotator1",
+   "mouse065_task1_annotator1"
+  ],
+  "train": [
+   "mouse021_task1_annotator1",
+   "mouse064_task1_annotator1",
+   "mouse020_task1_annotator1",
+   "mouse017_task1_annotator1",
+   "mouse011_task1_annotator1",
+   "mouse043_task1_annotator1",
+   "mouse003_task1_annotator1",
+   "mouse029_task1_annotator1",
+   "mouse031_task1_annotator1",
+   "mouse054_task1_annotator1",
+   "mouse012_task1_annotator1",
+   "mouse018_task1_annotator1",
+   "mouse068_task1_annotator1",
+   "mouse048_task1_annotator1",
+   "mouse019_task1_annotator1",
+   "mouse036_task1_annotator1",
+   "mouse004_task1_annotator1",
+   "mouse002_task1_annotator1",
+   "mouse062_task1_annotator1",
+   "mouse070_task1_annotator1",
+   "mouse025_task1_annotator1",
+   "mouse022_task1_annotator1",
+   "mouse001_task1_annotator1",
+   "mouse007_task1_annotator1",
+   "mouse023_task1_annotator1",
+   "mouse027_task1_annotator1",
+   "mouse038_task1_annotator1",
+   "mouse044_task1_annotator1",
+   "mouse052_task1_annotator1",
+   "mouse066_task1_annotator1",
+   "mouse016_task1_annotator1",
+   "mouse033_task1_annotator1",
+   "mouse026_task1_annotator1",
+   "mouse063_task1_annotator1",
+   "mouse010_task1_annotator1",
+   "mouse039_task1_annotator1",
+   "mouse056_task1_annotator1",
+   "mouse059_task1_annotator1",
+   "mouse053_task1_annotator1",
+   "mouse041_task1_annotator1",
+   "mouse049_task1_annotator1",
+   "mouse014_task1_annotator1",
+   "mouse013_task1_annotator1",
+   "mouse008_task1_annotator1",
+   "mouse046_task1_annotator1",
+   "mouse040_task1_annotator1",
+   "mouse032_task1_annotator1",
+   "mouse006_task1_annotator1",
+   "mouse050_task1_annotator1",
+   "mouse058_task1_annotator1",
+   "mouse015_task1_annotator1",
+   "mouse069_task1_annotator1",
+   "mouse060_task1_annotator1",
+   "mouse055_task1_annotator1",
+   "mouse030_task1_annotator1",
+   "mouse042_task1_annotator1",
+   "mouse057_task1_annotator1",
+   "mouse034_task1_annotator1"
+  ]
+ },
+ "tokens": {
+  "calib": {
+   "videos": 6,
+   "M_tokens_available": 653556,
+   "used": 653556
+  },
+  "eval": {
+   "videos": 6,
+   "M_tokens_available": 1669765,
+   "used": 1000000
+  },
+  "train": {
+   "videos": 58,
+   "M_tokens_available": 13062474,
+   "used": 8000000
+  }
+ }
+}
