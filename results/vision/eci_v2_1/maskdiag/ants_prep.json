@@ -1,0 +1,59 @@
+{
+ "windows": 15536,
+ "S_available_check": {
+  "train": 18456084,
+  "calib": 1796608,
+  "eval": 1714740
+ },
+ "SA": {
+  "train": {
+   "available": 14022575,
+   "used": 14022575,
+   "tokens_per_frame": 42.96132046568628
+  },
+  "calib": {
+   "available": 1345277,
+   "used": 1345277,
+   "tokens_per_frame": 43.396032258064515
+  },
+  "eval": {
+   "available": 1313746,
+   "used": 1313746,
+   "tokens_per_frame": 42.378903225806454
+  }
+ },
+ "SMN": {
+  "train": {
+   "available": 18624433,
+   "used": 16000000,
+   "tokens_per_frame": 57.06015012254902
+  },
+  "calib": {
+   "available": 1813473,
+   "used": 1500000,
+   "tokens_per_frame": 58.49912903225806
+  },
+  "eval": {
+   "available": 1730249,
+   "used": 1500000,
+   "tokens_per_frame": 55.81448387096774
+  }
+ },
+ "SU": {
+  "train": {
+   "available": 27947189,
+   "used": 16000000,
+   "tokens_per_frame": 85.62251531862745
+  },
+  "calib": {
+   "available": 2757861,
+   "used": 1500000,
+   "tokens_per_frame": 88.96325806451613
+  },
+  "eval": {
+   "available": 2581421,
+   "used": 1500000,
+   "tokens_per_frame": 83.27164516129032
+  }
+ }
+}

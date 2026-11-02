@@ -1,0 +1,383 @@
+{
+ "all": {
+  "frames": 86400,
+  "tokens_per_frame_mean": {
+   "a_M_and_N2": 188.38,
+   "b_M_only": 15.69,
+   "c_N2_only": 25.04,
+   "d_U_only": 61.86
+  },
+  "tokens_per_frame_median": {
+   "a": 189.0,
+   "b": 14.0,
+   "c": 24.0,
+   "d": 42.0
+  },
+  "S_tokens_mean": 204.07777777777778,
+  "SN2_tokens_mean": 213.4220949074074,
+  "U_tokens_mean": 290.9725462962963,
+  "frames_with_0_M_tokens": 0.0,
+  "frames_with_0_SN2_tokens": 0.0,
+  "c_dist_share_1_2_3_4_5plus_noM": [
+   0.9569,
+   0.0374,
+   0.0036,
+   0.001,
+   0.001,
+   0.0
+  ],
+  "d_dist_share_1_2_3_4_5plus_noM": [
+   0.5008,
+   0.2516,
+   0.1127,
+   0.0565,
+   0.0783,
+   0.0
+  ],
+  "c_bridge_tokens_per_frame": 2.2982407407407406,
+  "c_bridge_share_of_c": 0.09178897152973915,
+  "frames_with_ge1_bridge_c": 0.34577546296296297,
+  "M_components_mean": 2.595497685185185,
+  "share_frames_M_ge2_components": 0.817650462962963
+ },
+ "nn+": {
+  "frames": 608,
+  "tokens_per_frame_mean": {
+   "a_M_and_N2": 204.45,
+   "b_M_only": 12.34,
+   "c_N2_only": 33.85,
+   "d_U_only": 72.53
+  },
+  "tokens_per_frame_median": {
+   "a": 212.5,
+   "b": 11.0,
+   "c": 34.0,
+   "d": 64.0
+  },
+  "S_tokens_mean": 216.78453947368422,
+  "SN2_tokens_mean": 238.29934210526315,
+  "U_tokens_mean": 323.1694078947368,
+  "frames_with_0_M_tokens": 0.0,
+  "frames_with_0_SN2_tokens": 0.0,
+  "c_dist_share_1_2_3_4_5plus_noM": [
+   0.9491,
+   0.0448,
+   0.0046,
+   0.0008,
+   0.0006,
+   0.0
+  ],
+  "d_dist_share_1_2_3_4_5plus_noM": [
+   0.5289,
+   0.2571,
+   0.1078,
+   0.0504,
+   0.0558,
+   0.0
+  ],
+  "c_bridge_tokens_per_frame": 2.710526315789474,
+  "c_bridge_share_of_c": 0.08006996404625401,
+  "frames_with_ge1_bridge_c": 0.3996710526315789,
+  "M_components_mean": 2.450657894736842,
+  "share_frames_M_ge2_components": 0.7976973684210527
+ },
+ "nn-": {
+  "frames": 85792,
+  "tokens_per_frame_mean": {
+   "a_M_and_N2": 188.27,
+   "b_M_only": 15.72,
+   "c_N2_only": 24.98,
+   "d_U_only": 61.78
+  },
+  "tokens_per_frame_median": {
+   "a": 189.0,
+   "b": 14.0,
+   "c": 24.0,
+   "d": 42.0
+  },
+  "S_tokens_mean": 203.98772612831033,
+  "SN2_tokens_mean": 213.24579214845207,
+  "U_tokens_mean": 290.74437010443864,
+  "frames_with_0_M_tokens": 0.0,
+  "frames_with_0_SN2_tokens": 0.0,
+  "c_dist_share_1_2_3_4_5plus_noM": [
+   0.957,
+   0.0373,
+   0.0036,
+   0.001,
+   0.001,
+   0.0
+  ],
+  "d_dist_share_1_2_3_4_5plus_noM": [
+   0.5005,
+   0.2516,
+   0.1128,
+   0.0566,
+   0.0785,
+   0.0
+  ],
+  "c_bridge_tokens_per_frame": 2.2953189108541587,
+  "c_bridge_share_of_c": 0.09190153859939293,
+  "frames_with_ge1_bridge_c": 0.3453935098843715,
+  "M_components_mean": 2.5965241514360313,
+  "share_frames_M_ge2_components": 0.8177918687057069
+ },
+ "np+": {
+  "frames": 1248,
+  "tokens_per_frame_mean": {
+   "a_M_and_N2": 201.65,
+   "b_M_only": 12.99,
+   "c_N2_only": 28.07,
+   "d_U_only": 58.3
+  },
+  "tokens_per_frame_median": {
+   "a": 203.0,
+   "b": 12.5,
+   "c": 27.0,
+   "d": 46.0
+  },
+  "S_tokens_mean": 214.64743589743588,
+  "SN2_tokens_mean": 229.72195512820514,
+  "U_tokens_mean": 301.01121794871796,
+  "frames_with_0_M_tokens": 0.0,
+  "frames_with_0_SN2_tokens": 0.0,
+  "c_dist_share_1_2_3_4_5plus_noM": [
+   0.9627,
+   0.0338,
+   0.0029,
+   0.0004,
+   0.0002,
+   0.0
+  ],
+  "d_dist_share_1_2_3_4_5plus_noM": [
+   0.5472,
+   0.2472,
+   0.101,
+   0.0482,
+   0.0564,
+   0.0
+  ],
+  "c_bridge_tokens_per_frame": 2.2732371794871793,
+  "c_bridge_share_of_c": 0.08099234897796048,
+  "frames_with_ge1_bridge_c": 0.3661858974358974,
+  "M_components_mean": 2.480769230769231,
+  "share_frames_M_ge2_components": 0.8309294871794872
+ },
+ "np-": {
+  "frames": 85152,
+  "tokens_per_frame_mean": {
+   "a_M_and_N2": 188.19,
+   "b_M_only": 15.73,
+   "c_N2_only": 24.99,
+   "d_U_only": 61.91
+  },
+  "tokens_per_frame_median": {
+   "a": 189.0,
+   "b": 14.0,
+   "c": 24.0,
+   "d": 42.0
+  },
+  "S_tokens_mean": 203.9228673431041,
+  "SN2_tokens_mean": 213.18320180383316,
+  "U_tokens_mean": 290.82541807591133,
+  "frames_with_0_M_tokens": 0.0,
+  "frames_with_0_SN2_tokens": 0.0,
+  "c_dist_share_1_2_3_4_5plus_noM": [
+   0.9568,
+   0.0374,
+   0.0036,
+   0.001,
+   0.001,
+   0.0
+  ],
+  "d_dist_share_1_2_3_4_5plus_noM": [
+   0.5001,
+   0.2517,
+   0.1129,
+   0.0567,
+   0.0786,
+   0.0
+  ],
+  "c_bridge_tokens_per_frame": 2.2986071965426533,
+  "c_bridge_share_of_c": 0.09196666607150744,
+  "frames_with_ge1_bridge_c": 0.3454763246899662,
+  "M_components_mean": 2.5971791619691844,
+  "share_frames_M_ge2_components": 0.8174558436677941
+ },
+ "nose_nose+": {
+  "frames": 1852,
+  "tokens_per_frame_mean": {
+   "a_M_and_N2": 202.51,
+   "b_M_only": 12.8,
+   "c_N2_only": 29.96,
+   "d_U_only": 63.0
+  },
+  "tokens_per_frame_median": {
+   "a": 205.0,
+   "b": 12.0,
+   "c": 29.0,
+   "d": 51.0
+  },
+  "S_tokens_mean": 215.3120950323974,
+  "SN2_tokens_mean": 232.47408207343412,
+  "U_tokens_mean": 308.2672786177106,
+  "frames_with_0_M_tokens": 0.0,
+  "frames_with_0_SN2_tokens": 0.0,
+  "c_dist_share_1_2_3_4_5plus_noM": [
+   0.9576,
+   0.038,
+   0.0035,
+   0.0006,
+   0.0004,
+   0.0
+  ],
+  "d_dist_share_1_2_3_4_5plus_noM": [
+   0.5401,
+   0.251,
+   0.1036,
+   0.049,
+   0.0562,
+   0.0
+  ],
+  "c_bridge_tokens_per_frame": 2.4152267818574513,
+  "c_bridge_share_of_c": 0.08061492989222506,
+  "frames_with_ge1_bridge_c": 0.3758099352051836,
+  "M_components_mean": 2.4719222462203025,
+  "share_frames_M_ge2_components": 0.8196544276457883
+ },
+ "nose_nose-": {
+  "frames": 84548,
+  "tokens_per_frame_mean": {
+   "a_M_and_N2": 188.07,
+   "b_M_only": 15.76,
+   "c_N2_only": 24.93,
+   "d_U_only": 61.83
+  },
+  "tokens_per_frame_median": {
+   "a": 189.0,
+   "b": 14.0,
+   "c": 23.0,
+   "d": 42.0
+  },
+  "S_tokens_mean": 203.83169323934334,
+  "SN2_tokens_mean": 213.00476652315845,
+  "U_tokens_mean": 290.593710081847,
+  "frames_with_0_M_tokens": 0.0,
+  "frames_with_0_SN2_tokens": 0.0,
+  "c_dist_share_1_2_3_4_5plus_noM": [
+   0.9569,
+   0.0374,
+   0.0036,
+   0.001,
+   0.001,
+   0.0
+  ],
+  "d_dist_share_1_2_3_4_5plus_noM": [
+   0.4999,
+   0.2516,
+   0.1129,
+   0.0567,
+   0.0788,
+   0.0
+  ],
+  "c_bridge_tokens_per_frame": 2.2956781946350002,
+  "c_bridge_share_of_c": 0.09208311509879383,
+  "frames_with_ge1_bridge_c": 0.34511756635284097,
+  "M_components_mean": 2.5982045701849836,
+  "share_frames_M_ge2_components": 0.8176065666840138
+ },
+ "nt+": {
+  "frames": 728,
+  "tokens_per_frame_mean": {
+   "a_M_and_N2": 217.49,
+   "b_M_only": 12.74,
+   "c_N2_only": 36.87,
+   "d_U_only": 84.07
+  },
+  "tokens_per_frame_median": {
+   "a": 219.5,
+   "b": 11.0,
+   "c": 36.0,
+   "d": 70.0
+  },
+  "S_tokens_mean": 230.2293956043956,
+  "SN2_tokens_mean": 254.35714285714286,
+  "U_tokens_mean": 351.16895604395603,
+  "frames_with_0_M_tokens": 0.0,
+  "frames_with_0_SN2_tokens": 0.0,
+  "c_dist_share_1_2_3_4_5plus_noM": [
+   0.9456,
+   0.0434,
+   0.0045,
+   0.0014,
+   0.0051,
+   0.0
+  ],
+  "d_dist_share_1_2_3_4_5plus_noM": [
+   0.4754,
+   0.257,
+   0.1197,
+   0.0608,
+   0.0871,
+   0.0
+  ],
+  "c_bridge_tokens_per_frame": 2.4450549450549453,
+  "c_bridge_share_of_c": 0.06631398554504135,
+  "frames_with_ge1_bridge_c": 0.3489010989010989,
+  "M_components_mean": 2.3392857142857144,
+  "share_frames_M_ge2_components": 0.8035714285714286
+ },
+ "nt-": {
+  "frames": 85672,
+  "tokens_per_frame_mean": {
+   "a_M_and_N2": 188.14,
+   "b_M_only": 15.72,
+   "c_N2_only": 24.94,
+   "d_U_only": 61.67
+  },
+  "tokens_per_frame_median": {
+   "a": 189.0,
+   "b": 14.0,
+   "c": 24.0,
+   "d": 42.0
+  },
+  "S_tokens_mean": 203.855553739845,
+  "SN2_tokens_mean": 213.07424829582595,
+  "U_tokens_mean": 290.46102577271455,
+  "frames_with_0_M_tokens": 0.0,
+  "frames_with_0_SN2_tokens": 0.0,
+  "c_dist_share_1_2_3_4_5plus_noM": [
+   0.9571,
+   0.0373,
+   0.0036,
+   0.001,
+   0.001,
+   0.0
+  ],
+  "d_dist_share_1_2_3_4_5plus_noM": [
+   0.5011,
+   0.2515,
+   0.1127,
+   0.0565,
+   0.0782,
+   0.0
+  ],
+  "c_bridge_tokens_per_frame": 2.2969931833037633,
+  "c_bridge_share_of_c": 0.09210903229067789,
+  "frames_with_ge1_bridge_c": 0.34574890279204407,
+  "M_components_mean": 2.5976748529274443,
+  "share_frames_M_ge2_components": 0.8177700999159585
+ },
+ "probe_prob_uint8_quartiles": {
+  "c_N2_only": [
+   43.0,
+   120.0,
+   197.0
+  ],
+  "b_M_only": [
+   241.0,
+   249.0,
+   253.0
+  ]
+ }
+}

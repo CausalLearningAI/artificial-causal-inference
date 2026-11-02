@@ -1,0 +1,59 @@
+{
+ "windows": 4536,
+ "S_available_check": {
+  "train": 18385219,
+  "calib": 1776147,
+  "eval": 1830834
+ },
+ "SA": {
+  "train": {
+   "available": 17035829,
+   "used": 16000000,
+   "tokens_per_frame": 180.27332275132275
+  },
+  "calib": {
+   "available": 1640830,
+   "used": 1500000,
+   "tokens_per_frame": 173.63280423280423
+  },
+  "eval": {
+   "available": 1672067,
+   "used": 1500000,
+   "tokens_per_frame": 176.9383068783069
+  }
+ },
+ "SMN": {
+  "train": {
+   "available": 20514089,
+   "used": 16000000,
+   "tokens_per_frame": 217.08030687830689
+  },
+  "calib": {
+   "available": 1978433,
+   "used": 1500000,
+   "tokens_per_frame": 209.35798941798942
+  },
+  "eval": {
+   "available": 2026625,
+   "used": 1500000,
+   "tokens_per_frame": 214.45767195767195
+  }
+ },
+ "SU": {
+  "train": {
+   "available": 26063178,
+   "used": 16000000,
+   "tokens_per_frame": 275.8008253968254
+  },
+  "calib": {
+   "available": 2520295,
+   "used": 1500000,
+   "tokens_per_frame": 266.6978835978836
+  },
+  "eval": {
+   "available": 2585020,
+   "used": 1500000,
+   "tokens_per_frame": 273.54708994708994
+  }
+ }
+}
