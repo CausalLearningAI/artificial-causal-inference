@@ -1,0 +1,27 @@
+{
+ "cfg": {
+  "W": 2048,
+  "prefixes": [
+   128,
+   256,
+   512,
+   2048
+  ],
+  "k": 16,
+  "steps": 30000,
+  "norm": "global"
+ },
+ "seed": 2,
+ "train_time_s": 182.91720008850098,
+ "steps_per_s": 164.00863333511052,
+ "n_train_tokens": 5632859,
+ "n_calib_tokens": 301363,
+ "n_eval_tokens": 289639,
+ "theta_star": 1.7308309078216553,
+ "eval_fve": 0.8865687785274043,
+ "eval_l0": 15.997600461263849,
+ "dead_at_end_train": 0,
+ "node": "gpu238",
+ "gpu": "NVIDIA A100-SXM4-80GB",
+ "gpu_mem_gb": 79.3
+}

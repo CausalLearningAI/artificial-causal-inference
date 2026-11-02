@@ -1,0 +1,34 @@
+[gpu] 2026/11/02 20:07:53.602, 0 %, 0 MiB
+[gpu] 2026/11/02 20:09:53.608, 1 %, 1767 MiB
+/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/lib/python3.11/site-packages/torch/utils/data/dataloader.py:617: UserWarning: This DataLoader will create 14 worker processes in total. Our suggested max number of worker in current system is 8, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(
+/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/scripts/eci/v2/v21_v1gap.py:116: UserWarning: index_reduce() is in beta and the API may change at any time. (Triggered internally at ../aten/src/ATen/native/cuda/Indexing.cu:1209.)
+  mx = torch.zeros(len(tok), z.shape[1], device=dev).index_reduce_(0, fi, z, 'amax', include_self=True)
+[gpu] 2026/11/02 20:11:53.608, 100 %, 3847 MiB
+[gpu] 2026/11/02 20:13:53.608, 100 %, 3907 MiB
+[gpu] 2026/11/02 20:15:53.608, 100 %, 3907 MiB
+[gpu] 2026/11/02 20:17:53.607, 100 %, 3907 MiB
+[gpu] 2026/11/02 20:19:53.606, 98 %, 3907 MiB
+[gpu] 2026/11/02 20:21:53.605, 53 %, 3907 MiB
+20:22:04 c1v4: 36,600 frames, 729s; d3 GPU 235s
+/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/lib/python3.11/site-packages/torch/utils/data/dataloader.py:617: UserWarning: This DataLoader will create 14 worker processes in total. Our suggested max number of worker in current system is 8, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(
+[gpu] 2026/11/02 20:23:53.606, 100 %, 3907 MiB
+[gpu] 2026/11/02 20:25:53.605, 100 %, 3907 MiB
+[gpu] 2026/11/02 20:27:53.605, 100 %, 3907 MiB
+[gpu] 2026/11/02 20:29:53.605, 98 %, 3907 MiB
+[gpu] 2026/11/02 20:31:53.604, 100 %, 3907 MiB
+[gpu] 2026/11/02 20:33:53.604, 96 %, 3907 MiB
+[gpu] 2026/11/02 20:35:53.603, 96 %, 3907 MiB
+[gpu] 2026/11/02 20:37:53.602, 98 %, 3907 MiB
+[gpu] 2026/11/02 20:39:53.602, 100 %, 3907 MiB
+[gpu] 2026/11/02 20:41:53.602, 100 %, 3907 MiB
+[gpu] 2026/11/02 20:43:53.601, 99 %, 3907 MiB
+[gpu] 2026/11/02 20:45:53.601, 99 %, 3907 MiB
+[gpu] 2026/11/02 20:47:53.600, 98 %, 3907 MiB
+[gpu] 2026/11/02 20:49:53.600, 98 %, 3907 MiB
+20:51:50 eci30: 90,600 frames, 2515s; d3 GPU 813s
+[gpu] 2026/11/02 20:51:53.599, 0 %, 3907 MiB
+[gpu] 2026/11/02 20:53:53.599, 0 %, 3907 MiB
+[gpu] 2026/11/02 20:55:53.600, 0 %, 3907 MiB
+20:56:50 {"frames": 127200, "tokens": 6223861, "tokens_per_frame": 48.92972484276729, "frames_without_token": 0, "identity_v1_s0": {"frames": 20000, "fire_agree": 0.99972158203125, "max_abs_diff": 32.20152282714844}, "wall_s": 2777.027336359024, "d3_gpu_s": 813.3020508289337, "node": "gpu238", "gpu": "NVIDIA A100-SXM4-80GB", "gpu_mem_gb": 79.3}

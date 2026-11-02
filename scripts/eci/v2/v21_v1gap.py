@@ -331,7 +331,7 @@ def report(Z, idmax):
         md.append(f"| {rung} | {dm[(rung, 'all')].shape[0]} | {c('all', 'AUROC')} | {c('all', 'top1_prec')} | {c('all', 'nAP')} | "
                   f"{c('Y2F+B2F', 'AUROC')} | {c('Y2F+B2F', 'top1_prec')} | {c('focal_single', 'top1_prec')} | "
                   f"{c('focal_double', 'top1_prec')} |")
-    md += ['', '| contrast | group | d mean AUROC [95% CI videos+seeds] | d top-1% prec [CI] | d nAP [CI] |', '|---|---|---|---|---|']
+    md += ['', '| contrast | group | d mean AUROC [95% CI videos+seeds] | d nAP [CI] | d top-1% prec [CI] |', '|---|---|---|---|---|']
     for name, gs in res['contrasts'].items():
         for g, r in gs.items():
             md.append(f'| {name} | {g} | ' + ' | '.join(f"{f3(r[M]['diff'])} [{f3(r[M]['ci'][0])}, {f3(r[M]['ci'][1])}]"

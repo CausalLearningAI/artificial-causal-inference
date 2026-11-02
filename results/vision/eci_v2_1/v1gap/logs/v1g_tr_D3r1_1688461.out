@@ -1,0 +1,11 @@
+[gpu] 2026/11/02 21:12:52.666, 0 %, 0 MiB
+21:13:47 D3r1: train 5,632,859 / calib 301,363 / eval 289,639 tokens, d 1024
+/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/scripts/eci/v2/v21_v1gap.py:202: UserWarning: The given NumPy array is not writable, and PyTorch does not support non-writable tensors. This means writing to this tensor will result in undefined behavior. You may want to copy the array to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at ../torch/csrc/utils/tensor_numpy.cpp:206.)
+  x = torch.from_numpy(np.ascontiguousarray(X[b:b + 500_000])).to(dev)
+/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference/scripts/eci/v2/v21_v1gap.py:204: UserWarning: index_reduce() is in beta and the API may change at any time. (Triggered internally at ../aten/src/ATen/native/cuda/Indexing.cu:1209.)
+  cm.index_reduce_(0, fl[b:b + 500_000], c, 'amax', include_self=True)
+[gpu] 2026/11/02 21:14:52.676, 81 %, 22945 MiB
+21:14:53 D3r1_s1: fve 0.8928, theta* 1.862, active share 0.2134, 57s
+21:15:52 D3r1_s2: fve 0.8933, theta* 1.843, active share 0.2185, 56s
+21:16:50 D3r1_s3: fve 0.8925, theta* 1.864, active share 0.2151, 55s
+[gpu] 2026/11/02 21:16:52.676, 1 %, 0 MiB

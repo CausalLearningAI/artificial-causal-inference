@@ -1,0 +1,16 @@
+{
+ "frames": 127200,
+ "tokens": 6223861,
+ "tokens_per_frame": 48.92972484276729,
+ "frames_without_token": 0,
+ "identity_v1_s0": {
+  "frames": 20000,
+  "fire_agree": 0.99972158203125,
+  "max_abs_diff": 32.20152282714844
+ },
+ "wall_s": 2777.027336359024,
+ "d3_gpu_s": 813.3020508289337,
+ "node": "gpu238",
+ "gpu": "NVIDIA A100-SXM4-80GB",
+ "gpu_mem_gb": 79.3
+}
