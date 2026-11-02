@@ -417,7 +417,33 @@ def cmd_report(a):
                 r[M] = {'diff': pt, 'ci_units_seeds': np.nanpercentile(d, [2.5, 97.5]).tolist(),
                         'ci_units_only': np.nanpercentile(fx, [2.5, 97.5]).tolist()}
             con[f'{x} - {y}'] = r
-        out[dom] = {'gate_cells': gcells, 'focal_cells': fcells, 'rows': rows, 'contrasts': con}
+        # focal forms (AMENDMENT 4 F, reported cells): same bootstrap on the mean over each form's eligible cells
+        fcon = {}
+        for f, cs in fcells.items():
+            if not cs:
+                continue
+            src = 'gate' if f == 'or' else 'focal'
+            dmf = {}
+            for rung, keys in RUNGS.items():
+                ks = [k for k in keys if all(f'{tg(k, rung)}|{src}|{c}' in z for c in cs)]
+                if ks:
+                    dmf[rung] = np.stack([np.mean([z[f'{tg(k, rung)}|{src}|{c}'] for c in cs], 0) for k in ks])
+            for x, y in CONTRASTS:
+                if x not in dmf or y not in dmf:
+                    continue
+                r = {}
+                for mi, M in enumerate(MN):
+                    ax, ay = dmf[x][:, mi, 1:], dmf[y][:, mi, 1:]
+                    ix = rng.integers(0, len(ax), (NB, len(ax)))
+                    iy = rng.integers(0, len(ay), (NB, len(ay)))
+                    rr = np.arange(NB)[:, None]
+                    d = np.nanmean(ax[ix, rr], 1) - np.nanmean(ay[iy, rr], 1)
+                    r[M] = {'diff': float(dmf[x][:, mi, 0].mean() - dmf[y][:, mi, 0].mean()),
+                            'ci_units_seeds': np.nanpercentile(d, [2.5, 97.5]).tolist(),
+                            'ci_units_only': np.nanpercentile(ax.mean(0) - ay.mean(0), [2.5, 97.5]).tolist()}
+                fcon.setdefault(f, {})[f'{x} - {y}'] = r
+            fcon.setdefault(f, {})['_levels'] = {rg: [float(np.median(v[:, 0, 0])), float(np.median(v[:, 2, 0]))] for rg, v in dmf.items()}
+        out[dom] = {'gate_cells': gcells, 'focal_cells': fcells, 'rows': rows, 'contrasts': con, 'focal_contrasts': fcon}
         md.append(f'## {dom}' + (f' (readout {agg} for the v2 token-code arms; v1 / PB frame max)' if agg else ' (readout frame max)'))
         fmr = lambda v: '-' if not v else (f'{np.median(v):.3f} [{min(v):.3f}, {max(v):.3f}]' if len(v) > 1 else f'{v[0]:.3f}')  # noqa
         hd = ('| rung | n | mean AUROC P(on) | top-1% prec P(on) | nAP P(on) | F1max P(on) | gate passes / seed | dyn share @256 |'
@@ -432,6 +458,15 @@ def cmd_report(a):
         for k, r in con.items():
             cell = lambda m: f'{r[m]["diff"]:+.3f} [{r[m]["ci_units_seeds"][0]:+.3f}, {r[m]["ci_units_seeds"][1]:+.3f}] ([{r[m]["ci_units_only"][0]:+.3f}, {r[m]["ci_units_only"][1]:+.3f}])'  # noqa
             md.append(f'| {k} | {cell("AUROC")} | {cell("top1_prec")} | {cell("nAP")} |')
+        for f, cc in fcon.items():
+            md += ['', f'focal {f} (cells {fcells[f]}): levels AUROC / top-1% prec P(on), median over seeds: '
+                   + ', '.join(f'{k} {v[0]:.3f} / {v[1]:.3f}' for k, v in cc['_levels'].items()), '',
+                   f'| contrast (focal {f}) | d mean AUROC [95% CI videos+seeds] | d top-1% prec |', '|---|---|---|']
+            for k, r in cc.items():
+                if k == '_levels':
+                    continue
+                md.append(f'| {k} | ' + ' | '.join(f'{r[m]["diff"]:+.3f} [{r[m]["ci_units_seeds"][0]:+.3f}, {r[m]["ci_units_seeds"][1]:+.3f}]'
+                                                  for m in ('AUROC', 'top1_prec')) + ' |')
         md.append('')
     tag = f'_{agg}' if agg else ''
     (LO / f'ladder{tag}.json').write_text(json.dumps(out, indent=1, default=float))
