@@ -50,6 +50,13 @@ SEEDS = (1, 2, 3)
 log = L.log
 
 
+def devinfo():
+    import socket
+    import torch
+    return {'node': socket.gethostname(), 'gpu': torch.cuda.get_device_name(0),
+            'gpu_mem_gb': round(torch.cuda.get_device_properties(0).total_memory / 2**30, 1)}
+
+
 def eval_frames():
     import eval as EV
     return pd.read_parquet(EV.BEE / 'ants' / 'frames.parquet')
@@ -88,7 +95,8 @@ def cmd_tok(a):
                            cache=8)
         rows = g.row.values.astype(np.int64)
         ds = FrameDatasetFG([str(REPO / 'dataset' / p) for p in fp[rows]], enc.processor, rows, RawRGB())
-        dl = torch.utils.data.DataLoader(ds, batch_size=32, shuffle=False, pin_memory=True, prefetch_factor=4,
+        bs = 32 if torch.cuda.get_device_properties(0).total_memory / 2**30 > 20 else 8
+        dl = torch.utils.data.DataLoader(ds, batch_size=bs, shuffle=False, pin_memory=True, prefetch_factor=4,
                                          num_workers=max(2, int(os.environ.get('SLURM_CPUS_PER_TASK', 8)) - 2))
         gi, o = g.index.values, 0
         for pix, grey, rr, rgb in dl:
@@ -126,7 +134,7 @@ def cmd_tok(a):
     np.save(loc / 'pos.npy', po[o])
     meta = {'frames': len(F), 'tokens': int(len(fr)), 'tokens_per_frame': float(len(fr) / len(F)),
             'frames_without_token': int((np.bincount(fr, minlength=len(F)) == 0).sum()), 'identity_v1_s0': chk,
-            'wall_s': time.time() - t0, 'd3_gpu_s': e3.gpu_s}
+            'wall_s': time.time() - t0, 'd3_gpu_s': e3.gpu_s, **devinfo()}
     BEE.mkdir(parents=True, exist_ok=True)
     import shutil
     for f in loc.iterdir():
@@ -169,7 +177,12 @@ def cmd_train(a):
         if cap and len(ix) > cap:
             ix = np.sort(rng.choice(ix, cap, replace=False))
         sel[r] = ix
-    Xtr = torch.from_numpy(np.ascontiguousarray(X[sel['train']])).to(dev)
+    Xtr = torch.from_numpy(np.ascontiguousarray(X[sel['train']]))
+    if torch.cuda.get_device_properties(0).total_memory / 2**30 > 30:
+        Xtr = Xtr.to(dev)
+    else:  # small GPU: host-pinned tokens gathered per batch (same values)
+        import v20 as V20
+        Xtr = V20.HostTok(Xtr, dev)
     Xca = torch.from_numpy(np.ascontiguousarray(X[sel['calib']]))
     Xev = torch.from_numpy(np.ascontiguousarray(X[sel['eval']]))
     log(f'{a.arm}: train {len(Xtr):,} / calib {len(Xca):,} / eval {len(Xev):,} tokens, d {X.shape[1]}')
@@ -180,7 +193,7 @@ def cmd_train(a):
         key = f'{a.arm}_s{s}'
         od = BEE / 'sae' / key
         rec = SA.train(cfg, s, Xtr, Xca, Xev, od, dev)
-        (OUT / 'train' / f'{key}.json').write_text(json.dumps({k: v for k, v in rec.items() if k != 'history'}, indent=1,
+        (OUT / 'train' / f'{key}.json').write_text(json.dumps({**{k: v for k, v in rec.items() if k != 'history'}, **devinfo()}, indent=1,
                                                               default=float))
         sae, norm = SA.load(od / 'sae_theta.pt', dev)
         cm = torch.zeros((len(F), cfg['W']), dtype=torch.float32, device=dev)
