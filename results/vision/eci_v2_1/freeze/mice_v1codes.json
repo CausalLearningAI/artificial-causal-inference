@@ -1,0 +1,49 @@
+{
+ "identity_max": {
+  "v1_s0": {
+   "max_abs_diff": 0.0,
+   "fire_agree": 1.0
+  },
+  "v1_s1": {
+   "max_abs_diff": 0.0,
+   "fire_agree": 1.0
+  },
+  "v1_s2": {
+   "max_abs_diff": 0.0,
+   "fire_agree": 1.0
+  },
+  "v1_s3": {
+   "max_abs_diff": 0.0,
+   "fire_agree": 1.0
+  },
+  "v1_s4": {
+   "max_abs_diff": 0.0,
+   "fire_agree": 1.0
+  },
+  "v1_s5": {
+   "max_abs_diff": 0.0,
+   "fire_agree": 1.0
+  },
+  "v1_s6": {
+   "max_abs_diff": 0.0,
+   "fire_agree": 1.0
+  },
+  "v1_s7": {
+   "max_abs_diff": 0.0,
+   "fire_agree": 1.0
+  },
+  "v1_s8": {
+   "max_abs_diff": 0.0,
+   "fire_agree": 1.0
+  },
+  "v1_s9": {
+   "max_abs_diff": 0.0,
+   "fire_agree": 1.0
+  },
+  "v1_s10": {
+   "max_abs_diff": 0.0,
+   "fire_agree": 1.0
+  }
+ },
+ "wall_s": 159.58534836769104
+}

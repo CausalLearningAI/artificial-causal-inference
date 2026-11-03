@@ -1,0 +1,216 @@
+mice codesM 1688510
+mice v1codes 1688511
+mice train V 1007 1688512
+mice train V 1008 1688513
+mice train V 1009 1688514
+mice prep E 1688515
+mice train SE 1004 1688516
+mice train SE 1005 1688517
+mice train SE 1006 1688518
+mice train VE 1004 1688519
+mice train VE 1005 1688520
+mice train VE 1006 1688521
+mice train VE 1007 1688522
+mice train VE 1008 1688523
+mice train VE 1009 1688524
+mice prep P253 1688525
+mice train SP253 1004 1688526
+mice train SP253 1005 1688527
+mice train SP253 1006 1688528
+mice train VP253 1004 1688529
+mice train VP253 1005 1688530
+mice train VP253 1006 1688531
+mice train VP253 1007 1688532
+mice train VP253 1008 1688533
+mice train VP253 1009 1688534
+ants codesM 1688535
+ants v1codes 1688536
+ants train V 1007 1688537
+ants train V 1008 1688538
+ants train V 1009 1688539
+ants prep E 1688540
+ants train SE 1004 1688541
+ants train SE 1005 1688542
+ants train SE 1006 1688543
+ants train VE 1004 1688544
+ants train VE 1005 1688545
+ants train VE 1006 1688546
+ants train VE 1007 1688547
+ants train VE 1008 1688548
+ants train VE 1009 1688549
+ants prep P253 1688550
+ants train SP253 1004 1688551
+ants train SP253 1005 1688552
+ants train SP253 1006 1688553
+ants train VP253 1004 1688554
+ants train VP253 1005 1688555
+ants train VP253 1006 1688556
+ants train VP253 1007 1688557
+ants train VP253 1008 1688558
+ants train VP253 1009 1688559
+mice codesE 1688585
+mice codes2_E 1688586
+mice codesP253 1688587
+mice codes2_P253 1688588
+mice codes2_M 1688589
+mice score S 1004 1688590
+mice score S 1005 1688591
+mice score S 1006 1688592
+mice score V 1004 1688593
+mice score V 1005 1688594
+mice score V 1006 1688595
+mice score SE 1004 1688596
+mice score SE 1005 1688597
+mice score SE 1006 1688598
+mice score VE 1004 1688599
+mice score VE 1005 1688600
+mice score VE 1006 1688601
+mice score SP253 1004 1688602
+mice score SP253 1005 1688603
+mice score SP253 1006 1688604
+mice score VP253 1004 1688605
+mice score VP253 1005 1688606
+mice score VP253 1006 1688607
+mice score v1 0 1688608
+mice score v1 1 1688609
+mice score v1 2 1688610
+mice score v1 3 1688611
+mice score v1 4 1688612
+mice score v1 5 1688613
+mice score v1 6 1688614
+mice score v1 7 1688615
+mice score v1 8 1688616
+mice score v1 9 1688617
+mice score v1 10 1688618
+ants codesE 1688619
+ants codes2_E 1688620
+ants codesP253 1688621
+ants codes2_P253 1688622
+ants codes2_M 1688623
+ants score S 1004 max 1688624
+ants score S 1004 mean 1688625
+ants score S 1004 top10 1688626
+ants score S 1004 maxmean 1688627
+ants score S 1005 max 1688628
+ants score S 1005 mean 1688629
+ants score S 1005 top10 1688630
+ants score S 1005 maxmean 1688631
+ants score S 1006 max 1688632
+ants score S 1006 mean 1688633
+ants score S 1006 top10 1688634
+ants score S 1006 maxmean 1688635
+ants score V 1004 max 1688636
+ants score V 1004 mean 1688637
+ants score V 1004 top10 1688638
+ants score V 1004 maxmean 1688639
+ants score V 1005 max 1688640
+ants score V 1005 mean 1688641
+ants score V 1005 top10 1688642
+ants score V 1005 maxmean 1688643
+ants score V 1006 max 1688644
+ants score V 1006 mean 1688645
+ants score V 1006 top10 1688646
+ants score V 1006 maxmean 1688647
+ants score SE 1004 max 1688648
+ants score SE 1004 mean 1688649
+ants score SE 1004 top10 1688650
+ants score SE 1004 maxmean 1688651
+ants score SE 1005 max 1688652
+ants score SE 1005 mean 1688653
+ants score SE 1005 top10 1688654
+ants score SE 1005 maxmean 1688655
+ants score SE 1006 max 1688656
+ants score SE 1006 mean 1688658
+ants score SE 1006 top10 1688659
+ants score SE 1006 maxmean 1688660
+ants score VE 1004 max 1688661
+ants score VE 1004 mean 1688662
+ants score VE 1004 top10 1688663
+ants score VE 1004 maxmean 1688664
+ants score VE 1005 max 1688665
+ants score VE 1005 mean 1688666
+ants score VE 1005 top10 1688667
+ants score VE 1005 maxmean 1688668
+ants score VE 1006 max 1688669
+ants score VE 1006 mean 1688670
+ants score VE 1006 top10 1688671
+ants score VE 1006 maxmean 1688672
+ants score SP253 1004 max 1688673
+ants score SP253 1004 mean 1688674
+ants score SP253 1004 top10 1688675
+ants score SP253 1004 maxmean 1688676
+ants score SP253 1005 max 1688677
+ants score SP253 1005 mean 1688678
+ants score SP253 1005 top10 1688679
+ants score SP253 1005 maxmean 1688680
+ants score SP253 1006 max 1688681
+ants score SP253 1006 mean 1688682
+ants score SP253 1006 top10 1688683
+ants score SP253 1006 maxmean 1688684
+ants score VP253 1004 max 1688685
+ants score VP253 1004 mean 1688686
+ants score VP253 1004 top10 1688687
+ants score VP253 1004 maxmean 1688688
+ants score VP253 1005 max 1688689
+ants score VP253 1005 mean 1688690
+ants score VP253 1005 top10 1688691
+ants score VP253 1005 maxmean 1688692
+ants score VP253 1006 max 1688693
+ants score VP253 1006 mean 1688694
+ants score VP253 1006 top10 1688695
+ants score VP253 1006 maxmean 1688696
+ants score v1 0 max 1688697
+ants score v1 0 mean 1688698
+ants score v1 0 top10 1688699
+ants score v1 0 maxmean 1688700
+ants score v1 1 max 1688701
+ants score v1 1 mean 1688702
+ants score v1 1 top10 1688703
+ants score v1 1 maxmean 1688704
+ants score v1 2 max 1688705
+ants score v1 2 mean 1688706
+ants score v1 2 top10 1688707
+ants score v1 2 maxmean 1688708
+ants score v1 3 max 1688709
+ants score v1 3 mean 1688710
+ants score v1 3 top10 1688711
+ants score v1 3 maxmean 1688712
+ants score v1 4 max 1688713
+ants score v1 4 mean 1688714
+ants score v1 4 top10 1688715
+ants score v1 4 maxmean 1688716
+ants score v1 5 max 1688717
+ants score v1 5 mean 1688718
+ants score v1 5 top10 1688719
+ants score v1 5 maxmean 1688720
+ants score v1 6 max 1688721
+ants score v1 6 mean 1688722
+ants score v1 6 top10 1688723
+ants score v1 6 maxmean 1688724
+ants score v1 7 max 1688725
+ants score v1 7 mean 1688726
+ants score v1 7 top10 1688727
+ants score v1 7 maxmean 1688728
+ants score v1 8 max 1688729
+ants score v1 8 mean 1688730
+ants score v1 8 top10 1688731
+ants score v1 8 maxmean 1688732
+ants score v1 9 max 1688733
+ants score v1 9 mean 1688734
+ants score v1 9 top10 1688735
+ants score v1 9 maxmean 1688736
+ants score v1 10 max 1688737
+ants score v1 10 mean 1688738
+ants score v1 10 top10 1688739
+ants score v1 10 maxmean 1688740
+mice train V 1007 1691404
+mice train V 1008 1691405
+mice codesM 1694042
+ants score v1 0 max 1700835
+ants score v1 1 max 1700836
+ants score v1 2 max 1700837
+mice train V 1009 1700840
+ants train V 1007 1700841
+boot mice 1720428
+boot ants 1720429
+report 1727016
