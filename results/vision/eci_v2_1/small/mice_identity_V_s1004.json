@@ -1,0 +1,11 @@
+{
+ "tag": "V_s1004",
+ "vs_stored_score_json": {
+  "n": 12,
+  "max_abs_diff": 0.0
+ },
+ "vs_ladder_cols_json": {
+  "n": 16,
+  "max_abs_diff": 0.0
+ }
+}

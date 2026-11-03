@@ -1,0 +1,18 @@
+{
+ "V_s1004_recomputed_vs_stored": {
+  "rows_identical_to_stored": true,
+  "max": {
+   "max_abs_diff": 0.0,
+   "n_diff_entries": 0,
+   "n_entries": 1300791296
+  },
+  "top10": {
+   "max_abs_diff": 0.0,
+   "n_diff_entries": 0,
+   "n_entries": 1300791296
+  }
+ },
+ "node": "gpu230",
+ "gpu": "NVIDIA A40",
+ "gpu_mem_gb": 44.4
+}

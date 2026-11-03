@@ -1,0 +1,68 @@
+{
+ "cfg": {
+  "type": "Matryoshka BatchTopK",
+  "W": 1024,
+  "prefixes": [
+   128,
+   256,
+   512,
+   1024
+  ],
+  "k": 16,
+  "steps": 8380,
+  "bs": 4096,
+  "lr": 0.0005,
+  "context_window": 0,
+  "arm": "Ssm",
+  "base_arm": "S",
+  "store": "v2.1_m5"
+ },
+ "seed": 1004,
+ "train_time_s": 87.56564521789551,
+ "steps_per_s": 95.69963173511118,
+ "n_train_tokens": 16000000,
+ "n_calib_tokens": 1500000,
+ "n_eval_tokens": 1500000,
+ "theta_star": 2.032819986343384,
+ "eval_fve": 0.8641977026319311,
+ "eval_l0": 15.94978,
+ "dead_at_end_train": 0,
+ "history": [
+  {
+   "loss": 3939.79833984375,
+   "aux": 0.0,
+   "n_dead": 0,
+   "fve": 0.08945250511169434,
+   "fve_first": 0.013338208198547363,
+   "l0": 16.0,
+   "threshold": 2.1525533199310303,
+   "step": 0,
+   "elapsed_s": 4.4
+  },
+  {
+   "loss": 645.3451538085938,
+   "aux": 141.03721618652344,
+   "n_dead": 6,
+   "fve": 0.8639097213745117,
+   "fve_first": 0.8231699466705322,
+   "l0": 16.0,
+   "threshold": 2.005676746368408,
+   "step": 5000,
+   "elapsed_s": 48.9
+  },
+  {
+   "loss": 633.1598510742188,
+   "aux": 0.0,
+   "n_dead": 0,
+   "fve": 0.8676938414573669,
+   "fve_first": 0.8234814405441284,
+   "l0": 16.0,
+   "threshold": 2.02181077003479,
+   "step": 8379,
+   "elapsed_s": 87.6
+  }
+ ],
+ "node": "gpu279",
+ "gpu": "NVIDIA L40S",
+ "gpu_mem_gb": 44.4
+}

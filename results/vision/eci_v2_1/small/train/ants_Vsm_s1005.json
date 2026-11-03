@@ -1,0 +1,68 @@
+{
+ "cfg": {
+  "type": "Matryoshka BatchTopK",
+  "W": 1024,
+  "prefixes": [
+   128,
+   256,
+   512,
+   1024
+  ],
+  "k": 16,
+  "steps": 8380,
+  "bs": 4096,
+  "lr": 0.0005,
+  "context_window": 0,
+  "arm": "Vsm",
+  "base_arm": "V",
+  "store": "v2.1_m5"
+ },
+ "seed": 1005,
+ "train_time_s": 126.94043350219727,
+ "steps_per_s": 66.01521492247737,
+ "n_train_tokens": 16000000,
+ "n_calib_tokens": 1500000,
+ "n_eval_tokens": 1500000,
+ "theta_star": 2.2113022804260254,
+ "eval_fve": 0.8392218181272986,
+ "eval_l0": 16.04753,
+ "dead_at_end_train": 4,
+ "history": [
+  {
+   "loss": 4038.98095703125,
+   "aux": 0.0,
+   "n_dead": 0,
+   "fve": 0.09316587448120117,
+   "fve_first": 0.011650621891021729,
+   "l0": 16.0,
+   "threshold": 2.2357587814331055,
+   "step": 0,
+   "elapsed_s": 0.0
+  },
+  {
+   "loss": 738.2996215820312,
+   "aux": 166.25267028808594,
+   "n_dead": 12,
+   "fve": 0.8409786820411682,
+   "fve_first": 0.8085917234420776,
+   "l0": 16.0,
+   "threshold": 2.1803438663482666,
+   "step": 5000,
+   "elapsed_s": 75.1
+  },
+  {
+   "loss": 737.50439453125,
+   "aux": 165.119140625,
+   "n_dead": 4,
+   "fve": 0.8421151638031006,
+   "fve_first": 0.8056106567382812,
+   "l0": 16.0,
+   "threshold": 2.20698881149292,
+   "step": 8379,
+   "elapsed_s": 126.9
+  }
+ ],
+ "node": "gpu230",
+ "gpu": "NVIDIA A40",
+ "gpu_mem_gb": 44.4
+}
