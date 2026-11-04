@@ -137,10 +137,17 @@ def cmd_train(a):
     log(f'{dom} P{P}: {NP:,} pooled tokens, alpha {alpha:.6f}, {passes} passes, {len(segs):,} segments/pass, {len(chunks)} chunks, '
         f'steps {steps:,} (schedule {total:,}), arms {arms}, seeds {seeds}, {nthr} CPUs, {dev}')
 
+    ram = {} if os.environ.get('V24_RAM') else None  # keep every segment in host RAM after its first read (passes >= 2)
+
     def load(seg, keep=False):
         t, r0, r1 = seg
-        x = sh.read(t, 'x', r0, r1)
-        d = sh.read(t, 'd', r0, r1) if need_d else None
+        if ram is not None and seg in ram:
+            x, d = ram[seg]
+        else:
+            x = sh.read(t, 'x', r0, r1)
+            d = sh.read(t, 'd', r0, r1) if need_d else None
+            if ram is not None:
+                ram[seg] = (x, d)
         xg = torch.from_numpy(x).to(dev)
         dg = torch.from_numpy(d).to(dev) if need_d else None
         return xg, dg, x.nbytes * (2 if need_d else 1), ((x, d) if keep else None)
@@ -300,11 +307,15 @@ def eval_rows(dom):
     return R
 
 
-def codes(dom, saved, dev, alpha_of_P):
+def codes(dom, saved, dev, alpha_of_P, task=0, ntask=1):
     """saved {key: (sae, norm)} -> BEE24/<dom>/codes/<key>_max.npy (frame max over pooled cells), scoring row order."""
     import torch
     t0 = time.time()
     R = eval_rows(dom)
+    uv = list(dict.fromkeys(R.vid.values))[task::ntask]
+    part = ntask > 1
+    if part:
+        R = R[R.vid.isin(uv)]
     byP = {}
     for k in saved:
         byP.setdefault(parse_key(k)[0], []).append(k)
@@ -316,6 +327,7 @@ def codes(dom, saved, dev, alpha_of_P):
         alpha = alpha_of_P[P]
         need_d = any(parse_key(k)[1] != 'N' for k in keys)
         out = {k: np.zeros((len(R), saved[k][0].n_latents), np.float16) for k in keys}
+        pos_of = pd.Series(np.arange(len(R)), index=R.index)
         ncell, nfr_empty = 0, 0
         for vi, g in R.groupby('vid', sort=False):
             t, r0, r1 = sh.vrow[vi]
@@ -339,7 +351,7 @@ def codes(dom, saved, dev, alpha_of_P):
             fl = torch.from_numpy(frow.astype(np.int64)).to(dev)
             xt = torch.from_numpy(x).to(dev)
             dt = torch.from_numpy(d).to(dev) if need_d else None
-            rows = g.index.values
+            rows = pos_of[g.index.values].values
             for k in keys:
                 sae, norm = saved[k]
                 arm = parse_key(k)[1]
@@ -351,12 +363,17 @@ def codes(dom, saved, dev, alpha_of_P):
                         mx.index_reduce_(0, fl[b0:b0 + 65536], cc, 'amax', include_self=True)
                 out[k][rows] = mx.half().cpu().numpy()
         for k in keys:
-            np.save(od / f'{k}_max.npy', out[k])
+            if part:
+                (od / 'parts').mkdir(exist_ok=True)
+                np.save(od / 'parts' / f'{k}_t{task}.npy', out[k])
+                np.save(od / 'parts' / f'{k}_t{task}_rows.npy', R.index.values)
+            else:
+                np.save(od / f'{k}_max.npy', out[k])
         meta[f'P{P}'] = {'keys': keys, 'frames': len(R), 'pooled_cells_encoded': ncell, 'cells_per_frame': ncell / len(R),
                          'frames_without_cells': nfr_empty}
         log(f'{dom} codes P{P} {keys}: {meta[f"P{P}"]} ({time.time() - t0:.0f}s)')
     (OUT24 / 'codes').mkdir(parents=True, exist_ok=True)
-    (OUT24 / 'codes' / f'{dom}_{"_".join(sorted(saved))[:120]}.json').write_text(json.dumps(meta, indent=1))
+    (OUT24 / 'codes' / f'{dom}_{"_".join(sorted(saved))[:120]}_t{task}.json').write_text(json.dumps(meta, indent=1))
     return meta
 
 
@@ -367,7 +384,21 @@ def cmd_codes(a):
     torch.set_num_threads(int(os.environ.get('SLURM_CPUS_PER_TASK', 8)))
     keys = a.keys.split(',')
     saved = {k: SA.load(BEE24 / a.dom / 'sae' / k / 'sae_theta.pt', dev) for k in keys}
-    codes(a.dom, saved, dev, {P: alpha_of(a.dom, P) for P in {parse_key(k)[0] for k in keys}})
+    codes(a.dom, saved, dev, {P: alpha_of(a.dom, P) for P in {parse_key(k)[0] for k in keys}}, a.task, a.ntask)
+
+
+def cmd_merge(a):
+    R = eval_rows(a.dom)
+    od = BEE24 / a.dom / 'codes'
+    for k in a.keys.split(','):
+        out, seen = np.zeros((len(R), 2048), np.float16), np.zeros(len(R), bool)
+        for t in range(a.ntask):
+            r = np.load(od / 'parts' / f'{k}_t{t}_rows.npy')
+            assert not seen[r].any()
+            out[r], seen[r] = np.load(od / 'parts' / f'{k}_t{t}.npy'), True
+        assert seen.all(), f'{k}: {(~seen).sum()} rows missing'
+        np.save(od / f'{k}_max.npy', out)
+        log(f'merge {a.dom} {k}: {len(R):,} rows')
 
 
 # ---------------------------------------------------------------------------------------------- featcheck
@@ -422,7 +453,7 @@ def cmd_featcheck(a):
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('train', 'codes', 'featcheck'))
+    p.add_argument('step', choices=('train', 'codes', 'featcheck', 'merge'))
     p.add_argument('--dom', required=True, choices=('mice', 'ants'))
     p.add_argument('--P', type=int, default=2)
     p.add_argument('--arms', default='W')
@@ -431,5 +462,7 @@ if __name__ == '__main__':
     p.add_argument('--max_steps', type=int, default=0)
     p.add_argument('--save_bench', action='store_true')
     p.add_argument('--no_codes', action='store_true')
+    p.add_argument('--task', type=int, default=0)
+    p.add_argument('--ntask', type=int, default=1)
     a = p.parse_args()
-    {'train': cmd_train, 'codes': cmd_codes, 'featcheck': cmd_featcheck}[a.step](a)
+    {'train': cmd_train, 'codes': cmd_codes, 'featcheck': cmd_featcheck, 'merge': cmd_merge}[a.step](a)

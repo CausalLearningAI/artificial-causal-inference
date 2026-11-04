@@ -192,7 +192,8 @@ def cmd_report_mice(a):
     for arm, ks in models.items():
         for k in ks:
             tags[k] = pickle.load(open(tag_file('mice', k), 'rb'))
-            prep[k] = mice_prep(k, F, tags[k])
+            wp = MICE_OUT / 'work' / f'{k}.pkl'
+            prep[k] = pickle.load(open(wp, 'rb')) if wp.exists() else mice_prep(k, F, tags[k])
     log(f'mice: {len(tags)} tags, prep done ({time.time() - t0:.0f}s)')
     per, res = {}, {'models': models, 'tag_files': {k: str(tag_file('mice', k)) for k in tags}, 'levels': {}, 'contrasts': {},
                     'picks': {}, 'distinct': {}, 'video': {}, 'counts': {}}
@@ -303,6 +304,14 @@ def cmd_report_ants(a):
     ANTS_OUT.mkdir(parents=True, exist_ok=True)
     (ANTS_OUT / 'report.json').write_text(json.dumps(res, indent=1, default=float))
     log(f'ants report done ({time.time() - t0:.0f}s): {res["B4"]}')
+
+
+def cmd_prep(a):
+    F, _ = C.mice_table()
+    wp = MICE_OUT / 'work' / f'{a.key}.pkl'
+    wp.parent.mkdir(parents=True, exist_ok=True)
+    pickle.dump(mice_prep(a.key, F, pickle.load(open(tag_file('mice', a.key), 'rb'))), open(wp, 'wb'))
+    log(f'prep {a.key} done')
 
 
 def cmd_report(a):
@@ -445,8 +454,8 @@ def cmd_sheet(a):
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('cache', 'tag', 'report', 'fwdcheck', 'sheet'))
+    p.add_argument('step', choices=('cache', 'tag', 'prep', 'report', 'fwdcheck', 'sheet'))
     p.add_argument('--dom', required=True, choices=('mice', 'ants'))
     p.add_argument('--key', default='')
     a = p.parse_args()
-    {'cache': cmd_cache, 'tag': cmd_tag, 'report': cmd_report, 'fwdcheck': cmd_fwdcheck, 'sheet': cmd_sheet}[a.step](a)
+    {'cache': cmd_cache, 'tag': cmd_tag, 'prep': cmd_prep, 'report': cmd_report, 'fwdcheck': cmd_fwdcheck, 'sheet': cmd_sheet}[a.step](a)
