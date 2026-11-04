@@ -1,0 +1,13 @@
+{
+ "P2": {
+  "keys": [
+   "P2C_s2401",
+   "P2C_s2402",
+   "P2C_s2403"
+  ],
+  "frames": 26964,
+  "pooled_cells_encoded": 639984,
+  "cells_per_frame": 23.734757454383622,
+  "frames_without_cells": 0
+ }
+}

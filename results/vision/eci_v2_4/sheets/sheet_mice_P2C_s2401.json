@@ -1,0 +1,212 @@
+{
+ "model": "P2C_s2401",
+ "rule": "auc",
+ "behaviours": {
+  "nose_nose": {
+   "neuron": 316,
+   "labelled": 1,
+   "shown": 12,
+   "frames": [
+    {
+     "obs": "het_ash1l_f_2_S_O",
+     "k": 4103,
+     "readout": 1.0,
+     "code": 17.78125,
+     "y": false,
+     "map_max": 17.77855110168457
+    },
+    {
+     "obs": "het_kdm6b_m_1_S_O",
+     "k": 30,
+     "readout": 1.0,
+     "code": 17.59375,
+     "y": false,
+     "map_max": 17.58650016784668
+    },
+    {
+     "obs": "het_kmt5b_f_3_S_H",
+     "k": 3826,
+     "readout": 1.0,
+     "code": 16.28125,
+     "y": false,
+     "map_max": 16.27458953857422
+    },
+    {
+     "obs": "het_kmt5b_m_1_S_H",
+     "k": 2565,
+     "readout": 1.0,
+     "code": 15.96875,
+     "y": false,
+     "map_max": 15.964920997619629
+    },
+    {
+     "obs": "het_kdm6b_m_1_S_H",
+     "k": 3573,
+     "readout": 1.0,
+     "code": 15.8515625,
+     "y": false,
+     "map_max": 15.851922035217285
+    },
+    {
+     "obs": "het_kdm6b_f_3_S_H",
+     "k": 6680,
+     "readout": 1.0,
+     "code": 15.6484375,
+     "y": false,
+     "map_max": 15.649383544921875
+    },
+    {
+     "obs": "het_ash1l_f_1_S_O",
+     "k": 2066,
+     "readout": 1.0,
+     "code": 15.640625,
+     "y": false,
+     "map_max": 15.64037799835205
+    },
+    {
+     "obs": "het_kdm6b_m_1_F_O",
+     "k": 2127,
+     "readout": 1.0,
+     "code": 15.6015625,
+     "y": false,
+     "map_max": 15.603751182556152
+    },
+    {
+     "obs": "het_ash1l_f_1_S_H",
+     "k": 8211,
+     "readout": 1.0,
+     "code": 15.5703125,
+     "y": false,
+     "map_max": 15.570808410644531
+    },
+    {
+     "obs": "het_ash1l_f_1_F_H",
+     "k": 4453,
+     "readout": 1.0,
+     "code": 15.515625,
+     "y": false,
+     "map_max": 15.518333435058594
+    },
+    {
+     "obs": "het_kdm6b_f_3_S_O",
+     "k": 1439,
+     "readout": 1.0,
+     "code": 15.5,
+     "y": false,
+     "map_max": 15.501205444335938
+    },
+    {
+     "obs": "wt_kdm6b_m_1_S_O",
+     "k": 1587,
+     "readout": 1.0,
+     "code": 15.3359375,
+     "y": true,
+     "map_max": 15.337506294250488
+    }
+   ]
+  },
+  "nt": {
+   "neuron": 656,
+   "labelled": 3,
+   "shown": 12,
+   "frames": [
+    {
+     "obs": "het_kdm6b_m_1_F_O",
+     "k": 1178,
+     "readout": 1.0,
+     "code": 11.921875,
+     "y": true,
+     "map_max": 11.920371055603027
+    },
+    {
+     "obs": "het_kdm6b_m_1_S_O",
+     "k": 1715,
+     "readout": 1.0,
+     "code": 11.78125,
+     "y": false,
+     "map_max": 11.780923843383789
+    },
+    {
+     "obs": "het_kdm6b_m_1_S_O",
+     "k": 3029,
+     "readout": 1.0,
+     "code": 11.4296875,
+     "y": true,
+     "map_max": 11.431191444396973
+    },
+    {
+     "obs": "het_kdm6b_f_2_S_P",
+     "k": 1221,
+     "readout": 1.0,
+     "code": 11.265625,
+     "y": false,
+     "map_max": 11.268519401550293
+    },
+    {
+     "obs": "wt_kmt5b_m_1_F_O",
+     "k": 3689,
+     "readout": 1.0,
+     "code": 11.234375,
+     "y": false,
+     "map_max": 11.237820625305176
+    },
+    {
+     "obs": "het_kmt5b_m_1_S_H",
+     "k": 5284,
+     "readout": 1.0,
+     "code": 10.6328125,
+     "y": false,
+     "map_max": 10.62941837310791
+    },
+    {
+     "obs": "het_kdm6b_m_1_F_O",
+     "k": 2281,
+     "readout": 1.0,
+     "code": 10.546875,
+     "y": true,
+     "map_max": 10.546976089477539
+    },
+    {
+     "obs": "het_kdm6b_m_1_S_H",
+     "k": 3745,
+     "readout": 1.0,
+     "code": 10.375,
+     "y": false,
+     "map_max": 10.375182151794434
+    },
+    {
+     "obs": "het_kdm6b_m_1_F_H",
+     "k": 5939,
+     "readout": 1.0,
+     "code": 10.3671875,
+     "y": false,
+     "map_max": 10.36351203918457
+    },
+    {
+     "obs": "het_ash1l_f_2_F_H",
+     "k": 754,
+     "readout": 1.0,
+     "code": 10.34375,
+     "y": false,
+     "map_max": 10.34322452545166
+    },
+    {
+     "obs": "het_kmt5b_m_2_S_H",
+     "k": 6535,
+     "readout": 1.0,
+     "code": 10.328125,
+     "y": false,
+     "map_max": 10.329913139343262
+    },
+    {
+     "obs": "het_ash1l_f_1_S_O",
+     "k": 1733,
+     "readout": 1.0,
+     "code": 10.0625,
+     "y": false,
+     "map_max": 10.058838844299316
+    }
+   ]
+  }
+ }
+}

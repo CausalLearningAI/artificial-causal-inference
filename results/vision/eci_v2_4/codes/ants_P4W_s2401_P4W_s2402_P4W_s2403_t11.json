@@ -1,0 +1,13 @@
+{
+ "P4": {
+  "keys": [
+   "P4W_s2401",
+   "P4W_s2402",
+   "P4W_s2403"
+  ],
+  "frames": 26964,
+  "pooled_cells_encoded": 267674,
+  "cells_per_frame": 9.927087969144043,
+  "frames_without_cells": 0
+ }
+}

@@ -1,0 +1,212 @@
+{
+ "model": "P2W_s2403",
+ "rule": "auc",
+ "behaviours": {
+  "nose_nose": {
+   "neuron": 807,
+   "labelled": 4,
+   "shown": 12,
+   "frames": [
+    {
+     "obs": "wt_ash1l_m_1_S_H",
+     "k": 1493,
+     "readout": 1.0,
+     "code": 7.94921875,
+     "y": true,
+     "map_max": 7.947425365447998
+    },
+    {
+     "obs": "het_kdm6b_m_1_S_P",
+     "k": 2453,
+     "readout": 1.0,
+     "code": 7.83203125,
+     "y": false,
+     "map_max": 7.833763599395752
+    },
+    {
+     "obs": "het_kdm6b_f_3_S_O",
+     "k": 2009,
+     "readout": 1.0,
+     "code": 7.2265625,
+     "y": false,
+     "map_max": 7.227109432220459
+    },
+    {
+     "obs": "het_kmt5b_m_2_S_P",
+     "k": 2756,
+     "readout": 1.0,
+     "code": 7.09765625,
+     "y": true,
+     "map_max": 7.097343921661377
+    },
+    {
+     "obs": "wt_kdm6b_m_1_F_P",
+     "k": 489,
+     "readout": 1.0,
+     "code": 7.015625,
+     "y": false,
+     "map_max": 7.0162529945373535
+    },
+    {
+     "obs": "wt_kdm6b_m_1_S_H",
+     "k": 546,
+     "readout": 1.0,
+     "code": 6.99609375,
+     "y": false,
+     "map_max": 6.995337963104248
+    },
+    {
+     "obs": "wt_kdm6b_f_1_F_H",
+     "k": 1967,
+     "readout": 1.0,
+     "code": 6.984375,
+     "y": true,
+     "map_max": 6.9842448234558105
+    },
+    {
+     "obs": "het_kmt5b_m_1_F_H",
+     "k": 7659,
+     "readout": 1.0,
+     "code": 6.92578125,
+     "y": false,
+     "map_max": 6.9275336265563965
+    },
+    {
+     "obs": "het_kdm6b_f_3_S_O",
+     "k": 2176,
+     "readout": 1.0,
+     "code": 6.90234375,
+     "y": false,
+     "map_max": 6.903097152709961
+    },
+    {
+     "obs": "wt_ash1l_m_1_S_O",
+     "k": 2390,
+     "readout": 1.0,
+     "code": 6.890625,
+     "y": false,
+     "map_max": 6.888823509216309
+    },
+    {
+     "obs": "het_ash1l_f_1_S_H",
+     "k": 4365,
+     "readout": 1.0,
+     "code": 6.87890625,
+     "y": false,
+     "map_max": 6.8795952796936035
+    },
+    {
+     "obs": "wt_kmt5b_m_1_S_P",
+     "k": 3985,
+     "readout": 1.0,
+     "code": 6.828125,
+     "y": true,
+     "map_max": 6.827083587646484
+    }
+   ]
+  },
+  "nt": {
+   "neuron": 91,
+   "labelled": 0,
+   "shown": 12,
+   "frames": [
+    {
+     "obs": "het_kdm6b_m_1_S_H",
+     "k": 8999,
+     "readout": 0.9999997615814209,
+     "code": 33.90625,
+     "y": false,
+     "map_max": 33.90925216674805
+    },
+    {
+     "obs": "wt_kdm6b_f_1_S_O",
+     "k": 4498,
+     "readout": 0.9999996423721313,
+     "code": 27.796875,
+     "y": false,
+     "map_max": 27.79216766357422
+    },
+    {
+     "obs": "het_kdm6b_m_1_F_O",
+     "k": 2322,
+     "readout": 0.9999996423721313,
+     "code": 27.25,
+     "y": false,
+     "map_max": 27.244417190551758
+    },
+    {
+     "obs": "wt_kmt5b_m_1_F_P",
+     "k": 833,
+     "readout": 0.999999463558197,
+     "code": 25.640625,
+     "y": false,
+     "map_max": 25.633089065551758
+    },
+    {
+     "obs": "wt_kdm6b_f_1_F_O",
+     "k": 4498,
+     "readout": 0.9999993443489075,
+     "code": 25.328125,
+     "y": false,
+     "map_max": 25.33217430114746
+    },
+    {
+     "obs": "het_kmt5b_m_1_S_P",
+     "k": 4498,
+     "readout": 0.999998927116394,
+     "code": 26.75,
+     "y": false,
+     "map_max": 26.743606567382812
+    },
+    {
+     "obs": "wt_kmt5b_m_1_F_P",
+     "k": 0,
+     "readout": 0.9999988079071045,
+     "code": 25.4375,
+     "y": false,
+     "map_max": 25.444820404052734
+    },
+    {
+     "obs": "het_kmt5b_f_3_S_H",
+     "k": 8408,
+     "readout": 0.9999987483024597,
+     "code": 23.734375,
+     "y": false,
+     "map_max": 23.73211097717285
+    },
+    {
+     "obs": "het_kmt5b_m_2_F_O",
+     "k": 4498,
+     "readout": 0.9999986290931702,
+     "code": 23.875,
+     "y": false,
+     "map_max": 23.874279022216797
+    },
+    {
+     "obs": "wt_kmt5b_m_1_S_O",
+     "k": 790,
+     "readout": 0.9999985694885254,
+     "code": 24.484375,
+     "y": false,
+     "map_max": 24.484275817871094
+    },
+    {
+     "obs": "het_kdm6b_f_2_S_O",
+     "k": 4499,
+     "readout": 0.9999982118606567,
+     "code": 28.15625,
+     "y": false,
+     "map_max": 28.16391372680664
+    },
+    {
+     "obs": "het_kdm6b_m_1_F_O",
+     "k": 2825,
+     "readout": 0.999998152256012,
+     "code": 22.75,
+     "y": false,
+     "map_max": 22.747526168823242
+    }
+   ]
+  }
+ }
+}

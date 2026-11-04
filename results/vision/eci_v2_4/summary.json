@@ -1,0 +1,116 @@
+{
+ "mice_criteria": {
+  "P2W": {
+   "B1 nose-nose AUROC lower CI": -0.13781587116248079,
+   "B1": false,
+   "B2 nose-tail top3 diff": -0.0361552028218695,
+   "B2 nose-tail top3 lower CI": -0.10539388778110116,
+   "B2 nose-tail AUROC lower CI": -0.08727327455854954,
+   "B2": false,
+   "B3 distinct seeds": "2/3",
+   "B3": false
+  },
+  "P4W": {
+   "B1 nose-nose AUROC lower CI": -0.19467017028991895,
+   "B1": false,
+   "B2 nose-tail top3 diff": -0.06790123456790124,
+   "B2 nose-tail top3 lower CI": -0.132386867176249,
+   "B2 nose-tail AUROC lower CI": -0.20446407354928212,
+   "B2": false,
+   "B3 distinct seeds": "3/3",
+   "B3": true
+  },
+  "P2N": {
+   "B1 nose-nose AUROC lower CI": -0.04640750223008106,
+   "B1": false,
+   "B2 nose-tail top3 diff": 0.03262786596119928,
+   "B2 nose-tail top3 lower CI": -0.05557992202729044,
+   "B2 nose-tail AUROC lower CI": -0.01938482158777325,
+   "B2": false,
+   "B3 distinct seeds": "1/3",
+   "B3": false
+  },
+  "P2C": {
+   "B1 nose-nose AUROC lower CI": -0.12115035457849321,
+   "B1": false,
+   "B2 nose-tail top3 diff": 0.05555555555555554,
+   "B2 nose-tail top3 lower CI": -0.01919713003046335,
+   "B2 nose-tail AUROC lower CI": 0.0011760278927352332,
+   "B2": false,
+   "B3 distinct seeds": "3/3",
+   "B3": true
+  }
+ },
+ "ants_B4": {
+  "P2W": {
+   "AUROC lower CI": -0.050083964593465057,
+   "B4": false
+  },
+  "P4W": {
+   "AUROC lower CI": -0.1828568753292545,
+   "B4": false
+  },
+  "P2N": {
+   "AUROC lower CI": -0.04752145563156081,
+   "B4": false
+  },
+  "P2C": {
+   "AUROC lower CI": -0.021311355784387177,
+   "B4": false
+  }
+ },
+ "verdict": {
+  "P2W": {
+   "B1 nose-nose AUROC lower CI": -0.13781587116248079,
+   "B1": false,
+   "B2 nose-tail top3 diff": -0.0361552028218695,
+   "B2 nose-tail top3 lower CI": -0.10539388778110116,
+   "B2 nose-tail AUROC lower CI": -0.08727327455854954,
+   "B2": false,
+   "B3 distinct seeds": "2/3",
+   "B3": false,
+   "AUROC lower CI": -0.050083964593465057,
+   "B4": false,
+   "ADOPT": false
+  },
+  "P4W": {
+   "B1 nose-nose AUROC lower CI": -0.19467017028991895,
+   "B1": false,
+   "B2 nose-tail top3 diff": -0.06790123456790124,
+   "B2 nose-tail top3 lower CI": -0.132386867176249,
+   "B2 nose-tail AUROC lower CI": -0.20446407354928212,
+   "B2": false,
+   "B3 distinct seeds": "3/3",
+   "B3": true,
+   "AUROC lower CI": -0.1828568753292545,
+   "B4": false,
+   "ADOPT": false
+  },
+  "P2N": {
+   "B1 nose-nose AUROC lower CI": -0.04640750223008106,
+   "B1": false,
+   "B2 nose-tail top3 diff": 0.03262786596119928,
+   "B2 nose-tail top3 lower CI": -0.05557992202729044,
+   "B2 nose-tail AUROC lower CI": -0.01938482158777325,
+   "B2": false,
+   "B3 distinct seeds": "1/3",
+   "B3": false,
+   "AUROC lower CI": -0.04752145563156081,
+   "B4": false,
+   "ADOPT": false
+  },
+  "P2C": {
+   "B1 nose-nose AUROC lower CI": -0.12115035457849321,
+   "B1": false,
+   "B2 nose-tail top3 diff": 0.05555555555555554,
+   "B2 nose-tail top3 lower CI": -0.01919713003046335,
+   "B2 nose-tail AUROC lower CI": 0.0011760278927352332,
+   "B2": false,
+   "B3 distinct seeds": "3/3",
+   "B3": true,
+   "AUROC lower CI": -0.021311355784387177,
+   "B4": false,
+   "ADOPT": false
+  }
+ }
+}

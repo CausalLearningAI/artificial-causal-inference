@@ -1,0 +1,212 @@
+{
+ "model": "P4W_s2403",
+ "rule": "auc",
+ "behaviours": {
+  "nose_nose": {
+   "neuron": 295,
+   "labelled": 1,
+   "shown": 12,
+   "frames": [
+    {
+     "obs": "het_kdm6b_m_1_S_O",
+     "k": 1,
+     "readout": 1.0,
+     "code": 8.71875,
+     "y": false,
+     "map_max": 8.716062545776367
+    },
+    {
+     "obs": "wt_kdm6b_f_1_F_O",
+     "k": 1156,
+     "readout": 1.0,
+     "code": 7.94921875,
+     "y": false,
+     "map_max": 7.950115203857422
+    },
+    {
+     "obs": "wt_kdm6b_f_1_S_O",
+     "k": 4463,
+     "readout": 1.0,
+     "code": 7.90625,
+     "y": false,
+     "map_max": 7.904690265655518
+    },
+    {
+     "obs": "wt_kmt5b_m_1_S_P",
+     "k": 3530,
+     "readout": 1.0,
+     "code": 7.90625,
+     "y": true,
+     "map_max": 7.907327175140381
+    },
+    {
+     "obs": "wt_kmt5b_m_1_S_H",
+     "k": 4303,
+     "readout": 1.0,
+     "code": 7.8515625,
+     "y": false,
+     "map_max": 7.8512797355651855
+    },
+    {
+     "obs": "het_kdm6b_f_2_S_H",
+     "k": 5335,
+     "readout": 1.0,
+     "code": 7.796875,
+     "y": false,
+     "map_max": 7.796368598937988
+    },
+    {
+     "obs": "wt_ash1l_m_1_F_O",
+     "k": 1612,
+     "readout": 1.0,
+     "code": 7.7890625,
+     "y": false,
+     "map_max": 7.787115097045898
+    },
+    {
+     "obs": "het_ash1l_f_1_S_P",
+     "k": 430,
+     "readout": 1.0,
+     "code": 7.7109375,
+     "y": false,
+     "map_max": 7.709489345550537
+    },
+    {
+     "obs": "het_kdm6b_m_1_F_P",
+     "k": 457,
+     "readout": 1.0,
+     "code": 7.703125,
+     "y": false,
+     "map_max": 7.702340602874756
+    },
+    {
+     "obs": "het_kdm6b_f_2_S_P",
+     "k": 903,
+     "readout": 1.0,
+     "code": 7.62890625,
+     "y": false,
+     "map_max": 7.630461692810059
+    },
+    {
+     "obs": "het_kdm6b_m_1_S_O",
+     "k": 3425,
+     "readout": 1.0,
+     "code": 7.6171875,
+     "y": false,
+     "map_max": 7.61551570892334
+    },
+    {
+     "obs": "het_kdm6b_m_1_F_O",
+     "k": 666,
+     "readout": 1.0,
+     "code": 7.5625,
+     "y": false,
+     "map_max": 7.5638628005981445
+    }
+   ]
+  },
+  "nt": {
+   "neuron": 42,
+   "labelled": 0,
+   "shown": 12,
+   "frames": [
+    {
+     "obs": "het_kdm6b_f_3_F_H",
+     "k": 389,
+     "readout": 1.0,
+     "code": 20.453125,
+     "y": false,
+     "map_max": 20.452190399169922
+    },
+    {
+     "obs": "wt_kmt5b_m_1_S_O",
+     "k": 4498,
+     "readout": 1.0,
+     "code": 19.453125,
+     "y": false,
+     "map_max": 19.459461212158203
+    },
+    {
+     "obs": "het_kdm6b_m_1_F_P",
+     "k": 4498,
+     "readout": 1.0,
+     "code": 18.59375,
+     "y": false,
+     "map_max": 18.593690872192383
+    },
+    {
+     "obs": "het_kdm6b_m_1_F_O",
+     "k": 4062,
+     "readout": 1.0,
+     "code": 18.515625,
+     "y": false,
+     "map_max": 18.520048141479492
+    },
+    {
+     "obs": "het_kdm6b_f_3_S_H",
+     "k": 563,
+     "readout": 1.0,
+     "code": 18.28125,
+     "y": false,
+     "map_max": 18.284011840820312
+    },
+    {
+     "obs": "het_kdm6b_m_1_F_P",
+     "k": 1083,
+     "readout": 1.0,
+     "code": 17.984375,
+     "y": false,
+     "map_max": 17.98187828063965
+    },
+    {
+     "obs": "het_kmt5b_m_1_S_P",
+     "k": 2219,
+     "readout": 1.0,
+     "code": 17.90625,
+     "y": false,
+     "map_max": 17.905550003051758
+    },
+    {
+     "obs": "het_kdm6b_m_1_S_H",
+     "k": 2234,
+     "readout": 1.0,
+     "code": 17.703125,
+     "y": false,
+     "map_max": 17.705900192260742
+    },
+    {
+     "obs": "het_kdm6b_m_1_S_P",
+     "k": 2017,
+     "readout": 1.0,
+     "code": 17.359375,
+     "y": false,
+     "map_max": 17.3627872467041
+    },
+    {
+     "obs": "wt_kdm6b_m_1_S_P",
+     "k": 1297,
+     "readout": 1.0,
+     "code": 17.046875,
+     "y": false,
+     "map_max": 17.047317504882812
+    },
+    {
+     "obs": "het_kmt5b_m_2_S_H",
+     "k": 1935,
+     "readout": 1.0,
+     "code": 17.0,
+     "y": false,
+     "map_max": 16.997344970703125
+    },
+    {
+     "obs": "het_kdm6b_f_2_S_P",
+     "k": 1469,
+     "readout": 1.0,
+     "code": 16.875,
+     "y": false,
+     "map_max": 16.87711524963379
+    }
+   ]
+  }
+ }
+}
