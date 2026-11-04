@@ -1,0 +1,22 @@
+[
+ "V|auc - v1|auc",
+ "V|bal - v1|bal",
+ "V|bal - V|auc",
+ "V|balpair - V|auc",
+ "V@top10|bal - V|auc",
+ "V@top10|bal - V|bal",
+ "V|hyb - V|auc",
+ "V@top10|auc - V|auc",
+ "V@top10|hyb - V|auc",
+ "V|hyb - v1|auc",
+ "V|auc - v1|hyb",
+ "V@top10|hyb - v1|auc",
+ "Vf|hyb - Vf|auc",
+ "Vf@top10|hyb - Vf|auc",
+ "Vf@top10|bal - Vf|auc",
+ "Vf|auc - V|auc",
+ "V|auc - v1s0|auc",
+ "V|bal - v1s0|bal",
+ "V@top10|hyb - v1s0|auc",
+ "V|hyb - v1s0|auc"
+]

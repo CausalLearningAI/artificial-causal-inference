@@ -84,3 +84,19 @@ Outputs: results/vision/eci_v2_2/, scripts/eci/v2/v22_*, big files /mnt/beegfs/l
   1.45% of entries differ by > 0.01, max abs diff 42. v1 s1-s10: not on the full window yet.
 - 11:20-11:35 full V caches (HMM P(on), one sequence per 15-min video): ~12.5 min per code set on 32 CPUs (iterations
   median 62-69, max 200); tags ~3 min. Array 1967092.
+- 11:52 full report (1988606) + summary (1988607): results/vision/eci_v2_2/full/{report.json, tables.md, summary_full.md}.
+  Old 2-min values in the same tables come from full/fullsub/report.json (= the v2.2 values; contrast CIs there differ
+  slightly from v2.2's because the bootstrap rng runs over a shorter contrast list; point values identical).
+- VERDICT on the full window, design (a): unchanged - no arm passes C3. C1 6/6 (3/3) for every arm. C2 yes for V|bal,
+  V|balpair, V@top10|bal, Vf@top10|bal; NO for the hyb / top10|auc arms (nose-nose disc 0.46-0.56). C3 lower CI
+  (nose-nose / nose-tail AUROC vs V|auc): V|bal -0.056 / -0.042 (2-min -0.146 / -0.038), V|hyb -0.030 / -0.041,
+  V@top10|hyb -0.040 / -0.042. AMENDMENT 1 (fresh seeds, Vf|hyb vs Vf|auc): C2 now NO (nose-nose disc 0.56; 2-min 0.28),
+  C3 NO -> still not confirmed. The bal rule's nose-nose AUROC cost shrinks: V|bal - V|auc nose-nose AUROC -0.013
+  [-0.056, +0.027] (2-min -0.066 [-0.146, +0.013]). top10's nose-tail precision@100 gain no longer excludes 0:
+  V@top10|hyb - V|auc +0.107 [-0.000, +0.250] (2-min +0.120 [+0.010, +0.280]); Vf@top10|hyb +0.087 [-0.007, +0.277].
+  V|auc design (a): seed 1001 now picks #222 for BOTH behaviours (5/6 distinct; 2-min 6/6).
+- Sheets (full/sheets/, held-out non-SG frames, <= 2 per video): v1_s0 auc (nose-nose #611: 1/12 labelled, bodies in
+  contact near heads; nose-tail #414: 3/12, mice lined up nose-to-flank/rear); V_s1001 auc (#222 for both: heads
+  together, 3/12 nose-nose, 1/12 nose-tail); V_s1001 bal (nose-tail #453: 0/12, heat along TAILS on the floor / along
+  walls -> still a tail detector); V_s1001@top10 hyb (nose-nose #222: 1/12, multi-mouse huddles; nose-tail #453: 2/12,
+  tails).
