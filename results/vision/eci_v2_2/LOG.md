@@ -39,3 +39,9 @@ Outputs: results/vision/eci_v2_2/, scripts/eci/v2/v22_*, big files /mnt/beegfs/l
   precision@100 on SG). Re-tag of all models with them: 1912507 (47 keys); VW8 re-tag after its first tags.
 - 04:45 post hoc rules scored: none passes C1-C3 either (V|hyb fails C2 by nose-nose disc 0.41; VMS|auc passes C1/C2 but C3 nose-nose lower CI -0.117). p100 rule overfits (AUROC -0.11 to -0.28). Ants P2 prep 1913044 (for an informative VMS ants run; prereg does not require it).
 - ants VMS chain (informative C4): train 1913256/59/62 (gpu100) -> codes 1913257/60/63 -> ants tags 1913258/61/64
+- 04:55 ALL mice arms scored. VERDICT: no pre-registered variant adopted (all fail C3 on nose-nose AUROC; C1 all yes; C2
+  yes for V readouts, VMS, VW8). Best tie-break among non-adopted = V@top10|bal (mean p@100 0.179; nose-tail p@100 mean
+  0.212, +0.120 [+0.013, +0.278] vs V|auc). Post hoc 'hyb' on V: nose-nose unchanged, nose-tail AUROC +0.021, fails C2
+  only by nose-nose disc 0.41. Sheets read: V's specific nose-tail neurons are TAIL (tail-base) detectors; nose-nose
+  specific picks are huddles at the food hopper. summary_table.md = compact table (v22_final.py).
+- Remaining: ants VMS chain (informative C4 only) 1913256-64.
