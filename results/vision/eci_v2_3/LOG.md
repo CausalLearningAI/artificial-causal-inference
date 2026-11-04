@@ -48,3 +48,21 @@ Big files: /mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_3/ (sae/, ext/).
 - v2.2 full report re-run after the v22 edits (V22_FRAMES=full, job 2002563): report.json and tables.md byte-identical
   (git diff empty) -> the edits do not change the v2.2 pipeline.
 - v1 s0 ext cache (2002562): deployed codes_max on all 864,000 frames.
+
+## Results (14:30-14:40)
+- Training (gpu100, H100): mice 2003185 13:04-13:46, 182,653 steps = 1.00 pass over 748,150,181 tokens, 2,364 s train loop,
+  77.3 steps/s (3 SAEs per step), store read 0.94 GB/s, loader wait 49 s; eval FVE s2001/2/3 0.8507 / 0.8507 / 0.8497
+  (V s1001-1006: 0.8497-0.8509), L0 15.9, dead 5 / 16 / 8. Ants 2003186: 25,574 steps = 1.00 pass over 104,754,034
+  tokens, 667 s, 38.4 steps/s (loader-bound: wait 373 s), FVE 0.8482 / 0.8491 / 0.8476. H100 time incl. the two
+  cancelled runs: 14:15 + 3:51 + 41:43 + 13:21 = 1.22 H100-hours.
+- Identity: ext codes of V s1001-1006 on the 648,000 atlas frames vs the v2.2 full-window codes: threshold flips only
+  (max abs diff 2.23-2.24 = theta*, <= 5.1e-8 of entries > 0.01; ext/identity_codes.json); direct SAE forward pass vs
+  assembled ext codes (300 frames): V s1001 0, V s1004 0.002, Vall s2001-2003 0 (ext/fwdcheck_*.json).
+- Mice (ext/summary.md, design (a), rule auc): Vall - V nose-nose AUROC -0.036 [-0.069, -0.004], nose-tail AUROC
+  +0.003 [-0.039, +0.048]; distinct picks 3/3. A1 NO, A2 NO (lower CI -0.039), A3 yes -> NOT adopted.
+- Ants (ants/summary.md, A -> B): Vall - V grooming-to-focal (any) AUROC -0.001 [-0.014, +0.011], Pearson r per-video
+  time -0.028 [-0.098, +0.026] -> A4 NO (r lower CI < -0.02).
+- Sheets ext/sheets/sheet_mice_Vall_s2001_{auc,bal}.png: nose-nose #463 4/12 labelled, heads together; nose-tail #1540
+  (auc) 0/12, mice bunched at the wall spout; #326 (bal) 0/12, heat along tails.
+- v1 s1-s10: job 1959004 (now running) encodes only the 648,000 atlas frames (v2.2 frame table), not the ext set; v1 on
+  ext = seed 0 only.

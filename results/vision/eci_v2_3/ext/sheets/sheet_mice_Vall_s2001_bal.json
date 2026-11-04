@@ -1,0 +1,281 @@
+{
+ "model": "Vall_s2001",
+ "rule": "bal",
+ "identity_max_abs_diff": 0.003620147705078125,
+ "picks": {
+  "nose_nose": {
+   "neuron": 463,
+   "frames": [
+    {
+     "row": 14336,
+     "obs": "het_ash1l_f_1_F_P",
+     "k": 836,
+     "score": 1.0,
+     "code": 12.3359375,
+     "y": true,
+     "cls": 2,
+     "map_max": 12.335673332214355,
+     "identity_abs_diff": 0.00026416778564453125
+    },
+    {
+     "row": 741979,
+     "obs": "wt_kdm6b_f_1_S_H",
+     "k": 3979,
+     "score": 1.0,
+     "code": 12.046875,
+     "y": true,
+     "cls": 2,
+     "map_max": 12.04468822479248,
+     "identity_abs_diff": 0.0021867752075195312
+    },
+    {
+     "row": 262751,
+     "obs": "het_kdm6b_f_2_F_O",
+     "k": 1751,
+     "score": 1.0,
+     "code": 11.8125,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.812520980834961,
+     "identity_abs_diff": 2.09808349609375e-05
+    },
+    {
+     "row": 285942,
+     "obs": "het_kdm6b_f_2_S_P",
+     "k": 2442,
+     "score": 1.0,
+     "code": 11.78125,
+     "y": true,
+     "cls": 2,
+     "map_max": 11.784490585327148,
+     "identity_abs_diff": 0.0032405853271484375
+    },
+    {
+     "row": 290273,
+     "obs": "het_kdm6b_f_3_F_H",
+     "k": 2273,
+     "score": 1.0,
+     "code": 11.7265625,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.724061012268066,
+     "identity_abs_diff": 0.0025014877319335938
+    },
+    {
+     "row": 10841,
+     "obs": "het_ash1l_f_1_F_O",
+     "k": 1841,
+     "score": 1.0,
+     "code": 11.5859375,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.589144706726074,
+     "identity_abs_diff": 0.0032072067260742188
+    },
+    {
+     "row": 355294,
+     "obs": "het_kdm6b_m_1_S_O",
+     "k": 4294,
+     "score": 1.0,
+     "code": 11.546875,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.548439979553223,
+     "identity_abs_diff": 0.0015649795532226562
+    },
+    {
+     "row": 780264,
+     "obs": "wt_kdm6b_m_1_S_H",
+     "k": 6264,
+     "score": 1.0,
+     "code": 11.5,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.496929168701172,
+     "identity_abs_diff": 0.003070831298828125
+    },
+    {
+     "row": 285391,
+     "obs": "het_kdm6b_f_2_S_P",
+     "k": 1891,
+     "score": 1.0,
+     "code": 11.3671875,
+     "y": true,
+     "cls": 2,
+     "map_max": 11.367608070373535,
+     "identity_abs_diff": 0.00042057037353515625
+    },
+    {
+     "row": 722000,
+     "obs": "wt_kdm6b_f_1_F_H",
+     "k": 2000,
+     "score": 1.0,
+     "code": 11.2734375,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.275399208068848,
+     "identity_abs_diff": 0.0019617080688476562
+    },
+    {
+     "row": 264541,
+     "obs": "het_kdm6b_f_2_F_O",
+     "k": 3541,
+     "score": 1.0,
+     "code": 11.140625,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.13926887512207,
+     "identity_abs_diff": 0.0013561248779296875
+    },
+    {
+     "row": 732803,
+     "obs": "wt_kdm6b_f_1_F_O",
+     "k": 3803,
+     "score": 1.0,
+     "code": 11.1328125,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.13464069366455,
+     "identity_abs_diff": 0.0018281936645507812
+    }
+   ]
+  },
+  "nt": {
+   "neuron": 326,
+   "frames": [
+    {
+     "row": 267452,
+     "obs": "het_kdm6b_f_2_F_P",
+     "k": 1952,
+     "score": 1.0,
+     "code": 17.21875,
+     "y": false,
+     "cls": 0,
+     "map_max": 17.217782974243164,
+     "identity_abs_diff": 0.0009670257568359375
+    },
+    {
+     "row": 286571,
+     "obs": "het_kdm6b_f_2_S_P",
+     "k": 3071,
+     "score": 1.0,
+     "code": 16.609375,
+     "y": false,
+     "cls": 0,
+     "map_max": 16.610984802246094,
+     "identity_abs_diff": 0.00160980224609375
+    },
+    {
+     "row": 275175,
+     "obs": "het_kdm6b_f_2_S_H",
+     "k": 5175,
+     "score": 1.0,
+     "code": 16.484375,
+     "y": false,
+     "cls": 0,
+     "map_max": 16.482908248901367,
+     "identity_abs_diff": 0.0014667510986328125
+    },
+    {
+     "row": 782965,
+     "obs": "wt_kdm6b_m_1_S_H",
+     "k": 8965,
+     "score": 1.0,
+     "code": 15.953125,
+     "y": false,
+     "cls": 0,
+     "map_max": 15.95667839050293,
+     "identity_abs_diff": 0.0035533905029296875
+    },
+    {
+     "row": 713837,
+     "obs": "wt_ash1l_m_1_S_O",
+     "k": 2837,
+     "score": 1.0,
+     "code": 15.9453125,
+     "y": false,
+     "cls": 0,
+     "map_max": 15.948932647705078,
+     "identity_abs_diff": 0.003620147705078125
+    },
+    {
+     "row": 274064,
+     "obs": "het_kdm6b_f_2_S_H",
+     "k": 4064,
+     "score": 1.0,
+     "code": 15.671875,
+     "y": false,
+     "cls": 0,
+     "map_max": 15.673972129821777,
+     "identity_abs_diff": 0.0020971298217773438
+    },
+    {
+     "row": 269147,
+     "obs": "het_kdm6b_f_2_F_P",
+     "k": 3647,
+     "score": 1.0,
+     "code": 15.53125,
+     "y": false,
+     "cls": 2,
+     "map_max": 15.530827522277832,
+     "identity_abs_diff": 0.00042247772216796875
+    },
+    {
+     "row": 745433,
+     "obs": "wt_kdm6b_f_1_S_H",
+     "k": 7433,
+     "score": 1.0,
+     "code": 15.515625,
+     "y": false,
+     "cls": 0,
+     "map_max": 15.513021469116211,
+     "identity_abs_diff": 0.0026035308837890625
+    },
+    {
+     "row": 285877,
+     "obs": "het_kdm6b_f_2_S_P",
+     "k": 2377,
+     "score": 1.0,
+     "code": 15.375,
+     "y": false,
+     "cls": 0,
+     "map_max": 15.375309944152832,
+     "identity_abs_diff": 0.00030994415283203125
+    },
+    {
+     "row": 312649,
+     "obs": "het_kdm6b_f_3_S_H",
+     "k": 6649,
+     "score": 1.0,
+     "code": 15.328125,
+     "y": false,
+     "cls": 0,
+     "map_max": 15.325602531433105,
+     "identity_abs_diff": 0.0025224685668945312
+    },
+    {
+     "row": 779103,
+     "obs": "wt_kdm6b_m_1_S_H",
+     "k": 5103,
+     "score": 1.0,
+     "code": 15.3203125,
+     "y": false,
+     "cls": 0,
+     "map_max": 15.322417259216309,
+     "identity_abs_diff": 0.0021047592163085938
+    },
+    {
+     "row": 772111,
+     "obs": "wt_kdm6b_m_1_F_P",
+     "k": 2611,
+     "score": 1.0,
+     "code": 15.3125,
+     "y": false,
+     "cls": 0,
+     "map_max": 15.312888145446777,
+     "identity_abs_diff": 0.00038814544677734375
+    }
+   ]
+  }
+ }
+}

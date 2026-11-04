@@ -1,0 +1,17 @@
+{
+ "Vall_s2001": {
+  "frames": 300,
+  "max_abs_diff": 0.0,
+  "active_entries_ref": 125844
+ },
+ "Vall_s2002": {
+  "frames": 300,
+  "max_abs_diff": 0.0,
+  "active_entries_ref": 126731
+ },
+ "Vall_s2003": {
+  "frames": 300,
+  "max_abs_diff": 0.0,
+  "active_entries_ref": 126368
+ }
+}
