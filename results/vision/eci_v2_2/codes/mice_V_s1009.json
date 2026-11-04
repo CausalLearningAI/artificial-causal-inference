@@ -1,0 +1,8 @@
+{
+ "tokens": 17632320,
+ "pooled_tokens": 6372717,
+ "native_per_pooled": 2.766844973658802,
+ "node": "zeta245",
+ "gpu": "cpu",
+ "seconds": 779.9498591423035
+}

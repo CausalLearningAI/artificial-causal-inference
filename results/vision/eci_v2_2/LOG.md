@@ -45,3 +45,8 @@ Outputs: results/vision/eci_v2_2/, scripts/eci/v2/v22_*, big files /mnt/beegfs/l
   only by nose-nose disc 0.41. Sheets read: V's specific nose-tail neurons are TAIL (tail-base) detectors; nose-nose
   specific picks are huddles at the food hopper. summary_table.md = compact table (v22_final.py).
 - Remaining: ants VMS chain (informative C4 only) 1913256-64.
+- 05:10 AMENDMENT 1 (prereg file): confirm post hoc hyb / top10 on fresh V seeds 1007-1009. codes 1915058/60/63, tags 1915059/61/64. Arms Vf|* in arms.json.
+- 05:45 AMENDMENT 1 result (fresh V seeds 1007-1009): Vf|hyb C1 3/3, C2 yes (0.83 / 0.28), C3 NO (CIs too wide with 3
+  seeds: nose-nose +0.000 [-0.073, +0.075], nose-tail +0.036 [-0.137, +0.228]) -> NOT confirmed by the criterion.
+  Replicated: top10 readout raises nose-tail precision@100, Vf@top10|hyb - Vf|auc +0.157 [+0.007, +0.360]
+  (first seeds +0.120 [+0.013, +0.278]).

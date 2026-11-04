@@ -321,19 +321,20 @@ def verdict(res):
     out = {}
     S = res['sets']['sg2non']
     for arm in S['levels']:
-        if arm.startswith('v1') or arm == 'V|auc':
+        if arm.startswith('v1') or arm in ('V|auc', 'Vf|auc'):
             continue
+        ref = 'Vf|auc' if res['arms'][arm].get('amendment1') else 'V|auc'
         pk = S['picks'][arm]
         dist = [p[0]['nose_nose'] != p[0]['nt'] for p in pk.values()]
         need = 2 if len(dist) <= 3 else 4
         lv = S['levels'][arm]
         c2 = (lv['nt|disc']['median'] > 0.6, lv['nose_nose|disc']['median'] < 0.4)
-        con = S['contrasts'].get(f'{arm} - V|auc', {})
+        con = S['contrasts'].get(f'{arm} - {ref}', {})
         c3 = {b: con[f'{b}|auc']['ci'][0] for b in C.BEH} if con else {}
         out[arm] = {'C1 distinct seeds': f'{sum(dist)}/{len(dist)}', 'C1': sum(dist) >= need,
                     'C2 nt disc median': lv['nt|disc']['median'], 'C2 nose_nose disc median': lv['nose_nose|disc']['median'],
                     'C2': bool(c2[0] and c2[1]), 'C3 lower CI (AUROC vs V|auc)': c3,
-                    'C3': bool(c3) and all(v >= -0.02 for v in c3.values()),
+                    'C3': bool(c3) and all(v >= -0.02 for v in c3.values()), 'C3 reference': ref,
                     'tiebreak mean p@100': 0.5 * (lv['nose_nose|p100']['mean'] + lv['nt|p100']['mean'])}
     return out
 

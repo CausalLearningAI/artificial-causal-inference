@@ -378,5 +378,41 @@
   ],
   "rule": "p100",
   "post_hoc": true
+ },
+ "Vf|auc": {
+  "models": [
+   "V_s1007",
+   "V_s1008",
+   "V_s1009"
+  ],
+  "rule": "auc",
+  "amendment1": true
+ },
+ "Vf|hyb": {
+  "models": [
+   "V_s1007",
+   "V_s1008",
+   "V_s1009"
+  ],
+  "rule": "hyb",
+  "amendment1": true
+ },
+ "Vf@top10|hyb": {
+  "models": [
+   "V_s1007@top10",
+   "V_s1008@top10",
+   "V_s1009@top10"
+  ],
+  "rule": "hyb",
+  "amendment1": true
+ },
+ "Vf@top10|bal": {
+  "models": [
+   "V_s1007@top10",
+   "V_s1008@top10",
+   "V_s1009@top10"
+  ],
+  "rule": "bal",
+  "amendment1": true
  }
 }

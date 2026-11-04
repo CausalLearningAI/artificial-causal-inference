@@ -39,5 +39,9 @@
  "VP2|p100 - V|auc",
  "VMS|p100 - V|auc",
  "VW8|p100 - V|auc",
- "V|p100 - v1|p100"
+ "V|p100 - v1|p100",
+ "Vf|hyb - Vf|auc",
+ "Vf@top10|hyb - Vf|auc",
+ "Vf@top10|bal - Vf|auc",
+ "Vf|auc - V|auc"
 ]

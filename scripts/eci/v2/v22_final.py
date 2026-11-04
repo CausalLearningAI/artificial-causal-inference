@@ -8,7 +8,7 @@ R = json.loads((O / 'report.json').read_text())
 EXT = json.loads((REPO / 'results/vision/eci_v2_1/extended/report.json').read_text())
 ANTS = json.loads((O / 'ants_report.json').read_text()) if (O / 'ants_report.json').exists() else None
 ARMS = ['v1|auc', 'V|auc', 'V|bal', 'V@top10|bal', 'V@box3|bal', 'V@coarse|bal', 'V@ms|bal', 'VP2|bal', 'VMS|bal', 'VW8|bal',
-        'V|hyb', 'VW8|hyb', 'VMS|auc', 'VW8|auc']
+        'V|hyb', 'VW8|hyb', 'VMS|auc', 'VW8|auc', 'Vf|auc', 'Vf|hyb', 'Vf@top10|hyb', 'Vf@top10|bal']
 NAME = {'nose_nose': 'nose-nose (nose_nose)', 'nt': 'nose-tail (nt)'}
 
 
@@ -44,8 +44,8 @@ for dset, title in (('sg2non', '(a) select on SG (11 pools), evaluate on the 12 
             lv = S['levels'][a]
             pk = S['picks'][a]
             dist = sum(all(p['nose_nose'] != p['nt'] for p in v) for v in pk.values())
-            con = S['contrasts'].get(f'{a} - V|auc')
-            ph = ' (post hoc)' if R['arms'][a].get('post_hoc') else ''
+            con = S['contrasts'].get(f"{a} - {'Vf|auc' if R['arms'][a].get('amendment1') else 'V|auc'}")
+            ph = ' (post hoc)' if R['arms'][a].get('post_hoc') else (' (AMENDMENT 1, fresh seeds; diff vs Vf|auc)' if R['arms'][a].get('amendment1') else '')
             md.append(f"| {a}{ph} | {dist}/{len(pk)} | {f(lv, b + '|auc')} | {c(con, b + '|auc')} | {f(lv, b + '|p100')} | {f(lv, b + '|F1')} | "
                       f"{f(lv, b + '|disc', 2)} | {f(lv, b + '|bias_raw_soft_s', 1)} | {f(lv, b + '|mae_raw_soft_s', 1)} ({lv[b + '|mae_raw_soft_frac']['median']:.3f}) | "
                       f"{f(lv, b + '|bias_cal_soft_s', 2)} | {f(lv, b + '|mae_cal_soft_s', 2)} ({lv[b + '|mae_cal_soft_frac']['median']:.4f}) | {f(lv, b + '|r_soft', 2)} |")
