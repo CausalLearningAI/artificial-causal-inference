@@ -30,6 +30,8 @@ log = L.log
 
 def codes_path(key):
     base, ro = (key.split('@') + [''])[:2]
+    if base.startswith('Vall_') and not ro:  # v2.3
+        return Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_3') / 'ants' / 'codes' / f'{base}_max_eval.npy'
     if not ro:
         p = BEE22 / 'ants' / 'codes' / f'{base}_max_eval.npy'
         return p if p.exists() else T.BEE / 'ants' / 'codes' / f'{base}_eval.npy'

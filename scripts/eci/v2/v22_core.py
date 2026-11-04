@@ -37,11 +37,14 @@ log = L.log
 # 'full' = the full atlas window (648,000 frames, v22_full.py); 'fullsub' = the full-table code path restricted to the
 # old frames with the OLD caches (pipeline identity check)
 FRAMES = os.environ.get('V22_FRAMES', 'old')
-assert FRAMES in ('old', 'full', 'fullsub')
+assert FRAMES in ('old', 'full', 'fullsub', 'ext')
 if FRAMES != 'old':
     OUT22 = OUT22 / 'full' / ('fullsub' if FRAMES == 'fullsub' else '')
     OUT22 = Path(str(OUT22).rstrip('/'))
 BEEF = BEE22 / 'full'
+if FRAMES == 'ext':  # v2.3 (scripts/eci/v2/v23_prereg.md): the atlas window + the first 15 min of the 48 H videos (864,000)
+    OUT22 = REPO / 'results/vision/eci_v2_3/ext'
+    BEEF = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_3/ext')
 
 
 # ---------------------------------------------------------------------------------------------- frames
@@ -101,7 +104,7 @@ def obs_starts(F):
 
 # ---------------------------------------------------------------------------------------------- readouts
 def cache_paths(key):
-    d = (BEEF if FRAMES == 'full' else BEE22) / 'cache' / 'mice'
+    d = (BEEF if FRAMES in ('full', 'ext') else BEE22) / 'cache' / 'mice'
     return d / f'{key}_raw.npy', d / f'{key}_pon.npy'
 
 

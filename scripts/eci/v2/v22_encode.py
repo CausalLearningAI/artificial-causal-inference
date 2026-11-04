@@ -33,6 +33,7 @@ import v21_ladder as L  # noqa: E402
 
 T = L.T
 BEE22 = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_2')
+BEE23 = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_3')  # v2.3 Vall_* SAEs and their codes
 OUT22 = REPO / 'results/vision/eci_v2_2'
 log = L.log
 
@@ -107,6 +108,8 @@ def cmd_prep(a):
 
 # ---------------------------------------------------------------------------------------------- codes
 def sae_path(dom, key):
+    if key.startswith('Vall_'):
+        return BEE23 / dom / 'sae' / key / 'sae_theta.pt'
     p = BEE22 / dom / 'sae' / key / 'sae_theta.pt'
     return p if p.exists() else T.BEE / dom / 'sae' / key / 'sae_theta.pt'
 
@@ -211,7 +214,7 @@ def cmd_codes(a):
         base += i1 - i0
         if si % 50 == 0:
             log(f'{dom} codes span {si}/{len(spans)} ({time.time() - t0:.0f}s)')
-    od = BEE22 / dom / 'codes'
+    od = (BEE23 if keys[0].startswith('Vall_') else BEE22) / dom / 'codes'
     od.mkdir(parents=True, exist_ok=True)
     R.to_parquet(od / 'eval_rows.parquet')
     idc = {'tokens': ntok, 'pooled_tokens': npool, 'native_per_pooled': ntok / max(1, npool)}
@@ -227,8 +230,9 @@ def cmd_codes(a):
         np.save(od / f'{k}_{r}_eval.npy', x)
     import socket
     idc.update(node=socket.gethostname(), gpu=torch.cuda.get_device_name(0) if dev.type == 'cuda' else 'cpu', seconds=time.time() - t0)
-    (OUT22 / 'codes').mkdir(parents=True, exist_ok=True)
-    (OUT22 / 'codes' / f'{dom}_{a.tag or keys[0]}.json').write_text(json.dumps(idc, indent=1))
+    oj = (REPO / 'results/vision/eci_v2_3') if keys[0].startswith('Vall_') else OUT22
+    (oj / 'codes').mkdir(parents=True, exist_ok=True)
+    (oj / 'codes' / f'{dom}_{a.tag or keys[0]}.json').write_text(json.dumps(idc, indent=1))
     log(f'{dom} codes done {json.dumps(idc)}')
 
 

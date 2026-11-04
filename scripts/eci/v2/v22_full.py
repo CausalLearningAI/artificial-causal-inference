@@ -36,6 +36,8 @@ import v22_core as C  # noqa: E402
 REPO, T, log = C.REPO, C.T, C.log
 BEEF = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_2/full')
 OUTF = REPO / 'results/vision/eci_v2_2/full'
+if C.FRAMES == 'ext':  # v2.3 frame set (864,000 frames; v23_eval.py frames builds BEEF/frames.parquet)
+    BEEF, OUTF = C.BEEF, C.OUT22
 OLD_FRAMES = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_eval/mice/frames.parquet')
 TIERA = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_prob/mice/tierA/frames.parquet')
 V_KEYS = [f'V_s{s}' for s in range(1001, 1010)]
@@ -565,7 +567,7 @@ def cmd_hmmcheck(a):
 
 
 def cmd_cache(a):
-    assert C.FRAMES == 'full'
+    assert C.FRAMES in ('full', 'ext')
     key = a.model
     t0 = time.time()
     v1 = key.startswith('v1_')
@@ -577,6 +579,16 @@ def cmd_cache(a):
         r = pd.Series(np.arange(len(TA)), index=TA.row.values).reindex(F.row.values).values
         assert not np.isnan(r).any()
         raw = np.asarray(np.load(TIERA.parent / 'v1.npy', mmap_mode='r'))[r.astype(np.int64)]
+    elif a.src == 'deployed':  # v1 s0 only (v2.3): the deployed codes_max (annotations.csv rows; the source of Tier A)
+        assert key == 'v1_s0'
+        import analysis as AN
+        rows = pd.read_parquet(BEEF / 'frames.parquet', columns=['row']).row.values
+        cm = np.load(REPO / AN.TIERA['mice']['v1'], mmap_mode='r')
+        o = np.argsort(rows)
+        raw = np.empty((len(rows), cm.shape[1]), np.float16)
+        for c0 in range(0, len(rows), 50000):
+            ii = o[c0:c0 + 50000]
+            raw[ii] = cm[rows[ii]]
     else:
         raw = assemble(base, None if v1 else ro)
     pr, pp = C.cache_paths(key)
