@@ -192,6 +192,20 @@ def cmd_codes(a):
                         out['coarse'] = torch.zeros((i1 - i0, Wd[k]), device=dev).index_reduce_(0, pfl, cp, 'amax', include_self=True)
                     if 'ms' in ro:
                         out['ms'] = torch.maximum(out['max'], out['coarse'])
+                    if 'top10' in ro:  # = v21_train.cmd_codes 'top10': mean of the 10 largest token codes of the frame
+                        cc = sae.encode(norm(f), mode='threshold').float()
+                        lf = torch.from_numpy(fi - (b0 - i0)).to(dev)
+                        o_ = torch.argsort(lf, stable=True)
+                        lfs = lf[o_]
+                        cnt_ = torch.bincount(lfs, minlength=nfr)
+                        st_ = torch.cumsum(cnt_, 0) - cnt_
+                        rk = torch.arange(len(lfs), device=dev) - st_[lfs]
+                        D = torch.zeros((nfr, int(cnt_.max()), Wd[k]), device=dev)
+                        D[lfs, rk] = cc[o_]
+                        v_ = D.topk(min(10, D.shape[1]), dim=1).values.sum(1) / cnt_.clamp(min=1).float()[:, None].clamp(max=10)
+                        out['top10'] = torch.zeros((i1 - i0, Wd[k]), device=dev)
+                        out['top10'][b0 - i0: b0 - i0 + nfr] = v_
+                        del D, cc
                 for r in ro:
                     Xc[(k, r)][sl] = out[r][b0 - i0: b0 - i0 + nfr].half().cpu().numpy()
         base += i1 - i0

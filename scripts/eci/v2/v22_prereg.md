@@ -115,3 +115,13 @@ new hyper-parameters with no prior setting on this data, so one night does not a
 Top-12 frame sheets (re-using `v21_extended_sheet.py`) for v1, V and every adopted variant (if none is adopted: the
 best-scoring variant under the tie-break, labelled "not adopted"), for nose-nose, nose-tail and ants grooming-to-focal
 (any). I look at them and describe what the top frames show.
+
+## AMENDMENT 1 (2026-11-04 ~05:10, after all pre-registered arms were scored; before any number of the seeds below existed)
+
+The pre-registered variants all failed C3. Two POST HOC options were explored on the same seeds and look best: `hyb`
+(nose-nose by the AUROC rule, nose-tail by the balanced rule) and the mean-of-top-10-tokens readout. Because they were
+chosen after seeing the scores, they are confirmed here on **fresh V seeds 1007-1009** (same recipe as V, trained during
+v2.1, never scored in v2.2). Same design (a), metrics, bootstrap and criteria C1-C3. Arms:
+`Vf|auc` (frame max, current rule = reference), `Vf|hyb`, `Vf@top10|hyb`, `Vf@top10|bal`. The top10 codes are
+recomputed on CPU here (`v22_encode.py --readouts max,top10`, the v21_train top10 definition). CONFIRMED iff an arm
+passes C1-C3 against `Vf|auc`; reported either way, and nothing here changes the pre-registered verdict.
