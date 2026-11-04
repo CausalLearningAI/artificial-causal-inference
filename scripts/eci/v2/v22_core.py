@@ -33,12 +33,48 @@ NAME = {'nt': 'nose-tail (nt)', 'nose_nose': 'nose-nose (nose_nose)', 'nn': 'nos
         'np': 'nose-nose-passive (np)', 'groom_any': 'grooming-to-focal (any)'}
 PREFIX = (128, 256, 512, 2048)
 log = L.log
+# frame set (AMENDMENT 2): 'old' = the 2-min Tier B probe windows (86,400 frames; the v2.2 default, unchanged);
+# 'full' = the full atlas window (648,000 frames, v22_full.py); 'fullsub' = the full-table code path restricted to the
+# old frames with the OLD caches (pipeline identity check)
+FRAMES = os.environ.get('V22_FRAMES', 'old')
+assert FRAMES in ('old', 'full', 'fullsub')
+if FRAMES != 'old':
+    OUT22 = OUT22 / 'full' / ('fullsub' if FRAMES == 'fullsub' else '')
+    OUT22 = Path(str(OUT22).rstrip('/'))
+BEEF = BEE22 / 'full'
 
 
 # ---------------------------------------------------------------------------------------------- frames
+def mice_table_full(A):
+    """full-window frame table (v22_full frames.parquet rows A) with the columns of the old table (eval.frame_table)
+    + annotator / sg / nonsg / cls (as mice_table)."""
+    import eval as EV
+    F = A.copy().reset_index(drop=True)
+    F['experiment'] = 'v1'
+    F['series'] = F.experiment
+    F['unit'] = F.obs.str.rsplit('_', n=2).str[0]
+    for b, cols in EV.BEH['mice'].items():
+        F[f'y_{b}'] = (F[cols].fillna(0).to_numpy() > 0).any(1)
+        F[f'v_{b}'] = F[cols].notna().all(1).to_numpy()
+    return add_annot(F)
+
+
 def mice_table():
-    """eval frame table (v21_ladder.frames) + annotator per video (experiment.csv, observation_id = obs) + sg flag."""
+    """eval frame table (v21_ladder.frames) + annotator per video (experiment.csv, observation_id = obs) + sg flag.
+    V22_FRAMES=full: the full atlas window; =fullsub: its rows on the old frames, in the old order (asserted)."""
+    if FRAMES != 'old':
+        import analysis as AN
+        import eval as EV
+        F = mice_table_full(pd.read_parquet(BEEF / 'frames.parquet'))
+        if FRAMES == 'fullsub':
+            F = F[F.code_row.values >= 0].reset_index(drop=True)
+            assert (F.code_row.values == np.arange(len(F))).all()
+        return F, AN.splits(F.unit.values, EV.SPLITS)
     F, SP = L.frames('mice')
+    return add_annot(F), SP
+
+
+def add_annot(F):
     ex = pd.read_csv(REPO / 'data/mice/v1/experiment.csv')
     ex = ex[ex.annotation_file.notna()]
     assert ex.observation_id.is_unique
@@ -52,7 +88,7 @@ def mice_table():
     # three-class label for the specificity measures: 1 = nt only, 2 = nose_nose only, 0 = neither, -1 = both
     a, b = F.y_nt.values, F.y_nose_nose.values
     F['cls'] = np.where(a & b, -1, np.where(a, 1, np.where(b, 2, 0)))
-    return F, SP
+    return F
 
 
 def obs_starts(F):
@@ -65,7 +101,7 @@ def obs_starts(F):
 
 # ---------------------------------------------------------------------------------------------- readouts
 def cache_paths(key):
-    d = BEE22 / 'cache' / 'mice'
+    d = (BEEF if FRAMES == 'full' else BEE22) / 'cache' / 'mice'
     return d / f'{key}_raw.npy', d / f'{key}_pon.npy'
 
 
@@ -163,6 +199,97 @@ def neuron_stats(X, F, rows, R=None):
         out[f'auc0_{b}'] = auroc_cols(X, rows[m2], cls[m2] == c)  # behaviour vs frames with neither label
     out['bal_nt'] = 0.5 * (out['auc0_nt'] + out['disc'])
     out['bal_nose_nose'] = 0.5 * (out['auc0_nose_nose'] + (1 - out['disc']))
+    return out
+
+
+from numba import njit, prange  # noqa: E402
+
+
+@njit(parallel=True, cache=True)
+def _auc_multi(Xt, cat):
+    """Xt (W, n) float32, cat (n, Q) int8 (0 = frame not in query q, 1 = negative, 2 = positive) -> (Q, W) AUROC, ties
+    0.5 (= auroc_cols: rank sums of average ranks within each query's frames; exact in float64)."""
+    W, n = Xt.shape
+    Q = cat.shape[1]
+    P = np.zeros(Q)
+    N = np.zeros(Q)
+    for t in range(n):
+        for q in range(Q):
+            if cat[t, q] == 2:
+                P[q] += 1
+            elif cat[t, q] == 1:
+                N[q] += 1
+    out = np.full((Q, W), np.nan)
+    for j in prange(W):
+        x = Xt[j]
+        o = np.argsort(x)
+        rs = np.zeros(Q)
+        c = np.zeros(Q)
+        gm = np.zeros(Q)
+        gp = np.zeros(Q)
+        i = 0
+        while i < n:
+            v = x[o[i]]
+            e = i
+            gm[:] = 0
+            gp[:] = 0
+            while e < n and x[o[e]] == v:
+                r = o[e]
+                for q in range(Q):
+                    cq = cat[r, q]
+                    if cq > 0:
+                        gm[q] += 1
+                        if cq == 2:
+                            gp[q] += 1
+                e += 1
+            for q in range(Q):
+                if gp[q] > 0:
+                    rs[q] += gp[q] * (c[q] + (gm[q] + 1) / 2)
+                c[q] += gm[q]
+            i = e
+        for q in range(Q):
+            if P[q] > 0 and N[q] > 0:
+                out[q, j] = (rs[q] - P[q] * (P[q] + 1) / 2) / (P[q] * N[q])
+    return out
+
+
+def neuron_stats_multi(X, F, rows_list, R=None):
+    """neuron_stats for several frame sets at once (one sort per neuron; identical values) -> list of dicts."""
+    n = len(F)
+    cls = F.cls.values
+    Y = {b: F[f'y_{b}'].values for b in BEH}
+    cols = []
+    for rows in rows_list:
+        m = np.zeros(n, bool)
+        m[rows] = True
+        for b in BEH:
+            cols.append(np.where(m, np.where(Y[b], 2, 1), 0))
+        ex = m & ((cls == 1) | (cls == 2))
+        cols.append(np.where(ex, np.where(cls == 1, 2, 1), 0))
+        for c in (1, 2):
+            m2 = m & ((cls == c) | (cls == 0))
+            cols.append(np.where(m2, np.where(cls == c, 2, 1), 0))
+    cat = np.ascontiguousarray(np.stack(cols, 1).astype(np.int8))
+    A = _auc_multi(np.ascontiguousarray(X.T, dtype=np.float32), cat)
+    out = []
+    for i, rows in enumerate(rows_list):
+        a = A[5 * i: 5 * i + 5]
+        st = {'fire': (X[rows] > 0).mean(0)}
+        if R is not None:
+            y = {b: F[f'y_{b}'].values[rows] for b in BEH}
+            for b in BEH:
+                st[f'p100_{b}'] = np.empty(X.shape[1])
+            for c0 in range(0, X.shape[1], 256):
+                Z = np.asarray(X[rows, c0:c0 + 256], np.float64)
+                Rc = np.asarray(R[rows, c0:c0 + 256], np.float64)
+                Z = Z + 1e-6 * Rc / np.maximum(Rc.max(0), 1e-12)
+                top = np.argpartition(-Z, 100, axis=0)[:100]
+                for b in BEH:
+                    st[f'p100_{b}'][c0:c0 + 256] = y[b][top].mean(0)
+        st['auc_nose_nose'], st['auc_nt'], st['disc'], st['auc0_nt'], st['auc0_nose_nose'] = a
+        st['bal_nt'] = 0.5 * (st['auc0_nt'] + st['disc'])
+        st['bal_nose_nose'] = 0.5 * (st['auc0_nose_nose'] + (1 - st['disc']))
+        out.append(st)
     return out
 
 

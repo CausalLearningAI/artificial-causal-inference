@@ -48,13 +48,15 @@ def directions(F, SP):
     D = {'sg2non': [(F.sg.values, F.nonsg.values)]}
     SPs = AN.splits(sgu, EV.SPLITS)
     D['sgcf'] = []
-    D['old'] = []
+    D['old'] = []  # identity check vs v21 extended: only with V22_FRAMES=old (dropped below otherwise)
     for nm in EV.SPLITS:
         for h in (0, 1):
             hs = np.array([SPs[nm].get(u, -1) for u in units])
             D['sgcf'].append((hs == h, hs == 1 - h))
             ha = np.array([SP[nm][u] for u in units])
             D['old'].append((ha == h, ha == 1 - h))
+    if C.FRAMES != 'old':
+        del D['old']
     return D, sgu
 
 
@@ -113,6 +115,11 @@ def cmd_tag(a):
     res = {'key': key, 'sets': {}}
     picks_all = {}
     stc = {}
+    if C.FRAMES != 'old':  # all selection-frame stats in one pass (same values as neuron_stats, checked by fullsub)
+        kk = [(dset, di) for dset, dirs in D.items() for di in range(len(dirs))]
+        for kd, st in zip(kk, C.neuron_stats_multi(X, F, [np.flatnonzero(D[d][i][0]) for d, i in kk], R)):
+            stc[kd] = st
+        log(f'{key}: selection stats of {len(kk)} directions ({time.time() - t0:.0f}s)')
     for dset, dirs in D.items():
         rules = ('auc',) if dset == 'old' else RULES
         for rule in rules:
@@ -130,7 +137,10 @@ def cmd_tag(a):
                 picks_all[(dset, rule, di)] = (pk, sel, ev, {b: float(st[f'auc_{b}'][pk[b]]) for b in C.BEH})
     # P(on) columns of every picked neuron (v1: the 3-state HMM on its raw code, as v21_extended)
     js = sorted({j for pk, *_ in picks_all.values() for j in pk.values()})
-    if Pn is None:
+    if Pn is None and C.FRAMES != 'old':
+        import v22_full as VF  # same HMM (fast implementation, checked against src/eci/v2/hmm.py in hmmcheck)
+        PC = VF.pon_fast(R[:, js], st_)[0]
+    elif Pn is None:
         PC = C.hmm_cols(R, js, st_)
     else:
         PC = Pn[:, js]
@@ -144,7 +154,7 @@ def cmd_tag(a):
         res['sets'].setdefault(f'{dset}|{rule}', []).append(d)
     # identity vs the v21 extended pickle (stored models, old rule)
     ep = EXT / f'{key}.pkl'
-    if ep.exists():
+    if ep.exists() and C.FRAMES == 'old':
         E = pickle.load(open(ep, 'rb'))
         mx, n, same = 0.0, 0, True
         for b in C.BEH:

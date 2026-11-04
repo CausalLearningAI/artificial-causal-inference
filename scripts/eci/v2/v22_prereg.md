@@ -125,3 +125,49 @@ v2.1, never scored in v2.2). Same design (a), metrics, bootstrap and criteria C1
 `Vf|auc` (frame max, current rule = reference), `Vf|hyb`, `Vf@top10|hyb`, `Vf@top10|bal`. The top10 codes are
 recomputed on CPU here (`v22_encode.py --readouts max,top10`, the v21_train top10 definition). CONFIRMED iff an arm
 passes C1-C3 against `Vf|auc`; reported either way, and nothing here changes the pre-registered verdict.
+
+## AMENDMENT 2 (2026-11-04 ~11:05): re-score on the FULL atlas window; written before any full-window score existed
+
+**Reason (an error).** Every mice number since v2.1 (and so all of v2.2 above, including AMENDMENT 1) was computed on
+the 2-min Tier B probe window of each annotated video only: 144 videos x 600 contiguous 5 fps frames = 86,400 frames
+(`results/vision/eci_v2_prob/mice/probe.parquet`, chosen for cost in `scripts/eci/v2_eval/eval.py`). That is ~13% of
+the annotated atlas window. The SAEs are not affected (trained on 25-frame windows sampled from whole recordings of
+all 648 videos); ants is not affected (it scores every labelled frame).
+
+**Frame set (the only change).** The full atlas window = Tier A of `scripts/eci/v2_prob/analysis.py`: every row of
+`dataset/mice/v1/annotations.csv` with labels, habituation ('_H') videos restricted to frames >= 4500 (the last 15 min);
+144 videos x 4,500 contiguous 5 fps frames = **648,000 frames** (built by `scripts/eci/v2/v22_full.py frames`; the old
+86,400 frames are an ordered subset, labels identical on them, asserted). Counts (`results/vision/eci_v2_2/full/frames.md`):
+
+| frame set | frames | nose-nose (nose_nose): positive frames / bouts / videos with >= 1 bout | nose-tail (nt): positive frames / bouts / videos with >= 1 bout |
+|---|---|---|---|
+| old 2-min, SG (selection, 11 pools) | 39,600 | 1,030 / 314 / 56 | 345 / 82 / 32 |
+| old 2-min, non-SG (evaluation, 12 pools) | 43,200 | 718 / 188 / 48 | 370 / 34 / 20 |
+| **full, SG** | 297,000 | 7,896 / 2,259 / 64 | 3,426 / 678 / 57 |
+| **full, non-SG** | 324,000 | 4,568 / 1,278 / 66 | 2,696 / 331 / 57 |
+
+Window check: no labelled video is outside the 144; but the first 15 min of the 48 habituation videos (frames 0-4499,
+216,000 frames) also carry labels: 1,427 of 5,205 nose-nose bouts and 542 of 1,600 nose-tail bouts lie there (1
+nose-nose bout straddles frame 4500). They are NOT in the atlas window and are not scored here (frame set as defined
+above; flagged for the user).
+
+**Everything else unchanged**: SG selection on the 11 SG pools (rd41_3 = unknown annotator, excluded), designs (a)
+`sg2non` and (b) `sgcf`, rules `auc`, `bal` (and the post hoc `hyb`, `balpair`, `p100` computed as before), eligibility
+(readout > 0 on >= 0.2% of all scored frames), measures, the sufficiency rule, bootstrap (1000 replicates, rng
+20261104, pools and seeds), criteria C1-C3 (C4 = ants, unchanged and not re-run: ants already scored every labelled
+frame), adoption rule and the AMENDMENT 1 confirmation (fresh V seeds 1007-1009). Arms re-scored: v1 (s0-s10) `auc` /
+`bal` / `hyb`; V (1001-1006) `auc` / `bal` / `hyb` / `balpair`; V@top10 `auc` / `bal` / `hyb`; Vf (1007-1009) `auc` /
+`hyb`; Vf@top10 `hyb` / `bal`. The retrained variants (VP2, VMS, VW8) and the box3 / coarse / ms readouts are not
+re-scored (their codes are not recomputed; all failed C3 on the 2-min data).
+
+**Readouts on the new frames.** Codes = the same definitions (v2: frame max and mean of the top-10 token codes of the V
+input `x_t + (x_{t+1} - x_{t-1}) / 2` of the mask-v5 tokens, stored SAEs; v1: v1's exact token pipeline, frame max).
+The label-free 3-state HMM P(on) is refitted with one sequence per video = the whole 15-min window (was: the 2-min
+window). Per-video time = over the 900-s window (was 120 s).
+
+**Identity checks (must pass before any number is read):** (i) new codes on the old 86,400 frames = the stored old
+codes (allowed: the known threshold-flip noise, a code at 0 on one side and ~theta* on the other); (ii) labels on the
+old frames identical (asserted in `frames`); (iii) the new code path (`V22_FRAMES=fullsub`: full-table builder, new
+AUROC kernel, new HMM implementation) restricted to the old frames with the OLD caches reproduces the v2.2 picks and
+values of `results/vision/eci_v2_2/report.json`; (iv) the faster HMM implementation reproduces src/eci/v2/hmm.py
+P(on) on the old V_s1001 codes. Outputs: `results/vision/eci_v2_2/full/`, scripts `scripts/eci/v2/v22_full*`.
