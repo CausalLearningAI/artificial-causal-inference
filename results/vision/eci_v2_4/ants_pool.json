@@ -1,0 +1,38 @@
+{
+ "dom": "ants",
+ "lag_frames": 2,
+ "lag_seconds": 0.4,
+ "M_tokens_store": 104754034,
+ "P": {
+  "2": {
+   "pooled_tokens": 42679289,
+   "native_per_pooled": 2.4544465583763593,
+   "E_x_minus_mean_sq": 283.53972250505973,
+   "E_x_sq": 673.4047187469145,
+   "E_d_sq": 183.32267721547908,
+   "E_d_minus_mean_sq": 183.15315360940457,
+   "alpha": 1.2436519624331435,
+   "passes": 5,
+   "steps": 52098,
+   "tokens_used": 213393408,
+   "passes_exact": 4.999928841363782,
+   "tasks": 116,
+   "pool_seconds_max": 798.4002096652985
+  },
+  "4": {
+   "pooled_tokens": 19125944,
+   "native_per_pooled": 5.477064766058083,
+   "E_x_minus_mean_sq": 238.44747920607688,
+   "E_x_sq": 624.2825086803666,
+   "E_d_sq": 142.8633226216087,
+   "E_d_minus_mean_sq": 142.67753921977902,
+   "alpha": 1.2919211096859344,
+   "passes": 11,
+   "steps": 51363,
+   "tokens_used": 210382848,
+   "passes_exact": 10.999867405237618,
+   "tasks": 116,
+   "pool_seconds_max": 802.2330186367035
+  }
+ }
+}

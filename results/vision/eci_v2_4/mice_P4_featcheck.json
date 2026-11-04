@@ -1,0 +1,9 @@
+{
+ "P": 4,
+ "alpha": 1.3740292802384217,
+ "windows": 50,
+ "video_edge_windows": 10,
+ "cells": 4263,
+ "max_abs_diff": 0.0,
+ "exact": true
+}

@@ -1,0 +1,100 @@
+{
+ "frames": [
+  {
+   "P": 2,
+   "video": "v1/wt_ash1l_f_6_F_O",
+   "frame": 2586,
+   "cells": 78,
+   "same_cells": true,
+   "exact_x_d_n": true,
+   "pool2_same_cells": true,
+   "pool2_x_max_abs_diff": 0.0078125,
+   "pool2_x_equal_after_fp16_cast": true
+  },
+  {
+   "P": 2,
+   "video": "v2/mixed_ash1l_m_4_F_H",
+   "frame": 1145,
+   "cells": 72,
+   "same_cells": true,
+   "exact_x_d_n": true,
+   "pool2_same_cells": true,
+   "pool2_x_max_abs_diff": 0.00390625,
+   "pool2_x_equal_after_fp16_cast": true
+  },
+  {
+   "P": 2,
+   "video": "v1/het_kmt5b_m_6_S_H",
+   "frame": 4557,
+   "cells": 88,
+   "same_cells": true,
+   "exact_x_d_n": true,
+   "pool2_same_cells": true,
+   "pool2_x_max_abs_diff": 0.00390625,
+   "pool2_x_equal_after_fp16_cast": true
+  },
+  {
+   "P": 2,
+   "video": "v1/wt_ash1l_f_6_F_O",
+   "frame": 0,
+   "cells": 91,
+   "same_cells": true,
+   "exact_x_d_n": true,
+   "pool2_same_cells": true,
+   "pool2_x_max_abs_diff": 0.00390625,
+   "pool2_x_equal_after_fp16_cast": true
+  },
+  {
+   "P": 2,
+   "video": "v2/mixed_ash1l_m_4_F_H",
+   "frame": 8999,
+   "cells": 61,
+   "same_cells": true,
+   "exact_x_d_n": true,
+   "pool2_same_cells": true,
+   "pool2_x_max_abs_diff": 0.0078125,
+   "pool2_x_equal_after_fp16_cast": true
+  },
+  {
+   "P": 4,
+   "video": "v1/wt_ash1l_f_6_F_O",
+   "frame": 2586,
+   "cells": 33,
+   "same_cells": true,
+   "exact_x_d_n": true
+  },
+  {
+   "P": 4,
+   "video": "v2/mixed_ash1l_m_4_F_H",
+   "frame": 1145,
+   "cells": 30,
+   "same_cells": true,
+   "exact_x_d_n": true
+  },
+  {
+   "P": 4,
+   "video": "v1/het_kmt5b_m_6_S_H",
+   "frame": 4557,
+   "cells": 34,
+   "same_cells": true,
+   "exact_x_d_n": true
+  },
+  {
+   "P": 4,
+   "video": "v1/wt_ash1l_f_6_F_O",
+   "frame": 0,
+   "cells": 39,
+   "same_cells": true,
+   "exact_x_d_n": true
+  },
+  {
+   "P": 4,
+   "video": "v2/mixed_ash1l_m_4_F_H",
+   "frame": 8999,
+   "cells": 23,
+   "same_cells": true,
+   "exact_x_d_n": true
+  }
+ ],
+ "all_exact": true
+}

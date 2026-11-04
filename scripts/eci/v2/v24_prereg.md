@@ -121,4 +121,17 @@ seeds 2401-2403, same batches), mice and ants. Also reported: P2C - P2W, P4W - P
 
 ## Measured before training (appended before any SAE training started)
 
-(see the next commit)
+Measured 2026-11-04 16:18-16:25 (pool jobs 2006961 / 2006962, alpha / check jobs 2008422 / 2008502), BEFORE any v2.4
+SAE training job started (ants training started 16:23:48 after this table was computed; nothing scored):
+
+| domain | P | pooled tokens | native M_t tokens per pooled token | alpha | E||x - mean x||^2 | E||Delta||^2 | passes | steps x 4096 |
+|---|---|---|---|---|---|---|---|---|
+| mice | 2x2 | 269,779,550 | 2.773 | 1.2798 | 398.4 | 243.3 | 1 | 65,864 |
+| mice | 4x4 | 109,859,600 | 6.810 | 1.3740 | 348.8 | 184.7 | 2 | 53,642 |
+| ants | 2x2 | 42,679,289 | 2.454 | 1.2437 | 283.5 | 183.3 | 5 | 52,098 |
+| ants | 4x4 | 19,125,944 | 5.477 | 1.2919 | 238.4 | 142.9 | 11 | 51,363 |
+
+Pooled cells cover every M_t token of the store (mice 748,150,181, ants 104,754,034; asserted). Lag L = 2 frames (0.4 s).
+Checks passed: pooling identity bit-exact (5 frames per domain and P incl. 2 video-edge frames; cell set == pool2;
+pool2's float32 mean cast to fp16 == stored x), featcheck bit-exact (50 windows incl. 10 video edges, arms W / N / C,
+both domains, both P). Seeds 2401-2403. Jobs: one per (domain, P, arm group): P2 W+N (6 SAEs), P2 C (3), P4 W (3).
