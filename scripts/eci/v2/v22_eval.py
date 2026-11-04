@@ -35,7 +35,7 @@ import v22_core as C  # noqa: E402
 L = C.L
 OUT22, log = C.OUT22, C.log
 EXT = C.REPO / 'results/vision/eci_v2_1/extended/tags/mice'
-RULES = ('auc', 'bal', 'balpair')
+RULES = ('auc', 'bal', 'balpair', 'hyb', 'p100')  # hyb, p100 = POST HOC exploratory
 DT = 0.2  # seconds per mice eval frame
 KTOP = 4000
 
@@ -112,11 +112,14 @@ def cmd_tag(a):
     D, sgu = directions(F, SP)
     res = {'key': key, 'sets': {}}
     picks_all = {}
+    stc = {}
     for dset, dirs in D.items():
         rules = ('auc',) if dset == 'old' else RULES
         for rule in rules:
             for di, (sel, ev) in enumerate(dirs):
-                st = C.neuron_stats(X, F, np.flatnonzero(sel)) if rule != 'auc' or dset != 'old' else None
+                if dset != 'old' and (dset, di) not in stc:
+                    stc[(dset, di)] = C.neuron_stats(X, F, np.flatnonzero(sel), R)
+                st = dict(stc[(dset, di)]) if dset != 'old' else None
                 if st is None:
                     rows = np.flatnonzero(sel)
                     st = {'fire': np.ones(X.shape[1])}
@@ -346,7 +349,8 @@ def cmd_tables(a):
            '|---|---|---|---|---|---|---|---|']
     for arm, v in V.items():
         c3 = v['C3 lower CI (AUROC vs V|auc)']
-        md.append(f"| {arm} | {v['C1 distinct seeds']} | {v['C2 nt disc median']:.2f} / {v['C2 nose_nose disc median']:.2f} | "
+        tag_ = ' (POST HOC)' if res['arms'][arm].get('post_hoc') else ''
+        md.append(f"| {arm}{tag_} | {v['C1 distinct seeds']} | {v['C2 nt disc median']:.2f} / {v['C2 nose_nose disc median']:.2f} | "
                   f"{c3.get('nose_nose', float('nan')):+.3f} / {c3.get('nt', float('nan')):+.3f} | {'yes' if v['C1'] else 'NO'} | "
                   f"{'yes' if v['C2'] else 'NO'} | {'yes' if v['C3'] else 'NO'} | {v['tiebreak mean p@100']:.3f} |")
     for dset, title in (('sg2non', 'design (a): select on SG pools, evaluate on the 12 non-SG pools'),

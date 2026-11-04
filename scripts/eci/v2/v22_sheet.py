@@ -120,7 +120,7 @@ def main():
                 img = np.asarray(Image.open(REPO / 'dataset' / ann_fp[int(F.row.values[r])]).convert('RGB'))
                 img = np.ascontiguousarray(np.rot90(img, rot.get(obs, 0)))
             else:
-                m, S = v2_maps(obs, k, *sae, j, mode if not base.startswith('VP2') else 'coarse')
+                m, S = v2_maps(obs, k, *sae, j, 'coarse' if base.startswith('VP2') else ('max' if mode == 'top10' else mode))
                 img = XS.decode_v2('mice', 'v1', obs, k, S, plans, rot)
             np.save(local / f'{b}_{r}.npy', m)
             Image.fromarray(img).save(local / f'{b}_{r}.png')

@@ -1,0 +1,281 @@
+{
+ "model": "V_s1001",
+ "rule": "bal",
+ "identity_max_abs_diff": 0.0038204193115234375,
+ "picks": {
+  "nose_nose": {
+   "neuron": 222,
+   "frames": [
+    {
+     "row": 58249,
+     "obs": "het_kmt5b_m_2_F_O",
+     "k": 1999,
+     "score": 1.0,
+     "code": 10.296875,
+     "y": false,
+     "cls": 0,
+     "map_max": 10.296130180358887,
+     "identity_abs_diff": 0.0007448196411132812
+    },
+    {
+     "row": 27263,
+     "obs": "het_kdm6b_f_2_S_H",
+     "k": 6713,
+     "score": 1.0,
+     "code": 10.125,
+     "y": false,
+     "cls": 0,
+     "map_max": 10.127791404724121,
+     "identity_abs_diff": 0.0027914047241210938
+    },
+    {
+     "row": 30796,
+     "obs": "het_kdm6b_f_3_S_H",
+     "k": 6646,
+     "score": 1.0,
+     "code": 10.0234375,
+     "y": false,
+     "cls": 0,
+     "map_max": 10.02580738067627,
+     "identity_abs_diff": 0.0023698806762695312
+    },
+    {
+     "row": 71177,
+     "obs": "wt_ash1l_m_1_S_O",
+     "k": 2327,
+     "score": 1.0,
+     "code": 9.921875,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.922633171081543,
+     "identity_abs_diff": 0.0007581710815429688
+    },
+    {
+     "row": 85274,
+     "obs": "wt_kmt5b_m_1_S_O",
+     "k": 2024,
+     "score": 1.0,
+     "code": 9.78125,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.781590461730957,
+     "identity_abs_diff": 0.00034046173095703125
+    },
+    {
+     "row": 60104,
+     "obs": "het_kmt5b_m_2_S_O",
+     "k": 2054,
+     "score": 1.0,
+     "code": 9.7578125,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.76137924194336,
+     "identity_abs_diff": 0.003566741943359375
+    },
+    {
+     "row": 34563,
+     "obs": "het_kdm6b_m_1_S_H",
+     "k": 6813,
+     "score": 1.0,
+     "code": 9.6953125,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.691842079162598,
+     "identity_abs_diff": 0.0034704208374023438
+    },
+    {
+     "row": 83783,
+     "obs": "wt_kmt5b_m_1_F_O",
+     "k": 2333,
+     "score": 1.0,
+     "code": 9.6640625,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.661857604980469,
+     "identity_abs_diff": 0.00220489501953125
+    },
+    {
+     "row": 68,
+     "obs": "het_ash1l_f_1_F_H",
+     "k": 6518,
+     "score": 1.0,
+     "code": 9.65625,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.656149864196777,
+     "identity_abs_diff": 0.00010013580322265625
+    },
+    {
+     "row": 77466,
+     "obs": "wt_kdm6b_m_1_S_H",
+     "k": 6516,
+     "score": 1.0,
+     "code": 9.640625,
+     "y": true,
+     "cls": 2,
+     "map_max": 9.64238452911377,
+     "identity_abs_diff": 0.0017595291137695312
+    },
+    {
+     "row": 150,
+     "obs": "het_ash1l_f_1_F_H",
+     "k": 6600,
+     "score": 1.0,
+     "code": 9.59375,
+     "y": true,
+     "cls": 2,
+     "map_max": 9.59012508392334,
+     "identity_abs_diff": 0.0036249160766601562
+    },
+    {
+     "row": 56940,
+     "obs": "het_kmt5b_m_1_S_O",
+     "k": 2490,
+     "score": 1.0,
+     "code": 9.59375,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.594414710998535,
+     "identity_abs_diff": 0.0006647109985351562
+    }
+   ]
+  },
+  "nt": {
+   "neuron": 453,
+   "frames": [
+    {
+     "row": 27751,
+     "obs": "het_kdm6b_f_2_S_O",
+     "k": 2101,
+     "score": 1.0,
+     "code": 11.15625,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.153188705444336,
+     "identity_abs_diff": 0.0030612945556640625
+    },
+    {
+     "row": 71520,
+     "obs": "wt_ash1l_m_1_S_P",
+     "k": 2070,
+     "score": 1.0,
+     "code": 11.1171875,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.117321014404297,
+     "identity_abs_diff": 0.000133514404296875
+    },
+    {
+     "row": 3420,
+     "obs": "het_ash1l_f_1_S_P",
+     "k": 2370,
+     "score": 1.0,
+     "code": 10.125,
+     "y": false,
+     "cls": 0,
+     "map_max": 10.12308406829834,
+     "identity_abs_diff": 0.0019159317016601562
+    },
+    {
+     "row": 74047,
+     "obs": "wt_kdm6b_f_1_S_H",
+     "k": 6697,
+     "score": 1.0,
+     "code": 9.9453125,
+     "y": true,
+     "cls": 1,
+     "map_max": 9.948291778564453,
+     "identity_abs_diff": 0.002979278564453125
+    },
+    {
+     "row": 52722,
+     "obs": "het_kmt5b_f_3_S_H",
+     "k": 6972,
+     "score": 1.0,
+     "code": 9.9296875,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.93037223815918,
+     "identity_abs_diff": 0.0006847381591796875
+    },
+    {
+     "row": 55730,
+     "obs": "het_kmt5b_m_1_F_P",
+     "k": 2480,
+     "score": 1.0,
+     "code": 9.8984375,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.901476860046387,
+     "identity_abs_diff": 0.0030393600463867188
+    },
+    {
+     "row": 51517,
+     "obs": "het_kmt5b_f_3_F_O",
+     "k": 2467,
+     "score": 1.0,
+     "code": 9.8671875,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.866161346435547,
+     "identity_abs_diff": 0.001026153564453125
+    },
+    {
+     "row": 53796,
+     "obs": "het_kmt5b_f_3_S_P",
+     "k": 2346,
+     "score": 1.0,
+     "code": 9.75,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.753390312194824,
+     "identity_abs_diff": 0.0033903121948242188
+    },
+    {
+     "row": 28627,
+     "obs": "het_kdm6b_f_2_S_P",
+     "k": 2377,
+     "score": 1.0,
+     "code": 9.6796875,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.677169799804688,
+     "identity_abs_diff": 0.0025177001953125
+    },
+    {
+     "row": 939,
+     "obs": "het_ash1l_f_1_F_O",
+     "k": 2289,
+     "score": 1.0,
+     "code": 9.65625,
+     "y": true,
+     "cls": 1,
+     "map_max": 9.652429580688477,
+     "identity_abs_diff": 0.0038204193115234375
+    },
+    {
+     "row": 3027,
+     "obs": "het_ash1l_f_1_S_P",
+     "k": 1977,
+     "score": 1.0,
+     "code": 9.640625,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.643878936767578,
+     "identity_abs_diff": 0.003253936767578125
+    },
+    {
+     "row": 35058,
+     "obs": "het_kdm6b_m_1_S_O",
+     "k": 2208,
+     "score": 1.0,
+     "code": 9.640625,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.642278671264648,
+     "identity_abs_diff": 0.0016536712646484375
+    }
+   ]
+  }
+ }
+}

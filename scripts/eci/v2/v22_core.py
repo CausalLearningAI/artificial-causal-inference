@@ -138,10 +138,22 @@ def auroc_cols(X, rows, y):
     return out
 
 
-def neuron_stats(X, F, rows):
-    """per-neuron AUROC / specificity measures on frames rows -> dict of (W,) arrays."""
+def neuron_stats(X, F, rows, R=None):
+    """per-neuron AUROC / specificity measures on frames rows -> dict of (W,) arrays. With R (raw codes): also
+    precision@100 per behaviour (rank by X, ties by R)."""
     cls = F.cls.values[rows]
     out = {'fire': (X[rows] > 0).mean(0)}
+    if R is not None:
+        for b in BEH:
+            out[f'p100_{b}'] = np.empty(X.shape[1])
+        y = {b: F[f'y_{b}'].values[rows] for b in BEH}
+        for c0 in range(0, X.shape[1], 256):
+            Z = np.asarray(X[rows, c0:c0 + 256], np.float64)
+            Rc = np.asarray(R[rows, c0:c0 + 256], np.float64)
+            Z = Z + 1e-6 * Rc / np.maximum(Rc.max(0), 1e-12)
+            top = np.argpartition(-Z, 100, axis=0)[:100]
+            for b in BEH:
+                out[f'p100_{b}'][c0:c0 + 256] = y[b][top].mean(0)
     for b in BEH:
         out[f'auc_{b}'] = auroc_cols(X, rows, F[f'y_{b}'].values[rows])
     m = (cls == 1) | (cls == 2)
@@ -164,6 +176,10 @@ def select(st, rule):
                  vs the sibling behaviour] (no constraint that the two picks differ);
        balpair = the pair (i != j) maximising bal_nose_nose[i] + bal_nt[j]."""
     el = st['fire'] >= ELIG
+    if rule == 'p100':  # POST HOC: per behaviour the best precision@100 on the selection frames
+        return {b: int(np.nanargmax(np.where(el, st[f'p100_{b}'], np.nan))) for b in BEH}
+    if rule == 'hyb':  # POST HOC (not pre-registered; added after the first V results): nose_nose by auc, nt by bal
+        return {'nose_nose': select(st, 'auc')['nose_nose'], 'nt': select(st, 'bal')['nt']}
     sc = {b: np.where(el, st[('auc_' if rule == 'auc' else 'bal_') + b], np.nan) for b in BEH}
     pick = {b: int(np.nanargmax(sc[b])) for b in BEH}
     if rule == 'balpair' and pick['nt'] == pick['nose_nose']:

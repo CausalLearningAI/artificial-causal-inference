@@ -1,0 +1,281 @@
+{
+ "model": "v1_s0",
+ "rule": "auc",
+ "identity_max_abs_diff": 0.0017862319946289062,
+ "picks": {
+  "nose_nose": {
+   "neuron": 611,
+   "frames": [
+    {
+     "row": 60980,
+     "obs": "het_kmt5b_m_2_S_P",
+     "k": 2330,
+     "score": 6.65625,
+     "code": 6.65625,
+     "y": true,
+     "cls": 2,
+     "map_max": 6.657580375671387,
+     "identity_abs_diff": 0.0013303756713867188
+    },
+    {
+     "row": 83932,
+     "obs": "wt_kmt5b_m_1_F_O",
+     "k": 2482,
+     "score": 6.52734375,
+     "code": 6.52734375,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.52657413482666,
+     "identity_abs_diff": 0.0007696151733398438
+    },
+    {
+     "row": 56408,
+     "obs": "het_kmt5b_m_1_S_O",
+     "k": 1958,
+     "score": 6.4921875,
+     "code": 6.4921875,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.493654251098633,
+     "identity_abs_diff": 0.0014667510986328125
+    },
+    {
+     "row": 34565,
+     "obs": "het_kdm6b_m_1_S_H",
+     "k": 6815,
+     "score": 6.32421875,
+     "code": 6.32421875,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.323904991149902,
+     "identity_abs_diff": 0.00031375885009765625
+    },
+    {
+     "row": 85681,
+     "obs": "wt_kmt5b_m_1_S_O",
+     "k": 2431,
+     "score": 6.28125,
+     "code": 6.28125,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.279942512512207,
+     "identity_abs_diff": 0.0013074874877929688
+    },
+    {
+     "row": 85145,
+     "obs": "wt_kmt5b_m_1_S_H",
+     "k": 6995,
+     "score": 6.2421875,
+     "code": 6.2421875,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.242447376251221,
+     "identity_abs_diff": 0.0002598762512207031
+    },
+    {
+     "row": 71117,
+     "obs": "wt_ash1l_m_1_S_O",
+     "k": 2267,
+     "score": 6.21484375,
+     "code": 6.21484375,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.21481990814209,
+     "identity_abs_diff": 2.384185791015625e-05
+    },
+    {
+     "row": 84465,
+     "obs": "wt_kmt5b_m_1_F_P",
+     "k": 2415,
+     "score": 6.0625,
+     "code": 6.0625,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.062765121459961,
+     "identity_abs_diff": 0.0002651214599609375
+    },
+    {
+     "row": 74728,
+     "obs": "wt_kdm6b_f_1_S_O",
+     "k": 2278,
+     "score": 6.03515625,
+     "code": 6.03515625,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.034262657165527,
+     "identity_abs_diff": 0.0008935928344726562
+    },
+    {
+     "row": 53183,
+     "obs": "het_kmt5b_f_3_S_O",
+     "k": 2333,
+     "score": 6.03125,
+     "code": 6.03125,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.031730651855469,
+     "identity_abs_diff": 0.00048065185546875
+    },
+    {
+     "row": 85118,
+     "obs": "wt_kmt5b_m_1_S_H",
+     "k": 6968,
+     "score": 6.03125,
+     "code": 6.03125,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.030796527862549,
+     "identity_abs_diff": 0.0004534721374511719
+    },
+    {
+     "row": 33196,
+     "obs": "het_kdm6b_m_1_F_O",
+     "k": 2146,
+     "score": 6.00390625,
+     "code": 6.00390625,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.005692481994629,
+     "identity_abs_diff": 0.0017862319946289062
+    }
+   ]
+  },
+  "nt": {
+   "neuron": 414,
+   "frames": [
+    {
+     "row": 83655,
+     "obs": "wt_kmt5b_m_1_F_O",
+     "k": 2205,
+     "score": 8.671875,
+     "code": 8.671875,
+     "y": true,
+     "cls": 1,
+     "map_max": 8.673341751098633,
+     "identity_abs_diff": 0.0014667510986328125
+    },
+    {
+     "row": 34621,
+     "obs": "het_kdm6b_m_1_S_H",
+     "k": 6871,
+     "score": 8.2578125,
+     "code": 8.2578125,
+     "y": false,
+     "cls": 0,
+     "map_max": 8.258698463439941,
+     "identity_abs_diff": 0.0008859634399414062
+    },
+    {
+     "row": 34042,
+     "obs": "het_kdm6b_m_1_F_P",
+     "k": 2392,
+     "score": 7.76953125,
+     "code": 7.76953125,
+     "y": false,
+     "cls": 0,
+     "map_max": 7.770641803741455,
+     "identity_abs_diff": 0.0011105537414550781
+    },
+    {
+     "row": 33333,
+     "obs": "het_kdm6b_m_1_F_O",
+     "k": 2283,
+     "score": 7.5625,
+     "code": 7.5625,
+     "y": true,
+     "cls": 1,
+     "map_max": 7.562950611114502,
+     "identity_abs_diff": 0.0004506111145019531
+    },
+    {
+     "row": 30985,
+     "obs": "het_kdm6b_f_3_S_H",
+     "k": 6835,
+     "score": 7.29296875,
+     "code": 7.29296875,
+     "y": false,
+     "cls": 0,
+     "map_max": 7.292227268218994,
+     "identity_abs_diff": 0.0007414817810058594
+    },
+    {
+     "row": 33153,
+     "obs": "het_kdm6b_m_1_F_O",
+     "k": 2103,
+     "score": 7.28125,
+     "code": 7.28125,
+     "y": true,
+     "cls": 1,
+     "map_max": 7.280492305755615,
+     "identity_abs_diff": 0.0007576942443847656
+    },
+    {
+     "row": 71296,
+     "obs": "wt_ash1l_m_1_S_O",
+     "k": 2446,
+     "score": 7.2578125,
+     "code": 7.2578125,
+     "y": false,
+     "cls": 0,
+     "map_max": 7.2562456130981445,
+     "identity_abs_diff": 0.0015668869018554688
+    },
+    {
+     "row": 71644,
+     "obs": "wt_ash1l_m_1_S_P",
+     "k": 2194,
+     "score": 7.1015625,
+     "code": 7.1015625,
+     "y": false,
+     "cls": 0,
+     "map_max": 7.100448131561279,
+     "identity_abs_diff": 0.0011143684387207031
+    },
+    {
+     "row": 1668,
+     "obs": "het_ash1l_f_1_F_P",
+     "k": 2418,
+     "score": 6.91015625,
+     "code": 6.91015625,
+     "y": true,
+     "cls": 1,
+     "map_max": 6.9100565910339355,
+     "identity_abs_diff": 9.965896606445312e-05
+    },
+    {
+     "row": 71845,
+     "obs": "wt_ash1l_m_1_S_P",
+     "k": 2395,
+     "score": 6.890625,
+     "code": 6.890625,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.8893723487854,
+     "identity_abs_diff": 0.0012526512145996094
+    },
+    {
+     "row": 30242,
+     "obs": "het_kdm6b_f_3_F_P",
+     "k": 2192,
+     "score": 6.875,
+     "code": 6.875,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.876631259918213,
+     "identity_abs_diff": 0.0016312599182128906
+    },
+    {
+     "row": 4603,
+     "obs": "het_ash1l_f_2_F_O",
+     "k": 2353,
+     "score": 6.703125,
+     "code": 6.703125,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.701933860778809,
+     "identity_abs_diff": 0.0011911392211914062
+    }
+   ]
+  }
+ }
+}

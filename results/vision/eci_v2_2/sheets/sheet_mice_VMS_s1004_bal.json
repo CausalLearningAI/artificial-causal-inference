@@ -1,0 +1,281 @@
+{
+ "model": "VMS_s1004@ms",
+ "rule": "bal",
+ "identity_max_abs_diff": 0.00388336181640625,
+ "picks": {
+  "nose_nose": {
+   "neuron": 1409,
+   "frames": [
+    {
+     "row": 34433,
+     "obs": "het_kdm6b_m_1_S_H",
+     "k": 6683,
+     "score": 1.0,
+     "code": 7.625,
+     "y": false,
+     "cls": 0,
+     "map_max": 7.623204708099365,
+     "identity_abs_diff": 0.0017952919006347656
+    },
+    {
+     "row": 529,
+     "obs": "het_ash1l_f_1_F_H",
+     "k": 6979,
+     "score": 1.0,
+     "code": 7.36328125,
+     "y": false,
+     "cls": 0,
+     "map_max": 7.363369464874268,
+     "identity_abs_diff": 8.821487426757812e-05
+    },
+    {
+     "row": 3649,
+     "obs": "het_ash1l_f_2_F_H",
+     "k": 6499,
+     "score": 1.0,
+     "code": 7.3359375,
+     "y": false,
+     "cls": 0,
+     "map_max": 7.334655284881592,
+     "identity_abs_diff": 0.0012822151184082031
+    },
+    {
+     "row": 57258,
+     "obs": "het_kmt5b_m_1_S_P",
+     "k": 2208,
+     "score": 1.0,
+     "code": 7.26953125,
+     "y": false,
+     "cls": 0,
+     "map_max": 7.271131992340088,
+     "identity_abs_diff": 0.0016007423400878906
+    },
+    {
+     "row": 59039,
+     "obs": "het_kmt5b_m_2_F_P",
+     "k": 2189,
+     "score": 1.0,
+     "code": 7.03515625,
+     "y": false,
+     "cls": 0,
+     "map_max": 7.035386562347412,
+     "identity_abs_diff": 0.00023031234741210938
+    },
+    {
+     "row": 33639,
+     "obs": "het_kdm6b_m_1_F_P",
+     "k": 1989,
+     "score": 1.0,
+     "code": 7.02734375,
+     "y": false,
+     "cls": 0,
+     "map_max": 7.02644157409668,
+     "identity_abs_diff": 0.0009021759033203125
+    },
+    {
+     "row": 76530,
+     "obs": "wt_kdm6b_m_1_F_O",
+     "k": 2280,
+     "score": 1.0,
+     "code": 6.953125,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.951805591583252,
+     "identity_abs_diff": 0.0013194084167480469
+    },
+    {
+     "row": 83548,
+     "obs": "wt_kmt5b_m_1_F_O",
+     "k": 2098,
+     "score": 1.0,
+     "code": 6.68359375,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.682394027709961,
+     "identity_abs_diff": 0.0011997222900390625
+    },
+    {
+     "row": 76435,
+     "obs": "wt_kdm6b_m_1_F_O",
+     "k": 2185,
+     "score": 1.0,
+     "code": 6.58203125,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.581257343292236,
+     "identity_abs_diff": 0.0007739067077636719
+    },
+    {
+     "row": 26940,
+     "obs": "het_kdm6b_f_2_F_P",
+     "k": 2490,
+     "score": 1.0,
+     "code": 6.52734375,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.525425910949707,
+     "identity_abs_diff": 0.0019178390502929688
+    },
+    {
+     "row": 2496,
+     "obs": "het_ash1l_f_1_S_O",
+     "k": 2046,
+     "score": 1.0,
+     "code": 6.5,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.4987688064575195,
+     "identity_abs_diff": 0.0012311935424804688
+    },
+    {
+     "row": 84956,
+     "obs": "wt_kmt5b_m_1_S_H",
+     "k": 6806,
+     "score": 1.0,
+     "code": 6.48046875,
+     "y": false,
+     "cls": 0,
+     "map_max": 6.479012489318848,
+     "identity_abs_diff": 0.0014562606811523438
+    }
+   ]
+  },
+  "nt": {
+   "neuron": 1995,
+   "frames": [
+    {
+     "row": 26402,
+     "obs": "het_kdm6b_f_2_F_P",
+     "k": 1952,
+     "score": 1.0,
+     "code": 13.09375,
+     "y": false,
+     "cls": 0,
+     "map_max": 13.090299606323242,
+     "identity_abs_diff": 0.0034503936767578125
+    },
+    {
+     "row": 30799,
+     "obs": "het_kdm6b_f_3_S_H",
+     "k": 6649,
+     "score": 1.0,
+     "code": 12.6484375,
+     "y": false,
+     "cls": 0,
+     "map_max": 12.652259826660156,
+     "identity_abs_diff": 0.00382232666015625
+    },
+    {
+     "row": 28627,
+     "obs": "het_kdm6b_f_2_S_P",
+     "k": 2377,
+     "score": 1.0,
+     "code": 12.4453125,
+     "y": false,
+     "cls": 0,
+     "map_max": 12.446544647216797,
+     "identity_abs_diff": 0.001232147216796875
+    },
+    {
+     "row": 28582,
+     "obs": "het_kdm6b_f_2_S_P",
+     "k": 2332,
+     "score": 1.0,
+     "code": 12.296875,
+     "y": false,
+     "cls": 0,
+     "map_max": 12.300490379333496,
+     "identity_abs_diff": 0.0036153793334960938
+    },
+    {
+     "row": 52521,
+     "obs": "het_kmt5b_f_3_S_H",
+     "k": 6771,
+     "score": 1.0,
+     "code": 11.6796875,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.67918586730957,
+     "identity_abs_diff": 0.0005016326904296875
+    },
+    {
+     "row": 78943,
+     "obs": "wt_kdm6b_m_1_S_P",
+     "k": 2293,
+     "score": 1.0,
+     "code": 11.5859375,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.583784103393555,
+     "identity_abs_diff": 0.0021533966064453125
+    },
+    {
+     "row": 6907,
+     "obs": "het_ash1l_f_2_S_P",
+     "k": 2257,
+     "score": 1.0,
+     "code": 11.34375,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.34708309173584,
+     "identity_abs_diff": 0.0033330917358398438
+    },
+    {
+     "row": 74044,
+     "obs": "wt_kdm6b_f_1_S_H",
+     "k": 6694,
+     "score": 1.0,
+     "code": 11.28125,
+     "y": true,
+     "cls": 1,
+     "map_max": 11.278642654418945,
+     "identity_abs_diff": 0.0026073455810546875
+    },
+    {
+     "row": 7185,
+     "obs": "het_ash1l_f_2_S_P",
+     "k": 2535,
+     "score": 1.0,
+     "code": 11.2109375,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.208325386047363,
+     "identity_abs_diff": 0.0026121139526367188
+    },
+    {
+     "row": 5945,
+     "obs": "het_ash1l_f_2_S_H",
+     "k": 6995,
+     "score": 1.0,
+     "code": 10.9921875,
+     "y": false,
+     "cls": 0,
+     "map_max": 10.988304138183594,
+     "identity_abs_diff": 0.00388336181640625
+    },
+    {
+     "row": 3338,
+     "obs": "het_ash1l_f_1_S_P",
+     "k": 2288,
+     "score": 1.0,
+     "code": 10.984375,
+     "y": false,
+     "cls": 0,
+     "map_max": 10.983924865722656,
+     "identity_abs_diff": 0.00045013427734375
+    },
+    {
+     "row": 3226,
+     "obs": "het_ash1l_f_1_S_P",
+     "k": 2176,
+     "score": 1.0,
+     "code": 10.90625,
+     "y": false,
+     "cls": 0,
+     "map_max": 10.90873908996582,
+     "identity_abs_diff": 0.0024890899658203125
+    }
+   ]
+  }
+ }
+}

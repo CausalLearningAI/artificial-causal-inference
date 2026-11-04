@@ -1,0 +1,281 @@
+{
+ "model": "VMS_s1004@ms",
+ "rule": "auc",
+ "identity_max_abs_diff": 0.00388336181640625,
+ "picks": {
+  "nose_nose": {
+   "neuron": 1359,
+   "frames": [
+    {
+     "row": 70364,
+     "obs": "wt_ash1l_m_1_S_H",
+     "k": 6614,
+     "score": 1.0,
+     "code": 10.671875,
+     "y": false,
+     "cls": 0,
+     "map_max": 10.670477867126465,
+     "identity_abs_diff": 0.0013971328735351562
+    },
+    {
+     "row": 76484,
+     "obs": "wt_kdm6b_m_1_F_O",
+     "k": 2234,
+     "score": 1.0,
+     "code": 10.0390625,
+     "y": false,
+     "cls": 0,
+     "map_max": 10.040363311767578,
+     "identity_abs_diff": 0.001300811767578125
+    },
+    {
+     "row": 69464,
+     "obs": "wt_ash1l_m_1_F_O",
+     "k": 2414,
+     "score": 1.0,
+     "code": 9.9453125,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.943198204040527,
+     "identity_abs_diff": 0.0021142959594726562
+    },
+    {
+     "row": 2225,
+     "obs": "het_ash1l_f_1_S_H",
+     "k": 6875,
+     "score": 1.0,
+     "code": 9.78125,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.778438568115234,
+     "identity_abs_diff": 0.002811431884765625
+    },
+    {
+     "row": 76410,
+     "obs": "wt_kdm6b_m_1_F_O",
+     "k": 2160,
+     "score": 1.0,
+     "code": 9.125,
+     "y": false,
+     "cls": 0,
+     "map_max": 9.124746322631836,
+     "identity_abs_diff": 0.0002536773681640625
+    },
+    {
+     "row": 29644,
+     "obs": "het_kdm6b_f_3_F_O",
+     "k": 2194,
+     "score": 1.0,
+     "code": 8.53125,
+     "y": false,
+     "cls": 0,
+     "map_max": 8.531042098999023,
+     "identity_abs_diff": 0.0002079010009765625
+    },
+    {
+     "row": 71545,
+     "obs": "wt_ash1l_m_1_S_P",
+     "k": 2095,
+     "score": 1.0,
+     "code": 8.4921875,
+     "y": false,
+     "cls": 0,
+     "map_max": 8.49500846862793,
+     "identity_abs_diff": 0.0028209686279296875
+    },
+    {
+     "row": 2063,
+     "obs": "het_ash1l_f_1_S_H",
+     "k": 6713,
+     "score": 1.0,
+     "code": 8.3984375,
+     "y": false,
+     "cls": 0,
+     "map_max": 8.39847469329834,
+     "identity_abs_diff": 3.719329833984375e-05
+    },
+    {
+     "row": 55055,
+     "obs": "het_kmt5b_m_1_F_O",
+     "k": 2405,
+     "score": 1.0,
+     "code": 8.2421875,
+     "y": false,
+     "cls": 0,
+     "map_max": 8.244209289550781,
+     "identity_abs_diff": 0.00202178955078125
+    },
+    {
+     "row": 54717,
+     "obs": "het_kmt5b_m_1_F_O",
+     "k": 2067,
+     "score": 1.0,
+     "code": 8.234375,
+     "y": false,
+     "cls": 0,
+     "map_max": 8.23190975189209,
+     "identity_abs_diff": 0.0024652481079101562
+    },
+    {
+     "row": 73083,
+     "obs": "wt_kdm6b_f_1_F_O",
+     "k": 2433,
+     "score": 1.0,
+     "code": 8.1796875,
+     "y": false,
+     "cls": 0,
+     "map_max": 8.178330421447754,
+     "identity_abs_diff": 0.0013570785522460938
+    },
+    {
+     "row": 75046,
+     "obs": "wt_kdm6b_f_1_S_P",
+     "k": 1996,
+     "score": 1.0,
+     "code": 8.0390625,
+     "y": false,
+     "cls": 0,
+     "map_max": 8.042125701904297,
+     "identity_abs_diff": 0.003063201904296875
+    }
+   ]
+  },
+  "nt": {
+   "neuron": 1995,
+   "frames": [
+    {
+     "row": 26402,
+     "obs": "het_kdm6b_f_2_F_P",
+     "k": 1952,
+     "score": 1.0,
+     "code": 13.09375,
+     "y": false,
+     "cls": 0,
+     "map_max": 13.090299606323242,
+     "identity_abs_diff": 0.0034503936767578125
+    },
+    {
+     "row": 30799,
+     "obs": "het_kdm6b_f_3_S_H",
+     "k": 6649,
+     "score": 1.0,
+     "code": 12.6484375,
+     "y": false,
+     "cls": 0,
+     "map_max": 12.652259826660156,
+     "identity_abs_diff": 0.00382232666015625
+    },
+    {
+     "row": 28627,
+     "obs": "het_kdm6b_f_2_S_P",
+     "k": 2377,
+     "score": 1.0,
+     "code": 12.4453125,
+     "y": false,
+     "cls": 0,
+     "map_max": 12.446544647216797,
+     "identity_abs_diff": 0.001232147216796875
+    },
+    {
+     "row": 28582,
+     "obs": "het_kdm6b_f_2_S_P",
+     "k": 2332,
+     "score": 1.0,
+     "code": 12.296875,
+     "y": false,
+     "cls": 0,
+     "map_max": 12.300490379333496,
+     "identity_abs_diff": 0.0036153793334960938
+    },
+    {
+     "row": 52521,
+     "obs": "het_kmt5b_f_3_S_H",
+     "k": 6771,
+     "score": 1.0,
+     "code": 11.6796875,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.67918586730957,
+     "identity_abs_diff": 0.0005016326904296875
+    },
+    {
+     "row": 78943,
+     "obs": "wt_kdm6b_m_1_S_P",
+     "k": 2293,
+     "score": 1.0,
+     "code": 11.5859375,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.583784103393555,
+     "identity_abs_diff": 0.0021533966064453125
+    },
+    {
+     "row": 6907,
+     "obs": "het_ash1l_f_2_S_P",
+     "k": 2257,
+     "score": 1.0,
+     "code": 11.34375,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.34708309173584,
+     "identity_abs_diff": 0.0033330917358398438
+    },
+    {
+     "row": 74044,
+     "obs": "wt_kdm6b_f_1_S_H",
+     "k": 6694,
+     "score": 1.0,
+     "code": 11.28125,
+     "y": true,
+     "cls": 1,
+     "map_max": 11.278642654418945,
+     "identity_abs_diff": 0.0026073455810546875
+    },
+    {
+     "row": 7185,
+     "obs": "het_ash1l_f_2_S_P",
+     "k": 2535,
+     "score": 1.0,
+     "code": 11.2109375,
+     "y": false,
+     "cls": 0,
+     "map_max": 11.208325386047363,
+     "identity_abs_diff": 0.0026121139526367188
+    },
+    {
+     "row": 5945,
+     "obs": "het_ash1l_f_2_S_H",
+     "k": 6995,
+     "score": 1.0,
+     "code": 10.9921875,
+     "y": false,
+     "cls": 0,
+     "map_max": 10.988304138183594,
+     "identity_abs_diff": 0.00388336181640625
+    },
+    {
+     "row": 3338,
+     "obs": "het_ash1l_f_1_S_P",
+     "k": 2288,
+     "score": 1.0,
+     "code": 10.984375,
+     "y": false,
+     "cls": 0,
+     "map_max": 10.983924865722656,
+     "identity_abs_diff": 0.00045013427734375
+    },
+    {
+     "row": 3226,
+     "obs": "het_ash1l_f_1_S_P",
+     "k": 2176,
+     "score": 1.0,
+     "code": 10.90625,
+     "y": false,
+     "cls": 0,
+     "map_max": 10.90873908996582,
+     "identity_abs_diff": 0.0024890899658203125
+    }
+   ]
+  }
+ }
+}

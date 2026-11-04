@@ -1,0 +1,14 @@
+{
+ "tokens": 17632320,
+ "pooled_tokens": 6372717,
+ "native_per_pooled": 2.766844973658802,
+ "V_s1001_max_vs_stored_max_abs_diff": 2.2265625,
+ "V_s1002_max_vs_stored_max_abs_diff": 2.23046875,
+ "V_s1003_max_vs_stored_max_abs_diff": 2.244140625,
+ "V_s1004_max_vs_stored_max_abs_diff": 2.2421875,
+ "V_s1005_max_vs_stored_max_abs_diff": 2.23828125,
+ "V_s1006_max_vs_stored_max_abs_diff": 2.228515625,
+ "node": "delta197",
+ "gpu": "cpu",
+ "seconds": 3327.5789823532104
+}

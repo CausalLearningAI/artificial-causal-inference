@@ -1,0 +1,20 @@
+{
+ "windows": 4536,
+ "tokens": {
+  "train": {
+   "pooled": 6648801,
+   "native_in_windows": 18385219,
+   "native_per_pooled": 2.7651931528707205
+  },
+  "calib": {
+   "pooled": 643568,
+   "native_in_windows": 1776147,
+   "native_per_pooled": 2.759843559654924
+  },
+  "eval": {
+   "pooled": 660677,
+   "native_in_windows": 1830834,
+   "native_per_pooled": 2.771148382643864
+  }
+ }
+}

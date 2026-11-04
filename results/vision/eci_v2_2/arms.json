@@ -131,5 +131,252 @@
    "VW8_s1006"
   ],
   "rule": "bal"
+ },
+ "V|hyb": {
+  "models": [
+   "V_s1001",
+   "V_s1002",
+   "V_s1003",
+   "V_s1004",
+   "V_s1005",
+   "V_s1006"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ },
+ "V@top10|auc": {
+  "models": [
+   "V_s1001@top10",
+   "V_s1002@top10",
+   "V_s1003@top10",
+   "V_s1004@top10",
+   "V_s1005@top10",
+   "V_s1006@top10"
+  ],
+  "rule": "auc",
+  "post_hoc": true
+ },
+ "V@top10|hyb": {
+  "models": [
+   "V_s1001@top10",
+   "V_s1002@top10",
+   "V_s1003@top10",
+   "V_s1004@top10",
+   "V_s1005@top10",
+   "V_s1006@top10"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ },
+ "V@box3|auc": {
+  "models": [
+   "V_s1001@box3",
+   "V_s1002@box3",
+   "V_s1003@box3",
+   "V_s1004@box3",
+   "V_s1005@box3",
+   "V_s1006@box3"
+  ],
+  "rule": "auc",
+  "post_hoc": true
+ },
+ "V@box3|hyb": {
+  "models": [
+   "V_s1001@box3",
+   "V_s1002@box3",
+   "V_s1003@box3",
+   "V_s1004@box3",
+   "V_s1005@box3",
+   "V_s1006@box3"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ },
+ "V@coarse|auc": {
+  "models": [
+   "V_s1001@coarse",
+   "V_s1002@coarse",
+   "V_s1003@coarse",
+   "V_s1004@coarse",
+   "V_s1005@coarse",
+   "V_s1006@coarse"
+  ],
+  "rule": "auc",
+  "post_hoc": true
+ },
+ "V@coarse|hyb": {
+  "models": [
+   "V_s1001@coarse",
+   "V_s1002@coarse",
+   "V_s1003@coarse",
+   "V_s1004@coarse",
+   "V_s1005@coarse",
+   "V_s1006@coarse"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ },
+ "VP2|auc": {
+  "models": [
+   "VP2_s1004@coarse",
+   "VP2_s1005@coarse",
+   "VP2_s1006@coarse"
+  ],
+  "rule": "auc",
+  "post_hoc": true
+ },
+ "VP2|hyb": {
+  "models": [
+   "VP2_s1004@coarse",
+   "VP2_s1005@coarse",
+   "VP2_s1006@coarse"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ },
+ "VMS|auc": {
+  "models": [
+   "VMS_s1004@ms",
+   "VMS_s1005@ms",
+   "VMS_s1006@ms"
+  ],
+  "rule": "auc",
+  "post_hoc": true
+ },
+ "VMS|hyb": {
+  "models": [
+   "VMS_s1004@ms",
+   "VMS_s1005@ms",
+   "VMS_s1006@ms"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ },
+ "VW8|auc": {
+  "models": [
+   "VW8_s1004",
+   "VW8_s1005",
+   "VW8_s1006"
+  ],
+  "rule": "auc",
+  "post_hoc": true
+ },
+ "VW8|hyb": {
+  "models": [
+   "VW8_s1004",
+   "VW8_s1005",
+   "VW8_s1006"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ },
+ "v1|hyb": {
+  "models": [
+   "v1_s0",
+   "v1_s1",
+   "v1_s2",
+   "v1_s3",
+   "v1_s4",
+   "v1_s5",
+   "v1_s6",
+   "v1_s7",
+   "v1_s8",
+   "v1_s9",
+   "v1_s10"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ },
+ "V|p100": {
+  "models": [
+   "V_s1001",
+   "V_s1002",
+   "V_s1003",
+   "V_s1004",
+   "V_s1005",
+   "V_s1006"
+  ],
+  "rule": "p100",
+  "post_hoc": true
+ },
+ "V@top10|p100": {
+  "models": [
+   "V_s1001@top10",
+   "V_s1002@top10",
+   "V_s1003@top10",
+   "V_s1004@top10",
+   "V_s1005@top10",
+   "V_s1006@top10"
+  ],
+  "rule": "p100",
+  "post_hoc": true
+ },
+ "V@box3|p100": {
+  "models": [
+   "V_s1001@box3",
+   "V_s1002@box3",
+   "V_s1003@box3",
+   "V_s1004@box3",
+   "V_s1005@box3",
+   "V_s1006@box3"
+  ],
+  "rule": "p100",
+  "post_hoc": true
+ },
+ "V@coarse|p100": {
+  "models": [
+   "V_s1001@coarse",
+   "V_s1002@coarse",
+   "V_s1003@coarse",
+   "V_s1004@coarse",
+   "V_s1005@coarse",
+   "V_s1006@coarse"
+  ],
+  "rule": "p100",
+  "post_hoc": true
+ },
+ "VP2|p100": {
+  "models": [
+   "VP2_s1004@coarse",
+   "VP2_s1005@coarse",
+   "VP2_s1006@coarse"
+  ],
+  "rule": "p100",
+  "post_hoc": true
+ },
+ "VMS|p100": {
+  "models": [
+   "VMS_s1004@ms",
+   "VMS_s1005@ms",
+   "VMS_s1006@ms"
+  ],
+  "rule": "p100",
+  "post_hoc": true
+ },
+ "VW8|p100": {
+  "models": [
+   "VW8_s1004",
+   "VW8_s1005",
+   "VW8_s1006"
+  ],
+  "rule": "p100",
+  "post_hoc": true
+ },
+ "v1|p100": {
+  "models": [
+   "v1_s0",
+   "v1_s1",
+   "v1_s2",
+   "v1_s3",
+   "v1_s4",
+   "v1_s5",
+   "v1_s6",
+   "v1_s7",
+   "v1_s8",
+   "v1_s9",
+   "v1_s10"
+  ],
+  "rule": "p100",
+  "post_hoc": true
  }
 }

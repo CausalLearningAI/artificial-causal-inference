@@ -27,3 +27,15 @@ Outputs: results/vision/eci_v2_2/, scripts/eci/v2/v22_*, big files /mnt/beegfs/l
   HMM refit) over 1730 values each. First report (V, v1 arms): with SG selection on all 11 SG pools the CURRENT rule
   already gives distinct picks in 6/6 V seeds (nt disc 0.72, nose_nose disc 0.41). V|bal: C1 6/6, C2 yes (0.80/0.33),
   C3 NO (nose_nose AUROC -0.066 [-0.146, +0.013] vs V|auc).
+- 03:25 prep P2 done (6.65M pooled train tokens, 2.77 native tokens per pooled token). Added POST HOC rule 'hyb'
+  (nose_nose by auc, nt by bal) - exploratory only. Jobs: VW8 tags 1911091; VP2/VMS codes 1911096-1911106 (even ids)
+  and tags (odd ids); V readout tags (box3/coarse/ms) 1911xxx (after codes 1908330).
+- 03:45 codes on CPU vs stored GPU codes (V s1001-1006 native frame max): differences are threshold flips only (theta* = 2.23): 1e-7 of entries differ by > 0.5 (one side 0, other ~theta*), 3.7e-6 by > 0.01 (V_s1001, 20k frames checked); max abs diff 2.23-2.24 reported in results/vision/eci_v2_2/codes/mice_Vstored.json.
+- 04:15 pre-registered arms scored (except VW8): every variant passes C1 (distinct) and all V-readout variants + VMS pass
+  C2, but ALL fail C3: under 'bal' the nose-nose pick is a more specific but weaker detector (nose-nose AUROC -0.064 to
+  -0.135 vs V|auc). VP2 (pooled-token SAE) is worse everywhere (nose-nose AUROC 0.658, v1-like).
+  Ants V tags (1910241) done: identity vs extended exact (AUROC diff 0, picks identical).
+- 04:20 POST HOC exploratory rules added (flagged in tables): 'hyb' (nose_nose by auc, nt by bal) and 'p100' (best
+  precision@100 on SG). Re-tag of all models with them: 1912507 (47 keys); VW8 re-tag after its first tags.
+- 04:45 post hoc rules scored: none passes C1-C3 either (V|hyb fails C2 by nose-nose disc 0.41; VMS|auc passes C1/C2 but C3 nose-nose lower CI -0.117). p100 rule overfits (AUROC -0.11 to -0.28). Ants P2 prep 1913044 (for an informative VMS ants run; prereg does not require it).
+- ants VMS chain (informative C4): train 1913256/59/62 (gpu100) -> codes 1913257/60/63 -> ants tags 1913258/61/64
