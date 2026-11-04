@@ -1,0 +1,263 @@
+{
+ "mice_all|all|all": {
+  "frames": 864000,
+  "videos": 144,
+  "pools": 24,
+  "nose_nose": 18269,
+  "nn": 6516,
+  "np": 11772,
+  "nt": 9032
+ },
+ "mice_all|all|sg": {
+  "frames": 396000,
+  "videos": 66,
+  "pools": 11,
+  "nose_nose": 10263,
+  "nn": 4023,
+  "np": 6256,
+  "nt": 5071
+ },
+ "mice_all|all|nonsg": {
+  "frames": 432000,
+  "videos": 72,
+  "pools": 12,
+  "nose_nose": 6783,
+  "nn": 2325,
+  "np": 4461,
+  "nt": 3652
+ },
+ "mice_all|all|unknown": {
+  "frames": 36000,
+  "videos": 6,
+  "pools": 1,
+  "nose_nose": 1223,
+  "nn": 168,
+  "np": 1055,
+  "nt": 309
+ },
+ "mice_all|atlas|all": {
+  "frames": 648000,
+  "videos": 144,
+  "pools": 24,
+  "nose_nose": 13463,
+  "nn": 4661,
+  "np": 8813,
+  "nt": 6385
+ },
+ "mice_all|atlas|sg": {
+  "frames": 297000,
+  "videos": 66,
+  "pools": 11,
+  "nose_nose": 7896,
+  "nn": 2977,
+  "np": 4930,
+  "nt": 3426
+ },
+ "mice_all|atlas|nonsg": {
+  "frames": 324000,
+  "videos": 72,
+  "pools": 12,
+  "nose_nose": 4568,
+  "nn": 1568,
+  "np": 3000,
+  "nt": 2696
+ },
+ "mice_all|atlas|unknown": {
+  "frames": 27000,
+  "videos": 6,
+  "pools": 1,
+  "nose_nose": 999,
+  "nn": 116,
+  "np": 883,
+  "nt": 263
+ },
+ "mice_all|H_first15|all": {
+  "frames": 216000,
+  "videos": 48,
+  "pools": 24,
+  "nose_nose": 4806,
+  "nn": 1855,
+  "np": 2959,
+  "nt": 2647
+ },
+ "mice_all|H_first15|sg": {
+  "frames": 99000,
+  "videos": 22,
+  "pools": 11,
+  "nose_nose": 2367,
+  "nn": 1046,
+  "np": 1326,
+  "nt": 1645
+ },
+ "mice_all|H_first15|nonsg": {
+  "frames": 108000,
+  "videos": 24,
+  "pools": 12,
+  "nose_nose": 2215,
+  "nn": 757,
+  "np": 1461,
+  "nt": 956
+ },
+ "mice_all|H_first15|unknown": {
+  "frames": 9000,
+  "videos": 2,
+  "pools": 1,
+  "nose_nose": 224,
+  "nn": 52,
+  "np": 172,
+  "nt": 46
+ },
+ "mice_grid1|all|all": {
+  "frames": 172800,
+  "videos": 144,
+  "pools": 24,
+  "nose_nose": 3618,
+  "nn": 1271,
+  "np": 2352,
+  "nt": 1810
+ },
+ "mice_grid1|all|sg": {
+  "frames": 79200,
+  "videos": 66,
+  "pools": 11,
+  "nose_nose": 2024,
+  "nn": 790,
+  "np": 1238,
+  "nt": 1015
+ },
+ "mice_grid1|all|nonsg": {
+  "frames": 86400,
+  "videos": 72,
+  "pools": 12,
+  "nose_nose": 1342,
+  "nn": 448,
+  "np": 895,
+  "nt": 732
+ },
+ "mice_grid1|all|unknown": {
+  "frames": 7200,
+  "videos": 6,
+  "pools": 1,
+  "nose_nose": 252,
+  "nn": 33,
+  "np": 219,
+  "nt": 63
+ },
+ "mice_grid1|atlas|all": {
+  "frames": 129600,
+  "videos": 144,
+  "pools": 24,
+  "nose_nose": 2671,
+  "nn": 912,
+  "np": 1762,
+  "nt": 1283
+ },
+ "mice_grid1|atlas|sg": {
+  "frames": 59400,
+  "videos": 66,
+  "pools": 11,
+  "nose_nose": 1563,
+  "nn": 579,
+  "np": 987,
+  "nt": 683
+ },
+ "mice_grid1|atlas|nonsg": {
+  "frames": 64800,
+  "videos": 72,
+  "pools": 12,
+  "nose_nose": 900,
+  "nn": 308,
+  "np": 592,
+  "nt": 546
+ },
+ "mice_grid1|atlas|unknown": {
+  "frames": 5400,
+  "videos": 6,
+  "pools": 1,
+  "nose_nose": 208,
+  "nn": 25,
+  "np": 183,
+  "nt": 54
+ },
+ "mice_grid1|H_first15|all": {
+  "frames": 43200,
+  "videos": 48,
+  "pools": 24,
+  "nose_nose": 947,
+  "nn": 359,
+  "np": 590,
+  "nt": 527
+ },
+ "mice_grid1|H_first15|sg": {
+  "frames": 19800,
+  "videos": 22,
+  "pools": 11,
+  "nose_nose": 461,
+  "nn": 211,
+  "np": 251,
+  "nt": 332
+ },
+ "mice_grid1|H_first15|nonsg": {
+  "frames": 21600,
+  "videos": 24,
+  "pools": 12,
+  "nose_nose": 442,
+  "nn": 140,
+  "np": 303,
+  "nt": 186
+ },
+ "mice_grid1|H_first15|unknown": {
+  "frames": 1800,
+  "videos": 2,
+  "pools": 1,
+  "nose_nose": 44,
+  "nn": 8,
+  "np": 36,
+  "nt": 9
+ },
+ "ants|all": {
+  "frames": 127200,
+  "videos": 212,
+  "groom_any": 43113,
+  "Y2F": 26479,
+  "B2F": 24889,
+  "single": 34858,
+  "double": 8255
+ },
+ "ants|v2": {
+  "frames": 26400,
+  "videos": 44,
+  "groom_any": 5904,
+  "Y2F": 3542,
+  "B2F": 2989,
+  "single": 5277,
+  "double": 627
+ },
+ "ants|v3": {
+  "frames": 64200,
+  "videos": 107,
+  "groom_any": 21173,
+  "Y2F": 12606,
+  "B2F": 12203,
+  "single": 17537,
+  "double": 3636
+ },
+ "ants|v4": {
+  "frames": 24000,
+  "videos": 40,
+  "groom_any": 11719,
+  "Y2F": 7542,
+  "B2F": 7317,
+  "single": 8579,
+  "double": 3140
+ },
+ "ants|v4_infested": {
+  "frames": 12600,
+  "videos": 21,
+  "groom_any": 4317,
+  "Y2F": 2789,
+  "B2F": 2380,
+  "single": 3465,
+  "double": 852
+ }
+}
