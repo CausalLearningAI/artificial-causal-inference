@@ -8,12 +8,13 @@ Probe: standardised features (fit on the training frames), L2 logistic regressio
 Best single neuron (code reps, 'max' pooling = the ECI frame-max readout, and 'mean'): the neuron with the highest
   AUROC on the training frames, its raw pooled code as the score on the test frames.
 Training frames: mice = the 1 fps grid (stride 5, per-video offset: the frames the v1 DINOv2 store holds) of the training pools, for EVERY
-  representation (so all columns see the same training frames); ants = all eval frames (1 fps) of the training folds.
+  representation (so all columns see the same training frames); ants = the v3 + v4 eval frames (1 fps) of the training half.
 Test predictions: mice = the 1 fps grid of the test pools for every rep, and every 5 fps test frame for the v2-store
-  reps (d3, V, V_s*); ants = out-of-fold on all eval frames.
+  reps (d3, V, V_s*); ants = the v3 + v4 eval frames of the test half.
 Splits: mice dir 'sg2non' = train on the 11 SG pools, test on the 12 non-SG pools; 'non2sg' = the reverse; the
-  unknown-annotator pool (rd41_3) is in neither. Ants: 5 folds of videos (stratified by series, rng 0); focal double
-  uses v3 + v4 frames only.
+  unknown-annotator pool (rd41_3) is in neither. Ants (user decision 2026-11-04): v3 + v4 videos only (147; v2 and
+  v4_infested excluded), half A / half B by video stratified by series x treatment (OUT/ants_split.csv, rng 20261104);
+  'A2B' = train A, test B (primary), 'B2A' = swapped.
 Permutation control (reps d2:mean, d3:mean, V_s1001:mm): the same probe (the chosen C) fitted on labels permuted across
   training videos of equal length (whole label sequences swapped, rng 0).
 
@@ -147,10 +148,10 @@ def probe(Xtr, ytr, gtr, rng):
 
 
 def predict(sc, m, X, rows):
-    out = np.full(len(X), np.nan, np.float32)
+    out = np.full(len(rows), np.nan, np.float32)
     for a in range(0, len(rows), 50000):
         r = rows[a:a + 50000]
-        out[r] = m.predict_proba(sc.transform(X[r].astype(np.float32)))[:, 1]
+        out[a:a + len(r)] = m.predict_proba(sc.transform(X[r].astype(np.float32)))[:, 1]
     return out
 
 
@@ -168,6 +169,31 @@ def perm_labels(y, vid, rng):
     return yp
 
 
+def ants_split():
+    """v3 + v4 eval videos (147), half A / half B, stratified by series x treatment T, rng 20261104 -> OUT/ants_split.csv."""
+    p = OUT / 'ants_split.csv'
+    if p.exists():
+        return pd.read_csv(p, dtype={'obs': str})
+    F = frames('ants')
+    V = F[F.experiment.isin(['v3', 'v4'])][['obs', 'experiment']].drop_duplicates()
+    T = []
+    for f, ex in (('dataset/ants/eci30/annotations.csv', 'v3'), ('dataset/ants/eci_c1v4_noday/annotations.csv', 'v4')):
+        a = pd.read_csv(REPO / f, usecols=['observation_id', 'experiment', 'T'], dtype={'observation_id': str})
+        T.append(a[a.experiment == ex].drop_duplicates(['observation_id']).set_index('observation_id')['T'])
+    T = pd.concat(T)
+    V['T'] = V.obs.map(T).values
+    assert V['T'].notna().all() and len(V) == 147
+    rng = np.random.default_rng(20261104)
+    V['half'] = ''
+    for (ex, t), g in V.sort_values('obs').groupby(['experiment', 'T']):
+        p_ = rng.permutation(g.index.values)
+        V.loc[p_[:len(p_) // 2], 'half'] = 'A'
+        V.loc[p_[len(p_) // 2:], 'half'] = 'B'
+    V = V.sort_values(['experiment', 'T', 'half', 'obs'])
+    V.to_csv(p, index=False)
+    return pd.read_csv(p, dtype={'obs': str})
+
+
 def cmd_run(a):
     t0 = time.time()
     dom, rep, beh = a.dom, a.rep, a.beh
@@ -183,18 +209,12 @@ def cmd_run(a):
         grid = F.grid1.values
         unit = F.unit.values
         splits = {'sg2non': (F.sg.values, F.nonsg.values), 'non2sg': (F.nonsg.values, F.sg.values)}
-    else:
+    else:  # ants (user decision 2026-11-04): v3 + v4 only, half / half by video stratified by series x treatment
         unit = F.obs.values
-        ok = np.ones(len(F), bool) if beh != 'double' else F.experiment.isin(['v3', 'v4']).values
-        grid = ok
-        vids = F[ok][['obs', 'experiment']].drop_duplicates()
-        fold_of = {}
-        for ex, g in vids.groupby('experiment'):
-            p = np.random.default_rng(0).permutation(g.obs.values)
-            for i, o in enumerate(p):
-                fold_of[o] = i % 5
-        fo = F.obs.map(fold_of).fillna(-1).values.astype(int)
-        splits = {f'fold{f}': ((fo != f) & ok, (fo == f) & ok) for f in range(5)}
+        S = ants_split()
+        h = F.obs.map(S.set_index('obs').half).fillna('').values
+        grid = np.isin(h, ['A', 'B'])
+        splits = {'A2B': (h == 'A', h == 'B'), 'B2A': (h == 'B', h == 'A')}
     for sp, (trm, tem) in splits.items():
         tr = np.flatnonzero(trm & grid & has)
         te_all = np.flatnonzero(tem & has)

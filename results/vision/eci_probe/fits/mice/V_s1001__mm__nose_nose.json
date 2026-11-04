@@ -1,0 +1,46 @@
+{
+ "dom": "mice",
+ "rep": "V_s1001:mm",
+ "beh": "nose_nose",
+ "dim": 4096,
+ "frames_with_features": 864000,
+ "splits": {
+  "sg2non": {
+   "train_frames": 79200,
+   "train_pos": 2024,
+   "test_frames": 432000,
+   "test_pos": 6783,
+   "C": 0.0001,
+   "inner_auroc": {
+    "0.0001": 0.838278724365439,
+    "0.001": 0.8271192446209946,
+    "0.01": 0.8018677304583024,
+    "0.1": 0.7713175691067754,
+    "1.0": 0.7571061576853527
+   },
+   "not_converged": false,
+   "test_auroc_probe": 0.8504331510749773,
+   "test_auroc_perm": 0.5224023859585578,
+   "perm_label_agreement": 0.9516919191919192
+  },
+  "non2sg": {
+   "train_frames": 86400,
+   "train_pos": 1342,
+   "test_frames": 396000,
+   "test_pos": 10263,
+   "C": 0.0001,
+   "inner_auroc": {
+    "0.0001": 0.8582260076779186,
+    "0.001": 0.8552512948421939,
+    "0.01": 0.8143568805846725,
+    "0.1": 0.7819863056463024,
+    "1.0": 0.7713960444640008
+   },
+   "not_converged": false,
+   "test_auroc_probe": 0.8217650154953504,
+   "test_auroc_perm": 0.583873184572108,
+   "perm_label_agreement": 0.9699537037037037
+  }
+ },
+ "seconds": 371.2566590309143
+}

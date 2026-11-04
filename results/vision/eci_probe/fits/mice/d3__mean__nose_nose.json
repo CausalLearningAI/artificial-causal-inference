@@ -1,0 +1,46 @@
+{
+ "dom": "mice",
+ "rep": "d3:mean",
+ "beh": "nose_nose",
+ "dim": 1024,
+ "frames_with_features": 864000,
+ "splits": {
+  "sg2non": {
+   "train_frames": 79200,
+   "train_pos": 2024,
+   "test_frames": 432000,
+   "test_pos": 6783,
+   "C": 0.01,
+   "inner_auroc": {
+    "0.0001": 0.8142020544423368,
+    "0.001": 0.8583201776516846,
+    "0.01": 0.8679819804644819,
+    "0.1": 0.8546915161769522,
+    "1.0": 0.8422403296771432
+   },
+   "not_converged": false,
+   "test_auroc_probe": 0.8758598833426992,
+   "test_auroc_perm": 0.5332035075203726,
+   "perm_label_agreement": 0.9516919191919192
+  },
+  "non2sg": {
+   "train_frames": 86400,
+   "train_pos": 1342,
+   "test_frames": 396000,
+   "test_pos": 10263,
+   "C": 0.01,
+   "inner_auroc": {
+    "0.0001": 0.8256087413955836,
+    "0.001": 0.8741087098934445,
+    "0.01": 0.8844843592435047,
+    "0.1": 0.8737662571324588,
+    "1.0": 0.8646975897679118
+   },
+   "not_converged": false,
+   "test_auroc_probe": 0.8581618316041602,
+   "test_auroc_perm": 0.5724021158168529,
+   "perm_label_agreement": 0.9699537037037037
+  }
+ },
+ "seconds": 124.19149327278137
+}

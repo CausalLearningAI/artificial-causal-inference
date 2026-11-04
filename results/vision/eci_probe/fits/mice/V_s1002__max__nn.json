@@ -1,0 +1,48 @@
+{
+ "dom": "mice",
+ "rep": "V_s1002:max",
+ "beh": "nn",
+ "dim": 2048,
+ "frames_with_features": 864000,
+ "splits": {
+  "sg2non": {
+   "train_frames": 79200,
+   "train_pos": 790,
+   "test_frames": 432000,
+   "test_pos": 2325,
+   "C": 0.001,
+   "inner_auroc": {
+    "0.0001": 0.7714798839748432,
+    "0.001": 0.7822228186426292,
+    "0.01": 0.7313164057281797,
+    "0.1": 0.6936755259666545,
+    "1.0": 0.6733884832417706
+   },
+   "not_converged": false,
+   "test_auroc_probe": 0.8189369539743404,
+   "neuron": 436,
+   "neuron_train_auroc": 0.747369288985679,
+   "test_auroc_neuron": 0.7970789615306894
+  },
+  "non2sg": {
+   "train_frames": 86400,
+   "train_pos": 448,
+   "test_frames": 396000,
+   "test_pos": 4023,
+   "C": 0.001,
+   "inner_auroc": {
+    "0.0001": 0.7881948738722997,
+    "0.001": 0.8432552889730176,
+    "0.01": 0.8042961368380745,
+    "0.1": 0.7665899475864109,
+    "1.0": 0.7520717660265523
+   },
+   "not_converged": false,
+   "test_auroc_probe": 0.7693349248144966,
+   "neuron": 436,
+   "neuron_train_auroc": 0.8062855290702119,
+   "test_auroc_neuron": 0.7494144298902379
+  }
+ },
+ "seconds": 187.01847577095032
+}

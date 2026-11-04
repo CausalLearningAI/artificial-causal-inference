@@ -1,0 +1,48 @@
+{
+ "dom": "ants",
+ "rep": "v1c:max",
+ "beh": "groom_any",
+ "dim": 1024,
+ "frames_with_features": 127200,
+ "splits": {
+  "A2B": {
+   "train_frames": 43800,
+   "train_pos": 16567,
+   "test_frames": 44400,
+   "test_pos": 16325,
+   "C": 0.0001,
+   "inner_auroc": {
+    "0.0001": 0.903700038505701,
+    "0.001": 0.9000546171292054,
+    "0.01": 0.8874810646899517,
+    "0.1": 0.8810303593194,
+    "1.0": 0.8795741919820262
+   },
+   "not_converged": false,
+   "test_auroc_probe": 0.9405107888926919,
+   "neuron": 90,
+   "neuron_train_auroc": 0.8737251551336811,
+   "test_auroc_neuron": 0.8894262006030119
+  },
+  "B2A": {
+   "train_frames": 44400,
+   "train_pos": 16325,
+   "test_frames": 43800,
+   "test_pos": 16567,
+   "C": 0.001,
+   "inner_auroc": {
+    "0.0001": 0.9380003758027874,
+    "0.001": 0.9440487055984484,
+    "0.01": 0.938701905976251,
+    "0.1": 0.9342148824659987,
+    "1.0": 0.9330505660231871
+   },
+   "not_converged": false,
+   "test_auroc_probe": 0.9178279339252018,
+   "neuron": 90,
+   "neuron_train_auroc": 0.8894262006030118,
+   "test_auroc_neuron": 0.8737251551336812
+  }
+ },
+ "seconds": 61.33501648902893
+}

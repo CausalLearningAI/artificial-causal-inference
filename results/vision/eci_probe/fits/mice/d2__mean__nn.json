@@ -1,0 +1,46 @@
+{
+ "dom": "mice",
+ "rep": "d2:mean",
+ "beh": "nn",
+ "dim": 768,
+ "frames_with_features": 172800,
+ "splits": {
+  "sg2non": {
+   "train_frames": 79200,
+   "train_pos": 790,
+   "test_frames": 86400,
+   "test_pos": 448,
+   "C": 0.01,
+   "inner_auroc": {
+    "0.0001": 0.7343437152087929,
+    "0.001": 0.7662447920797675,
+    "0.01": 0.7718931291531007,
+    "0.1": 0.7572300411605365,
+    "1.0": 0.7485046182159811
+   },
+   "not_converged": false,
+   "test_auroc_probe": 0.783034763796737,
+   "test_auroc_perm": 0.5137177114219897,
+   "perm_label_agreement": 0.9805303030303031
+  },
+  "non2sg": {
+   "train_frames": 86400,
+   "train_pos": 448,
+   "test_frames": 79200,
+   "test_pos": 790,
+   "C": 0.01,
+   "inner_auroc": {
+    "0.0001": 0.724732535921568,
+    "0.001": 0.7848685655380288,
+    "0.01": 0.8056545239529198,
+    "0.1": 0.7899591516057042,
+    "1.0": 0.7672008564798402
+   },
+   "not_converged": false,
+   "test_auroc_probe": 0.77321985699964,
+   "test_auroc_perm": 0.6259837530410581,
+   "perm_label_agreement": 0.989837962962963
+  }
+ },
+ "seconds": 55.82394886016846
+}

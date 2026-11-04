@@ -10,8 +10,8 @@ Evaluation sets
   mice  <dir>|1fps : the test pools' frames on the 1 fps grid (the frames the v1 DINOv2 store holds) - every column
         <dir>|5fps : every test frame at 5 fps (v2-store columns only: d3, V, V_s*)
         dir sg2non = trained on the 11 SG pools, tested on the 12 non-SG pools; non2sg = the reverse.
-  ants  oof : out-of-fold predictions on every eval frame (1 fps; double: v3 + v4 videos only)
-Bootstrap: units = mice pools / ants videos (resampled within series), 1000 replicates, rng 20261104, the SAME draws
+  ants  A2B / B2A : v3 + v4 eval frames (1 fps, first 10 min) of the test half (probe trained on the other half)
+Bootstrap: units = mice pools / ants videos (resampled within series x treatment), 1000 replicates, rng 20261104, the SAME draws
   for every column of an evaluation set (paired contrasts). Seeds of v2 (V_s1001-1003) are averaged, not resampled.
 Metrics: AUROC (ties 0.5), AP (tied scores = one step), precision@100 (top-100 frames by score, ties pro rata),
   per-video time Pearson r (sum of the score per video vs true positive frames per video; for the probe the score is the
@@ -87,17 +87,19 @@ def eval_sets(dom, beh, F):
                 u[m] = uc.reindex(F.unit.values[m]).values
                 out[f'{d}|{fs}'] = (m, u, draws)
     else:
-        m = np.ones(len(F), bool) if beh != 'double' else F.experiment.isin(['v3', 'v4']).values
-        V = F[m][['obs', 'experiment']].drop_duplicates().reset_index(drop=True)
-        uc = pd.Series(np.arange(len(V)), index=V.obs.values)
-        draws = np.zeros((NB, len(V)), np.int64)
-        for ex, g in V.groupby('experiment'):
-            ix = g.index.values
-            for b in range(NB):
-                draws[b, ix] = np.bincount(rng.integers(0, len(ix), len(ix)), minlength=len(ix))
-        u = np.full(len(F), -1)
-        u[m] = uc.reindex(F.obs.values[m]).values
-        out['oof'] = (m, u, draws)
+        S = PR.ants_split().set_index('obs')
+        h = F.obs.map(S.half).fillna('').values
+        for d, tm in (('A2B', h == 'B'), ('B2A', h == 'A')):
+            V = S[S.half == ('B' if d == 'A2B' else 'A')].reset_index()
+            uc = pd.Series(np.arange(len(V)), index=V.obs.values)
+            draws = np.zeros((NB, len(V)), np.int64)
+            for _, g in V.groupby(['experiment', 'T']):
+                ix = g.index.values
+                for b in range(NB):
+                    draws[b, ix] = np.bincount(rng.integers(0, len(ix), len(ix)), minlength=len(ix))
+            u = np.full(len(F), -1)
+            u[tm] = uc.reindex(F.obs.values[tm]).values
+            out[d] = (tm, u, draws)
     return out
 
 
@@ -173,7 +175,7 @@ def cmd_table(a):
                 'Neuron columns: neuron pooling = max (the ECI frame-max readout); the full-code probes use the stated pooling. '
                 'Probes are trained on the 1 fps grid of the training units for every column.', ''], {}
     for dom in ('mice', 'ants'):
-        sets = ['sg2non|1fps', 'non2sg|1fps', 'sg2non|5fps', 'non2sg|5fps'] if dom == 'mice' else ['oof']
+        sets = ['sg2non|1fps', 'non2sg|1fps', 'sg2non|5fps', 'non2sg|5fps'] if dom == 'mice' else ['A2B', 'B2A']
         for sn in sets:
             for pl in ('mm', 'mean'):
                 for mi, (mt, other) in enumerate(((('AUROC', 0), ('AP', 1)), (('prec@100', 2), ('time_r', 3)))):
@@ -273,6 +275,28 @@ def cmd_checks(a):
     o = np.argsort(r)
     refv = np.asarray(np.load('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_prob/mice/tierA/v1.npy', mmap_mode='r')[r[o]])
     res['mice v1c frame max (stored fp16 tokens) vs stored deployed v1 s0 codes (tierA), 1 fps atlas frames'] = cmp(X[np.flatnonzero(m)[o]], refv)
+    # best-neuron cross-check vs results/vision/eci_v2_2/full (V|auc, sg2non, P(on) readout, 324,000 non-SG atlas frames)
+    from sklearn.metrics import roc_auc_score
+    R = json.loads((REPO / 'results/vision/eci_v2_2/full/report.json').read_text())
+    picks = R['sets']['sg2non']['picks']['V|auc']
+    rep_auc = R['sets']['sg2non']['levels']['V|auc']
+    nons = F.nonsg.values[wi]  # atlas rows (v22 order) that are non-SG
+    for si, sd in enumerate(PR.V_SEEDS):
+        key = f'V_s{sd}'
+        X, _ = PR.load_rep('mice', f'{key}:max', F)
+        pon = np.load(f'/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_2/full/cache/mice/{key}_pon.npy', mmap_mode='r')
+        for beh in ('nose_nose', 'nt'):
+            y = F[f'y_{beh}'].values[wi][nons]
+            j = picks[key][0][beh]
+            fit = json.loads((OUT / 'fits' / 'mice' / f'{key}__max__{beh}.json').read_text())['splits']['sg2non']
+            res[f'neuron check {key} {beh}'] = {
+                'v22_pick': j, 'v22_reported_auroc_pon': rep_auc[f'{beh}|auc']['seeds'][si],
+                'recomputed_auroc_pon_v22_pick': float(roc_auc_score(y, np.asarray(pon[:, j])[nons])),
+                'auroc_raw_framemax_v22_pick_this_store': float(roc_auc_score(y, X[wi[nons], j].astype(np.float32))),
+                'this_probe_pick': fit['neuron'],
+                'auroc_raw_framemax_this_pick_atlas_nonsg': float(roc_auc_score(y, X[wi[nons], fit['neuron']].astype(np.float32))),
+                'frames': int(nons.sum())}
+        del X
     G = PR.frames('ants')
     X, has = PR.load_rep('ants', 'v1c:max', G)
     ref = np.load('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_eval/ants/codes/v1_s0.npy')

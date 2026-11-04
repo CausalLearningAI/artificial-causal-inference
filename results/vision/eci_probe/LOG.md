@@ -54,3 +54,42 @@ max-pooled 0.765 / 0.803. Supervised attention pooling (MIL) reached nose-tail A
 - 2002119 mice3 (48 tasks; 28-43 failed on eta380: no /localhome -> 2002286); 2002120 mice1 (failed: grid1 bug) ->
   2002249 (8-12 failed on eta380 -> 2002281); 2002121 ants3 (8); 2002122 ants1 (32, CPU encode).
 - job.sh now falls back to $TMPDIR on nodes without /localhome.
+
+## 12:45 - timing (measured) and projected wall time
+- Pooled features: mice v2 store, 48 CPU tasks x 16 cores, every video read once, d3 / V / 3 V seeds' codes (mean + max)
+  in one pass: ~10 min for 864,000 frames. Mice v1 (stored 1 fps DINOv2 tokens, v1 SAE codes): 16 tasks, < 1 min each.
+  Ants v2 store: 8 tasks, ~6 min.
+- Ants DINOv2 tokens do not exist on the eval grid; GPU start estimate was > 2 h, so they are re-encoded ON CPU
+  (32 tasks, ~1.7 frames/s per task, ~40 min; started 12:22, the longest single step).
+- Probes: sklearn lbfgs logistic regression trained on the 1 fps frames of the training units only (79-86k frames for
+  mice, ~44k for ants), never on 864k x 2048; 5 C values x 3 inner folds. Mice: 72 tasks, all done in ~5 min.
+- Projected: ants probes + bootstrap + tables done by ~13:20, i.e. ~1 h after the start (12:20).
+
+## 12:40 - ants design change (user decision via coordinator)
+Ants now: v3 + v4 only (147 videos; v2 and v4_infested excluded), first 10 min at 1 fps (88,200 frames), half A / half B
+by video stratified by series x treatment (`ants_split.csv`, rng 20261104: A 73 videos, B 74). A2B = train A test B
+(primary), B2A = swapped. Replaces the 5-fold CV. SAEs probed: v1 deployed s0 (`dataset/ants/eci/sae/
+matryoshka_btk_1024_k16_antsfg_s0`) and the current v2 arm V seeds 1001-1003 (`eci_codes/v2_1/ants/sae/V_s100x`);
+the v2 SAE is being retrained elsewhere.
+
+## 14:35 - done (all jobs completed; tables.md, summary.json, checks.json, ants_split.csv)
+Jobs: features 2002119/2002286 (mice3), 2002249/2002281 (mice1), 2002121 (ants3), 2002122 (ants1, CPU encode, 44 min);
+probes 2002993 (mice, 72), 2003101 (ants, 90); bootstrap 2003127 (mice), 2003147 (ants); checks 2003148; table 2003149.
+
+Sanity checks:
+- Label-permuted probes (whole label sequences swapped between training videos of equal length): mice AUROC 0.51-0.57
+  (sg2non, 1 fps), ants 0.44-0.53 (A2B). The mice residual above 0.5 is plausible because the swap keeps video type
+  (habituation videos only swap with habituation videos), which carries prevalence.
+- V_s1001 frame max from this pass vs the v2.2 full cache: fire agreement 1.0, max abs diff 0.016 (fp16 rounding).
+- v1 SAE frame max: from the stored fp16 1 fps tokens vs stored deployed codes, fire agreement 0.9997 (mice);
+  ants CPU re-encode vs eval.py GPU codes 0.9997; 1.2% of entries differ by > 0.01 (encoder fp32 CPU vs GPU rounding
+  before the fp16 token cast).
+- Best neuron vs results/vision/eci_v2_2/full (V|auc, sg2non, 324,000 non-SG atlas frames): the v2.2 P(on) AUROC is
+  reproduced exactly from the cache (0.836 / 0.788 / 0.836 nose-nose, 0.828 / 0.822 / 0.803 nose-tail). On the raw
+  frame max (the readout the probe table uses) the same neurons score 0.035-0.17 lower (e.g. s1001 nose-nose 0.802).
+  My raw-max pick (selected on SG 1 fps frames incl. habituation first 15 min) equals the v2.2 pick in 4/6 cases.
+- Caveat found: mean-pooled SAE-code probes give precision@100 = 0 for 2/3 v2 seeds on mice nose-nose although AUROC
+  is 0.83-0.85: all top-100 frames come from one video (wt_kdm6b_m_1_F_H), a video-level outlier the linear probe
+  extrapolates on. AUROC / AP are not driven by it.
+
+Retrained v2 SAEs (eci_codes/v2_3/*/sae/Vall_s2001-2003) exist but were NOT probed (not waited for).

@@ -1,0 +1,78 @@
+{
+ "mice V_s1001 frame max vs v2_2 full cache (50,000 random atlas frames)": {
+  "frames": 50000,
+  "fire_agree": 1.0,
+  "mean_abs_diff": 6.160735921412197e-09,
+  "max_abs_diff": 0.015625,
+  "share_entries_absdiff_gt_0.01": 4.8828125e-08
+ },
+ "mice v1c frame max (stored fp16 tokens) vs stored deployed v1 s0 codes (tierA), 1 fps atlas frames": {
+  "frames": 129600,
+  "fire_agree": 0.9997023895640432,
+  "mean_abs_diff": 0.0012828150065615773,
+  "max_abs_diff": 40.1865234375,
+  "share_entries_absdiff_gt_0.01": 0.011703543957368827
+ },
+ "neuron check V_s1001 nose_nose": {
+  "v22_pick": 222,
+  "v22_reported_auroc_pon": 0.8364156534783347,
+  "recomputed_auroc_pon_v22_pick": 0.8364156534783347,
+  "auroc_raw_framemax_v22_pick_this_store": 0.8018296899336516,
+  "this_probe_pick": 222,
+  "auroc_raw_framemax_this_pick_atlas_nonsg": 0.8018296899336516,
+  "frames": 324000
+ },
+ "neuron check V_s1001 nt": {
+  "v22_pick": 222,
+  "v22_reported_auroc_pon": 0.8282147879300235,
+  "recomputed_auroc_pon_v22_pick": 0.8282147879300235,
+  "auroc_raw_framemax_v22_pick_this_store": 0.789366341708724,
+  "this_probe_pick": 222,
+  "auroc_raw_framemax_this_pick_atlas_nonsg": 0.789366341708724,
+  "frames": 324000
+ },
+ "neuron check V_s1002 nose_nose": {
+  "v22_pick": 436,
+  "v22_reported_auroc_pon": 0.7875072013084828,
+  "recomputed_auroc_pon_v22_pick": 0.7875072013084828,
+  "auroc_raw_framemax_v22_pick_this_store": 0.7507374736391771,
+  "this_probe_pick": 436,
+  "auroc_raw_framemax_this_pick_atlas_nonsg": 0.7507374736391771,
+  "frames": 324000
+ },
+ "neuron check V_s1002 nt": {
+  "v22_pick": 270,
+  "v22_reported_auroc_pon": 0.8215633612206815,
+  "recomputed_auroc_pon_v22_pick": 0.8215633612206814,
+  "auroc_raw_framemax_v22_pick_this_store": 0.7096323804449021,
+  "this_probe_pick": 67,
+  "auroc_raw_framemax_this_pick_atlas_nonsg": 0.6872247394306997,
+  "frames": 324000
+ },
+ "neuron check V_s1003 nose_nose": {
+  "v22_pick": 1472,
+  "v22_reported_auroc_pon": 0.8355185930617915,
+  "recomputed_auroc_pon_v22_pick": 0.8355185930617914,
+  "auroc_raw_framemax_v22_pick_this_store": 0.7766070125693552,
+  "this_probe_pick": 1472,
+  "auroc_raw_framemax_this_pick_atlas_nonsg": 0.7766070125693552,
+  "frames": 324000
+ },
+ "neuron check V_s1003 nt": {
+  "v22_pick": 1826,
+  "v22_reported_auroc_pon": 0.8032920776433955,
+  "recomputed_auroc_pon_v22_pick": 0.8032920776433954,
+  "auroc_raw_framemax_v22_pick_this_store": 0.6364607604251916,
+  "this_probe_pick": 330,
+  "auroc_raw_framemax_this_pick_atlas_nonsg": 0.6928274958743786,
+  "frames": 324000
+ },
+ "ants v1c frame max (CPU re-encode) vs eval.py v1_s0 codes": {
+  "frames": 127200,
+  "fire_agree": 0.9996890431530071,
+  "mean_abs_diff": 0.0015530160162597895,
+  "max_abs_diff": 35.5625,
+  "share_entries_absdiff_gt_0.01": 0.012289117777122641
+ },
+ "ants frames with v1 features": 127200
+}
