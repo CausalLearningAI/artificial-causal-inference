@@ -27,3 +27,24 @@ Big files: /mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_3/ (sae/, ext/).
 - v22_full.py: BEEF / OUTF follow ext; cache --src deployed (v1 s0 deployed codes_max by annotations row).
 - v22_encode.py: sae_path / output dirs for Vall_* keys -> eci_codes/v2_3, results/vision/eci_v2_3/codes.
 - v22_ants.py: codes_path for Vall_* keys -> eci_codes/v2_3/ants/codes.
+- 12:31 first mice training job 2002302 (gpu100, H100) started early. 3,000-step bench phase: 10.7 steps/s (one step =
+  3 SAEs); full run: steps 0-2,000 at 91.9 steps/s (= 3.6 ms per SAE step), then steps 2,000-4,000 at 14.4 steps/s
+  (ETA 207 min): the main thread (GPU feature building of each new chunk) was starved, most likely by the 14 loader
+  threads copying memmap pages while holding the GIL. Loader wait itself was 0 s. Cancelled at 12:43, together with the
+  first ants run 2003126 (same code).
+- Fix: window rows read with os.preadv into a fresh buffer (releases the GIL) and the GPU features built inside the
+  loader threads (torch ops release the GIL); the training thread only concatenates. Identity re-checked (2003169):
+  preadv window == T.Video.window (asserted) and features == v22_full.feats_v, max abs diff 0 on 50 windows incl. 10
+  video edges. Bench phase dropped (step time / read rate are logged every 2,000 steps). Resubmitted: mice 2003185,
+  ants 2003186 (gpu100); gpu100 est. start reported 2026-11-05 03:25 (estimates have been pessimistic: 2002302 was
+  estimated 14:09 and started 12:31). -p gpu estimate: 2026-11-20.
+- 13:05 AMENDMENT 1 (user via coordinator; committed 0cc25bf before any ants SAE / score): ants training set = rule
+  (valid v2; v3 treatments 2/6/8; v4 and v4_infested treatments 2/6) = the 232 store videos (asserted in
+  v23_train.store_videos); ants alignment on v3 + v4 only (147 videos, 88,200 frames at 1 fps), halves A / B
+  stratified by series x treatment (rng 20261105; ants/split.json: A 74, B 73 videos), select on A, measure on B
+  (primary) and swapped. Code: v23_ants.py (tags: V s1001-1006, v1 s0-s10 job 2003151; Vall after training).
+- ext V codes array 2002561: 52/72 ok, 20 tasks failed on eta380 (no /localhome/rcadei) -> v22_full.local_dir falls
+  back to the node's /tmp; those tasks re-run as 2003103 (excluding eta380).
+- v2.2 full report re-run after the v22 edits (V22_FRAMES=full, job 2002563): report.json and tables.md byte-identical
+  (git diff empty) -> the edits do not change the v2.2 pipeline.
+- v1 s0 ext cache (2002562): deployed codes_max on all 864,000 frames.

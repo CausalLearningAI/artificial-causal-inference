@@ -131,13 +131,23 @@ class Vid:
         d = STORE / dom / VER / 'videos' / ser / obs
         z = np.load(d / 'index.npz')
         self.k, self.ptr, self.idx, self.flag = z['k'], z['ptr'], z['idx'], z['flag']
-        self.tok = np.memmap(d / 'tok.f16', np.float16, 'r', shape=(int(self.ptr[-1]), 1024))
+        self.path = d / 'tok.f16'
 
     def window(self, i0, i1):
-        """= T.Video.window (same rows, same dict)."""
+        """= T.Video.window (same rows, same dict). Rows read with os.preadv into a fresh buffer: the syscall releases the
+        GIL (a memmap copy page-faults while holding it and starved the training thread)."""
         a0, a1 = max(0, i0 - 2), min(len(self.k), i1 + 2)
         r0, r1 = int(self.ptr[a0]), int(self.ptr[a1])
-        tok = np.asarray(self.tok[r0:r1])
+        tok = np.empty((r1 - r0, 1024), np.float16)
+        fd = os.open(self.path, os.O_RDONLY)
+        try:
+            mv, off, done = memoryview(tok).cast('B'), r0 * 2048, 0
+            while done < tok.nbytes:
+                n = os.preadv(fd, [mv[done:]], off + done)
+                assert n > 0, 'short read'
+                done += n
+        finally:
+            os.close(fd)
         fi = np.repeat(np.arange(a0, a1), np.diff(self.ptr[a0:a1 + 1]))
         return {'tok': tok, 'fi': fi, 'pos': self.idx[r0:r1].astype(np.int64), 'flag': self.flag[r0:r1], 'a0': a0, 'a1': a1,
                 'i0': i0, 'i1': i1}
@@ -166,6 +176,13 @@ class Store:
         ser, obs, i0, i1 = w
         W = self.video(ser, obs).window(i0, i1)
         return W, nb_index(W)
+
+    def load_gpu(self, w, dev, keep_w=False):
+        """loader-thread version: read + index + GPU features (torch releases the GIL) -> (f fp16 on dev or None,
+        bytes read, W if keep_w (identity check) else None, index)."""
+        W, I = self.load_raw(w)
+        f = feats_gpu(W['tok'], I, dev) if len(I['c']) else None
+        return f, int(W['tok'].nbytes), (W if keep_w else None)
 
 
 # ---------------------------------------------------------------------------------------------- count
@@ -290,7 +307,7 @@ def cmd_train(a):
     ex = ThreadPoolExecutor(max(4, nthr - 2))
     log(f'{dom}: {NM:,} M_t tokens, {len(ws):,} windows in {len(chunks)} chunks, steps {steps:,} (schedule {total_sched:,}), '
         f'seeds {seeds}, {nthr} CPUs, device {dev}')
-    pending = [ex.submit(st.load_raw, w) for w in chunks[0]]
+    pending = [ex.submit(st.load_gpu, w, dev, i < 16) for i, w in enumerate(chunks[0])]
     fcheck = {'windows': 0, 'tokens': 0, 'max_abs_diff': 0.0}
 
     def gather(fs):
@@ -298,12 +315,12 @@ def cmd_train(a):
         wt, parts, nb_ = 0.0, [], 0
         for f in fs:
             t = time.time()
-            W, I = f.result()
+            fx, nbw, W = f.result()
             wt += time.time() - t
-            nb_ += W['tok'].nbytes
-            if len(I['c']):
-                parts.append(feats_gpu(W['tok'], I, dev))
-                if fcheck['windows'] < 16:  # identity: GPU features == feats_np (== v22_full.feats_v, featcheck step)
+            nb_ += nbw
+            if fx is not None:
+                parts.append(fx)
+                if W is not None:  # identity: GPU features == feats_np (== v22_full.feats_v, featcheck step)
                     ref = feats_np(W).astype(np.float16)
                     fcheck['max_abs_diff'] = max(fcheck['max_abs_diff'], float(np.abs(parts[-1].cpu().numpy().astype(np.float32) - ref.astype(np.float32)).max()))
                     fcheck['windows'] += 1
@@ -313,7 +330,7 @@ def cmd_train(a):
         return torch.cat(parts), nb_, wt
     Xn, nb, wait = gather(pending)
     log(f'GPU feature identity vs numpy: {fcheck}')
-    pending = [ex.submit(st.load_raw, w) for w in chunks[1]] if len(chunks) > 1 else []
+    pending = [ex.submit(st.load_gpu, w, dev) for w in chunks[1]] if len(chunks) > 1 else []
     torch.backends.cuda.matmul.allow_tf32 = True
     M = {}
     for s in seeds:
@@ -359,7 +376,7 @@ def cmd_train(a):
                 el = time.time() - tlog
                 log(f'step {step:,}/{steps:,} chunk {ci + 1}/{len(chunks)}: {(step - slog) / el:.1f} steps/s '
                     f'({(step - slog) * BS / el:,.0f} tokens/s per seed, {len(seeds)} SAEs), GPU util {u}% mem {mem} MiB, '
-                    f'loader wait so far {io["wait_s"]:.0f}s of {time.time() - t0:.0f}s, '
+                    f'loader wait so far {io["wait_s"]:.0f}s of {time.time() - t0:.0f}s, store read {io["bytes"] / (time.time() - t0) / 1e9:.2f} GB/s, '
                     f'fve s{seeds[0]} {M[seeds[0]]["hist"][-1]["fve"] if M[seeds[0]]["hist"] else float("nan"):.4f}, '
                     f'ETA {(steps - step) / ((step - slog) / el) / 60:.0f} min')
                 tlog, slog = time.time(), step
@@ -371,7 +388,7 @@ def cmd_train(a):
         io['wait_s'] += wait
         io['bytes'] += nb
         io['tokens'] += len(Xn)
-        pending = [ex.submit(st.load_raw, w) for w in chunks[ci + 1]] if ci + 1 < len(chunks) else []
+        pending = [ex.submit(st.load_gpu, w, dev) for w in chunks[ci + 1]] if ci + 1 < len(chunks) else []
     tt = time.time() - t0
     for f in pending:
         f.cancel()
