@@ -636,9 +636,40 @@ def cmd_idcodes(a):
     (OUTF / 'identity_codes.json').write_text(json.dumps(res, indent=1))
 
 
+def cmd_idpipe(a):
+    """pipeline identity: report.json of V22_FRAMES=fullsub vs the v2.2 report.json (picks, every level value per seed,
+    contrast point differences)."""
+    old = json.loads((REPO / 'results/vision/eci_v2_2/report.json').read_text())
+    new = json.loads((OUTF / 'fullsub' / 'report.json').read_text())
+    res = {}
+    for dset in ('sg2non', 'sgcf'):
+        So, Sn = old['sets'][dset], new['sets'][dset]
+        same, mx, mx_v1, n, worst = True, 0.0, 0.0, 0, None
+        for arm in Sn['levels']:
+            same &= Sn['picks'][arm] == So['picks'][arm]
+            for mk, v in Sn['levels'][arm].items():
+                d = float(np.nanmax(np.abs(np.array(v['seeds'], float) - np.array(So['levels'][arm][mk]['seeds'], float))))
+                n += 1
+                if np.isnan(d):
+                    continue
+                if arm.startswith('v1'):  # v1 F1 / time use the HMM on the picked neuron (fast implementation here)
+                    mx_v1 = max(mx_v1, d)
+                elif d > mx:
+                    mx, worst = d, (arm, mk)
+        auc = max(abs(Sn['levels'][arm][f'{b}|auc']['seeds'][i] - So['levels'][arm][f'{b}|auc']['seeds'][i])
+                  for arm in Sn['levels'] for b in ('nose_nose', 'nt') for i in range(len(Sn['levels'][arm][f'{b}|auc']['seeds'])))
+        cd = max(abs(r['diff'] - So['contrasts'][c][k]['diff']) for c, rr in Sn['contrasts'].items() if c in So['contrasts'] for k, r in rr.items()
+                 if np.isfinite(r['diff']))
+        res[dset] = {'arms': len(Sn['levels']), 'picks_identical': bool(same), 'auroc_max_abs_diff': float(auc),
+                     'all_level_values_max_abs_diff_v2': mx, 'worst_v2': worst, 'all_level_values_max_abs_diff_v1': mx_v1,
+                     'contrast_point_max_abs_diff': float(cd), 'n_level_metrics': n}
+    (OUTF / 'identity_pipeline.json').write_text(json.dumps(res, indent=1))
+    log(f'idpipe {json.dumps(res)}')
+
+
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('frames', 'codes2', 'codes1', 'hmmcheck', 'cache', 'idcodes'))
+    p.add_argument('step', choices=('frames', 'codes2', 'codes1', 'hmmcheck', 'cache', 'idcodes', 'idpipe'))
     p.add_argument('--task', type=int, default=0)
     p.add_argument('--ntask', type=int, default=1)
     p.add_argument('--models', default='')
@@ -646,4 +677,4 @@ if __name__ == '__main__':
     p.add_argument('--chunk', default='100')
     a = p.parse_args()
     {'frames': cmd_frames, 'codes2': cmd_codes2, 'codes1': cmd_codes1, 'hmmcheck': cmd_hmmcheck, 'cache': cmd_cache,
-     'idcodes': cmd_idcodes}[a.step](a)
+     'idcodes': cmd_idcodes, 'idpipe': cmd_idpipe}[a.step](a)

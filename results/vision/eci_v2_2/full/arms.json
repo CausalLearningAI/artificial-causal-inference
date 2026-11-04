@@ -1,0 +1,167 @@
+{
+ "v1|auc": {
+  "models": [
+   "v1_s0",
+   "v1_s1",
+   "v1_s2",
+   "v1_s3",
+   "v1_s4",
+   "v1_s5",
+   "v1_s6",
+   "v1_s7",
+   "v1_s8",
+   "v1_s9",
+   "v1_s10"
+  ],
+  "rule": "auc"
+ },
+ "v1|bal": {
+  "models": [
+   "v1_s0",
+   "v1_s1",
+   "v1_s2",
+   "v1_s3",
+   "v1_s4",
+   "v1_s5",
+   "v1_s6",
+   "v1_s7",
+   "v1_s8",
+   "v1_s9",
+   "v1_s10"
+  ],
+  "rule": "bal"
+ },
+ "v1|hyb": {
+  "models": [
+   "v1_s0",
+   "v1_s1",
+   "v1_s2",
+   "v1_s3",
+   "v1_s4",
+   "v1_s5",
+   "v1_s6",
+   "v1_s7",
+   "v1_s8",
+   "v1_s9",
+   "v1_s10"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ },
+ "V|auc": {
+  "models": [
+   "V_s1001",
+   "V_s1002",
+   "V_s1003",
+   "V_s1004",
+   "V_s1005",
+   "V_s1006"
+  ],
+  "rule": "auc"
+ },
+ "V|bal": {
+  "models": [
+   "V_s1001",
+   "V_s1002",
+   "V_s1003",
+   "V_s1004",
+   "V_s1005",
+   "V_s1006"
+  ],
+  "rule": "bal"
+ },
+ "V|balpair": {
+  "models": [
+   "V_s1001",
+   "V_s1002",
+   "V_s1003",
+   "V_s1004",
+   "V_s1005",
+   "V_s1006"
+  ],
+  "rule": "balpair"
+ },
+ "V|hyb": {
+  "models": [
+   "V_s1001",
+   "V_s1002",
+   "V_s1003",
+   "V_s1004",
+   "V_s1005",
+   "V_s1006"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ },
+ "V@top10|auc": {
+  "models": [
+   "V_s1001@top10",
+   "V_s1002@top10",
+   "V_s1003@top10",
+   "V_s1004@top10",
+   "V_s1005@top10",
+   "V_s1006@top10"
+  ],
+  "rule": "auc",
+  "post_hoc": true
+ },
+ "V@top10|bal": {
+  "models": [
+   "V_s1001@top10",
+   "V_s1002@top10",
+   "V_s1003@top10",
+   "V_s1004@top10",
+   "V_s1005@top10",
+   "V_s1006@top10"
+  ],
+  "rule": "bal"
+ },
+ "V@top10|hyb": {
+  "models": [
+   "V_s1001@top10",
+   "V_s1002@top10",
+   "V_s1003@top10",
+   "V_s1004@top10",
+   "V_s1005@top10",
+   "V_s1006@top10"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ },
+ "Vf|auc": {
+  "models": [
+   "V_s1007",
+   "V_s1008",
+   "V_s1009"
+  ],
+  "rule": "auc",
+  "amendment1": true
+ },
+ "Vf|hyb": {
+  "models": [
+   "V_s1007",
+   "V_s1008",
+   "V_s1009"
+  ],
+  "rule": "hyb",
+  "amendment1": true
+ },
+ "Vf@top10|hyb": {
+  "models": [
+   "V_s1007@top10",
+   "V_s1008@top10",
+   "V_s1009@top10"
+  ],
+  "rule": "hyb",
+  "amendment1": true
+ },
+ "Vf@top10|bal": {
+  "models": [
+   "V_s1007@top10",
+   "V_s1008@top10",
+   "V_s1009@top10"
+  ],
+  "rule": "bal",
+  "amendment1": true
+ }
+}

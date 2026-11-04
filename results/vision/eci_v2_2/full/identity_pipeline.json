@@ -1,0 +1,22 @@
+{
+ "sg2non": {
+  "arms": 14,
+  "picks_identical": true,
+  "auroc_max_abs_diff": 0.0,
+  "all_level_values_max_abs_diff_v2": 0.0,
+  "worst_v2": null,
+  "all_level_values_max_abs_diff_v1": 0.0,
+  "contrast_point_max_abs_diff": 0.0,
+  "n_level_metrics": 644
+ },
+ "sgcf": {
+  "arms": 14,
+  "picks_identical": true,
+  "auroc_max_abs_diff": 0.0,
+  "all_level_values_max_abs_diff_v2": 0.0,
+  "worst_v2": null,
+  "all_level_values_max_abs_diff_v1": 3.311129148642067e-11,
+  "contrast_point_max_abs_diff": 3.0091484859440243e-12,
+  "n_level_metrics": 644
+ }
+}

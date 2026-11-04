@@ -50,3 +50,25 @@ Outputs: results/vision/eci_v2_2/, scripts/eci/v2/v22_*, big files /mnt/beegfs/l
   seeds: nose-nose +0.000 [-0.073, +0.075], nose-tail +0.036 [-0.137, +0.228]) -> NOT confirmed by the criterion.
   Replicated: top10 readout raises nose-tail precision@100, Vf@top10|hyb - Vf|auc +0.157 [+0.007, +0.360]
   (first seeds +0.120 [+0.013, +0.278]).
+
+## FULL WINDOW (AMENDMENT 2: re-score on the 15-min atlas window, 648,000 frames, instead of the 2-min windows)
+- 10:50 error found: every mice number since v2.1 used the 2-min Tier B probe windows (144 x 600 = 86,400 frames, ~13% of
+  the annotated window). Code: scripts/eci/v2/v22_full.py (+ V22_FRAMES=full|fullsub flag in v22_core / v22_eval; the
+  default 'old' path is unchanged). Outputs results/vision/eci_v2_2/full/, big files eci_codes/v2_2/full/.
+- 11:00 frame table (job 1956371): 144 videos x 4,500 frames (H videos: frames >= 4500) = 648,000 = Tier A rows exactly;
+  old 86,400 frames an ordered subset, labels identical (asserted). full non-SG: nose-nose 4,568 frames / 1,278 bouts,
+  nose-tail 2,696 / 331 bouts (2-min: 718 / 188 and 370 / 34). Window check: the FIRST 15 min of the 48 H videos are
+  labelled too (216,000 frames; 1,427 nose-nose and 542 nose-tail bouts) and are outside the atlas window (not scored;
+  flagged). full/frames.md.
+- AMENDMENT 2 committed (e7ef64b) before any full-window score; push failed (GitHub internal server error), retrying.
+- 11:03 fast HMM check (1957606): max abs diff of P(on) vs the stored V_s1001 cache 3.0e-8 over 2048 neurons x 86,400
+  frames (full/hmmcheck.json). Not faster per neuron than src/eci/v2/hmm.py (1.9 vs 1.8 CPU-s / neuron); parallel over
+  32 threads.
+- GPU queue: estimated start 2026-11-05 16:35 or later for any -p gpu request -> v2 codes moved to CPU (array 1960601,
+  72 tasks x 8 CPUs, 2 videos each). Measured: 4,316 tokens/s per task with 9 SAEs (max + top10) -> ~450 s per task,
+  projected codes wall ~10 min. v1 codes (GPU array 1959004, 16 tasks) still pending in the GPU queue.
+- fullsub tags (old caches, new code path) 1959792: 29 models, ~40 s each.
+- 11:11 PIPELINE IDENTITY PASSED (full/identity_pipeline.json): V22_FRAMES=fullsub (new table builder, new AUROC kernel,
+  fast HMM) on the old frames with the old caches vs results/vision/eci_v2_2/report.json, 14 arms x 2 designs x 644
+  metric values per seed: picks identical, AUROC max abs diff 0, every v2 level value diff 0, v1 values <= 3.3e-11
+  (HMM on picked v1 neurons), contrast point differences <= 3.0e-12.

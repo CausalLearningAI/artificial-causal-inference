@@ -1,0 +1,26 @@
+{
+ "neurons": 2048,
+ "frames": 86400,
+ "max_abs_diff_pon": 2.9802322387695312e-08,
+ "mean_abs_diff_pon": 5.349519164096891e-16,
+ "n_neurons_diff_gt_1e-6": 0,
+ "seconds_fast": 120.58128952980042,
+ "cpus": 32,
+ "iterations_median_max": [
+  67.0,
+  200
+ ],
+ "orig_refit_neurons": [
+  0,
+  256,
+  512,
+  768,
+  1024,
+  1280,
+  1536,
+  1792
+ ],
+ "orig_refit_max_abs_diff": 2.9801908718596337e-08,
+ "orig_seconds_per_neuron": 1.7920177578926086,
+ "fast_cpu_seconds_per_neuron": 1.8840826489031315
+}
