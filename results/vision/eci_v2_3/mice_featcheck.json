@@ -1,6 +1,6 @@
 {
- "windows": 40,
- "tokens": 808437,
+ "windows": 50,
+ "tokens": 994358,
  "max_abs_diff": 0.0,
- "edge_windows_included": true
+ "video_edge_windows": 10
 }

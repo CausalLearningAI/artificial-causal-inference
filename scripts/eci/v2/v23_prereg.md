@@ -118,3 +118,37 @@ The atlas window (648,000 frames = v2.2 FULL WINDOW) + the labelled FIRST 15 min
 - New Vall codes on a sample of frames == a direct SAE forward pass (frame max of encode(norm(x)) over the frame's
   tokens).
 - Sheets: top-12 held-out frames of Vall (seed 2001) for nose-nose and nose-tail, rule auc (and bal), read and described.
+
+## AMENDMENT 1 (2026-11-04 ~13:05, user decision relayed by the coordinator; BEFORE any ants v2.3 SAE or any v2.3 score)
+
+Supersedes the ants hold above and the ants parts of "Models scored", "Scoring" and A4.
+
+**Ants training set (asserted in code, `v23_train.ants_rule_videos`)**: the valid videos used downstream, at full
+length: all valid v2 (valid == 1: 44 of 45), v3 treatments 2, 6, 8 (107), v4 treatments 2, 6 (40), v4_infested treatments
+2, 6 (41) = **232 videos**, exactly the 232 videos of the v2.1 store (the store keeps v4_infested under 'v4'); the code
+asserts store set == rule set. All of them are training videos, no calib / eval role split. All M_t tokens: measured
+**104,754,034** (1,824,000 frames, 57.4 per frame; the coordinator's "~99M" was an estimate) -> one pass = **25,574 steps**
+x 4096, same recipe, seeds 2001-2003, one job on gpu100 (same <= 12 H100-hour cap). theta* / FVE: the v2.1 ants calib /
+eval V samples (1.5M each; overlap with training, stated).
+
+**Ants alignment design**
+- Frames: the eval.py ants frame table (the human-labelled first 10 min of each video, 1 fps, 600 frames per video),
+  ONLY series v3 and v4: **147 videos** (v3 107: treatments 2 / 6 / 8 = 38 / 34 / 35; v4 40: treatments 2 / 6 = 20 / 20),
+  88,200 frames. v2 and v4_infested are excluded from neuron selection and scoring.
+- Split by video into halves A and B, stratified by series x treatment: within each of the 5 strata the videos (sorted
+  by name) are permuted with numpy default_rng(**20261105**); positions 0, 2, 4, ... -> A, 1, 3, 5, ... -> B (an odd
+  stratum gives A one more video). PRIMARY direction: select on A, measure on B. Also reported: select on B, measure on A.
+- Behaviours: **grooming-to-focal (any)** (= Y2F OR B2F; focus), Y2F, B2F, focal single (Y2F XOR B2F), focal double
+  (Y2F AND B2F).
+- Rule: per behaviour, the eligible neuron (readout > 0 on >= 0.2% of the 88,200 frames) with the best AUROC on the
+  selection half. Readouts as for mice: v2-type models (V s1001-1006, Vall s2001-2003) = per-neuron 3-state HMM P(on)
+  fitted label-free on the 5 fps spans of every ants eval video (all series; one sequence per video, the fast HMM of
+  v22_full checked == src/eci/v2/hmm.py), read at the scored frames; v1 (s0-s10, its stored codes on these frames) = raw
+  frame code for ranking, the same HMM on the picked neuron's 1 fps code (one sequence per video) for F1 / time.
+  v1 s0 alone is reported too.
+- Metrics on the held-out half: prevalence, AUROC, precision@100, F1 (P(on) > 0.5), per-video time bias / MAE (raw and
+  calibrated by total true / total sum P(on) on the selection half) with the constant-rate reference, Pearson r of
+  per-video time. Bootstrap: held-out videos resampled within series x treatment, and seeds; 1,000 replicates.
+- Contrasts: Vall - V, Vall - v1, V - v1, Vall - v1s0.
+- **A4 (replaces the earlier A4)**: grooming-to-focal (any), primary direction (A -> B): Vall - V AUROC lower 95% CI >=
+  -0.02 AND Pearson r of per-video time lower 95% CI >= -0.02.

@@ -1,0 +1,80 @@
+{
+ "V|auc": {
+  "models": [
+   "V_s1001",
+   "V_s1002",
+   "V_s1003",
+   "V_s1004",
+   "V_s1005",
+   "V_s1006"
+  ],
+  "rule": "auc"
+ },
+ "V|bal": {
+  "models": [
+   "V_s1001",
+   "V_s1002",
+   "V_s1003",
+   "V_s1004",
+   "V_s1005",
+   "V_s1006"
+  ],
+  "rule": "bal"
+ },
+ "V|hyb": {
+  "models": [
+   "V_s1001",
+   "V_s1002",
+   "V_s1003",
+   "V_s1004",
+   "V_s1005",
+   "V_s1006"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ },
+ "Vall|auc": {
+  "models": [
+   "Vall_s2001",
+   "Vall_s2002",
+   "Vall_s2003"
+  ],
+  "rule": "auc"
+ },
+ "Vall|bal": {
+  "models": [
+   "Vall_s2001",
+   "Vall_s2002",
+   "Vall_s2003"
+  ],
+  "rule": "bal"
+ },
+ "Vall|hyb": {
+  "models": [
+   "Vall_s2001",
+   "Vall_s2002",
+   "Vall_s2003"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ },
+ "v1s0|auc": {
+  "models": [
+   "v1_s0"
+  ],
+  "rule": "auc"
+ },
+ "v1s0|bal": {
+  "models": [
+   "v1_s0"
+  ],
+  "rule": "bal"
+ },
+ "v1s0|hyb": {
+  "models": [
+   "v1_s0"
+  ],
+  "rule": "hyb",
+  "post_hoc": true
+ }
+}

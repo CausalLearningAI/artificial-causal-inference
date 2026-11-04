@@ -6,6 +6,7 @@ the 15-min atlas window (648,000 frames, = v2.2 FULL WINDOW) + the first 15 min 
 Steps
   frames      (CPU) -> BEE23/ext/frames.parquet (v22_full frames.parquet columns + full_row, part), OUT/ext/frames.{json,md}
   idcodes     (CPU) ext codes on the 648,000 atlas frames vs the v2.2 FULL WINDOW codes of the same SAEs (V s1001-1006)
+  fwdcheck --models K1,K2  (CPU) assembled ext frame-max codes vs a direct SAE forward pass, frame by frame (300 frames)
 """
 import argparse
 import json
@@ -103,8 +104,36 @@ def cmd_idcodes(a):
     (C.OUT22 / 'identity_codes.json').write_text(json.dumps(res, indent=1))
 
 
+def cmd_fwdcheck(a):
+    import torch
+    from src.eci.v2 import sae as SA
+    import v22_encode as EN
+    F = pd.read_parquet(C.BEEF / 'frames.parquet', columns=['obs', 'k'])
+    rng = np.random.default_rng(11)
+    rows = np.sort(rng.choice(len(F), 300, replace=False))
+    res = {}
+    for key in a.models.split(','):
+        sae, norm = SA.load(EN.sae_path('mice', key), torch.device('cpu'))
+        X = VF.assemble(key, 'max')[rows].astype(np.float32)
+        mx, nfire = 0.0, 0
+        for r, x in zip(rows, X):
+            obs, k = F.obs.values[r], int(F.k.values[r])
+            Vd = VF.T.Video('mice', 'v1', obs)
+            i = int(np.flatnonzero(Vd.k == k)[0])
+            f, _ = VF.feats_v(Vd.window(i, i + 1), torch.device('cpu'))
+            with torch.no_grad():
+                ref = sae.encode(norm(f), mode='threshold').float().max(0).values.numpy() if len(f) else np.zeros(X.shape[1], np.float32)
+            ref = np.maximum(ref, 0).astype(np.float16).astype(np.float32)
+            mx = max(mx, float(np.abs(ref - x).max()))
+            nfire += int((ref > 0).sum())
+        res[key] = {'frames': len(rows), 'max_abs_diff': mx, 'active_entries_ref': nfire}
+        log(f'fwdcheck {key}: {res[key]}')
+    (C.OUT22 / f'fwdcheck_{a.models.replace(",", "_")}.json').write_text(json.dumps(res, indent=1))
+
+
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('frames', 'idcodes'))
+    p.add_argument('step', choices=('frames', 'idcodes', 'fwdcheck'))
+    p.add_argument('--models', default='')
     a = p.parse_args()
-    {'frames': cmd_frames, 'idcodes': cmd_idcodes}[a.step](a)
+    {'frames': cmd_frames, 'idcodes': cmd_idcodes, 'fwdcheck': cmd_fwdcheck}[a.step](a)

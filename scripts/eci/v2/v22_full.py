@@ -47,7 +47,11 @@ LABS = {'nose_nose': ['Y_nn', 'Y_np'], 'nn': ['Y_nn'], 'np': ['Y_np'], 'nt': ['Y
 
 def local_dir():
     d = Path(os.environ.get('LOCAL_DIR', f'/localhome/{os.environ.get("USER")}/{os.environ.get("SLURM_JOB_ID", "x")}_v22f'))
-    d.mkdir(parents=True, exist_ok=True)
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except PermissionError:  # node without a /localhome/<user> (e.g. eta380): the job's node-local /tmp
+        d = Path(f'/tmp/{os.environ.get("USER")}_{os.environ.get("SLURM_JOB_ID", "x")}_v22f')
+        d.mkdir(parents=True, exist_ok=True)
     return d
 
 

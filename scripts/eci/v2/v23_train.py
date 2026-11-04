@@ -43,10 +43,31 @@ WIN_RNG = 20261104
 log = T.log
 
 
+ANTS_RULE = {'v2': None, 'v3': (2, 6, 8), 'v4': (2, 6), 'v4_infested': (2, 6)}  # AMENDMENT 1 (user): valid videos, these treatments
+
+
+def ants_rule_videos():
+    """the ants training set by rule (data/ants/<series>/experiment.csv): all valid v2; v3 treatments 2, 6, 8; v4 and
+    v4_infested treatments 2, 6 -> {(store series, obs)} (the store keeps v4_infested under series 'v4')."""
+    import pandas as pd
+    out = set()
+    for ser, tr in ANTS_RULE.items():
+        e = pd.read_csv(REPO / 'data/ants' / ser / 'experiment.csv')
+        e = e[e.valid == 1] if tr is None else e[e.treatment.isin(tr) & (e.valid == 1)]
+        out |= {('v4' if ser == 'v4_infested' else ser, str(o)) for o in e.observation_id}
+    return out
+
+
 def store_videos(dom):
     m = json.loads((STORE / dom / VER / 'manifest.json').read_text())
     assert not m['missing_videos'] and m['videos'] == m['expected_videos'] == len(m['videos_list'])
-    return [(v['series'], v['obs'], int(v['frames'])) for v in m['videos_list']]
+    vids = [(v['series'], v['obs'], int(v['frames'])) for v in m['videos_list']]
+    if dom == 'ants':
+        rule = ants_rule_videos()
+        assert {(s_, o) for s_, o, _ in vids} == rule and len(rule) == 232, 'ants store videos != the training-set rule'
+    else:
+        assert len(vids) == 648
+    return vids
 
 
 def windows(dom):
