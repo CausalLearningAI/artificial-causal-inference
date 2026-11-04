@@ -111,9 +111,14 @@ def sae_path(dom, key):
     return p if p.exists() else T.BEE / dom / 'sae' / key / 'sae_theta.pt'
 
 
+RO = None  # --readouts override
+
+
 def readouts_of(key):
     """pooled-only SAEs (key starts with 'VP2') are read out on pooled tokens only."""
-    return ('coarse',) if key.startswith('VP2') else ('max', 'box3', 'coarse', 'ms')
+    if key.startswith('VP2'):
+        return ('coarse',)
+    return RO or ('max', 'box3', 'coarse', 'ms')
 
 
 def box3(cc, fi, pos, G):
@@ -179,10 +184,12 @@ def cmd_codes(a):
                     if 'max' in ro or 'box3' in ro:
                         cc = sae.encode(norm(f), mode='threshold').float()
                         out['max'] = torch.zeros((i1 - i0, Wd[k]), device=dev).index_reduce_(0, fl, cc, 'amax', include_self=True)
-                        out['box3'] = torch.zeros((i1 - i0, Wd[k]), device=dev).index_reduce_(0, fl, box3(cc, fi, pos, G), 'amax', include_self=True)
+                        if 'box3' in ro:
+                            out['box3'] = torch.zeros((i1 - i0, Wd[k]), device=dev).index_reduce_(0, fl, box3(cc, fi, pos, G), 'amax', include_self=True)
                         del cc
-                    cp = sae.encode(norm(fp), mode='threshold').float()
-                    out['coarse'] = torch.zeros((i1 - i0, Wd[k]), device=dev).index_reduce_(0, pfl, cp, 'amax', include_self=True)
+                    if 'coarse' in ro or 'ms' in ro:
+                        cp = sae.encode(norm(fp), mode='threshold').float()
+                        out['coarse'] = torch.zeros((i1 - i0, Wd[k]), device=dev).index_reduce_(0, pfl, cp, 'amax', include_self=True)
                     if 'ms' in ro:
                         out['ms'] = torch.maximum(out['max'], out['coarse'])
                 for r in ro:
@@ -217,5 +224,8 @@ if __name__ == '__main__':
     p.add_argument('--dom', choices=('mice', 'ants'))
     p.add_argument('--models', default='')
     p.add_argument('--tag', default='')
+    p.add_argument('--readouts', default='')
     a = p.parse_args()
+    if a.readouts:
+        RO = tuple(a.readouts.split(','))
     {'prep': cmd_prep, 'codes': cmd_codes}[a.step](a)

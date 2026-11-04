@@ -1,0 +1,20 @@
+[
+ "V|auc - v1|auc",
+ "V|bal - v1|bal",
+ "V|bal - V|auc",
+ "V|balpair - V|auc",
+ "V@top10|bal - V|auc",
+ "V@box3|bal - V|auc",
+ "V@coarse|bal - V|auc",
+ "V@ms|bal - V|auc",
+ "VP2|bal - V|auc",
+ "VMS|bal - V|auc",
+ "VW8|bal - V|auc",
+ "V@top10|bal - V|bal",
+ "V@box3|bal - V|bal",
+ "V@coarse|bal - V|bal",
+ "V@ms|bal - V|bal",
+ "VP2|bal - V|bal",
+ "VMS|bal - V|bal",
+ "VW8|bal - V|bal"
+]

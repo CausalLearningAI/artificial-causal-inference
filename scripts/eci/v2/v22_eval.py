@@ -251,6 +251,9 @@ def cmd_report(a):
         wb = lambda ue: Wrep[dset][:, [uidx[u] for u in ue]]  # noqa: E731
         per = {}
         for arm, spec in arms.items():
+            if not all((OUT22 / 'tags' / f'{k}.pkl').exists() for k in spec['models']):
+                log(f'{arm}: tags missing, skipped')
+                continue
             M = []
             for k in spec['models']:
                 if k not in cache:
@@ -259,10 +262,11 @@ def cmd_report(a):
             per[arm] = {mk: np.stack([m[mk] for m in M]) for mk in M[0]}  # (seeds, NB+1)
         lev, picks = {}, {}
         for arm, d in per.items():
+            spec = arms[arm]
             lev[arm] = {f'{b}|{k}': {'median': float(np.nanmedian(v[:, 0])), 'min': float(np.nanmin(v[:, 0])),
                                      'max': float(np.nanmax(v[:, 0])), 'mean': float(np.nanmean(v[:, 0])), 'seeds': v[:, 0].tolist()}
                         for (b, k), v in d.items()}
-            picks[arm] = {k: [dd['picks'] for dd in cache[k]['sets'][f'{dset}|{arms[arm]["rule"]}']] for k in arms[arm]['models']}
+            picks[arm] = {k: [dd['picks'] for dd in cache[k]['sets'][f'{dset}|{spec["rule"]}']] for k in spec['models']}
         con = {}
         for x, y in [tuple(c.split(' - ')) for c in json.loads((OUT22 / 'contrasts.json').read_text())]:
             if x not in per or y not in per:
@@ -301,11 +305,78 @@ def cmd_report(a):
     res['annotators'] = F.groupby('annot').agg(pools=('unit', 'nunique'), videos=('obs', 'nunique'), frames=('obs', 'size')).to_dict('index')
     (OUT22 / 'report.json').write_text(json.dumps(res, indent=1, default=float))
     log('report.json written')
+    cmd_tables(a)
+
+
+FMT = [('auc', 'AUROC', 3), ('p100', 'precision@100', 3), ('F1', 'F1 (P(on)>0.5)', 3), ('disc', 'discrimination AUROC nt vs nose_nose', 2),
+       ('bias_raw_soft_s', 'raw time bias, s', 1), ('mae_raw_soft_s', 'raw time MAE, s', 1), ('mae_raw_soft_frac', 'raw time MAE, frac', 3),
+       ('bias_cal_soft_s', 'cal. time bias, s', 2), ('mae_cal_soft_s', 'cal. time MAE, s', 2), ('mae_cal_soft_frac', 'cal. time MAE, frac', 4),
+       ('r_soft', 'Pearson r time', 2)]
+
+
+def verdict(res):
+    out = {}
+    S = res['sets']['sg2non']
+    for arm in S['levels']:
+        if arm.startswith('v1') or arm == 'V|auc':
+            continue
+        pk = S['picks'][arm]
+        dist = [p[0]['nose_nose'] != p[0]['nt'] for p in pk.values()]
+        need = 2 if len(dist) <= 3 else 4
+        lv = S['levels'][arm]
+        c2 = (lv['nt|disc']['median'] > 0.6, lv['nose_nose|disc']['median'] < 0.4)
+        con = S['contrasts'].get(f'{arm} - V|auc', {})
+        c3 = {b: con[f'{b}|auc']['ci'][0] for b in C.BEH} if con else {}
+        out[arm] = {'C1 distinct seeds': f'{sum(dist)}/{len(dist)}', 'C1': sum(dist) >= need,
+                    'C2 nt disc median': lv['nt|disc']['median'], 'C2 nose_nose disc median': lv['nose_nose|disc']['median'],
+                    'C2': bool(c2[0] and c2[1]), 'C3 lower CI (AUROC vs V|auc)': c3,
+                    'C3': bool(c3) and all(v >= -0.02 for v in c3.values()),
+                    'tiebreak mean p@100': 0.5 * (lv['nose_nose|p100']['mean'] + lv['nt|p100']['mean'])}
+    return out
+
+
+def cmd_tables(a):
+    res = json.loads((OUT22 / 'report.json').read_text())
+    md = []
+    V = verdict(res)
+    res['verdict_C1_C3'] = V
+    (OUT22 / 'report.json').write_text(json.dumps(res, indent=1, default=float))
+    md += ['## Verdict C1-C3 (design (a): select on SG, evaluate on non-SG pools)', '',
+           '| arm | C1 distinct (seeds) | C2 nt disc / nose_nose disc (median) | C3 AUROC lower CI vs V|auc nose_nose / nt | C1 | C2 | C3 | mean p@100 |',
+           '|---|---|---|---|---|---|---|---|']
+    for arm, v in V.items():
+        c3 = v['C3 lower CI (AUROC vs V|auc)']
+        md.append(f"| {arm} | {v['C1 distinct seeds']} | {v['C2 nt disc median']:.2f} / {v['C2 nose_nose disc median']:.2f} | "
+                  f"{c3.get('nose_nose', float('nan')):+.3f} / {c3.get('nt', float('nan')):+.3f} | {'yes' if v['C1'] else 'NO'} | "
+                  f"{'yes' if v['C2'] else 'NO'} | {'yes' if v['C3'] else 'NO'} | {v['tiebreak mean p@100']:.3f} |")
+    for dset, title in (('sg2non', 'design (a): select on SG pools, evaluate on the 12 non-SG pools'),
+                        ('sgcf', 'design (b): cross-fitted within the 11 SG pools (12 directions)')):
+        S = res['sets'][dset]
+        md += ['', f'## Levels, {title}', '', 'seed median [min, max]', '']
+        for b in C.BEH:
+            md += [f'### {C.NAME[b]}', '', '| arm | ' + ' | '.join(n for _, n, _ in FMT) + ' |', '|---|' + '---|' * len(FMT)]
+            for arm, lv in S['levels'].items():
+                md.append(f'| {arm} | ' + ' | '.join(f"{lv[f'{b}|{k}']['median']:.{d}f} [{lv[f'{b}|{k}']['min']:.{d}f}, {lv[f'{b}|{k}']['max']:.{d}f}]"
+                                                     for k, _, d in FMT) + ' |')
+            md.append('')
+        md += [f'## Differences, {title}', '', 'mean over seeds [95% CI, pools + seeds bootstrap]', '']
+        for b in C.BEH:
+            md += [f'### {C.NAME[b]}', '', '| contrast | ' + ' | '.join(n for _, n, _ in FMT) + ' |', '|---|' + '---|' * len(FMT)]
+            for cn, r in S['contrasts'].items():
+                md.append(f'| {cn} | ' + ' | '.join(f"{r[f'{b}|{k}']['diff']:+.{d}f} [{r[f'{b}|{k}']['ci'][0]:+.{d}f}, {r[f'{b}|{k}']['ci'][1]:+.{d}f}]"
+                                                    for k, _, d in FMT) + ' |')
+            md.append('')
+        md += [f'## Selected neurons, {title}', '', '| arm | model: nose-nose / nose-tail (per direction) |', '|---|---|']
+        for arm, pk in S['picks'].items():
+            md.append(f'| {arm} | ' + '; '.join(f"{k}: " + ', '.join(f"#{p['nose_nose']}/#{p['nt']}" for p in v) for k, v in pk.items()) + ' |')
+    md += ['', '## Ground truth', '', '```', json.dumps(res['ground_truth'], indent=1), '```']
+    (OUT22 / 'tables.md').write_text('\n'.join(md) + '\n')
+    log('tables.md written')
 
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('tag', 'report'))
+    p.add_argument('step', choices=('tag', 'report', 'tables'))
     p.add_argument('--model', default='')
     a = p.parse_args()
-    {'tag': cmd_tag, 'report': cmd_report}[a.step](a)
+    {'tag': cmd_tag, 'report': cmd_report, 'tables': cmd_tables}[a.step](a)

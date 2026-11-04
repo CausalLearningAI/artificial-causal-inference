@@ -20,3 +20,10 @@ Outputs: results/vision/eci_v2_2/, scripts/eci/v2/v22_*, big files /mnt/beegfs/l
   neuron" in v2.1 came from the cross-fitted AUROC selection. Nose-nose neurons are only mildly specific.
   rd41_3 treated as unknown annotator (csv says SG; user says unrecorded): SG = 11 pools.
 - prereg scripts/eci/v2/v22_prereg.md committed before any held-out score.
+- 03:05 jobs: tags (V s1001-6, v1 s0-10, V@top10) array 1910055; ants V tags 1910241 (v22_ants.py, C4 reference);
+  VW8 trained (gpu100, ~6.5 min each, FVE 0.854 s1004); VW8 codes (CPU, max readout) 1910093/5/7;
+  VP2 / VMS trainings (gpu100, after prep) 1910480-1910485.
+- 03:18 tags V / v1 done; identity vs v21 extended: picks identical for all 17 models, max abs diff 0 (V) / 2e-6 (v1,
+  HMM refit) over 1730 values each. First report (V, v1 arms): with SG selection on all 11 SG pools the CURRENT rule
+  already gives distinct picks in 6/6 V seeds (nt disc 0.72, nose_nose disc 0.41). V|bal: C1 6/6, C2 yes (0.80/0.33),
+  C3 NO (nose_nose AUROC -0.066 [-0.146, +0.013] vs V|auc).
