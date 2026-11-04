@@ -1,0 +1,12 @@
+{
+ "V_s1001": {
+  "frames": 300,
+  "max_abs_diff": 0.0,
+  "active_entries_ref": 133933
+ },
+ "V_s1004": {
+  "frames": 300,
+  "max_abs_diff": 0.001953125,
+  "active_entries_ref": 133860
+ }
+}

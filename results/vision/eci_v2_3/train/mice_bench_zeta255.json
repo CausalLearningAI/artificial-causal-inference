@@ -1,0 +1,26 @@
+{
+ "node": "zeta255",
+ "gpu": "cpu",
+ "steps_run": 30,
+ "steps_schedule": 182653,
+ "tokens_used_per_seed": 122880,
+ "M_tokens_total": 748150181,
+ "passes": 0.00016424509827125204,
+ "train_time_s": 139.73670768737793,
+ "steps_per_s": 0.21468947205423408,
+ "tokens_per_s_per_seed": 879.3680775341428,
+ "n_seeds_in_job": 3,
+ "loader_wait_s": 0.3838348388671875,
+ "store_bytes_read": 931938304,
+ "store_GB_per_s": 0.006669244749095944,
+ "gpu_util_samples": [],
+ "gpu_util_median": null,
+ "chunks_consumed": 1,
+ "chunks_total": 2430,
+ "gpu_feature_identity": {
+  "windows": 16,
+  "tokens": 321523,
+  "max_abs_diff": 0.0
+ },
+ "tokens_loaded": 321523
+}

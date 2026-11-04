@@ -1,0 +1,28 @@
+{
+ "node": "gpu276",
+ "gpu": "NVIDIA H100 80GB HBM3",
+ "steps_run": 3000,
+ "steps_schedule": 182653,
+ "tokens_used_per_seed": 12288000,
+ "M_tokens_total": 748150181,
+ "passes": 0.016424509827125205,
+ "train_time_s": 280.5919997692108,
+ "steps_per_s": 10.691680455848791,
+ "tokens_per_s_per_seed": 43793.12314715665,
+ "n_seeds_in_job": 3,
+ "loader_wait_s": 0.302933931350708,
+ "store_bytes_read": 43535411200,
+ "store_GB_per_s": 0.15515556835479352,
+ "gpu_util_samples": [
+  81
+ ],
+ "gpu_util_median": 81.0,
+ "chunks_consumed": 3,
+ "chunks_total": 152,
+ "gpu_feature_identity": {
+  "windows": 16,
+  "tokens": 321523,
+  "max_abs_diff": 0.0
+ },
+ "tokens_loaded": 14650691
+}

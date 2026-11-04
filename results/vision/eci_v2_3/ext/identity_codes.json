@@ -1,0 +1,74 @@
+{
+ "V_s1001|max": {
+  "max_abs_diff": 2.2265625,
+  "share_entries_diff_gt_0.01": 5.123939043209877e-08,
+  "share_entries_diff_gt_0.5": 7.535204475308642e-10,
+  "fire_agree": 0.9999999992464795
+ },
+ "V_s1001|top10": {
+  "max_abs_diff": 0.22265625,
+  "share_entries_diff_gt_0.01": 2.0345052083333333e-08,
+  "share_entries_diff_gt_0.5": 0.0,
+  "fire_agree": 0.9999999992464795
+ },
+ "V_s1002|max": {
+  "max_abs_diff": 2.23046875,
+  "share_entries_diff_gt_0.01": 4.897882908950617e-08,
+  "share_entries_diff_gt_0.5": 4.521122685185185e-09,
+  "fire_agree": 0.9999999954788773
+ },
+ "V_s1002|top10": {
+  "max_abs_diff": 0.2236328125,
+  "share_entries_diff_gt_0.01": 2.4112654320987653e-08,
+  "share_entries_diff_gt_0.5": 0.0,
+  "fire_agree": 0.9999999954788773
+ },
+ "V_s1003|max": {
+  "max_abs_diff": 2.244140625,
+  "share_entries_diff_gt_0.01": 4.370418595679012e-08,
+  "share_entries_diff_gt_0.5": 1.5070408950617283e-09,
+  "fire_agree": 0.9999999984929591
+ },
+ "V_s1003|top10": {
+  "max_abs_diff": 0.224609375,
+  "share_entries_diff_gt_0.01": 2.2605613425925925e-08,
+  "share_entries_diff_gt_0.5": 0.0,
+  "fire_agree": 0.9999999984929591
+ },
+ "V_s1004|max": {
+  "max_abs_diff": 2.2421875,
+  "share_entries_diff_gt_0.01": 5.04858699845679e-08,
+  "share_entries_diff_gt_0.5": 2.2605613425925926e-09,
+  "fire_agree": 0.9999999977394387
+ },
+ "V_s1004|top10": {
+  "max_abs_diff": 0.224609375,
+  "share_entries_diff_gt_0.01": 2.5619695216049384e-08,
+  "share_entries_diff_gt_0.5": 0.0,
+  "fire_agree": 0.9999999977394387
+ },
+ "V_s1005|max": {
+  "max_abs_diff": 2.23828125,
+  "share_entries_diff_gt_0.01": 4.897882908950617e-08,
+  "share_entries_diff_gt_0.5": 6.028163580246913e-09,
+  "fire_agree": 0.9999999939718364
+ },
+ "V_s1005|top10": {
+  "max_abs_diff": 0.224609375,
+  "share_entries_diff_gt_0.01": 2.4866174768518517e-08,
+  "share_entries_diff_gt_0.5": 0.0,
+  "fire_agree": 0.9999999939718364
+ },
+ "V_s1006|max": {
+  "max_abs_diff": 2.228515625,
+  "share_entries_diff_gt_0.01": 5.199291087962963e-08,
+  "share_entries_diff_gt_0.5": 3.0140817901234566e-09,
+  "fire_agree": 0.9999999969859182
+ },
+ "V_s1006|top10": {
+  "max_abs_diff": 0.22314453125,
+  "share_entries_diff_gt_0.01": 2.4112654320987653e-08,
+  "share_entries_diff_gt_0.5": 0.0,
+  "fire_agree": 0.9999999969859182
+ }
+}
