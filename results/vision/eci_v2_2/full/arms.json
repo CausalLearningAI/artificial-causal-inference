@@ -163,5 +163,26 @@
   ],
   "rule": "bal",
   "amendment1": true
+ },
+ "v1s0|auc": {
+  "models": [
+   "v1_s0"
+  ],
+  "rule": "auc",
+  "note": "v1 seed 0 only (full window: the stored deployed codes)"
+ },
+ "v1s0|bal": {
+  "models": [
+   "v1_s0"
+  ],
+  "rule": "bal",
+  "note": "v1 seed 0 only (full window: the stored deployed codes)"
+ },
+ "v1s0|hyb": {
+  "models": [
+   "v1_s0"
+  ],
+  "rule": "hyb",
+  "note": "v1 seed 0 only (full window: the stored deployed codes)"
  }
 }

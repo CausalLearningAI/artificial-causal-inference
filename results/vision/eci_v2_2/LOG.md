@@ -72,3 +72,15 @@ Outputs: results/vision/eci_v2_2/, scripts/eci/v2/v22_*, big files /mnt/beegfs/l
   fast HMM) on the old frames with the old caches vs results/vision/eci_v2_2/report.json, 14 arms x 2 designs x 644
   metric values per seed: picks identical, AUROC max abs diff 0, every v2 level value diff 0, v1 values <= 3.3e-11
   (HMM on picked v1 neurons), contrast point differences <= 3.0e-12.
+- 11:20 v2 codes done (array 1960601, 72/72 COMPLETED, ~8-15 min per task at 2,200-4,300 tokens/s with 9 SAEs).
+- CODE IDENTITY (full/identity_codes.json; new codes on the 86,400 old frames vs stored old codes): V s1001-1007 frame
+  max vs the v2.2 CPU codes: max abs diff 2.23-2.24 (= theta*: threshold flips), 1.4-1.6e-6 of entries differ by > 0.01,
+  0.5-1.0e-7 by > 0.5, firing agreement >= 0.9999999 (v2.2 LOG 03:45 reported the same noise: 3.7e-6 > 0.01, 1e-7 > 0.5);
+  vs the v2.1 GPU codes 3.4-3.8e-6 > 0.01. V s1008 / s1009 max and top10: bit-identical (diff 0). top10 s1001-1007:
+  max abs diff 0.22-0.23, 0.6-1.4e-6 of entries > 0.01, none > 0.5. LABELS: identical on the old frames (asserted).
+- v1: the GPU queue never opened (v1 codes array 1959004 still pending, est. start 2026-11-05 16:35). On the full window
+  v1 is scored with seed 0 only, from the STORED deployed codes_max (Tier A extract, the atlas input; job 1969419). These
+  differ from the 2-min recomputed v1_s0 codes as already known (eci_v2_prob codes_meta): firing agreement 0.99963,
+  1.45% of entries differ by > 0.01, max abs diff 42. v1 s1-s10: not on the full window yet.
+- 11:20-11:35 full V caches (HMM P(on), one sequence per 15-min video): ~12.5 min per code set on 32 CPUs (iterations
+  median 62-69, max 200); tags ~3 min. Array 1967092.

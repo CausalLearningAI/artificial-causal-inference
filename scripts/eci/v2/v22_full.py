@@ -570,7 +570,15 @@ def cmd_cache(a):
     t0 = time.time()
     v1 = key.startswith('v1_')
     base, ro = (key.split('@') + ['max'])[:2]
-    raw = assemble(base if v1 else base, None if v1 else ro)
+    if a.src == 'tierA':  # v1 s0 only: the STORED deployed codes_max of every atlas-window frame (Tier A extract)
+        assert key == 'v1_s0'
+        F = pd.read_parquet(BEEF / 'frames.parquet', columns=['row'])
+        TA = pd.read_parquet(TIERA)
+        r = pd.Series(np.arange(len(TA)), index=TA.row.values).reindex(F.row.values).values
+        assert not np.isnan(r).any()
+        raw = np.asarray(np.load(TIERA.parent / 'v1.npy', mmap_mode='r'))[r.astype(np.int64)]
+    else:
+        raw = assemble(base, None if v1 else ro)
     pr, pp = C.cache_paths(key)
     pr.parent.mkdir(parents=True, exist_ok=True)
     loc = local_dir()
@@ -616,7 +624,10 @@ def cmd_idcodes(a):
         pd.MultiIndex.from_arrays([Fo.obs.values, Fo.k.values])).values.astype(np.int64)
     for (key, ro), paths in refs.items():
         try:
-            new = assemble(key, ro)[m].astype(np.float32)
+            if key == 'v1_s0' and not (BEEF / 'codes' / 'parts' / 't0_rows1.parquet').exists():  # stored Tier A codes
+                new = np.load(BEEF / 'cache' / 'mice' / 'v1_s0_raw.npy', mmap_mode='r')[m].astype(np.float32)
+            else:
+                new = assemble(key, ro)[m].astype(np.float32)
         except AssertionError as e:
             res[f'{key}|{ro}'] = {'missing': str(e)}
             continue
@@ -645,7 +656,8 @@ def cmd_idpipe(a):
     for dset in ('sg2non', 'sgcf'):
         So, Sn = old['sets'][dset], new['sets'][dset]
         same, mx, mx_v1, n, worst = True, 0.0, 0.0, 0, None
-        for arm in Sn['levels']:
+        arms = [x for x in Sn['levels'] if x in So['levels']]
+        for arm in arms:
             same &= Sn['picks'][arm] == So['picks'][arm]
             for mk, v in Sn['levels'][arm].items():
                 d = float(np.nanmax(np.abs(np.array(v['seeds'], float) - np.array(So['levels'][arm][mk]['seeds'], float))))
@@ -657,10 +669,10 @@ def cmd_idpipe(a):
                 elif d > mx:
                     mx, worst = d, (arm, mk)
         auc = max(abs(Sn['levels'][arm][f'{b}|auc']['seeds'][i] - So['levels'][arm][f'{b}|auc']['seeds'][i])
-                  for arm in Sn['levels'] for b in ('nose_nose', 'nt') for i in range(len(Sn['levels'][arm][f'{b}|auc']['seeds'])))
+                  for arm in arms for b in ('nose_nose', 'nt') for i in range(len(Sn['levels'][arm][f'{b}|auc']['seeds'])))
         cd = max(abs(r['diff'] - So['contrasts'][c][k]['diff']) for c, rr in Sn['contrasts'].items() if c in So['contrasts'] for k, r in rr.items()
                  if np.isfinite(r['diff']))
-        res[dset] = {'arms': len(Sn['levels']), 'picks_identical': bool(same), 'auroc_max_abs_diff': float(auc),
+        res[dset] = {'arms': len(arms), 'picks_identical': bool(same), 'auroc_max_abs_diff': float(auc),
                      'all_level_values_max_abs_diff_v2': mx, 'worst_v2': worst, 'all_level_values_max_abs_diff_v1': mx_v1,
                      'contrast_point_max_abs_diff': float(cd), 'n_level_metrics': n}
     (OUTF / 'identity_pipeline.json').write_text(json.dumps(res, indent=1))
@@ -675,6 +687,7 @@ if __name__ == '__main__':
     p.add_argument('--models', default='')
     p.add_argument('--model', default='')
     p.add_argument('--chunk', default='100')
+    p.add_argument('--src', default='parts')
     a = p.parse_args()
     {'frames': cmd_frames, 'codes2': cmd_codes2, 'codes1': cmd_codes1, 'hmmcheck': cmd_hmmcheck, 'cache': cmd_cache,
      'idcodes': cmd_idcodes, 'idpipe': cmd_idpipe}[a.step](a)

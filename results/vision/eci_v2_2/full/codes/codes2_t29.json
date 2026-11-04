@@ -1,0 +1,10 @@
+{
+ "task": 29,
+ "videos": 2,
+ "frames": 9000,
+ "tokens": 1863201,
+ "seconds": 867.0892925262451,
+ "tokens_per_s": 2148.799453539959,
+ "device": "cpu",
+ "gpu": "cpu"
+}

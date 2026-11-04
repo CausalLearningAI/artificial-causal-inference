@@ -93,10 +93,26 @@ def main():
     if is_v1:
         sae = load_sae(REPO / EV.V1SAE['mice'], torch.device('cpu'))[:2] if key == 'v1_s0' else None
         assert sae is not None, 'v1 maps only for v1_s0 (the stored v1 SAE)'
-        sys.path.insert(0, str(REPO / 'scripts/eci/v2_prob'))
-        import study as SY
-        v1_tok = SY.BH.Store('mice', 'v1', 'dense', 768)
-        tix = pd.Series(np.arange(v1_tok.nf), index=pd.MultiIndex.from_arrays([v1_tok.F.obs.values, v1_tok.F.k.values.astype(int)]))
+        if C.FRAMES == 'full':  # AMENDMENT 2: frames outside the probe windows have no stored v1 tokens -> v1's exact
+            # token pipeline on CPU for the shown frames only (scripts/eci/v2_prob/study.py enc1)
+            from src.eci.foreground import RULES, FgBackgrounds, FgEncoder, align_rot90, encode_batch, obs_rows
+            annp = REPO / 'dataset/mice/v1/annotations.csv'
+            enc1 = FgEncoder('dinov2_base', 'cpu')
+            fb1 = FgBackgrounds(REPO / 'dataset/mice/v1/eci/fg448al/background', obs_rows(annp), RULES['fg448'], 'cpu', align='odor', cache=2)
+            rot1 = align_rot90('odor', annp)
+
+            def v1_tokens(row):
+                ds = enc1.dataset([str(REPO / 'dataset' / ann_fp[row])], np.array([row]), None if rot1 is None else rot1[[row]])
+                pix, grey, rr = next(iter(torch.utils.data.DataLoader(ds, batch_size=1)))
+                tok = encode_batch(enc1.model, pix, torch.device('cpu'))
+                mk, _ = fb1.mask(tok, grey, rr.numpy())
+                pos = torch.nonzero(mk[0]).flatten()
+                return tok[0, pos].float(), pos.numpy()
+        else:
+            sys.path.insert(0, str(REPO / 'scripts/eci/v2_prob'))
+            import study as SY
+            v1_tok = SY.BH.Store('mice', 'v1', 'dense', 768)
+            tix = pd.Series(np.arange(v1_tok.nf), index=pd.MultiIndex.from_arrays([v1_tok.F.obs.values, v1_tok.F.k.values.astype(int)]))
     else:
         sae = SA.load(EN.sae_path('mice', base), torch.device('cpu'))
     ev = np.flatnonzero(F.nonsg.values)
@@ -110,12 +126,19 @@ def main():
             r = int(ev[i])
             obs, k = str(F.obs.values[r]), int(F.k.values[r])
             if is_v1:
-                fi = int(tix[(obs, k)])
-                a_, b_ = int(v1_tok.starts[fi]), int(v1_tok.starts[fi + 1])
-                with torch.no_grad():
-                    cc = sae[0].encode(sae[1](torch.from_numpy(v1_tok.tok(a_, b_)).float()), mode='threshold')[:, j].numpy()
-                m = np.zeros(32 * 32, np.float32)
-                m[v1_tok.pos[a_:b_]] = cc
+                if C.FRAMES == 'full':
+                    z1, p1 = v1_tokens(int(F.row.values[r]))
+                    with torch.no_grad():
+                        cc = sae[0].encode(sae[1](z1), mode='threshold')[:, j].numpy()
+                    m = np.zeros(32 * 32, np.float32)
+                    m[p1] = cc
+                else:
+                    fi = int(tix[(obs, k)])
+                    a_, b_ = int(v1_tok.starts[fi]), int(v1_tok.starts[fi + 1])
+                    with torch.no_grad():
+                        cc = sae[0].encode(sae[1](torch.from_numpy(v1_tok.tok(a_, b_)).float()), mode='threshold')[:, j].numpy()
+                    m = np.zeros(32 * 32, np.float32)
+                    m[v1_tok.pos[a_:b_]] = cc
                 m = m.reshape(32, 32)
                 img = np.asarray(Image.open(REPO / 'dataset' / ann_fp[int(F.row.values[r])]).convert('RGB'))
                 img = np.ascontiguousarray(np.rot90(img, rot.get(obs, 0)))

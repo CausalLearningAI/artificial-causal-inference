@@ -295,6 +295,16 @@ def cmd_report(a):
                                          'ci': np.nanpercentile(dd, [2.5, 97.5]).tolist()}
             con[f'{x} - {y}'] = r
         res['sets'][dset] = {'levels': lev, 'contrasts': con, 'picks': picks}
+        if C.FRAMES != 'old':  # AMENDMENT 2: level CIs per arm (pools + seeds bootstrap; separate rng, contrasts unchanged)
+            rng2 = np.random.default_rng(20261105)
+            lci = {}
+            for arm, d in per.items():
+                lci[arm] = {}
+                for mk, v in d.items():
+                    ix = rng2.integers(0, len(v), (NB, len(v)))
+                    bb = np.nanmean(v[:, 1:][ix, np.arange(NB)[:, None]], 1)
+                    lci[arm][f'{mk[0]}|{mk[1]}'] = {'mean': float(np.nanmean(v[:, 0])), 'ci': np.nanpercentile(bb, [2.5, 97.5]).tolist()}
+            res['sets'][dset]['level_ci'] = lci
     # ground truth / coverage
     gt = {}
     for part, m in (('all', np.ones(len(F), bool)), ('sg', F.sg.values), ('nonsg', F.nonsg.values), ('unknown', F.annot.values == 'NA')):
