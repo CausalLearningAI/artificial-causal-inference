@@ -1,0 +1,16 @@
+{
+ "k": 256,
+ "sample_tokens": 2000000,
+ "fit_tokens": 500000,
+ "iterations": 25,
+ "clip": 10.0,
+ "freq_min": 0.0015365,
+ "freq_max": 0.0067825,
+ "empty_clusters": 0,
+ "weight_min": 0.7643822498207032,
+ "weight_max": 1.605976597554122,
+ "clusters_clipped": 0,
+ "token_frac_clipped": 0.0,
+ "token_mean_weight_after_clip": 1.0,
+ "effective_sample_size_frac": 0.9857097339896614
+}

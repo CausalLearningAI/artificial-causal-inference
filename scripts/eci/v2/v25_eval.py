@@ -51,6 +51,7 @@ ANTS_OUT = OUT25 / 'ants'
 DT = 0.2
 EDGE_S = 10  # frames = 2 s at 5 fps (edge-artifact check)
 DISC_MIN = 0.6
+EXTRA_PAIRS_MICE, EXTRA_PAIRS_ANTS = [], []  # (x, y, paired); set by wrappers (v26_eval)
 
 # ---------------------------------------------------------------------------------------------- patches
 _mice_table0, _cache_paths0, _select0 = C.mice_table, C.cache_paths, C.select
@@ -304,6 +305,7 @@ def cmd_report_mice(a):
         pairs += [(f'C1|{r}', f'W1|{r}', True), (f'Wh|{r}', f'W1|{r}', True)]
         for x in ARMS25 + ('V',):
             pairs.append((f'{x}|{r}', 'v1s0|auc', False))
+    pairs = pairs + EXTRA_PAIRS_MICE
     for x, y, paired in pairs:
         if x in per and y in per:
             res['contrasts'][f'{x} - {y}'] = {f'{b}|{m}': boot_diff(per[x][(b, m)], per[y][(b, m)], rng3, paired)
@@ -381,6 +383,7 @@ def cmd_report_ants(a):
             R['levels'][arm] = {f'{bb}|{m_}': boot_level(v, rng2) for (bb, m_), v in d.items() if m_ in MK + ('top3', 'chance')}
         pairs = [(x, 'V', False) for x in ARMS25 + ('v1s0', 'v1')] + [(x, 'N0', True) for x in ('W1', 'Wh', 'C1', 'M2')] + \
                 [('C1', 'W1', True), ('Wh', 'W1', True), ('M2', 'C1', True), ('Whw', 'N0w', True), ('N0w', 'N0', True), ('Whw', 'Wh', True), ('Whw', 'N0', True)] + [(x, 'v1s0', False) for x in ARMS25 + ('V',)] + [(x, 'v1', False) for x in ARMS25]
+        pairs = pairs + EXTRA_PAIRS_ANTS
         for x, y, paired in pairs:
             if x in per and y in per:
                 R['contrasts'][f'{x} - {y}'] = {f'{bb}|{m_}': boot_diff(per[x][(bb, m_)], per[y][(bb, m_)], rng2, paired)
