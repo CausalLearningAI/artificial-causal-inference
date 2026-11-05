@@ -61,6 +61,17 @@ DIN = {'N0': 1024, 'W1': 1024, 'Wh': 1024, 'C1': 2048, 'M2': 3072}
 # Only M2 is trained / encoded in that mode (asserted).
 MULTI = os.environ.get('V25_MULTI', '0') == '1'
 MAIN_ARMS = ('N0', 'W1', 'Wh', 'C1')
+# escalation 3 (only after its own amendment): '<arm>w' = the same input with a WIDER SAE, 4096 latents, Matryoshka prefixes
+# 128/256/512/2048/4096 (one extra level); everything else as the main arms.
+WIDE = 4096
+for _a in MAIN_ARMS:
+    ARMS[_a + 'w'], DIN[_a + 'w'] = ARMS[_a], DIN[_a]
+
+
+def sae_shape(arm, spec):
+    if arm.endswith('w'):
+        return WIDE, tuple(spec['prefixes']) + (WIDE,)
+    return spec['W'], tuple(spec['prefixes'])
 _A1 = {}
 SEEDS = (2501, 2502, 2503)
 log = T.log
@@ -370,7 +381,8 @@ def cmd_train(a):
             ii = torch.from_numpy(np.sort(g.choice(len(Xn), min(250_000, len(Xn)), replace=False))).to(dev)
             init = feats_t(Xn[ii], Dn[ii], arm, alpha, a1).float()
             norm = TokenNorm(DIN[arm]).to(dev).fit_blocks(init, [DIN[arm]], seed=s)
-            sae = MatryoshkaBatchTopKSAE(d_in=DIN[arm], n_latents=spec['W'], prefixes=tuple(spec['prefixes']), k=spec['k'], seed=s).to(dev)
+            nl, pf = sae_shape(arm, spec)
+            sae = MatryoshkaBatchTopKSAE(d_in=DIN[arm], n_latents=nl, prefixes=pf, k=spec['k'], seed=s).to(dev)
             with torch.no_grad():
                 sae.b_dec.copy_(geometric_median(norm(init[:100_000])))
             del init
@@ -456,7 +468,7 @@ def cmd_train(a):
             for b0 in range(0, len(Xe_), 65536):
                 fired += (sae.encode(norm(Xe_[b0:b0 + 65536].to(dev).float()), mode='threshold') > 0).sum(0)
         key = key_of(arm, s)
-        cfg = {**spec, 'steps': total, 'arm': arm, 'input': ARMS[arm][0], 'alpha_mult': ARMS[arm][1], 'd_in': DIN[arm],
+        cfg = {**spec, 'W': sae.n_latents, 'prefixes': list(sae.prefixes), 'steps': total, 'arm': arm, 'input': ARMS[arm][0], 'alpha_mult': ARMS[arm][1], 'd_in': DIN[arm],
                'alpha': alpha, 'alpha_eff': arm_alpha(arm, alpha), 'alpha_L1': a1, 'lag_frames': L, 'multi_lag': MULTI, 'warmup': warmup, 'tokennorm_blocks': [DIN[arm]],
                'edge_rule': f'{L} <= t < T - {L}'}
         rec = {'cfg': cfg, 'seed': s, 'key': key, **rec0, 'n_calib_tokens': len(Xc_), 'n_eval_tokens': len(Xe_), 'theta_star': float(th),
@@ -537,7 +549,7 @@ def cmd_codes(a):
         nf = int(g['T'].values[0])
         fis = g.fi.values.astype(np.int64)
         assert (np.diff(fis) > 0).all() and fis.min() >= L and fis.max() < nf - L
-        out = {k: np.zeros((len(g), 2048), np.float16) for k in keys}
+        out = {k: np.zeros((len(g), saved[k][0].n_latents), np.float16) for k in keys}
         lo, hi = int(fis.min()), int(fis.max()) + 1
         for i0 in range(lo, hi, WF):
             i1 = min(hi, i0 + WF)
@@ -566,7 +578,7 @@ def cmd_codes(a):
     od.mkdir(parents=True, exist_ok=True)
     np.save(od / f'rows{"_M2" if MULTI else ""}_t{a.task}.npy', np.concatenate(rows_all) if rows_all else np.zeros(0, np.int64))
     for k in keys:
-        np.save(od / f'{k}_t{a.task}.npy', np.concatenate(outs[k]) if outs[k] else np.zeros((0, 2048), np.float16))
+        np.save(od / f'{k}_t{a.task}.npy', np.concatenate(outs[k]) if outs[k] else np.zeros((0, saved[k][0].n_latents), np.float16))
     log(f'codes task {a.task}/{a.ntask} done: {len(gv)} videos ({time.time() - t0:.0f}s)')
 
 
@@ -577,7 +589,8 @@ def cmd_merge(a):
     keys = a.keys.split(',') if a.keys else [key_of(arm, s) for arm in (('M2',) if MULTI else MAIN_ARMS) for s in SEEDS]
     rr = [np.load(od / 'parts' / f'rows{"_M2" if MULTI else ""}_t{t}.npy') for t in range(a.ntask)]
     for k in keys:
-        out, seen = np.zeros((len(R), 2048), np.float16), np.zeros(len(R), bool)
+        nl = np.load(od / 'parts' / f'{k}_t0.npy', mmap_mode='r').shape[1]
+        out, seen = np.zeros((len(R), nl), np.float16), np.zeros(len(R), bool)
         for t in range(a.ntask):
             r = rr[t]
             assert not seen[r].any()

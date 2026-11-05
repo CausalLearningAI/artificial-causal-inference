@@ -23,3 +23,20 @@ report, fwdcheck; reuses v22_core / v22_eval / v22_full / v23_ants / v24_top3 by
 - 01:35 codes path smoke-tested with a stand-in checkpoint (ants, 3 videos, 18 s); test files deleted.
 - 01:43 scorer identity (V s1001-1006 re-tagged with the v2.5 code on the ORIGINAL ext frames, `identity/mice/report.json`):
   rule auc nose-nose AUROC 0.8053, nose-tail AUROC 0.7906, precision@top3/video 0.270 / 0.086 = v2.3 / v2.4 exactly.
+- 01:50-01:58 sheet code tested on the v1 blocks (bug: v1 SAE path is a folder -> `sae.pt`; fixed). v1 s0 mice #611
+  nose-nose 0/12 labelled, #414 nose-tail 2/12; ants #90 10/12; per-patch map max == stored frame code within 0.0073.
+- 01:58 edge-mode caches for V s1001-1006 (P(on) recomputed on the edge-excluded sequences) and v1 s0; tags + prep.
+- 02:21 ants training done (2024621: 47.3 min wall = 0.79 H100-hours; 51,123 steps = 2.00 passes; 21.2 steps/s with 12
+  SAEs; GPU util ~80% while training; theta* / FVE calibration of 12 SAEs took ~6 min on the GPU). Eval FVE N0 0.875-0.876,
+  Wh 0.845, W1 0.822, C1 0.789; dead latents at the end <= 3 / 2048; never firing on the eval sample <= 0.5%.
+- 02:29-02:46 ants codes (49 CPU tasks), merge, caches, tags; forward check max |diff| 0 (12 models x 200 frames).
+- 02:49 ants report: V A -> B AUROC 0.861 (= v2.3), v1 s0 precision@top3/video 0.788 (= metric_top3). Every motion arm is
+  BELOW N0 on ants AUROC (paired): W1 -0.075 [-0.096, -0.053], Wh -0.024 [-0.040, -0.011], C1 -0.030 [-0.059, +0.000].
+  Ants non-inferiority vs V: N0 passes (lower CI -0.010); W1 / Wh / C1 fail (-0.095 / -0.041 / -0.049). So no motion arm
+  can pass (B and the deploy rule both need ants not worse) -> escalation ladder triggered.
+- 02:55 AMENDMENT 1 (escalation 2, multi-lag concat M2 = [x, a1 Delta1, a2 Delta2], 3072-d) written; first alpha1 jobs ran
+  out of memory (float64 copy of 2M x 3072), rewritten as running sums; alpha_1 mice 1.2486 / ants 1.2989, alpha_2
+  reproduced; featcheck M2 bit-exact. Committed c4d3cf5 BEFORE M2 training.
+- 03:02 M2 training: ants 2025276 (chunks of 256 windows = the main stream, paired with N0), mice 2025277 (chunks of 128
+  windows for GPU memory -> not the same batches as N0). 3 SAEs each; ~40-45 steps/s.
+- Escalation 3 code (wider SAE, arm suffix 'w', 4096 latents, prefixes + 4096) added, not used until its own amendment.

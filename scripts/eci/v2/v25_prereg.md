@@ -176,3 +176,21 @@ seen (mice training still running).
 Measured before M2 training (jobs 2025251-2025254, 03:00-03:01): alpha_1 mice 1.248606 (E||Delta1||^2 305.53), ants
 1.298907 (211.92); alpha_2 recomputed from the same sample = alpha (mice 1.122656, ants 1.181885). Featcheck M2 bit-exact
 (`<dom>_featcheck_M2.json`: 50 windows incl. 10 at the edge boundary; mice 28,979 tokens, ants 8,187), coverage exact.
+
+## AMENDMENT 2 (escalation step 3), written 2026-11-05 ~04:00, BEFORE any wide model was trained or scored
+
+Seen before writing: the ants M2 result (A -> B grooming-to-focal (any) AUROC M2 - N0 -0.028 [-0.053, +0.003], M2 - V
+-0.025 [-0.044, -0.004]: ants non-inferiority fails, so M2 cannot pass). Mice v2.5 numbers were still NOT seen (mice
+training running).
+
+- "Best motion arm" for step 3 = **Wh**, defined by the criterion that blocks every motion arm (ants AUROC vs N0 / V):
+  Wh has the highest ants A -> B AUROC of the motion arms (0.841 vs C1 0.835, M2 0.836, W1 0.790). Chosen without mice data.
+- Arms (seeds 2501-2503, both domains, one job per domain, same stream / chunks of 256 windows as the main job -> the
+  same batches as the main arms): **Whw** = Wh's input (x + (alpha / 2) Delta) and **N0w** = N0's input (x), each with a
+  WIDER SAE: 4096 latents, Matryoshka prefixes 128 / 256 / 512 / 2048 / 4096 (one extra level), k = 16, everything else
+  as the main recipe. N0w is the same-width static control: the B test for Whw is **Whw - N0w** (paired), replacing
+  "- N0" (otherwise width and motion would be confounded). Also reported: Whw - Wh, N0w - N0, Whw - N0.
+- A, ants non-inferiority (vs V) and deploy: unchanged (Whw in place of a main arm). Rules auc / dist (dist2048 =
+  nose-tail pick among latents >= 512, as pre-registered).
+- Budget: H100 time so far ~5.0 h (main mice ~2.6, main ants 0.79, M2 ants ~0.45, M2 mice ~1.2 est.); step 3 est. ~2.4 h.
+  If it would exceed 8 H100-hours in total, the mice job is stopped and reported as not done.
