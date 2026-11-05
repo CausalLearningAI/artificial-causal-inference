@@ -149,3 +149,30 @@ Scored frames (`eci_codes/v2_5/<dom>/codes/rows.parquet`): mice 864,000 ext fram
 4 per video x 144 videos); ants 440,412 5 fps span frames of the 147 v3 + v4 videos, 0 edge frames (the spans are
 k = 2..2997), so the ants scored frame set (1 fps, k = 2, 7, ..., 2997) is unchanged and the v2.3 V / v1 ants tags are
 reused. Seeds 2501-2503. Jobs: one gpu100 job per domain, 12 SAEs each.
+
+## AMENDMENT 1 (escalation step 2), written 2026-11-05 ~02:55, BEFORE any M2 model was trained or scored
+
+Seen before writing: the ants v2.5 report (`results/vision/eci_v2_5/ants/report.json`). Every motion arm is worse than
+the static control N0 on ants grooming-to-focal (any) AUROC (A -> B, paired): W1 - N0 -0.075 [-0.096, -0.053], Wh - N0
+-0.024 [-0.040, -0.011], C1 - N0 -0.030 [-0.059, +0.000]; ants non-inferiority vs V fails for W1 / Wh / C1 (lower CI
+-0.095 / -0.041 / -0.049) and holds for N0 (-0.010). Hence no motion arm can pass ants non-inferiority or B's "not worse
+on ants AUROC" clause, whatever the mice numbers are -> nothing can pass -> the ladder is triggered. Step 1 (readout-only,
+rule dist2048, already pre-registered) cannot change the ants result, so step 2 is run now. The mice v2.5 numbers were NOT
+seen (mice training still running).
+
+- **Arm M2** (seeds 2501-2503): input [x_t, alpha_1 Delta1_t, alpha_2 Delta2_t] (d_in 3072), Delta1_t =
+  fp16(float32(x_{t+1}) - float32(x_{t-1})), Delta2_t = Delta_t of the main arms, alpha_2 = alpha (main), alpha_1 =
+  sqrt(E||x - mean x||^2 / E||Delta1||^2) on the SAME rng-6 sample (step alpha1; asserted to reproduce alpha_2). TokenNorm
+  one scalar over the whole input. Same edge rule (frames 2 <= t < T - 2), recipe, seeds, stream rng, step counts.
+  Chunk size: ants 256 windows (as the main job -> the same batches as N0, paired); mice 128 windows (GPU memory: the
+  3x wider input), so mice M2 batches are NOT the N0 batches; its paired-seed bootstrap is then a resampling of seed
+  pairs of independent runs (stated).
+- Scoring, metrics, selection rules (auc, dist; dist2048 if consulted), bootstrap: unchanged. Criteria A, B, ants
+  non-inferiority and deploy apply to M2 exactly as to the main motion arms (B contrast: M2 - N0). Also reported M2 - C1.
+- If M2 does not pass, step 3 (wider SAE on the best motion arm) is pre-registered in a further amendment before training.
+- Checks: alpha1 identity, featcheck bit-exact (50 windows incl. 10 at the edge boundary, M2), GPU == numpy on the first
+  16 windows, forward check of the codes.
+
+Measured before M2 training (jobs 2025251-2025254, 03:00-03:01): alpha_1 mice 1.248606 (E||Delta1||^2 305.53), ants
+1.298907 (211.92); alpha_2 recomputed from the same sample = alpha (mice 1.122656, ants 1.181885). Featcheck M2 bit-exact
+(`<dom>_featcheck_M2.json`: 50 windows incl. 10 at the edge boundary; mice 28,979 tokens, ants 8,187), coverage exact.

@@ -90,7 +90,7 @@ def v25_map(dom, ser, obs, fi, T_, sae, norm, j, arm, alpha):
     G, S = int(z['G']), int(z['S'])
     m = np.zeros(G * G, np.float32)
     with torch.no_grad():
-        m[W['pos'][I['c']]] = sae.encode(norm(TR.feats_t(x, d, arm, alpha).float()), mode='threshold')[:, j].numpy()
+        m[W['pos'][I['c']]] = sae.encode(norm(TR.feats_t(x, d, arm, alpha, TR.alpha1(dom) if arm == 'M2' else None).float()), mode='threshold')[:, j].numpy()
     return m.reshape(G, G), S
 
 

@@ -12,8 +12,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 REPO = Path(__file__).resolve().parents[3]
 OUT = REPO / 'results/vision/eci_v2_5'
-ARMS = ('N0', 'W1', 'Wh', 'C1')
-MOTION = ('W1', 'Wh', 'C1')
+ARMS = ('N0', 'W1', 'Wh', 'C1', 'M2')
+MOTION = ('W1', 'Wh', 'C1', 'M2')
 RULES = ('auc', 'dist', 'dist2048')
 NAME = {'nose_nose': 'nose-nose', 'nt': 'nose-tail', 'groom_any': 'grooming-to-focal (any)'}
 
@@ -59,6 +59,8 @@ def main():
             S['criteria'][k] = a
     # ---- B per motion arm / mice rule
     for arm in MOTION:
+        if f'{arm} - N0' not in a2b['contrasts']:
+            continue
         ca = a2b['contrasts'][f'{arm} - N0']
         for r in RULES[:2]:
             cm = M['contrasts'][f'{arm}|{r} - N0|{r}']

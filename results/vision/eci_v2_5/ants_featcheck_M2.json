@@ -1,0 +1,9 @@
+{
+ "alpha": 1.1818853920743089,
+ "windows": 50,
+ "edge_boundary_windows": 10,
+ "tokens": 8187,
+ "max_abs_diff": 0.0,
+ "exact": true,
+ "coverage_exact": true
+}

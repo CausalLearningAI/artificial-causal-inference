@@ -1875,5 +1875,8 @@
    "M_all": 453859,
    "M_used": 453622
   }
- ]
+ ],
+ "alpha_L1": 1.2989071690589782,
+ "E_delta1_sq": 211.91723232079698,
+ "alpha_L1_note": "AMENDMENT 1, same rng-6 sample as alpha"
 }

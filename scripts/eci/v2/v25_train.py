@@ -54,8 +54,14 @@ WF, BS = 100, 4096
 CW = int(os.environ.get('V25_CW', 256))
 WIN_RNG = 20261105
 NCAL = 1_500_000
-ARMS = {'N0': ('N', 0.0), 'W1': ('W', 1.0), 'Wh': ('W', 0.5), 'C1': ('C', 1.0)}
-DIN = {'N0': 1024, 'W1': 1024, 'Wh': 1024, 'C1': 2048}
+ARMS = {'N0': ('N', 0.0), 'W1': ('W', 1.0), 'Wh': ('W', 0.5), 'C1': ('C', 1.0), 'M2': ('M', 1.0)}
+DIN = {'N0': 1024, 'W1': 1024, 'Wh': 1024, 'C1': 2048, 'M2': 3072}
+# AMENDMENT 1 (escalation 2): V25_MULTI=1 -> the loader returns d = [Delta_1, Delta_2] (n, 2048), Delta_1 = fp16(float32(x_{t+1})
+# - float32(x_{t-1})); arm M2 = [x, alpha_1 Delta_1, alpha_2 Delta_2] (alpha_1 = equal-energy weight of Delta_1, alpha_2 = alpha).
+# Only M2 is trained / encoded in that mode (asserted).
+MULTI = os.environ.get('V25_MULTI', '0') == '1'
+MAIN_ARMS = ('N0', 'W1', 'Wh', 'C1')
+_A1 = {}
 SEEDS = (2501, 2502, 2503)
 log = T.log
 
@@ -68,11 +74,28 @@ def arm_alpha(arm, alpha):
     return float(alpha) * ARMS[arm][1]
 
 
-def feats_t(x, d, arm, alpha):
+def alpha1(dom):
+    if dom not in _A1:
+        _A1[dom] = float(json.loads((OUT25 / f'{dom}_count.json').read_text())['alpha_L1'])
+    return _A1[dom]
+
+
+def check_mode(arms):
+    assert all((a == 'M2') == MULTI for a in arms), f'arms {arms} vs V25_MULTI={MULTI}'
+
+
+def feats_t(x, d, arm, alpha, a1=None):
+    import torch
+    if ARMS[arm][0] == 'M':
+        f = lambda dd, a: (dd.float() * torch.tensor(a, dtype=torch.float32, device=dd.device)).half()  # noqa: E731
+        return torch.cat([x, f(d[:, :1024], a1), f(d[:, 1024:], float(alpha))], 1)
     return T24.feats_t(x, d, ARMS[arm][0], arm_alpha(arm, alpha))
 
 
-def feats_np(x, d, arm, alpha):
+def feats_np(x, d, arm, alpha, a1=None):
+    if ARMS[arm][0] == 'M':
+        f = lambda dd, a: (dd.astype(np.float32) * np.float32(a)).astype(np.float16)  # noqa: E731
+        return np.concatenate([x, f(d[:, :1024], a1), f(d[:, 1024:], float(alpha))], 1)
     return T24.feats_np(x, d, ARMS[arm][0], arm_alpha(arm, alpha))
 
 
@@ -97,7 +120,7 @@ def centre_index(W, nf):
     assert (np.diff(key) > 0).all(), 'store rows not sorted by (frame, position)'
     c = np.flatnonzero(((W['flag'] & 1) > 0) & (fi >= W['i0']) & (fi < W['i1']))
     out = {'c': c}
-    for s in (-L, L):
+    for s in ((-1, 1, -L, L) if MULTI else (-L, L)):
         q = key[c] + s * 65536
         j = np.minimum(np.searchsorted(key, q), len(key) - 1)
         if not (key[j] == q).all():
@@ -107,14 +130,16 @@ def centre_index(W, nf):
 
 
 def xd_np(tok, I):
-    return tok[I['c']], (tok[I[L]].astype(np.float32) - tok[I[-L]].astype(np.float32)).astype(np.float16)
+    dl = lambda l: (tok[I[l]].astype(np.float32) - tok[I[-l]].astype(np.float32)).astype(np.float16)  # noqa: E731
+    return tok[I['c']], (np.concatenate([dl(1), dl(L)], 1) if MULTI else dl(L))
 
 
 def xd_torch(tok, I, dev):
     import torch
     t = torch.from_numpy(tok).to(dev)
-    c, jp, jm = (torch.from_numpy(I[k]).to(dev) for k in ('c', L, -L))
-    return t[c], (t[jp].float() - t[jm].float()).half()
+    c = torch.from_numpy(I['c']).to(dev)
+    dl = lambda l: (t[torch.from_numpy(I[l]).to(dev)].float() - t[torch.from_numpy(I[-l]).to(dev)].float()).half()  # noqa: E731
+    return t[c], (torch.cat([dl(1), dl(L)], 1) if MULTI else dl(L))
 
 
 class Store(V23.Store):
@@ -179,6 +204,34 @@ def cmd_count(a):
     log(f'count {dom}: {json.dumps({k: v for k, v in res.items() if k != "videos_list"})}')
 
 
+def cmd_alpha1(a):
+    """AMENDMENT 1: alpha_1 (equal-energy weight of Delta_1 = x_{t+1} - x_{t-1}) on the SAME label-free sample as alpha
+    (rng 6 windows, >= 2M used tokens); appended to OUT25/<dom>_count.json as alpha_L1 (nothing else changes)."""
+    assert MULTI
+    dom = a.dom
+    ws = windows(dom)
+    st = Store(dom)
+    rng = np.random.default_rng(6)
+    n, sx, sxx, s1, s2 = 0, np.zeros(1024), 0.0, 0.0, 0.0  # float64 running sums (memory: 2M x 3072 float64 did not fit)
+    for i in rng.permutation(len(ws)):
+        x, d, _, _, _ = st.load_xd(ws[i])
+        x, d = x.astype(np.float64), d.astype(np.float64)
+        n += len(x)
+        sx += x.sum(0)
+        sxx += float((x ** 2).sum())
+        s1 += float((d[:, :1024] ** 2).sum())
+        s2 += float((d[:, 1024:] ** 2).sum())
+        if n >= 2_000_000:
+            break
+    ex_ = sxx / n - float(((sx / n) ** 2).sum())
+    e1, e2 = s1 / n, s2 / n
+    cj = json.loads((OUT25 / f'{dom}_count.json').read_text())
+    assert abs(math.sqrt(ex_ / e2) - cj['alpha']) < 1e-6, (math.sqrt(ex_ / e2), cj['alpha'])  # same sample -> same alpha
+    cj.update(alpha_L1=math.sqrt(ex_ / e1), E_delta1_sq=e1, alpha_L1_note='AMENDMENT 1, same rng-6 sample as alpha')
+    (OUT25 / f'{dom}_count.json').write_text(json.dumps(cj, indent=1))
+    log(f'alpha1 {dom}: alpha_L1 {cj["alpha_L1"]:.6f} (E||Delta_1||^2 {e1:.2f}), alpha (L2, recomputed) {math.sqrt(ex_ / e2):.6f}')
+
+
 # ---------------------------------------------------------------------------------------------- featcheck
 def cmd_featcheck(a):
     """loader path (Store.load_xd on CPU torch + feats_t) == independent per-token recomputation (T.Video memmap reader,
@@ -212,12 +265,14 @@ def cmd_featcheck(a):
                 continue
             assert L <= f < nf - L
             rx.append(W0['tok'][r])
-            rd.append((W0['tok'][rows[(f + L, p)]].astype(np.float32) - W0['tok'][rows[(f - L, p)]].astype(np.float32)).astype(np.float16))
+            dl = lambda l: (W0['tok'][rows[(f + l, p)]].astype(np.float32) - W0['tok'][rows[(f - l, p)]].astype(np.float32)).astype(np.float16)  # noqa: E731
+            rd.append(np.concatenate([dl(1), dl(L)]) if MULTI else dl(L))
         rx, rd = np.stack(rx), np.stack(rd)
         assert len(rx) == len(x)
-        for arm in ARMS:
-            g = feats_t(x, d, arm, alpha).numpy()
-            r_ = feats_np(rx, rd, arm, alpha)
+        for arm in (('M2',) if MULTI else MAIN_ARMS):
+            a1 = alpha1(dom) if MULTI else None
+            g = feats_t(x, d, arm, alpha, a1).numpy()
+            r_ = feats_np(rx, rd, arm, alpha, a1)
             res['max_abs_diff'] = max(res['max_abs_diff'], float(np.abs(g.astype(np.float32) - r_.astype(np.float32)).max()))
             res['exact'] &= bool(np.array_equal(g.view(np.uint16), r_.view(np.uint16)))
         res['windows'] += 1
@@ -231,7 +286,7 @@ def cmd_featcheck(a):
              all(b[0] == a_[1] for a_, b in zip(sorted(v), sorted(v)[1:])) for v in cov.values())
     res['coverage_exact'] = bool(ok and len(cov) == len(vids))
     OUT25.mkdir(parents=True, exist_ok=True)
-    (OUT25 / f'{dom}_featcheck.json').write_text(json.dumps(res, indent=1))
+    (OUT25 / f'{dom}_featcheck{"_M2" if MULTI else ""}.json').write_text(json.dumps(res, indent=1))
     log(f'featcheck {dom}: {res}')
     if not (res['exact'] and res['coverage_exact']):
         raise SystemExit('FEATURE IDENTITY / COVERAGE FAILED')
@@ -261,8 +316,10 @@ def cmd_train(a):
     dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     seeds = [int(s) for s in a.seeds.split(',')]
     arms = a.arms.split(',')
+    check_mode(arms)
     cj = json.loads((OUT25 / f'{dom}_count.json').read_text())
     N, alpha, passes, total = cj['M_used'], cj['alpha'], cj['passes'], cj['steps']
+    a1 = cj.get('alpha_L1') if MULTI else None
     steps = int(a.max_steps) if a.max_steps else total
     ws = windows(dom)
     chunks = []
@@ -292,8 +349,8 @@ def cmd_train(a):
                 W, I = keep
                 rx, rd = xd_np(W['tok'], I)
                 for arm in arms:
-                    g = feats_t(x, d, arm, alpha).cpu().numpy()
-                    r_ = feats_np(rx, rd, arm, alpha)
+                    g = feats_t(x, d, arm, alpha, a1).cpu().numpy()
+                    r_ = feats_np(rx, rd, arm, alpha, a1)
                     fcheck['max_abs_diff'] = max(fcheck['max_abs_diff'], float(np.abs(g.astype(np.float32) - r_.astype(np.float32)).max()))
                     if not np.array_equal(g.view(np.uint16), r_.view(np.uint16)):
                         raise SystemExit(f'GPU FEATURE IDENTITY FAILED {arm} {fcheck}')
@@ -311,7 +368,7 @@ def cmd_train(a):
             torch.manual_seed(s)
             g = np.random.default_rng(s)
             ii = torch.from_numpy(np.sort(g.choice(len(Xn), min(250_000, len(Xn)), replace=False))).to(dev)
-            init = feats_t(Xn[ii], Dn[ii], arm, alpha).float()
+            init = feats_t(Xn[ii], Dn[ii], arm, alpha, a1).float()
             norm = TokenNorm(DIN[arm]).to(dev).fit_blocks(init, [DIN[arm]], seed=s)
             sae = MatryoshkaBatchTopKSAE(d_in=DIN[arm], n_latents=spec['W'], prefixes=tuple(spec['prefixes']), k=spec['k'], seed=s).to(dev)
             with torch.no_grad():
@@ -343,7 +400,7 @@ def cmd_train(a):
                 xb, db = Xg[ib], Dg[ib]
                 for arm in arms:
                     m = M[(arm, s)]
-                    logs, _ = _train_step(m['sae'], m['opt'], m['norm'](feats_t(xb, db, arm, alpha)), step, total, lr, warmup, 1.0)
+                    logs, _ = _train_step(m['sae'], m['opt'], m['norm'](feats_t(xb, db, arm, alpha, a1)), step, total, lr, warmup, 1.0)
                     if step % 5000 == 0 or step == steps - 1:
                         logs.update(step=step, elapsed_s=round(time.time() - t0, 1))
                         m['hist'].append(logs)
@@ -389,8 +446,8 @@ def cmd_train(a):
         sae, norm = m['sae'], m['norm']
         sae.eval()
         torch.backends.cuda.matmul.allow_tf32 = False
-        Xc_ = torch.from_numpy(feats_np(xc, dc, arm, alpha))
-        Xe_ = torch.from_numpy(feats_np(xe, de, arm, alpha))
+        Xc_ = torch.from_numpy(feats_np(xc, dc, arm, alpha, a1))
+        Xe_ = torch.from_numpy(feats_np(xe, de, arm, alpha, a1))
         th, _ = calibrate_threshold(sae, Xc_, norm=norm)
         set_threshold(sae, th)
         sst = sparsity_stats(sae, Xe_, th, norm=norm)
@@ -400,7 +457,7 @@ def cmd_train(a):
                 fired += (sae.encode(norm(Xe_[b0:b0 + 65536].to(dev).float()), mode='threshold') > 0).sum(0)
         key = key_of(arm, s)
         cfg = {**spec, 'steps': total, 'arm': arm, 'input': ARMS[arm][0], 'alpha_mult': ARMS[arm][1], 'd_in': DIN[arm],
-               'alpha': alpha, 'alpha_eff': arm_alpha(arm, alpha), 'lag_frames': L, 'warmup': warmup, 'tokennorm_blocks': [DIN[arm]],
+               'alpha': alpha, 'alpha_eff': arm_alpha(arm, alpha), 'alpha_L1': a1, 'lag_frames': L, 'multi_lag': MULTI, 'warmup': warmup, 'tokennorm_blocks': [DIN[arm]],
                'edge_rule': f'{L} <= t < T - {L}'}
         rec = {'cfg': cfg, 'seed': s, 'key': key, **rec0, 'n_calib_tokens': len(Xc_), 'n_eval_tokens': len(Xe_), 'theta_star': float(th),
                'eval_fve': float(sst['fve']), 'eval_l0': float(sst['l0']),
@@ -465,7 +522,9 @@ def cmd_codes(a):
     torch.set_num_threads(int(os.environ.get('SLURM_CPUS_PER_TASK', 8)))
     dev = torch.device('cpu')
     alpha = json.loads((OUT25 / f'{dom}_count.json').read_text())['alpha']
-    keys = a.keys.split(',') if a.keys else [key_of(arm, s) for arm in ARMS for s in SEEDS]
+    keys = a.keys.split(',') if a.keys else [key_of(arm, s) for arm in (('M2',) if MULTI else MAIN_ARMS) for s in SEEDS]
+    check_mode([k.split('_s')[0] for k in keys])
+    a1 = alpha1(dom) if MULTI else None
     saved = {k: SA.load(BEE25 / dom / 'sae' / k / 'sae_theta.pt', dev) for k in keys}
     R = pd.read_parquet(BEE25 / dom / 'codes' / 'rows.parquet')
     assert not R.edge.any()
@@ -496,7 +555,7 @@ def cmd_codes(a):
                 with torch.no_grad():
                     mx = torch.zeros((len(g), sae.n_latents))
                     for b0 in range(0, len(x), 32768):
-                        cc = sae.encode(norm(feats_t(x[b0:b0 + 32768], d[b0:b0 + 32768], arm, alpha).float()), mode='threshold')
+                        cc = sae.encode(norm(feats_t(x[b0:b0 + 32768], d[b0:b0 + 32768], arm, alpha, a1).float()), mode='threshold')
                         mx.index_reduce_(0, fr[b0:b0 + 32768], cc, 'amax', include_self=True)
                 out[k][sl] = mx[sl].half().numpy()
         rows_all.append(g.index.values)
@@ -505,7 +564,7 @@ def cmd_codes(a):
         log(f'codes {dom} {ser}/{obs}: {len(g)} frames ({time.time() - t0:.0f}s)')
     od = BEE25 / dom / 'codes' / 'parts'
     od.mkdir(parents=True, exist_ok=True)
-    np.save(od / f'rows_t{a.task}.npy', np.concatenate(rows_all) if rows_all else np.zeros(0, np.int64))
+    np.save(od / f'rows{"_M2" if MULTI else ""}_t{a.task}.npy', np.concatenate(rows_all) if rows_all else np.zeros(0, np.int64))
     for k in keys:
         np.save(od / f'{k}_t{a.task}.npy', np.concatenate(outs[k]) if outs[k] else np.zeros((0, 2048), np.float16))
     log(f'codes task {a.task}/{a.ntask} done: {len(gv)} videos ({time.time() - t0:.0f}s)')
@@ -515,8 +574,8 @@ def cmd_merge(a):
     dom = a.dom
     R = pd.read_parquet(BEE25 / dom / 'codes' / 'rows.parquet')
     od = BEE25 / dom / 'codes'
-    keys = a.keys.split(',') if a.keys else [key_of(arm, s) for arm in ARMS for s in SEEDS]
-    rr = [np.load(od / 'parts' / f'rows_t{t}.npy') for t in range(a.ntask)]
+    keys = a.keys.split(',') if a.keys else [key_of(arm, s) for arm in (('M2',) if MULTI else MAIN_ARMS) for s in SEEDS]
+    rr = [np.load(od / 'parts' / f'rows{"_M2" if MULTI else ""}_t{t}.npy') for t in range(a.ntask)]
     for k in keys:
         out, seen = np.zeros((len(R), 2048), np.float16), np.zeros(len(R), bool)
         for t in range(a.ntask):
@@ -530,7 +589,7 @@ def cmd_merge(a):
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
-    p.add_argument('step', choices=('count', 'featcheck', 'train', 'rows', 'codes', 'merge'))
+    p.add_argument('step', choices=('count', 'alpha1', 'featcheck', 'train', 'rows', 'codes', 'merge'))
     p.add_argument('--dom', required=True, choices=('mice', 'ants'))
     p.add_argument('--arms', default='N0,W1,Wh,C1')
     p.add_argument('--seeds', default=','.join(map(str, SEEDS)))
@@ -540,5 +599,5 @@ if __name__ == '__main__':
     p.add_argument('--task', type=int, default=0)
     p.add_argument('--ntask', type=int, default=1)
     a = p.parse_args()
-    {'count': cmd_count, 'featcheck': cmd_featcheck, 'train': cmd_train, 'rows': cmd_rows, 'codes': cmd_codes,
+    {'count': cmd_count, 'alpha1': cmd_alpha1, 'featcheck': cmd_featcheck, 'train': cmd_train, 'rows': cmd_rows, 'codes': cmd_codes,
      'merge': cmd_merge}[a.step](a)

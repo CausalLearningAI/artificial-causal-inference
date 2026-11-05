@@ -297,8 +297,9 @@ def cmd_report_mice(a):
             pairs.append((f'{x}|{r}', 'V|auc', False))
     for r in RULES:
         pairs.append((f'V|{r}', 'V|auc', True)) if r != 'auc' else None
-        for x in ('W1', 'Wh', 'C1'):
+        for x in ('W1', 'Wh', 'C1', 'M2'):
             pairs.append((f'{x}|{r}', f'N0|{r}', True))
+        pairs.append((f'M2|{r}', f'C1|{r}', True))
         pairs += [(f'C1|{r}', f'W1|{r}', True), (f'Wh|{r}', f'W1|{r}', True)]
         for x in ARMS25 + ('V',):
             pairs.append((f'{x}|{r}', 'v1s0|auc', False))
@@ -377,8 +378,8 @@ def cmd_report_ants(a):
         rng2 = np.random.default_rng(20261108)
         for arm, d in per.items():
             R['levels'][arm] = {f'{bb}|{m_}': boot_level(v, rng2) for (bb, m_), v in d.items() if m_ in MK + ('top3', 'chance')}
-        pairs = [(x, 'V', False) for x in ARMS25 + ('v1s0', 'v1')] + [(x, 'N0', True) for x in ('W1', 'Wh', 'C1')] + \
-                [('C1', 'W1', True), ('Wh', 'W1', True)] + [(x, 'v1s0', False) for x in ARMS25 + ('V',)] + [(x, 'v1', False) for x in ARMS25]
+        pairs = [(x, 'V', False) for x in ARMS25 + ('v1s0', 'v1')] + [(x, 'N0', True) for x in ('W1', 'Wh', 'C1', 'M2')] + \
+                [('C1', 'W1', True), ('Wh', 'W1', True), ('M2', 'C1', True)] + [(x, 'v1s0', False) for x in ARMS25 + ('V',)] + [(x, 'v1', False) for x in ARMS25]
         for x, y, paired in pairs:
             if x in per and y in per:
                 R['contrasts'][f'{x} - {y}'] = {f'{bb}|{m_}': boot_diff(per[x][(bb, m_)], per[y][(bb, m_)], rng2, paired)
@@ -413,7 +414,7 @@ def cmd_fwdcheck(a):
         ser, obs, fi, nf = Rk.series.values[r], Rk.obs.values[r], int(Rk.fi.values[r]), int(Rk['T'].values[r])
         x, d, _, _, _ = st.load_xd((ser, obs, fi, fi + 1, nf), dev=torch.device('cpu'))
         with torch.no_grad():
-            ref = sae.encode(norm(TR.feats_t(x, d, arm, alpha).float()), mode='threshold').max(0).values.numpy() if len(x) else np.zeros(2048, np.float32)
+            ref = sae.encode(norm(TR.feats_t(x, d, arm, alpha, TR.alpha1(dom) if arm == 'M2' else None).float()), mode='threshold').max(0).values.numpy() if len(x) else np.zeros(2048, np.float32)
         mx = max(mx, float(np.abs(ref.astype(np.float16).astype(np.float32) - np.asarray(Z[r], np.float32)).max()))
         n += 1
     res = {'key': key, 'frames': n, 'max_abs_diff_fp16': mx}
