@@ -104,7 +104,7 @@ def v1_maps(dom, F, need, dev):
     if dom == 'ants':
         picks = {('v1', 'x'): {'neuron': None, 'frames': []}}
         out = {}
-        sae_norm = load_sae(REPO / BH.V1[dom]['sae'], dev)[:2]
+        sae_norm = load_sae(REPO / BH.V1[dom]['sae'] / 'sae.pt', dev)[:2]
         for j in sorted({j for s in need.values() for j in s}):
             pk = {('v1', f'c{j}'): {'neuron': j, 'frames': [{'row': r} for r, s in need.items() if j in s]}}
             out.update(XS.v1_ants_maps(F, pk, sae_norm, dev))
@@ -121,7 +121,7 @@ def v1_maps(dom, F, need, dev):
     rot = align_rot90(c['align'], ann)
     enc = FgEncoder('dinov2_base', dev)
     fb = FgBackgrounds(REPO / c['bg'], obs_rows(ann), RULES[c['rule']], dev, align=c['align'], cache=8)
-    sae, norm = load_sae(REPO / c['sae'], dev)[:2]
+    sae, norm = load_sae(REPO / c['sae'] / 'sae.pt', dev)[:2]
     ds = enc.dataset([str(REPO / 'dataset' / p) for p in fp[arow]], arow, None if rot is None else rot[arow])
     dl = torch.utils.data.DataLoader(ds, batch_size=4, shuffle=False, num_workers=2)
     out, o = {}, 0
@@ -262,8 +262,8 @@ def main():
             axs[2 * bi, c0].text(-0.05, 1.32, f'{NAME[b]} | {g[0]} seed {g[1]} neuron #{c["neuron"]} ({blk["how"]}) | '
                                  f'labelled {npos}/{len(c["frames"])}', transform=axs[2 * bi, c0].transAxes, fontsize=8.5, weight='bold')
     held = 'held-out non-SG pools, edge-excluded ext frames' if dom == 'mice' else 'held-out half B (selected on A)'
-    fig.suptitle(f'{dom}: top-12 frames of the selected neuron ({held}); ranked by raw frame-max code, 1 per video. '
-                 'Heat = per-patch code, cyan = max patch; caption = true label (red NO = absent), raw code, video, frame',
+    fig.suptitle(f'{dom}: top-12 frames of the selected neuron ({held}); ranked by raw frame-max code, 1 per video.\n'
+                 'Heat = per-patch code, cyan = max patch;\ncaption = true label (red NO = absent), raw code, video, frame',
                  fontsize=10, y=0.997)
     fig.subplots_adjust(left=0.01, right=0.99, top=0.9 if dom == 'mice' else 0.8, bottom=0.01)
     od = TR.OUT25 / 'figures'
