@@ -40,3 +40,23 @@ report, fwdcheck; reuses v22_core / v22_eval / v22_full / v23_ants / v24_top3 by
 - 03:02 M2 training: ants 2025276 (chunks of 256 windows = the main stream, paired with N0), mice 2025277 (chunks of 128
   windows for GPU memory -> not the same batches as N0). 3 SAEs each; ~40-45 steps/s.
 - Escalation 3 code (wider SAE, arm suffix 'w', 4096 latents, prefixes + 4096) added, not used until its own amendment.
+- 04:00 AMENDMENT 2 (escalation 3: wider SAE, 4096 latents, on Wh = Whw, plus the same-width static control N0w) committed
+  e82567d before any wide training; ants 2025610 / mice 2025627. Submit-script bug caught before it ran (the codes step
+  would have re-encoded the main arms instead of the wide keys): cancelled and resubmitted with explicit keys.
+- 04:09 mice main training done (2024620: 2 h 35 min, 182,537 steps = 1.00 pass); eval FVE N0 0.874, Wh 0.845, W1 0.821,
+  C1 0.786; dead latents <= 14 / 2048. 04:15 mice M2 done (1 h 13 min). Wide: ants 35 min, mice 1 h 46 min.
+- ~06:00 the parent session restarted and stopped this agent; all queued Slurm chains (codes, merge, caches, tags,
+  forward checks) had already completed on their own. Forward check max |diff| 0 for all 21 mice and 21 ants models.
+- 08:44-08:49 (resumed) mice + ants reports (`mice/report.json`, `ants/report.json`), `v25_summary.py` -> summary.json,
+  tables.md. Total v2.5 H100 time: 7.39 H100-hours (budget 8): main mice 2.58, main ants 0.79, M2 ants 0.44, M2 mice 1.22,
+  wide ants 0.58, wide mice 1.77.
+- RESULT: no (arm, rule) passes A, no motion arm passes B, no motion arm passes ants non-inferiority -> no deploy
+  candidate. Closest: Whw (rule auc). Details in summary.md.
+- 08:51-08:55 figures (`figures/sheet_mice_v1_N0w_Whw.png`, `figures/sheet_ants_v1_N0w_Whw.png`; blocks v1 s0 | N0w s2501
+  rule dist | Whw best seed rule auc; 12 held-out frames, 1 per video, raw-code ranking; map max == stored code within 0.008).
+  Looked at: mice nose-nose v1 #611 0/12 (bodies of clustered mice), N0w #1061 9/12 (heads together), Whw #1835 1/12 (gap
+  between two nearby but separate mice); mice nose-tail v1 #414 2/12 (broad on bodies), N0w #2424 4/12 (head at another
+  mouse's flank / rear in about half the frames), Whw #1935 1/12 (heat along tails: a tail detector, not nose-to-rear);
+  ants v1 #90 10/12, N0w #1 12/12, Whw #73 9/12 (all clusters of ants around the focal; v2 maps far more localised).
+  -> A's visual clause fails for Whw (`figures/visual.json`). summary.md not written (agent harness blocks report files);
+  tables.md + summary.json hold the numbers.

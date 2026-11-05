@@ -1,0 +1,1077 @@
+{
+ "criteria": {
+  "N0|auc": {
+   "distinct": "1/3",
+   "A1 distinct 3/3": false,
+   "nose-tail top3": 0.07936507936507936,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": false,
+   "nose-tail AUROC lower CI vs V": -0.04986310647226743,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.06586595369849034,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.1419753086419753,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "N0|dist": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.14814814814814814,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.02212745010642732,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.06660476879095674,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.14506172839506173,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "N0|dist2048": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.019400352733686066,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": false,
+   "nose-tail AUROC lower CI vs V": -0.14805258833473,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.06610367531839267,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.15125385802469138,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "W1|auc": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.13051146384479717,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.0054865409119074305,
+   "A3 nose-tail AUROC LCI >= -0.02": true,
+   "nose-nose AUROC lower CI vs V": -0.06415369403640066,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.12499999999999997,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "W1|dist": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.13051146384479717,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.005040159488923325,
+   "A3 nose-tail AUROC LCI >= -0.02": true,
+   "nose-nose AUROC lower CI vs V": -0.06382746156509506,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.13040123456790123,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "W1|dist2048": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.1146384479717813,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.018455100097412316,
+   "A3 nose-tail AUROC LCI >= -0.02": true,
+   "nose-nose AUROC lower CI vs V": -0.06415704565172418,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.12962962962962962,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "Wh|auc": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.13051146384479717,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.024216406235483837,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.056507051478219356,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.10493827160493827,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "Wh|dist": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.13051146384479717,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.023801765332725242,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.0575773795086124,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.10650077160493836,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "Wh|dist2048": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.06525573192239859,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": false,
+   "nose-tail AUROC lower CI vs V": -0.13536902729983497,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.0559616286806898,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.10572916666666672,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "C1|auc": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.0564373897707231,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": false,
+   "nose-tail AUROC lower CI vs V": -0.09508739345247941,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.04606654672242616,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.10648148148148143,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "C1|dist": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.0564373897707231,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": false,
+   "nose-tail AUROC lower CI vs V": -0.09186227426459383,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.03777245117391486,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.10493827160493824,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "C1|dist2048": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.12169312169312169,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.07047171959791025,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.043781061913959016,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.09338348765432096,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "M2|auc": {
+   "distinct": "2/3",
+   "A1 distinct 3/3": false,
+   "nose-tail top3": 0.1111111111111111,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.055158261908035223,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.08638094086172526,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.25005787037037036,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "M2|dist": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.09523809523809523,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.06301555479163341,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.08693899146328483,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.2539351851851852,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "M2|dist2048": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.12345679012345678,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.029216252252819364,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.0862936616762575,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.2376543209876543,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "N0w|auc": {
+   "distinct": "2/3",
+   "A1 distinct 3/3": false,
+   "nose-tail top3": 0.08465608465608465,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": false,
+   "nose-tail AUROC lower CI vs V": -0.01638926324337803,
+   "A3 nose-tail AUROC LCI >= -0.02": true,
+   "nose-nose AUROC lower CI vs V": -0.013080155358819304,
+   "A4 nose-nose AUROC LCI >= -0.03": true,
+   "nose-nose top3 lower CI vs V": -0.13121141975308645,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "N0w|dist": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.17107583774250443,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.05026775661033907,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.014432679764435127,
+   "A4 nose-nose AUROC LCI >= -0.03": true,
+   "nose-nose top3 lower CI vs V": -0.12658179012345677,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": {
+    "seed": 2501,
+    "neuron": 2424,
+    "labelled": 4,
+    "plausible": true,
+    "description": "nose-tail #2424 fires where one mouse's head meets another mouse's flank / rear (about half the frames); 4/12 labelled. Plausible but noisy (static arm; fails A numerically)."
+   },
+   "A": false
+  },
+  "N0w|dist2048": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.17107583774250443,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.047315986329790796,
+   "A3 nose-tail AUROC LCI >= -0.02": false,
+   "nose-nose AUROC lower CI vs V": -0.01334806004045076,
+   "A4 nose-nose AUROC LCI >= -0.03": true,
+   "nose-nose top3 lower CI vs V": -0.11959876543209877,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "Whw|auc": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.15167548500881833,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.006477055163679426,
+   "A3 nose-tail AUROC LCI >= -0.02": true,
+   "nose-nose AUROC lower CI vs V": -0.06612382814592131,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.17361111111111113,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": {
+    "seed": 2503,
+    "neuron": 1935,
+    "labelled": 1,
+    "plausible": false,
+    "description": "nose-tail #1935 fires along tails / at a tail base next to a mouse body; heat follows the tail line. Not nose-to-rear contact. 1/12 labelled."
+   },
+   "A": false
+  },
+  "Whw|dist": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.15167548500881833,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.005371786243407298,
+   "A3 nose-tail AUROC LCI >= -0.02": true,
+   "nose-nose AUROC lower CI vs V": -0.06558774972897838,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.16975308641975312,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  },
+  "Whw|dist2048": {
+   "distinct": "3/3",
+   "A1 distinct 3/3": true,
+   "nose-tail top3": 0.15167548500881833,
+   "V nose-tail top3": 0.08641975308641975,
+   "A2 nose-tail top3 >= V": true,
+   "nose-tail AUROC lower CI vs V": -0.005643279768577544,
+   "A3 nose-tail AUROC LCI >= -0.02": true,
+   "nose-nose AUROC lower CI vs V": -0.06351438027030476,
+   "A4 nose-nose AUROC LCI >= -0.03": false,
+   "nose-nose top3 lower CI vs V": -0.17129629629629628,
+   "A5 nose-nose top3 LCI >= -0.08": false,
+   "A numeric": false,
+   "A6 sheet": null,
+   "A": false
+  }
+ },
+ "B": {
+  "W1|auc": {
+   "contrasts": {
+    "mice nose-tail AUROC": [
+     0.029845813810857935,
+     -0.00981655043171071,
+     0.09350819551458005
+    ],
+    "mice nose-tail top3": [
+     0.05114638447971781,
+     -0.057427248677248695,
+     0.16909004514136375
+    ],
+    "ants AUROC": [
+     -0.07502265222485738,
+     -0.09685966292553017,
+     -0.05267310927805473
+    ],
+    "ants top3": [
+     -0.047138047138046923,
+     -0.12769485903814262,
+     0.0265650912106136
+    ]
+   },
+   "winning": [],
+   "pass": false
+  },
+  "W1|dist": {
+   "contrasts": {
+    "mice nose-tail AUROC": [
+     0.01756717301302657,
+     -0.020152647303032827,
+     0.049075909200470995
+    ],
+    "mice nose-tail top3": [
+     -0.01763668430335097,
+     -0.09548687256335282,
+     0.1056950588371353
+    ],
+    "ants AUROC": [
+     -0.07502265222485738,
+     -0.09685966292553017,
+     -0.05267310927805473
+    ],
+    "ants top3": [
+     -0.047138047138046923,
+     -0.12769485903814262,
+     0.0265650912106136
+    ]
+   },
+   "winning": [],
+   "pass": false
+  },
+  "Wh|auc": {
+   "contrasts": {
+    "mice nose-tail AUROC": [
+     0.01999441009035796,
+     -0.029009951345425937,
+     0.10034165393681255
+    ],
+    "mice nose-tail top3": [
+     0.05114638447971781,
+     -0.06064458140729329,
+     0.1751241927471435
+    ],
+    "ants AUROC": [
+     -0.023711342542934055,
+     -0.039809905055284374,
+     -0.012135552389377479
+    ],
+    "ants top3": [
+     -0.0387205387205386,
+     -0.09877025462962963,
+     0.018014705882352912
+    ]
+   },
+   "winning": [],
+   "pass": false
+  },
+  "Wh|dist": {
+   "contrasts": {
+    "mice nose-tail AUROC": [
+     0.0077157692925265975,
+     -0.041059055453550146,
+     0.05121681301518497
+    ],
+    "mice nose-tail top3": [
+     -0.01763668430335097,
+     -0.09934343434343434,
+     0.08901709401709387
+    ],
+    "ants AUROC": [
+     -0.023711342542934055,
+     -0.039809905055284374,
+     -0.012135552389377479
+    ],
+    "ants top3": [
+     -0.0387205387205386,
+     -0.09877025462962963,
+     0.018014705882352912
+    ]
+   },
+   "winning": [],
+   "pass": false
+  },
+  "C1|auc": {
+   "contrasts": {
+    "mice nose-tail AUROC": [
+     -0.033450004522129984,
+     -0.09627931727555905,
+     0.03733392895657368
+    ],
+    "mice nose-tail top3": [
+     -0.02292768959435626,
+     -0.06349206349206349,
+     0.01434614168247944
+    ],
+    "ants AUROC": [
+     -0.029791486940128564,
+     -0.058614952539062716,
+     -0.0017813830994723315
+    ],
+    "ants top3": [
+     -0.025252525252525193,
+     -0.08379340277777782,
+     0.03270449593979003
+    ]
+   },
+   "winning": [],
+   "pass": false
+  },
+  "C1|dist": {
+   "contrasts": {
+    "mice nose-tail AUROC": [
+     -0.04572864531996135,
+     -0.10553970159335203,
+     0.011377148472289496
+    ],
+    "mice nose-tail top3": [
+     -0.09171075837742504,
+     -0.2222222222222222,
+     5.782411586584098e-20
+    ],
+    "ants AUROC": [
+     -0.029791486940128564,
+     -0.058614952539062716,
+     -0.0017813830994723315
+    ],
+    "ants top3": [
+     -0.025252525252525193,
+     -0.08379340277777782,
+     0.03270449593979003
+    ]
+   },
+   "winning": [],
+   "pass": false
+  },
+  "M2|auc": {
+   "contrasts": {
+    "mice nose-tail AUROC": [
+     0.011293306665901115,
+     -0.04145799349441815,
+     0.05729196484187984
+    ],
+    "mice nose-tail top3": [
+     0.031746031746031744,
+     -0.054722222222222214,
+     0.13806413751325147
+    ],
+    "ants AUROC": [
+     -0.028421452414934434,
+     -0.054221857325924036,
+     0.001171651462030146
+    ],
+    "ants top3": [
+     -0.02188552188552173,
+     -0.08096008054963283,
+     0.04905279820261439
+    ]
+   },
+   "winning": [],
+   "pass": false
+  },
+  "M2|dist": {
+   "contrasts": {
+    "mice nose-tail AUROC": [
+     -0.01828408904761447,
+     -0.09865749384005278,
+     0.03594879262540032
+    ],
+    "mice nose-tail top3": [
+     -0.05291005291005291,
+     -0.20001792114695338,
+     0.12254901960784315
+    ],
+    "ants AUROC": [
+     -0.028421452414934434,
+     -0.054221857325924036,
+     0.001171651462030146
+    ],
+    "ants top3": [
+     -0.02188552188552173,
+     -0.08096008054963283,
+     0.04905279820261439
+    ]
+   },
+   "winning": [],
+   "pass": false
+  },
+  "Whw|auc": {
+   "contrasts": {
+    "mice nose-tail AUROC": [
+     0.010231435035781389,
+     -0.023695006397903996,
+     0.0538890218738228
+    ],
+    "mice nose-tail top3": [
+     0.06701940035273368,
+     0.01721884155961236,
+     0.13101500693255036
+    ],
+    "ants AUROC": [
+     8.13560086458942e-05,
+     -0.02144526943100105,
+     0.032541952577345705
+    ],
+    "ants top3": [
+     -0.048821548821548766,
+     -0.09598124098124093,
+     -0.0031834993961353127
+    ]
+   },
+   "winning": [
+    "mice nose-tail top3"
+   ],
+   "pass": false
+  },
+  "Whw|dist": {
+   "contrasts": {
+    "mice nose-tail AUROC": [
+     0.030839046211307175,
+     -0.014585901056910777,
+     0.08562044202720981
+    ],
+    "mice nose-tail top3": [
+     -0.019400352733686094,
+     -0.09140048492515285,
+     0.048321987995901046
+    ],
+    "ants AUROC": [
+     8.13560086458942e-05,
+     -0.02144526943100105,
+     0.032541952577345705
+    ],
+    "ants top3": [
+     -0.048821548821548766,
+     -0.09598124098124093,
+     -0.0031834993961353127
+    ]
+   },
+   "winning": [],
+   "pass": false
+  }
+ },
+ "ants_NI": {
+  "N0": {
+   "AUROC diff": 0.0036675778128718584,
+   "lower CI": -0.009378998908885341,
+   "pass": true
+  },
+  "W1": {
+   "AUROC diff": -0.07135507441198552,
+   "lower CI": -0.09533138477009574,
+   "pass": false
+  },
+  "Wh": {
+   "AUROC diff": -0.020043764730062197,
+   "lower CI": -0.03736685373841165,
+   "pass": false
+  },
+  "C1": {
+   "AUROC diff": -0.026123909127256706,
+   "lower CI": -0.04704154484485443,
+   "pass": false
+  },
+  "M2": {
+   "AUROC diff": -0.024753874602062576,
+   "lower CI": -0.043884477125132174,
+   "pass": false
+  },
+  "N0w": {
+   "AUROC diff": -0.008727853676005037,
+   "lower CI": -0.017834143660940792,
+   "pass": true
+  },
+  "Whw": {
+   "AUROC diff": -0.008646497667359143,
+   "lower CI": -0.03113100634561428,
+   "pass": false
+  }
+ },
+ "deploy": null,
+ "deploy_candidates": [],
+ "train": {
+  "ants_C1_s2501": {
+   "eval_fve": 0.7886936267042435,
+   "l0": 16.130196,
+   "dead_frac": 0.0,
+   "never_fire_eval": 0.00048828125,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 2414.712252855301,
+   "gpu_util_median": 76.0
+  },
+  "ants_C1_s2502": {
+   "eval_fve": 0.7886671139919443,
+   "l0": 16.134748,
+   "dead_frac": 0.00048828125,
+   "never_fire_eval": 0.00048828125,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 2414.712252855301,
+   "gpu_util_median": 76.0
+  },
+  "ants_C1_s2503": {
+   "eval_fve": 0.7892102389382933,
+   "l0": 16.132304666666666,
+   "dead_frac": 0.0,
+   "never_fire_eval": 0.00048828125,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 2414.712252855301,
+   "gpu_util_median": 76.0
+  },
+  "ants_M2_s2501": {
+   "eval_fve": 0.7411799108807073,
+   "l0": 16.135364666666668,
+   "dead_frac": 0.00048828125,
+   "never_fire_eval": 0.01513671875,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 1177.7653818130493,
+   "gpu_util_median": 3.0
+  },
+  "ants_M2_s2502": {
+   "eval_fve": 0.7412900884552341,
+   "l0": 16.141515333333334,
+   "dead_frac": 0.00048828125,
+   "never_fire_eval": 0.01513671875,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 1177.7653818130493,
+   "gpu_util_median": 3.0
+  },
+  "ants_M2_s2503": {
+   "eval_fve": 0.7411391256088458,
+   "l0": 16.147352666666666,
+   "dead_frac": 0.00048828125,
+   "never_fire_eval": 0.01513671875,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 1177.7653818130493,
+   "gpu_util_median": 3.0
+  },
+  "ants_N0_s2501": {
+   "eval_fve": 0.8753549026198117,
+   "l0": 16.148682666666666,
+   "dead_frac": 0.00048828125,
+   "never_fire_eval": 0.00146484375,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 2414.712252855301,
+   "gpu_util_median": 76.0
+  },
+  "ants_N0_s2502": {
+   "eval_fve": 0.8754976446771721,
+   "l0": 16.146231333333333,
+   "dead_frac": 0.00048828125,
+   "never_fire_eval": 0.001953125,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 2414.712252855301,
+   "gpu_util_median": 76.0
+  },
+  "ants_N0_s2503": {
+   "eval_fve": 0.8755198468442728,
+   "l0": 16.146936,
+   "dead_frac": 0.0,
+   "never_fire_eval": 0.00048828125,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 2414.712252855301,
+   "gpu_util_median": 76.0
+  },
+  "ants_N0w_s2501": {
+   "eval_fve": 0.8793338185512127,
+   "l0": 16.152946,
+   "dead_frac": 0.0009765625,
+   "never_fire_eval": 0.0078125,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 1746.0825185775757,
+   "gpu_util_median": 2.0
+  },
+  "ants_N0w_s2502": {
+   "eval_fve": 0.8796502430616988,
+   "l0": 16.155712,
+   "dead_frac": 0.000244140625,
+   "never_fire_eval": 0.0078125,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 1746.0825185775757,
+   "gpu_util_median": 2.0
+  },
+  "ants_N0w_s2503": {
+   "eval_fve": 0.8797891306736729,
+   "l0": 16.146252,
+   "dead_frac": 0.0009765625,
+   "never_fire_eval": 0.008056640625,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 1746.0825185775757,
+   "gpu_util_median": 2.0
+  },
+  "ants_W1_s2501": {
+   "eval_fve": 0.8220150357882527,
+   "l0": 16.160217333333332,
+   "dead_frac": 0.0,
+   "never_fire_eval": 0.0048828125,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 2414.712252855301,
+   "gpu_util_median": 76.0
+  },
+  "ants_W1_s2502": {
+   "eval_fve": 0.822136839496854,
+   "l0": 16.174178,
+   "dead_frac": 0.0,
+   "never_fire_eval": 0.00390625,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 2414.712252855301,
+   "gpu_util_median": 76.0
+  },
+  "ants_W1_s2503": {
+   "eval_fve": 0.8219669002863479,
+   "l0": 16.169127333333332,
+   "dead_frac": 0.0,
+   "never_fire_eval": 0.0029296875,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 2414.712252855301,
+   "gpu_util_median": 76.0
+  },
+  "ants_Wh_s2501": {
+   "eval_fve": 0.8453529819554693,
+   "l0": 16.174655333333334,
+   "dead_frac": 0.00146484375,
+   "never_fire_eval": 0.0,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 2414.712252855301,
+   "gpu_util_median": 76.0
+  },
+  "ants_Wh_s2502": {
+   "eval_fve": 0.8453266330473026,
+   "l0": 16.16114,
+   "dead_frac": 0.0,
+   "never_fire_eval": 0.0009765625,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 2414.712252855301,
+   "gpu_util_median": 76.0
+  },
+  "ants_Wh_s2503": {
+   "eval_fve": 0.8450937667440191,
+   "l0": 16.154952,
+   "dead_frac": 0.00048828125,
+   "never_fire_eval": 0.0009765625,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 2414.712252855301,
+   "gpu_util_median": 76.0
+  },
+  "ants_Whw_s2501": {
+   "eval_fve": 0.8479648985487819,
+   "l0": 16.172764,
+   "dead_frac": 0.001708984375,
+   "never_fire_eval": 0.0068359375,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 1746.0825185775757,
+   "gpu_util_median": 2.0
+  },
+  "ants_Whw_s2502": {
+   "eval_fve": 0.8476890873924581,
+   "l0": 16.149691333333333,
+   "dead_frac": 0.000244140625,
+   "never_fire_eval": 0.00830078125,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 1746.0825185775757,
+   "gpu_util_median": 2.0
+  },
+  "ants_Whw_s2503": {
+   "eval_fve": 0.8480284196474193,
+   "l0": 16.160082,
+   "dead_frac": 0.001220703125,
+   "never_fire_eval": 0.01025390625,
+   "steps": 51123,
+   "passes": 1.9999965616073432,
+   "train_time_s": 1746.0825185775757,
+   "gpu_util_median": 2.0
+  },
+  "mice_C1_s2501": {
+   "eval_fve": 0.7854671366650157,
+   "l0": 15.742912,
+   "dead_frac": 0.00341796875,
+   "never_fire_eval": 0.02587890625,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 8862.252499341965,
+   "gpu_util_median": 82.0
+  },
+  "mice_C1_s2502": {
+   "eval_fve": 0.7859219862605663,
+   "l0": 15.762652666666666,
+   "dead_frac": 0.00537109375,
+   "never_fire_eval": 0.0234375,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 8862.252499341965,
+   "gpu_util_median": 82.0
+  },
+  "mice_C1_s2503": {
+   "eval_fve": 0.7859748933699161,
+   "l0": 15.762051333333334,
+   "dead_frac": 0.00390625,
+   "never_fire_eval": 0.02099609375,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 8862.252499341965,
+   "gpu_util_median": 82.0
+  },
+  "mice_M2_s2501": {
+   "eval_fve": 0.7338488269700431,
+   "l0": 15.748677333333333,
+   "dead_frac": 0.0078125,
+   "never_fire_eval": 0.0234375,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 3999.0166409015656,
+   "gpu_util_median": 87.0
+  },
+  "mice_M2_s2502": {
+   "eval_fve": 0.7334270073107818,
+   "l0": 15.735917333333333,
+   "dead_frac": 0.005859375,
+   "never_fire_eval": 0.0234375,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 3999.0166409015656,
+   "gpu_util_median": 87.0
+  },
+  "mice_M2_s2503": {
+   "eval_fve": 0.7327130059416098,
+   "l0": 15.75353,
+   "dead_frac": 0.0068359375,
+   "never_fire_eval": 0.017578125,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 3999.0166409015656,
+   "gpu_util_median": 87.0
+  },
+  "mice_N0_s2501": {
+   "eval_fve": 0.8742106612761648,
+   "l0": 15.934735333333334,
+   "dead_frac": 0.0068359375,
+   "never_fire_eval": 0.02734375,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 8862.252499341965,
+   "gpu_util_median": 82.0
+  },
+  "mice_N0_s2502": {
+   "eval_fve": 0.8735495058462287,
+   "l0": 16.008476666666667,
+   "dead_frac": 0.00390625,
+   "never_fire_eval": 0.0224609375,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 8862.252499341965,
+   "gpu_util_median": 82.0
+  },
+  "mice_N0_s2503": {
+   "eval_fve": 0.8743727190219516,
+   "l0": 15.944182666666666,
+   "dead_frac": 0.00537109375,
+   "never_fire_eval": 0.0302734375,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 8862.252499341965,
+   "gpu_util_median": 82.0
+  },
+  "mice_N0w_s2501": {
+   "eval_fve": 0.8784103607118052,
+   "l0": 15.981688,
+   "dead_frac": 0.017578125,
+   "never_fire_eval": 0.0537109375,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 6164.864095687866,
+   "gpu_util_median": 86.0
+  },
+  "mice_N0w_s2502": {
+   "eval_fve": 0.8772783004183489,
+   "l0": 15.991378666666666,
+   "dead_frac": 0.011962890625,
+   "never_fire_eval": 0.043701171875,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 6164.864095687866,
+   "gpu_util_median": 86.0
+  },
+  "mice_N0w_s2503": {
+   "eval_fve": 0.8783681318158268,
+   "l0": 15.957856,
+   "dead_frac": 0.014892578125,
+   "never_fire_eval": 0.05126953125,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 6164.864095687866,
+   "gpu_util_median": 86.0
+  },
+  "mice_W1_s2501": {
+   "eval_fve": 0.8214718017310273,
+   "l0": 15.833414666666666,
+   "dead_frac": 0.0,
+   "never_fire_eval": 0.00244140625,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 8862.252499341965,
+   "gpu_util_median": 82.0
+  },
+  "mice_W1_s2502": {
+   "eval_fve": 0.8211454422869352,
+   "l0": 15.832230666666666,
+   "dead_frac": 0.0009765625,
+   "never_fire_eval": 0.00439453125,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 8862.252499341965,
+   "gpu_util_median": 82.0
+  },
+  "mice_W1_s2503": {
+   "eval_fve": 0.8214535926372651,
+   "l0": 15.83892,
+   "dead_frac": 0.0,
+   "never_fire_eval": 0.0029296875,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 8862.252499341965,
+   "gpu_util_median": 82.0
+  },
+  "mice_Wh_s2501": {
+   "eval_fve": 0.8453102628243402,
+   "l0": 15.901108666666667,
+   "dead_frac": 0.00244140625,
+   "never_fire_eval": 0.0166015625,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 8862.252499341965,
+   "gpu_util_median": 82.0
+  },
+  "mice_Wh_s2502": {
+   "eval_fve": 0.8452912996732903,
+   "l0": 15.890448666666666,
+   "dead_frac": 0.00244140625,
+   "never_fire_eval": 0.02001953125,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 8862.252499341965,
+   "gpu_util_median": 82.0
+  },
+  "mice_Wh_s2503": {
+   "eval_fve": 0.8452840708788483,
+   "l0": 15.886114666666666,
+   "dead_frac": 0.00341796875,
+   "never_fire_eval": 0.017578125,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 8862.252499341965,
+   "gpu_util_median": 82.0
+  },
+  "mice_Whw_s2501": {
+   "eval_fve": 0.8488560658889457,
+   "l0": 15.870836666666667,
+   "dead_frac": 0.009033203125,
+   "never_fire_eval": 0.03759765625,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 6164.864095687866,
+   "gpu_util_median": 86.0
+  },
+  "mice_Whw_s2502": {
+   "eval_fve": 0.8488199928917907,
+   "l0": 15.888025333333333,
+   "dead_frac": 0.00732421875,
+   "never_fire_eval": 0.035888671875,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 6164.864095687866,
+   "gpu_util_median": 86.0
+  },
+  "mice_Whw_s2503": {
+   "eval_fve": 0.8490061072462471,
+   "l0": 15.890284666666666,
+   "dead_frac": 0.009033203125,
+   "never_fire_eval": 0.031982421875,
+   "steps": 182537,
+   "passes": 0.9999982412094138,
+   "train_time_s": 6164.864095687866,
+   "gpu_util_median": 86.0
+  }
+ }
+}

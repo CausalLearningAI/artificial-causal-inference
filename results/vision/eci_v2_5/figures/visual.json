@@ -1,0 +1,7 @@
+{
+ "Whw|auc": {"seed": 2503, "neuron": 1935, "labelled": 1, "plausible": false,
+  "description": "nose-tail #1935 fires along tails / at a tail base next to a mouse body; heat follows the tail line. Not nose-to-rear contact. 1/12 labelled."},
+ "N0w|dist": {"seed": 2501, "neuron": 2424, "labelled": 4, "plausible": true,
+  "description": "nose-tail #2424 fires where one mouse's head meets another mouse's flank / rear (about half the frames); 4/12 labelled. Plausible but noisy (static arm; fails A numerically)."},
+ "note": "only the sheets listed here were made; A's visual clause is unevaluated (null) for the other (arm, rule) pairs, all of which already fail A numerically"
+}
