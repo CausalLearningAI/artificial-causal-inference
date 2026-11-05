@@ -14,3 +14,4 @@ Pre-registration: `scripts/eci/v2/v26_prereg.md` (commit 190aa07, before any tra
   70 pending) -> cancelled; the real jobs submitted directly (mice 2070874, ants 2070875) with the codes / merge / per-model
   chains queued behind them (`v26_score_submit.sh`). V / v1 s0 mice caches linked and tags / prep copied from v2.5.
 - 14:23 ants 2070875 started on gpu100 first; the A100 copy 2090788 (-p gpu, submitted 14:13 as a fallback) cancelled before it started; dependency chain unchanged.
+- 15:47-16:03 ants codes task 29 stalled on node eta338 (1 video in 37 min vs ~9 min per task elsewhere): rerun as 2104168 on eta411 (323 s, same code / same part files), straggler cancelled, merge dependency rewired to afterany(array)+afterok(rerun).
