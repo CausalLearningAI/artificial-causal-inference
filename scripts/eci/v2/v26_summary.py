@@ -32,6 +32,8 @@ def main():
                                'ants AUROC LCI': lo(ca['groom_any|auc']), 'distinct': f'{d[0]}/{d[1]}'}
         S['confirm_N0w'][r]['pass'] = bool(lo(c['nt|top3']) > 0 and lo(c['nose_nose|auc']) >= -0.02 and lo(ca['groom_any|auc']) >= -0.02 and d[0] == d[1] == 3)
     for x in NEW[1:]:
+        if f'{x}|dist - N0wc|dist' not in MC or f'{x} - N0wc' not in AC:
+            continue
         ca, cav = AC[f'{x} - N0wc'], AC[f'{x} - V']
         for r in ('dist', 'auc'):
             cm, cmv = MC[f'{x}|{r} - N0wc|{r}'], MC[f'{x}|{r} - V|auc']
