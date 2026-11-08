@@ -84,8 +84,9 @@ def select(st, rule):
         pk = select(st, 'dist')
         el = st['fire'] >= C.ELIG
         cand = el & (np.arange(len(el)) != pk['nt']) & (st['disc'] <= 1 - DISC_MIN)
-        if not cand.any():
-            raise SystemExit('rule dist2: no candidate nose-nose neuron')
+        if not cand.any():  # (v1 s0: no eligible neuron with disc(nn vs nt) >= 0.6) -> fall back to the dist pick, logged
+            print('rule dist2: no candidate nose-nose neuron -> dist pick kept', flush=True)
+            return pk
         return {'nose_nose': int(np.nanargmax(np.where(cand, st['auc_nose_nose'], np.nan))), 'nt': pk['nt']}
     if rule not in ('dist', 'dist2048'):
         return _select0(st, rule)

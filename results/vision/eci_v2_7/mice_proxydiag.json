@@ -1,0 +1,18 @@
+{
+ "frames": 863424,
+ "nose-nose": {
+  "labelled_frames": 18266,
+  "P(proxy>0 | labelled)": 0.771159531369758,
+  "P(proxy>0 | not labelled)": 0.6733273541751956,
+  "mean proxy tokens | labelled": 5.797821088360889,
+  "mean proxy tokens | not labelled": 4.753214191902579
+ },
+ "nose-tail": {
+  "labelled_frames": 9032,
+  "P(proxy>0 | labelled)": 0.7519929140832595,
+  "P(proxy>0 | not labelled)": 0.6745873088699332,
+  "mean proxy tokens | labelled": 5.538972542072631,
+  "mean proxy tokens | not labelled": 4.767240329965636
+ },
+ "note": "diagnostic only; computed after the weights were fixed; never used for tuning"
+}
