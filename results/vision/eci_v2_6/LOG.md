@@ -29,3 +29,10 @@ Pre-registration: `scripts/eci/v2/v26_prereg.md` (commit 190aa07, before any tra
   PRED #2785 10/12: one mouse's snout at another mouse's tail base / rear, heat on the contact point -- the first clearly
   recognisable nose-tail neuron. Ants grooming-to-focal (any): v1 #90 10/12, N0w-c #35 11/12, PRED #40 10/12 (clusters
   of ants around the focal; v2 maps localised).
+- 2026-11-06 11:07 N0x mice chains done (360G, ~70 min each; forward check <= 0.0039). Complete mice report (all 5 arms)
+  rerun -> decisions recomputed. CAUTION: adding the N0x contrasts shifts the shared bootstrap random stream (rng 20261107
+  consumed in pair order), and PRED|auc's nose-nose AUROC lower CI vs N0w-c moved from -0.041 (report without N0x) to
+  -0.017 (complete report), across the pre-registered -0.02 threshold. The complete report is the pre-registered analysis:
+  PRED|auc PASSES temporal B (nose-tail AUROC +0.061 [+0.026, +0.093], nose-tail precision@top3/video +0.277 [+0.161,
+  +0.376] vs N0w-c; non-inferior vs N0w-c and V) -> deploy pick PRED (rule auc). PRED|dist still fails (nose-nose AUROC LCI
+  -0.041). The decision sits on a Monte-Carlo-sensitive boundary; v2.7 (fresh seeds) is the confirmation.
