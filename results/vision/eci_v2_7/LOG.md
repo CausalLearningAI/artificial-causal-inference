@@ -19,3 +19,10 @@ train), `v27_eval.py` (v2.5 scoring code redirected to v2.7; rule dist2 added to
 - 12:06 interim mice report (baselines + PRED26 only): v2.6 PRED rescored with rule dist2 (readout only): nose-nose AUROC
   0.675 [0.605, 0.738] vs 0.815 under dist (-0.140 [-0.207, -0.071]); nose-nose precision@top3/video 0.091 vs 0.164;
   dist2 picks 3602 (L5), 2545 (L5), 1023 (L4). Forcing nose-nose specificity on the v2.6 PRED dictionary costs a lot.
+- 12:34 ants training done (2401194, ~57 min). Eval FVE PRED-c 0.859, PRED-delta 0.866, PRED-contact 0.858, PRED-hard
+  0.859; dead latents <= 10 / 4096.
+- 14:49 ants report (first attempt on eta393 crawled, cancelled after 30 min; rerun took 33 min: the report re-reads the
+  v1 s0-s10 ants code files from NFS once per direction, ~70 GB -- heavy NFS load, to be cached next time).
+  A -> B grooming-to-focal (any) AUROC: PRED-c 0.861 (- V -0.001 [-0.016, +0.016]), PRED-delta 0.852, PRED-contact
+  0.858, PRED-hard 0.867; vs PRED-c (paired): delta -0.008 [-0.023, +0.007], contact -0.002 [-0.020, +0.017], hard
+  +0.006 [-0.009, +0.020]; precision@top3/video PRED-c 0.800, contact 0.808, hard 0.811 (V 0.746, v1 s0 0.788).
