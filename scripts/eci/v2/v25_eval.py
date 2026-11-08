@@ -80,6 +80,13 @@ def cache_paths(key):
 
 
 def select(st, rule):
+    if rule == 'dist2':  # v2.7: nose-tail = the dist pick; nose-nose = best AUROC among neurons != it with disc(nn vs nt) >= 0.6
+        pk = select(st, 'dist')
+        el = st['fire'] >= C.ELIG
+        cand = el & (np.arange(len(el)) != pk['nt']) & (st['disc'] <= 1 - DISC_MIN)
+        if not cand.any():
+            raise SystemExit('rule dist2: no candidate nose-nose neuron')
+        return {'nose_nose': int(np.nanargmax(np.where(cand, st['auc_nose_nose'], np.nan))), 'nt': pk['nt']}
     if rule not in ('dist', 'dist2048'):
         return _select0(st, rule)
     el = st['fire'] >= C.ELIG

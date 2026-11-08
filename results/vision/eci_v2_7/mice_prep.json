@@ -1,0 +1,32 @@
+{
+ "sample_tokens": 2008306,
+ "contact": {
+  "proxy_token_frac": 0.023411272983300355,
+  "w_raw": 10.428616245187909,
+  "w": 10.428616245187909,
+  "capped": false,
+  "proxy_weight_share": 0.19999999999999998
+ },
+ "hard": {
+  "k_pca": 64,
+  "pca_fit_tokens": 500000,
+  "pca_var_explained": 0.8690940343148044,
+  "mean_err": 62.382164001464844,
+  "clip": 10.0,
+  "frac_clipped": 0.0,
+  "mean_after_clip": 1.0,
+  "quantiles_1_10_50_90_99": [
+   0.48027514964342116,
+   0.641554057598114,
+   0.9371898174285889,
+   1.4144766330718994,
+   2.1882250905036926
+  ],
+  "effective_sample_size_frac": 0.8915503621101379
+ },
+ "proxy_identity": {
+  "windows": 20,
+  "tokens": 11393,
+  "mismatches": 0
+ }
+}
