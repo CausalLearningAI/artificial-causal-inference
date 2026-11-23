@@ -26,3 +26,24 @@ train), `v27_eval.py` (v2.5 scoring code redirected to v2.7; rule dist2 added to
   A -> B grooming-to-focal (any) AUROC: PRED-c 0.861 (- V -0.001 [-0.016, +0.016]), PRED-delta 0.852, PRED-contact
   0.858, PRED-hard 0.867; vs PRED-c (paired): delta -0.008 [-0.023, +0.007], contact -0.002 [-0.020, +0.017], hard
   +0.006 [-0.009, +0.020]; precision@top3/video PRED-c 0.800, contact 0.808, hard 0.811 (V 0.746, v1 s0 0.788).
+
+## Timeline (2026-11-23): final mice report + pre-registered decisions
+- 16:52 (11-08) all 12 mice v2.7 post chains (cache / tag / prep / fwdcheck) had finished; the final mice report was never built.
+- 09:40 mice report, all 22 models (V s1001-1006, v1 s0, PRED26 s2601-2603, PREDc/d/k/h s2701-2703): CPU job 3065948,
+  41 s, same invocation as the interim (`v27_cpu.sh v27_eval.py report --dom mice`). Interim kept as `mice/report_interim.json`.
+  Held-out = 12 non-SG pools, 72 videos, 431,712 edge-excluded frames; prevalence nose-nose 1.57%, nose-tail 0.85%.
+- Level curves (`v27_levels.py`, jobs 3065958-3065959, ~9 min each) for PRED-c and the best emergence arm under rule dist
+  (PRED-hard, by v27_summary `best_emergence`) -> `levels/PREDc.json`, `levels/PREDh.json`.
+- `v27_summary.py` -> `summary.json`, `tables.md`.
+- **PRED NOT confirmed** (PRED-c vs V|auc). Rule dist: nose-tail precision@top3/video +0.116 [-0.032, +0.306] (LCI <= 0, FAIL),
+  nose-tail AUROC +0.044 [+0.003, +0.087] (pass), nose-nose AUROC -0.029 [-0.054, -0.001] (LCI < -0.02, FAIL), ants AUROC
+  LCI -0.016 (pass), distinct 3/3 (pass). Rule dist2: nose-tail precision@top3 LCI -0.032 (FAIL), nose-tail AUROC LCI
+  +0.001 (pass), nose-nose AUROC -0.163 [-0.226, -0.090] (FAIL), ants pass, distinct 3/3.
+- **No emergence arm replaces PRED-c** (no arm non-inferior under any rule). Closest: PRED-delta|dist fails only on ants
+  AUROC (LCI -0.0228 vs -0.02); it would otherwise qualify via nose-nose precision@top3/video gain +0.144 [+0.059, +0.221];
+  nose-tail picks are never in an earlier level in >= 2/3 seeds (PRED-contact|dist: 1/3).
+- **Deploy pick: none** (per the pre-registered rule).
+- PRED-c fresh seeds reproduce the v2.6 PRED nose-tail effect only partly: nose-tail precision@top3/video (rule dist) 0.203
+  [0.060, 0.398] vs PRED26 0.369; nose-tail AUROC 0.835 vs 0.857; nose-nose AUROC 0.777 vs 0.815.
+- Not done: top-frame sheets (no v2.7 sheet wrapper exists; needs new code + frame re-encoding), v2-vs-v1 atlas table
+  (no v2.7 port of v26_v1.py).
