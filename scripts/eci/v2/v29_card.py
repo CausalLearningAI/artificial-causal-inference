@@ -9,6 +9,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import v28_audit_neurons as A  # noqa: E402
 import v28_card as K  # noqa: E402
+import v28_sheets as SH  # noqa: E402
+
+_init0 = SH.init
+SH.init = lambda ver: _init0('29')  # v28_card calls SH.init('27'); v2.9 arms / paths need v29_eval
 
 BEE9 = Path('/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_9')
 _m0, _a0 = A.mice_paths, A.ants_paths

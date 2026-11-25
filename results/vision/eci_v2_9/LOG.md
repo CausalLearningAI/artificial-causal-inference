@@ -115,3 +115,45 @@ Problems:
   - nose-tail #1027 vs #414;
   - ants grooming #53 vs #90.
   - Jobs 3211031-3211033.
+
+## Follow-up (2026-11-25 afternoon; all POST HOC, not part of the pre-registered decisions)
+- **Mice arm-level report:** job 3211027, written to `mice/report.json` (v2.5 report machinery; rules auc / dist / dist2; 23 s).
+- **Sheets** (jobs 3211028-3211030, `sheets/mice/<key>/`):
+  - Format: 12 top held-out frames by raw code, at most 2 per video; here all 12 tiles come from 12 distinct videos.
+  - Tile identity (recomputed map max == stored code): 0.0 on every tile.
+  - Self-check (200 random held-out frames x all latents): max abs difference <= 0.0078 (fp16).
+  - By eye, strict definitions: nose-nose = two snouts touching or within a snout length; nose-tail = snout at the other's tail base / anogenital region.
+
+  | dictionary, neuron | by eye | labels | what the other frames show |
+  |---|---|---|---|
+  | PREDk8_s2901 nose-nose #3422 | 9/12 | 7/12 | #2 and #7 are 3-4 mouse huddles with the max token at a head among bodies; #6 is snout to the other's flank |
+  | PREDk8_s2901 nose-tail #1027 | 12/12 | 9/12 | all are head-to-rear trains, the 3 unlabelled included (#10 the least clear) |
+  | PREDk16_s2901 nose-nose #3461 | 11/12 | 10/12 | #12 is snout to the other's shoulder / flank; #4 (unlabelled) looks like a true head-to-head |
+  | PREDk16_s2901 nose-tail #1780 | 11/12 | 8/12 | #11 is ambiguous (vertical train, snout near the rear but partly occluded) |
+  | PREDk16_s2902 nose-nose #3811 | 2/12 | 0/12 | mostly snout at another's flank, side-by-side resting and corner huddles; not a nose-nose neuron (it also failed the numeric criteria) |
+  | PREDk16_s2902 nose-tail #2455 | 11/12 | 9/12 | #12 is snout to the other's side / rear; the frames overlap heavily with #1780's videos |
+
+  These are single-observer judgements on 0.35-MP thumbnails; huddle frames are hard to call.
+- **Alignment cards:** the first attempt (jobs 3211031-3211033) failed with "no token path". Cause: `v28_card.py` hard-codes `v28_sheets.init('27')`, so the v2.9 arms were not registered. It was not the PDF save, whose fix (`image.composite_image=False`) is inherited. Fix: `v29_card.py` forces `init('29')`, checked with a short srun (both v2.9 encoders load, k 8 / 16). Resubmitted as jobs 3211955-3211960:
+  - mice nose-nose and nose-tail for PREDk8_s2901 (#3422 / #1027) and PREDk16_s2901 (#3461 / #1780), each vs v1 s0 #611 / #414;
+  - ants grooming-to-focal for PREDk8_s2901 #53 and PREDk16_s2903 #49, each vs v1 s0 #90.
+- **Per-video time on the held-out pools** (sum of P(on) x 0.2 s minus annotated time; mean +- SE over 72 videos):
+  - Annotated time per video: nose-nose 18.8 +- 1.6 s, nose-tail 10.1 +- 1.5 s.
+  - Constant-rate guess (SG prevalence x video length) MAE: nose-nose 13.9 +- 1.2 s, nose-tail 11.4 +- 1.0 s.
+
+  | neuron | bias | MAE |
+  |---|---|---|
+  | PREDk8_s2901 nose-nose #3422 | +4.8 +- 1.7 s | 10.3 +- 1.3 s |
+  | PREDk8_s2901 nose-tail #1027 | +11.5 +- 2.5 s | 14.4 +- 2.2 s |
+  | PREDk16_s2901 nose-nose #3461 | -6.0 +- 1.2 s | 8.9 +- 0.9 s |
+  | PREDk16_s2901 nose-tail #1780 | +21.4 +- 3.1 s | 22.4 +- 3.0 s |
+
+  Both nose-tail neurons do worse than the constant-rate guess on per-video time.
+- **Ants candidates side by side** (grooming-to-focal (any); held-out AUROC / precision@top3/video):
+
+  | dictionary | eval FVE | dead latents | never fire on eval | A -> B | B -> A |
+  |---|---|---|---|---|---|
+  | PREDk16_s2903 (#49) | 0.858 | 2 | 1.1% | 0.884 / 0.869 | 0.889 / 0.778 |
+  | PREDk8_s2901 (#53) | 0.800 | 2,333 | 65.4% | 0.870 / 0.823 | 0.880 / 0.860 |
+  | v2.7 PREDk s2703 (#33) | 0.859 | 3 | 1.3% | 0.867 / 0.848 | 0.886 / 0.836 |
+  | v1 s0 #90 (fixed; half B only, from the card job log) | - | - | - | 0.875 / 0.788 | - |
