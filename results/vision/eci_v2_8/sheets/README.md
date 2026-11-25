@@ -226,3 +226,168 @@ walking (motion blur) #585, #1677 (#3443 unclear); contact / grooming-like #1242
   v1 dictionaries and ants V are not supported (no token path / cache in this code).
 - Runtimes: picks jobs 3-16 min each (wall clock on a shared node; the reruns with the final headers); mice catalogue 20.6 min (read 6.7 GB raw cache once, AUROC of 4,096 neurons on
   431,712 frames, 40 sheets); ants catalogue 7.2 min.
+
+## PREDk candidates (2026-11-25)
+
+Why: the v2.8 audit (`results/vision/eci_v2_8/audit/tables.md` section 6b, rule "sgap" = POST HOC precision-based pick)
+found sparse, specific-looking neurons in the v2.7 contact-weighted arm PREDk. These are their sheets, plus the sgap picks of
+PREDk s2701 and PRED26 s2602 for comparison, the ants grooming picks of PREDk s2702 / s2703, and two 40-neuron catalogues
+(mice and ants PREDk s2703). Same tool, same held-out frames and same tile rules as above.
+
+- The audit json (`audit.json` -> `mice.sgap`) lists ONE sgap neuron per dictionary and behaviour, not a top 3, so the
+  comparison dictionaries got that single pick (PRED26 s2602's nose-tail sgap pick is #3882, already sheeted above).
+- Judging: I counted "by eye" before reading the label captions. Exception: for #3009 and #3776 I had already seen the
+  labelled counts in the job log. Nose-nose counted strictly: two snouts together/touching. Snout on a flank or neck, or a
+  pile-up of heads, does not count.
+- Identity checks: every job had a per-tile max abs difference of 0. The 200-random-frame self-check (all 4,096 latents) gave 0 for every
+  PREDk job (mice s2701 / s2702 / s2703, ants s2702 / s2703, both catalogues) and 0.0039 (one fp16 step) for PRED26
+  s2602, as for the earlier PRED26 jobs.
+- Jobs (all `defaultp`, CPU): 3198162 (mice PREDk s2703 picks), 3198163 (s2702), 3198164 (s2701), 3198165 (PRED26 s2602 ->
+  folder `PRED26_s2602_sgap`), 3198166 / 3198167 (ants PREDk s2703 / s2702), 3198168 (mice catalogue), 3198169 (ants
+  catalogue). Pick jobs 2-7 min, ants catalogue 10 min, mice catalogue 28.5 min.
+
+### Picked neurons
+
+AUROC / P@3 = held-out AUROC (HMM P(on) readout) / precision@top3/video from the audit; raw = held-out AUROC of the raw
+frame code for that behaviour (from the sheet header).
+
+| dictionary | neuron (level, firing) | target | AUROC / P@3 (raw AUROC) | by eye | labelled | what the top frames show |
+|---|---|---|---|---|---|---|
+| mice PREDk s2703 | #3593 (L5, 1.5%) | nose-nose | 0.790 / 0.528 (raw 0.610) | 9/12 | 9/12 | two mice head to head; small heat spot exactly where the two snouts meet. #4, #10, #12 doubtful (head at neck / flank); #2, #7, #8 look head to head but are labelled no |
+| mice PREDk s2703 | #3009 (L5, 2.7%) | nose-tail | 0.833 / 0.397 (raw 0.674) | 11/12 | 10/12 | one mouse's snout at another's rear / tail base, mice in a line; heat blob on the sniffed mouse's rear. #8 looks like nose-tail but is labelled no |
+| mice PREDk s2702 | #4027 (L5, 5.7%) | nose-nose | 0.813 / 0.556 (raw 0.678) | 6/12 | 8/12 | heads meeting inside 2-4 mouse clusters, often at the left-wall grid; about half are head to neck or pile-ups rather than snout to snout |
+| mice PREDk s2702 | #2063 (L5, 0.54%) | nose-tail | 0.830 / 0.360 (raw 0.584) | 11/12 | 8/12 | snout at another mouse's rear / tail base; small heat on the contact point. Several unlabelled tiles look like real nose-tail |
+| mice PREDk s2701 | #359 (L3, 61.5%) | nose-nose | 0.698 / 0.069 (raw 0.664) | 2/12 | 1/12 | generic: heads / backs inside 2-3 mouse clusters, often near the grid. Not nose-nose |
+| mice PREDk s2701 | #3776 (L5, 3.1%) | nose-tail | 0.844 / 0.418 (raw 0.696) | 11/12 | 11/12 | clean nose-tail, heat on the sniffed mouse's rear. Shares top frames with s2703 #3009 (e.g. het_kdm6b_m_1_S_H 04:28.2 is #1 in both): the same neuron in two seeds |
+| mice PRED26 s2602 | #2545 (L5, 10.4%) | nose-nose | 0.685 / 0.093 (raw 0.619) | 2/12 | 1/12 | left-wall grid neuron: two mice stacked at the grid, heat over a head / neck. Not nose-nose |
+| ants PREDk s2703 | #33 (L1, 63.8%) | grooming-to-focal (any) | 0.867 / 0.848 (raw 0.848) | 12/12 contact with the focal; 10/12 tight 3-ant cluster | 12/12 | painted nestmates on the unpainted focal, heat on the focal / contact zone. Grooming itself cannot be resolved; "by eye" counts contact |
+| ants PREDk s2702 | #72 (L1, 78.2%) | grooming-to-focal (any) | 0.866 / 0.783 (raw 0.863) | 12/12 contact; 11/12 tight cluster | 11/12 | same picture as #33, larger heat blob over the cluster |
+
+Verdict per dictionary ("clean" = at least 8/12 by eye):
+
+- mice PREDk s2703: has a clean, distinct nose-nose AND nose-tail neuron: YES. #3593 (nose-nose, 9/12) and #3009
+  (nose-tail, 11/12) fire on different places (snout meets snout vs snout at rear) and share no top frames. This is the
+  first nose-nose neuron in any v2 dictionary at >= 8/12 by eye (previous best V s1002 #436, 7/12). Caveat: it was found
+  by a POST HOC rule (sgap) over 34 dictionaries, and its held-out AP is 0.230; one seed only.
+- mice PREDk s2702: NO. Nose-tail #2063 is clean (11/12), but nose-nose #4027 is 6/12 and partly a "heads together in a
+  cluster" neuron.
+- mice PREDk s2701: NO. Nose-tail #3776 is clean (11/12); the nose-nose sgap pick #359 is generic (2/12).
+- mice PRED26 s2602: NO for nose-nose (#2545 is a wall-grid neuron, 2/12); its nose-tail #3882 is clean (11/12, above).
+- ants PREDk s2702 / s2703: both grooming picks are level-1 "tight 3-ant cluster on the focal" neurons, as for PRED26 /
+  PREDc; they agree with the label 11-12/12 but cannot tell grooming from plain contact.
+
+### Catalogue: mice PREDk s2703 (40 neurons)
+
+Same selection as the PRED26 catalogue. The excluded picked neurons are #149, #1730, #1765 and #3593 (the rule auc / dist / dist2 picks). The sgap
+nose-tail pick #3009 is NOT one of these, so it was eligible and was selected; its catalogue sheet is the same as its pick sheet. 2,210
+candidates; levels 1-2 have only 0 and 4 (most fire on > 20% of frames), so the 40 are 4 L2, 8 L3, 16 L4, 12 L5. Apart
+from #3009 (raw nose-tail AUROC 0.674, 10/12 labelled), no catalogue neuron has raw-code held-out AUROC above 0.58 for
+either behaviour (best #925 nose-nose 0.578, which is a spout neuron).
+Job 3198168: 28.5 min (30 min wall clock).
+
+| neuron | level | firing | what the top frames show | confidence | flag |
+|---|---|---|---|---|---|
+| #143 | 2 | 19.7% | whole body of a lone mouse walking in the open, heat over its back | clear | lone mouse / locomotion |
+| #144 | 2 | 15.1% | the TIP of the tube on the left wall, with or without a mouse at it | clear | spout |
+| #234 | 2 | 11.7% | mice in or under the paper nest, speckled heat over the bodies | clear | nest material |
+| #248 | 2 | 8.7% | the tube tip on the left wall with a mouse's head at it | clear | spout (mouse at spout) |
+| #416 | 3 | 7.3% | one token on the far (top) wall just above a mouse below it; sharpness 9.0 | clear | artefact: wall reflection / shadow (like PRED26 #328) |
+| #499 | 3 | 15.9% | the head and shoulders of a lone mouse walking LEFT in the open | clear | lone mouse, one heading (locomotion) |
+| #504 | 3 | 7.1% | the tube tip on the left wall (mice nearby or not) | clear | spout |
+| #511 | 3 | 12.4% | a mouse with its head into the BAG in the top-right corner; 12/12 tiles from odour-phase videos (`_O`) | clear | bag / box sniffing |
+| #448 | 3 | 17.0% | a mouse along the left wall at the grid, heat on its back by the grid | clear | hopper (left-wall grid) |
+| #323 | 3 | 13.1% | a tail on the floor near the near (bottom) wall | plausible | tail |
+| #348 | 3 | 10.2% | a tail lying over or next to a white wooden block | clear | tail on the block |
+| #389 | 3 | 17.5% | tail base and first part of the tail of a mouse whose head is in the top-right (bag) corner | clear | tail (bag-corner position) |
+| #733 | 4 | 8.1% | one mouse's back inside a resting huddle | clear | huddle |
+| #513 | 4 | 7.3% | tail bases / tails on the floor between 2-3 nearby mice | plausible | tail (between mice; not labelled nose-tail) |
+| #1791 | 4 | 13.9% | the tail base of mice sitting at the left-wall grid (tails pointing into the arena) | clear | tail + hopper |
+| #698 | 4 | 3.3% | the white shave mark on a mouse's head | clear | identity mark |
+| #1134 | 4 | 12.5% | a hunched mouse in the top-right (bag) corner, heat over its back | plausible | bag-corner position; possibly self-grooming |
+| #1593 | 4 | 17.0% | the middle of a tail on the open floor | clear | tail |
+| #812 | 4 | 12.7% | a mouse's snout pressed into the right wall | clear | wall sniffing / rearing against the right wall |
+| #1606 | 4 | 9.0% | the floor just ahead of a mouse's snout (snout tip pointing left / down) | plausible | sniffing the floor |
+| #1773 | 4 | 4.7% | a mouse partly under nest paper, small heat on the visible part | plausible | nest material |
+| #1177 | 4 | 15.8% | the floor at the near (bottom) wall right in front of mice resting there | plausible | huddle / position |
+| #1496 | 4 | 18.0% | a tail lying over nest paper | plausible | tail (on nest) |
+| #1944 | 4 | 5.3% | the TIP of a tail lying against a wall (left grid wall, top or bottom wall) | clear | tail tip on the wall (like PRED26 #3024) |
+| #867 | 4 | 0.8% | the middle of the back of a mouse with a large white shave patch | plausible | identity mark (back) |
+| #810 | 4 | 14.5% | a compact, rounded (hunched) mouse, heat on its back / head | plausible | possibly self-grooming (hunched; paws not visible) |
+| #925 | 4 | 17.7% | a mouse with its head at the tube tip on the left wall | clear | spout (raw nose-nose AUROC 0.578 is the spout, not nose-nose) |
+| #1571 | 4 | 13.4% | a mouse facing the right wall, head foreshortened against it | clear | rearing against the right wall |
+| #3587 | 5 | 3.3% | a lone compact mouse, heat over the whole body | plausible | possibly self-grooming (hunched) |
+| #3856 | 5 | 1.0% | a mouse up on the far / right wall (climbing or rearing), body on the wall | clear | rearing / climbing |
+| #3586 | 5 | 5.8% | the first part of a tail on the floor, a little behind the tail base | clear | tail |
+| #2659 | 5 | 2.9% | the hindquarters of a lone mouse heading right | plausible | lone mouse, one heading |
+| #2454 | 5 | 2.4% | the rear / back of a compact, hunched mouse | plausible | possibly self-grooming (hunched) |
+| #2953 | 5 | 1.5% | nest paper / bedding next to resting mice in the bottom-left corner | plausible | nest material / huddle |
+| #2293 | 5 | 0.8% | the white shave mark on a mouse's head (single token) | clear | identity mark |
+| #3692 | 5 | 0.5% | the tail base of mice sitting at the left-wall grid | clear | tail + hopper |
+| #3273 | 5 | 3.2% | a tail next to a resting / curled mouse, often near the nest | plausible | tail |
+| #3009 | 5 | 2.7% | snout at another mouse's rear / tail base (same sheet as the pick above); 10/12 labelled nose-tail | clear | nose-tail (the sgap pick) |
+| #2828 | 5 | 2.1% | a floor token near the near (bottom) wall, often with no mouse under it | plausible | artefact / position |
+| #3548 | 5 | 10.2% | a tail lying across a white wooden block | clear | tail on the block |
+
+Mice flags summary: bag / box sniffing #511 (+ bag-corner position #389, #1134); huddle #733, #1177, #2953 (resting,
+next to the nest); tail #323, #348, #389, #513, #1593, #1496, #1944, #3586, #3273, #3548, and tail bases at the
+hopper #1791, #3692. None of these is tail CONTACT; the only snout-at-tail neuron is #3009. Rearing / wall #812, #1571, #3856; possible
+self-grooming (hunched posture only) #810, #3587, #2454, #1134; hopper #448 (+ #1791, #3692); spout #144, #248, #504,
+#925; nest material #234, #1773, #2953; identity marks #698, #2293, #867; lone-mouse locomotion / heading #143, #499,
+#2659; artefacts #416 (wall reflection), #2828 (floor). No nose-nose neuron among the 40 (#3593 was excluded as a
+pick).
+
+### Catalogue: ants PREDk s2703 (40 neurons)
+
+Same selection as the PRED26 catalogues (picked neuron #33 excluded). 2,756 candidates; level 1 has 0 (every L1 neuron
+fires on > 20% of frames), so the 40 are 8 L2, 8 L3, 16 L4, 8 L5. No catalogue neuron has raw-code held-out AUROC above
+0.59 for grooming-to-focal (best #1720 0.590). Lab = tiles labelled grooming-to-focal (any), out of 12.
+
+| neuron | level | firing | what the top frames show | confidence | flag |
+|---|---|---|---|---|---|
+| #206 | 2 | 8.4% | a single token on empty floor a short way from an ant (no body part under it) | plausible | artefact: floor token near an ant |
+| #143 | 2 | 14.5% | a token ON the dish rim at the left / right edge, no ant under it | clear | artefact: rim |
+| #153 | 2 | 14.3% | the near (bottom) rim directly below an ant standing at the bottom wall | clear | wall (position: bottom rim) |
+| #234 | 2 | 20.0% | a lone UNPAINTED ant (the focal), compact, heat over its whole body; 0/12 lab | plausible | focal identity (no paint); possibly self-grooming (compact posture, legs not resolved) |
+| #149 | 2 | 17.7% | an ant on the far (top) rim / wall, foreshortened | clear | climbing / on the wall |
+| #207 | 2 | 12.0% | the head / thorax of an ant, often next to another ant | plausible | body part: head |
+| #215 | 2 | 16.4% | a blurred, out-of-focus ant on the left dish wall; big heat over the blur | clear | climbing the wall (out of focus) |
+| #164 | 2 | 17.7% | the head of an ant (front of the body, antenna base) | plausible | body part: head / antenna |
+| #352 | 3 | 10.1% | head and antennae of an ant touching the dish wall | plausible | antenna on the wall |
+| #290 | 3 | 14.8% | a token just ahead of an ant's head (antenna tips on the floor) | plausible | antenna movement |
+| #398 | 3 | 19.6% | a compact, foreshortened ant (seen head-on / curled), heat over the small body | plausible | possibly self-grooming (curled posture) |
+| #510 | 3 | 13.6% | a single token on a painted nestmate's body (gaster / paint region), mixed | unclear | paint dot? |
+| #335 | 3 | 8.7% | the front end of a lone ant (head and front legs), compact | plausible | possibly self-grooming (front legs) |
+| #434 | 3 | 6.5% | the near (bottom) rim under the head / gaster of an ant at the wall | clear | wall (bottom rim) |
+| #345 | 3 | 12.1% | ants at the bottom rim, heat on the ant against the wall | clear | wall (bottom rim) |
+| #391 | 3 | 16.2% | the head end of a walking ant | plausible | walking / head |
+| #660 | 4 | 1.7% | a single token where an ant's antenna tip touches the dish wall (rim) | clear | antenna on the wall |
+| #538 | 4 | 17.4% | a token at the head / antenna of an ant among other ants | unclear | antenna? |
+| #1331 | 4 | 7.9% | the floor just ahead of a lone walking ant's head (antenna sweep), mostly blue-painted ants | clear | antenna movement |
+| #1399 | 4 | 3.8% | a faint / ghost ant (motion blur or out of focus near the wall) | clear | fast walking / blur |
+| #1780 | 4 | 0.9% | a far-rim token next to the head of an ant at the top wall | clear | antenna / head on the wall |
+| #958 | 4 | 8.9% | the head of an ant close to another ant or the wall | unclear | contact? |
+| #2017 | 4 | 3.1% | a single floor token ahead of an ant's head (antenna tip) | plausible | antenna movement |
+| #1957 | 4 | 8.4% | a rim token where an ant's antennae touch the dish wall | clear | antenna on the wall |
+| #908 | 4 | 2.4% | 2-3 ants packed against the dish wall, heat over the contact; 9/12 lab | plausible | contact at the wall (grooming-like) |
+| #1245 | 4 | 1.1% | a rim token next to an ant's antennae (right wall); low codes after tile #1 | plausible | antenna on the wall |
+| #1720 | 4 | 14.5% | the ORANGE ("yellow") paint dot of a nestmate in a chain of ants, the dot touching another ant's head; 11/12 lab | clear | paint dot (yellow) + contact |
+| #565 | 4 | 16.2% | the focal's body at the centre of a 2-3 ant group; 11/12 lab | plausible | contact (grooming-like) |
+| #1461 | 4 | 13.8% | the gaster end of an ant, often with a pinkish paint mark; 0/12 lab | plausible | body part: gaster / paint |
+| #1980 | 4 | 12.9% | an ant with its head or gaster pressed against the near / right rim | plausible | wall |
+| #1563 | 4 | 1.4% | a token between ants in a loose 3-ant group; 7/12 lab | plausible | contact / proximity |
+| #783 | 4 | 8.3% | the front of a single ant (head and front legs), compact | plausible | possibly self-grooming |
+| #3388 | 5 | 1.8% | the TIP of a stretched antenna (single token), often near the wall | clear | antenna movement |
+| #3843 | 5 | 3.1% | a single floor token just ahead of a walking ant's head (antenna tip); 0/12 lab | clear | antenna movement |
+| #2099 | 5 | 3.9% | a near-rim token below an ant at the wall | plausible | wall |
+| #3650 | 5 | 7.6% | the gaster tip of the orange-painted nestmate (paint dot), often touching another ant; 6/12 lab | plausible | paint dot (yellow) |
+| #4002 | 5 | 2.3% | head / antennae of an ant facing the far (top) rim | clear | antenna / head on the wall |
+| #3943 | 5 | 0.9% | a token near the legs / gaster of ants in contact; low codes; 6/12 lab | unclear | contact? |
+| #2805 | 5 | 4.3% | a leg of a walking ant (single token at the leg) | plausible | walking (leg) |
+| #2178 | 5 | 1.2% | a middle leg of a lone ant standing in the open; low codes | plausible | walking / standing (leg) |
+
+Ants flags summary: antenna movement #290, #1331, #2017, #3388, #3843 (+ #538 unclear); antenna / head on the wall
+#352, #660, #1245, #1780, #1957, #4002; wall / climbing / rim position #149, #153, #215, #345, #434, #1980, #2099;
+walking / blur #1399, #391, #2805, #2178; possible self-grooming #398, #335, #783, #234 (posture only, no paws resolved);
+contact (grooming-like) #908, #565, #1563 (+ #958, #3943 unclear); paint dots #1720 (yellow, at a contact), #3650
+(yellow), #1461 (gaster / pinkish mark), #510 unclear; artefacts #143 (rim), #206 (floor). No blue-paint neuron this
+time (PRED26 had one, #3620). As in PRED26, no neuron separates grooming from plain contact.

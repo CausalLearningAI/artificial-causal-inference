@@ -1,0 +1,231 @@
+{
+ "dom": "mice",
+ "ver": "27",
+ "key": "PRED26_s2602",
+ "name": "PRED26_s2602_sgap",
+ "prefixes": [
+  128,
+  256,
+  512,
+  2048,
+  4096
+ ],
+ "heldout_rows": 431712,
+ "heldout_videos": 72,
+ "labels": [
+  "nn",
+  "np",
+  "nose_nose",
+  "nt"
+ ],
+ "raw_cache": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_7/mice/cache/PRED26_s2602_raw.npy",
+ "ranking": "raw frame code (max over mask tokens), held-out frames; pass 1 one per video, pass 2 up to 2 per video, >= 10 frames (2 s) apart, code > 0",
+ "sheets": [
+  {
+   "neuron": 2545,
+   "level": 5,
+   "fire": 0.1043983025720851,
+   "auc": {
+    "nn": 0.663283542171935,
+    "np": 0.594276804764194,
+    "nose_nose": 0.6186773389097927,
+    "nt": 0.5401088763569653
+   },
+   "roles": [
+    {
+     "beh": "nose_nose",
+     "rule": "dist2",
+     "auc": 0.6852271924167781,
+     "top3": 0.09259259259259259
+    }
+   ],
+   "n_tiles": 12,
+   "n_videos": 12,
+   "labelled_positive": {
+    "nose_nose": 1,
+    "nt": 0
+   },
+   "identity_max_abs_diff": 0.0,
+   "tiles": [
+    {
+     "row": 314294,
+     "obs": "het_kdm6b_f_3_S_H",
+     "series": "v1",
+     "k": 8500,
+     "time_s": 1700.0,
+     "code": 7.3125,
+     "labels": {
+      "nose_nose": false,
+      "nt": false
+     },
+     "map_max": 7.312353134155273,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 329580,
+     "obs": "het_kdm6b_m_1_F_H",
+     "series": "v1",
+     "k": 5798,
+     "time_s": 1159.6,
+     "code": 7.05859375,
+     "labels": {
+      "nose_nose": false,
+      "nt": false
+     },
+     "map_max": 7.05696964263916,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 558109,
+     "obs": "het_kmt5b_m_1_S_H",
+     "series": "v1",
+     "k": 483,
+     "time_s": 96.6,
+     "code": 6.9921875,
+     "labels": {
+      "nose_nose": false,
+      "nt": false
+     },
+     "map_max": 6.994133949279785,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 528145,
+     "obs": "het_kmt5b_f_3_S_H",
+     "series": "v1",
+     "k": 6495,
+     "time_s": 1299.0,
+     "code": 6.78125,
+     "labels": {
+      "nose_nose": false,
+      "nt": false
+     },
+     "map_max": 6.780670642852783,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 722156,
+     "obs": "wt_kdm6b_f_1_F_H",
+     "series": "v1",
+     "k": 2638,
+     "time_s": 527.6,
+     "code": 6.4921875,
+     "labels": {
+      "nose_nose": false,
+      "nt": false
+     },
+     "map_max": 6.4940714836120605,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 517550,
+     "obs": "het_kmt5b_f_3_F_P",
+     "series": "v1",
+     "k": 396,
+     "time_s": 79.2,
+     "code": 6.4765625,
+     "labels": {
+      "nose_nose": true,
+      "nt": false
+     },
+     "map_max": 6.475411891937256,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 692697,
+     "obs": "wt_ash1l_m_1_F_O",
+     "series": "v1",
+     "k": 159,
+     "time_s": 31.8,
+     "code": 6.453125,
+     "labels": {
+      "nose_nose": false,
+      "nt": false
+     },
+     "map_max": 6.45278787612915,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 347032,
+     "obs": "het_kdm6b_m_1_S_H",
+     "series": "v1",
+     "k": 5262,
+     "time_s": 1052.4,
+     "code": 6.44921875,
+     "labels": {
+      "nose_nose": false,
+      "nt": false
+     },
+     "map_max": 6.449243545532227,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 573629,
+     "obs": "het_kmt5b_m_1_S_P",
+     "series": "v1",
+     "k": 2511,
+     "time_s": 502.2,
+     "code": 6.40234375,
+     "labels": {
+      "nose_nose": false,
+      "nt": false
+     },
+     "map_max": 6.401691436767578,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 838336,
+     "obs": "wt_kmt5b_m_1_F_O",
+     "series": "v1",
+     "k": 1894,
+     "time_s": 378.8,
+     "code": 6.37109375,
+     "labels": {
+      "nose_nose": false,
+      "nt": false
+     },
+     "map_max": 6.372852325439453,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 299244,
+     "obs": "het_kdm6b_f_3_F_O",
+     "series": "v1",
+     "k": 2442,
+     "time_s": 488.4,
+     "code": 6.35546875,
+     "labels": {
+      "nose_nose": false,
+      "nt": false
+     },
+     "map_max": 6.355496406555176,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 748796,
+     "obs": "wt_kdm6b_f_1_S_O",
+     "series": "v1",
+     "k": 2294,
+     "time_s": 458.8,
+     "code": 6.30078125,
+     "labels": {
+      "nose_nose": false,
+      "nt": false
+     },
+     "map_max": 6.301949501037598,
+     "identity_abs_diff": 0.0
+    }
+   ]
+  }
+ ],
+ "identity_tiles": {
+  "frames": 12,
+  "max_abs_diff": 0.0
+ },
+ "selfcheck": {
+  "frames": 200,
+  "latents": 4096,
+  "max_abs_diff_fp16": 0.00390625
+ },
+ "runtime_s": 213.50332832336426
+}

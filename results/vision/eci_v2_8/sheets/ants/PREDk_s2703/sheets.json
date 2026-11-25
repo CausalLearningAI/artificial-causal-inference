@@ -1,0 +1,244 @@
+{
+ "dom": "ants",
+ "ver": "27",
+ "key": "PREDk_s2703",
+ "name": "PREDk_s2703",
+ "prefixes": [
+  128,
+  256,
+  512,
+  2048,
+  4096
+ ],
+ "heldout_rows": 43800,
+ "heldout_videos": 73,
+ "labels": [
+  "Y2F",
+  "B2F",
+  "groom_any",
+  "FOL",
+  "YOL",
+  "BOL",
+  "onlid_any",
+  "lid_any3",
+  "single",
+  "double"
+ ],
+ "raw_cache": "/mnt/beegfs/locatgrp/shared/rcadei/eci_codes/v2_7/ants/cache/PREDk_s2703_raw.npy",
+ "ranking": "raw frame code (max over mask tokens), held-out frames; pass 1 one per video, pass 2 up to 2 per video, >= 10 frames (2 s) apart, code > 0",
+ "sheets": [
+  {
+   "neuron": 33,
+   "level": 1,
+   "fire": 0.6375799086757991,
+   "auc": {
+    "Y2F": 0.8247406628568255,
+    "B2F": 0.7979901779687864,
+    "groom_any": 0.8479776405268947,
+    "FOL": 0.38728322858896097,
+    "YOL": 0.40983550302509614,
+    "BOL": 0.3750649567151358,
+    "onlid_any": 0.3979324611123137,
+    "lid_any3": 0.3966690138333588,
+    "single": 0.7540788802117545,
+    "double": 0.895463767015963
+   },
+   "roles": [
+    {
+     "beh": "groom_any",
+     "rule": "auc (select half A)",
+     "auc": 0.8670215021393807,
+     "top3": 0.8484848484848485
+    }
+   ],
+   "n_tiles": 12,
+   "n_videos": 12,
+   "labelled_positive": {
+    "Y2F": 10,
+    "B2F": 11,
+    "groom_any": 12
+   },
+   "identity_max_abs_diff": 0.0,
+   "tiles": [
+    {
+     "row": 5034,
+     "obs": "3_11_9",
+     "series": "v3",
+     "k": 1172,
+     "time_s": 234.4,
+     "code": 14.078125,
+     "labels": {
+      "Y2F": true,
+      "B2F": true
+     },
+     "map_max": 14.078662872314453,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 84174,
+     "obs": "4_7_6",
+     "series": "v4",
+     "k": 872,
+     "time_s": 174.4,
+     "code": 13.5625,
+     "labels": {
+      "Y2F": true,
+      "B2F": true
+     },
+     "map_max": 13.56031608581543,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 45528,
+     "obs": "3_29_8",
+     "series": "v3",
+     "k": 2642,
+     "time_s": 528.4,
+     "code": 13.4921875,
+     "labels": {
+      "Y2F": true,
+      "B2F": true
+     },
+     "map_max": 13.48960018157959,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 42079,
+     "obs": "3_28_3",
+     "series": "v3",
+     "k": 397,
+     "time_s": 79.4,
+     "code": 12.84375,
+     "labels": {
+      "Y2F": true,
+      "B2F": true
+     },
+     "map_max": 12.84101676940918,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 36456,
+     "obs": "3_25_5",
+     "series": "v3",
+     "k": 2282,
+     "time_s": 456.4,
+     "code": 12.8125,
+     "labels": {
+      "Y2F": false,
+      "B2F": true
+     },
+     "map_max": 12.816150665283203,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 83732,
+     "obs": "4_7_5",
+     "series": "v4",
+     "k": 1662,
+     "time_s": 332.4,
+     "code": 12.796875,
+     "labels": {
+      "Y2F": true,
+      "B2F": true
+     },
+     "map_max": 12.793251037597656,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 46778,
+     "obs": "3_30_5",
+     "series": "v3",
+     "k": 2892,
+     "time_s": 578.4,
+     "code": 12.71875,
+     "labels": {
+      "Y2F": true,
+      "B2F": true
+     },
+     "map_max": 12.718241691589355,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 77860,
+     "obs": "4_3_8",
+     "series": "v4",
+     "k": 2302,
+     "time_s": 460.4,
+     "code": 12.6484375,
+     "labels": {
+      "Y2F": false,
+      "B2F": true
+     },
+     "map_max": 12.649742126464844,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 78717,
+     "obs": "4_5_1",
+     "series": "v4",
+     "k": 587,
+     "time_s": 117.4,
+     "code": 12.4765625,
+     "labels": {
+      "Y2F": true,
+      "B2F": false
+     },
+     "map_max": 12.47690486907959,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 65447,
+     "obs": "4_1_4",
+     "series": "v4",
+     "k": 237,
+     "time_s": 47.4,
+     "code": 12.3984375,
+     "labels": {
+      "Y2F": true,
+      "B2F": true
+     },
+     "map_max": 12.3985595703125,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 70848,
+     "obs": "4_22_7",
+     "series": "v4",
+     "k": 242,
+     "time_s": 48.4,
+     "code": 12.3828125,
+     "labels": {
+      "Y2F": true,
+      "B2F": true
+     },
+     "map_max": 12.381916999816895,
+     "identity_abs_diff": 0.0
+    },
+    {
+     "row": 67903,
+     "obs": "4_21_4",
+     "series": "v4",
+     "k": 517,
+     "time_s": 103.4,
+     "code": 12.2578125,
+     "labels": {
+      "Y2F": true,
+      "B2F": true
+     },
+     "map_max": 12.256321907043457,
+     "identity_abs_diff": 0.0
+    }
+   ]
+  }
+ ],
+ "identity_tiles": {
+  "frames": 12,
+  "max_abs_diff": 0.0
+ },
+ "selfcheck": {
+  "frames": 200,
+  "latents": 4096,
+  "max_abs_diff_fp16": 0.0
+ },
+ "runtime_s": 109.49639582633972
+}
