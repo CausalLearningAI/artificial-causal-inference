@@ -24,7 +24,8 @@ strongest events stand above the neuron's typical firing). N spread over Matryos
 per level, the remainder filled by global sharpness. Writes catalogue/index.json (all candidates' stats for the chosen
 ones) + one sheet per chosen neuron.
 
-Versions: --ver 27 (v27_eval paths: PREDc / PREDd / PREDk / PREDh s2701-2703, PRED26 s2601-2603 [mice only], V s1001-1006
+Versions: --ver 29 (v29_eval paths: PREDk8 / PREDk16 / PREDk32 s29xx, PREDk s2701-2703; sgap roles from
+results/vision/eci_v2_9/mice/dicts; output results/vision/eci_v2_9/sheets); --ver 27 (v27_eval paths: PREDc / PREDd / PREDk / PREDh s2701-2703, PRED26 s2601-2603 [mice only], V s1001-1006
 [mice]); --ver 26 (v26_eval paths: N0wc / PRED / SMOOTH / RW / N0x s2601-2603, both domains; ants PRED26 = PRED_s2601).
 usage:
   v28_sheets.py --ver 27 --dom mice --key PREDc_s2701 --rules auc,dist [--selfcheck 200]
@@ -61,6 +62,8 @@ def init(ver):
         import v26_eval  # noqa: F401  (patches v25_train paths -> v2.6)
     elif ver == '27':
         import v27_eval  # noqa: F401  (patches v25_train paths -> v2.7)
+    elif ver == '29':
+        import v29_eval  # noqa: F401  (patches v25_train paths -> v2.9; PREDk8 / PREDk16 / PREDk32 s29xx, PREDk s2701-2703)
     else:
         raise SystemExit(f'unknown --ver {ver}')
     import v25_sheet as S
@@ -108,6 +111,12 @@ def report_roles(dom, key):
             for b, j in pk[key].items():
                 roles.setdefault(int(j), []).append({'beh': b, 'rule': rule, 'auc': lv[f'{b}|auc']['seeds'][idx],
                                                      'top3': lv.get(f'{b}|top3', {}).get('seeds', [None] * (idx + 1))[idx]})
+        dp = TR.OUT25 / 'mice' / 'dicts' / f'{key}.json'  # v2.9: rule sgap picks (v29_sgap.py)
+        if dp.exists():
+            dj = json.loads(dp.read_text())
+            for b, j in (dj['picks'].get('sgap') or {}).items():
+                n = dj['neurons'][f'{j}|{b}']
+                roles.setdefault(int(j), []).append({'beh': b, 'rule': 'sgap', 'auc': n['ho']['auc'], 'top3': n['ho']['top3']})
     else:
         rep = json.loads((TR.OUT25 / 'ants' / 'report.json').read_text())
         idx = rep['models'][arm].index(key)
@@ -309,7 +318,7 @@ def render(path, dom, F, rows, codes, j, enc, plans, rot, title, local, labs_sho
 # ---------------------------------------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--ver', required=True, choices=('26', '27'))
+    ap.add_argument('--ver', required=True, choices=('26', '27', '29'))
     ap.add_argument('--dom', required=True, choices=('mice', 'ants'))
     ap.add_argument('--key', required=True, help='dictionary key in that version, e.g. PREDc_s2701, PRED26_s2601, V_s1002')
     ap.add_argument('--name', default='', help='output folder name (default = key)')
@@ -325,7 +334,7 @@ def main():
     t0 = time.time()
     dom, key = a.dom, a.key
     name = a.name or key
-    od = OUT28 / dom / name / ('catalogue' if a.catalogue else '')
+    od = (REPO / 'results/vision/eci_v2_9/sheets' if a.ver == '29' else OUT28) / dom / name / ('catalogue' if a.catalogue else '')
     local = Path(os.environ.get('LOCAL_DIR', '/tmp')) / f'v28_{dom}_{name}_{"cat" if a.catalogue else "pk"}'
     (local / 'png').mkdir(parents=True, exist_ok=True)
     F, ev, labs = table(dom)
