@@ -18,8 +18,10 @@ REPO = Path('/nfs/scistore19/locatgrp/rcadei/artificial-causal-inference')
 SRC = REPO / 'atlas/index.html'
 OUT = REPO / 'atlas/draft_v2_temporary'
 NES = REPO / 'results/vision/eci_v2_nes'
-SHEETS = {'mice': [NES / 'sheets/mice/v2nes_PREDk16_s2901', REPO / 'results/vision/eci_v2_9/sheets/mice/PREDk16_s2901'],
-          'ants': [NES / 'sheets/ants/v2nes_PREDk_s2703', REPO / 'results/vision/eci_v2_8/sheets/ants/PREDk_s2703']}
+# v28_sheets.py --name v2nes_<key> output folders (--ver 29 -> eci_v2_9/sheets, --ver 27 -> eci_v2_8/sheets), then the
+# existing behaviour-neuron sheets
+SHEETS = {'mice': [REPO / 'results/vision/eci_v2_9/sheets/mice/v2nes_PREDk16_s2901', REPO / 'results/vision/eci_v2_9/sheets/mice/PREDk16_s2901'],
+          'ants': [REPO / 'results/vision/eci_v2_8/sheets/ants/v2nes_PREDk_s2703', REPO / 'results/vision/eci_v2_8/sheets/ants/PREDk_s2703']}
 
 CSS = """
 /* v2-temporary section (draft) */
