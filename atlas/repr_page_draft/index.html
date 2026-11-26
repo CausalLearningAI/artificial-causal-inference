@@ -1,0 +1,734 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Interpretable Representation × Behavioral Sciences</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: figure-first brief. Objectives, priors and validation up front; then one collapsible row per figure block,
+   closed by default, each showing its outcome in the closed state. */
+:root{
+  --bg:#fbfcfd; --surface:#f2f4f7; --plate:#ffffff;
+  --fg:#1a2029; --muted:#5a6472; --faint:#8a93a0; --rule:#d8dde4;
+  --orange:#E69F00; --orange-ink:#9a6400; --blue:#0072B2; --blue-ink:#005f94; --pink:#CC79A7; --pink-ink:#a24a7d;
+  --prior-bg:#e9f2f9; --prior-line:#b8d3e8;
+  --open-bg:#fbf2df; --open-line:#ecd29a;
+  --note-bg:#f2f4f7; --note-line:#c9cfd8;
+  --ok:#1f6b3f; --ok-bg:#dcefe3; --bad:#9b2c25; --bad-bg:#f6e0dd; --pend:#4f5866; --pend-line:#9aa3b0;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Source Sans 3","Helvetica Neue",Arial,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161c; --surface:#1a2028; --plate:#f4f6f8;
+  --fg:#e3e7ed; --muted:#a0a9b6; --faint:#7a8492; --rule:#2f3742;
+  --orange:#f0b33a; --orange-ink:#f0b33a; --blue:#4fa6dc; --blue-ink:#7cbde6; --pink:#dc95bd; --pink-ink:#e3a6c8;
+  --prior-bg:#14263a; --prior-line:#24486a;
+  --open-bg:#2c2412; --open-line:#5a4720;
+  --note-bg:#1a2028; --note-line:#3a4350;
+  --ok:#8fd4a8; --ok-bg:#173524; --bad:#f0a49c; --bad-bg:#3d1c19; --pend:#b6bfcb; --pend-line:#5d6775;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161c; --surface:#1a2028; --plate:#f4f6f8;
+  --fg:#e3e7ed; --muted:#a0a9b6; --faint:#7a8492; --rule:#2f3742;
+  --orange:#f0b33a; --orange-ink:#f0b33a; --blue:#4fa6dc; --blue-ink:#7cbde6; --pink:#dc95bd; --pink-ink:#e3a6c8;
+  --prior-bg:#14263a; --prior-line:#24486a;
+  --open-bg:#2c2412; --open-line:#5a4720;
+  --note-bg:#1a2028; --note-line:#3a4350;
+  --ok:#8fd4a8; --ok-bg:#173524; --bad:#f0a49c; --bad-bg:#3d1c19; --pend:#b6bfcb; --pend-line:#5d6775;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.5;
+  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:32px 56px}
+.wrap{max-width:1080px;margin-inline:auto;display:flex;flex-direction:column;gap:40px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.2}
+h1{font-size:clamp(1.7rem,4vw,2.4rem);font-weight:700;letter-spacing:-.01em}
+h2{font-size:1.3rem;font-weight:600}
+h3{font-size:1rem;font-weight:600}
+p{margin:0;max-width:68ch}
+a{color:var(--blue-ink)}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-size:.84em}
+td,th,.num{font-variant-numeric:tabular-nums}
+.lead{font-size:1.15rem;max-width:62ch}
+.by{color:var(--muted);font-size:.95rem}
+header{display:flex;flex-direction:column;gap:12px}
+section{display:flex;flex-direction:column;gap:14px}
+.hint{font-size:.85rem;color:var(--muted)}
+
+.plate{background:var(--plate);padding:10px;border:1px solid var(--rule)}
+.plate img{display:block;width:100%;max-width:100%;height:auto}
+figure{margin:0;display:flex;flex-direction:column;gap:8px}
+figcaption{font-size:.9rem;color:var(--muted)}
+
+/* objectives + priors */
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px}
+ol.obj{margin:10px 0 0;padding-left:1.3rem;display:flex;flex-direction:column;gap:6px}
+.priors{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;margin:10px 0 0;font-size:.95rem}
+.priors dt{font-family:var(--f-display);font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--blue-ink);padding-top:3px;white-space:nowrap}
+.priors dd{margin:0}
+
+/* validation */
+.val{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px}
+.card{border:1px solid var(--rule);padding:14px 16px;display:flex;flex-direction:column;gap:8px;background:var(--surface)}
+.card .tag{font-family:var(--f-display);font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.card ul{margin:0;padding-left:1.1rem;display:flex;flex-direction:column;gap:4px}
+.out{font-weight:600}
+ol.qs{margin:0;padding-left:1.4rem;display:flex;flex-direction:column;gap:10px;max-width:78ch}
+ol.qs li{padding-left:4px}
+.achip{display:inline-block;font-family:var(--f-display);font-size:.7rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:1px 7px;color:var(--muted);background:var(--surface);border:1px dashed var(--pend-line);white-space:nowrap}
+summary .achip{margin-left:6px;vertical-align:1px}
+.achip.ok{color:var(--ok);background:var(--ok-bg);border:1px solid var(--ok)}
+.achip.unsure{color:var(--orange-ink);background:var(--open-bg);border:1px solid var(--open-line)}
+.achip.test{color:var(--blue-ink);background:var(--prior-bg);border:1px solid var(--prior-line)}
+.btab td.ev .achip.test{margin-left:4px}
+ul.tried{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:.92rem}
+ul.tried li{border-top:1px solid var(--rule);padding-top:6px}
+ul.tried li:first-child{border-top:0;padding-top:0}
+@media (max-width:600px){.priors.ev{grid-template-columns:minmax(0,1fr);gap:2px}.priors.ev dd{margin-bottom:6px}}
+.achip.bad{color:var(--bad);background:var(--bad-bg);border:1px solid var(--bad);text-decoration:line-through}
+.rtab td.num,.rtab th.num{text-align:right;white-space:nowrap}
+.rtab td.v2{font-weight:600}
+.vt{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.doms.wide{grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr))}
+.dom.row{flex-direction:row}
+.dom.row img{width:38%;flex:none;aspect-ratio:auto;height:auto;object-fit:cover}
+.exps{margin:2px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.exps li{border-top:1px solid var(--rule);padding-top:4px}
+.exps b{font-family:var(--f-display);font-weight:600}
+.blk{border:1px solid var(--rule);padding:12px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.blk>.bt{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.blk>.bt b{font-family:var(--f-display);font-size:1.05rem}
+.blk>.bt span{font-size:.85rem;color:var(--muted)}
+.blk.val{background:var(--prior-bg);border-color:var(--prior-line)}
+.blk.test{background:var(--surface)}
+.bench{display:flex;flex-direction:column;gap:8px;min-width:0}
+.bench>.bh{font-family:var(--f-display);font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.bench>.bh a{color:inherit}
+.role{display:inline-block;margin-left:8px;padding:0 6px;font-size:.66rem;letter-spacing:.06em;color:var(--blue-ink);background:var(--bg);border:1px solid var(--prior-line);vertical-align:1px}
+.role.ho{color:var(--pink-ink);border-color:var(--pink)}
+.vgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.vgrid>.bench .dom{flex:1}
+@media (max-width:700px){.vgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:400px){.vgrid{grid-template-columns:minmax(0,1fr)}}
+.vgrid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:760px){.vgrid.three{grid-template-columns:minmax(0,1fr)}}
+.vgrid.three .dom img{aspect-ratio:4/3}
+.doms{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:10px}
+.dom{background:var(--bg);border:1px solid var(--rule);display:flex;flex-direction:column;min-width:0}
+.dom img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:var(--surface)}
+.dom .in{padding:7px 9px 9px;display:flex;flex-direction:column;gap:3px;font-size:.82rem}
+.dom .nm{font-family:var(--f-display);font-weight:600;font-size:.92rem}
+.dom .sp{color:var(--muted);font-variant-numeric:tabular-nums}
+.dom .rl{color:var(--blue-ink)}
+@media (max-width:760px){.vt{grid-template-columns:minmax(0,1fr)}}
+.legend{display:flex;flex-wrap:wrap;gap:6px 10px;font-size:.82rem;color:var(--muted);align-items:center}
+.btab{font-size:.92rem}
+.btab col.c1{width:42%} .btab col.c2{width:11rem}
+.btab td{padding:9px 12px;vertical-align:baseline}
+.btab td.pr b{font-family:var(--f-display);font-weight:600;margin-right:4px}
+.btab td.st{color:var(--muted);white-space:nowrap}
+.stp{display:inline-block;min-width:1.5em;text-align:center;font-family:var(--f-display);font-weight:700;font-size:.8rem;color:var(--fg);border:1px solid var(--rule);background:var(--surface);padding:0 4px;margin-right:6px}
+.btab td.ev{color:var(--muted)}
+.btab td.ev .achip{margin-right:6px}
+@media (max-width:600px){
+  .btab thead,.btab colgroup{display:none}
+  .btab tbody,.btab tr{display:block}
+  .btab tr{border-bottom:1px solid var(--rule);padding:8px 0}
+  .btab td{display:block;border:0;padding:2px 10px;width:auto}
+  .btab td.st{white-space:normal}
+  .btab td:empty{display:none}
+}
+
+/* boxes */
+.box{display:grid;grid-template-columns:5.5rem minmax(0,1fr);gap:4px 12px;padding:9px 14px;border:1px solid;font-size:.95rem}
+.box .lab{font-family:var(--f-display);font-size:.72rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;padding-top:3px}
+.box ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px;min-width:0}
+.open{background:var(--open-bg);border-color:var(--open-line)} .open .lab{color:var(--orange-ink)}
+.note{background:var(--note-bg);border-color:var(--note-line);border-style:dashed} .note .lab{color:var(--muted)}
+
+/* collapsible steps */
+details.step{border-top:1px solid var(--rule)}
+details.step:last-of-type{border-bottom:1px solid var(--rule)}
+details.step>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:2rem minmax(0,11rem) minmax(0,1fr) 1.2rem;gap:4px 14px;align-items:baseline;padding:14px 4px}
+details.step>summary::-webkit-details-marker,details.sub>summary::-webkit-details-marker{display:none}
+summary .pl{font-family:var(--f-display);font-weight:700;font-size:1.35rem;color:var(--muted)}
+summary .t{font-family:var(--f-display);font-weight:600;font-size:1.1rem}
+summary .o{color:var(--fg)}
+summary .chev{color:var(--faint);font-family:var(--f-mono);transition:transform .15s}
+details[open]>summary .chev{transform:rotate(90deg)}
+details.step>summary:hover .t{color:var(--blue-ink)}
+.body{display:grid;grid-template-columns:180px minmax(0,1fr);gap:24px;padding:4px 4px 24px}
+.body .side img{max-height:320px;width:auto;margin-inline:auto}
+.body .side .plate{padding:6px}
+.main{display:flex;flex-direction:column;gap:14px;min-width:0}
+
+details.sub{border:1px solid var(--rule);background:var(--bg)}
+details.sub>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:minmax(0,9rem) minmax(0,1fr) 1.2rem;gap:4px 12px;align-items:baseline;padding:10px 12px}
+details.sub>summary .t{font-size:.98rem}
+details.sub>summary:hover .t{color:var(--blue-ink)}
+details.sub .inner{display:flex;flex-direction:column;gap:12px;padding:2px 12px 14px}
+
+/* tables */
+.tw{overflow-x:auto;border-top:1.5px solid var(--fg);border-bottom:1px solid var(--rule)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th{font-family:var(--f-display);font-weight:600;font-size:.74rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 10px 6px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:7px 10px;vertical-align:top;border-bottom:1px solid var(--rule)}
+tr:last-child td{border-bottom:0}
+td.arm{font-weight:600;min-width:8.5rem}
+td.res{min-width:15rem}
+.src{display:block;font-family:var(--f-mono);font-size:.72rem;color:var(--faint);margin-top:2px;word-break:break-all}
+.chip{display:inline-block;font-family:var(--f-display);font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;white-space:nowrap;border:1px solid transparent}
+.chip.kept{color:var(--ok);background:var(--ok-bg)}
+.chip.dropped{color:var(--bad);background:var(--bad-bg)}
+.chip.pending{color:var(--pend);border:1px dashed var(--pend-line)}
+.formula{font-family:var(--f-mono);font-size:.9rem;background:var(--surface);padding:8px 12px;border:1px solid var(--rule);overflow-x:auto;white-space:nowrap}
+
+footer{border-top:1.5px solid var(--fg);padding-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:18px;font-size:.92rem}
+footer h3{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+footer ul{margin:0;padding-left:1.1rem;display:flex;flex-direction:column;gap:4px}
+
+@media (max-width:760px){
+  details.step>summary{grid-template-columns:1.6rem minmax(0,1fr) 1.2rem}
+  details.step>summary .o{grid-column:2 / 3}
+  details.step>summary .chev{grid-row:1;grid-column:3}
+  details.sub>summary{grid-template-columns:minmax(0,1fr) 1.2rem}
+  details.sub>summary .o{grid-column:1 / 2}
+  details.sub>summary .chev{grid-row:1;grid-column:2}
+  .body{grid-template-columns:minmax(0,1fr);gap:14px}
+  .body .side img{max-height:200px}
+  .box{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:reduce){summary .chev{transition:none}}
+/* v2 candidate (2026-11-26): alignment cards and neuron gallery */
+.gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:12px}
+.gal figure{border:1px solid var(--rule);background:var(--bg)}
+.gal figure .plate{border:0;padding:6px}
+.gal figcaption{padding:0 9px 9px}
+.pair2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:14px}
+.oct{display:inline-block;font-family:var(--f-display);font-size:.7rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:1px 7px;color:var(--orange-ink);background:var(--open-bg);border:1px solid var(--open-line);white-space:nowrap;vertical-align:1px}
+</style>
+
+<div class="wrap">
+
+<header>
+  <h1>Interpretable Representation × Behavioral Sciences</h1>
+  <p class="lead">One label-free recipe that turns any behavioural video into about 1,500 readable numbers.</p>
+  <div class="by">Riccardo Cadei · 2026-11-26 · describes v2 (candidate, 2026-11-26, awaiting sign-off). Blocks marked <span class="oct">October model</span> still show the model of 2026-10-25 and are being re-run.</div>
+</header>
+
+<figure>
+  <div class="plate"><img src="fig_pipeline_v2.webp" alt="Pipeline figure, three rows (ants, mice, frogs) by four blocks: a video, b frame representation, c neural activation, d video representation." width="4322" height="1835"></div>
+  <figcaption><span class="oct">October model</span> The example neurons and the 2048-neuron dictionary in this figure are from the October model (2026-10-25). The v2 candidate keeps steps a, c and d; in step b it uses a new animal mask and a new 4096-neuron dictionary (see “Pipeline, step by step”), and its behaviour neurons are shown under “v1 vs v2”. Same recipe for every domain. <b>a</b> the video at native resolution in canonical orientation; <b>b</b> DINOv3-L tokens of a frame, tokens outside the tight animal mask dropped, each kept token encoded by a 2048-neuron sparse dictionary; <b>c</b> one neuron's activation, the maximum over kept tokens per frame, smoothed with a centred 0.6 s mean and kept continuous; <b>d</b> the video representation: for every neuron, the mean, bout rate and latency of its smoothed value. Neurons shown, picked by a fixed rule: ants #99 and mice #161, the neurons most aligned with grooming and nose-nose; frogs #52, the strongest discovery (FoxP1 &gt; WT). <a href="fig_pipeline_v2.webp">Open full size</a></figcaption>
+</figure>
+
+<section>
+  <div class="cols">
+    <div>
+      <h2>Objectives</h2>
+      <p class="hint" style="margin-top:6px">What we want.</p>
+      <ol class="obj">
+        <li><b>Readable.</b> Each dimension is a neuron you can look at and name.</li>
+        <li><b>General.</b> One recipe for any species and lab setup.</li>
+        <li><b>Usable.</b> Each video becomes a fixed-length vector for downstream analysis.</li>
+      </ol>
+    </div>
+    <div>
+      <h2>Principles</h2>
+      <p class="hint" style="margin-top:6px">How we build it.</p>
+      <dl class="priors">
+        <dt>Label-free</dt><dd>Labels never shape the representation. They only score it.</dd>
+        <dt>Simple</dt><dd>As few components as possible. Each one encodes a stated prior.</dd>
+        <dt>Explicit</dt><dd>Every prior is written down and tagged where it acts.</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<section id="priors">
+  <h2>Priors used by v2</h2>
+  <p class="hint">Each row is a practical statement about the animals, the arena or the camera that v2 relies on, where it enters the pipeline, and its most direct test. Please flag any that is false for your setup.</p>
+  <div class="legend"><span class="achip ok">supported</span>a direct test passed<span class="achip unsure">partly</span>holds in some domains, not others<span class="achip">untested</span>no direct test yet<span class="achip test">running</span>test in progress</div>
+  <div class="tw"><table class="btab">
+    <colgroup><col class="c1"><col class="c2"><col></colgroup>
+    <thead><tr><th>Prior</th><th>Where it enters</th><th>Status and most direct test</th></tr></thead>
+    <tbody>
+      <tr><td class="pr"><b>Sufficient camera resolution.</b> The camera already resolves the behaviour: enough for a human annotator to call it without zooming in or guessing. Aim for ≥ ~7 patches (16 px) per body length.</td><td class="st"><span class="stp">a</span>native size, never enlarged</td><td class="ev"><span class="achip ok">supported</span>A supervised probe on the tokens: mice nose-nose / nose-tail R̃ 0.35 / 0.33, ants grooming R̃ 0.83. Enlarging ants: grooming R̃ 0.497 → 0.384.</td></tr>
+      <tr><td class="pr"><b>Same layout in every video.</b> One setup keeps arena and camera fixed; facing direction carries no meaning, unless left and right differ by design.</td><td class="st"><span class="stp">a</span>canonical orientation</td><td class="ev"><span class="achip">untested</span>Not on our data. Rotation averaging, which builds it in: CalMS21 primary AUROC +0.031, MABe22 tie. Caveat for mice: the background is not the same in every video (the odour bag in one corner changes between phases); turning the video does not remove that.</td></tr>
+      <tr><td class="pr"><b>Animals can be told from the arena.</b> In the encoder's own features, animal patches look different from arena patches, so a small classifier per domain finds them.</td><td class="st"><span class="stp">b</span>animal mask v5: a patch classifier on the tokens</td><td class="ev"><span class="achip unsure">partly</span>On 10 hand-checked test frames per domain, patch F1 mice 0.921, ants 0.911, frogs 0.884 (old pixel-cue mask 0.778 / 0.867 / 0.773). Ants keep a little more background (2.6 vs 0.8 patches per frame). Pale mice are still missed in some frames (CRIM13 pale intruder: 18.8% of frames, old mask 61.5%).</td></tr>
+      <tr><td class="pr"><b>Behaviour shows on the bodies, thin parts too.</b> What animals do is visible on their own pixels: bodies, tails, legs and antennae, and contacts with each other or the arena.</td><td class="st"><span class="stp">b</span>tight mask that keeps thin parts, after the encoder</td><td class="ev"><span class="achip ok">supported</span>Tight mask beats a one-patch ring: mice primary R̃ +0.058. Share of hand-marked thin-part points kept: mice 0.574, ants 0.761, frogs 0.793 with mask v5 (old mask 0.489 / 0.479 / 0.621); mice now have tail neurons (gallery below).</td></tr>
+      <tr><td class="pr"><b>Contacts are rare but matter.</b> Two animals touching fill only a few percent of the animal patches (mice 2.3%, ants 4.8%), so plain reconstruction spends few neurons on them.</td><td class="st"><span class="stp">b</span>contact patches weighted up in training, found from the mask alone</td><td class="ev"><span class="achip unsure">partly</span>Same recipe without the weighting (3 training runs): best nose-nose neuron held-out average precision 0.021–0.034; with it: 0.039, 0.190, 0.230 (chance 0.016). Seed-dependent: a specific nose-nose neuron appears in 3 of 9 runs.</td></tr>
+      <tr><td class="pr"><b>Frozen foundation-model features suffice.</b> A frozen image model trained on everyday photos (DINOv3) already describes animal posture and contact; checked by probing.</td><td class="st"><span class="stp">b</span>frozen DINOv3-L</td><td class="ev"><span class="achip unsure">partly</span>Frozen tokens hold the behaviours (supervised probe AUROC mice 0.88 / 0.90, ants 0.98). Adapting the encoder by self-supervision was tested only for a supervised mice classifier (macro AP 0.429 → 0.462, +0.033); untested in this pipeline.</td></tr>
+      <tr><td class="pr"><b>Local temporal context is enough.</b> What happens within about half a second around a frame is enough to recognise most behaviours, so time can be added around a one-frame code.</td><td class="st"><span class="stp">b, d</span>code from one frame, trained to also predict 0.4 s ahead; 0.6 s smoothing and bouts (3-state model) after training</td><td class="ev"><span class="achip ok">supported</span>Same recipe without the prediction decoder (3 runs): best nose-tail neuron held-out average precision 0.048–0.055; with it: 0.155–0.220 (chance 0.0085). Tokens pooled over ±1 frame (T1) tie frame-only on MABe22, CalMS21, CRIM13. <span class="achip test">running</span>V-JEPA 2 re-test.</td></tr>
+      <tr><td class="pr"><b>Sparse code.</b> Each patch is described by about 16 of the 4096 neurons (body part, pose, contact, texture, place); a behaviour should be one or two of them. k = 16 is a capacity choice, judged only by the behaviour neurons it gives.</td><td class="st"><span class="stp">b</span>~16 active neurons per token</td><td class="ev"><span class="achip unsure">partly</span>Lab data, 3 training runs per value: k = 32 gives a specific nose-nose / nose-tail pair in 0 of 3 runs; k = 8 in 2 of 3 mice runs (k = 16: 1 of 3) but collapses on ants in 2 of 3 runs (over half of the neurons never fire). k = 16 kept; that choice was made after seeing these results.</td></tr>
+      <tr><td class="pr"><b>One dictionary per domain and setting.</b> A domain-expert prior: all videos of one lab setup show the same kinds of things, so treatments share one dictionary (one for all ant experiments, one for all mice experiments) and a neuron means the same in every experiment.</td><td class="st"><span class="stp">b</span>one dictionary per domain, experiments pooled</td><td class="ev"><span class="achip">untested</span>Not tested per experiment. Across settings, one shared MABe22 mice–beetle dictionary was within noise.</td></tr>
+      <tr><td class="pr"><b>Position-free.</b> A behaviour is the same wherever in the arena it happens.</td><td class="st"><span class="stp">c</span>max over tokens</td><td class="ev"><span class="achip unsure">partly</span>Roughly true in round, symmetric arenas (ants, frogs). Not in the mice box: spout, food hopper and odour bag have fixed places and their own neurons (gallery: mice #183 at the spout, #435 at the hopper). Mice v1: position-aware readouts still lose to the plain maximum.</td></tr>
+      <tr><td class="pr"><b>Ethogram.</b> A domain-expert prior: treatments change how much, how often and how soon a behaviour happens.</td><td class="st"><span class="stp">d</span>mean, bout rate, latency</td><td class="ev"><span class="achip unsure">partly</span>Chosen neuron's time per video vs annotated time (held-out): Pearson r 0.69 nose-nose, 0.66 nose-tail, 0.76 ants grooming-to-focal. In mice the seconds are not reliable unless a scale is fitted on labels (nose-tail overcounts by +21.4 s per video against 10.1 s annotated), so read a mouse value as a ranking: a video with more of the behaviour scores higher. Bout rate, latency untested.</td></tr>
+    </tbody>
+  </table></div>
+
+  <details class="sub">
+    <summary><span class="t">Tried and discarded</span><span class="o">Plausible priors or design elements that were measured and are not in v2.</span><span class="chev">›</span></summary>
+    <div class="inner"><ul class="tried">
+      <li><span class="stp">b</span><b>Local temporal pooling</b> (T1, tokens averaged over ±1 frame): ties frame-only + 0.6 s smoothing on all 3 benchmarks (R̃ −0.038 to +0.008, every CI spans 0). Not adopted.</li>
+      <li><span class="stp">b</span><b>Temporal channels</b>: context channel ±0.4 / ±1 s, mice primary R̃ −0.045; code-sequence dictionary −0.049.</li>
+      <li><span class="stp">b</span><b>V-JEPA 2, as tested so far</b>: V-JEPA 2-g, mice primary R̃ −0.039; V-JEPA 2-L on MABe22, primary AUROC −0.068 vs DINOv3-L. Re-test running.</li>
+      <li><span class="stp">b</span><b>Tails through context</b>: none. Body tokens predict a nearby tail equally with tails occluded (probe AUROC 0.725 vs 0.730).</li>
+      <li><span class="stp">b</span><b>Spatial context</b> (3 × 3 tokens, 8192 neurons): did not hold up on fresh runs.</li>
+      <li><span class="stp">b</span><b>Rotation averaging</b>: CalMS21 primary AUROC +0.031, MABe22 equivalent (+0.015). Not used: 8× encoding cost.</li>
+      <li><span class="stp">b</span><b>Wider masks M1 / M2</b>: mice primary R̃ +0.006 / +0.014, ants −0.013 / −0.014; both fail the pre-registered rule.</li>
+      <li><span class="stp">d</span><b>On/off and mixture readouts</b>: on/off drops mice nose-nose R̃ 0.20 → 0.08. Replaced by the 3-state HMM (frame F1 0.462 vs mixture 0.380).</li>
+      <li><span class="stp">b</span><b>Long tail</b> (nested dictionary): nesting never helped; nested from 64 costs MABe22 primary AUROC 0.039. Nesting from 128 stays, weakly.</li>
+      <li><span class="stp">b</span><b>Invariance and predictability losses</b> (first version, v1 era): no gain on mice; ants grooming AUROC −0.02 to −0.05. A later form of prediction, a second decoder that predicts the tokens 0.4 s ahead, is now used (step b, Temporal context).</li>
+      <li><span class="stp">b</span><b>Registers</b>: mice nose-nose AP 0.86×.</li>
+      <li><span class="stp">b</span><b>DINOv3 last layer</b>: behaviour readout AUROC mice 0.783 vs 0.810, ants 0.943 vs 0.955 (DINOv2). Block 20 is used instead.</li>
+    </ul></div>
+  </details>
+
+  <details class="sub">
+    <summary><span class="t">Pending tests</span><span class="o">Four tests not finished, each tied to a pipeline step.</span><span class="chev">›</span></summary>
+    <div class="inner"><ul class="tried">
+      <li><span class="stp">b</span><b>V-JEPA 2-L on the benchmarks</b>: same mask and dictionary on 16-frame clips. Running; not scored yet.</li>
+      <li><span class="stp">a</span><b>Foveation</b>: high-resolution crops where animals touch show the contact better than one whole frame. Ants sit below the 7-patch target.</li>
+      <li><span class="stp">b</span><b>Optical flow</b>: an explicit motion signal helps. Never tried.</li>
+      <li><span class="stp">d</span><b>Bout boundaries</b>: where a bout starts and ends can be found without labels.</li>
+    </ul></div>
+  </details>
+</section>
+
+<section>
+  <h2>Data</h2>
+  <p>Only frame-by-frame expert labels are used, and only on labelled videos. Hours are the recordings actually used, with the annotated part in brackets. Behaviours are grouped as <b>solo</b> (one animal), <b>pair</b> (two animals) and <b>collective</b>.</p>
+  <div class="vt">
+    <div class="blk val"><div class="bt"><b>Validation</b><span>public data, all used to choose the recipe</span></div>
+      <div class="vgrid">
+        <div class="bench"><div class="bh"><a href="https://arxiv.org/abs/2207.10553">MABe22</a> · mice</div>
+        <div class="dom"><img src="clips/mabe_mouse.webp" alt="MABe22: three black mice on a bright floor, 224 px." loading="lazy"><div class="in"><span class="nm">Mice (3)</span><span class="rl">Social behaviour</span><span class="sp">224 px · 30 fps · 1,828 one-minute clips · 30.5 h (all annotated)</span><span class="lb">9 behaviours<br><b>Pair:</b> approach, chase, watching, close, contact, oral–oral, oral–genital, oral–ear contact<br><b>Collective:</b> huddle</span></div></div></div>
+        <div class="bench"><div class="bh"><a href="https://arxiv.org/abs/2207.10553">MABe22</a> · beetle</div>
+        <div class="dom"><img src="clips/mabe_beetle.webp" alt="MABe22: a pale beetle and an ant in a dark well, 224 px." loading="lazy"><div class="in"><span class="nm">Beetle and ant (2)</span><span class="rl">Symbiosis between species</span><span class="sp">224 px · 30 fps · 1,123 thirty-second clips · 9.4 h (all annotated)</span><span class="lb">6 behaviours, mostly whole-clip<br><b>Solo:</b> grooming, exploring, idle<br><b>Pair:</b> grooming, exploring, idle with the partner</span></div></div></div>
+        <div class="bench"><div class="bh"><a href="https://data.caltech.edu/records/s0vdx-0k302">CalMS21</a></div>
+        <div class="dom"><img src="clips/calms21.webp" alt="CalMS21: a black resident and a white intruder mouse on bedding, 1024 by 570 px." loading="lazy"><div class="in"><span class="nm">Mice (2)</span><span class="rl">Aggression and mating</span><span class="sp">1024 × 570 px · 30 fps · 89 videos · 7.1 h (all annotated)</span><span class="lb">10 behaviours<br><b>Pair:</b> attack, investigation, mount (all videos); face sniffing (50 clips), approach (28), mount attempt (10), intromission (8), disengaged (3)<br><b>Solo:</b> grooming (4), rearing (2)</span></div></div></div>
+        <div class="bench"><div class="bh"><a href="https://data.caltech.edu/records/4emt5-b0t10">CRIM13</a></div>
+        <div class="dom"><img src="clips/crim13.webp" alt="CRIM13: a dark resident mouse and a white intruder on light bedding, grey top view, 640 by 480 px." loading="lazy"><div class="in"><span class="nm">Mice (2)</span><span class="rl">Resident–intruder</span><span class="sp">640 × 480 px · 25 fps · 236 videos · 40.3 h (all annotated)</span><span class="lb">11 behaviours<br><b>Pair:</b> sniff, approach, attack, chase, circle, walk away, copulation<br><b>Solo:</b> clean, rearing, eat, drink</span></div></div></div>
+      </div>
+    </div>
+    <div class="blk test"><div class="bt"><b>Test</b><span>our data, 3 domains · 7 experiments. For v2, labels on mice v1 (annotator SG's pools) and ants v3 / v4 chose between recipes, training runs and neurons, never inside training. The neuron-pick rule was set after looking at results and then confirmed on fresh training runs</span></div>
+      <div class="vgrid three">
+        <div class="bench"><div class="bh">Ants · <i>Lasius neglectus</i></div>
+        <div class="dom"><img src="clips/lab_ants.webp" alt="Lab ants: three Lasius neglectus ants with colour marks in a round arena." loading="lazy"><div class="in"><span class="nm">Ants (3)</span><span class="rl">Social immunity</span><span class="sp">770–824 px · 30 fps</span><ul class="exps"><li><b>v2</b> · t=1,2 · 44 videos × 10 min · 7.3 h (all annotated)<br><b>Pair:</b> grooming 2x</li><li><b>v3</b> · t=2,6,8 · 107 videos × 30 min · 53.5 h (17.8 h annotated)<br><b>Pair:</b> grooming 2x<br><b>Solo:</b> on the lid 3x</li><li><b>v4</b> · t=2,6 · healthy and parasite-infested colony · 81 videos × 30 min · 40.5 h (10.2 h annotated)<br><b>Pair:</b> grooming 2x<br><b>Solo:</b> on the lid 3x</li></ul></div></div></div>
+        <div class="bench"><div class="bh">Mice · <i>Mus musculus</i></div>
+        <div class="dom"><img src="clips/lab_mice.webp" alt="Lab mice: four mice in a square box with bedding." loading="lazy"><div class="in"><span class="nm">Mice (4)</span><span class="rl">Autism genetics</span><span class="sp">2060–2064 px · 30 fps</span><ul class="exps"><li><b>v1</b> · 72 pools, wild type or heterozygous for one of 3 autism genes · 432 videos · 144 h (48 h annotated)<br><b>Pair:</b> nose-nose, nose-tail<br><i>Caveat: annotators differ. Nose-tail is 56% of one annotator’s labels (MB) but 15% of another’s (MF); a classifier tells the four annotators apart from their label statistics at balanced accuracy 0.37 (chance 0.25).</i></li><li style="opacity:.45"><b>v2</b> · 36 mixed-genotype pools · 216 videos · 72 h<br><i>no labels · not explored yet</i></li></ul></div></div></div>
+        <div class="bench"><div class="bh">Frogs · <i>Xenopus</i></div>
+        <div class="dom"><img src="clips/lab_frogs.webp" alt="Lab frogs: one Xenopus froglet in a round dish." loading="lazy"><div class="in"><span class="nm">Frogs (1)</span><span class="rl">Development of movement</span><span class="sp">740–800 px · 60 fps</span><ul class="exps"><li><b>Tadpoles</b> (stage 44–48, tail swimming) · wild type vs FoxP1 or En1 mutant on both sides of the body · 116 videos · 116 h<br><i>no labels</i></li><li><b>Juveniles</b> (froglets, limb movement) · wild type vs FoxP1 or En1 mutant on one side of the body · 35 videos · 35 h<br><i>no labels</i></li></ul></div></div></div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<section id="alignment">
+  <h2>Evaluation protocol</h2>
+  <p class="hint">Two scores, both computed after training. Labels and treatment never shape the representation; labels only score it.</p>
+
+  <h3>a · Labelled alignment</h3>
+  <ul class="obj" style="list-style:disc">
+    <li><b>Which neuron.</b> One neuron per behaviour, picked on the selection pools only (mice: the 11 pools annotated by SG; ants: one half of the v3 + v4 videos). Mice rule: highest <b>average precision</b> (AP), among neurons that fire on less than 10% of frames and that separate the behaviour from the other one (nose-nose vs nose-tail frames, AUROC ≤ 0.4 or ≥ 0.6). The nose-nose and nose-tail picks must be different neurons. Ants: highest AUROC for grooming-to-focal.</li>
+    <li><b>Where it is scored.</b> On held-out pools never used to pick: mice, the 12 pools of the other annotators (72 videos, 431,712 frames at 5 fps); ants, the other half (73 videos, 43,800 frames at 1 fps).</li>
+    <li><b>Reported.</b> AUROC; AP with chance next to it (chance = the share of frames with the behaviour); precision of each video's 3 strongest frames (precision@top3/video); the 12 strongest frames judged by eye.</li>
+    <li><b>Robustness (mice).</b> The official split puts one annotator on the selection side, and annotators label at different rates, so it can flatter. The main spread is therefore 50 random pool splits, stratified by annotator, with the neuron re-picked on each; plus leaving one annotator out at a time.</li>
+    <li><b>Why not AUROC alone.</b> AUROC rewards broad neurons: a “two mice touching” neuron ranks MABe22 sniffing at AUROC 0.84 with AP 0.017; on our mice the AUROC-based picks were broad “any contact” neurons. AUROC was the October primary metric (metric audit: split-half reliability AUROC 0.56 vs R̃ 0.23).</li>
+    <li>Video-level r and bout F1 were poor neuron selectors in the audit and are not used to rank.</li>
+  </ul>
+  <details class="sub">
+    <summary><span class="t">Legacy score R̃</span><span class="o">Used in older tables on this page; kept as a descriptor only.</span><span class="chev">›</span></summary>
+    <div class="inner">
+      <div class="formula" style="white-space:normal;font-size:1.05rem"><math display="block"><msub><mover><mi>R</mi><mo>~</mo></mover><mi>b</mi></msub><mo>=</mo><mfrac><mrow><msub><mi>P</mi><mi>b</mi></msub><mo>−</mo><msub><mi>π</mi><mi>b</mi></msub></mrow><mrow><mn>1</mn><mo>−</mo><msub><mi>π</mi><mi>b</mi></msub></mrow></mfrac></math></div>
+      <ul class="obj" style="list-style:disc">
+        <li><b>P<sub>b</sub></b> (R-precision): rank frames by the best neuron, take as many top frames as there are frames of behaviour <i>b</i>; P<sub>b</sub> is the share that show <i>b</i>. <b>π<sub>b</sub></b>: the share of frames with <i>b</i>. 0 = chance, 1 = perfect.</li>
+        <li><b>Mice primary R̃</b> = mean of nose-nose and nose-tail R̃ on mice v1. Older recipe decisions required the domain-averaged R̃ to rise by ≥ 0.01 over 6 training runs (95% interval above 0).</li>
+      </ul>
+    </div>
+  </details>
+
+  <h3>b · Label-free capacity <span class="oct">October model, being re-run</span></h3>
+  <p><b>Capacity</b> = the number of distinct behaviour neurons: neurons that pass all eight checks, with near-duplicates merged (correlation ≥ 0.5 or firing overlap ≥ 0.5). The checks never see labels or treatment.</p>
+  <dl class="priors ev">
+    <dt>Not background</dt><dd>At most half of its firing frames peak on a token with &lt; 5% animal pixels.</dd>
+    <dt>Not static</dt><dd>At most half of its variance lies between videos (lighting, bedding, session).</dd>
+    <dt>Bout-like</dt><dd>Its memory (autocorrelation time) lies between 0.2 s and 120 s.</dd>
+    <dt>Not tied to conditions</dt><dd>Recording day, batch, position or camera period explain at most half of its per-video mean (cross-validated R², 72–192 videos).</dd>
+    <dt>Reproducible</dt><dd>A dictionary retrained with another seed has a neuron correlated ≥ 0.5 with it.</dd>
+    <dt>Invariant</dt><dd>Correlation ≥ 0.5 with itself after rotating, mirroring or brightening the frame by ±10%.</dd>
+    <dt>Position-free</dt><dd>Where it fires matches where animals go (distance ≤ 0.5 on an 8 × 8 grid). Catches place neurons: mice n1802 at the spout (0.80), ants n8 at a wall marker (0.72).</dd>
+    <dt>Not a body part</dt><dd>On in at most half of the frames with animals. Weak: 95–100% of neurons pass.</dd>
+  </dl>
+  <div class="tw"><table class="rtab">
+    <thead><tr><th>Capacity, mean over seeds (all neurons / first 256)</th><th class="num">v1 · 1024 neurons</th><th class="num">v2 · 2048 neurons</th></tr></thead>
+    <tbody>
+      <tr><td>Mice</td><td class="num">124 / 13</td><td class="num v2">131 / 19</td></tr>
+      <tr><td>Ants</td><td class="num">24 / 8</td><td class="num v2">79 / 24</td></tr>
+      <tr><td>Frogs</td><td class="num">–</td><td class="num v2">122 / 35</td></tr>
+    </tbody>
+  </table></div>
+  <div class="box open"><span class="lab">Not yet validated</span><ul>
+    <li>In mice the checks do not pick out labelled neurons (enrichment AUROC 0.517 [0.495, 0.539]); in ants they do (0.654 [0.638, 0.669]).</li>
+    <li>Capacity mostly scales with dictionary width: the first 256 neurons hold only 19 of 131 (mice) and 24 of 79 (ants) behaviour neurons.</li>
+    <li>Use: a prefilter for the neuron search. Mice v2 at 256 neurons: 57 candidates, so the Bonferroni threshold relaxes 4.5× (1.95e-4 → 8.77e-4).</li>
+  </ul></div>
+
+  <h3>c · Readout</h3>
+  <p>A per-neuron 3-state hidden Markov model, fit without labels, gives P(on) per frame; the v2 AUROC and AP are computed on it. Numbers in the rest of this paragraph are from the October model. It keeps the ranking (nAP +0.002 vs continuous values). In ants it is calibrated to the behaviour (frame F1 0.59–0.88, Brier skill &gt; 0); in mice it reflects the neuron's own state, on ≈10× the behaviour's time (on 4–21% of frames vs 1–2% labelled).</p>
+</section>
+
+<section id="versions">
+  <h2>v1 vs v2</h2>
+  <p><b>v1</b> = the previously deployed model (DINOv2-B, 448 px, 1024 neurons). <b>v2</b> = the candidate described on this page: one mice dictionary (training run PREDk16 s2901) and one ants dictionary (training run PREDk s2703). One neuron per behaviour, picked and scored as in the Evaluation protocol (a); both models are scored on the same held-out frames.</p>
+  <div class="tw"><table class="rtab">
+    <thead><tr><th>Behaviour · model · neuron</th><th class="num">AUROC</th><th class="num">Average precision (chance)</th><th class="num">Precision@top3/video</th><th>Strongest frames</th><th class="num">50 random pool splits: AUROC / AP / precision@top3/video</th></tr></thead>
+    <tbody>
+      <tr><td>Mice nose-nose · v1 · #611</td><td class="num">0.691</td><td class="num">0.040 (0.016)</td><td class="num">0.074</td><td>0 of 6 labelled</td><td class="num">0.681 ± 0.006 / 0.050 ± 0.004 / 0.101 ± 0.019</td></tr>
+      <tr><td>Mice nose-nose · v2 · #3461</td><td class="num v2">0.847</td><td class="num v2">0.271 (0.016)</td><td class="num v2">0.588</td><td>11 of 12 by eye (10 labelled)</td><td class="num v2">0.789 ± 0.046 / 0.237 ± 0.078 / 0.573 ± 0.164</td></tr>
+      <tr><td>Mice nose-tail · v1 · #414</td><td class="num">0.777</td><td class="num">0.047 (0.0085)</td><td class="num">0.127</td><td>1 of 6 labelled</td><td class="num">0.761 ± 0.014 / 0.057 ± 0.011 / 0.159 ± 0.035</td></tr>
+      <tr><td>Mice nose-tail · v2 · #1780</td><td class="num v2">0.845</td><td class="num v2">0.237 (0.0085)</td><td class="num v2">0.381</td><td>11 of 12 by eye (8 labelled)</td><td class="num v2">0.812 ± 0.024 / 0.148 ± 0.054 / 0.351 ± 0.058</td></tr>
+      <tr><td>Ants grooming-to-focal (any) · v1 · #90</td><td class="num">0.875</td><td class="num">0.790 (0.385)</td><td class="num">0.788</td><td>6 of 6 labelled</td><td class="num">–</td></tr>
+      <tr><td>Ants grooming-to-focal (any) · v2 · #33</td><td class="num v2">0.867</td><td class="num v2">0.803 (0.385)</td><td class="num v2">0.848</td><td>12 of 12 show contact with the focal (12 labelled)</td><td class="num">–</td></tr>
+    </tbody>
+  </table></div>
+  <p class="hint">Held-out frames: mice 72 videos, 431,712 frames (5 fps); ants 73 videos, 43,800 frames (1 fps). Chance for precision@top3/video: nose-nose 0.016, nose-tail 0.010, ants 0.43. “Strongest frames”: v2, the 12 strongest held-out frames (at most 2 per video) judged by eye by one observer, with the number that carry the label; v1, the 6 strongest frames on the card below, labels only. Ants: grooming itself (mouthparts) cannot be seen at this resolution, so by eye counts contact with the focal ant. Ants AUROC for v2 is 0.864 when ties are broken by raw activity, as on the card. Random splits: 11 selection / 12 evaluation pools, stratified by annotator, neuron re-picked each time (v2 re-picks the same pair in 86% of splits; v1 always re-picks #611 / #414); mean ± SD over splits; chance AP 0.021 (nose-nose) / 0.010 (nose-tail) on these frames. The split check exists for mice only.</p>
+
+  <details class="sub">
+    <summary><span class="t">Leave one annotator out</span><span class="o">Mice: pick on the other annotators' pools, score on this annotator's pools.</span><span class="chev">›</span></summary>
+    <div class="inner">
+      <div class="tw"><table class="rtab">
+        <thead><tr><th>Annotator left out (scored)</th><th class="num">Nose-nose AP, v2 #3461 / v1 #611 (chance)</th><th class="num">Nose-nose precision@top3/video, v2 / v1</th><th class="num">Nose-tail AP, v2 #1780 / v1 #414 (chance)</th><th class="num">Nose-tail precision@top3/video, v2 / v1</th></tr></thead>
+        <tbody>
+          <tr><td>SG (11 pools)</td><td class="num">0.279 / 0.060 (0.026)</td><td class="num">0.712 / 0.126</td><td class="num">0.123 / 0.070 (0.013)</td><td class="num">0.339 / 0.194</td></tr>
+          <tr><td>SD (5 pools)</td><td class="num">0.296 / 0.041 (0.015)</td><td class="num">0.589 / 0.067</td><td class="num">0.074 / 0.018 (0.0053)</td><td class="num">0.218 / 0.051</td></tr>
+          <tr><td>MF (3 pools)</td><td class="num">0.245 / 0.040 (0.016)</td><td class="num">0.574 / 0.111</td><td class="num">0.080 / 0.012 (0.0029)</td><td class="num">0.231 / 0.051</td></tr>
+          <tr><td>MB (4 pools)</td><td class="num">0.274 / 0.040 (0.016)</td><td class="num">0.597 / 0.056</td><td class="num">0.370 / 0.108 (0.017)</td><td class="num">0.639 / 0.250</td></tr>
+        </tbody>
+      </table></div>
+      <p class="hint">v2 re-picks the same two neurons in all four cases. Nose-nose holds for every annotator; nose-tail agreement is much higher on MB's pools than on SD's or MF's.</p>
+    </div>
+  </details>
+
+  <h3>Alignment cards</h3>
+  <p class="hint">How to read a card: the top half is v1, the bottom half v2, on the same held-out videos. Left, the neuron's on-probability over time with the annotated bouts in red; then precision-recall over all frames, the precision of each video's top frames, predicted vs annotated time per video, and the 6 strongest frames (green border = labelled, red = not; heat = where in the frame the neuron fires).</p>
+  <div class="pair2">
+    <figure><div class="plate"><img src="figs/card_mice_nose_nose.webp" alt="Alignment card, mice nose-nose: v1 neuron 611 above, v2 neuron 3461 below." width="1760" height="1504" loading="lazy"></div><figcaption>Mice nose-nose: v1 #611 vs v2 #3461. <a href="figs/card_mice_nose_nose.webp">Open full size</a></figcaption></figure>
+    <figure><div class="plate"><img src="figs/card_mice_nose_tail.webp" alt="Alignment card, mice nose-tail: v1 neuron 414 above, v2 neuron 1780 below." width="1760" height="1504" loading="lazy"></div><figcaption>Mice nose-tail: v1 #414 vs v2 #1780. <a href="figs/card_mice_nose_tail.webp">Open full size</a></figcaption></figure>
+    <figure><div class="plate"><img src="figs/card_ants_grooming.webp" alt="Alignment card, ants grooming-to-focal: v1 neuron 90 above, v2 neuron 33 below." width="1760" height="1504" loading="lazy"></div><figcaption>Ants grooming-to-focal (any): v1 #90 vs v2 #33. <a href="figs/card_ants_grooming.webp">Open full size</a></figcaption></figure>
+  </div>
+
+  <h3>Top frames of the two mice behaviour neurons</h3>
+  <div class="pair2">
+    <figure><div class="plate"><img src="figs/sheet_mice_n3461.webp" alt="The 12 strongest held-out frames of mice v2 neuron 3461: two mice snout to snout, heat where the snouts meet." width="1000" height="1000" loading="lazy"></div><figcaption>Nose-nose #3461: 11 of 12 frames show two snouts touching or within a snout length (10 labelled). Frame 12 is snout to the other's shoulder. <a href="figs/sheet_mice_n3461.webp">Open full size</a></figcaption></figure>
+    <figure><div class="plate"><img src="figs/sheet_mice_n1780.webp" alt="The 12 strongest held-out frames of mice v2 neuron 1780: one mouse's snout at another's rear, mice in a line." width="1000" height="1000" loading="lazy"></div><figcaption>Nose-tail #1780: 11 of 12 frames show a snout at the other mouse's tail base or rear (8 labelled). Frame 11 is unclear (partly hidden). <a href="figs/sheet_mice_n1780.webp">Open full size</a></figcaption></figure>
+  </div>
+
+  <h3>Other interpretable neurons</h3>
+  <p>Without labels, many other neurons have a clear meaning by eye. Among 40 neurons sampled per dictionary (by how sharply they fire, spread over the nested levels), one observer named:</p>
+  <ul class="obj" style="list-style:disc">
+    <li><b>Mice (v2):</b> mouse at the spout (#183, #171, #314, #4007); head at the food hopper (#435); huddles of resting mice (#218, #1630); tails (#317, #1521, #1771, #1217, #3976), including tails of mice queuing at the hopper (#1985, #1496); nest material (#257, #454); rearing or climbing the wall (#901) and sniffing the wall (#3933); a curled, hunched mouse (#3008; possibly self-grooming, paws not visible); a mouse in the odour-bag corner (#540, position only); one artefact, a wall reflection (#396). No tail-contact neuron and no second nose-nose neuron.</li>
+    <li><b>Ants (v2):</b> antenna movement (#1331, #3388, #3843); antenna touching the dish wall (#660, #1957); climbing the wall (#149, #215); fast walking (#1399); a nestmate's paint dot (#1720). No neuron separates grooming from plain contact.</li>
+  </ul>
+  <div class="gal">
+    <figure><div class="plate"><img src="figs/gal_mice_n183.webp" alt="Mice neuron 183: a mouse with its snout at the spout on the left wall." loading="lazy"></div><figcaption>Mice #183: at the spout</figcaption></figure>
+    <figure><div class="plate"><img src="figs/gal_mice_n218.webp" alt="Mice neuron 218: two to four mice packed together." loading="lazy"></div><figcaption>Mice #218: huddle</figcaption></figure>
+    <figure><div class="plate"><img src="figs/gal_mice_n901.webp" alt="Mice neuron 901: a mouse up on the wall." loading="lazy"></div><figcaption>Mice #901: rearing or climbing the wall</figcaption></figure>
+    <figure><div class="plate"><img src="figs/gal_mice_n1771.webp" alt="Mice neuron 1771: the first part of a curved tail." loading="lazy"></div><figcaption>Mice #1771: tail</figcaption></figure>
+    <figure><div class="plate"><img src="figs/gal_ants_n1331.webp" alt="Ants neuron 1331: the floor just ahead of a walking ant's head, where the antennae sweep." loading="lazy"></div><figcaption>Ants #1331: antenna movement</figcaption></figure>
+    <figure><div class="plate"><img src="figs/gal_ants_n660.webp" alt="Ants neuron 660: an antenna tip touching the dish wall." loading="lazy"></div><figcaption>Ants #660: antenna on the wall</figcaption></figure>
+  </div>
+
+  <details class="sub">
+    <summary><span class="t">Earlier metric: v0 / v1 / v2 in R̃</span><span class="o"><span class="oct">October model</span> The single-score table of 2026-10-25.</span><span class="chev">›</span></summary>
+    <div class="inner">
+  <p><b>v0</b> = the original ECI paper recipe, rerun on our data. <b>v1</b> = the previously deployed model (DINOv2-B, 448 px, 1024 neurons). <b>v2</b> = the October model. Each cell: R̃ of the best single neuron, picked on half of the videos (ants) or pools (mice) and scored on the other half, on the same frames for all three models, as in the atlas.</p>
+  <div class="tw"><table class="rtab">
+    <thead><tr><th>Behaviour (labelled)</th><th class="num">v0 R̃</th><th class="num">v1 R̃</th><th class="num">v2 R̃</th></tr></thead>
+    <tbody>
+      <tr><td>Ants v2 · grooming (either nestmate)</td><td class="num">0.12</td><td class="num">0.64</td><td class="num v2">0.68</td></tr>
+      <tr><td>Ants v3 · on the lid (either)</td><td class="num">0.25</td><td class="num">0.75</td><td class="num v2">0.79</td></tr>
+      <tr><td>Ants v4 · blue ant on the lid</td><td class="num">0.005</td><td class="num">0.81</td><td class="num v2">0.95</td></tr>
+      <tr><td>Mice v1 · nose-nose or nose-to-body</td><td class="num">0.01</td><td class="num">0.07</td><td class="num v2">0.20</td></tr>
+      <tr><td>Mice v1 · nose-tail</td><td class="num">0.02</td><td class="num">0.11</td><td class="num v2">0.08</td></tr>
+    </tbody>
+  </table></div>
+  <p class="hint">v0's best neurons were usually picked on one half only. Under the strict rule (each half's own best neuron, scored on the other half) v0 drops to R̃ 0.03 / 0.07 / −0.01 / 0.00 / 0.00, i.e. chance. v1’s deployed dictionary was a lucky draw on nose-tail: 10 retrained v1 dictionaries average nose-tail R̃ 0.052 (deployed 0.104, rank 3 of 11).</p>
+    </div>
+  </details>
+  <div class="box note"><span class="lab">Search <span class="oct">October model</span></span><ul>
+    <li><b>Discoveries come with confounds.</b> Neural effect search on v2 finds many neurons only where the compared groups also differ in recording conditions: ants v4 infested vs healthy colony (also a different colony, recorded on different days; up to 13 neurons on bout rate), ants v3 t=2 vs t=8 (t=8 recorded only on one day, in a brighter arena; up to 17), and tadpoles En1 vs wild type (each recording session holds one group only; up to 18). Contrasts without such a confound (ants v2 t=1 vs 2, v3 t=2 vs 6) give 0 to 1 neuron.</li>
+    <li><b>The one annotated effect is missed.</b> In the labels, heterozygous mice spend more time nose-to-nose from phase 4 to 5 (+0.53% of time, paired over 18 annotated pools, p 0.003). No model (v0, v1 or v2) recovers it.</li>
+    <li><b>Stability.</b> Each selected neuron is re-tested under alternative windows, levels and bout rules; on mice, 28 of the 99 selected neurons survive every check (step d).</li>
+  </ul></div>
+</section>
+
+<section>
+  <h2>Pipeline, step by step</h2>
+  <p class="hint">Technical details, mainly for the machine-learning reader. This is the v2 candidate (2026-11-26, awaiting sign-off): the October model's steps a, c and d, with a new animal mask and a new dictionary in step b (training code <span class="mono">scripts/eci/v2/v27_train.py</span>, <span class="mono">v29_train.py</span>; the October specification is <span class="mono">configs/eci_v2/representation.json</span>). Each row shows the choice with the priors it rests on (short names of the rows in “Priors used by v2”, coloured by status: supported, partly, untested, running); click for the tests behind it. Rows marked <span class="chip pending">superseded</span> belong to v1.</p>
+  <div>
+
+<details class="step" id="video">
+  <summary><span class="pl">a</span><span class="t">Video</span><span class="o">Camera resolution, never enlarged, in a canonical orientation, 5 fps.<span class="achip">Same layout</span><span class="achip ok">Sufficient resolution</span></span><span class="chev">›</span></summary>
+  <div class="body">
+    <div class="side"><div class="plate"><img src="crop_a_v2.webp" alt="Block a: stacked video frames per domain." loading="lazy"></div></div>
+    <div class="main">
+      <p><b>Resolution.</b> Each video enters at the camera's own resolution, never upsampled, and is cut into 16 px patches. The target is at least about 7 patches per body length where the camera allows. Mice: 1024 px, down from the camera's 2064 px (9.4 patches per body; 2048 px gave no clear gain). Ants and frogs: native size (ants reach only 4–5 patches per body). Tadpoles are only 2.4 patches long at camera resolution, so a 96 px crop that follows the animal is enlarged to 384 px: the one exception to “never enlarge”. Cost grows with resolution squared.</p>
+      <p><b>Canonical orientation.</b> Every video is turned so that the experimental layout looks the same: mice with the odour corner at top right, juvenile frogs mirrored so the mutant side is always on the same side.</p>
+      <div class="tw"><table>
+        <thead><tr><th>Tested on our data</th><th>Result</th><th>Then</th></tr></thead>
+        <tbody>
+          <tr><td class="arm">Ants: native vs upsampled</td><td class="res">Grooming R̃ 0.497 at native size (4–5 patches per body) vs 0.433 at 7 and 0.384 at 10 patches (12 runs each, with the old 2 s change channel). Without that channel, 10 patches tied native.<span class="src">eci_resolution/report.md</span></td><td><span class="chip kept">native kept</span></td></tr>
+          <tr><td class="arm">Mice: 512 to 2048 px</td><td class="res">512, 768, 1024 and 1408 px equivalent (primary R̃ within ±0.006 of 1024 px, 24 runs). 2048 px suggestive only: +0.013 primary R̃ on fresh runs, 95% interval −0.011 to +0.037.<span class="src">eci_resolution/report.md</span></td><td><span class="chip kept">1024 kept</span></td></tr>
+          <tr><td class="arm">Mice: DINOv3 vs DINOv2 at matched patches</td><td class="res">At 9.4 patches per body: primary R̃ +0.006 (no difference). At 7 patches: +0.019 (95% interval +0.008 to +0.030), DINOv3 better.<span class="src">eci_resolution/decision.json</span></td><td>rule in patches</td></tr>
+          <tr><td class="arm">CalMS21: 32 / 48 / 64 / 80 grid</td><td class="res">48 grid (7.5 patches per body) = 64 = 80 on primary AUROC (0.883 / 0.881 / 0.901; 80 is upsampled); 32 grid (5 patches) loses (0.851).<span class="src">eci_resolution/calms21/res.md</span></td><td>≥ 7 patches</td></tr>
+          <tr><td class="arm">896 px vs 448 (v1)</td><td class="res">Mice nose-tail AUROC 0.753 → 0.793. Ants grooming AUROC −0.020, at the limit.<span class="src">eci_res_pool/summary.json</span></td><td><span class="chip pending">superseded</span></td></tr>
+          <tr><td class="arm">MABe22: native 224 vs upscaled 448</td><td class="res">Primary AUROC 0.064 lower at 224 px. A mouse is about 21 px long at 224 (nose to tail base, keypoints), so 1.5 patches; 3.0 at 448. Tests patches per body, not image detail.<span class="src">benchmark_mabe22/eci/table.md</span></td><td><span class="chip pending">superseded</span></td></tr>
+        </tbody>
+      </table></div>
+      <div class="box open"><span class="lab">Open</span><ul><li>Ants sit below the 7-patch target at native size, and upsampling does not help. Crops at high resolution where animals touch (foveation) are in the backlog.</li><li>5 fps was tested only on video summaries (MABe22). Is it enough frame by frame, and for fast movements such as tadpole tail beats?</li></ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="step" id="frame">
+  <summary><span class="pl">b</span><span class="t">Frame representation</span><span class="o">Frozen DINOv3-L tokens on the animals only (mask v5), into one sparse dictionary of 4096 neurons per domain, trained to also predict the tokens 0.4 s ahead, with extra weight on contact patches.</span><span class="chev">›</span></summary>
+  <div class="body">
+    <div class="side"><div class="plate"><img src="crop_b_v2.webp" alt="Block b: token grid, animal mask, DINOv2 token strips and sparse code." loading="lazy"></div></div>
+    <div class="main">
+
+      <details class="sub">
+        <summary><span class="t">Encoder</span><span class="o">Frozen DINOv3-L/16 at block 20 of 24 (pinned model revision), on the whole frame at camera resolution.<span class="achip unsure">Frozen features</span></span><span class="chev">›</span></summary>
+        <div class="inner">
+          <p>Whole frame in at the resolution of step a, cut into 16 px patches (mice at 1024 px: a 64 × 64 token grid), read at block 20 of 24: 1024 dimensions per token. The model version is pinned (revision ea8dc28), so the tokens can be reproduced exactly. v2 does not use rotation averaging (the frame and its 8 rotations and flips, tokens averaged per patch): on DINOv3-L it was equivalent on MABe22 and a win on CalMS21 (primary AUROC +0.031), at 8× the encoding cost. The orientation prior is handled by the canonical frame instead (step a). Throughput on one L40S: DINOv3-L 103 frames/s at 512 px, 3.8 at 2064 px.</p>
+          <div class="tw"><table>
+            <thead><tr><th>Tested on our data</th><th>Result</th><th>Then</th></tr></thead>
+            <tbody>
+              <tr><td class="arm">DINOv3 (B, S), lab, last layer</td><td class="res">Mice 0.783 vs 0.810; ants 0.943 vs 0.955.<span class="src">commits 32eff4b, 2b6b1c2</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">With registers</td><td class="res">Nose-nose AP 0.86×.<span class="src">eci_quick_repr/table.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">V-JEPA 2 (video model)</td><td class="res">Nose-nose AUROC 0.587 vs 0.679.<span class="src">eci_vjepa/table.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">DINOv2-large, lab, last layer</td><td class="res">Mice nose-nose AP 1.19×; supervised ceiling unchanged (AP 0.243 vs 0.244).<span class="src">eci_big_encoder/table.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">Rotation-averaged tokens, lab mice</td><td class="res">Best neuron AP 1.11×; supervised ceiling AP 0.243 → 0.297.<span class="src">eci_invariant/table.md</span></td><td><span class="chip pending">superseded</span></td></tr>
+              <tr><td class="arm">MABe22: encoder and layer</td><td class="res">Fresh seeds, no rotation averaging. DINOv3-L block 20 vs DINOv2-B: primary AUROC +0.035 [+0.011, +0.058]. DINOv3-L vs DINOv2-L, both block 20: +0.005, equivalent: the gain is model size. The earlier DINOv3 tests read only the last layer, which is not its best. A label-free rule, the block at 5/6 of the depth, picks the best block for every encoder except DINOv2-B.<span class="src">benchmark_mabe22/eci/encoders/</span></td><td><span class="chip kept">DINOv3-L kept</span></td></tr>
+              <tr><td class="arm">MABe22: V-JEPA 2-L</td><td class="res">512 px, block 20, RoPE interpolated. Without the change: primary AUROC −0.018 vs DINOv2-B but oral–oral AP 0.27×; −0.068 vs DINOv3-L.<span class="src">benchmark_mabe22/eci/encoders/encoders.md</span></td><td><span class="chip pending">re-test running</span></td></tr>
+              <tr><td class="arm">MABe22: rotation-averaged on DINOv3-L</td><td class="res">Primary AUROC +0.015 [−0.005, +0.035], equivalent. With a Large encoder the 8× encoding may not be needed.<span class="src">benchmark_mabe22/eci/encoders/encoders.md</span></td><td>CalMS21: win, +0.031; not used in v2</td></tr>
+              <tr><td class="arm">MABe22: rotation-averaged (DINOv2-B)</td><td class="res">Primary AUROC +0.033 [95% CI +0.011, +0.055].<span class="src">benchmark_mabe22/eci/confirm/confirm.md</span></td><td><span class="chip pending">superseded</span></td></tr>
+            </tbody>
+          </table></div>
+          <div class="box open"><span class="lab">Open</span><ul><li>Frozen or adapted? Self-supervised adaptation on unlabelled mice frames raised a supervised behaviour classifier from macro AP 0.429 to 0.462. Not tested in this pipeline.</li></ul></div>
+        </div>
+      </details>
+
+      <details class="sub">
+        <summary><span class="t">Temporal context</span><span class="o">Each frame's code comes from that frame alone. In training, a second decoder must also predict the tokens 0.4 s ahead from the same code. At readout, a 0.6 s smoothing (step d).<span class="achip ok">Local temporal context</span></span><span class="chev">›</span></summary>
+        <div class="inner">
+          <p><b>What it is.</b> The dictionary encodes a token of frame t into its sparse code. Two decoders read that same code: one rebuilds the token at frame t, the other predicts the token at the same place 2 frames later (0.4 s at 5 fps); both errors count equally in training. So a neuron is pushed to carry what is about to happen, not only what is visible.</p>
+          <p><b>What it is not.</b> The code is still computed from one frame: no other frame enters the encoder or the dictionary input, and the prediction decoder is not used after training. Applying v2 needs a single frame per code.</p>
+          <p>Before the prediction decoder, the October model described each frame on its own. v1 paired each token with its change over 2 s, x<sub>t</sub> = [ z<sub>t</sub> , z<sub>t</sub> − z<sub>t−2 s</sub> ]. On mice v1 that change channel took over the dictionary and gave neurons that fire on single patches; removing it was neutral to slightly positive (mice primary R̃ +0.014, 95% interval −0.012 to +0.039).</p>
+          <div class="tw"><table>
+            <thead><tr><th>Tested on our data</th><th>Result</th><th>Then</th></tr></thead>
+            <tbody>
+              <tr><td class="arm">Second decoder predicting the tokens 0.4 s ahead (mice v1, 3 runs each, paired)</td><td class="res">Best nose-tail neuron, held-out average precision: 0.155 / 0.191 / 0.220 with the prediction decoder vs 0.048 / 0.053 / 0.055 without (chance 0.0085); nose-tail precision@top3/video 0.354–0.386 vs 0.233–0.275. Picked with the later AP-based rule (post hoc).<span class="src">eci_v2_8/audit/tables.md §6b</span></td><td><span class="chip kept">kept</span></td></tr>
+              <tr><td class="arm">Benchmarks: tokens pooled over ±1 frame (T1, T1 + smoothing)</td><td class="res">Ties frame-only + 0.6 s smoothing on all 3. R̃ − frame-only, T1 / T1s: MABe22 +0.008 / +0.006, CalMS21 −0.038 / −0.003, CRIM13 −0.008 / +0.003; every CI spans 0. Video r loses on CRIM13 (−0.082 / −0.086).<span class="src">eci_v2_temporal/table.md</span></td><td><span class="chip dropped">not adopted</span></td></tr>
+              <tr><td class="arm">Benchmarks: no smoothing (T0u)</td><td class="res">Loses to 0.6 s smoothing: CalMS21 R̃ −0.090, CRIM13 −0.025; MABe22 tie (−0.001).<span class="src">eci_v2_temporal/table.md</span></td><td><span class="chip kept">0.6 s kept</span></td></tr>
+              <tr><td class="arm">Benchmarks: V-JEPA 2-L, 16-frame clips</td><td class="res">Running; not scored yet.<span class="src">eci_v2_temporal/</span></td><td><span class="chip pending">running</span></td></tr>
+              <tr><td class="arm">Second dictionary over code sequences (mice v1)</td><td class="res">Mice primary R̃ −0.049 against the frame-only recipe (0.094).<span class="src">eci_temporal/table.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">Symmetric context channel, ±0.4 s or ±1 s (mice v1)</td><td class="res">Mice primary R̃ −0.045. The extra neurons follow speed and motion, not the labelled behaviours.<span class="src">eci_temporal/table.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">Video model V-JEPA 2-g at 768 px (mice v1)</td><td class="res">Mice primary R̃ −0.039.<span class="src">eci_temporal/</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">Readout smoothing (mice v1)</td><td class="res">A centred 0.6–1 s mean of the frame values helps nose-nose (+0.014 R̃); one-sided windows and windows of 2 s or more hurt.<span class="src">eci_nnnt_analysis/q4_temporal.json</span></td><td><span class="chip kept">0.6 s kept</span></td></tr>
+              <tr><td class="arm">1 s vs none (v1)</td><td class="res">Ants grooming 0.818 → 0.902; mice nose-tail AP 1.55×.<span class="src">eci_combined/tables.md</span></td><td><span class="chip pending">superseded</span></td></tr>
+              <tr><td class="arm">±1 frame</td><td class="res">Mice nose-nose 0.690 → 0.626; ants grooming 0.885 → 0.838.<span class="src">eci_temporal_ctx/table.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">0.2 s, ±1 s, several lags</td><td class="res">All lose on mice or ants.<span class="src">eci_t3_motion, eci_temporal_ctx</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">MABe22: none / 0.2 / 0.5 / 2 / 4 s</td><td class="res">Primary AUROC −0.002 / −0.018 / −0.018 / +0.030 / +0.034 against 1 s. No change keeps AUROC but halves sniffing AP.<span class="src">benchmark_mabe22/eci/confirm/confirm.md</span></td><td><span class="chip pending">superseded</span></td></tr>
+              <tr><td class="arm">MABe22: per behaviour, 2 s vs 4 s</td><td class="res">Oral–oral 0.804 vs 0.797, oral–genital 0.820 vs 0.803, approaches 0.750 vs 0.765, huddles 0.662 vs 0.686.<span class="src">benchmark_mabe22/eci/confirm/confirm.md</span></td><td>hint only</td></tr>
+            </tbody>
+          </table></div>
+          <div class="box open"><span class="lab">Open</span><ul><li>The MABe22 results favoured a 2 s change; our lab data and the newer benchmark re-test do not. v2 follows them.</li><li>Optical flow: never tested. The motion channel of the re-test (T2) was conditional and was not run.</li></ul></div>
+        </div>
+      </details>
+
+      <details class="sub">
+        <summary><span class="t">Animal mask</span><span class="o">Mask v5: a small per-domain classifier on the encoder's own tokens keeps the animal patches, thin parts included. No border ring.<span class="achip ok">On the bodies</span><span class="achip unsure">Told from the arena</span></span><span class="chev">›</span></summary>
+        <div class="inner">
+          <p><b>Mask v5 (approved 2026-10-30).</b> For each domain, a logistic classifier reads each DINOv3 token (block 20) and gives the probability that its patch is animal. A patch is kept if the probability is at least a domain threshold (mice and frogs 0.9, ants 0.7); groups of kept patches with no patch above 0.8 are dropped. The classifier was trained once, offline, on SAM 2.1 masks of 120 frames per domain; SAM itself is not run on the videos. The mask is applied after the encoder, so kept tokens still carry context from the whole frame. It replaces the October mask, which found animal pixels with a per-domain brightness cue against the empty arena and kept a patch if at least 25% of it was animal.</p>
+          <p><b>Why no ring.</b> v1 grew the mask by a one-patch border. In the first finer-grid rollout after v1, that ring was computed on the coarse grid and projected onto the fine one, and in mice 47% of the kept tokens were then background bedding around the animals. Neurons for that ring fired strongly and won the per-frame maximum (step c), so the "best" neurons lit up next to the mice, not on them.</p>
+          <div class="tw"><table>
+            <thead><tr><th>Tested on our data</th><th>Result</th><th>Then</th></tr></thead>
+            <tbody>
+              <tr><td class="arm">Mask v5 vs the October pixel-cue mask (10 hand-checked test frames per domain)</td><td class="res">Patch F1 against SAM masks drawn with hand prompts: mice 0.921 vs 0.778, ants 0.911 vs 0.867, frogs 0.884 vs 0.773. Share of hand-marked thin-part points kept (tails, legs, antennae): mice 0.574 vs 0.489, ants 0.761 vs 0.479, frogs 0.793 vs 0.621. Background patches per frame: mice 10.1 vs 66.9, frogs 2.1 vs 7.8, ants 2.6 vs 0.8. Pre-registered rule passes for mice and frogs, fails for ants (background); thresholds were re-tuned on a wider grid after the first ants test (post hoc).<span class="src">eci_v2_0B/mask_approval_v3/README.md</span></td><td><span class="chip kept">v5 kept (user approval)</span></td></tr>
+              <tr><td class="arm">Mask v5 (mice classifier) on pale benchmark mice</td><td class="res">Frames where the pale intruder is missed: CRIM13 18.8% vs 61.5% (old mask), CalMS21 2.2% vs 23.5%.<span class="src">eci_v2_0B/mask_approval_v3/bench_crim_v5.md, bench_cal_v5.md</span></td><td>better, not solved</td></tr>
+              <tr><td class="arm">Tight fine-grid mask vs ring (mice v1)</td><td class="res">Primary R̃ +0.058 (95% interval +0.034 to +0.082); nose-nose R̃ +0.066, nose-tail R̃ +0.051. With the change channel also removed: primary R̃ +0.072.<span class="src">eci_nnnt/decisions.json</span></td><td><span class="chip kept">kept</span></td></tr>
+              <tr><td class="arm">Wider masks M1 / M2 (mice, ants, frogs; pre-registered)</td><td class="res">M1: any token with an animal pixel. M2: animal outline thickened by 2 px (mice) or 4 px (ants, frogs), then ≥ 25%. 6 runs per arm. Rule: adopt only if mice and ants primary R̃ are non-inferior (95% interval lower limit ≥ −0.01), background tokens ≤ 0.10 of kept tokens in every domain, and thin-part coverage rises by ≥ 0.15 in mice and ants. Mice primary R̃: M1 +0.006 (−0.014 to +0.025), M2 +0.014 (−0.008 to +0.036). Ants primary (grooming) R̃: M1 −0.013 (−0.042 to +0.016), M2 −0.014 (−0.036 to +0.008). Background share of kept tokens, M1: mice 0.08, ants v2 0.18, ants v3 0.15, frogs 0.26 (M2 ≤ 0.09); background-neuron share M1: mice 0.07, ants 0.11, frogs 0.23. Thin-part coverage gain, M2: ants +0.37 / +0.34 (v2 / v3) but mice only +0.06. M1 fails non-inferiority (both) and the background cap; M2 fails ants non-inferiority and the mice coverage gain.<span class="src">eci_v2_mask/decision.json, table.md</span></td><td><span class="chip kept">tight kept</span></td></tr>
+              <tr><td class="arm">Pixels only</td><td class="res">Finds animals as well, but ants grooming 0.829 vs 0.866, on-lid 0.815 vs 0.960 (9 runs).<span class="src">eci_mask_test/tables.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">Tighter mask (v1, coarse grid)</td><td class="res">Mice nose-nose AUROC −0.027; ants on-lid AUROC −0.068.<span class="src">eci_combined/tables.md</span></td><td><span class="chip pending">superseded</span></td></tr>
+              <tr><td class="arm">DINOv2 cue only</td><td class="res">Misses resting mice (8.8% of frames lose a mouse); ants grooming 0.866 → 0.798.<span class="src">eci_mask_test2/tables.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">MABe22: no mask</td><td class="res">Primary AUROC −0.019; sniffing AP 0.4–0.5×.<span class="src">benchmark_mabe22/eci/table.md</span></td><td><span class="chip kept">mask kept</span></td></tr>
+              <tr><td class="arm">MABe22: lab mask vs fixed mask</td><td class="res">Lab mask misses 18.6% of mice; fixed with a dark-in-arena-floor cue. Primary AUROC 0.725 vs 0.740.<span class="src">benchmark_mabe22/eci/masks/</span></td><td><span class="chip kept">fixed</span></td></tr>
+            </tbody>
+          </table></div>
+          <div class="box note"><span class="lab">Lost</span><ul><li>October mask: about 40% of ant leg and antenna pixels fell outside it (thin-part coverage 0.60 on v2, 0.62 on v3), and mouse tails were not seen at all. Mask v5 keeps more thin parts (hand-marked points kept: ants 0.761, mice 0.574) and the v2 mice dictionary has tail neurons; still about 4 in 10 mouse thin-part points are lost.</li><li>Pale or albino mice can still be missed (CRIM13 pale intruder: 18.8% of frames).</li><li>Context does not bring tails back: body tokens predict a nearby tail as well with the tail occluded (probe AUROC 0.725 vs 0.730), though occlusion moves nearby tokens 5–9× more than a control. No tight-mask neuron fires on unseen tails.<span class="src">eci_v2_attr/table.md</span></li></ul></div>
+          <div class="box open"><span class="lab">Open</span><ul><li>Mask v5 is trained on SAM masks, so its scores against SAM-drawn test masks favour SAM-like masks; the thin-part points are hand-marked and independent. 10 test frames per domain, no intervals.</li><li>Animal–arena interactions survive the tight mask for ants on the lid (R̃ 0.79 on v3, 0.95 on v4, October model). Mice sniffing the box is not labelled, so untested.</li><li>Frogs use pose-tracker points inside the mask, against "trackers only for analysis".</li></ul></div>
+        </div>
+      </details>
+
+      <details class="sub">
+        <summary><span class="t">Sparse dictionary</span><span class="o">One dictionary per domain: 4096 neurons, nested 128 / 256 / 512 / 2048 / 4096, 16 active per token on average; prediction decoder and contact weighting in training.<span class="achip unsure">Sparse code</span><span class="achip unsure">Contacts are rare</span><span class="achip">One dictionary per domain</span></span><span class="chev">›</span></summary>
+        <div class="inner">
+          <p>A sparse autoencoder, trained per domain on animal tokens, no labels. Matryoshka: nested sizes. The first neurons must reconstruct the tokens on their own, so they take the frequent concepts; later neurons add rarer ones. This encodes the long-tail prior, and any prefix is a smaller dictionary. In a plain dictionary, a frequent general concept can split into many specific neurons as the width grows.</p>
+          <div class="box note"><span class="lab">Threshold</span><ul><li>In training, BatchTopK keeps the 16 × N largest activations among the N tokens of a batch. A busy token can use more neurons and a plain one fewer.</li><li>At inference a token must not depend on its batch-mates, so each activation above one fixed value θ is kept.</li><li>θ is calibrated once on held-out training tokens so that 16 neurons fire per token on average. This is the same rule applied to the whole training set at once. It replaced a running average; scores move by at most 0.0004.</li></ul></div>
+          <div class="box note"><span class="lab">Why 16</span><ul><li>k counts concepts per patch, not behaviours. A 16 px patch holds a body part, its pose, texture, contacts and place; behaviour is one or two of the 16. What matters for behaviour is how often a neuron fires per frame, after the max over all animal tokens.</li><li>Tested on v2 (3 training runs each): k = 32 never gives a specific nose-nose / nose-tail pair (0 of 3 runs); k = 8 gives one in 2 of 3 mice runs (k = 16: 1 of 3; pre-registered rule: k = 8 wins) but collapses on ants in 2 of 3 runs (more than half of the 4096 neurons never fire). k = 16 kept for both domains; a choice made after these results, awaiting sign-off.</li></ul></div>
+          <div class="box note"><span class="lab">Contact weighting</span><ul><li>No labels. From the animal mask of the frame alone, a patch counts as “contact” if (A) it is a narrow bridge between two body blobs (removed by shrinking the mask by one patch, with two separate blobs around it), or (B) another animal's mask piece lies within 2 patches.</li><li>Contact patches get a larger weight in the training loss so that, together, they carry 20% of the total weight: mice 2.34% of patches, weight 10.43; ants 4.75%, weight 5.01.</li><li>Check, after the weights were fixed: the proxy is only weakly tied to the labels. 77.1% of nose-nose frames have a contact patch, against 67.3% of other frames (nose-tail 75.2% vs 67.5%).</li><li>No behaviour labels are used anywhere in training.</li></ul></div>
+          <div class="box note"><span class="lab">v2</span><ul><li>Matryoshka BatchTopK, 4096 neurons, nested 128 / 256 / 512 / 2048 / 4096, k = 16, plus the prediction decoder (Temporal context) and contact weighting. Training: mice 120,000 steps (0.66 of one pass over 747.7 M animal tokens), ants 25,561 steps (one pass). One dictionary per domain, all experiments pooled.</li><li>Which training run is used was decided <b>with labels</b> (post hoc), not by reconstruction: mice run PREDk16 s2901, the best of the runs on the selection pools (nose-nose + nose-tail AP); ants run PREDk s2703 (the mice-chosen run's ants dictionary fails the ants criteria, grooming-to-focal AUROC 0.832). The neuron meanings are found without labels; the choice of run is not label-free.</li><li>A specific nose-nose neuron appears in 3 of 9 k = 16 mice runs, so v2 delivers one dictionary, not a guaranteed recipe.</li><li>Frogs: no v2 dictionary yet (October model, being re-run).</li><li>v1 used 1024 neurons, searched over its first 128 or 256 only.</li></ul></div>
+          <div class="tw"><table>
+            <thead><tr><th>Tested on our data</th><th>Result</th><th>Then</th></tr></thead>
+            <tbody>
+              <tr><td class="arm">Contact weighting (mice v1, 3 runs each, paired, both with the prediction decoder)</td><td class="res">Best nose-nose neuron, held-out average precision: 0.039 / 0.190 / 0.230 with weighting vs 0.021 / 0.022 / 0.034 without (chance 0.016); nose-nose precision@top3/video up to 0.556 vs at most 0.093. Ants grooming-to-focal AUROC unchanged (−0.002 [−0.020, +0.017]). Neurons picked with the later AP-based rule (post hoc).<span class="src">eci_v2_8/audit/tables.md §6b; eci_v2_7/LOG.md</span></td><td><span class="chip kept">kept</span></td></tr>
+              <tr><td class="arm">k = 8 / 16 / 32 (v2.9, mice and ants, 3 runs each; pre-registered)</td><td class="res">Runs with a specific nose-nose / nose-tail pair that meets the criteria: k = 8 2 of 3, k = 16 1 of 3, k = 32 0 of 3. Ants k = 8: 2 of 3 runs collapse (2,333 and 2,483 of 4096 neurons dead). Six fresh k = 16 runs: 1 of 6 accepted (s2901); with the 3 earlier runs, 3 of 9.<span class="src">eci_v2_9/tables.md §1, §3; LOG.md</span></td><td>k = 16 kept (post hoc, against the pre-registered k = 8)</td></tr>
+              <tr><td class="arm">1024 / 4096 vs 2048 neurons (lab, 5 runs each)</td><td class="res">Mice nose-nose R̃ −0.017 / +0.035, nose-tail −0.017 / +0.014, ants v2 grooming 0.000 / −0.014; every CI spans 0.<span class="src">eci_v2_diag/ablation_table.md</span></td><td>tie; 2048 kept</td></tr>
+              <tr><td class="arm">90k vs 30k training steps (lab, 5 runs)</td><td class="res">Mice nose-nose R̃ +0.007, nose-tail +0.012, ants v2 grooming +0.001; every CI spans 0.<span class="src">eci_v2_diag/ablation_table.md</span></td><td>tie; 30k kept</td></tr>
+              <tr><td class="arm">8192 vs 2048 neurons (mice v1, freeze)</td><td class="res">Mice primary R̃ +0.011 (95% interval −0.009 to +0.032).<span class="src">eci_v2/freeze/decision.json</span></td><td><span class="chip dropped">not kept</span></td></tr>
+              <tr><td class="arm">Union of 20 dictionaries (mice v1, freeze)</td><td class="res">Codes of 20 training runs side by side: mice primary R̃ +0.011 over a single dictionary (+0.004 for unions of 5).<span class="src">eci_v2/freeze/decision.json</span></td><td><span class="chip dropped">not kept</span></td></tr>
+              <tr><td class="arm">Plain vs nested, 2048 (mice v1, round 2)</td><td class="res">Plain BatchTopK: mice primary R̃ +0.015 (95% interval −0.014 to +0.044).<span class="src">eci_nnnt/r2/decision.json</span></td><td><span class="chip dropped">not kept</span></td></tr>
+              <tr><td class="arm">Whitening, ICA, cluster-balanced sampling (mice v1, round 3)</td><td class="res">Whitening and ICA worse; cluster-balanced sampling +0.012 primary R̃ (95% interval −0.015 to +0.039).<span class="src">eci_nnnt/r3/decision.json</span></td><td><span class="chip dropped">not kept</span></td></tr>
+              <tr><td class="arm">1024 → 4096 neurons (v1)</td><td class="res">Mice nose-nose 0.624 → 0.698; ants grooming 0.844 → 0.818.<span class="src">eci_sae_levers/logs</span></td><td><span class="chip pending">superseded</span></td></tr>
+              <tr><td class="arm">k = 4 / 8 / 32</td><td class="res">Best k = 8: AP 1.11×, within noise.<span class="src">eci_sparsity/table.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">TopK per token</td><td class="res">Worse at every k.<span class="src">eci_sparsity/table.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">Gated (threshold-free)</td><td class="res">Collapses: 92% of neurons dead.<span class="src">eci_gated_sae/table.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">Invariance / prediction losses</td><td class="res">No gain on mice; ants grooming −0.02 to −0.05.<span class="src">eci_priors/tables.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">Calibrated threshold</td><td class="res">AUROC change ≤ 0.0004; chosen because it is principled.<span class="src">eci_calibrate_theta/table.md</span></td><td><span class="chip kept">kept</span></td></tr>
+              <tr><td class="arm">MABe22: k = 8</td><td class="res">Primary AUROC −0.049.<span class="src">benchmark_mabe22/eci/table.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">MABe22: per-frame budget</td><td class="res">Each frame keeps k × its token count; no θ. Primary AUROC −0.030 (k = 8), −0.029 (k = 16).<span class="src">benchmark_mabe22/eci/table.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+              <tr><td class="arm">MABe22: plain vs nested</td><td class="res">Primary AUROC +0.008, equivalent. Plain + no change: −0.042.<span class="src">benchmark_mabe22/eci/table.md</span></td><td>see width rows</td></tr>
+              <tr><td class="arm">MABe22: prefix 512 / 1024 / 4096</td><td class="res">Same primary AUROC, 0.740.<span class="src">benchmark_mabe22/eci/table.md</span></td><td>512 enough</td></tr>
+              <tr><td class="arm">MABe22: 512 neurons trained directly</td><td class="res">Plain: primary AUROC +0.013, equivalent to 4096. Nested 64–512: −0.039. Nested 128 / 256 / 512: −0.024 against plain, CI just touching 0.<span class="src">benchmark_mabe22/eci/r3/r3.md</span></td><td>512; nesting from 128 kept by the rule, weakly</td></tr>
+            </tbody>
+          </table></div>
+          <div class="box open"><span class="lab">Open</span><ul><li>The long-tail prior is not supported by the data so far: nesting never helped, and from 64 it hurts. More seeds would settle nesting from 128.</li><li>Labels cover 9 behaviours. Rare, unlabelled concepts for discovery may still need the wider dictionary.</li></ul></div>
+          <div class="box note"><span class="lab">Levels</span><ul><li>In v2 the clean behaviour neurons sit deep in the nesting: nose-nose #3461 at level 5 (neurons 2049–4096), nose-tail #1780 at level 4 (513–2048).</li></ul></div>
+        </div>
+      </details>
+
+    </div>
+  </div>
+</details>
+
+<details class="step" id="activation">
+  <summary><span class="pl">c</span><span class="t">Neural activation</span><span class="o">Each neuron takes its max over the animal tokens.<span class="achip unsure">Position-free</span></span><span class="chev">›</span></summary>
+  <div class="body">
+    <div class="side"><div class="plate"><img src="crop_c_v2.webp" alt="Block c: neuron activation map and max pooling." loading="lazy"></div></div>
+    <div class="main">
+      <p>One number per neuron per frame: its largest value over the masked tokens. Where and which animal are ignored.</p>
+      <div class="tw"><table>
+        <thead><tr><th>Tested on our data</th><th>Result</th><th>Then</th></tr></thead>
+        <tbody>
+          <tr><td class="arm">Position-aware readouts (mice v1)</td><td class="res">Lose to the plain maximum.<span class="src">eci_nnnt_analysis/q_diag.json</span></td><td><span class="chip kept">max kept</span></td></tr>
+          <tr><td class="arm">Mean / top-k mean</td><td class="res">Pass 0 / 1 of 4 domain × resolution checks.<span class="src">eci_res_pool/summary.json</span></td><td><span class="chip dropped">dropped</span></td></tr>
+          <tr><td class="arm">Extent (patches firing)</td><td class="res">Never beats max, e.g. mice nose-tail 0.710 vs 0.732.<span class="src">eci_t2t4/tables.md</span></td><td><span class="chip dropped">dropped</span></td></tr>
+        </tbody>
+      </table></div>
+      <div class="box open"><span class="lab">Open</span><ul><li>Max cannot say which animal, or how many. Measured afterwards, not built in.</li></ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="step" id="video-rep">
+  <summary><span class="pl">d</span><span class="t">Video representation</span><span class="o">0.6 s centred smoothing, then per neuron and video: mean, bout rate, latency, all from the continuous smoothed values. No on/off state.<span class="achip ok">Local temporal context</span><span class="achip unsure">Ethogram</span></span><span class="chev">›</span></summary>
+  <div class="body">
+    <div class="side"><div class="plate"><img src="crop_d_v2.webp" alt="Block d: time, bouts and latency per neuron." loading="lazy"></div></div>
+    <div class="main">
+      <p><b>Smoothing.</b> Each neuron's frame values are averaged over the frame before, the frame itself and the frame after (0.6 s at 5 fps). This is the only temporal step in v2.</p>
+      <p><b>Per-video summaries.</b> Three numbers per neuron per video, all computed from the continuous smoothed values (the default for alignment and for the search): the <b>mean</b> value over the video; the <b>bout rate</b> (bouts per minute above a high level of that neuron, its 95th percentile pooled over videos); and the <b>latency</b> (time to the first frame above that level).</p>
+      <p><b>Expected fraction of time active.</b> For readers who want “share of time the neuron is on”, each neuron also has a label-free probability of being on in every frame, P(on), from a per-neuron 3-state hidden Markov model of its raw 5 fps values. Averaged over a video, it gives the expected fraction of time active; secondary outcome, mean only. In mice it tracks the neuron’s state, not the behaviour (Evaluation protocol, c).</p>
+      <p><b>Search.</b> NES (neural effect search) and its successor NESS test, neuron by neuron, whether a per-video summary differs between experimental groups (Bonferroni-corrected). They run on the smoothed values directly. Two ways of turning the values into on/off states were tested and both lower alignment, so neither is used. The first, pre-specified, is one firing threshold for all neurons (fires when its scaled value passes a level set so that 16 neurons fire per frame on average). The second fits, per neuron and without labels, two log-normal states (“low” and “high”) to the logarithm of its smoothed values and calls the neuron on when the high state is more likely:</p>
+      <div class="tw"><table>
+        <thead><tr><th>Neuron values (October model)</th><th>Mice nose-nose R̃</th><th>Ants v2 grooming R̃</th></tr></thead>
+        <tbody>
+          <tr><td class="arm">Frame maximum (raw)</td><td>0.174</td><td>0.629</td></tr>
+          <tr><td class="arm">Smoothed + firing threshold</td><td>0.093</td><td>0.075</td></tr>
+          <tr><td class="arm">Smoothed, per-neuron two-state on/off</td><td>0.082</td><td>0.431</td></tr>
+          <tr><td class="arm">Smoothed, P(on) from the same two-state model</td><td>0.090</td><td>0.618</td></tr>
+          <tr><td class="arm">Smoothed, no threshold (v2)</td><td>0.202</td><td>0.673</td></tr>
+        </tbody>
+      </table></div>
+      <div class="tw"><table>
+        <thead><tr><th>Tested on our data</th><th>Result</th><th>Then</th></tr></thead>
+        <tbody>
+          <tr><td class="arm">Per-neuron two-state on/off (all three domains; pre-registered)</td><td class="res">Not adopted: R̃ drops against the continuous values on every label. Mice nose-nose R̃ 0.20 → 0.08, nose-tail 0.08 → 0.04; ants grooming R̃ −0.24 (v2: 0.67 → 0.43) and −0.27 (v3: 0.59 → 0.33); ants v3 on the lid R̃ 0.86 → 0.57. The “low” state is near-silence, so “on” also covers generic activity: behaviour neurons are on in 43–54% of all frames. The two states are partly made by the 0.6 s smoothing: they are 3.0–3.5 standard deviations apart on smoothed values but 1.9–2.0 on raw frame values. Log-normal states fit held-out videos better than gamma states in all three domains (gamma better for 21–42% of neurons; the on/off boundary moves by only about 2–3%).<span class="src">eci_v2/{mice,ants,frogs}/align.md, map.json, mixsel.json, bimodality_raw.json</span></td><td><span class="chip dropped">not adopted</span></td></tr>
+          <tr><td class="arm">P(on) readouts, 30 cells (pre-registered)</td><td class="res">3-state HMM recommended: nAP +0.002 vs continuous, frame F1 0.462, bout F1 0.205. Mixture: nAP −0.155, F1 0.380; 2-state HMM: −0.008, 0.450. Calibrated to the behaviour in 6 of 30 cells.<span class="src">eci_v2_prob/table.md</span></td><td><span class="chip kept">HMM3 for P(on)</span></td></tr>
+          <tr><td class="arm">Two-state HMM (older test)</td><td class="res">Ants grooming AP 0.786 → 0.834, but 2.2 s smoothing matches it.<span class="src">eci_event_hmm/methods.md</span></td><td><span class="chip pending">superseded</span></td></tr>
+        </tbody>
+      </table></div>
+      <div class="box note"><span class="lab">Stability <span class="oct">October model</span></span><ul><li>Every neuron the search selects in the main setting is re-tested under a set of reasonable alternative settings, and we count how many it survives. Main setting: Bonferroni correction; a Welch t test on the per-video summary (paired t test where the mice contrast compares two phases of the same pool); mice habituation = its last 15 min.</li><li>Checks for the mean: the window (mice habituation over its whole 30 min; the first 30 s of every window dropped). For bout rate: the level at the 90th or 99th percentile instead of the 95th, merging bouts less than 2 frames apart, and the same two window checks. For latency: the 90th / 99th percentile and the window checks.</li><li>Neurons selected → stable in every check → stable in at least half, continuous values: mice main contrasts 99 → 28 → 61; ants v4 25 → 9 → 19; tadpoles 26 → 9 → 19; juvenile frogs 14 → 5 → 8; ants v3 t=2 vs 8 14 → 5 → 11.<span class="src">eci_v2/sensitivity_summary.json</span></li></ul></div>
+      <div class="box open"><span class="lab">Open</span><ul><li>The three summaries are a choice, not tested against labels.</li></ul></div>
+    </div>
+  </div>
+</details>
+
+  </div>
+</section>
+
+<section id="limitations">
+  <h2>Observed limitations</h2>
+  <p class="hint">What the pipeline does not do yet, measured on the validation data. Possible fixes are listed under Pending tests.</p>
+  <ol class="qs">
+    <li><b>Two-animal interactions.</b> v2 has a precise nose-nose neuron and a precise nose-tail neuron (v1 vs v2, above), with these limits:
+      <ul style="margin:6px 0 0;padding-left:1.1rem;display:flex;flex-direction:column;gap:4px">
+        <li><b>One dictionary, not a recipe.</b> A specific nose-nose neuron appears in 3 of 9 mice training runs with the same recipe (k = 16); v2 delivers the dictionary in which it appeared.</li>
+        <li><b>Time per video.</b> Summing the nose-tail neuron's on-probability overcounts: +21.4 s per video on average against 10.1 s annotated (mean absolute error 22.4 s; a constant-rate guess gives 11.4 s). A scale fitted on the selection pools brings the error to 7.7 s (card), so counting seconds needs labels. The nose-nose neuron undercounts a little (−6.0 s against 18.8 s annotated; error 8.9 s vs 13.9 s for the guess).</li>
+        <li><b>Annotators disagree on nose-tail.</b> Nose-tail average precision is 0.370 on annotator MB's pools but 0.074 and 0.080 on SD's and MF's (leave one annotator out); nose-nose is stable (0.245–0.296).</li>
+        <li><b>No tail-cuddling neuron.</b> Tail neurons exist, but they fire on tails as such (one, #287, on a tail lying across another mouse).</li>
+        <li><b>Ants: grooming vs contact.</b> No neuron separates grooming from plain contact. The grooming-to-focal neurons of v1 and v2 fire on nestmates packed on the focal ant (AUROC 0.875 vs 0.867); grooming itself is not visible at this resolution.</li>
+      </ul>
+      <p style="margin-top:8px"><span class="oct">October model</span> On the MABe22 benchmark a supervised probe reaches AUROC 0.88; the best neuron ranks almost as well (AUROC 0.84) but is not precise (AP 0.017, chance 0.002). It fires wherever two mice touch.</p>
+      <ul style="margin:6px 0 0;padding-left:1.1rem;display:flex;flex-direction:column;gap:4px">
+        <li><b>Ruled out:</b> video encoders (V-JEPA 2), temporal context channels, pair tokens, invariance losses, the other sparsity variants, 8192 neurons, unions of 20 dictionaries, whitening, ICA, cluster-balanced sampling, resolutions from 512 to 1408 px, spatial context (3 × 3 with 8192 neurons did not hold up on fresh runs), wider animal masks (M1 / M2, step b). Numbers under “Tried and discarded”.</li>
+        <li><b>Sharper input does not fix it:</b> at 1024 px on CalMS21, the best face-sniffing neuron reaches normalised R-precision 0.13 (0.18 without the change channel).</li>
+      </ul>
+      <figure style="margin-top:12px">
+        <div class="plate"><img src="fig_fp.png" alt="a: zoomed crops in three rows: labelled sniffing where the neuron fires, unlabelled frames where it fires, labelled sniffing where it is silent; noses marked from keypoints. b: contact types in the neuron's top 1% of frames against all frames." width="2125" height="1842" loading="lazy"></div>
+        <figcaption>The best oral–oral neuron on MABe22 (2 s change; AUROC 0.817 on held-out clips; fires on 20% of frames). All frames are from held-out clips, picked by fixed rules, at most one per clip. <b>a</b>, Rows: labelled sniffing where it fires, unlabelled frames where it fires (false positives), labelled sniffing where it is silent. Blue rings: noses from keypoints; orange box: the patch where the neuron fires most. <b>b</b>, Contact type of its top 1% of frames, from keypoints (contact = closer than 9.6 mm). Most false positives are other contacts, mainly nose to tail base (22% of the top 1% against 4% of all frames). Unlabelled nose-nose contacts are about 6%. Only 1.9% of all frames with noses under 9.6 mm apart are labelled oral–oral, so the label is far stricter than nose proximity. In all six missed examples the mice are pressed against the arena wall. <a href="fig_fp.png">Open full size</a></figcaption>
+      </figure></li>
+    <li><b>The original recipe (v0) does not find behaviour.</b> We reran the original ECI code unchanged on ants v2; it reproduces our reimplementation (same tokens, same training curve). Its hits lean towards grooming (with the mean-pooled input, 8 of 10 hits are in the top 13% of neurons by grooming AUROC), but the alignment is weak (AUROC 0.52–0.59), the hits change with every training run, and nothing survives correction for multiple testing (Bonferroni or false discovery rate) across 36 runs.</li>
+  </ol>
+  <div class="box note"><span class="lab">Known limits</span><ul>
+    <li><b>No tracking.</b> A neuron does not say which animal acts, or on whom; reliable tracking is missing for most videos. Two copies of a behaviour in one frame count once (0.5% of nose-nose frames in public mouse data; up to 7% of frames in our ants).</li>
+    <li><b>Frame rate.</b> 5 fps was checked only on per-video totals; about half of the nose-nose contacts in our mice span a single frame.</li>
+    <li><b>Transfer.</b> The public data has only mice and one beetle, and the earlier recipe scored lower on our mice. So v2 was chosen on our own labels (never inside training).</li>
+  </ul></div>
+</section>
+
+<footer>
+  <div>
+    <h3>Next</h3>
+    <ul>
+      <li>Search method (discovery rules for v2)</li>
+      <li>V-JEPA 2-L benchmark re-test (running)</li>
+      <li>Sign-off of the v2 candidate</li>
+      <li>Benchmarks, frogs and capacity re-run with v2 (running)</li>
+      <li>Nose-tail reference labels: annotators disagree</li>
+    </ul>
+  </div>
+  <div>
+    <h3>To fix before transfer</h3>
+    <ul>
+      <li>Time per video in mice without label-fitted scaling (nose-tail overcounts +21.4 s per video)</li>
+      <li>A recipe that gives a nose-nose neuron reliably (now 3 of 9 training runs)</li>
+      <li>Validate the capacity checks in mice (enrichment AUROC 0.517, not above chance)</li>
+    </ul>
+  </div>
+  <div>
+    <h3>Code</h3>
+    <ul>
+      <li><span class="mono">src/eci/v2/</span>, <span class="mono">scripts/eci/v2/run.py</span>, <span class="mono">configs/eci_v2/</span></li>
+      <li>v2 candidate: <span class="mono">scripts/eci/v2/v27_train.py</span>, <span class="mono">v29_train.py</span>, <span class="mono">v29_sgap.py</span>, <span class="mono">v28_card.py</span>, <span class="mono">v28_sheets.py</span></li>
+      <li><span class="mono">results/vision/eci_v2/</span> (October), <span class="mono">results/vision/eci_v2_7/</span>, <span class="mono">eci_v2_8/</span>, <span class="mono">eci_v2_9/</span></li>
+    </ul>
+  </div>
+</footer>
+
+</div>
+
+</body></html>
